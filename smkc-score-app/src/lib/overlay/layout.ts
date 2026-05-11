@@ -19,6 +19,13 @@ export const DEFAULT_OVERLAY_BROADCAST_LAYOUT: OverlayBroadcastLayout = {
   footer: { x: 170, y: 998 },
 };
 
+export const OVERLAY_BROADCAST_LAYOUT_BOUNDS = {
+  minX: 0,
+  maxX: 1920,
+  minY: 0,
+  maxY: 1080,
+} as const;
+
 const POSITION_KEYS = [
   "player1Name",
   "player2Name",
@@ -35,6 +42,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function isCoordinateInBroadcastBounds(key: "x" | "y", value: number): boolean {
+  if (key === "x") {
+    return value >= OVERLAY_BROADCAST_LAYOUT_BOUNDS.minX &&
+      value <= OVERLAY_BROADCAST_LAYOUT_BOUNDS.maxX;
+  }
+  return value >= OVERLAY_BROADCAST_LAYOUT_BOUNDS.minY &&
+    value <= OVERLAY_BROADCAST_LAYOUT_BOUNDS.maxY;
 }
 
 function normalizePosition(
@@ -64,6 +80,7 @@ export function isOverlayBroadcastLayoutInput(value: unknown): value is Partial<
     if (!isRecord(position)) return false;
     const x = position.x;
     const y = position.y;
-    return (x === undefined || isFiniteCoordinate(x)) && (y === undefined || isFiniteCoordinate(y));
+    return (x === undefined || (isFiniteCoordinate(x) && isCoordinateInBroadcastBounds("x", x))) &&
+      (y === undefined || (isFiniteCoordinate(y) && isCoordinateInBroadcastBounds("y", y)));
   });
 }

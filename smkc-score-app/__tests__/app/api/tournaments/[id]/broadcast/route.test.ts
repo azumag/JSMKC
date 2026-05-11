@@ -274,6 +274,13 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
     expect(prisma.tournament.update).not.toHaveBeenCalled();
   });
 
+  it('returns 400 when layout coordinates are outside the OBS canvas bounds', async () => {
+    await PUT(mockReq({ layout: { footer: { x: 180, y: 1081 } } }), mockParams('t1'));
+
+    expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status).toBe(400);
+    expect(prisma.tournament.update).not.toHaveBeenCalled();
+  });
+
   it('returns 404 when tournament not found', async () => {
     mockResolveTournament.mockResolvedValue(null);
 
