@@ -51,6 +51,9 @@ describe('TC-717 assigned cup sequence validation', () => {
       b: { match: updatedMatch },
     }, 'm16')).toBe(updatedMatch);
     expect(gpFinalsUpdatedMatchFromPutResult({
+      b: { data: { match: false }, match: updatedMatch },
+    }, 'm16')).toBeNull();
+    expect(gpFinalsUpdatedMatchFromPutResult({
       b: { data: { match: { id: 'm15', completed: true } } },
     }, 'm16')).toBeNull();
   });
