@@ -9,6 +9,7 @@
  *   TC-ARC-06  Archive BM match rows keep stage and public player payloads.
  *   TC-ARC-07  TA API falls back to archive when live tournament row is gone.
  *   TC-ARC-08  Two completed archives stay independently readable.
+ *   TC-ARC-09  Qualification pages keep mode data and players fetches parallel.
  *
  * Run: node e2e/tc-archive.js  (from smkc-score-app/)  or: npm run e2e:archive
  */
@@ -28,6 +29,8 @@ const {
   BASE,
 } = require('./lib/common');
 const { closeBrowser, envMs, exitAfterCleanup } = require('./lib/runner');
+const fs = require('fs');
+const path = require('path');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -260,6 +263,24 @@ async function tcArc04(page) {
   }
 }
 
+function tcArc09() {
+  try {
+    const root = path.join(__dirname, '..');
+    const files = ['ta', 'bm', 'mr', 'gp'].map((mode) =>
+      path.join(root, 'src', 'app', 'tournaments', '[id]', mode, 'page-client.tsx'));
+    const failures = files.filter((file) => {
+      const source = fs.readFileSync(file, 'utf8');
+      return !source.includes('Promise.all([') ||
+        !source.includes('fetchAllPlayersForSetup<Player>()') ||
+        !source.includes('resolveAllPlayers(playersResult');
+    });
+    log('TC-ARC-09', failures.length === 0 ? 'PASS' : 'FAIL',
+      failures.length === 0 ? 'TA/BM/MR/GP fetch mode data and players in parallel' : `missing parallel fetch in ${failures.map((file) => path.basename(path.dirname(file))).join(',')}`);
+  } catch (error) {
+    log('TC-ARC-09', 'FAIL', error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function runArchiveTests(page) {
   await tcArc01(page);
   await tcArc02(page);
@@ -268,6 +289,7 @@ async function runArchiveTests(page) {
   await tcArc06(page);
   await tcArc07(page);
   await tcArc08(page);
+  tcArc09();
 
   const failed = results.filter((result) => result.s === 'FAIL');
   console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
