@@ -455,6 +455,7 @@ module.exports = {
   runArchiveTests,
   createCompletedPublicBmArchive,
   cleanupArchiveFixture,
+  QUALIFICATION_FETCH_TIMEOUT_MS,
   assertQualificationFetchesStartInParallel,
   requestKindForQualificationFetch,
 };
