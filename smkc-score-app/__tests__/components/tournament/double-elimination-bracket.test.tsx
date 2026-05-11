@@ -15,7 +15,7 @@
  * scrolls horizontally instead of breaking the surrounding layout.
  */
 
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { generateBracketStructure } from "@/lib/double-elimination";
 
@@ -239,7 +239,7 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
       { seed: 16, playerId: "p16", player: { id: "p16", name: "Mika M", nickname: "Mika" } },
     ];
 
-    const { container } = render(
+    render(
       <DoubleEliminationBracket
         matches={[]}
         bracketStructure={bracketStructure}
@@ -248,15 +248,14 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
       />,
     );
 
-    const winnersR1M1 = Array.from(
-      container.querySelectorAll<HTMLElement>("[role='button']"),
-    ).find((el) => el.querySelector("div.text-xs")?.textContent === "M1");
+    const winnersR1M1 = screen.getByRole("button", {
+      name: /Match 1: TBD vs Mika/,
+    });
 
-    expect(winnersR1M1).toBeDefined();
-    expect(winnersR1M1!.textContent).toContain("[1]");
-    expect(winnersR1M1!.textContent).toContain("TBD");
-    expect(winnersR1M1!.textContent).toContain("[16]");
-    expect(winnersR1M1!.textContent).toContain("Mika");
+    expect(winnersR1M1.textContent).toContain("[1]");
+    expect(winnersR1M1.textContent).toContain("TBD");
+    expect(winnersR1M1.textContent).toContain("[16]");
+    expect(winnersR1M1.textContent).toContain("Mika");
   });
 });
 
