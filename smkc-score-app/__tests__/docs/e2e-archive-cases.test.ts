@@ -23,8 +23,11 @@ describe('archive E2E case registration', () => {
 
     expect(section).toContain('modes.bm.matches[0]');
     expect(section).toContain("stage === 'qualification'");
+    expect(section).toContain('score1 === 3');
+    expect(section).toContain('score2 === 1');
     expect(section).toContain('player1.id');
     expect(section).toContain('player2.id');
+    expect(section).toContain('cleanup は tournament 削除に失敗しても player 削除まで試行');
   });
 
   it('documents TC-ARC-05 as TA archive phase1/phase2 fallback coverage', () => {

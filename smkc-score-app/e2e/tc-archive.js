@@ -19,6 +19,7 @@ const {
   apiDeletePlayer,
   apiDeleteTournament,
   apiSetupBmGroup,
+  apiPutAllBmQualScores,
   apiUpdateTournament,
   launchPersistentChromiumContext,
   resolveE2EProfileDir,
@@ -56,6 +57,7 @@ async function createCompletedPublicBmArchive(page, prefix, caseName) {
     tournamentId = await apiCreateTournament(page, `E2E ${caseName} ${Date.now()}`);
     const setup = await apiSetupBmGroup(page, tournamentId, bmAssignments(players));
     if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+    await apiPutAllBmQualScores(page, tournamentId, { score1: 3, score2: 1, randomize: false });
 
     const completed = await apiUpdateTournament(page, tournamentId, {
       status: 'completed',
@@ -68,15 +70,23 @@ async function createCompletedPublicBmArchive(page, prefix, caseName) {
     const get = await apiJson(page, `/api/tournaments/${tournamentId}/archive`);
     return { tournamentId, players, post, get, archive: get.body?.data };
   } catch (error) {
-    await apiDeleteTournament(page, tournamentId);
-    for (const player of players) await apiDeletePlayer(page, player.id);
+    await cleanupArchiveFixture(page, { tournamentId, players });
     throw error;
   }
 }
 
 async function cleanupArchiveFixture(page, fixture) {
-  await apiDeleteTournament(page, fixture?.tournamentId);
-  for (const player of fixture?.players ?? []) await apiDeletePlayer(page, player.id);
+  const deletions = [
+    apiDeleteTournament(page, fixture?.tournamentId),
+    ...(fixture?.players ?? []).map((player) => apiDeletePlayer(page, player.id)),
+  ];
+  const results = await Promise.allSettled(deletions);
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      const target = index === 0 ? `tournament ${fixture?.tournamentId ?? ''}` : `player ${fixture?.players?.[index - 1]?.id ?? ''}`;
+      console.warn(`[tc-archive] cleanup failed for ${target}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+    }
+  });
 }
 
 async function tcArc01(page) {
@@ -141,13 +151,15 @@ async function tcArc06(page) {
     const typedMatchOk = (
       fixture.get.status === 200 &&
       archivedMatch?.stage === 'qualification' &&
+      archivedMatch?.score1 === 3 &&
+      archivedMatch?.score2 === 1 &&
       typeof archivedMatch?.player1?.id === 'string' &&
       typeof archivedMatch?.player2?.id === 'string' &&
       typeof archivedMatch?.player1?.name === 'string' &&
       typeof archivedMatch?.player2?.nickname === 'string'
     );
     log('TC-ARC-06', typedMatchOk ? 'PASS' : 'FAIL',
-      `stage=${archivedMatch?.stage || ''} p1=${archivedMatch?.player1?.id || ''} p2=${archivedMatch?.player2?.id || ''}`);
+      `stage=${archivedMatch?.stage || ''} score=${archivedMatch?.score1}-${archivedMatch?.score2} p1=${archivedMatch?.player1?.id || ''} p2=${archivedMatch?.player2?.id || ''}`);
   } catch (error) {
     log('TC-ARC-06', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
@@ -225,4 +237,6 @@ if (require.main === module) {
 
 module.exports = {
   runArchiveTests,
+  createCompletedPublicBmArchive,
+  cleanupArchiveFixture,
 };
