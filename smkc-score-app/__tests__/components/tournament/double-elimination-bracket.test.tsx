@@ -168,6 +168,8 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
     expect(winnersQF1).toBeDefined();
     expect(winnersQF1!.textContent).toContain(seed1.nickname);
     expect(winnersQF1!.textContent).toContain(seed8.nickname);
+    expect(winnersQF1!.textContent).toContain("[1]");
+    expect(winnersQF1!.textContent).toContain("[8]");
   });
 
   it("shows qualification group-rank labels when seeded players include them", () => {
