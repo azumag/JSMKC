@@ -5,7 +5,7 @@ describe('archive E2E case registration', () => {
   const casesPath = path.join(process.cwd(), '..', 'E2E_TEST_CASES.md');
   const cases = fs.readFileSync(casesPath, 'utf8');
 
-  it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06'])(
+  it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07'])(
     'documents %s as a runnable archive script case',
     (tc) => {
       const section = cases.slice(cases.indexOf(`## ${tc}:`), cases.indexOf('\n---', cases.indexOf(`## ${tc}:`)));
@@ -41,6 +41,20 @@ describe('archive E2E case registration', () => {
     expect(section).toContain('round history');
     expect(section).toContain('lives === 0');
     expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts');
+  });
+
+  it('documents TC-ARC-07 as TA not-found archive fallback coverage', () => {
+    const section = cases.slice(
+      cases.indexOf('## TC-ARC-07:'),
+      cases.indexOf('\n---', cases.indexOf('## TC-ARC-07:')),
+    );
+
+    expect(section).toContain('/api/tournaments/:id/ta');
+    expect(section).toContain('tournament not found');
+    expect(section).toContain('archive fallback');
+    expect(section).toContain('data.archived === true');
+    expect(section).toContain('live `TTEntry` クエリを実行しない');
+    expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/route.test.ts');
   });
 
   it('documents that preview archive coverage writes to a dedicated R2 bucket', () => {

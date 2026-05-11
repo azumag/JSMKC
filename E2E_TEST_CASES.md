@@ -2428,6 +2428,27 @@
 
 ---
 
+## TC-ARC-07: TA API — DB に tournament がない完了済み archive fallback
+- **URL**: GET /api/tournaments/:id/ta
+- **authRequired**: false (公開GETエンドポイント)
+- **背景**: 完了済み tournament の DB 行が削除されても、公開済み archive が
+  R2 に残っている場合は TA API も archive payload を返す必要がある。
+  `/api/tournaments/:id/ta` は DB エラー時だけでなく、DB が正常に
+  `tournament not found` を返す場合も archive fallback する。
+- **手順**:
+  1. `modes.ta.entries` を持つ archive fixture を用意する
+  2. DB の tournament 解決が `null` を返す状態で `/api/tournaments/:id/ta` を GET
+  3. `entries`, `courses`, `allPlayers` を含む archived TA payload を確認
+- **期待結果**:
+  - HTTP 200
+  - `data.archived === true`
+  - `data.entries` が archive の TA entries を返す
+  - DB tournament が存在しない場合は live `TTEntry` クエリを実行しない
+- **スクリプト**: tc-archive.js TC-ARC-07 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
+- **補助検証**: `smkc-score-app/__tests__/app/api/tournaments/[id]/ta/route.test.ts`
+
+---
+
 ## TC-ARC-04: トーナメントアーカイブ API — 公開 mode のない archive は非公開
 - **URL**: GET /api/tournaments/:id/archive
 - **authRequired**: false (公開GETエンドポイント)
