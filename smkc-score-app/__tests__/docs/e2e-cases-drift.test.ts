@@ -96,6 +96,7 @@ describe('E2E case drift coverage', () => {
 
   it.each([
     ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
+    ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
     ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
   ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {

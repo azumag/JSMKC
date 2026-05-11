@@ -8,6 +8,9 @@ const {
   resolveE2EBaseUrl,
   resolveE2EProfileDir,
 } = require('./lib/env');
+const {
+  assertPreviewD1Schema,
+} = require('./lib/preview-schema-preflight');
 
 function buildPreviewRuntimeEnv(env = process.env) {
   const runtimeEnv = {
@@ -75,6 +78,7 @@ async function runTargetScript(targetScript, env = buildPreviewRuntimeEnv()) {
   if (fallbackAddress && !childEnv.E2E_HOST_RESOLVER_RULES) {
     childEnv.E2E_HOST_RESOLVER_RULES = `MAP ${hostname} ${fallbackAddress}`;
   }
+  assertPreviewD1Schema(childEnv);
 
   const targetPath = path.join(__dirname, targetScript);
   return await new Promise((resolve, reject) => {
@@ -114,4 +118,5 @@ module.exports = {
   buildPreviewRuntimeEnv,
   resolveHostViaPublicDns,
   runTargetScript,
+  assertPreviewD1Schema,
 };
