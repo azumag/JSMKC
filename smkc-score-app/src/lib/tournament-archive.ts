@@ -3,7 +3,7 @@ import type { R2Bucket } from "@cloudflare/workers-types";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { PLAYER_PUBLIC_SELECT } from "@/lib/prisma-selects";
-import { computeQualificationRanks } from "@/lib/server-ranking";
+import { computeQualificationRanks, type RankedQualification } from "@/lib/server-ranking";
 import { getOverallRankings, type PlayerTournamentScore } from "@/lib/points/overall-ranking";
 import { COURSES } from "@/lib/constants";
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from "@/lib/double-elimination";
@@ -13,7 +13,6 @@ const twoPlayerQualificationOrder = () => [{ group: "asc" }, { score: "desc" }, 
 const GP_MATCH_SCORE_FIELDS = { p1: "points1", p2: "points2" };
 
 type ArchivePlayer = Prisma.PlayerGetPayload<{ select: typeof PLAYER_PUBLIC_SELECT }>;
-type RankedQualification<T> = T & { _rank?: number; _rankOverridden?: boolean };
 type BMQualificationArchiveRow = RankedQualification<Prisma.BMQualificationGetPayload<{
   include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
 }>>;
@@ -46,7 +45,7 @@ type TTEntryArchiveRow = Prisma.TTEntryGetPayload<{
 }>;
 type TTPhaseRoundArchiveRow = Prisma.TTPhaseRoundGetPayload<Record<string, never>>;
 
-export type TournamentArchiveModePayload<TQualification = never, TMatch = never> = {
+export type TournamentArchiveModePayload<TQualification = unknown, TMatch = unknown> = {
   qualifications?: TQualification[];
   matches?: TMatch[];
   qualificationConfirmed?: boolean;
@@ -394,7 +393,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
         [...twoPlayerQualificationOrder()],
         bmMatches.filter((match) => match.stage === "qualification"),
         { matchScoreFields: { p1: "score1", p2: "score2" } },
-      ) as BMQualificationArchiveRow[],
+      ),
       matches: bmMatches,
       qualificationConfirmed: tournament.bmQualificationConfirmed,
     },
@@ -404,7 +403,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
         [...twoPlayerQualificationOrder()],
         mrMatches.filter((match) => match.stage === "qualification"),
         { matchScoreFields: { p1: "score1", p2: "score2" } },
-      ) as MRQualificationArchiveRow[],
+      ),
       matches: mrMatches,
       qualificationConfirmed: tournament.mrQualificationConfirmed,
     },
@@ -414,7 +413,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
         [...twoPlayerQualificationOrder()],
         gpMatches.filter((match) => match.stage === "qualification"),
         { matchScoreFields: GP_MATCH_SCORE_FIELDS },
-      ) as GPQualificationArchiveRow[],
+      ),
       matches: gpMatches,
       qualificationConfirmed: tournament.gpQualificationConfirmed,
     },
