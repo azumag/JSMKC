@@ -3706,12 +3706,34 @@ async function main() {
         'matchLabel' in getInitial.data
       );
 
-      // PUT (admin): update player names + matchLabel
+      const layout354 = {
+        player1Name: { x: 120, y: 500 },
+        player1Score: { x: 140, y: 540 },
+        player2Name: { x: 120, y: 890 },
+        player2Score: { x: 140, y: 930 },
+        footer: { x: 180, y: 990 },
+      };
+
+      // PUT (admin): update player names + matchLabel + layout
       const putResp = await page.evaluate(async (tid) => {
         const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ player1Name: '1P-Alice', player2Name: '2P-Bob', matchLabel: 'QF1', player1Wins: 2, player2Wins: 1, matchFt: 5 }),
+          body: JSON.stringify({
+            player1Name: '1P-Alice',
+            player2Name: '2P-Bob',
+            matchLabel: 'QF1',
+            player1Wins: 2,
+            player2Wins: 1,
+            matchFt: 5,
+            layout: {
+              player1Name: { x: 120, y: 500 },
+              player1Score: { x: 140, y: 540 },
+              player2Name: { x: 120, y: 890 },
+              player2Score: { x: 140, y: 930 },
+              footer: { x: 180, y: 990 },
+            },
+          }),
         });
         const j = await r.json().catch(() => ({}));
         return { s: r.status, data: j.data ?? j };
@@ -3734,7 +3756,10 @@ async function main() {
         getAfter.data.matchLabel === 'QF1' &&
         getAfter.data.player1Wins === 2 &&
         getAfter.data.player2Wins === 1 &&
-        getAfter.data.matchFt === 5
+        getAfter.data.matchFt === 5 &&
+        getAfter.data.layout?.player1Name?.x === layout354.player1Name.x &&
+        getAfter.data.layout?.player1Score?.y === layout354.player1Score.y &&
+        getAfter.data.layout?.footer?.x === layout354.footer.x
       );
 
       // PUT with null clears a field

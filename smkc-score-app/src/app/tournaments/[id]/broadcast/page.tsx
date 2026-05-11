@@ -27,6 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DEFAULT_OVERLAY_BROADCAST_LAYOUT,
+  normalizeOverlayBroadcastLayout,
+  type OverlayBroadcastLayout,
+} from "@/lib/overlay/layout";
 
 interface Player {
   id: string;
@@ -44,9 +49,14 @@ interface BroadcastState {
   player1Wins: number | null;
   player2Wins: number | null;
   matchFt: number | null;
+  layout: OverlayBroadcastLayout;
 }
 
 const nullableNumberInput = (value: string) => value.trim() === "" ? null : Number(value);
+const coordinateInput = (value: string, fallback: number) => {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+};
 
 export default function BroadcastPage({
   params,
@@ -67,6 +77,7 @@ export default function BroadcastPage({
     player1Wins: null,
     player2Wins: null,
     matchFt: null,
+    layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
   });
   const [player1Input, setPlayer1Input] = useState("");
   const [player2Input, setPlayer2Input] = useState("");
@@ -74,6 +85,9 @@ export default function BroadcastPage({
   const [player1WinsInput, setPlayer1WinsInput] = useState("");
   const [player2WinsInput, setPlayer2WinsInput] = useState("");
   const [matchFtInput, setMatchFtInput] = useState("");
+  const [layoutInput, setLayoutInput] = useState<OverlayBroadcastLayout>(
+    DEFAULT_OVERLAY_BROADCAST_LAYOUT,
+  );
   const [players, setPlayers] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -84,6 +98,7 @@ export default function BroadcastPage({
       if (res.ok) {
         const json = await res.json();
         const data = json.data ?? json;
+        const layout = normalizeOverlayBroadcastLayout(data.layout);
         setCurrentState({
           player1Name: data.player1Name ?? "",
           player2Name: data.player2Name ?? "",
@@ -93,6 +108,7 @@ export default function BroadcastPage({
           player1Wins: data.player1Wins ?? null,
           player2Wins: data.player2Wins ?? null,
           matchFt: data.matchFt ?? null,
+          layout,
         });
         setPlayer1Input(data.player1Name ?? "");
         setPlayer2Input(data.player2Name ?? "");
@@ -100,6 +116,7 @@ export default function BroadcastPage({
         setPlayer1WinsInput(data.player1Wins === null || data.player1Wins === undefined ? "" : String(data.player1Wins));
         setPlayer2WinsInput(data.player2Wins === null || data.player2Wins === undefined ? "" : String(data.player2Wins));
         setMatchFtInput(data.matchFt === null || data.matchFt === undefined ? "" : String(data.matchFt));
+        setLayoutInput(layout);
       }
     } catch { /* silent */ }
   }, [tournamentId]);
@@ -141,6 +158,7 @@ export default function BroadcastPage({
           player1Wins: nullableNumberInput(player1WinsInput),
           player2Wins: nullableNumberInput(player2WinsInput),
           matchFt: nullableNumberInput(matchFtInput),
+          layout: layoutInput,
         }),
       });
       if (res.ok) {
@@ -169,6 +187,7 @@ export default function BroadcastPage({
           player1Wins: null,
           player2Wins: null,
           matchFt: null,
+          layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
         }),
       });
       setPlayer1Input("");
@@ -177,6 +196,7 @@ export default function BroadcastPage({
       setPlayer1WinsInput("");
       setPlayer2WinsInput("");
       setMatchFtInput("");
+      setLayoutInput(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
       await fetchBroadcastState();
     } finally {
       setSaving(false);
@@ -212,14 +232,14 @@ export default function BroadcastPage({
           {[
             {
               slot: "1P",
-              coords: "x:80, y:485",
+              coords: `name x:${currentState.layout.player1Name.x}, y:${currentState.layout.player1Name.y}`,
               value: currentState.player1Name,
               noCamera: currentState.player1NoCamera,
               score: currentState.player1Wins,
             },
             {
               slot: "2P",
-              coords: "x:80, y:875",
+              coords: `name x:${currentState.layout.player2Name.x}, y:${currentState.layout.player2Name.y}`,
               value: currentState.player2Name,
               noCamera: currentState.player2NoCamera,
               score: currentState.player2Wins,
@@ -246,7 +266,7 @@ export default function BroadcastPage({
           ))}
         </div>
         <div className="border-t border-foreground/10 px-5 py-3 text-sm text-muted-foreground">
-          下枠:{" "}
+          下枠 x:{currentState.layout.footer.x}, y:{currentState.layout.footer.y}:{" "}
           <span className="font-semibold text-foreground">
             {currentState.matchLabel || "未設定"}
           </span>
@@ -371,6 +391,66 @@ export default function BroadcastPage({
                   placeholder="任意"
                 />
               </div>
+            </div>
+            <div className="border-t border-foreground/10 pt-4 space-y-3">
+              <div>
+                <p className="text-sm font-semibold">表示位置を調整</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  OBS 1920×1080 キャンバス上の左上座標を指定します。
+                </p>
+              </div>
+              {[
+                ["player1Name", "1P 名前"],
+                ["player1Score", "1P 点数"],
+                ["player2Name", "2P 名前"],
+                ["player2Score", "2P 点数"],
+                ["footer", "下枠"],
+              ].map(([key, label]) => {
+                const positionKey = key as keyof OverlayBroadcastLayout;
+                const position = layoutInput[positionKey];
+                const fallback = DEFAULT_OVERLAY_BROADCAST_LAYOUT[positionKey];
+                return (
+                  <div key={key} className="grid gap-2 sm:grid-cols-[110px_1fr_1fr] sm:items-end">
+                    <Label className="pb-2">{label}</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`broadcast-layout-${key}-x`} className="text-xs text-muted-foreground">X</Label>
+                      <Input
+                        id={`broadcast-layout-${key}-x`}
+                        data-testid={`broadcast-layout-${key}-x`}
+                        value={String(position.x)}
+                        onChange={(e) => setLayoutInput((current) => ({
+                          ...current,
+                          [positionKey]: {
+                            ...current[positionKey],
+                            x: coordinateInput(e.target.value, fallback.x),
+                          },
+                        }))}
+                        type="number"
+                        inputMode="numeric"
+                        step={1}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`broadcast-layout-${key}-y`} className="text-xs text-muted-foreground">Y</Label>
+                      <Input
+                        id={`broadcast-layout-${key}-y`}
+                        data-testid={`broadcast-layout-${key}-y`}
+                        value={String(position.y)}
+                        onChange={(e) => setLayoutInput((current) => ({
+                          ...current,
+                          [positionKey]: {
+                            ...current[positionKey],
+                            y: coordinateInput(e.target.value, fallback.y),
+                          },
+                        }))}
+                        type="number"
+                        inputMode="numeric"
+                        step={1}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div className="flex gap-2">

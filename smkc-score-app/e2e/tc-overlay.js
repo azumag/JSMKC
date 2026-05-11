@@ -37,6 +37,7 @@
  *   TC-925  Dashboard TA card renders the qualification total-time
  *           variant (dashboard-timeline-ta-total) — qualification toast
  *           collapsed from per-course to one summary per player
+ *   TC-926  Broadcast layout coordinates persist and drive dashboard positions
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -876,6 +877,100 @@ async function runTc920(adminPage) {
   }
 }
 
+/* ───────── TC-926: Broadcast layout coordinates drive dashboard positions ─────────
+ * Stores explicit name/score/footer x/y coordinates via PUT /broadcast, verifies
+ * GET /broadcast and /overlay-events expose them, then checks the rendered
+ * dashboard uses those coordinates in the real browser. */
+async function runTc926(adminPage) {
+  const layout = {
+    player1Name: { x: 121, y: 501 },
+    player1Score: { x: 161, y: 535 },
+    player2Name: { x: 122, y: 895 },
+    player2Score: { x: 162, y: 929 },
+    footer: { x: 180, y: 992 },
+  };
+  try {
+    const body = {
+      player1Name: 'TC926 P1',
+      player2Name: 'TC926 P2',
+      matchLabel: 'TC926 Footer',
+      player1Wins: 4,
+      player2Wins: 2,
+      matchFt: 5,
+      layout,
+    };
+    const putRes = await adminPage.evaluate(async ([tid, payload]) => {
+      const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [fixture.tournamentId, body]);
+    if (putRes.s !== 200) {
+      log('TC-926', 'FAIL', `PUT status=${putRes.s} ${JSON.stringify(putRes.b).slice(0, 100)}`);
+      return;
+    }
+
+    const getResp = await httpsGet(`/api/tournaments/${fixture.tournamentId}/broadcast`);
+    const getLayout = getResp.body?.data?.layout;
+    const eventsResp = await httpsGet(`/api/tournaments/${fixture.tournamentId}/overlay-events?initial=1`);
+    const eventsLayout = eventsResp.body?.data?.overlayLayout;
+
+    const matchesLayout = (actual) => actual &&
+      actual.player1Name?.x === layout.player1Name.x &&
+      actual.player1Name?.y === layout.player1Name.y &&
+      actual.player1Score?.x === layout.player1Score.x &&
+      actual.player1Score?.y === layout.player1Score.y &&
+      actual.player2Name?.x === layout.player2Name.x &&
+      actual.player2Name?.y === layout.player2Name.y &&
+      actual.player2Score?.x === layout.player2Score.x &&
+      actual.player2Score?.y === layout.player2Score.y &&
+      actual.footer?.x === layout.footer.x &&
+      actual.footer?.y === layout.footer.y;
+
+    if (getResp.status !== 200 || !matchesLayout(getLayout)) {
+      log('TC-926', 'FAIL', `GET layout mismatch status=${getResp.status} layout=${JSON.stringify(getLayout)}`);
+      return;
+    }
+    if (eventsResp.status !== 200 || !matchesLayout(eventsLayout)) {
+      log('TC-926', 'FAIL', `overlay-events layout mismatch status=${eventsResp.status} layout=${JSON.stringify(eventsLayout)}`);
+      return;
+    }
+
+    await adminPage.goto(
+      `${BASE}/tournaments/${fixture.tournamentId}/overlay/dashboard`,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    );
+    await adminPage.waitForSelector('[data-testid="dashboard-root"]', { timeout: 10_000 });
+    await adminPage.waitForTimeout(8000);
+
+    const readPosition = async (selector) => adminPage.locator(selector).evaluate((el) => {
+      const style = window.getComputedStyle(el);
+      return { left: Math.round(parseFloat(style.left)), top: Math.round(parseFloat(style.top)) };
+    });
+    const rendered = {
+      player1Name: await readPosition('[data-testid="overlay-p1-name"]'),
+      player1Score: await readPosition('[data-testid="overlay-p1-score"]'),
+      player2Name: await readPosition('[data-testid="overlay-p2-name"]'),
+      player2Score: await readPosition('[data-testid="overlay-p2-score"]'),
+      footer: await readPosition('[data-testid="dashboard-footer-slot"]'),
+    };
+    const renderedOk = matchesLayout({
+      player1Name: rendered.player1Name,
+      player1Score: rendered.player1Score,
+      player2Name: rendered.player2Name,
+      player2Score: rendered.player2Score,
+      footer: rendered.footer,
+    });
+
+    log('TC-926', renderedOk ? 'PASS' : 'FAIL',
+      renderedOk ? '' : `rendered=${JSON.stringify(rendered)}`);
+  } catch (err) {
+    log('TC-926', 'FAIL', err instanceof Error ? err.message : 'TC-926 threw');
+  }
+}
+
 /* ───────── TC-921: dashboard timeline renders event entries and match scoreboard ─────────
  * After TC-903/907/908 created BM/MR/GP match_completed events, the dashboard
  * timeline must backfill them via ?initial=1 and render:
@@ -1101,6 +1196,9 @@ function getSuite() {
       /* TC-920 must run after TC-918/919 set matchLabel/wins/ft,
          and before TC-906 navigates away. */
       { name: 'TC-920', fn: runTc920 },
+      /* TC-926 verifies broadcast layout positions after TC-920 confirms the
+         default dashboard render pipeline. */
+      { name: 'TC-926', fn: runTc926 },
       /* TC-921/922/923/924/925 check dashboard timeline, progress bar, TA
          time cards, and scoreboard course/cup chips. TC-921 navigates to
          /overlay/dashboard; the others reuse that page. Must run before
@@ -1122,7 +1220,7 @@ function getSuite() {
 module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
-  runTc916, runTc917, runTc918, runTc919, runTc920,
+  runTc916, runTc917, runTc918, runTc919, runTc920, runTc926,
   runTc921, runTc922, runTc923, runTc924, runTc925,
   getSuite,
   results,

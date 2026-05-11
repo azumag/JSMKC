@@ -38,6 +38,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { GET, PUT } from '@/app/api/tournaments/[id]/broadcast/route';
+import { DEFAULT_OVERLAY_BROADCAST_LAYOUT } from '@/lib/overlay/layout';
 
 const mockParams = (id: string) => ({ params: Promise.resolve({ id }) });
 const mockReq = (body?: unknown) =>
@@ -62,6 +63,7 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
       overlayPlayer1Wins: null,
       overlayPlayer2Wins: null,
       overlayMatchFt: null,
+      overlayLayout: {},
     });
 
     await GET({} as unknown as NextRequest, mockParams('t1'));
@@ -77,6 +79,7 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
         player1Wins: null,
         player2Wins: null,
         matchFt: null,
+        layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
       },
     });
   });
@@ -91,6 +94,13 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
       overlayPlayer1Wins: 2,
       overlayPlayer2Wins: 1,
       overlayMatchFt: 5,
+      overlayLayout: {
+        player1Name: { x: 120, y: 500 },
+        player1Score: { x: 140, y: 540 },
+        player2Name: { x: 120, y: 890 },
+        player2Score: { x: 140, y: 930 },
+        footer: { x: 180, y: 990 },
+      },
     });
 
     await GET({} as unknown as NextRequest, mockParams('t1'));
@@ -106,6 +116,13 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
         player1Wins: 2,
         player2Wins: 1,
         matchFt: 5,
+        layout: {
+          player1Name: { x: 120, y: 500 },
+          player1Score: { x: 140, y: 540 },
+          player2Name: { x: 120, y: 890 },
+          player2Score: { x: 140, y: 930 },
+          footer: { x: 180, y: 990 },
+        },
       },
     });
   });
@@ -138,6 +155,13 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
         player1Wins: 2,
         player2Wins: 1,
         matchFt: 5,
+        layout: {
+          player1Name: { x: 120, y: 500 },
+          player1Score: { x: 140, y: 540 },
+          player2Name: { x: 120, y: 890 },
+          player2Score: { x: 140, y: 930 },
+          footer: { x: 180, y: 990 },
+        },
       }),
       mockParams('t1'),
     );
@@ -153,6 +177,13 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
           overlayPlayer1Wins: 2,
           overlayPlayer2Wins: 1,
           overlayMatchFt: 5,
+          overlayLayout: {
+            player1Name: { x: 120, y: 500 },
+            player1Score: { x: 140, y: 540 },
+            player2Name: { x: 120, y: 890 },
+            player2Score: { x: 140, y: 930 },
+            footer: { x: 180, y: 990 },
+          },
         }),
       }),
     );
@@ -234,6 +265,13 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
     await PUT(mockReq({ matchFt: 'five' }), mockParams('t1'));
 
     expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status).toBe(400);
+  });
+
+  it('returns 400 when layout contains unsupported coordinate slots', async () => {
+    await PUT(mockReq({ layout: { player3Name: { x: 1, y: 2 } } }), mockParams('t1'));
+
+    expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status).toBe(400);
+    expect(prisma.tournament.update).not.toHaveBeenCalled();
   });
 
   it('returns 404 when tournament not found', async () => {

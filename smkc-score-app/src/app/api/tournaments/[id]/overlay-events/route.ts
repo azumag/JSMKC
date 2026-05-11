@@ -39,6 +39,7 @@ import type {
   OverlayMode,
   OverlayTaChampionStanding,
 } from "@/lib/overlay/types";
+import { normalizeOverlayBroadcastLayout } from "@/lib/overlay/layout";
 
 /** Initial-poll window when no `since` is supplied. */
 const INITIAL_WINDOW_MS = 30_000;
@@ -258,6 +259,7 @@ async function handleGET(
       overlayPlayer1Wins: true,
       overlayPlayer2Wins: true,
       overlayMatchFt: true,
+      overlayLayout: true,
       id: true,
     });
     if (!tournament) {
@@ -340,6 +342,7 @@ async function handleGET(
           overlayPlayer1Wins: tournament.overlayPlayer1Wins ?? null,
           overlayPlayer2Wins: tournament.overlayPlayer2Wins ?? null,
           overlayMatchFt: tournament.overlayMatchFt ?? null,
+          overlayLayout: normalizeOverlayBroadcastLayout(tournament.overlayLayout),
         });
         if (response instanceof NextResponse) {
           response.headers.set("Cache-Control", "no-store");
@@ -728,6 +731,7 @@ async function handleGET(
       overlayPlayer1Wins: tournament.overlayPlayer1Wins ?? null,
       overlayPlayer2Wins: tournament.overlayPlayer2Wins ?? null,
       overlayMatchFt: tournament.overlayMatchFt ?? null,
+      overlayLayout: normalizeOverlayBroadcastLayout(tournament.overlayLayout),
     });
 
     /* Disable any intermediate caching: the response is time-sensitive and
