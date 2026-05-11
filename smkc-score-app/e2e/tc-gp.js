@@ -247,6 +247,7 @@ async function runTc729(adminPage) {
     if (!bye.cup) throw new Error('GP BREAK match has no assigned cup');
 
     const soloRaces = makeSoloGpByeRaces(bye.cup);
+    // race 1: 1st place = 9 pts; races 2-5: 2nd place = 6 pts each.
     const expectedPoints = 9 + 6 + 6 + 6 + 6;
     const put = await apiPutGpQualScore(adminPage, tournamentId, bye.id, bye.cup, soloRaces);
     const after = await apiFetchGp(adminPage, tournamentId);
