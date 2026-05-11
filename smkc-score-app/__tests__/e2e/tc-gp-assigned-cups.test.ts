@@ -30,7 +30,6 @@ describe('TC-717 assigned cup sequence validation', () => {
   it('keeps the legacy TC-722 fallback to the maximum FT3 cup count', () => {
     expect(gpAssignedCupSequence({ cup: 'Special' })).toEqual(['Special', 'Flower', 'Star']);
     expect(gpAssignedCupSequence({})).toEqual(['Mushroom', 'Flower', 'Star']);
-    expect(gpAssignedCupSequence({ cup: 'Special' })).toHaveLength(3);
   });
 
   it('uses assignedCups before the legacy fallback', () => {
