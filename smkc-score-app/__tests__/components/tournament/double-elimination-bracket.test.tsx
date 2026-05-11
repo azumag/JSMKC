@@ -231,6 +231,33 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
     expect(winnersR1Cards[3].textContent).toContain(seed2.nickname);
     expect(winnersR1Cards[3].textContent).toContain("TBD");
   });
+
+  it("renders a skipped Top-24 direct seed as TBD while keeping the bracket slot visible", () => {
+    const bracketStructure = generateBracketStructure(16);
+    const seededPreview = [
+      ...seededPlayers.filter((entry) => entry.seed !== 1),
+      { seed: 16, playerId: "p16", player: { id: "p16", name: "Mika M", nickname: "Mika" } },
+    ];
+
+    const { container } = render(
+      <DoubleEliminationBracket
+        matches={[]}
+        bracketStructure={bracketStructure}
+        roundNames={{}}
+        seededPlayers={seededPreview}
+      />,
+    );
+
+    const winnersR1M1 = Array.from(
+      container.querySelectorAll<HTMLElement>("[role='button']"),
+    ).find((el) => el.querySelector("div.text-xs")?.textContent === "M1");
+
+    expect(winnersR1M1).toBeDefined();
+    expect(winnersR1M1!.textContent).toContain("[1]");
+    expect(winnersR1M1!.textContent).toContain("TBD");
+    expect(winnersR1M1!.textContent).toContain("[16]");
+    expect(winnersR1M1!.textContent).toContain("Mika");
+  });
 });
 
 describe("DoubleEliminationBracket startingCourseNumber display (issue #731)", () => {

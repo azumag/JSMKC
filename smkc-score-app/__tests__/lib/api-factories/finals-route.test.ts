@@ -1369,6 +1369,15 @@ describe('Finals Route Factory', () => {
       });
 
       expect(response.status).toBe(200);
+      const json = await response.json();
+      const previewSeededPlayers = json.data.seededPlayers as Array<{ seed: number; playerId: string }>;
+      expect(previewSeededPlayers).toBeDefined();
+      expect(previewSeededPlayers).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ seed: 1, playerId: 'player-0' })]),
+      );
+      expect(previewSeededPlayers).toEqual(
+        expect.arrayContaining([expect.objectContaining({ seed: 16, playerId: 'player-19' })]),
+      );
       expect(mockLogger.warn).toHaveBeenCalledWith('Top-24 direct seed player could not be resolved', {
         tournamentId: 'tournament-123',
         eventTypeCode: 'bm',
