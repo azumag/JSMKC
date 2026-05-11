@@ -13,10 +13,7 @@ function readSource(relativePath: string): string {
 }
 
 function expectSourceToUse(relativePath: string, symbol: string): void {
-  const source = readSource(relativePath);
-  if (!source.includes(symbol)) {
-    throw new Error(`${relativePath} should use ${symbol}`);
-  }
+  expect(readSource(relativePath)).toContain(symbol);
 }
 
 describe('gp-ranking', () => {
