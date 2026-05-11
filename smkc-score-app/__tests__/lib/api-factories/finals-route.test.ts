@@ -31,7 +31,7 @@
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
-import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
+import { buildQualificationRankLabelMap, createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 
@@ -100,6 +100,50 @@ describe('Finals Route Factory', () => {
     points: 6,
     player: { id: 'player-1', name: 'Player 1' },
     ...overrides,
+  });
+
+  describe('buildQualificationRankLabelMap', () => {
+    it('assigns group labels from rank order even when input rows are shuffled', () => {
+      const labels = buildQualificationRankLabelMap([
+        { playerId: 'b2', group: 'B', _rank: 2 },
+        { playerId: 'a2', group: 'A', _rank: 2 },
+        { playerId: 'b1', group: 'B', _rank: 1 },
+        { playerId: 'a1', group: 'A', _rank: 1 },
+      ]);
+
+      expect(Object.fromEntries(labels)).toEqual({
+        a1: 'A1',
+        a2: 'A2',
+        b1: 'B1',
+        b2: 'B2',
+      });
+    });
+
+    it('keeps original order for tied ranks within the same group', () => {
+      const labels = buildQualificationRankLabelMap([
+        { playerId: 'a-first', group: 'A', _rank: 1 },
+        { playerId: 'a-second', group: 'A', _rank: 1 },
+        { playerId: 'a-third', group: 'A', _rank: 3 },
+      ]);
+
+      expect(Object.fromEntries(labels)).toEqual({
+        'a-first': 'A1',
+        'a-second': 'A2',
+        'a-third': 'A3',
+      });
+    });
+
+    it('uses numeric labels when qualifications have no group', () => {
+      const labels = buildQualificationRankLabelMap([
+        { playerId: 'p2', group: null, _rank: 2 },
+        { playerId: 'p1', group: null, _rank: 1 },
+      ]);
+
+      expect(Object.fromEntries(labels)).toEqual({
+        p1: '1',
+        p2: '2',
+      });
+    });
   });
 
   beforeEach(() => {
