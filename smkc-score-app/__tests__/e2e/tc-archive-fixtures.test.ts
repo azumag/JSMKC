@@ -7,8 +7,8 @@ describe('archive E2E fixtures', () => {
       makeLog: jest.fn(() => jest.fn()),
       apiCreatePlayer: jest.fn(async (_page, name, nickname) => ({ id: `${nickname}-id`, nickname, name })),
       apiCreateTournament: jest.fn(async () => 'tournament-1'),
-      apiJson: jest.fn(async (_page, path, options = {}) => ({
-        status: options && typeof options === 'object' && 'method' in options ? 200 : 200,
+      apiJson: jest.fn(async (_page, path) => ({
+        status: 200,
         body: { data: { archived: true, path } },
       })),
       apiDeletePlayer: jest.fn(async () => undefined),
