@@ -29,6 +29,7 @@ describe('E2E case drift coverage', () => {
   const tcGp = readE2eScript('tc-gp.js');
   const tcOverlay = readE2eScript('tc-overlay.js');
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
+  const tcTaFlow = readE2eScript('tc-ta-flow.js');
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
 
   it.each([
@@ -39,6 +40,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1103', tcGp],
     ['TC-725', tcGp],
     ['TC-926', tcOverlay],
+    ['TC-TA-FLOW-24', tcTaFlow],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
     const section = sectionFor(tc);
 
@@ -46,6 +48,15 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('**期待結果**');
     expect(section).toContain(`**スクリプト**:`);
     expect(scriptSource).toContain(`log('${tc}'`);
+  });
+
+  it('keeps TC-TA-FLOW-24 documented as the parent runnable for rank sub-coverage', () => {
+    const section = sectionFor('TC-TA-FLOW-24');
+
+    expect(section).toContain('24名 TA');
+    expect(section).toContain('TC-TA-FLOW-24-RANK');
+    expect(section).toContain('npm run e2e:preview:ta-flow');
+    expect(tcTaFlow).toContain("{ name: 'TC-TA-FLOW-24', fn: runFullFlow }");
   });
 
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
