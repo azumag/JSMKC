@@ -161,6 +161,7 @@ describe('archive E2E fixtures', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-05-11T00:00:00.000Z'));
     const { suite } = await loadArchiveSuite({ BASE: 'https://preview.example.test' });
+    const timeoutMs = suite.QUALIFICATION_FETCH_TIMEOUT_MS;
     const fulfillStatuses: number[] = [];
     const continueOrder: string[] = [];
     const pendingRequests: Array<{ predicate: (request: { url: () => string }) => boolean; resolve: (request: unknown) => void }> = [];
@@ -196,7 +197,7 @@ describe('archive E2E fixtures', () => {
         const playersUrl = 'https://preview.example.test/api/players?limit=100';
         resolveWaiters(modeUrl);
         const modePromise = routeHandler(routeFor('mode', modeUrl));
-        await jest.advanceTimersByTimeAsync(15_000);
+        await jest.advanceTimersByTimeAsync(timeoutMs);
         await modePromise;
         resolveWaiters(playersUrl);
         await routeHandler(routeFor('players-late', playersUrl));
