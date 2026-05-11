@@ -609,6 +609,36 @@ export function createFinalsHandlers(config: FinalsConfig) {
     };
   }
 
+  function buildDirectSeededPlayers(
+    directSeeds: Array<{ seed: number; qualification: { playerId: string; player: unknown } }>,
+    qualificationRankLabels: Map<string, string>,
+    tournamentId: string,
+    logger: ReturnType<typeof createLogger>,
+  ): SeededFinalsPlayer[] {
+    const seededPlayers: SeededFinalsPlayer[] = [];
+
+    for (const { seed, qualification } of directSeeds) {
+      if (!isPublicFinalsPlayer(qualification.player)) {
+        logger.warn('Top-24 direct seed player could not be resolved', {
+          tournamentId,
+          eventTypeCode: config.eventTypeCode,
+          seed,
+          playerId: qualification.playerId,
+        });
+        continue;
+      }
+
+      seededPlayers.push({
+        seed,
+        playerId: qualification.playerId,
+        player: qualification.player,
+        qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
+      });
+    }
+
+    return seededPlayers;
+  }
+
   function hasAutomaticRankTies(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     qualifications: any[],
@@ -738,12 +768,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         rankedQualifications as Array<{ playerId: string; player: unknown; group: string }>,
       );
 
-      const seededPlayers: SeededFinalsPlayer[] = selection.directSeeds.map(({ seed, qualification }) => ({
-        seed,
-        playerId: qualification.playerId,
-        player: qualification.player as PublicFinalsPlayer,
-        qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
-      }));
+      const seededPlayers = buildDirectSeededPlayers(
+        selection.directSeeds,
+        qualificationRankLabels,
+        tournamentId,
+        logger,
+      );
 
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
       const r2Matches = playoffMatches.filter(
@@ -1549,6 +1579,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         if (!dbMatch || !r2BracketMatch.advancesToUpperSeed) continue;
         const winner = getCompletedMatchWinner(dbMatch);
         if (!winner) {
+          logger.warn('Top-24 playoff winner could not be resolved', {
+            tournamentId,
+            eventTypeCode: config.eventTypeCode,
+            matchNumber: r2BracketMatch.matchNumber,
+            advancesToUpperSeed: r2BracketMatch.advancesToUpperSeed,
+          });
           throw new Error(`Playoff winner for match ${r2BracketMatch.matchNumber} not resolved`);
         }
         upperSeedToPlayer.set(r2BracketMatch.advancesToUpperSeed, {
@@ -1560,12 +1596,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       /* Build the 16 seeded players: direct advancers use their actual Upper
        * Bracket seed numbers (2 groups: fixed CDM paper layout), and playoff
        * winners fill the barrage slots declared by generatePlayoffStructure. */
-      const directPlayers = selection.directSeeds.map(({ seed, qualification }) => ({
-        seed,
-        playerId: qualification.playerId,
-        player: qualification.player as PublicFinalsPlayer,
-        qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
-      }));
+      const directPlayers = buildDirectSeededPlayers(
+        selection.directSeeds,
+        qualificationRankLabels,
+        tournamentId,
+        logger,
+      );
       const playoffUpperSeeds = playoffStructure
         .filter((m) => m.round === 'playoff_r2' && m.advancesToUpperSeed)
         .map((m) => m.advancesToUpperSeed as number);
