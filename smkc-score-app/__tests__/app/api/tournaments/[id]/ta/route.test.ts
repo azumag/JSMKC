@@ -90,6 +90,11 @@ jest.mock('@/lib/ta/freeze-check', () => ({
   checkStageFrozen: jest.fn(() => Promise.resolve(null)),
 }));
 
+jest.mock('@/lib/tournament-archive', () => ({
+  getArchivedModePayload: jest.requireActual('@/lib/tournament-archive').getArchivedModePayload,
+  readTournamentArchive: jest.fn(),
+}));
+
 // Mock next/server with MockNextRequest that supports URL parsing
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
@@ -129,6 +134,7 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import * as taRoute from '@/app/api/tournaments/[id]/ta/route';
+import { readTournamentArchive } from '@/lib/tournament-archive';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
 // Access mocks via requireMock to get references to the same mock functions
@@ -171,6 +177,7 @@ describe('/api/tournaments/[id]/ta', () => {
     rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');
     rateLimitMock.getUserAgent.mockReturnValue('test-agent');
     (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
+    (readTournamentArchive as jest.Mock).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -197,7 +204,11 @@ describe('/api/tournaments/[id]/ta', () => {
       ];
 
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ frozenStages: [] });
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: VALID_UUID,
+        frozenStages: [],
+        taPlayerSelfEdit: true,
+      });
       (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(10);
 
       await taRoute.GET(
@@ -223,7 +234,11 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should report qualification editing as locked for players after knockout starts', async () => {
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ frozenStages: [] });
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: VALID_UUID,
+        frozenStages: [],
+        taPlayerSelfEdit: true,
+      });
       (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(24);
       (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
 
@@ -246,7 +261,6 @@ describe('/api/tournaments/[id]/ta', () => {
     it('should resolve tournament slug for GET', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValueOnce({ id: VALID_UUID });
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ frozenStages: [] });
       (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(0);
 
       await taRoute.GET(
@@ -266,7 +280,69 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
+    it('should return archived TA payload when tournament lookup returns not found', async () => {
+      const archivedEntry = {
+        id: 'archived-entry-1',
+        playerId: 'archived-player-1',
+        stage: 'qualification',
+        totalTime: 83456,
+        player: { id: 'archived-player-1', name: 'Archived Player', nickname: 'archived' },
+      };
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
+      (readTournamentArchive as jest.Mock).mockResolvedValue({
+        schemaVersion: 1,
+        tournament: { id: VALID_UUID, publicModes: ['ta'] },
+        modes: {
+          ta: { entries: [archivedEntry], courses: ['MC1'] },
+          bm: {},
+          mr: {},
+          gp: {},
+        },
+        allPlayers: [archivedEntry.player],
+      });
+
+      await taRoute.GET(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
+      expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
+      expect(prisma.tTEntry.count).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          archived: true,
+          entries: [archivedEntry],
+          courses: ['MC1'],
+          allPlayers: [archivedEntry.player],
+        }),
+      });
+    });
+
+    it('should return 404 when tournament and archive are both missing', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
+      (readTournamentArchive as jest.Mock).mockResolvedValue(null);
+
+      await taRoute.GET(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
+      expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Tournament not found', code: 'NOT_FOUND' },
+        { status: 404 }
+      );
+    });
+
     it('should handle database errors with 500', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: VALID_UUID,
+        frozenStages: [],
+        taPlayerSelfEdit: true,
+      });
       (prisma.tTEntry.findMany as jest.Mock).mockRejectedValue(new Error('DB error'));
 
       await taRoute.GET(

@@ -178,7 +178,14 @@ async function handleGET(
     /* Single query: resolve slug/id AND fetch frozenStages/taPlayerSelfEdit (#692).
        Then run the remaining three queries in parallel using the resolved id. */
     const tournament = await resolveTournament(id, { id: true, frozenStages: true, taPlayerSelfEdit: true });
-    const tournamentId = tournament?.id ?? id;
+    if (!tournament) {
+      const archived = await readTournamentArchive(id);
+      if (archived) {
+        return createSuccessResponse(getArchivedModePayload(archived, "ta"));
+      }
+      return createErrorResponse("Tournament not found", 404, "NOT_FOUND");
+    }
+    const tournamentId = tournament.id;
 
     const [entries, qualCount, knockoutStarted] = await Promise.all([
       prisma.tTEntry.findMany({

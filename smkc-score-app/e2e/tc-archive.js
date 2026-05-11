@@ -7,6 +7,7 @@
  *   TC-ARC-03  Completed public tournament archive can be regenerated and read.
  *   TC-ARC-04  Completed private archive is not publicly readable.
  *   TC-ARC-06  Archive BM match rows keep stage and public player payloads.
+ *   TC-ARC-07  TA API falls back to archive when live tournament row is gone.
  *
  * Run: node e2e/tc-archive.js  (from smkc-score-app/)  or: npm run e2e:archive
  */
@@ -169,6 +170,37 @@ async function tcArc06(page) {
   }
 }
 
+async function tcArc07(page) {
+  let tournamentId = null;
+  try {
+    tournamentId = await apiCreateTournament(page, `E2E TC-ARC-07 ${Date.now()}`);
+    const completed = await apiUpdateTournament(page, tournamentId, {
+      status: 'completed',
+      publicModes: ['ta'],
+    });
+    if (completed.s !== 200) throw new Error(`completion update failed (${completed.s})`);
+
+    const post = await apiJson(page, `/api/tournaments/${tournamentId}/archive`, { method: 'POST' });
+    await apiDeleteTournament(page, tournamentId);
+    const response = await apiJson(page, `/api/tournaments/${tournamentId}/ta`);
+
+    const ok = (
+      post.status === 200 &&
+      response.status === 200 &&
+      response.body?.data?.archived === true &&
+      Array.isArray(response.body?.data?.entries) &&
+      Array.isArray(response.body?.data?.courses) &&
+      Array.isArray(response.body?.data?.allPlayers)
+    );
+    log('TC-ARC-07', ok ? 'PASS' : 'FAIL',
+      `post=${post.status} get=${response.status} archived=${response.body?.data?.archived}`);
+  } catch (error) {
+    log('TC-ARC-07', 'FAIL', error instanceof Error ? error.message : String(error));
+  } finally {
+    await apiDeleteTournament(page, tournamentId);
+  }
+}
+
 async function tcArc04(page) {
   let tournamentId = null;
   try {
@@ -198,6 +230,7 @@ async function runArchiveTests(page) {
   await tcArc03(page);
   await tcArc04(page);
   await tcArc06(page);
+  await tcArc07(page);
 
   const failed = results.filter((result) => result.s === 'FAIL');
   console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
