@@ -26,6 +26,7 @@ function sectionFor(tc: string) {
 
 describe('E2E case drift coverage', () => {
   const tcAll = readE2eScript('tc-all.js');
+  const tcBm = readE2eScript('tc-bm.js');
   const tcGp = readE2eScript('tc-gp.js');
   const tcOverlay = readE2eScript('tc-overlay.js');
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
@@ -139,6 +140,18 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('advancesToUpperSeed');
     expect(section).toContain('finals-route.test.ts');
     expect(section).toContain('server-side warning');
+  });
+
+  it('documents TC-535 as BM Top-24 qualification label coverage', () => {
+    const section = sectionFor('TC-535');
+
+    expect(section).toContain('qualificationRankLabel');
+    expect(section).toContain('buildQualificationRankLabelMap');
+    expect(section).toContain('tc-bm.js TC-510');
+    expect(section).toContain('playoff-bracket.test.tsx');
+    expect(tcBm).toContain('qualificationRankLabel');
+    expect(tcBm).toContain('playoffSeedLabelsOk');
+    expect(tcBm).toContain('directSeedLabelsOk');
   });
 
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {

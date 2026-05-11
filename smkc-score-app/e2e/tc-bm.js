@@ -25,6 +25,7 @@
  *   TC-530  BM finals/playoff legacy null repair on GET (#728)
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
+ *   TC-535  BM Top-24 playoff seed labels use group-rank labels
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -205,8 +206,14 @@ function expectedTwoGroupPaperSeedIds(qualifications) {
     directSeeds: directTokensByUpperSeed.map(([seed, token]) => ({
       seed,
       playerId: playerIdForToken(token),
+      qualificationRankLabel: token,
     })),
     barrage: barrageTokensBySeed.map(playerIdForToken),
+    barrageSeeds: barrageTokensBySeed.map((token, index) => ({
+      seed: index + 1,
+      playerId: playerIdForToken(token),
+      qualificationRankLabel: token,
+    })),
     barrageBlocks: [
       ['A9', 'B12', 'B8'],
       ['B10', 'A11', 'A7'],
@@ -878,6 +885,10 @@ async function runTc510(adminPage) {
     const expectedSeedIds = expectedTwoGroupPaperSeedIds(bmQualificationData.qualifications || []);
     const playoffSeedIds = (phase1Data.playoffSeededPlayers || []).map((p) => p.playerId);
     const playoffSeedOrderOk = playoffSeedIds.join(',') === expectedSeedIds.barrage.join(',');
+    const playoffSeedLabelsOk = expectedSeedIds.barrageSeeds.every(({ seed, playerId, qualificationRankLabel }) => {
+      const seeded = (phase1Data.playoffSeededPlayers || []).find((p) => p.seed === seed);
+      return seeded?.playerId === playerId && seeded?.qualificationRankLabel === qualificationRankLabel;
+    });
 
     let state = await apiFetchBmFinalsState(adminPage, tournamentId);
     const r1 = state.playoffMatches.filter((m) => m.round === 'playoff_r1');
@@ -944,6 +955,10 @@ async function runTc510(adminPage) {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === playerId;
     });
+    const directSeedLabelsOk = expectedSeedIds.directSeeds.every(({ seed, qualificationRankLabel }) => {
+      const seeded = seededPlayers.find((p) => p.seed === seed);
+      return seeded?.qualificationRankLabel === qualificationRankLabel;
+    });
     const playoffWinnersSeeded = [10, 12, 14, 16].every((seed) => {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === r2WinnersByUpperSeed.get(seed);
@@ -954,17 +969,19 @@ async function runTc510(adminPage) {
       state.matches.length === 31 &&
       state.bracketSize === 16 &&
       directSeedOrderOk &&
+      directSeedLabelsOk &&
       playoffWinnersSeeded;
 
-    const ok = playoffCreated && playoffSeedOrderOk && playoffBlocksOk && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
+    const ok = playoffCreated && playoffSeedOrderOk && playoffSeedLabelsOk && playoffBlocksOk && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
     log('TC-510', ok ? 'PASS' : 'FAIL',
       !playoffCreated ? `playoff=${state.playoffMatches.length} finals=${state.matches.length} r1=${r1.length} r2=${r2.length}`
       : !playoffSeedOrderOk ? `playoff seed order mismatch expected=${expectedSeedIds.barrage.join(',')} actual=${playoffSeedIds.join(',')}`
+      : !playoffSeedLabelsOk ? `playoff qualification labels mismatch expected=${JSON.stringify(expectedSeedIds.barrageSeeds)} actual=${JSON.stringify(phase1Data.playoffSeededPlayers || [])}`
       : !playoffBlocksOk ? `playoff blocks mismatch expected=${JSON.stringify(expectedSeedIds.barrageBlocks)}`
       : !phase2Blocked ? `Phase 2 was not blocked before completion (${blocked.s}, ${blocked.b?.code || blocked.b?.error})`
       : !r1Routed ? 'R1 winner did not route into R2 player2'
       : !playoffCompleteSignal ? 'Last R2 PUT did not signal playoffComplete=true'
-      : !finalsCreated ? `finals=${state.matches.length} bracketSize=${state.bracketSize} directSeedOrder=${directSeedOrderOk} winnersSeeded=${playoffWinnersSeeded}`
+      : !finalsCreated ? `finals=${state.matches.length} bracketSize=${state.bracketSize} directSeedOrder=${directSeedOrderOk} directSeedLabels=${directSeedLabelsOk} winnersSeeded=${playoffWinnersSeeded}`
       : '');
   } catch (err) {
     log('TC-510', 'FAIL', err instanceof Error ? err.message : 'BM 510 failed');

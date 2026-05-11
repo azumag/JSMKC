@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 
 import type { Player } from "@/lib/types";
+import type { SeededPlayer } from "@/types/bracket";
 
 /** BM match data from the database including player relations */
 interface BMMatch {
@@ -72,7 +73,7 @@ interface DoubleEliminationBracketProps {
   /** Optional callback when a match card is clicked (for score entry) */
   onMatchClick?: (match: BMMatch) => void;
   /** Optional seeded player data for displaying qualification labels */
-  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
+  seededPlayers?: SeededPlayer[];
   /** Number of wins required to highlight a completed match winner. */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
   /**
@@ -106,7 +107,7 @@ function MatchCard({
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
-  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
+  seededPlayers?: SeededPlayer[];
   onClick?: () => void;
   isTBD: { player1: boolean; player2: boolean };
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
