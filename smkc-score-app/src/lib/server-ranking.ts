@@ -12,13 +12,13 @@ export interface ComputeRanksOptions {
   matchScoreFields?: { p1: string; p2: string };
 }
 
-type RankableQualification = {
+export type RankableQualification = {
   playerId: string;
   group?: string | null;
   rankOverride?: number | null;
   [key: string]: unknown;
 };
-type RankableMatch = {
+export type RankableMatch = {
   player1Id: string;
   player2Id: string;
   completed?: boolean;

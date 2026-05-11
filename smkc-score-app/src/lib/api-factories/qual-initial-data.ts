@@ -13,7 +13,7 @@
 import prisma from '@/lib/prisma';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { resolveTournament } from '@/lib/tournament-identifier';
-import { computeQualificationRanks } from '@/lib/server-ranking';
+import { computeQualificationRanks, type RankableMatch, type RankableQualification } from '@/lib/server-ranking';
 import type { EventTypeConfig } from '@/lib/event-types/types';
 import type { Player } from '@/lib/types';
 
@@ -64,9 +64,9 @@ export async function fetchQualInitialData(
     // incompatibility: p[QualificationModelKey] produces a union of three Prisma
     // delegates whose findMany type parameters are mutually incompatible in TS.
     // Results are typed as unknown[] in QualInitialData so the cast is safe (#788).
-    type FindManyDelegate = { findMany: (args: Record<string, unknown>) => Promise<unknown[]> };
-    const qualModel = prisma[config.qualificationModel] as unknown as FindManyDelegate;
-    const matchModel = prisma[config.matchModel] as unknown as FindManyDelegate;
+    type FindManyDelegate<T> = { findMany: (args: Record<string, unknown>) => Promise<T[]> };
+    const qualModel = prisma[config.qualificationModel] as unknown as FindManyDelegate<RankableQualification>;
+    const matchModel = prisma[config.matchModel] as unknown as FindManyDelegate<RankableMatch>;
 
     const [qualifications, matches, allPlayers] = await Promise.all([
       qualModel.findMany({
