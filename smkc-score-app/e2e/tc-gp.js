@@ -1465,6 +1465,7 @@ function gpWinningCupResultsForCups(cups) {
 }
 
 function gpFinalsUpdatedMatchFromPutResult(putResult, matchId) {
+  // Current createSuccessResponse shape is b.data.match; keep b.match for legacy E2E payloads.
   const match = putResult?.b?.data?.match || putResult?.b?.match;
   return match?.id === matchId ? match : null;
 }

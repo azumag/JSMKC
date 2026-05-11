@@ -42,6 +42,8 @@ describe('TC-717 assigned cup sequence validation', () => {
   it('reads the updated GP finals match from PUT responses before fetch fallback', () => {
     const updatedMatch = { id: 'm16', matchNumber: 16, completed: true };
 
+    expect(gpFinalsUpdatedMatchFromPutResult(null, 'm16')).toBeNull();
+    expect(gpFinalsUpdatedMatchFromPutResult(undefined, 'm16')).toBeNull();
     expect(gpFinalsUpdatedMatchFromPutResult({
       b: { data: { match: updatedMatch } },
     }, 'm16')).toBe(updatedMatch);
