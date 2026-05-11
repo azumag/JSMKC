@@ -5,6 +5,8 @@ describe('isValidGpFinalsSimpleScore', () => {
     [2, 0, 2],
     [0, 2, 2],
     [3, 2, 3],
+    [1, 2, 2],
+    [2, 3, 3],
   ])('accepts exactly one side reaching targetWins (%s-%s FT%s)', (score1, score2, targetWins) => {
     expect(isValidGpFinalsSimpleScore(score1, score2, targetWins)).toBe(true);
   });
