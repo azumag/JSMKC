@@ -55,8 +55,26 @@ describe('preview schema preflight', () => {
     expect(spawnSyncMock).toHaveBeenCalledWith(
       'wrangler',
       expect.arrayContaining(['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json']),
-      expect.objectContaining({ encoding: 'utf8' }),
+      expect.objectContaining({ encoding: 'utf8', timeout: 30_000 }),
     );
+  });
+
+  it('does not trust non-json stdout that merely mentions required column names', () => {
+    const preflight = loadPreflight();
+
+    expect(preflight.parsePresentColumns('Column Tournament.publicModes is invalid')).toEqual(new Set());
+  });
+
+  it('only parses the documented wrangler results array shape', () => {
+    const preflight = loadPreflight();
+
+    expect(
+      preflight.parsePresentColumns(JSON.stringify({
+        result: {
+          results: [{ required_column: 'Tournament.publicModes' }],
+        },
+      })),
+    ).toEqual(new Set());
   });
 
   it('fails before browser launch when a required column is missing', () => {
@@ -81,6 +99,18 @@ describe('preview schema preflight', () => {
     });
 
     expect(() => preflight.assertPreviewD1Schema({})).toThrow(/db:migrations:apply:preview/);
+  });
+
+  it('fails with timeout guidance when wrangler hangs', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: null,
+      stdout: '',
+      stderr: '',
+      error: { code: 'ETIMEDOUT' },
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({})).toThrow(/timed out after 30 seconds/);
   });
 
   it('keeps the missing GP sudden death column in Wrangler migrations', () => {

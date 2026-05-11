@@ -39,26 +39,18 @@ function collectResultRows(parsed) {
   return payloads.flatMap((payload) => {
     if (!payload || typeof payload !== 'object') return [];
     if (Array.isArray(payload.results)) return payload.results;
-    if (payload.result && Array.isArray(payload.result.results)) return payload.result.results;
     return [];
   });
 }
 
 function parsePresentColumns(stdout) {
   const parsed = extractWranglerJson(stdout);
-  if (parsed) {
-    return new Set(
-      collectResultRows(parsed)
-        .map((row) => row?.required_column)
-        .filter((value) => typeof value === 'string'),
-    );
-  }
+  if (!parsed) return new Set();
 
-  const text = String(stdout || '');
   return new Set(
-    REQUIRED_PREVIEW_COLUMNS
-      .map(({ table, column }) => `${table}.${column}`)
-      .filter((label) => text.includes(label)),
+    collectResultRows(parsed)
+      .map((row) => row?.required_column)
+      .filter((value) => typeof value === 'string'),
   );
 }
 
@@ -69,8 +61,17 @@ function assertPreviewD1Schema(env = process.env) {
   const result = spawnSync(
     'wrangler',
     ['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json', '--command', sql],
-    { encoding: 'utf8', cwd: process.cwd(), env },
+    { encoding: 'utf8', cwd: process.cwd(), env, timeout: 30_000 },
   );
+
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(
+      [
+        'Preview D1 schema preflight timed out after 30 seconds before launching the browser.',
+        'Check Cloudflare/Wrangler connectivity, run npm run db:migrations:apply:preview if needed, then retry npm run e2e:preview.',
+      ].join(' '),
+    );
+  }
 
   if (result.status !== 0) {
     const stderr = String(result.stderr || '').trim();
