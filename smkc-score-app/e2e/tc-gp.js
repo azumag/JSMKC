@@ -1456,7 +1456,8 @@ function gpAssignedCupSequence(match) {
   if (Array.isArray(match.assignedCups) && match.assignedCups.length > 0) {
     return match.assignedCups;
   }
-  return [match.cup || 'Mushroom', 'Flower', 'Star', 'Special', 'Mushroom'];
+  // TC-722 only needs enough fallback cups to reach the GP FT3 maximum.
+  return [match.cup || 'Mushroom', 'Flower', 'Star'];
 }
 
 function gpWinningCupResultsForCups(cups) {
