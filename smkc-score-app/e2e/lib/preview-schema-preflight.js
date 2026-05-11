@@ -77,8 +77,11 @@ function isWranglerAuthOrLogFailure(stderr) {
     /operation not permitted.*\.wrangler[/\\]logs/i,
     /failed to fetch auth token/i,
     /not logged in/i,
-    /wrangler login/i,
   ].some((pattern) => pattern.test(stderr));
+}
+
+function formatPreflightError(lines) {
+  return lines.filter(Boolean).join('\n');
 }
 
 function assertPreviewD1Schema(env = process.env) {
@@ -94,20 +97,20 @@ function assertPreviewD1Schema(env = process.env) {
 
   if (result.error?.code === 'ETIMEDOUT') {
     throw new Error(
-      [
+      formatPreflightError([
         `Preview D1 schema preflight timed out after ${WRANGLER_TIMEOUT_MS / 1000} seconds before launching the browser.`,
         'Check Cloudflare/Wrangler connectivity, run npm run db:migrations:apply:preview if needed, then retry npm run e2e:preview.',
-      ].join(' '),
+      ]),
     );
   }
 
   if (result.error) {
     throw new Error(
-      [
+      formatPreflightError([
         'Preview D1 schema preflight failed before launching the browser because Wrangler could not be started.',
         `Error ${result.error.code || 'UNKNOWN'}: ${result.error.message}`,
         'Run npm install in smkc-score-app or run through npm run e2e:preview so node_modules/.bin/wrangler is available.',
-      ].join(' '),
+      ]),
     );
   }
 
@@ -115,23 +118,23 @@ function assertPreviewD1Schema(env = process.env) {
     const stderr = String(result.stderr || '').trim();
     if (isWranglerAuthOrLogFailure(stderr)) {
       throw new Error(
-        [
+        formatPreflightError([
           'Preview D1 schema preflight failed before launching the browser because Wrangler auth/log setup failed.',
           `Command exited ${result.status}.`,
           stderr ? `stderr: ${stderr}` : '',
           `WRANGLER_LOG_PATH=${wranglerEnv.WRANGLER_LOG_PATH}`,
           'Refresh Wrangler auth with wrangler login or CLOUDFLARE_API_TOKEN, ensure WRANGLER_LOG_PATH is writable, then retry npm run e2e:preview.',
-        ].filter(Boolean).join(' '),
+        ]),
       );
     }
 
     throw new Error(
-      [
+      formatPreflightError([
         'Preview D1 schema preflight failed before launching the browser.',
         `Command exited ${result.status}.`,
         stderr ? `stderr: ${stderr}` : '',
         'Run npm run db:migrations:apply:preview, then retry npm run e2e:preview.',
-      ].filter(Boolean).join(' '),
+      ]),
     );
   }
 
@@ -142,10 +145,10 @@ function assertPreviewD1Schema(env = process.env) {
 
   if (missing.length > 0) {
     throw new Error(
-      [
+      formatPreflightError([
         `Preview D1 schema is missing required columns: ${missing.join(', ')}.`,
         'Run npm run db:migrations:apply:preview before npm run e2e:preview.',
-      ].join(' '),
+      ]),
     );
   }
 }
@@ -156,6 +159,7 @@ module.exports = {
   buildWranglerEnv,
   buildPreviewSchemaCheckSql,
   DEFAULT_WRANGLER_LOG_PATH,
+  formatPreflightError,
   isWranglerAuthOrLogFailure,
   parsePresentColumns,
   WRANGLER_TIMEOUT_MS,
