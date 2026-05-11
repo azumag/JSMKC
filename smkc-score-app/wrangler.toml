@@ -64,4 +64,4 @@ migrations_dir = "migrations"
 
 [[env.preview.r2_buckets]]
 binding = "ARCHIVE_BUCKET"
-bucket_name = "smkc-archives"
+bucket_name = "smkc-archives-preview"
