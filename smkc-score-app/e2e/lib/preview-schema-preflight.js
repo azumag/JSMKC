@@ -159,7 +159,6 @@ module.exports = {
   buildWranglerEnv,
   buildPreviewSchemaCheckSql,
   DEFAULT_WRANGLER_LOG_PATH,
-  formatPreflightError,
   isWranglerAuthOrLogFailure,
   parsePresentColumns,
   WRANGLER_TIMEOUT_MS,
