@@ -2385,6 +2385,8 @@
 - **authRequired**: POST は admin、GET は公開
 - **背景**: 完了済み tournament は admin POST で archive を再生成でき、公開
   `publicModes` を持つ archive は GET で mode payload と overall ranking を返す。
+  preview 実行では `smkc-archives-preview` を使い、production の
+  `smkc-archives` にテスト archive を書き込まない。
 - **手順**:
   1. admin で tournament + BM 予選データを作成
   2. `status: completed`, `publicModes: ['bm', 'overall']` に更新

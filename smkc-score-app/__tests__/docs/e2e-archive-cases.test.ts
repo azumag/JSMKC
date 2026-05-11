@@ -14,4 +14,14 @@ describe('archive E2E case registration', () => {
       expect(section).not.toContain('未スクリプト化');
     },
   );
+
+  it('documents that preview archive coverage writes to a dedicated R2 bucket', () => {
+    const section = cases.slice(
+      cases.indexOf('## TC-ARC-03:'),
+      cases.indexOf('\n---', cases.indexOf('## TC-ARC-03:')),
+    );
+
+    expect(section).toContain('smkc-archives-preview');
+    expect(section).toContain('smkc-archives');
+  });
 });
