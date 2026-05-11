@@ -226,7 +226,9 @@
   1. `smkc-score-app/` で `npm run e2e:preview` を実行する
   2. runner が `wrangler d1 execute DB --remote --env preview --json` で `Tournament.publicModes`、`GPMatch.assignedCups`、`GPMatch.suddenDeathWinnerId` を確認する
   3. 必須カラムが欠落している場合はブラウザを起動せず、`npm run db:migrations:apply:preview` を促すエラーで停止することを確認する
-  4. `GPMatch.assignedCups` と `GPMatch.suddenDeathWinnerId` が wrangler-format migration にも存在することを確認する
+  4. Wrangler の auth token 取得失敗や log file 書き込み失敗は schema 欠落として扱わず、`wrangler login` / `CLOUDFLARE_API_TOKEN` と `WRANGLER_LOG_PATH` の確認を促すことを確認する
+  5. runner が `WRANGLER_LOG_PATH` 未指定時に writable な一時ログパスを渡し、`~/Library/Preferences/.wrangler/logs` 権限で停止しないことを確認する
+  6. `GPMatch.assignedCups` と `GPMatch.suddenDeathWinnerId` が wrangler-format migration にも存在することを確認する
 - **期待結果**: preview D1 schema drift は TC 本体の 500 ではなく、起動前 preflight の明示エラーとして検出される
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
 - **補助検証**: `smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts`

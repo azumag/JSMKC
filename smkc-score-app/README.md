@@ -363,6 +363,14 @@ npm run e2e:preview:cleanup -- --dry-run
 npm run e2e:preview:bm
 ```
 
+The preview runner runs a D1 schema preflight before launching Chromium. It
+sets `WRANGLER_LOG_PATH` to a temporary writable file when the variable is not
+already set, so local macOS `.wrangler/logs` permissions do not block the
+schema check. If the preflight reports a Wrangler auth/log setup failure,
+refresh Wrangler auth with `wrangler login` or `CLOUDFLARE_API_TOKEN` and make
+sure `WRANGLER_LOG_PATH` points to a writable file. Only missing required D1
+columns should be handled with `npm run db:migrations:apply:preview`.
+
 If the fixed preview custom domain changes or DNS is not ready yet, you can
 override the target without editing the package scripts:
 

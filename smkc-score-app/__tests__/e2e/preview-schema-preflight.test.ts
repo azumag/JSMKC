@@ -58,7 +58,40 @@ describe('preview schema preflight', () => {
     expect(spawnSyncMock).toHaveBeenCalledWith(
       'wrangler',
       expect.arrayContaining(['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json']),
-      expect.objectContaining({ encoding: 'utf8', timeout: preflight.WRANGLER_TIMEOUT_MS }),
+      expect.objectContaining({
+        encoding: 'utf8',
+        timeout: preflight.WRANGLER_TIMEOUT_MS,
+        env: expect.objectContaining({
+          PATH: expect.stringContaining('node_modules/.bin'),
+          WRANGLER_LOG_PATH: expect.stringContaining('jsmkc-wrangler-preflight.log'),
+        }),
+      }),
+    );
+  });
+
+  it('preserves an explicit Wrangler log path for preview preflight', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 0,
+      stdout: JSON.stringify([
+        {
+          results: [
+            { required_column: 'Tournament.publicModes' },
+            { required_column: 'GPMatch.assignedCups' },
+            { required_column: 'GPMatch.suddenDeathWinnerId' },
+          ],
+        },
+      ]),
+      stderr: '',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({ WRANGLER_LOG_PATH: '/tmp/custom-wrangler.log' })).not.toThrow();
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      'wrangler',
+      expect.any(Array),
+      expect.objectContaining({
+        env: expect.objectContaining({ WRANGLER_LOG_PATH: '/tmp/custom-wrangler.log' }),
+      }),
     );
   });
 
@@ -111,6 +144,22 @@ describe('preview schema preflight', () => {
     expect(() => preflight.assertPreviewD1Schema({})).toThrow(/db:migrations:apply:preview/);
   });
 
+  it('separates Wrangler auth and log setup failures from schema migration guidance', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: [
+        "Failed to write to log file Error: EPERM: operation not permitted, open '/Users/me/Library/Preferences/.wrangler/logs/wrangler.log'",
+        'Failed to fetch auth token: 400 Bad Request',
+      ].join('\n'),
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({})).toThrow(/Wrangler auth\/log setup failed/);
+    expect(() => preflight.assertPreviewD1Schema({})).toThrow(/WRANGLER_LOG_PATH/);
+    expect(() => preflight.assertPreviewD1Schema({})).not.toThrow(/db:migrations:apply:preview/);
+  });
+
   it('fails with timeout guidance when wrangler hangs', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
@@ -121,6 +170,18 @@ describe('preview schema preflight', () => {
     });
 
     expect(() => preflight.assertPreviewD1Schema({})).toThrow(/timed out after 30 seconds/);
+  });
+
+  it('fails with tool setup guidance when Wrangler is unavailable', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: null,
+      stdout: '',
+      stderr: '',
+      error: { code: 'ENOENT', message: 'spawnSync wrangler ENOENT' },
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({ PATH: '/usr/bin' })).toThrow(/Wrangler could not be started/);
   });
 
   it('keeps the missing GP sudden death column in Wrangler migrations', () => {
