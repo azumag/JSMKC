@@ -293,6 +293,7 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
   const starts = {};
   const pending = {};
   let released = false;
+  let releasePromise = null;
   let timeout = null;
 
   const payloads = {
@@ -301,21 +302,28 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
   };
 
   const releasePending = () => {
-    if (released || !pending.mode || !pending.players) return;
+    if (released) return releasePromise;
+    if (!pending.mode || !pending.players) return null;
     released = true;
     if (timeout) clearTimeout(timeout);
-    Promise.all(Object.entries(pending).map(([kind, item]) =>
+    releasePromise = Promise.all(Object.entries(pending).map(([kind, item]) =>
       item.route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(payloads[kind]),
       }).finally(item.done),
-    ));
+    )).catch((error) => {
+      console.error('TC-ARC-09 releasePending error:', error);
+    });
+    return releasePromise;
   };
 
   const routeHandler = (route) => {
     const kind = requestKindForQualificationFetch(route.request().url(), tournamentId, mode);
     if (!kind) {
+      return route.continue();
+    }
+    if (pending[kind]) {
       return route.continue();
     }
     starts[kind] = starts[kind] ?? Date.now();
@@ -328,13 +336,17 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
   await page.route('**/api/**', routeHandler);
   try {
     timeout = setTimeout(() => {
-      for (const item of Object.values(pending)) {
+      if (released) return;
+      released = true;
+      releasePromise = Promise.all(Object.values(pending).map((item) =>
         item.route.fulfill({
           status: 504,
           contentType: 'application/json',
           body: JSON.stringify({ error: 'TC-ARC-09 timed out waiting for paired request' }),
-        }).finally(item.done);
-      }
+        }).finally(item.done),
+      )).catch((error) => {
+        console.error('TC-ARC-09 releasePending error:', error);
+      });
     }, QUALIFICATION_FETCH_TIMEOUT_MS);
 
     const modeRequest = page.waitForRequest(
@@ -348,7 +360,7 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
 
     await page.goto(`${BASE}/tournaments/${tournamentId}/${mode}`, { waitUntil: 'domcontentloaded' });
     await Promise.all([modeRequest, playersRequest]);
-    releasePending();
+    await releasePending();
 
     if (!starts.mode || !starts.players) {
       throw new Error(`${mode}: missing mode or players request`);
