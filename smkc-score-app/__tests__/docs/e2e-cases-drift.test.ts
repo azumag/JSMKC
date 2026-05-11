@@ -106,6 +106,14 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain(coverage);
   });
 
+  it('keeps TC-111 aligned with the preview D1 columns that fail GP finals before browser launch', () => {
+    const section = sectionFor('TC-111');
+
+    expect(section).toContain('Tournament.publicModes');
+    expect(section).toContain('GPMatch.assignedCups');
+    expect(section).toContain('GPMatch.suddenDeathWinnerId');
+  });
+
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
     expect(tcAll).not.toContain('TC-403');
   });

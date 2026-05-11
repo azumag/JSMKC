@@ -221,12 +221,12 @@
 ## TC-111: Preview D1 schema preflight
 - **URL**: n/a (runner command)
 - **authRequired**: true (admin profile)
-- **背景**: Preview D1 は wrangler migration の適用状況と Prisma schema がずれると、`npm run e2e:preview:all` がブラウザ起動後に 500 で大量失敗する。`Tournament.publicModes` と `GPMatch.suddenDeathWinnerId` は過去に preview で欠落したため、runner が起動前に必須カラムを検査する。
+- **背景**: Preview D1 は wrangler migration の適用状況と Prisma schema がずれると、`npm run e2e:preview:all` がブラウザ起動後に 500 で大量失敗する。`Tournament.publicModes`、`GPMatch.assignedCups`、`GPMatch.suddenDeathWinnerId` は過去に preview で欠落または確認漏れし、GP finals POST/GET が 500 に見える原因になるため、runner が起動前に必須カラムを検査する。
 - **手順**:
   1. `smkc-score-app/` で `npm run e2e:preview` を実行する
-  2. runner が `wrangler d1 execute DB --remote --env preview --json` で `Tournament.publicModes` と `GPMatch.suddenDeathWinnerId` を確認する
+  2. runner が `wrangler d1 execute DB --remote --env preview --json` で `Tournament.publicModes`、`GPMatch.assignedCups`、`GPMatch.suddenDeathWinnerId` を確認する
   3. 必須カラムが欠落している場合はブラウザを起動せず、`npm run db:migrations:apply:preview` を促すエラーで停止することを確認する
-  4. `GPMatch.suddenDeathWinnerId` が wrangler-format migration にも存在することを確認する
+  4. `GPMatch.assignedCups` と `GPMatch.suddenDeathWinnerId` が wrangler-format migration にも存在することを確認する
 - **期待結果**: preview D1 schema drift は TC 本体の 500 ではなく、起動前 preflight の明示エラーとして検出される
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
 - **補助検証**: `smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts`

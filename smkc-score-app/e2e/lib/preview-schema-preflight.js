@@ -2,6 +2,7 @@ const { spawnSync } = require('child_process');
 
 const REQUIRED_PREVIEW_COLUMNS = [
   { table: 'Tournament', column: 'publicModes' },
+  { table: 'GPMatch', column: 'assignedCups' },
   { table: 'GPMatch', column: 'suddenDeathWinnerId' },
 ];
 const WRANGLER_TIMEOUT_MS = 30_000;

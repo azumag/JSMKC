@@ -30,6 +30,7 @@ describe('preview schema preflight', () => {
 
     expect(preflight.REQUIRED_PREVIEW_COLUMNS).toEqual([
       { table: 'Tournament', column: 'publicModes' },
+      { table: 'GPMatch', column: 'assignedCups' },
       { table: 'GPMatch', column: 'suddenDeathWinnerId' },
     ]);
     expect(preflight.WRANGLER_TIMEOUT_MS).toBe(30_000);
@@ -45,6 +46,7 @@ describe('preview schema preflight', () => {
         {
           results: [
             { required_column: 'Tournament.publicModes' },
+            { required_column: 'GPMatch.assignedCups' },
             { required_column: 'GPMatch.suddenDeathWinnerId' },
           ],
         },
@@ -82,7 +84,14 @@ describe('preview schema preflight', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
       status: 0,
-      stdout: JSON.stringify([{ results: [{ required_column: 'Tournament.publicModes' }] }]),
+      stdout: JSON.stringify([
+        {
+          results: [
+            { required_column: 'Tournament.publicModes' },
+            { required_column: 'GPMatch.assignedCups' },
+          ],
+        },
+      ]),
       stderr: '',
     });
 
@@ -123,6 +132,18 @@ describe('preview schema preflight', () => {
 
     expect(readFileSync(migrationPath, 'utf8')).toContain(
       'ALTER TABLE `GPMatch` ADD COLUMN `suddenDeathWinnerId` TEXT',
+    );
+  });
+
+  it('keeps the GP assigned cups column in Wrangler migrations', () => {
+    const migrationPath = path.join(
+      process.cwd(),
+      'migrations',
+      '0033_gp_finals_assigned_cups.sql',
+    );
+
+    expect(readFileSync(migrationPath, 'utf8')).toContain(
+      'ALTER TABLE GPMatch ADD COLUMN assignedCups TEXT',
     );
   });
 });
