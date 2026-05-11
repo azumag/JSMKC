@@ -15,6 +15,19 @@ describe('archive E2E case registration', () => {
     },
   );
 
+  it('documents TC-ARC-05 as TA archive phase1/phase2 fallback coverage', () => {
+    const section = cases.slice(
+      cases.indexOf('## TC-ARC-05:'),
+      cases.indexOf('\n---', cases.indexOf('## TC-ARC-05:')),
+    );
+
+    expect(section).toContain('/api/tournaments/:id/ta/phases?phase=phase1');
+    expect(section).toContain('/api/tournaments/:id/ta/phases?phase=phase2');
+    expect(section).toContain('round history');
+    expect(section).toContain('lives === 0');
+    expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts');
+  });
+
   it('documents that preview archive coverage writes to a dedicated R2 bucket', () => {
     const section = cases.slice(
       cases.indexOf('## TC-ARC-03:'),

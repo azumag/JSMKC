@@ -339,6 +339,88 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
         })
       );
     });
+
+    it.each([
+      ['phase1', ['player-17', 'player-18'], ['player-18']],
+      ['phase2', ['player-13', 'player-14'], ['player-14']],
+    ])('reconstructs archived %s entries from round history with zero lives', async (phase, playerIds, eliminatedIds) => {
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+      (getAvailableCourses as jest.Mock).mockReturnValue(['DP1']);
+      (readTournamentArchive as jest.Mock).mockResolvedValue({
+        schemaVersion: 1,
+        tournament: { id: 'tournament-1', slug: 'archived', name: 'Archived', status: 'completed' },
+        allPlayers: [],
+        modes: {
+          ta: {
+            entries: playerIds.map((playerId, index) => ({
+              id: `qual-${playerId}`,
+              tournamentId: 'tournament-1',
+              playerId,
+              stage: 'qualification',
+              lives: 3,
+              eliminated: false,
+              rank: index + 1,
+              totalTime: 60000 + index * 1000,
+              player: { id: playerId, name: `Player ${playerId}`, nickname: `P${index + 1}` },
+            })),
+            phaseRounds: [
+              {
+                id: `round-${phase}`,
+                tournamentId: 'tournament-1',
+                phase,
+                roundNumber: 1,
+                course: 'MC1',
+                results: playerIds.map((playerId, index) => ({
+                  playerId,
+                  timeMs: 60000 + index * 1000,
+                  isRetry: false,
+                })),
+                eliminatedIds,
+                livesReset: false,
+                manualOverride: false,
+              },
+            ],
+          },
+          bm: {},
+          mr: {},
+          gp: {},
+        },
+      });
+
+      await phasesRoute.GET(createRequest(`?phase=${phase}`), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      expect(call).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            archived: true,
+            phaseStatus: expect.objectContaining({
+              [phase]: expect.objectContaining({
+                total: 2,
+                active: 1,
+                eliminated: 1,
+              }),
+            }),
+            entries: expect.arrayContaining([
+              expect.objectContaining({
+                playerId: playerIds[0],
+                stage: phase,
+                lives: 0,
+                eliminated: false,
+              }),
+              expect.objectContaining({
+                playerId: playerIds[1],
+                stage: phase,
+                lives: 0,
+                eliminated: true,
+              }),
+            ]),
+            rounds: [expect.objectContaining({ id: `round-${phase}` })],
+          }),
+        })
+      );
+    });
   });
 
   describe('Phase parameter validation', () => {

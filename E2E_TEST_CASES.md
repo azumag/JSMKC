@@ -2420,6 +2420,29 @@
 
 ---
 
+## TC-ARC-05: TA archive phase entries — phase1/phase2 round history fallback
+- **URL**: GET /api/tournaments/:id/ta/phases?phase=phase1, GET /api/tournaments/:id/ta/phases?phase=phase2
+- **authRequired**: false (公開GETエンドポイント)
+- **背景**: 古い archive bundle は TA phase round history を持っていても
+  `TTEntry.stage = phase1/phase2` の entries を持たない場合がある。この場合でも
+  phase API は round history から entries を再構築し、phase1/phase2 では lives を
+  0 固定として返す。
+- **手順**:
+  1. `modes.ta.entries` に qualification entries のみを持つ archive fixture を用意する
+  2. `modes.ta.phaseRounds` に phase1 と phase2 の submitted round history を用意する
+  3. `/api/tournaments/:id/ta/phases?phase=phase1` を GET
+  4. `/api/tournaments/:id/ta/phases?phase=phase2` を GET
+  5. phase1/phase2 の entries が round results 由来の playerId で再構築されることを確認
+  6. eliminatedIds に含まれる player は `eliminated: true`、phase1/phase2 の `lives` は 0 であることを確認
+- **期待結果**:
+  - phase1/phase2 とも HTTP 200
+  - `data.archived === true`
+  - entries が round history から再構築される
+  - phase1/phase2 の再構築 entries は `lives === 0`
+- **補助検証**: `smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts`
+
+---
+
 ## TC-DBG-01: デバッグモードトーナメント作成 → 4モード予選スコア自動入力
 - **URL**: POST /api/tournaments, POST /api/tournaments/:id/{bm,mr,gp,ta}/debug-fill
 - **authRequired**: true (admin)

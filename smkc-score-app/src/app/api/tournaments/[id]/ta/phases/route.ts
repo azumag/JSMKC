@@ -185,7 +185,7 @@ function getRoundResultPlayerIds(rounds: unknown[], phase: PhaseName) {
   return playerIds;
 }
 
-function replayArchivedPhaseLives(rounds: unknown[], playerIds: Set<string>) {
+function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>) {
   const livesByPlayer = new Map([...playerIds].map((playerId) => [playerId, 3]));
   const eliminated = new Set<string>();
 
@@ -246,7 +246,7 @@ function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: P
   const livesByPlayer = new Map<string, number>();
 
   if (phase === "phase3") {
-    const replay = replayArchivedPhaseLives(rounds, playerIds);
+    const replay = replayArchivedPhase3Lives(rounds, playerIds);
     replay.eliminated.forEach((playerId) => eliminated.add(playerId));
     replay.livesByPlayer.forEach((lives, playerId) => livesByPlayer.set(playerId, lives));
   } else {
