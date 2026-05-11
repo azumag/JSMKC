@@ -1837,6 +1837,17 @@
 - **期待結果**: ラウンドをまたいだ同カップは許可されるが、同じラウンドのカップ組み合わせは FT3 の5件目を除いて重複しない。FT数ぶんの初期カップ欄は削除できず、追加したカップ欄だけ削除できる
 - **スクリプト**: tc-gp.js TC-717
 
+## TC-726: GP決勝 — 管理者スコア入力ダイアログの割り当てカップ表示を一度だけ評価する
+- **URL**: /tournaments/[id]/gp/finals
+- **authRequired**: true (admin)
+- **背景**: 管理者のシンプルなカップ勝利数入力ダイアログでは、`selectedMatch.assignedCups` から表示用ラベルを作る。JSX 内で同じ `getAssignedCupLabelsForMatch(selectedMatch)` を length 判定と map で2回呼ぶと、軽微だが不要な再評価になり、将来 helper に副作用や重い処理が入った場合の回帰点になる。
+- **手順**:
+  1. GP 決勝ページ実装を確認する
+  2. `selectedMatch` 用の割り当てカップ表示ラベルが JSX の手前で `selectedMatchAssignedCupLabels` に一度だけ格納されることを確認する
+  3. ダイアログ内の表示条件と badge 描画が `selectedMatchAssignedCupLabels` を共有していることを確認する
+- **期待結果**: `getAssignedCupLabelsForMatch(selectedMatch)` は render 内で一度だけ評価され、length 判定と badge 描画が同じ配列を使う
+- **スクリプト**: n/a (source guard) — smkc-score-app/__tests__/components/gp-finals-page-source.test.ts
+
 ## TC-718: GP決勝 — 管理者の手動合計スコア入力 (PR #585 マニュアルフォーム)
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
 - **authRequired**: true (admin)
