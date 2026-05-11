@@ -114,6 +114,18 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('GPMatch.suddenDeathWinnerId');
   });
 
+  it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
+    const section = sectionFor('TC-534');
+
+    expect(section).toContain('playoff_r2');
+    expect(section).toContain('winner 不定');
+    expect(section).toContain('warning');
+    expect(section).toContain('matchNumber');
+    expect(section).toContain('advancesToUpperSeed');
+    expect(section).toContain('finals-route.test.ts');
+    expect(section).toContain('server-side warning');
+  });
+
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
     expect(tcAll).not.toContain('TC-403');
   });

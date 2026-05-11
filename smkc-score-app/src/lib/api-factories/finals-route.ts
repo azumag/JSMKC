@@ -64,8 +64,20 @@ interface FinalsMatchResultError {
 interface SeededFinalsPlayer {
   seed: number;
   playerId: string;
-  player: unknown;
+  player: PublicFinalsPlayer;
   qualificationRankLabel?: string;
+}
+
+interface PublicFinalsPlayer {
+  id: string;
+  name?: string | null;
+  nickname?: string | null;
+  country?: string | null;
+  noCamera?: boolean;
+}
+
+function isPublicFinalsPlayer(value: unknown): value is PublicFinalsPlayer {
+  return Boolean(value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string');
 }
 
 function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
@@ -574,7 +586,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
   function getCompletedMatchWinner(
     match: Record<string, unknown>,
-  ): { winnerId: string; winnerPlayer: unknown } | null {
+  ): { winnerId: string; winnerPlayer: PublicFinalsPlayer } | null {
     const score1 = Number(match[config.putScoreFields.dbField1]);
     const score2 = Number(match[config.putScoreFields.dbField2]);
     if (!Number.isFinite(score1) || !Number.isFinite(score2) || score1 === score2) {
@@ -586,9 +598,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
       return null;
     }
 
+    const winnerPlayer = match.player1Id === winnerId ? match.player1 : match.player2;
+    if (!isPublicFinalsPlayer(winnerPlayer)) {
+      return null;
+    }
+
     return {
       winnerId,
-      winnerPlayer: match.player1Id === winnerId ? match.player1 : match.player2,
+      winnerPlayer,
     };
   }
 
@@ -694,6 +711,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     tournamentId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     playoffMatches: any[],
+    logger: ReturnType<typeof createLogger>,
   ): Promise<{
     bracketStructure: ReturnType<typeof generateBracketStructure>;
     seededPlayers: SeededFinalsPlayer[];
@@ -723,7 +741,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const seededPlayers: SeededFinalsPlayer[] = selection.directSeeds.map(({ seed, qualification }) => ({
         seed,
         playerId: qualification.playerId,
-        player: qualification.player,
+        player: qualification.player as PublicFinalsPlayer,
         qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
       }));
 
@@ -740,7 +758,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
         if (!dbMatch?.completed) continue;
 
         const winner = getCompletedMatchWinner(dbMatch);
-        if (!winner) continue;
+        if (!winner) {
+          logger.warn('Top-24 playoff winner could not be resolved', {
+            tournamentId,
+            eventTypeCode: config.eventTypeCode,
+            matchNumber: r2BracketMatch.matchNumber,
+            advancesToUpperSeed: r2BracketMatch.advancesToUpperSeed,
+          });
+          continue;
+        }
         seededPlayers.push({
           seed: r2BracketMatch.advancesToUpperSeed,
           playerId: winner.winnerId,
@@ -946,7 +972,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         : playoffMatches.length > 0 ? 'playoff' as const
         : 'finals' as const;
       const top24FinalsPreview = hasFinals === 0
-        ? await buildTop24FinalsPreview(tournamentId, playoffMatches)
+        ? await buildTop24FinalsPreview(tournamentId, playoffMatches, logger)
         : null;
 
       /* Normalize GP cup sequences for legacy finals rows before paginating or
@@ -1514,7 +1540,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* Derive each playoff winner and map to its advancesToUpperSeed target. */
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
-      const upperSeedToPlayer = new Map<number, { playerId: string; player: unknown }>();
+      const upperSeedToPlayer = new Map<number, { playerId: string; player: PublicFinalsPlayer }>();
 
       for (const r2BracketMatch of playoffStructure.filter(m => m.round === 'playoff_r2')) {
         const dbMatch = r2Matches.find(
@@ -1537,7 +1563,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const directPlayers = selection.directSeeds.map(({ seed, qualification }) => ({
         seed,
         playerId: qualification.playerId,
-        player: qualification.player,
+        player: qualification.player as PublicFinalsPlayer,
         qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
       }));
       const playoffUpperSeeds = playoffStructure

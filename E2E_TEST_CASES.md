@@ -1264,6 +1264,17 @@
 - **期待結果**: BM の合算順位タブが全グループの参加者を表示し、順位列が昇順で描画される
 - **スクリプト**: tc-bm.js TC-533
 
+## TC-534: BM Top-24 Phase 2 preview — winner 不定時の warning
+- **URL**: /tournaments/[id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: Top-24 playoff の Phase 2 preview は `playoff_r2` が completed でも同点・欠損 playerId などで winner を決められない場合がある。該当シードを静かに欠落させると Phase 2 デバッグが難しくなるため、未解決 winner を warning として残す。
+- **手順**:
+  1. Top-24 playoff を生成し、`playoff_r2` のうち 1 試合を winner 不定の completed 状態にする
+  2. `GET /api/tournaments/[id]/bm/finals` で Phase 2 preview を取得する
+  3. preview は取得できるが、未解決 winner の `matchNumber` と `advancesToUpperSeed` が warning に記録されることを確認
+- **期待結果**: Phase 2 preview は未解決 winner を黙って無視せず、原因調査に使える warning を残す
+- **スクリプト**: n/a（server-side warning のため `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` で検証）
+
 ---
 
 ## MR (Match Race) フルワークフローテスト

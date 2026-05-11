@@ -1317,6 +1317,36 @@ describe('Finals Route Factory', () => {
       expect(seedMap.get(14)).toBe('winner-14');
       expect(seedMap.get(10)).toBe('winner-10');
     });
+
+    it('GET Top-24 preview warns when a completed playoff R2 winner cannot be resolved', async () => {
+      (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
+      const playoffRows = [
+        { id: 'p-r2-5', matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 5, player1Id: 'player-19', player2Id: 'player-8', player1: { id: 'player-19' }, player2: { id: 'player-8' } },
+        { id: 'p-r2-6', matchNumber: 6, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-6', player2Id: 'player-21', player1: { id: 'player-6' }, player2: { id: 'player-21' } },
+        { id: 'p-r2-7', matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-7', player2Id: 'player-20', player1: { id: 'player-7' }, player2: { id: 'player-20' } },
+        { id: 'p-r2-8', matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-18', player2Id: 'player-9', player1: { id: 'player-18' }, player2: { id: 'player-9' } },
+      ];
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(playoffRows);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
+
+      const config = createMockConfig({ getStyle: 'grouped' });
+      const { GET } = createFinalsHandlers(config);
+
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockLogger.warn).toHaveBeenCalledWith('Top-24 playoff winner could not be resolved', {
+        tournamentId: 'tournament-123',
+        eventTypeCode: 'bm',
+        matchNumber: 5,
+        advancesToUpperSeed: 16,
+      });
+    });
   });
 
   // ============================================================
