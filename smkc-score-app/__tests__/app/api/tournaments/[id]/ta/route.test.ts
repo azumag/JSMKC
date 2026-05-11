@@ -90,10 +90,13 @@ jest.mock('@/lib/ta/freeze-check', () => ({
   checkStageFrozen: jest.fn(() => Promise.resolve(null)),
 }));
 
-jest.mock('@/lib/tournament-archive', () => ({
-  getArchivedModePayload: jest.requireActual('@/lib/tournament-archive').getArchivedModePayload,
-  readTournamentArchive: jest.fn(),
-}));
+jest.mock('@/lib/tournament-archive', () => {
+  const actual = jest.requireActual('@/lib/tournament-archive');
+  return {
+    getArchivedModePayload: jest.fn(actual.getArchivedModePayload),
+    readTournamentArchive: jest.fn(),
+  };
+});
 
 // Mock next/server with MockNextRequest that supports URL parsing
 jest.mock('next/server', () => {
@@ -134,7 +137,7 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import * as taRoute from '@/app/api/tournaments/[id]/ta/route';
-import { readTournamentArchive } from '@/lib/tournament-archive';
+import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
 // Access mocks via requireMock to get references to the same mock functions
@@ -382,6 +385,32 @@ describe('/api/tournaments/[id]/ta', () => {
         expect.objectContaining({ tournamentId: VALID_UUID })
       );
 
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Failed to fetch time attack data', code: 'INTERNAL_ERROR' },
+        { status: 500 }
+      );
+    });
+
+    it('should keep DB errors as 500 when archive exists without TA mode payload', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockRejectedValue(new Error('DB error'));
+      (readTournamentArchive as jest.Mock).mockResolvedValue({
+        schemaVersion: 1,
+        tournament: { id: VALID_UUID, publicModes: ['bm'] },
+        modes: {
+          bm: {},
+          mr: {},
+          gp: {},
+        },
+        allPlayers: [],
+      });
+
+      await taRoute.GET(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
+      expect(getArchivedModePayload).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to fetch time attack data', code: 'INTERNAL_ERROR' },
         { status: 500 }
