@@ -179,6 +179,38 @@ describe("tournament archive", () => {
     expect(getKeys).not.toContain("archives/by-id/tournament-meta/latest.json");
   });
 
+  it("falls back to the full archive bundle when by-id meta validation fails", async () => {
+    const archive = makeArchive({
+      generatedAt: "2026-05-11T00:00:00.000Z",
+      tournament: {
+        ...makeArchive().tournament,
+        id: "tournament-invalid-meta",
+        slug: "invalid-meta-slug",
+        name: "Invalid Meta Archive",
+        date: "2026-05-11T00:00:00.000Z",
+      },
+    });
+    objects.set("archives/by-id/tournament-invalid-meta/meta.json", {
+      id: "tournament-invalid-meta",
+      slug: "invalid-meta-slug",
+      name: "Invalid Meta Archive",
+      status: "draft",
+      archivedAt: "2026-05-11T00:00:00.000Z",
+    });
+    objects.set("archives/by-id/tournament-invalid-meta/latest.json", archive);
+
+    await expect(readTournamentArchiveIndex()).resolves.toEqual([
+      expect.objectContaining({
+        id: "tournament-invalid-meta",
+        slug: "invalid-meta-slug",
+        name: "Invalid Meta Archive",
+        status: "completed",
+      }),
+    ]);
+    expect(getKeys).toContain("archives/by-id/tournament-invalid-meta/meta.json");
+    expect(getKeys).toContain("archives/by-id/tournament-invalid-meta/latest.json");
+  });
+
   it("falls back to the legacy index when by-id archives are not present without mutating legacy order", async () => {
     const legacy = [
       {
