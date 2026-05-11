@@ -3,6 +3,7 @@ import { isValidGpFinalsSimpleScore } from '@/lib/gp-finals-simple-score';
 describe('isValidGpFinalsSimpleScore', () => {
   it.each([
     [2, 0, 2],
+    [2, 1, 2],
     [0, 2, 2],
     [3, 2, 3],
     [1, 2, 2],
