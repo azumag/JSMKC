@@ -67,8 +67,10 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('completed=true');
     expect(section).toContain('FT数を再計算せず');
+    expect(section).toContain('PUTレスポンスの更新済みmatch');
     expect(section).toContain('FT3の最大3勝に対応する3カップ');
     expect(tcGp).toContain('completeGpFinalsMatchByCompletedFlag');
+    expect(tcGp).toContain('gpFinalsUpdatedMatchFromPutResult');
     expect(tcGp).toContain('updated?.completed === true');
     expect(tcGp).not.toContain('gpFinalsTargetWinsForRound');
   });

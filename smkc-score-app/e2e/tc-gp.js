@@ -1464,6 +1464,11 @@ function gpWinningCupResultsForCups(cups) {
   return cups.map((cup) => gpCupResult(cup, 45, 0));
 }
 
+function gpFinalsUpdatedMatchFromPutResult(putResult, matchId) {
+  const match = putResult?.b?.data?.match || putResult?.b?.match;
+  return match?.id === matchId ? match : null;
+}
+
 async function completeGpFinalsMatchByCompletedFlag(adminPage, tournamentId, match) {
   const cups = gpAssignedCupSequence(match);
   for (let count = 1; count <= cups.length; count++) {
@@ -1475,8 +1480,11 @@ async function completeGpFinalsMatchByCompletedFlag(adminPage, tournamentId, mat
     );
     if (res.s !== 200) throw new Error(`Match ${match.matchNumber} put failed (${res.s})`);
 
-    const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
-    const updated = matches.find((m) => m.id === match.id);
+    let updated = gpFinalsUpdatedMatchFromPutResult(res, match.id);
+    if (!updated) {
+      const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+      updated = matches.find((m) => m.id === match.id);
+    }
     if (updated?.completed === true) return updated;
   }
   throw new Error(`Match ${match.matchNumber} did not complete after ${cups.length} cups`);
@@ -1597,7 +1605,7 @@ module.exports = {
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc821, runTc831, runTc832,
-  gpAssignedCupSequence,
+  gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult,
   getSuite,
   results,
 };
