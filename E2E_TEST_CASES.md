@@ -1872,6 +1872,19 @@
 - **期待結果**: アッパーブラケットは `2-0` のような取得カップ数だけで保存・進行でき、不要なカップ別明細を作らない
 - **スクリプト**: tc-gp.js TC-1103 (`npm run e2e:gp`, preview: `npm run e2e:preview:gp`)
 
+## TC-727: GP決勝 — 取得カップ数がFT上限を超える保存を拒否する
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: GP決勝のシンプル入力は取得カップ数だけを保存するが、FT2/FT3の必要勝利数を超える値は進行状態を壊すため拒否する。
+- **手順**:
+  1. 8名以上の GP 予選を完了し、決勝ブラケットを生成する
+  2. FT2 のアッパーブラケット M1 に `{ score1: 3, score2: 0 }` をPUTする
+  3. HTTP 400 と `Cup wins must be integers from 0 to 2` が返ることを確認する
+  4. `GET /api/.../gp/finals` で M1 を再取得する
+  5. M1 が未完了のまま更新されていないことを確認する
+- **期待結果**: FT上限を超えるシンプル取得カップ数は保存されず、ブラケット進行も発生しない
+- **スクリプト**: tc-gp.js TC-727 (`npm run e2e:gp`, preview: `npm run e2e:preview:gp`)
+
 ## TC-710: GP カップ不一致修正の拒否
 - **URL**: /api/tournaments/[temp-id]/gp (PATCH with correction)
 - **authRequired**: true (player)
