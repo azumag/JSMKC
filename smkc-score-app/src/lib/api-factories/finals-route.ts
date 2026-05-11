@@ -708,15 +708,27 @@ export function createFinalsHandlers(config: FinalsConfig) {
   }
 
   function buildQualificationRankLabelMap(
-    qualifications: Array<{ playerId: string; group?: string | null }>,
+    qualifications: Array<{
+      playerId: string;
+      group?: string | null;
+      _rank?: number;
+      rankOverride?: number | null;
+    }>,
   ): Map<string, string> {
-    /* Callers must pass qualifications already ordered by qualification rank
-     * within each group. The loop below derives A1/A2/B1 labels by counting
-     * the rows in that order rather than re-sorting here. */
+    const orderedQualifications = qualifications
+      .map((qualification, index) => ({ qualification, index }))
+      .sort((a, b) => {
+        const groupCompare = (a.qualification.group ?? '').localeCompare(b.qualification.group ?? '');
+        if (groupCompare !== 0) return groupCompare;
+
+        const rankA = a.qualification._rank ?? a.qualification.rankOverride ?? Number.MAX_SAFE_INTEGER;
+        const rankB = b.qualification._rank ?? b.qualification.rankOverride ?? Number.MAX_SAFE_INTEGER;
+        return rankA - rankB || a.index - b.index;
+      });
     const rankByPlayerId = new Map<string, string>();
     const groupCounts = new Map<string, number>();
 
-    for (const q of qualifications) {
+    for (const { qualification: q } of orderedQualifications) {
       const group = q.group ?? '';
       const rank = (groupCounts.get(group) ?? 0) + 1;
       groupCounts.set(group, rank);
