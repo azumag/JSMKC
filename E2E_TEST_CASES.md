@@ -2432,9 +2432,10 @@
   qualification page は `Promise.all` で同時に開始し、players endpoint が失敗した
   場合だけ archive payload の `allPlayers` に fallback する。
 - **手順**:
-  1. TA/BM/MR/GP の page-client fetch 関数を読み込む
-  2. mode API と `/api/players?limit=100` が同じ `Promise.all` 内で開始されることを確認
-  3. players fetch が失敗した場合に mode payload の `allPlayers` が使われることを確認
+  1. TA/BM/MR/GP の qualification page を Playwright で開く
+  2. route interception で mode API と `/api/players?limit=100` の応答を両方の request が揃うまで保留する
+  3. 片方の API response を待たずに両方の request が開始されることを確認
+  4. players fetch が失敗した場合に mode payload の `allPlayers` が使われることを確認
 - **期待結果**:
   - TA/BM/MR/GP 全てで mode API と players API が並列に起動する
   - players API 成功時は最新の player list を使う

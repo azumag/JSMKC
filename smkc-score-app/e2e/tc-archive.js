@@ -29,11 +29,11 @@ const {
   BASE,
 } = require('./lib/common');
 const { closeBrowser, envMs, exitAfterCleanup } = require('./lib/runner');
-const fs = require('fs');
-const path = require('path');
 
 const results = makeResults();
 const log = makeLog(results);
+const QUALIFICATION_MODES = ['ta', 'bm', 'mr', 'gp'];
+const QUALIFICATION_FETCH_TIMEOUT_MS = 15_000;
 
 async function createPlayers(page, prefix, count) {
   const stamp = Date.now();
@@ -263,21 +263,128 @@ async function tcArc04(page) {
   }
 }
 
-function tcArc09() {
+function qualificationModePayload(mode) {
+  const base = {
+    allPlayers: [],
+    qualificationConfirmed: false,
+  };
+  if (mode === 'ta') {
+    return { ...base, entries: [] };
+  }
+  return { ...base, qualifications: [], matches: [] };
+}
+
+function requestKindForQualificationFetch(url, tournamentId, mode) {
   try {
-    const root = path.join(__dirname, '..');
-    const files = ['ta', 'bm', 'mr', 'gp'].map((mode) =>
-      path.join(root, 'src', 'app', 'tournaments', '[id]', mode, 'page-client.tsx'));
-    const failures = files.filter((file) => {
-      const source = fs.readFileSync(file, 'utf8');
-      return !source.includes('Promise.all([') ||
-        !source.includes('fetchAllPlayersForSetup<Player>()') ||
-        !source.includes('resolveAllPlayers(playersResult');
+    const parsed = new URL(url);
+    if (parsed.pathname === `/api/tournaments/${tournamentId}/${mode}`) {
+      return 'mode';
+    }
+    if (parsed.pathname === '/api/players' && parsed.searchParams.get('limit') === '100') {
+      return 'players';
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function assertQualificationFetchesStartInParallel(page, tournamentId, mode) {
+  const starts = {};
+  const pending = {};
+  let released = false;
+  let timeout = null;
+
+  const payloads = {
+    mode: { data: qualificationModePayload(mode) },
+    players: { data: [] },
+  };
+
+  const releasePending = () => {
+    if (released || !pending.mode || !pending.players) return;
+    released = true;
+    if (timeout) clearTimeout(timeout);
+    Promise.all(Object.entries(pending).map(([kind, item]) =>
+      item.route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(payloads[kind]),
+      }).finally(item.done),
+    ));
+  };
+
+  const routeHandler = (route) => {
+    const kind = requestKindForQualificationFetch(route.request().url(), tournamentId, mode);
+    if (!kind) {
+      return route.continue();
+    }
+    starts[kind] = starts[kind] ?? Date.now();
+    return new Promise((done) => {
+      pending[kind] = { route, done };
+      releasePending();
     });
-    log('TC-ARC-09', failures.length === 0 ? 'PASS' : 'FAIL',
-      failures.length === 0 ? 'TA/BM/MR/GP fetch mode data and players in parallel' : `missing parallel fetch in ${failures.map((file) => path.basename(path.dirname(file))).join(',')}`);
+  };
+
+  await page.route('**/api/**', routeHandler);
+  try {
+    timeout = setTimeout(() => {
+      for (const item of Object.values(pending)) {
+        item.route.fulfill({
+          status: 504,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'TC-ARC-09 timed out waiting for paired request' }),
+        }).finally(item.done);
+      }
+    }, QUALIFICATION_FETCH_TIMEOUT_MS);
+
+    const modeRequest = page.waitForRequest(
+      (request) => requestKindForQualificationFetch(request.url(), tournamentId, mode) === 'mode',
+      { timeout: QUALIFICATION_FETCH_TIMEOUT_MS },
+    );
+    const playersRequest = page.waitForRequest(
+      (request) => requestKindForQualificationFetch(request.url(), tournamentId, mode) === 'players',
+      { timeout: QUALIFICATION_FETCH_TIMEOUT_MS },
+    );
+
+    await page.goto(`${BASE}/tournaments/${tournamentId}/${mode}`, { waitUntil: 'domcontentloaded' });
+    await Promise.all([modeRequest, playersRequest]);
+    releasePending();
+
+    if (!starts.mode || !starts.players) {
+      throw new Error(`${mode}: missing mode or players request`);
+    }
+    const deltaMs = Math.abs(starts.mode - starts.players);
+    if (deltaMs > 1_000) {
+      throw new Error(`${mode}: request start delta ${deltaMs}ms exceeded 1000ms`);
+    }
+    return deltaMs;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    await page.unroute('**/api/**', routeHandler).catch(() => {});
+  }
+}
+
+async function tcArc09(page) {
+  let tournamentId = null;
+  try {
+    tournamentId = await apiCreateTournament(page, `E2E TC-ARC-09 ${Date.now()}`);
+    const activated = await apiUpdateTournament(page, tournamentId, {
+      status: 'active',
+      publicModes: QUALIFICATION_MODES,
+    });
+    if (activated.s !== 200) throw new Error(`activation update failed (${activated.s})`);
+
+    const deltas = {};
+    for (const mode of QUALIFICATION_MODES) {
+      deltas[mode] = await assertQualificationFetchesStartInParallel(page, tournamentId, mode);
+    }
+
+    log('TC-ARC-09', 'PASS',
+      `TA/BM/MR/GP requested mode data and /api/players?limit=100 before either response resolved (${Object.entries(deltas).map(([mode, ms]) => `${mode}:${ms}ms`).join(' ')})`);
   } catch (error) {
     log('TC-ARC-09', 'FAIL', error instanceof Error ? error.message : String(error));
+  } finally {
+    await apiDeleteTournament(page, tournamentId);
   }
 }
 
@@ -289,7 +396,7 @@ async function runArchiveTests(page) {
   await tcArc06(page);
   await tcArc07(page);
   await tcArc08(page);
-  tcArc09();
+  await tcArc09(page);
 
   const failed = results.filter((result) => result.s === 'FAIL');
   console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
@@ -333,4 +440,6 @@ module.exports = {
   runArchiveTests,
   createCompletedPublicBmArchive,
   cleanupArchiveFixture,
+  assertQualificationFetchesStartInParallel,
+  requestKindForQualificationFetch,
 };
