@@ -245,6 +245,14 @@ When you modify `prisma/schema.prisma`, create a migration:
 npx prisma migrate dev --name add_new_feature
 ```
 
+For Cloudflare D1, also add the matching Wrangler-format SQL file under
+`migrations/`. New Wrangler/D1 migrations should quote table and column
+identifiers with backticks so examples stay consistent:
+
+```sql
+ALTER TABLE `TableName` ADD COLUMN `columnName` TEXT;
+```
+
 ### Prisma Studio
 
 Prisma Studio provides a GUI for viewing and editing database data:
