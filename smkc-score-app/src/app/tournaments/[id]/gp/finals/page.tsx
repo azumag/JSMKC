@@ -85,6 +85,7 @@ import { buildMatchLabel } from "@/lib/overlay/phase";
 import { getGpFinalsMaxCups, getGpFinalsTargetWins } from "@/lib/finals-target-wins";
 import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
 import { getAssignedCupLabelsForMatch } from "@/lib/gp-finals-assigned-cups";
+import { isValidGpFinalsSimpleScore } from "@/lib/gp-finals-simple-score";
 import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
 
 /** Client-side logger for error tracking */
@@ -581,17 +582,8 @@ export default function GrandPrixFinals({
       const targetWins = getTargetWinsForMatch(selectedMatch);
       const score1 = parseManualScore(simpleScoreForm.score1);
       const score2 = parseManualScore(simpleScoreForm.score2);
-      const player1Won = score1 === targetWins && score2 !== null && score2 < targetWins;
-      const player2Won = score2 === targetWins && score1 !== null && score1 < targetWins;
-      const noPlayerWon = !player1Won && !player2Won;
 
-      if (
-        score1 === null ||
-        score2 === null ||
-        score1 > targetWins ||
-        score2 > targetWins ||
-        noPlayerWon
-      ) {
+      if (!isValidGpFinalsSimpleScore(score1, score2, targetWins)) {
         alert(tFinals('matchNeedWinner', { targetWins }));
         return;
       }
@@ -686,14 +678,7 @@ export default function GrandPrixFinals({
   const selectedMatchTargetWins = selectedMatch ? getTargetWinsForMatch(selectedMatch) : 1;
   const selectedMatchAssignedCupLabels = selectedMatch ? getAssignedCupLabelsForMatch(selectedMatch) : [];
   const simpleScoreInputsReady = Boolean(selectedMatch && usesCupWinScoreOnly(selectedMatch) &&
-    simpleScore1 !== null &&
-    simpleScore2 !== null &&
-    simpleScore1 <= selectedMatchTargetWins &&
-    simpleScore2 <= selectedMatchTargetWins &&
-    (
-      (simpleScore1 === selectedMatchTargetWins && simpleScore2 < selectedMatchTargetWins) ||
-      (simpleScore2 === selectedMatchTargetWins && simpleScore1 < selectedMatchTargetWins)
-    ));
+    isValidGpFinalsSimpleScore(simpleScore1, simpleScore2, selectedMatchTargetWins));
   const scoreInputsReady = selectedMatch && usesCupWinScoreOnly(selectedMatch)
     ? simpleScoreInputsReady
     : cupForms.length > 0 && cupForms.every((cup) => calculateCupPoints(cup).valid);
