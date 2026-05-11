@@ -95,6 +95,14 @@ describe('preview schema preflight', () => {
     );
   });
 
+  it('does not duplicate the local Wrangler bin path when it is already present', () => {
+    const preflight = loadPreflight();
+    const localBinPath = path.join(process.cwd(), 'node_modules', '.bin');
+    const built = preflight.buildWranglerEnv({ PATH: [localBinPath, '/usr/bin'].join(path.delimiter) });
+
+    expect(built.PATH.split(path.delimiter).filter((entry) => entry === localBinPath)).toHaveLength(1);
+  });
+
   it('does not trust non-json stdout that merely mentions required column names', () => {
     const preflight = loadPreflight();
 
@@ -144,6 +152,13 @@ describe('preview schema preflight', () => {
     expect(() => preflight.assertPreviewD1Schema({})).toThrow(/db:migrations:apply:preview/);
   });
 
+  it('does not classify generic wrangler login help text as an auth failure', () => {
+    const preflight = loadPreflight();
+
+    expect(preflight.isWranglerAuthOrLogFailure('Run wrangler login if you need account access.')).toBe(false);
+    expect(preflight.isWranglerAuthOrLogFailure('Failed to fetch auth token: 400 Bad Request')).toBe(true);
+  });
+
   it('separates Wrangler auth and log setup failures from schema migration guidance', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
@@ -155,9 +170,20 @@ describe('preview schema preflight', () => {
       ].join('\n'),
     });
 
-    expect(() => preflight.assertPreviewD1Schema({})).toThrow(/Wrangler auth\/log setup failed/);
-    expect(() => preflight.assertPreviewD1Schema({})).toThrow(/WRANGLER_LOG_PATH/);
-    expect(() => preflight.assertPreviewD1Schema({})).not.toThrow(/db:migrations:apply:preview/);
+    let message = '';
+    try {
+      preflight.assertPreviewD1Schema({});
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toMatch(/Wrangler auth\/log setup failed/);
+    expect(message).toMatch(/WRANGLER_LOG_PATH/);
+    expect(message).not.toMatch(/db:migrations:apply:preview/);
+    expect(message.split('\n')).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Command exited 1/),
+      expect.stringMatching(/WRANGLER_LOG_PATH=/),
+    ]));
   });
 
   it('fails with timeout guidance when wrangler hangs', () => {
