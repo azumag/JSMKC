@@ -156,4 +156,57 @@ describe('archive E2E fixtures', () => {
     expect(continueOrder).toEqual(['mode-duplicate']);
     jest.useRealTimers();
   });
+
+  it('does not double-fulfill when timeout wins before the paired request arrives', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-11T00:00:00.000Z'));
+    const { suite } = await loadArchiveSuite({ BASE: 'https://preview.example.test' });
+    const fulfillStatuses: number[] = [];
+    const continueOrder: string[] = [];
+    const pendingRequests: Array<{ predicate: (request: { url: () => string }) => boolean; resolve: (request: unknown) => void }> = [];
+    let routeHandler: ((route: unknown) => Promise<void>) | null = null;
+
+    const requestFor = (url: string) => ({ url: () => url });
+    const routeFor = (kind: string, url: string) => ({
+      request: () => requestFor(url),
+      fulfill: jest.fn(async (response) => {
+        fulfillStatuses.push(response.status);
+      }),
+      continue: jest.fn(async () => {
+        continueOrder.push(kind);
+      }),
+    });
+    const resolveWaiters = (url: string) => {
+      const request = requestFor(url);
+      for (const waiter of pendingRequests) {
+        if (waiter.predicate(request)) waiter.resolve(request);
+      }
+    };
+
+    const page = {
+      route: jest.fn(async (_pattern, handler) => {
+        routeHandler = handler;
+      }),
+      unroute: jest.fn(async () => undefined),
+      waitForRequest: jest.fn((predicate) =>
+        new Promise((resolve) => pendingRequests.push({ predicate, resolve }))),
+      goto: jest.fn(async () => {
+        if (!routeHandler) throw new Error('route handler missing');
+        const modeUrl = 'https://preview.example.test/api/tournaments/tournament-1/bm';
+        const playersUrl = 'https://preview.example.test/api/players?limit=100';
+        resolveWaiters(modeUrl);
+        const modePromise = routeHandler(routeFor('mode', modeUrl));
+        await jest.advanceTimersByTimeAsync(15_000);
+        await modePromise;
+        resolveWaiters(playersUrl);
+        await routeHandler(routeFor('players-late', playersUrl));
+      }),
+    };
+
+    await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm'))
+      .rejects.toThrow('bm: missing mode or players request');
+    expect(fulfillStatuses).toEqual([504]);
+    expect(continueOrder).toEqual(['players-late']);
+    jest.useRealTimers();
+  });
 });
