@@ -21,6 +21,10 @@ describe('overlay broadcast layout', () => {
       player1Score: { x: 150, y: 540 },
       player2Score: { x: 150 },
     })).toBe(true);
+    expect(isOverlayBroadcastLayoutInput({
+      player1Name: { x: 0, y: 0 },
+      player2Name: { x: 1920, y: 1080 },
+    })).toBe(true);
 
     expect(isOverlayBroadcastLayoutInput({
       player3Name: { x: 1, y: 2 },

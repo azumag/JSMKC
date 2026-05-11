@@ -44,13 +44,8 @@ function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function isCoordinateInBroadcastBounds(key: "x" | "y", value: number): boolean {
-  if (key === "x") {
-    return value >= OVERLAY_BROADCAST_LAYOUT_BOUNDS.minX &&
-      value <= OVERLAY_BROADCAST_LAYOUT_BOUNDS.maxX;
-  }
-  return value >= OVERLAY_BROADCAST_LAYOUT_BOUNDS.minY &&
-    value <= OVERLAY_BROADCAST_LAYOUT_BOUNDS.maxY;
+function isInRange(value: number, min: number, max: number): boolean {
+  return value >= min && value <= max;
 }
 
 function normalizePosition(
@@ -80,7 +75,9 @@ export function isOverlayBroadcastLayoutInput(value: unknown): value is Partial<
     if (!isRecord(position)) return false;
     const x = position.x;
     const y = position.y;
-    return (x === undefined || (isFiniteCoordinate(x) && isCoordinateInBroadcastBounds("x", x))) &&
-      (y === undefined || (isFiniteCoordinate(y) && isCoordinateInBroadcastBounds("y", y)));
+    return (x === undefined || (isFiniteCoordinate(x) &&
+      isInRange(x, OVERLAY_BROADCAST_LAYOUT_BOUNDS.minX, OVERLAY_BROADCAST_LAYOUT_BOUNDS.maxX))) &&
+      (y === undefined || (isFiniteCoordinate(y) &&
+        isInRange(y, OVERLAY_BROADCAST_LAYOUT_BOUNDS.minY, OVERLAY_BROADCAST_LAYOUT_BOUNDS.maxY)));
   });
 }

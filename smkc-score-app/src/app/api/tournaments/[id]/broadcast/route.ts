@@ -167,6 +167,7 @@ export async function PUT(
     const tournamentId = tournament.id;
 
     const updateData: Record<string, string | number | boolean | null | Prisma.InputJsonValue> = {};
+    let normalizedLayout: OverlayBroadcastLayout | undefined;
     if (player1Name !== undefined) {
       updateData.overlayPlayer1Name = player1Name === null ? null : (player1Name as string).trim() || null;
       if (player1NoCamera === undefined) updateData.overlayPlayer1NoCamera = false;
@@ -194,7 +195,8 @@ export async function PUT(
       updateData.overlayMatchFt = matchFt === null ? null : (matchFt as number);
     }
     if (layout !== undefined) {
-      updateData.overlayLayout = normalizeOverlayBroadcastLayout(layout) as unknown as Prisma.InputJsonObject;
+      normalizedLayout = normalizeOverlayBroadcastLayout(layout);
+      updateData.overlayLayout = normalizedLayout as unknown as Prisma.InputJsonObject;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -231,9 +233,7 @@ export async function PUT(
       matchFt: updateData.overlayMatchFt !== undefined
         ? (updateData.overlayMatchFt ?? null)
         : undefined,
-      layout: updateData.overlayLayout !== undefined
-        ? (updateData.overlayLayout as unknown as OverlayBroadcastLayout)
-        : undefined,
+      layout: normalizedLayout,
     });
   } catch (error) {
     logger.error("Failed to update broadcast state", { error, tournamentId: id });
