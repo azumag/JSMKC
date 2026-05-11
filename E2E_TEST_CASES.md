@@ -1840,13 +1840,13 @@
 ## TC-726: GP決勝 — 管理者スコア入力ダイアログの割り当てカップ表示を一度だけ評価する
 - **URL**: /tournaments/[id]/gp/finals
 - **authRequired**: true (admin)
-- **背景**: 管理者のシンプルなカップ勝利数入力ダイアログでは、`selectedMatch.assignedCups` から表示用ラベルを作る。JSX 内で同じ `getAssignedCupLabelsForMatch(selectedMatch)` を length 判定と map で2回呼ぶと、軽微だが不要な再評価になり、将来 helper に副作用や重い処理が入った場合の回帰点になる。
+- **背景**: 管理者のシンプルなカップ勝利数入力ダイアログでは、`selectedMatch.assignedCups` から表示用ラベルを作る。表示条件と badge 描画で同じラベル配列を共有し、同じ render 中に重複して組み立てない。
 - **手順**:
   1. GP 決勝ページ実装を確認する
-  2. `selectedMatch` 用の割り当てカップ表示ラベルが JSX の手前で `selectedMatchAssignedCupLabels` に一度だけ格納されることを確認する
-  3. ダイアログ内の表示条件と badge 描画が `selectedMatchAssignedCupLabels` を共有していることを確認する
-- **期待結果**: `getAssignedCupLabelsForMatch(selectedMatch)` は render 内で一度だけ評価され、length 判定と badge 描画が同じ配列を使う
-- **スクリプト**: n/a (source guard) — smkc-score-app/__tests__/components/gp-finals-page-source.test.ts
+  2. 割り当てカップ表示ラベルは `assignedCups` を優先し、legacy `cup` にフォールバックすることを確認する
+  3. ダイアログ内の表示条件と badge 描画が同じ表示ラベル配列を共有していることを確認する
+- **期待結果**: `assignedCups` がある試合はその順番で badge を表示し、legacy `cup` だけの試合も単一 badge を表示する。表示条件と badge 描画は同じ配列を使う
+- **スクリプト**: n/a (unit coverage) — smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts
 
 ## TC-718: GP決勝 — 管理者の手動合計スコア入力 (PR #585 マニュアルフォーム)
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)

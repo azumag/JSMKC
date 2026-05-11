@@ -84,6 +84,7 @@ import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
 import { getGpFinalsMaxCups, getGpFinalsTargetWins } from "@/lib/finals-target-wins";
 import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
+import { getAssignedCupLabelsForMatch } from "@/lib/gp-finals-assigned-cups";
 import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
 
 /** Client-side logger for error tracking */
@@ -444,12 +445,6 @@ export default function GrandPrixFinals({
 
   const usesCupWinScoreOnly = (match?: Pick<GPMatch, "stage"> | null) =>
     match?.stage !== "playoff";
-
-  const getAssignedCupLabelsForMatch = (match: GPMatch): string[] => {
-    const assigned = Array.isArray(match.assignedCups) ? match.assignedCups.filter(Boolean) : [];
-    if (assigned.length > 0) return assigned;
-    return match.cup ? [match.cup] : [];
-  };
 
   const calculateCupPoints = (cup: CupScoreForm) => {
     if (cup.manualEnabled) {
