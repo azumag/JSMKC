@@ -67,6 +67,10 @@ describe('preview E2E runner', () => {
     expect(packageJson.scripts['e2e:preview:login']).toBe('node e2e/login-preview-admin.js');
   });
 
+  it('exposes preview schema preflight for E2E startup checks', () => {
+    expect(typeof runner.assertPreviewD1Schema).toBe('function');
+  });
+
   it('exposes a focused preview debug-fill coverage script', () => {
     expect(packageJson.scripts['e2e:debug-fill']).toBe('node e2e/tc-debug-fill.js');
     expect(packageJson.scripts['e2e:preview:debug-fill']).toBe('node e2e/run-preview.js tc-debug-fill.js');
