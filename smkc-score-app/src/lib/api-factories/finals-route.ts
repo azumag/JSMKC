@@ -82,6 +82,14 @@ export interface QualificationRankLabelInput {
   _rank: number;
 }
 
+/**
+ * Builds the playerId -> qualification rank label map used by finals seed UI.
+ *
+ * Labels are assigned after grouping by `group` and ordering by computed
+ * `_rank`: grouped rows become `A1`, `B2`, etc.; ungrouped rows become `1`,
+ * `2`, etc. When rows in the same group have the same `_rank`, the original
+ * input order is kept so tied players receive deterministic adjacent labels.
+ */
 export function buildQualificationRankLabelMap(
   qualifications: QualificationRankLabelInput[],
 ): Map<string, string> {
