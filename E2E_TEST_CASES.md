@@ -2411,15 +2411,19 @@
   qualification/finals API が実行時 cast 依存になり壊れやすい。
 - **手順**:
   1. admin で tournament + BM 予選データを作成
-  2. `status: completed`, `publicModes: ['bm', 'overall']` に更新
-  3. `/api/tournaments/:id/archive` に POST
-  4. 同じ URL を GET
-  5. `data.modes.bm.matches[0]` の `stage`, `player1`, `player2` を確認
+  2. BM 予選 match に固定スコア `score1=3`, `score2=1` を保存
+  3. `status: completed`, `publicModes: ['bm', 'overall']` に更新
+  4. `/api/tournaments/:id/archive` に POST
+  5. 同じ URL を GET
+  6. `data.modes.bm.matches[0]` の `stage`, `score1`, `score2`, `player1`, `player2` を確認
 - **期待結果**:
   - HTTP 200
   - `data.modes.bm.matches[0].stage === 'qualification'`
+  - `data.modes.bm.matches[0].score1 === 3`
+  - `data.modes.bm.matches[0].score2 === 1`
   - `player1.id` / `player2.id` は string
   - player payload は公開 field (`name`, `nickname`) を含む
+  - cleanup は tournament 削除に失敗しても player 削除まで試行し、失敗は warn に留める
 - **スクリプト**: tc-archive.js TC-ARC-06 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
 
 ---
