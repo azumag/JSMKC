@@ -204,7 +204,7 @@
 ## TC-109: Preview E2E 公式 alias と起動前 preflight
 - **URL**: n/a (runner command)
 - **authRequired**: true (admin profile)
-- **背景**: preview 環境移行後、自動化手順は `npm run e2e:preview` を公式入口として扱う。runner は preview URL/profile を設定し、Chromium 起動前に host 解決と macOS Chrome channel fallback を行う。
+- **背景**: preview 環境移行後、自動化手順は `npm run e2e:preview` を公式入口として扱う。runner は preview URL/profile を設定し、Chromium 起動前に host 解決を行う。macOS の installed Chrome は Crashpad がユーザーホーム配下を参照して abort することがあるため、自動 fallback ではなく明示指定時のみ使用する。
 - **手順**:
   1. `smkc-score-app/` で `npm run e2e:preview` を実行する
   2. 互換 alias の `npm run e2e:preview:all` は同じ runner コマンドを重複定義せず、`npm run e2e:preview --` に委譲していることを確認する
@@ -212,7 +212,8 @@
   4. preview host が通常 DNS または public DNS fallback で解決できることを確認する
   5. public DNS fallback は IPv4 A レコードがない host でも IPv6 AAAA レコードを解決できることを確認する
   6. public DNS fallback は `dig +short` の説明行や不正な IPv4/IPv6 風文字列を host resolver rules に採用しないことを確認する
-  7. macOS では Chrome for Testing の Crashpad path に依存せず、installed Chrome channel で起動することを確認する
+  7. macOS で `/Applications/Google Chrome.app` が存在しても、runner が自動で `E2E_BROWSER_CHANNEL=chrome` を設定しないことを確認する
+  8. `E2E_BROWSER_CHANNEL=chrome` または `E2E_EXECUTABLE_PATH=...` を明示した場合だけ、その指定が子プロセスへ渡ることを確認する
 - **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / Crashpad permission failure で停止しない
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
 - **補助検証**: `smkc-score-app/__tests__/e2e/run-preview.test.ts`

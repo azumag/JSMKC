@@ -2,17 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import packageJson from '../../package.json';
 
 const lookupMock = jest.fn();
-const existsSyncMock = jest.fn();
 const spawnSyncMock = jest.fn();
 
 jest.mock('dns', () => ({
   promises: {
     lookup: (...args: unknown[]) => lookupMock(...args),
   },
-}));
-
-jest.mock('fs', () => ({
-  existsSync: (...args: unknown[]) => existsSyncMock(...args),
 }));
 
 jest.mock('child_process', () => ({
@@ -44,9 +39,7 @@ describe('preview E2E runner', () => {
     delete process.env.E2E_BROWSER_CHANNEL;
     delete process.env.E2E_EXECUTABLE_PATH;
     lookupMock.mockReset();
-    existsSyncMock.mockReset();
     spawnSyncMock.mockReset();
-    existsSyncMock.mockReturnValue(false);
     spawnSyncMock.mockReturnValue({ status: 1, stdout: '', stderr: '' });
     runner = loadRunner();
   });
@@ -84,18 +77,25 @@ describe('preview E2E runner', () => {
     expect(packageJson.scripts['e2e:preview:archive']).toBe('node e2e/run-preview.js tc-archive.js');
   });
 
-  it('defaults to the installed Chrome channel on macOS preview runs', () => {
+  it('does not auto-select installed Chrome on macOS preview runs', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform');
     Object.defineProperty(process, 'platform', { value: 'darwin' });
-    existsSyncMock.mockReturnValue(true);
 
     const env = runner.buildPreviewRuntimeEnv({});
 
-    expect(env.E2E_BROWSER_CHANNEL).toBe('chrome');
+    expect(env.E2E_BROWSER_CHANNEL).toBeUndefined();
 
     if (platform) {
       Object.defineProperty(process, 'platform', platform);
     }
+  });
+
+  it('preserves caller-provided browser channel override', () => {
+    const env = runner.buildPreviewRuntimeEnv({
+      E2E_BROWSER_CHANNEL: 'chrome',
+    });
+
+    expect(env.E2E_BROWSER_CHANNEL).toBe('chrome');
   });
 
   it('preserves caller-provided non-production base url override', () => {

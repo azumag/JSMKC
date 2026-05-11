@@ -1,7 +1,6 @@
 const { spawn } = require('child_process');
 const { spawnSync } = require('child_process');
 const dns = require('dns').promises;
-const fs = require('fs');
 const net = require('net');
 const path = require('path');
 
@@ -16,15 +15,6 @@ function buildPreviewRuntimeEnv(env = process.env) {
     E2E_BASE_URL: resolveE2EBaseUrl(env),
     E2E_PROFILE_DIR: resolveE2EProfileDir(env),
   };
-
-  if (
-    process.platform === 'darwin' &&
-    !runtimeEnv.E2E_EXECUTABLE_PATH &&
-    !runtimeEnv.E2E_BROWSER_CHANNEL &&
-    fs.existsSync('/Applications/Google Chrome.app')
-  ) {
-    runtimeEnv.E2E_BROWSER_CHANNEL = 'chrome';
-  }
 
   return runtimeEnv;
 }
