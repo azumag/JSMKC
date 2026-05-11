@@ -22,6 +22,6 @@ describe('archive E2E case registration', () => {
     );
 
     expect(section).toContain('smkc-archives-preview');
-    expect(section).toContain('smkc-archives');
+    expect(section).toMatch(/smkc-archives(?!-preview)/);
   });
 });

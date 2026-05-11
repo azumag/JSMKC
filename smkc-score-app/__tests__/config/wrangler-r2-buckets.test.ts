@@ -9,14 +9,13 @@ function r2BucketName(sectionName: string) {
     ? '[[r2_buckets]]'
     : `[[env.${sectionName}.r2_buckets]]`;
   const sectionStart = wranglerToml.indexOf(sectionHeader);
-  expect(sectionStart).toBeGreaterThanOrEqual(0);
+  if (sectionStart === -1) return undefined;
 
   const nextSectionStart = wranglerToml.indexOf('\n[[', sectionStart + sectionHeader.length);
   const section = nextSectionStart === -1
     ? wranglerToml.slice(sectionStart)
     : wranglerToml.slice(sectionStart, nextSectionStart);
   const match = section.match(/^\s*bucket_name\s*=\s*"([^"]+)"/m);
-  expect(match).not.toBeNull();
   return match?.[1];
 }
 
