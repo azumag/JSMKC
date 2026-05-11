@@ -103,6 +103,7 @@ describe('archive E2E fixtures', () => {
     jest.setSystemTime(new Date('2026-05-11T00:00:00.000Z'));
     const { suite } = await loadArchiveSuite({ BASE: 'https://preview.example.test' });
     const fulfillOrder: string[] = [];
+    const continueOrder: string[] = [];
     const pendingRequests: Array<{ predicate: (request: { url: () => string }) => boolean; resolve: (request: unknown) => void }> = [];
     let routeHandler: ((route: unknown) => Promise<void>) | null = null;
 
@@ -112,7 +113,9 @@ describe('archive E2E fixtures', () => {
       fulfill: jest.fn(async () => {
         fulfillOrder.push(kind);
       }),
-      continue: jest.fn(async () => undefined),
+      continue: jest.fn(async () => {
+        continueOrder.push(kind);
+      }),
     });
     const resolveWaiters = (url: string) => {
       const request = requestFor(url);
@@ -134,6 +137,7 @@ describe('archive E2E fixtures', () => {
         const playersUrl = 'https://preview.example.test/api/players?limit=100';
         resolveWaiters(modeUrl);
         const modePromise = routeHandler(routeFor('mode', modeUrl));
+        await routeHandler(routeFor('mode-duplicate', modeUrl));
         await Promise.resolve();
         expect(fulfillOrder).toEqual([]);
         resolveWaiters(playersUrl);
@@ -149,6 +153,7 @@ describe('archive E2E fixtures', () => {
       'https://preview.example.test/tournaments/tournament-1/bm',
       { waitUntil: 'domcontentloaded' },
     );
+    expect(continueOrder).toEqual(['mode-duplicate']);
     jest.useRealTimers();
   });
 });
