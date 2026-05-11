@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 
 import type { Player } from "@/lib/types";
+import type { SeededPlayer } from "@/types/bracket";
 
 /** BM match data from the database including player relations */
 interface BMMatch {
@@ -66,7 +67,7 @@ interface PlayoffBracketProps {
   /** Optional callback when a match card is clicked (for score entry) */
   onMatchClick?: (match: BMMatch) => void;
   /** Seeded player data for displaying qualification labels */
-  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
+  seededPlayers?: SeededPlayer[];
   /** Number of wins required to highlight a completed match winner */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
   /** See `DoubleEliminationBracket.onTvNumberChange` — same select-to-save UX. */
@@ -90,7 +91,7 @@ function PlayoffMatchCard({
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
-  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
+  seededPlayers?: SeededPlayer[];
   onClick?: () => void;
   isPlayer1TBD: boolean;
   isPlayer2TBD: boolean;

@@ -14,6 +14,8 @@
  *   import type { BracketMatch, BracketRound } from '@/types/bracket';
  */
 
+import type { Player } from "@/lib/types";
+
 /** Bracket type for double elimination tournament */
 export type BracketType = "winners" | "losers" | "grand_final";
 
@@ -55,4 +57,12 @@ export interface BracketMatch {
    * playoff round matches (playoff_r2) whose winners advance to Upper Bracket.
    */
   advancesToUpperSeed?: number;
+}
+
+/** Seeded player payload used by finals bracket components. */
+export interface SeededPlayer {
+  seed: number;
+  playerId: string;
+  player: Player;
+  qualificationRankLabel?: string;
 }

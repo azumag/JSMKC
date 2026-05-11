@@ -1277,6 +1277,18 @@
 - **期待結果**: Phase 2 preview は未解決 winner を黙って無視せず、原因調査に使える warning を残す
 - **スクリプト**: n/a（server-side warning のため `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` で検証）
 
+## TC-535: BM Top-24 playoff — 予選グループ順位ラベル表示
+- **URL**: /tournaments/[id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: Top-24 playoff と Phase 2 finals preview は、紙の組み合わせ表に合わせて seed 番号だけでなく `A8` / `B7` などの予選グループ内順位ラベルを表示する。`buildQualificationRankLabelMap` は各グループ内で順位順に並んだ qualification 入力からこのラベルを作るため、入力順と UI 表示の両方を固定する。
+- **手順**:
+  1. 28名 BM 予選を作成し、2グループの順位を確定する
+  2. Top-24 playoff を生成し、`playoffSeededPlayers` が barrage seed ごとに `qualificationRankLabel` を持つことを確認する
+  3. playoff Round 1/2 の表示で seed 番号 `[1]` ではなく group-rank ラベル `[A9]` / `[B12]` 等が表示されることを確認する
+  4. playoff 完了後に Phase 2 finals を生成し、direct seed 側も `qualificationRankLabel` を保持していることを確認する
+- **期待結果**: Top-24 playoff と Phase 2 finals のシード表示は、seed 番号ではなく予選グループ順位ラベルを優先する
+- **スクリプト**: tc-bm.js TC-510（API payload の `qualificationRankLabel` を検証） + `smkc-score-app/__tests__/components/tournament/playoff-bracket.test.tsx`（UI 表示を検証）
+
 ---
 
 ## MR (Match Race) フルワークフローテスト

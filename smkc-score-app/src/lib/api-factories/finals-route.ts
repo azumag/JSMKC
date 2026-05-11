@@ -710,6 +710,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
   function buildQualificationRankLabelMap(
     qualifications: Array<{ playerId: string; group?: string | null }>,
   ): Map<string, string> {
+    /* Callers must pass qualifications already ordered by qualification rank
+     * within each group. The loop below derives A1/A2/B1 labels by counting
+     * the rows in that order rather than re-sorting here. */
     const rankByPlayerId = new Map<string, string>();
     const groupCounts = new Map<string, number>();
 
