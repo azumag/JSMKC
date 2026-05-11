@@ -4,6 +4,7 @@ const REQUIRED_PREVIEW_COLUMNS = [
   { table: 'Tournament', column: 'publicModes' },
   { table: 'GPMatch', column: 'suddenDeathWinnerId' },
 ];
+const WRANGLER_TIMEOUT_MS = 30_000;
 
 function buildPreviewSchemaCheckSql(columns = REQUIRED_PREVIEW_COLUMNS) {
   return columns
@@ -61,13 +62,13 @@ function assertPreviewD1Schema(env = process.env) {
   const result = spawnSync(
     'wrangler',
     ['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json', '--command', sql],
-    { encoding: 'utf8', cwd: process.cwd(), env, timeout: 30_000 },
+    { encoding: 'utf8', cwd: process.cwd(), env, timeout: WRANGLER_TIMEOUT_MS },
   );
 
   if (result.error?.code === 'ETIMEDOUT') {
     throw new Error(
       [
-        'Preview D1 schema preflight timed out after 30 seconds before launching the browser.',
+        `Preview D1 schema preflight timed out after ${WRANGLER_TIMEOUT_MS / 1000} seconds before launching the browser.`,
         'Check Cloudflare/Wrangler connectivity, run npm run db:migrations:apply:preview if needed, then retry npm run e2e:preview.',
       ].join(' '),
     );
@@ -105,4 +106,5 @@ module.exports = {
   assertPreviewD1Schema,
   buildPreviewSchemaCheckSql,
   parsePresentColumns,
+  WRANGLER_TIMEOUT_MS,
 };

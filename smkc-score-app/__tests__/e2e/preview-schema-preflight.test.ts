@@ -32,6 +32,7 @@ describe('preview schema preflight', () => {
       { table: 'Tournament', column: 'publicModes' },
       { table: 'GPMatch', column: 'suddenDeathWinnerId' },
     ]);
+    expect(preflight.WRANGLER_TIMEOUT_MS).toBe(30_000);
     expect(preflight.buildPreviewSchemaCheckSql()).toContain("pragma_table_info('Tournament')");
     expect(preflight.buildPreviewSchemaCheckSql()).toContain("pragma_table_info('GPMatch')");
   });
@@ -55,7 +56,7 @@ describe('preview schema preflight', () => {
     expect(spawnSyncMock).toHaveBeenCalledWith(
       'wrangler',
       expect.arrayContaining(['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json']),
-      expect.objectContaining({ encoding: 'utf8', timeout: 30_000 }),
+      expect.objectContaining({ encoding: 'utf8', timeout: preflight.WRANGLER_TIMEOUT_MS }),
     );
   });
 
