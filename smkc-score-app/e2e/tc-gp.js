@@ -735,6 +735,41 @@ async function runTc1103(adminPage) {
   }
 }
 
+/* ───────── TC-727: GP finals rejects score-only cup wins above FT target ───────── */
+async function runTc727(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const before = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = before.find((m) => m.matchNumber === 1 && m.round === 'winners_qf');
+    if (!m1) throw new Error('Upper-bracket Match 1 missing');
+
+    const invalid = await apiSetGpFinalsScore(adminPage, setup.tournamentId, m1.id, 3, 0);
+    const rejected = invalid.s === 400 &&
+      String(invalid.b?.error ?? '').includes('Cup wins must be integers from 0 to 2');
+
+    const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const unchanged = after.find((m) => m.id === m1.id);
+    const notMutated = unchanged?.completed === false &&
+      (unchanged.points1 ?? 0) === (m1.points1 ?? 0) &&
+      (unchanged.points2 ?? 0) === (m1.points2 ?? 0);
+
+    log('TC-727', rejected && notMutated ? 'PASS' : 'FAIL',
+      !rejected
+        ? `invalid score accepted/status=${invalid.s} error=${invalid.b?.error ?? ''}`
+        : !notMutated ? `match mutated completed=${unchanged?.completed} points=${unchanged?.points1}-${unchanged?.points2}`
+        : '');
+  } catch (err) {
+    log('TC-727', 'FAIL', err instanceof Error ? err.message : 'GP 727 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-715: GP Top-24 Playoff UI Flow ─────────
  * Validates the full Top-24 → Top-16 playoff UI path for GP:
  * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
@@ -1585,6 +1620,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       // TC-1103 is intentionally grouped with the TC-718 finals score-save
       // coverage before the longer TC-715/TC-716 playoff UI flows.
       { name: 'TC-1103', fn: runTc1103 },
+      { name: 'TC-727', fn: runTc727 },
       { name: 'TC-715', fn: runTc715 },
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
@@ -1604,7 +1640,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc719,
+  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc727, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc821, runTc831, runTc832,
   gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult,
   getSuite,

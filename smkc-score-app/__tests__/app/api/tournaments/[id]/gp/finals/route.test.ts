@@ -720,6 +720,42 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       });
     });
 
+    it('should reject score-only cup wins above the target before updating the match', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 1,
+        round: 'winners_qf',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        points1: 0,
+        points2: 0,
+        completed: false,
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        { matchId: 'm1', score1: 3, score2: 0 },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Cup wins must be integers from 0 to 2',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'score' },
+      });
+      expect(result.status).toBe(400);
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+      expect(prisma.gPMatch.findFirst).not.toHaveBeenCalled();
+    });
+
     it('should reject excessive GP finals cupResults before updating the match', async () => {
       const mockMatch = {
         id: 'm1',
