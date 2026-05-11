@@ -153,6 +153,8 @@ function isTournamentArchiveIndexItem(value: unknown): value is TournamentArchiv
     typeof value === "object" &&
     typeof (value as { id?: unknown }).id === "string" &&
     typeof (value as { name?: unknown }).name === "string" &&
+    (typeof (value as { date?: unknown }).date === "string" ||
+      (value as { date?: unknown }).date instanceof Date) &&
     (value as { status?: unknown }).status === "completed" &&
     typeof (value as { archivedAt?: unknown }).archivedAt === "string",
   );
