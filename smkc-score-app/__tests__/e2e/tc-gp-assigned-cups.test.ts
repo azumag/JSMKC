@@ -1,5 +1,5 @@
 import { validateGpFinalsAssignedCupSequences } from '../../e2e/lib/gp-finals-validators';
-import { gpAssignedCupSequence } from '../../e2e/tc-gp';
+import { gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult } from '../../e2e/tc-gp';
 
 describe('TC-717 assigned cup sequence validation', () => {
   it('accepts shared FT2 and FT3 assignedCups sequences', () => {
@@ -37,5 +37,19 @@ describe('TC-717 assigned cup sequence validation', () => {
       cup: 'Flower',
       assignedCups: ['Flower', 'Special', 'Mushroom', 'Star'],
     })).toEqual(['Flower', 'Special', 'Mushroom', 'Star']);
+  });
+
+  it('reads the updated GP finals match from PUT responses before fetch fallback', () => {
+    const updatedMatch = { id: 'm16', matchNumber: 16, completed: true };
+
+    expect(gpFinalsUpdatedMatchFromPutResult({
+      b: { data: { match: updatedMatch } },
+    }, 'm16')).toBe(updatedMatch);
+    expect(gpFinalsUpdatedMatchFromPutResult({
+      b: { match: updatedMatch },
+    }, 'm16')).toBe(updatedMatch);
+    expect(gpFinalsUpdatedMatchFromPutResult({
+      b: { data: { match: { id: 'm15', completed: true } } },
+    }, 'm16')).toBeNull();
   });
 });
