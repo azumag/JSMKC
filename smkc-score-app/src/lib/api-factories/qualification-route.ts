@@ -25,7 +25,7 @@ import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identif
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 import { generateETag, invalidate } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
-import { computeQualificationRanks } from '@/lib/server-ranking';
+import { computeQualificationRanks, type RankableMatch, type RankableQualification } from '@/lib/server-ranking';
 import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
 import {
@@ -267,7 +267,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
   // signature incompatibility: p[QualificationModelKey] produces a union of
   // three Prisma delegates whose type parameters are mutually incompatible (#788).
   type QualDelegate = {
-    findMany: (args: Record<string, unknown>) => Promise<unknown[]>;
+    findMany: (args: Record<string, unknown>) => Promise<RankableQualification[]>;
     findFirst: (args: Record<string, unknown>) => Promise<unknown>;
     deleteMany: (args: Record<string, unknown>) => Promise<unknown>;
     createMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
@@ -275,7 +275,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     update: (args: Record<string, unknown>) => Promise<unknown>;
   };
   type MatchDelegate = {
-    findMany: (args: Record<string, unknown>) => Promise<unknown[]>;
+    findMany: (args: Record<string, unknown>) => Promise<RankableMatch[]>;
     findFirst: (args: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
     deleteMany: (args: Record<string, unknown>) => Promise<unknown>;
     createMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
