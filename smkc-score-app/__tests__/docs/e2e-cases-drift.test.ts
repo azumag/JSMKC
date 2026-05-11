@@ -125,6 +125,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('Tournament.publicModes');
     expect(section).toContain('GPMatch.assignedCups');
     expect(section).toContain('GPMatch.suddenDeathWinnerId');
+    expect(section).toContain('WRANGLER_LOG_PATH');
+    expect(section).toContain('wrangler login');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
