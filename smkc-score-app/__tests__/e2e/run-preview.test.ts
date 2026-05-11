@@ -98,6 +98,14 @@ describe('preview E2E runner', () => {
     expect(env.E2E_BROWSER_CHANNEL).toBe('chrome');
   });
 
+  it('preserves caller-provided executable path override', () => {
+    const env = runner.buildPreviewRuntimeEnv({
+      E2E_EXECUTABLE_PATH: '/usr/bin/chromium',
+    });
+
+    expect(env.E2E_EXECUTABLE_PATH).toBe('/usr/bin/chromium');
+  });
+
   it('preserves caller-provided non-production base url override', () => {
     const env = runner.buildPreviewRuntimeEnv({
       E2E_BASE_URL: 'https://preview-alt.example.com/',
