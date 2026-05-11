@@ -126,6 +126,10 @@ export function getTournamentArchiveKeys(tournament: { id: string; slug?: string
   return keys;
 }
 
+function getTournamentArchiveMetaKey(tournament: { id: string }) {
+  return `archives/by-id/${tournament.id}/meta.json`;
+}
+
 function archiveLookupKeys(identifier: string) {
   return [
     `archives/by-id/${identifier}/latest.json`,
@@ -140,6 +144,17 @@ function isArchiveBundle(value: unknown): value is TournamentArchiveBundle {
     (value as { schemaVersion?: unknown }).schemaVersion === TOURNAMENT_ARCHIVE_SCHEMA_VERSION &&
     (value as { tournament?: unknown }).tournament &&
     (value as { modes?: unknown }).modes,
+  );
+}
+
+function isTournamentArchiveIndexItem(value: unknown): value is TournamentArchiveIndexItem {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    typeof (value as { id?: unknown }).id === "string" &&
+    typeof (value as { name?: unknown }).name === "string" &&
+    (value as { status?: unknown }).status === "completed" &&
+    typeof (value as { archivedAt?: unknown }).archivedAt === "string",
   );
 }
 
@@ -290,7 +305,7 @@ function archiveIndexItemFromBundle(bundle: TournamentArchiveBundle): Tournament
 }
 
 function sortTournamentArchiveIndex(index: TournamentArchiveIndexItem[]) {
-  return index.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return [...index].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 async function readLegacyTournamentArchiveIndex(): Promise<TournamentArchiveIndexItem[]> {
@@ -304,18 +319,32 @@ export async function readTournamentArchiveIndex(): Promise<TournamentArchiveInd
   if (!bucket) return [];
 
   const items = new Map<string, TournamentArchiveIndexItem>();
+  const latestKeys: string[] = [];
   let cursor: string | undefined;
   do {
     const listed = await bucket.list({ prefix: "archives/by-id/", cursor });
     await Promise.all(listed.objects.map(async (object) => {
-      if (!object.key.endsWith("/latest.json")) return;
-      const bundle = await readJsonFromR2<unknown>(object.key);
-      if (isArchiveBundle(bundle)) {
-        items.set(bundle.tournament.id, archiveIndexItemFromBundle(bundle));
+      if (object.key.endsWith("/meta.json")) {
+        const item = await readJsonFromR2<unknown>(object.key);
+        if (isTournamentArchiveIndexItem(item)) {
+          items.set(item.id, item);
+        }
+        return;
       }
+      if (!object.key.endsWith("/latest.json")) return;
+      latestKeys.push(object.key);
     }));
     cursor = listed.truncated ? listed.cursor : undefined;
   } while (cursor);
+
+  await Promise.all(latestKeys.map(async (key) => {
+    const [, id] = key.match(/^archives\/by-id\/(.+)\/latest\.json$/) ?? [];
+    if (!id || items.has(id)) return;
+    const bundle = await readJsonFromR2<unknown>(key);
+    if (isArchiveBundle(bundle)) {
+      items.set(bundle.tournament.id, archiveIndexItemFromBundle(bundle));
+    }
+  }));
 
   const listedIndex = sortTournamentArchiveIndex([...items.values()]);
   if (listedIndex.length > 0) return listedIndex;
@@ -464,6 +493,9 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
 
 export async function persistTournamentArchive(tournamentId: string): Promise<TournamentArchiveBundle> {
   const bundle = await buildTournamentArchiveBundle(tournamentId);
-  await Promise.all(getTournamentArchiveKeys(bundle.tournament).map((key) => putJsonToR2(key, bundle)));
+  await Promise.all([
+    ...getTournamentArchiveKeys(bundle.tournament).map((key) => putJsonToR2(key, bundle)),
+    putJsonToR2(getTournamentArchiveMetaKey(bundle.tournament), archiveIndexItemFromBundle(bundle)),
+  ]);
   return bundle;
 }

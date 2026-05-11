@@ -63,8 +63,8 @@ describe('archive E2E case registration', () => {
       cases.indexOf('\n---', cases.indexOf('## TC-ARC-08:')),
     );
 
-    expect(section).toContain('archives/by-id/*/latest.json');
-    expect(section).toContain('複数件を返す');
+    expect(section).toContain('archives/by-id/*/meta.json');
+    expect(section).toContain('legacy fallback');
     expect(section).toContain('smkc-score-app/__tests__/lib/tournament-archive.test.ts');
   });
 
