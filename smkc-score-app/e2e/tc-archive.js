@@ -6,6 +6,7 @@
  *   TC-ARC-02  Archive regeneration rejects non-completed tournaments.
  *   TC-ARC-03  Completed public tournament archive can be regenerated and read.
  *   TC-ARC-04  Completed private archive is not publicly readable.
+ *   TC-ARC-06  Archive BM match rows keep stage and public player payloads.
  *
  * Run: node e2e/tc-archive.js  (from smkc-score-app/)  or: npm run e2e:archive
  */
@@ -108,8 +109,21 @@ async function tcArc03(page) {
 
     log('TC-ARC-03', ok ? 'PASS' : 'FAIL',
       `post=${post.status} get=${get.status} publicModes=${archive?.tournament?.publicModes?.join(',') || ''}`);
+
+    const archivedMatch = archive?.modes?.bm?.matches?.[0];
+    const typedMatchOk = (
+      get.status === 200 &&
+      archivedMatch?.stage === 'qualification' &&
+      typeof archivedMatch?.player1?.id === 'string' &&
+      typeof archivedMatch?.player2?.id === 'string' &&
+      typeof archivedMatch?.player1?.name === 'string' &&
+      typeof archivedMatch?.player2?.nickname === 'string'
+    );
+    log('TC-ARC-06', typedMatchOk ? 'PASS' : 'FAIL',
+      `stage=${archivedMatch?.stage || ''} p1=${archivedMatch?.player1?.id || ''} p2=${archivedMatch?.player2?.id || ''}`);
   } catch (error) {
     log('TC-ARC-03', 'FAIL', error instanceof Error ? error.message : String(error));
+    log('TC-ARC-06', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
     await apiDeleteTournament(page, tournamentId);
     for (const player of players) await apiDeletePlayer(page, player.id);

@@ -1,9 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { R2Bucket } from "@cloudflare/workers-types";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { PLAYER_PUBLIC_SELECT } from "@/lib/prisma-selects";
 import { computeQualificationRanks } from "@/lib/server-ranking";
-import { getOverallRankings } from "@/lib/points/overall-ranking";
+import { getOverallRankings, type PlayerTournamentScore } from "@/lib/points/overall-ranking";
 import { COURSES } from "@/lib/constants";
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from "@/lib/double-elimination";
 
@@ -11,12 +12,49 @@ export const TOURNAMENT_ARCHIVE_SCHEMA_VERSION = 1;
 const twoPlayerQualificationOrder = () => [{ group: "asc" }, { score: "desc" }, { points: "desc" }] as const;
 const GP_MATCH_SCORE_FIELDS = { p1: "points1", p2: "points2" };
 
-export type TournamentArchiveModePayload = {
-  qualifications?: unknown[];
-  matches?: unknown[];
-  entries?: unknown[];
-  phaseRounds?: unknown[];
+type ArchivePlayer = Prisma.PlayerGetPayload<{ select: typeof PLAYER_PUBLIC_SELECT }>;
+type RankedQualification<T> = T & { _rank?: number; _rankOverridden?: boolean };
+type BMQualificationArchiveRow = RankedQualification<Prisma.BMQualificationGetPayload<{
+  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
+}>>;
+type MRQualificationArchiveRow = RankedQualification<Prisma.MRQualificationGetPayload<{
+  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
+}>>;
+type GPQualificationArchiveRow = RankedQualification<Prisma.GPQualificationGetPayload<{
+  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
+}>>;
+type BMMatchArchiveRow = Prisma.BMMatchGetPayload<{
+  include: {
+    player1: { select: typeof PLAYER_PUBLIC_SELECT };
+    player2: { select: typeof PLAYER_PUBLIC_SELECT };
+  };
+}>;
+type MRMatchArchiveRow = Prisma.MRMatchGetPayload<{
+  include: {
+    player1: { select: typeof PLAYER_PUBLIC_SELECT };
+    player2: { select: typeof PLAYER_PUBLIC_SELECT };
+  };
+}>;
+type GPMatchArchiveRow = Prisma.GPMatchGetPayload<{
+  include: {
+    player1: { select: typeof PLAYER_PUBLIC_SELECT };
+    player2: { select: typeof PLAYER_PUBLIC_SELECT };
+  };
+}>;
+type TTEntryArchiveRow = Prisma.TTEntryGetPayload<{
+  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
+}>;
+type TTPhaseRoundArchiveRow = Prisma.TTPhaseRoundGetPayload<Record<string, never>>;
+
+export type TournamentArchiveModePayload<TQualification = never, TMatch = never> = {
+  qualifications?: TQualification[];
+  matches?: TMatch[];
   qualificationConfirmed?: boolean;
+};
+
+export type TournamentArchiveTaPayload = {
+  entries?: TTEntryArchiveRow[];
+  phaseRounds?: TTPhaseRoundArchiveRow[];
 };
 
 export type TournamentArchiveBundle = {
@@ -37,24 +75,24 @@ export type TournamentArchiveBundle = {
     createdAt: string | Date;
     updatedAt: string | Date;
   };
-  allPlayers: unknown[];
+  allPlayers: ArchivePlayer[];
   modes: {
-    ta: TournamentArchiveModePayload & {
+    ta: TournamentArchiveTaPayload & {
       courses: typeof COURSES;
       qualificationRegistrationLocked: boolean;
       qualificationEditingLockedForPlayers: boolean;
       frozenStages: unknown;
       taPlayerSelfEdit: boolean;
     };
-    bm: TournamentArchiveModePayload;
-    mr: TournamentArchiveModePayload;
-    gp: TournamentArchiveModePayload;
+    bm: TournamentArchiveModePayload<BMQualificationArchiveRow, BMMatchArchiveRow>;
+    mr: TournamentArchiveModePayload<MRQualificationArchiveRow, MRMatchArchiveRow>;
+    gp: TournamentArchiveModePayload<GPQualificationArchiveRow, GPMatchArchiveRow>;
   };
   overallRanking: {
     tournamentId: string;
     tournamentName: string;
     lastUpdated: string;
-    rankings: unknown[];
+    rankings: PlayerTournamentScore[];
   };
   archived: true;
 };
@@ -132,23 +170,22 @@ export async function readTournamentArchive(identifier: string): Promise<Tournam
   return null;
 }
 
-function uniquePlayersFromArchive(bundle: Pick<TournamentArchiveBundle, "modes">): unknown[] {
-  const byId = new Map<string, unknown>();
-  const remember = (player: unknown) => {
-    const id = player && typeof player === "object" ? (player as { id?: unknown }).id : null;
-    if (typeof id === "string") byId.set(id, player);
+function uniquePlayersFromArchive(bundle: Pick<TournamentArchiveBundle, "modes">): ArchivePlayer[] {
+  const byId = new Map<string, ArchivePlayer>();
+  const remember = (player: ArchivePlayer) => {
+    if (player.id) byId.set(player.id, player);
   };
 
   for (const entry of bundle.modes.ta.entries ?? []) {
-    remember((entry as { player?: unknown }).player);
+    remember(entry.player);
   }
   for (const mode of [bundle.modes.bm, bundle.modes.mr, bundle.modes.gp]) {
     for (const qualification of mode.qualifications ?? []) {
-      remember((qualification as { player?: unknown }).player);
+      remember(qualification.player);
     }
     for (const match of mode.matches ?? []) {
-      remember((match as { player1?: unknown; player2?: unknown }).player1);
-      remember((match as { player1?: unknown; player2?: unknown }).player2);
+      remember(match.player1);
+      remember(match.player2);
     }
   }
   return [...byId.values()];
@@ -167,9 +204,7 @@ export function getArchivedModePayload(
   }
   return {
     qualifications: bundle.modes[mode].qualifications ?? [],
-    matches: (bundle.modes[mode].matches ?? []).filter((match) =>
-      (match as { stage?: unknown }).stage === "qualification"
-    ),
+    matches: (bundle.modes[mode].matches ?? []).filter((match) => match.stage === "qualification"),
     allPlayers: bundle.allPlayers,
     qualificationConfirmed: bundle.modes[mode].qualificationConfirmed ?? true,
     archived: true,
@@ -182,14 +217,14 @@ export function getArchivedFinalsPayload(
   style: "grouped" | "simple" | "paginated",
 ) {
   const allMatches = bundle.modes[mode].matches ?? [];
-  const matches = allMatches.filter((match) => (match as { stage?: unknown }).stage === "finals");
-  const playoffMatches = allMatches.filter((match) => (match as { stage?: unknown }).stage === "playoff");
+  const matches = allMatches.filter((match) => match.stage === "finals");
+  const playoffMatches = allMatches.filter((match) => match.stage === "playoff");
   const bracketSize = matches.length > 20 ? 16 : 8;
   const bracketStructure = matches.length > 0 ? generateBracketStructure(bracketSize) : [];
   const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(12) : [];
   const playoffComplete = playoffMatches
-    .filter((match) => (match as { round?: unknown }).round === "playoff_r2")
-    .every((match) => (match as { completed?: unknown }).completed === true);
+    .filter((match) => match.round === "playoff_r2")
+    .every((match) => match.completed === true);
   const phase = matches.length > 0 ? "finals" : playoffMatches.length > 0 ? "playoff" : "finals";
   const qualificationConfirmed = bundle.modes[mode].qualificationConfirmed ?? true;
   const common = {
@@ -216,15 +251,9 @@ export function getArchivedFinalsPayload(
   if (style === "grouped") {
     return {
       matches,
-      winnersMatches: matches.filter((match) =>
-        ((match as { round?: string | null }).round ?? "").startsWith("winners_")
-      ),
-      losersMatches: matches.filter((match) =>
-        ((match as { round?: string | null }).round ?? "").startsWith("losers_")
-      ),
-      grandFinalMatches: matches.filter((match) =>
-        ((match as { round?: string | null }).round ?? "").startsWith("grand_final")
-      ),
+      winnersMatches: matches.filter((match) => (match.round ?? "").startsWith("winners_")),
+      losersMatches: matches.filter((match) => (match.round ?? "").startsWith("losers_")),
+      grandFinalMatches: matches.filter((match) => (match.round ?? "").startsWith("grand_final")),
       ...common,
     };
   }
@@ -365,7 +394,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
         [...twoPlayerQualificationOrder()],
         bmMatches.filter((match) => match.stage === "qualification"),
         { matchScoreFields: { p1: "score1", p2: "score2" } },
-      ),
+      ) as BMQualificationArchiveRow[],
       matches: bmMatches,
       qualificationConfirmed: tournament.bmQualificationConfirmed,
     },
@@ -375,7 +404,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
         [...twoPlayerQualificationOrder()],
         mrMatches.filter((match) => match.stage === "qualification"),
         { matchScoreFields: { p1: "score1", p2: "score2" } },
-      ),
+      ) as MRQualificationArchiveRow[],
       matches: mrMatches,
       qualificationConfirmed: tournament.mrQualificationConfirmed,
     },
@@ -385,7 +414,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
         [...twoPlayerQualificationOrder()],
         gpMatches.filter((match) => match.stage === "qualification"),
         { matchScoreFields: GP_MATCH_SCORE_FIELDS },
-      ),
+      ) as GPQualificationArchiveRow[],
       matches: gpMatches,
       qualificationConfirmed: tournament.gpQualificationConfirmed,
     },
