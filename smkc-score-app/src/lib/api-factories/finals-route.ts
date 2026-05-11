@@ -76,6 +76,36 @@ interface PublicFinalsPlayer {
   noCamera?: boolean;
 }
 
+export interface QualificationRankLabelInput {
+  playerId: string;
+  group?: string | null;
+  _rank: number;
+}
+
+export function buildQualificationRankLabelMap(
+  qualifications: QualificationRankLabelInput[],
+): Map<string, string> {
+  const orderedQualifications = qualifications
+    .map((qualification, index) => ({ qualification, index }))
+    .sort((a, b) => {
+      const groupCompare = (a.qualification.group ?? '').localeCompare(b.qualification.group ?? '');
+      if (groupCompare !== 0) return groupCompare;
+
+      return a.qualification._rank - b.qualification._rank || a.index - b.index;
+    });
+  const rankByPlayerId = new Map<string, string>();
+  const groupCounts = new Map<string, number>();
+
+  for (const { qualification: q } of orderedQualifications) {
+    const group = q.group ?? '';
+    const rank = (groupCounts.get(group) ?? 0) + 1;
+    groupCounts.set(group, rank);
+    rankByPlayerId.set(q.playerId, group ? `${group}${rank}` : `${rank}`);
+  }
+
+  return rankByPlayerId;
+}
+
 function isPublicFinalsPlayer(value: unknown): value is PublicFinalsPlayer {
   return Boolean(value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string');
 }
@@ -705,37 +735,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
       matches,
       { matchScoreFields: scoreFields },
     );
-  }
-
-  function buildQualificationRankLabelMap(
-    qualifications: Array<{
-      playerId: string;
-      group?: string | null;
-      _rank?: number;
-      rankOverride?: number | null;
-    }>,
-  ): Map<string, string> {
-    const orderedQualifications = qualifications
-      .map((qualification, index) => ({ qualification, index }))
-      .sort((a, b) => {
-        const groupCompare = (a.qualification.group ?? '').localeCompare(b.qualification.group ?? '');
-        if (groupCompare !== 0) return groupCompare;
-
-        const rankA = a.qualification._rank ?? a.qualification.rankOverride ?? Number.MAX_SAFE_INTEGER;
-        const rankB = b.qualification._rank ?? b.qualification.rankOverride ?? Number.MAX_SAFE_INTEGER;
-        return rankA - rankB || a.index - b.index;
-      });
-    const rankByPlayerId = new Map<string, string>();
-    const groupCounts = new Map<string, number>();
-
-    for (const { qualification: q } of orderedQualifications) {
-      const group = q.group ?? '';
-      const rank = (groupCounts.get(group) ?? 0) + 1;
-      groupCounts.set(group, rank);
-      rankByPlayerId.set(q.playerId, group ? `${group}${rank}` : `${rank}`);
-    }
-
-    return rankByPlayerId;
   }
 
   function getRoundAssignmentData(
