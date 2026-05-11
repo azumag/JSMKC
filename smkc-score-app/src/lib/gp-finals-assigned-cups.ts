@@ -9,5 +9,6 @@ export function getAssignedCupLabelsForMatch(match: AssignedCupLabelMatch): stri
     : [];
 
   if (assigned.length > 0) return assigned;
+  // Matches created before assignedCups existed still store their display cup here.
   return match.cup ? [match.cup] : [];
 }
