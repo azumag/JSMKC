@@ -16,6 +16,7 @@ import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
 import { DRIVER_POINTS, CUPS, CUP_SUBSTITUTIONS, TOTAL_GP_RACES } from '@/lib/constants';
 import { updateWithRetry } from '@/lib/optimistic-locking';
+import { gpQualificationOrderBy } from '@/lib/gp-ranking';
 
 /**
  * Calculate driver points from race finishing positions.
@@ -69,7 +70,7 @@ export const gpConfig: EventTypeConfig = {
   loggerName: 'gp-api',
   eventDisplayName: 'grand prix',
   // Per requirements.md §4.1: GP ranks by match points first, then driver points within each group.
-  qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
+  qualificationOrderBy: gpQualificationOrderBy(),
   // §7.4: Pre-assign a cup to each qualification round at setup time.
   // Cups are shuffled 5 times and assigned sequentially without adjacent repeats.
   assignCupRandomly: true,

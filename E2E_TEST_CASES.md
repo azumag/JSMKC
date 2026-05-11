@@ -1808,6 +1808,18 @@
 - **期待結果**: GP の合算順位タブが全グループの参加者を表示し、順位列が昇順で描画され、勝点列とドライバー点列を区別できる
 - **スクリプト**: tc-gp.js TC-724
 
+## TC-728: GP 予選順位基準 — サーバーとクライアントが同じ score→points 定義を使う
+- **URL**: n/a (unit coverage)
+- **authRequired**: false
+- **背景**: GP 予選順位は勝点 (`score`) を主キー、ドライバーズポイント (`points`) を副キーにする。DB orderBy とクライアント comparator が別々に定義されると、将来の仕様変更時に finals・standings・ページ表示のどれかが更新漏れになる。
+- **手順**:
+  1. `src/lib/gp-ranking.ts` の共有 orderBy/comparator を確認する
+  2. GP config、GP finals route、GP standings route が共有 orderBy helper を参照していることを確認する
+  3. GP page-client のグループ別順位と合算順位が共有 comparator を参照していることを確認する
+  4. comparator が `score` を `points` より優先して並べることを単体テストで確認する
+- **期待結果**: GP のサーバー取得順とクライアント表示順が単一の共有定義から決まり、`score → points` の優先順位が全経路で一致する
+- **スクリプト**: smkc-score-app/__tests__/lib/gp-ranking.test.ts
+
 ## TC-725: GP 予選カップ割り当て — ラウンド境界で同じカップが連続しない
 - **URL**: /api/tournaments/[temp-id]/gp (GET)
 - **authRequired**: true (admin)

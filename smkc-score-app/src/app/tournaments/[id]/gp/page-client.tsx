@@ -74,6 +74,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
+import { compareGpQualificationEntries } from "@/lib/gp-ranking";
 import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
 import { usePolling } from "@/lib/hooks/usePolling";
 import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
@@ -784,7 +785,7 @@ export default function GrandPrixPageClient({
                       // GP: match score primary, driver points secondary.
                       const byEffectiveRank = computeTieAwareRanks(
                         groupEntries,
-                        (a, b) => b.score - a.score || b.points - a.points
+                        compareGpQualificationEntries
                       );
                       const tiedIds = findUnresolvedTies(byEffectiveRank);
                       // Suppress trivial 0-0 ties: only flag players who have actually played.
@@ -886,7 +887,7 @@ export default function GrandPrixPageClient({
                 {(() => {
                   const combinedRankings = computeCombinedRanks(
                     qualifications,
-                    (a, b) => b.score - a.score || b.points - a.points
+                    compareGpQualificationEntries
                   );
                   return (
                     <Table>
