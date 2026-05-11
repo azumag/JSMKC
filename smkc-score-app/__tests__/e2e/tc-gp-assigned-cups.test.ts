@@ -1,8 +1,5 @@
 import { validateGpFinalsAssignedCupSequences } from '../../e2e/lib/gp-finals-validators';
-import fs from 'fs';
-import path from 'path';
-
-const tcGpSource = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-gp.js'), 'utf8');
+import { gpAssignedCupSequence } from '../../e2e/tc-gp';
 
 describe('TC-717 assigned cup sequence validation', () => {
   it('accepts shared FT2 and FT3 assignedCups sequences', () => {
@@ -31,8 +28,15 @@ describe('TC-717 assigned cup sequence validation', () => {
   });
 
   it('keeps the legacy TC-722 fallback to the maximum FT3 cup count', () => {
-    expect(tcGpSource).toContain('FT3 maximum');
-    expect(tcGpSource).toContain("return [match.cup || 'Mushroom', 'Flower', 'Star'];");
-    expect(tcGpSource).not.toContain("'Special', 'Mushroom']");
+    expect(gpAssignedCupSequence({ cup: 'Special' })).toEqual(['Special', 'Flower', 'Star']);
+    expect(gpAssignedCupSequence({})).toEqual(['Mushroom', 'Flower', 'Star']);
+    expect(gpAssignedCupSequence({ cup: 'Special' })).toHaveLength(3);
+  });
+
+  it('uses assignedCups before the legacy fallback', () => {
+    expect(gpAssignedCupSequence({
+      cup: 'Flower',
+      assignedCups: ['Flower', 'Special', 'Mushroom', 'Star'],
+    })).toEqual(['Flower', 'Special', 'Mushroom', 'Star']);
   });
 });

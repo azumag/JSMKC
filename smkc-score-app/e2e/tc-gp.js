@@ -1597,6 +1597,7 @@ module.exports = {
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc821, runTc831, runTc832,
+  gpAssignedCupSequence,
   getSuite,
   results,
 };
