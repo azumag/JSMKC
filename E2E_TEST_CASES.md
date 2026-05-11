@@ -2406,7 +2406,8 @@
 - **URL**: POST /api/tournaments/:id/archive, GET /api/tournaments/:id/archive
 - **authRequired**: POST は admin、GET は公開
 - **背景**: archive 一覧は `archives/index.json` の read-modify-write に依存せず、
-  R2 の `archives/by-id/*/latest.json` から再構築する。複数 tournament を連続して
+  R2 の軽量 `archives/by-id/*/meta.json` を優先し、既存 archive は
+  `archives/by-id/*/latest.json` から再構築する。複数 tournament を連続して
   archive 化しても、後続の保存が先行 archive bundle を消してはいけない。
 - **手順**:
   1. admin で 2 つの completed public BM tournament を作成
@@ -2417,7 +2418,7 @@
   - 2 件とも POST/GET が HTTP 200
   - 2 件とも `data.archived === true`
   - 2 件の `data.tournament.id` は互いに異なる
-  - archive index の補助単体テストは `archives/by-id/*/latest.json` の list 由来で複数件を返す
+  - archive index の補助単体テストは `archives/by-id/*/meta.json` を優先し、legacy fallback も検証する
 - **スクリプト**: tc-archive.js TC-ARC-08 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
 - **補助検証**: `smkc-score-app/__tests__/lib/tournament-archive.test.ts`
 
