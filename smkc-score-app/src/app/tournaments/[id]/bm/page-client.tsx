@@ -70,7 +70,7 @@ import {
   findUnresolvedTies,
 } from "@/lib/ranking-utils";
 import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
-import { extractArrayData } from "@/lib/api-response";
+import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
 import { usePolling } from "@/lib/hooks/usePolling";
 import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
@@ -180,7 +180,10 @@ export default function BattleModePageClient({
    * This is the polling function called at the standard interval for live updates.
    */
   const fetchTournamentData = useCallback(async () => {
-    const bmResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/bm`);
+    const [bmResponse, playersResult] = await Promise.all([
+      fetchWithRetry(`/api/tournaments/${tournamentId}/bm`),
+      fetchAllPlayersForSetup<Player>(),
+    ]);
 
     if (!bmResponse.ok) {
       throw new Error(`Failed to fetch BM data: ${bmResponse.status}`);
@@ -188,17 +191,7 @@ export default function BattleModePageClient({
 
     const bmJson = await bmResponse.json();
     const bmData = bmJson.data ?? bmJson;
-    let allPlayers = bmData.allPlayers || [];
-    try {
-      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
-      const playersResponse = await fetchWithRetry("/api/players?limit=100");
-      if (playersResponse.ok) {
-        const playersJson = await playersResponse.json();
-        allPlayers = extractArrayData<Player>(playersJson);
-      }
-    } catch {
-      // Archived mode payloads carry the tournament players, so read-only pages can survive DB outages.
-    }
+    const allPlayers = resolveAllPlayers(playersResult, bmData.allPlayers);
 
     return {
       qualifications: bmData.qualifications || [],

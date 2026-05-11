@@ -74,7 +74,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
-import { extractArrayData } from "@/lib/api-response";
+import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
 import { usePolling } from "@/lib/hooks/usePolling";
 import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
@@ -205,7 +205,10 @@ export default function GrandPrixPageClient({
    * Returns qualification standings, matches, and all registered players.
    */
   const fetchTournamentData = useCallback(async () => {
-    const gpResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/gp`);
+    const [gpResponse, playersResult] = await Promise.all([
+      fetchWithRetry(`/api/tournaments/${tournamentId}/gp`),
+      fetchAllPlayersForSetup<Player>(),
+    ]);
 
     if (!gpResponse.ok) {
       throw new Error(`Failed to fetch GP data: ${gpResponse.status}`);
@@ -213,17 +216,7 @@ export default function GrandPrixPageClient({
 
     const gpJson = await gpResponse.json();
     const gpData = gpJson.data ?? gpJson;
-    let allPlayers = gpData.allPlayers || [];
-    try {
-      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
-      const playersResponse = await fetchWithRetry("/api/players?limit=100");
-      if (playersResponse.ok) {
-        const playersJson = await playersResponse.json();
-        allPlayers = extractArrayData<Player>(playersJson);
-      }
-    } catch {
-      // Archived mode payloads carry the tournament players, so read-only pages can survive DB outages.
-    }
+    const allPlayers = resolveAllPlayers(playersResult, gpData.allPlayers);
 
     return {
       qualifications: gpData.qualifications || [],

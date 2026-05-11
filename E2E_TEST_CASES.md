@@ -2424,6 +2424,26 @@
 
 ---
 
+## TC-ARC-09: アーカイブ対応ページ — qualification data と player list を並列取得
+- **URL**: `/tournaments/:id/ta`, `/tournaments/:id/bm`, `/tournaments/:id/mr`, `/tournaments/:id/gp`
+- **authRequired**: false (公開済み mode の閲覧) / admin controls は session 依存
+- **背景**: archive fallback 対応後も通常 tournament では mode data と
+  `/api/players?limit=100` を直列取得してはいけない。TA/BM/MR/GP の
+  qualification page は `Promise.all` で同時に開始し、players endpoint が失敗した
+  場合だけ archive payload の `allPlayers` に fallback する。
+- **手順**:
+  1. TA/BM/MR/GP の page-client fetch 関数を読み込む
+  2. mode API と `/api/players?limit=100` が同じ `Promise.all` 内で開始されることを確認
+  3. players fetch が失敗した場合に mode payload の `allPlayers` が使われることを確認
+- **期待結果**:
+  - TA/BM/MR/GP 全てで mode API と players API が並列に起動する
+  - players API 成功時は最新の player list を使う
+  - players API 失敗時は archive fallback の `allPlayers` を使い、空配列に落ちても throw しない
+- **スクリプト**: tc-archive.js TC-ARC-09 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
+- **補助検証**: `smkc-score-app/__tests__/lib/qualification-page-data.test.ts`
+
+---
+
 ## TC-ARC-06: トーナメントアーカイブ API — BM match/player payload の型付き保存
 - **URL**: POST /api/tournaments/:id/archive, GET /api/tournaments/:id/archive
 - **authRequired**: POST は admin、GET は公開

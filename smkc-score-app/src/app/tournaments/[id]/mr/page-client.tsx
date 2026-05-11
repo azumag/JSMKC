@@ -68,7 +68,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, TV_NUMBER_OPTIONS, type CourseAbbr } from "@/lib/constants";
-import { extractArrayData } from "@/lib/api-response";
+import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
 import { usePolling } from "@/lib/hooks/usePolling";
 import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
@@ -178,7 +178,10 @@ export default function MatchRacePageClient({
    * Called by the polling hook for real-time updates.
    */
   const fetchTournamentData = useCallback(async () => {
-    const mrResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/mr`);
+    const [mrResponse, playersResult] = await Promise.all([
+      fetchWithRetry(`/api/tournaments/${tournamentId}/mr`),
+      fetchAllPlayersForSetup<Player>(),
+    ]);
 
     if (!mrResponse.ok) {
       throw new Error(`Failed to fetch MR data: ${mrResponse.status}`);
@@ -186,17 +189,7 @@ export default function MatchRacePageClient({
 
     const mrJson = await mrResponse.json();
     const mrData = mrJson.data ?? mrJson;
-    let allPlayers = mrData.allPlayers || [];
-    try {
-      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
-      const playersResponse = await fetchWithRetry("/api/players?limit=100");
-      if (playersResponse.ok) {
-        const playersJson = await playersResponse.json();
-        allPlayers = extractArrayData<Player>(playersJson);
-      }
-    } catch {
-      // Archived mode payloads carry the tournament players, so read-only pages can survive DB outages.
-    }
+    const allPlayers = resolveAllPlayers(playersResult, mrData.allPlayers);
 
     return {
       qualifications: mrData.qualifications || [],

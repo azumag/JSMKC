@@ -5,7 +5,7 @@ describe('archive E2E case registration', () => {
   const casesPath = path.join(process.cwd(), '..', 'E2E_TEST_CASES.md');
   const cases = fs.readFileSync(casesPath, 'utf8');
 
-  it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07', 'TC-ARC-08'])(
+  it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07', 'TC-ARC-08', 'TC-ARC-09'])(
     'documents %s as a runnable archive script case',
     (tc) => {
       const section = cases.slice(cases.indexOf(`## ${tc}:`), cases.indexOf('\n---', cases.indexOf(`## ${tc}:`)));
@@ -76,5 +76,18 @@ describe('archive E2E case registration', () => {
 
     expect(section).toContain('smkc-archives-preview');
     expect(section).toMatch(/smkc-archives(?!-preview)/);
+  });
+
+  it('documents TC-ARC-09 as qualification page parallel fetch coverage', () => {
+    const section = cases.slice(
+      cases.indexOf('## TC-ARC-09:'),
+      cases.indexOf('\n---', cases.indexOf('## TC-ARC-09:')),
+    );
+
+    expect(section).toContain('TA/BM/MR/GP');
+    expect(section).toContain('Promise.all');
+    expect(section).toContain('/api/players?limit=100');
+    expect(section).toContain('archive fallback');
+    expect(section).toContain('smkc-score-app/__tests__/lib/qualification-page-data.test.ts');
   });
 });
