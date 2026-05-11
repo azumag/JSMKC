@@ -26,6 +26,7 @@ import { createLogger } from "@/lib/logger";
 import {
   isOverlayBroadcastLayoutInput,
   normalizeOverlayBroadcastLayout,
+  type OverlayBroadcastLayout,
 } from "@/lib/overlay/layout";
 import type { Prisma } from "@prisma/client";
 
@@ -153,7 +154,7 @@ export async function PUT(
     }
     if (layout !== undefined && layout !== null && !isOverlayBroadcastLayoutInput(layout)) {
       return handleValidationError(
-        "layout must contain numeric x/y coordinates for supported overlay slots",
+        "layout must contain supported overlay slots with x=0-1920 and y=0-1080 coordinates",
         "layout",
       );
     }
@@ -231,7 +232,7 @@ export async function PUT(
         ? (updateData.overlayMatchFt ?? null)
         : undefined,
       layout: updateData.overlayLayout !== undefined
-        ? normalizeOverlayBroadcastLayout(updateData.overlayLayout)
+        ? (updateData.overlayLayout as unknown as OverlayBroadcastLayout)
         : undefined,
     });
   } catch (error) {

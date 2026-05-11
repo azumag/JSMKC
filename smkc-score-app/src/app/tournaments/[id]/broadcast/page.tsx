@@ -232,14 +232,14 @@ export default function BroadcastPage({
           {[
             {
               slot: "1P",
-              coords: `name x:${currentState.layout.player1Name.x}, y:${currentState.layout.player1Name.y}`,
+              coords: `name x:${currentState.layout.player1Name.x}, y:${currentState.layout.player1Name.y} / score x:${currentState.layout.player1Score.x}, y:${currentState.layout.player1Score.y}`,
               value: currentState.player1Name,
               noCamera: currentState.player1NoCamera,
               score: currentState.player1Wins,
             },
             {
               slot: "2P",
-              coords: `name x:${currentState.layout.player2Name.x}, y:${currentState.layout.player2Name.y}`,
+              coords: `name x:${currentState.layout.player2Name.x}, y:${currentState.layout.player2Name.y} / score x:${currentState.layout.player2Score.x}, y:${currentState.layout.player2Score.y}`,
               value: currentState.player2Name,
               noCamera: currentState.player2NoCamera,
               score: currentState.player2Wins,

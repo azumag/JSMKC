@@ -3773,6 +3773,17 @@ async function main() {
       }, tc354TournamentId);
       const clearOk = putClear.s === 200;
 
+      // Invalid layout coordinates outside the OBS 1920x1080 canvas are rejected.
+      const putInvalidLayout = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layout: { footer: { x: 180, y: 1081 } } }),
+        });
+        return { s: r.status };
+      }, tc354TournamentId);
+      const invalidLayoutBlocked = putInvalidLayout.s === 400;
+
       // Non-admin PUT: unauthenticated https request (outside browser session) must be blocked
       const nonAdminPutStatus = await new Promise((resolve) => {
         const body = JSON.stringify({ player1Name: 'hacker' });
@@ -3800,9 +3811,9 @@ async function main() {
       }
       const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
 
-      const ok = hasShape && putOk && getOk && clearOk && nonAdminBlocked;
+      const ok = hasShape && putOk && getOk && clearOk && invalidLayoutBlocked && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
-        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
+        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
     } catch (err) {
       log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
     } finally {

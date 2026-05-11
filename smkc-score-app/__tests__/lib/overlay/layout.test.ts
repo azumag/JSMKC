@@ -28,5 +28,11 @@ describe('overlay broadcast layout', () => {
     expect(isOverlayBroadcastLayoutInput({
       footer: { x: Number.NaN, y: 990 },
     })).toBe(false);
+    expect(isOverlayBroadcastLayoutInput({
+      footer: { x: 1921, y: 990 },
+    })).toBe(false);
+    expect(isOverlayBroadcastLayoutInput({
+      footer: { x: 180, y: -1 },
+    })).toBe(false);
   });
 });
