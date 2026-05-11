@@ -337,6 +337,32 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
+    it('should return 404 when archive exists without TA mode payload', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
+      (readTournamentArchive as jest.Mock).mockResolvedValue({
+        schemaVersion: 1,
+        tournament: { id: VALID_UUID, publicModes: ['bm'] },
+        modes: {
+          bm: {},
+          mr: {},
+          gp: {},
+        },
+        allPlayers: [],
+      });
+
+      await taRoute.GET(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
+      expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Tournament not found', code: 'NOT_FOUND' },
+        { status: 404 }
+      );
+    });
+
     it('should handle database errors with 500', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
         id: VALID_UUID,

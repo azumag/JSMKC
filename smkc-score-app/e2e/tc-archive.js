@@ -172,6 +172,7 @@ async function tcArc06(page) {
 
 async function tcArc07(page) {
   let tournamentId = null;
+  let tournamentDeleted = false;
   try {
     tournamentId = await apiCreateTournament(page, `E2E TC-ARC-07 ${Date.now()}`);
     const completed = await apiUpdateTournament(page, tournamentId, {
@@ -182,6 +183,7 @@ async function tcArc07(page) {
 
     const post = await apiJson(page, `/api/tournaments/${tournamentId}/archive`, { method: 'POST' });
     await apiDeleteTournament(page, tournamentId);
+    tournamentDeleted = true;
     const response = await apiJson(page, `/api/tournaments/${tournamentId}/ta`);
 
     const ok = (
@@ -197,7 +199,9 @@ async function tcArc07(page) {
   } catch (error) {
     log('TC-ARC-07', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
-    await apiDeleteTournament(page, tournamentId);
+    if (!tournamentDeleted) {
+      await apiDeleteTournament(page, tournamentId);
+    }
   }
 }
 

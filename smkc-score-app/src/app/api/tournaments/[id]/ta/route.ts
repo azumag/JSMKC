@@ -38,7 +38,11 @@ import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
 import { resolveTournamentId, resolveTournament } from "@/lib/tournament-identifier";
 import { withApiTiming } from "@/lib/perf/api-timing";
-import { getArchivedModePayload, readTournamentArchive } from "@/lib/tournament-archive";
+import {
+  getArchivedModePayload,
+  readTournamentArchive,
+  type TournamentArchiveBundle,
+} from "@/lib/tournament-archive";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
 
@@ -92,6 +96,13 @@ async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
  * Note: "finals" values may still exist in production DB but are no longer
  * queryable through this endpoint. */
 const StageSchema = z.enum(["qualification", "revival_1", "revival_2"]);
+
+function getArchivedTaPayload(archive: TournamentArchiveBundle) {
+  if (!("ta" in archive.modes) || !archive.modes.ta) {
+    return null;
+  }
+  return getArchivedModePayload(archive, "ta");
+}
 
 /**
  * POST request body schema.
@@ -181,7 +192,10 @@ async function handleGET(
     if (!tournament) {
       const archived = await readTournamentArchive(id);
       if (archived) {
-        return createSuccessResponse(getArchivedModePayload(archived, "ta"));
+        const archivedTaPayload = getArchivedTaPayload(archived);
+        if (archivedTaPayload) {
+          return createSuccessResponse(archivedTaPayload);
+        }
       }
       return createErrorResponse("Tournament not found", 404, "NOT_FOUND");
     }
@@ -215,7 +229,10 @@ async function handleGET(
     logger.error("Failed to fetch TA data", { error, tournamentId: id });
     const archived = await readTournamentArchive(id);
     if (archived) {
-      return createSuccessResponse(getArchivedModePayload(archived, "ta"));
+      const archivedTaPayload = getArchivedTaPayload(archived);
+      if (archivedTaPayload) {
+        return createSuccessResponse(archivedTaPayload);
+      }
     }
     return createErrorResponse("Failed to fetch time attack data", 500, "INTERNAL_ERROR");
   }
