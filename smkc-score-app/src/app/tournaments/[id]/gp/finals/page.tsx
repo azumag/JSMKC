@@ -584,15 +584,13 @@ export default function GrandPrixFinals({
       const player1Won = score1 === targetWins && score2 !== null && score2 < targetWins;
       const player2Won = score2 === targetWins && score1 !== null && score1 < targetWins;
       const noPlayerWon = !player1Won && !player2Won;
-      const bothPlayersWon = player1Won && player2Won;
 
       if (
         score1 === null ||
         score2 === null ||
         score1 > targetWins ||
         score2 > targetWins ||
-        noPlayerWon ||
-        bothPlayersWon
+        noPlayerWon
       ) {
         alert(tFinals('matchNeedWinner', { targetWins }));
         return;
