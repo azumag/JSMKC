@@ -77,14 +77,16 @@ async function createCompletedPublicBmArchive(page, prefix, caseName) {
 
 async function cleanupArchiveFixture(page, fixture) {
   const deletions = [
-    apiDeleteTournament(page, fixture?.tournamentId),
-    ...(fixture?.players ?? []).map((player) => apiDeletePlayer(page, player.id)),
+    { label: `tournament ${fixture?.tournamentId ?? ''}`, promise: apiDeleteTournament(page, fixture?.tournamentId) },
+    ...(fixture?.players ?? []).map((player) => ({
+      label: `player ${player.id}`,
+      promise: apiDeletePlayer(page, player.id),
+    })),
   ];
-  const results = await Promise.allSettled(deletions);
+  const results = await Promise.allSettled(deletions.map((deletion) => deletion.promise));
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
-      const target = index === 0 ? `tournament ${fixture?.tournamentId ?? ''}` : `player ${fixture?.players?.[index - 1]?.id ?? ''}`;
-      console.warn(`[tc-archive] cleanup failed for ${target}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      console.warn(`[tc-archive] cleanup failed for ${deletions[index].label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
     }
   });
 }
