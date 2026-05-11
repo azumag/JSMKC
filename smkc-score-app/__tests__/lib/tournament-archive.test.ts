@@ -2,6 +2,7 @@ import {
   getArchivedFinalsPayload,
   getArchivedModePayload,
   getTournamentArchiveKeys,
+  readTournamentArchiveIndex,
   readTournamentArchive,
   TOURNAMENT_ARCHIVE_SCHEMA_VERSION,
   type TournamentArchiveBundle,
@@ -20,6 +21,19 @@ jest.mock("@opennextjs/cloudflare", () => ({
         }),
         put: jest.fn(async (key: string, value: string) => {
           objects.set(key, JSON.parse(value));
+        }),
+        list: jest.fn(async ({ prefix, cursor }: { prefix?: string; cursor?: string } = {}) => {
+          const keys = [...objects.keys()]
+            .filter((key) => !prefix || key.startsWith(prefix))
+            .sort();
+          const start = cursor ? Number(cursor) : 0;
+          const page = keys.slice(start, start + 2);
+          const next = start + page.length;
+          return {
+            objects: page.map((key) => ({ key })),
+            delimitedPrefixes: [],
+            ...(next < keys.length ? { truncated: true, cursor: String(next) } : { truncated: false }),
+          };
         }),
       },
     },
@@ -98,6 +112,49 @@ describe("tournament archive", () => {
     });
 
     await expect(readTournamentArchive("tournament-1")).resolves.toBeNull();
+  });
+
+  it("derives archive index entries from by-id archive objects without relying on the legacy index object", async () => {
+    const older = makeArchive({
+      generatedAt: "2026-05-07T00:00:00.000Z",
+      tournament: {
+        ...makeArchive().tournament,
+        id: "tournament-old",
+        slug: "old-slug",
+        name: "Old Archive",
+        date: "2026-05-07T00:00:00.000Z",
+      },
+    });
+    const newer = makeArchive({
+      generatedAt: "2026-05-08T00:00:00.000Z",
+      tournament: {
+        ...makeArchive().tournament,
+        id: "tournament-new",
+        slug: "new-slug",
+        name: "New Archive",
+        date: "2026-05-08T00:00:00.000Z",
+      },
+    });
+    objects.set("archives/index.json", [
+      {
+        id: "stale-only",
+        slug: "stale",
+        name: "Stale Legacy Index",
+        date: "2026-05-09T00:00:00.000Z",
+        status: "completed",
+        publicModes: [],
+        createdAt: "2026-05-09T00:00:00.000Z",
+        archivedAt: "2026-05-09T00:00:00.000Z",
+      },
+    ]);
+    objects.set("archives/by-id/tournament-old/latest.json", older);
+    objects.set("archives/by-id/tournament-new/latest.json", newer);
+    objects.set("archives/by-slug/new-slug/latest.json", newer);
+
+    await expect(readTournamentArchiveIndex()).resolves.toEqual([
+      expect.objectContaining({ id: "tournament-new", slug: "new-slug", name: "New Archive" }),
+      expect.objectContaining({ id: "tournament-old", slug: "old-slug", name: "Old Archive" }),
+    ]);
   });
 
   it("filters typed archived qualification matches without runtime stage casts", () => {
