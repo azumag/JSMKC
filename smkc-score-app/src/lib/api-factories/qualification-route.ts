@@ -576,8 +576,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
           /*
            * §10.5: Assign 4 pre-determined courses to this round from the shuffled list.
-           * BYE matches are auto-completed immediately (§10.2) and don't actually play
-           * the courses, so skip assignment for BYE matches.
+           * BM/MR BYE matches are auto-completed walkovers and skip course/cup assignment.
+           * GP BREAK matches are scoreable solo cups, so they receive the same assignment
+           * as real GP matches and remain pending until actual driver points are entered.
            */
           const isScoreableGpBye = config.eventTypeCode === 'gp' && m.isBye;
           const isRealMatch = !m.isBye;
@@ -648,9 +649,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
       /*
        * Update qualification stats for BYE recipients immediately.
-       * BYE matches are auto-completed on creation, so the player's win
-       * must be reflected in standings right away — not deferred until
-       * their first real match is submitted via PUT.
+       * BM/MR BYE matches are auto-completed on creation, so the player's
+       * win must be reflected in standings right away — not deferred until
+       * their first real match is submitted via PUT. GP BREAK matches are
+       * scoreable and intentionally excluded from this immediate update path.
        *
        * Implementation: a single findMany retrieves every completed BYE
        * match touching any recipient, then we partition the result in
