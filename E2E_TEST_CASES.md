@@ -2004,7 +2004,7 @@
   3. 古い `isFinalRound` helper 名が残っていないことを確認する
   4. MR は上位4帯をFT9、GPは上位4帯をFT3として扱い、`winners_sf` はそれぞれFT7/FT2に残ることを確認する
 - **期待結果**: target-wins helper 名が `losers_sf` を含む実態を表し、MR/GPの上位4帯 target-wins 挙動は変わらない
-- **スクリプト**: __tests__/e2e/tc-1100-1085-finals-target-naming.test.ts, __tests__/lib/finals-target-wins.test.ts
+- **スクリプト**: __tests__/static/tc-1100-1085-finals-target-naming.test.ts, __tests__/lib/finals-target-wins.test.ts
 
 ## TC-727: GP決勝 — 取得カップ数がFT上限を超える保存を拒否する
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
