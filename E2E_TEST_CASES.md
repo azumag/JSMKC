@@ -1600,6 +1600,16 @@
 - **期待結果**: QF 敗者はブラケットデータ上で M23/M22/M21/M20 の `loserPosition: 1` として定義され、API/表示側はそのフィールドを参照する
 - **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
 
+## TC-1398-1399: BracketMatch 型と loserPosition fallback の一貫性 (issues #1398, #1399)
+- **背景**: 決勝ブラケット表示・進行ロジック・API が同じ `BracketMatch` 契約を使い、`loserPosition` の未指定時 fallback を `?? 1` に統一することで、型更新時の二重定義漏れと routing 意図の不一致を防ぐ。
+- **手順**:
+  1. `double-elimination-bracket.tsx` がローカル `BracketMatch` を再定義していないことを確認する
+  2. コンポーネントの `bracketStructure` が `@/types/bracket` の `BracketMatch` を参照することを確認する
+  3. `double-elimination.ts` と `finals-route.ts` の敗者 routing fallback が `loserPosition ?? 1` で統一されていることを確認する
+  4. 16人決勝 QF 敗者 routing の既存 E2E/単体カバレッジと合わせて、表示・API・進行ロジックが同じ `loserPosition` 契約を参照していることを確認する
+- **期待結果**: `BracketMatch` は `src/types/bracket.ts` だけで管理され、敗者 routing は全経路で nullish fallback に統一される
+- **スクリプト**: smkc-score-app/__tests__/e2e/tc-1398-1399-bracket-contract.test.ts
+
 ## TC-611: BM/MR/GP予選確定 — スコアロック検証
 - **URL**: /api/tournaments/[temp-id]/mr (PUT), /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
 - **authRequired**: true (admin)

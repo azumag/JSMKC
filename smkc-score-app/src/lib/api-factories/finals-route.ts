@@ -2046,7 +2046,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           },
         });
 
-        const loserPosition = currentBracketMatch.loserPosition || 1;
+        const loserPosition = currentBracketMatch.loserPosition ?? 1;
 
         if (nextLoserMatch) {
           await model(prisma).update({

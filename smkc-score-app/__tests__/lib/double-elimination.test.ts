@@ -363,6 +363,22 @@ describe('Double Elimination Bracket Structure', () => {
       expect(result).toBeNull();
     });
 
+    it('should use a nullish loserPosition fallback when the shared field is absent', () => {
+      const result = getNextMatchInfo([
+        {
+          matchNumber: 1,
+          round: 'winners_qf',
+          bracket: 'winners',
+          loserGoesTo: 8,
+        },
+      ], 1, false);
+
+      expect(result).toEqual({
+        nextMatchNumber: 8,
+        position: 1,
+      });
+    });
+
     it('should return null for winner of Grand Final Reset (end of bracket)', () => {
       const result = getNextMatchInfo(matches, 17, true);
       expect(result).toBeNull();

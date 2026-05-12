@@ -72,6 +72,18 @@ describe('Bracket Types', () => {
       expect(match.position).toBe(1);
     });
 
+    it('should carry the shared loser routing slot field', () => {
+      const match: BracketMatch = {
+        matchNumber: 9,
+        round: 'winners_qf',
+        bracket: 'winners',
+        loserGoesTo: 23,
+        loserPosition: 1,
+      };
+
+      expect(match.loserPosition).toBe(1);
+    });
+
     it('should allow optional fields', () => {
       const match: BracketMatch = {
         matchNumber: 1,
