@@ -762,6 +762,27 @@ async function apiGenerateGpFinals(page, tournamentId, topN = 8) {
   { label: `GP finals POST` });
 }
 
+async function assertResetApiBlocked(page, tournamentId, mode) {
+  if (!['bm', 'mr', 'gp'].includes(mode)) {
+    throw new Error(`Unsupported finals reset mode: ${mode}`);
+  }
+
+  const result = await page.evaluate(async ([tid, eventMode]) => {
+    const r = await fetch(`/api/tournaments/${tid}/${eventMode}/finals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reset: true }),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [tournamentId, mode]);
+
+  if (result.s !== 409 || result.b?.code !== 'QUALIFICATION_LOCKED') {
+    throw new Error(`${mode.toUpperCase()} reset API allowed locked qualification (${result.s})`);
+  }
+
+  return result;
+}
+
 /** GP finals uses 'paginated' GET style: { success: true, data: { data: [...], meta: {...} } }.
  *  Aggregate up to 5 pages of 50 entries (17 finals matches always fit in 1 page).
  *  Note: createSuccessResponse wraps the paginated result, so json.data = { data, meta }.
@@ -2654,6 +2675,7 @@ module.exports = {
   assertQualificationPointsColumn,
   assertCombinedStandingsTab,
   assertGpCombinedStandingsHeaders,
+  assertResetApiBlocked,
   /* BM */
   apiSetupBmGroup,
   apiFetchBm,
