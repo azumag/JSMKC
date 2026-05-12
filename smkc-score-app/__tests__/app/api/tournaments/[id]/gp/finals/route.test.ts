@@ -428,7 +428,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
 
-    it('should not write when every playoff match in a round already shares a valid sequence', async () => {
+    it('should not call updateMany when every playoff match in a round is already canonical', async () => {
       const normalized = [
         { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', assignedCups: ['Flower'], player1: {}, player2: {} },
         { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Flower', assignedCups: ['Flower'], player1: {}, player2: {} },
@@ -449,6 +449,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
+      /* #1413: an already-canonical round must take the skip path and avoid
+       * issuing updateMany for rows that do not need repair. */
       expect(prisma.gPMatch.updateMany).not.toHaveBeenCalled();
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
