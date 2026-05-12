@@ -135,6 +135,47 @@ describe('useParticipantScoreInput', () => {
       score1: 5,
       score2: 2,
     });
+    expect(result.current.requiredTotalScore).toBe(7);
+    expect(result.current.maxScorePerSide).toBe(7);
+  });
+
+  it('supports best-of-nine style totals where each side is capped below the required total', async () => {
+    const { result, submitReport, setError } = renderScoreInput({
+      requiredTotalScore: 9,
+      maxScorePerSide: 5,
+    });
+    const match = makeMatch();
+
+    act(() => {
+      result.current.adjustScore(match, 'score1', 6);
+      result.current.adjustScore(match, 'score2', 4);
+    });
+
+    expect(result.current.reportingScores[match.id]).toEqual({ score1: 5, score2: 4 });
+
+    await act(async () => {
+      await result.current.handleSubmitScore(match);
+    });
+
+    expect(submitReport).toHaveBeenCalledWith('match-1', {
+      reportingPlayer: 1,
+      score1: 5,
+      score2: 4,
+    });
+
+    act(() => {
+      result.current.adjustScore(match, 'score1', 6);
+      result.current.adjustScore(match, 'score2', 6);
+    });
+
+    expect(result.current.reportingScores[match.id]).toEqual({ score1: 5, score2: 5 });
+
+    await act(async () => {
+      await result.current.handleSubmitScore(match);
+    });
+
+    expect(setError).toHaveBeenLastCalledWith('total must equal 4');
+    expect(submitReport).toHaveBeenCalledTimes(1);
   });
 
   it('does not expose clearScores as a public hook API', () => {

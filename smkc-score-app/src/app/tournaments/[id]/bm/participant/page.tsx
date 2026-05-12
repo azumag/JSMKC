@@ -59,6 +59,7 @@ export default function BattleModeParticipantPage({
   const {
     reportingScores,
     setReportingScores,
+    requiredTotalScore,
     getInitialScores,
     hasOwnReport,
     adjustScore,
@@ -77,7 +78,7 @@ export default function BattleModeParticipantPage({
 
   const renderScoreEditor = (match: BMMatch, title: string, submitLabel: string) => {
     const scores = reportingScores[match.id] ?? getInitialScores(match);
-    const totalValid = scores.score1 + scores.score2 === 4;
+    const totalValid = scores.score1 + scores.score2 === requiredTotalScore;
 
     return (
       <div className="border-t pt-4">
