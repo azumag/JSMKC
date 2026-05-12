@@ -398,6 +398,35 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       });
     });
 
+    it('should tie-break equal valid playoff cup sequences by first seen order', async () => {
+      const tiedSequences = [
+        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Star', assignedCups: ['Star'], player1: {}, player2: {} },
+        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Flower', assignedCups: ['Flower'], player1: {}, player2: {} },
+      ];
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce(tiedSequences)
+        .mockResolvedValueOnce([]);
+
+      (prisma.gPMatch as any).update = jest.fn().mockResolvedValue({});
+
+      (paginate as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
+      });
+      (generateBracketStructure as jest.Mock).mockReturnValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect((prisma.gPMatch as any).update).toHaveBeenCalledTimes(1);
+      expect((prisma.gPMatch as any).update).toHaveBeenCalledWith({
+        where: { id: 'pm2' },
+        data: { cup: 'Star', assignedCups: ['Star'] },
+      });
+    });
+
     it('should not write when every playoff match in a round already shares a valid sequence', async () => {
       const normalized = [
         { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', assignedCups: ['Flower'], player1: {}, player2: {} },

@@ -684,7 +684,9 @@ async function runTc709(adminPage) {
 /* ───────── TC-717: GP finals assigned-cup sequence enforcement ─────────
  * Every match in the same finals round must share one assignedCups sequence.
  * FT2 rounds must stay within three unique cups; FT3 rounds use five cups
- * with only the fifth allowed to repeat one of the first four cups. */
+ * with only the fifth allowed to repeat one of the first four cups. Legacy
+ * divergent rows with tied valid sequence counts are normalized by the API to
+ * the first sequence seen in that round. */
 async function runTc717(adminPage) {
   let setup = null;
   try {
