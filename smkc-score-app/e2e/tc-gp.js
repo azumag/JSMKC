@@ -64,6 +64,7 @@ function importsMaxGpDriverPointsFromConstants(source) {
   return source
     .split(';')
     .some((statement) =>
+      /^\s*import\s/.test(statement) &&
       statement.includes('MAX_GP_DRIVER_POINTS') &&
       /from\s+["']@\/lib\/constants["']/.test(statement)
     );

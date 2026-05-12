@@ -135,6 +135,7 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain("log('TC-1098'");
     expect(tcGp).toContain('importsMaxGpDriverPointsFromConstants');
     expect(tcGp).toContain(".split(';')");
+    expect(tcGp).toContain('^\\s*import\\s');
     expect(tcGp).toContain("statement.includes('MAX_GP_DRIVER_POINTS')");
     expect(tcGp).toContain('participant page does not import MAX_GP_DRIVER_POINTS from constants');
     expect(tcGp).toContain('report route does not import MAX_GP_DRIVER_POINTS from constants');
