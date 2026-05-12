@@ -19,6 +19,7 @@
  *   TC-1103 GP finals upper bracket score-only cup-win save
  *           Kept next to TC-718 because both cover finals score-save variants
  *           before the suite moves into the longer playoff UI flows.
+ *   TC-1109 GP finals cup-form lock count uses the max-cups helper directly
  *   TC-719  GP tied cup extends non-grand-final bracket match
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
@@ -51,6 +52,8 @@ const {
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 const { validateGpFinalsAssignedCupSequences } = require('./lib/gp-finals-validators');
+const fs = require('fs');
+const path = require('path');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -824,6 +827,24 @@ async function runTc1103(adminPage) {
     log('TC-1103', 'FAIL', err instanceof Error ? err.message : 'GP 1103 failed');
   } finally {
     if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-1109: GP finals cup-form lock count uses max-cups helper directly ───────── */
+async function runTc1109() {
+  try {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'), 'utf8');
+    const importsMaxCups = source.includes('getGpFinalsMaxCups');
+    const wrapperRemoved = !source.includes('getLockedCupCountForMatch');
+    const directCalls = (source.match(/getGpFinalsMaxCups\(/g) ?? []).length >= 2;
+
+    log('TC-1109', importsMaxCups && wrapperRemoved && directCalls ? 'PASS' : 'FAIL',
+      !importsMaxCups ? 'getGpFinalsMaxCups import missing'
+      : !wrapperRemoved ? 'getLockedCupCountForMatch wrapper still exists'
+      : !directCalls ? 'expected direct max-cups calls for form lock counts'
+      : '');
+  } catch (err) {
+    log('TC-1109', 'FAIL', err instanceof Error ? err.message : 'GP 1109 failed');
   }
 }
 
@@ -1714,6 +1735,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       // TC-1103 is intentionally grouped with the TC-718 finals score-save
       // coverage before the longer TC-715/TC-716 playoff UI flows.
       { name: 'TC-1103', fn: runTc1103 },
+      { name: 'TC-1109', fn: runTc1109 },
       { name: 'TC-727', fn: runTc727 },
       { name: 'TC-715', fn: runTc715 },
       { name: 'TC-716', fn: runTc716 },

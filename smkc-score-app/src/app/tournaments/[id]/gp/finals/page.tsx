@@ -441,9 +441,6 @@ export default function GrandPrixFinals({
   const getTargetWinsForMatch = (match?: Pick<GPMatch, "round"> & { stage?: string | null } | null) =>
     getGpFinalsTargetWins({ round: match?.round, stage: match?.stage ?? "finals" });
 
-  const getLockedCupCountForMatch = (match?: Pick<GPMatch, "round"> & { stage?: string | null } | null) =>
-    getGpFinalsMaxCups({ round: match?.round, stage: match?.stage ?? "finals" });
-
   const usesCupWinScoreOnly = (match?: Pick<GPMatch, "stage"> | null) =>
     match?.stage !== "playoff";
 
@@ -548,7 +545,7 @@ export default function GrandPrixFinals({
           };
         })
       : [makeBlankCupForm(0, cup, match.assignedCups)];
-    const lockedCupCount = getLockedCupCountForMatch(match);
+    const lockedCupCount = getGpFinalsMaxCups({ round: match.round, stage: match.stage ?? "finals" });
     const forms = Array.from(
       { length: Math.max(savedForms.length, lockedCupCount) },
       (_, index) => savedForms[index] ?? makeBlankCupForm(index, cup, match.assignedCups),
@@ -1047,7 +1044,12 @@ export default function GrandPrixFinals({
                         <div className="text-sm font-medium">
                           {selectedMatch?.player1.nickname}: {points.points1} pts / {selectedMatch?.player2.nickname}: {points.points2} pts
                         </div>
-                        {isRemovableCupForm(cupIndex, selectedMatch ? getLockedCupCountForMatch(selectedMatch) : 1) && (
+                        {isRemovableCupForm(
+                          cupIndex,
+                          selectedMatch
+                            ? getGpFinalsMaxCups({ round: selectedMatch.round, stage: selectedMatch.stage ?? "finals" })
+                            : 1,
+                        ) && (
                           <Button
                             type="button"
                             variant="ghost"
@@ -1057,7 +1059,9 @@ export default function GrandPrixFinals({
                             onClick={() => setCupForms((current) => removeCupFormAt(
                               current,
                               cupIndex,
-                              selectedMatch ? getLockedCupCountForMatch(selectedMatch) : 1,
+                              selectedMatch
+                                ? getGpFinalsMaxCups({ round: selectedMatch.round, stage: selectedMatch.stage ?? "finals" })
+                                : 1,
                             ))}
                           >
                             <XIcon className="size-4" />
