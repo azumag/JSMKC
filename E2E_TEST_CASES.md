@@ -1939,11 +1939,11 @@
   5. FT2 相当のラウンドでは `assignedCups` が3件以下かつ重複なしであることを確認
   6. FT3 相当のラウンドでは `assignedCups` が5件で、先頭4件が重複なしであることを確認
   7. legacy/divergent な `assignedCups` バックフィルが必要な場合、同数の valid sequence はラウンド内で最初に見つかった sequence を canonical とすることを単体テストで確認する
-  8. legacy/divergent な `assignedCups` バックフィルが必要な場合、GET はラウンド内の修復対象 update を逐次待ちせず並列に開始することを単体テストで確認する
-  9. 一部 update が失敗してもGETレスポンスは返し、失敗件数と理由を警告ログに残すことを単体テストで確認する
+  8. legacy/divergent な `assignedCups` バックフィルが必要な場合、GET は match ごとの `update()` ではなく round-scoped `updateMany()` を1ラウンド1回だけ実行することを単体テストで確認する
+  9. 一部 round-scoped update が失敗してもGETレスポンスは返し、失敗件数と理由を警告ログに残すことを単体テストで確認する
   10. 管理者スコア入力ダイアログを開き、FT2 は2カップ欄、FT3 は3カップ欄が最初から表示され、その自動表示分に削除ボタンがないことを確認
   11. クリーンアップ
-- **期待結果**: ラウンドをまたいだ同カップは許可されるが、同じラウンドのカップ組み合わせは FT3 の5件目を除いて重複しない。FT数ぶんの初期カップ欄は削除できず、追加したカップ欄だけ削除できる。legacy 修復時のDB updateは同数の valid sequence を first-seen で決定し、全件を開始してから完了待ちし、一部失敗しても閲覧レスポンスを継続する
+- **期待結果**: ラウンドをまたいだ同カップは許可されるが、同じラウンドのカップ組み合わせは FT3 の5件目を除いて重複しない。FT数ぶんの初期カップ欄は削除できず、追加したカップ欄だけ削除できる。legacy 修復時のDB updateは同数の valid sequence を first-seen で決定し、round-scoped `updateMany()` によって O(matches) ではなく O(rounds) の書き込みに収まる。一部失敗しても閲覧レスポンスを継続する
 - **スクリプト**: tc-gp.js TC-717
 - **補助検証**: `smkc-score-app/__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts`
 
