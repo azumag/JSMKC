@@ -134,7 +134,6 @@ export function useParticipantScoreInput<TMatch extends ParticipantScoreInputMat
     reportingScores,
     setReportingScores,
     requiredTotalScore,
-    maxScorePerSide,
     getInitialScores,
     hasOwnReport,
     adjustScore,
