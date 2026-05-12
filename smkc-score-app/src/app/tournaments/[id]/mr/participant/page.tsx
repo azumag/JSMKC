@@ -37,6 +37,7 @@ interface MrScoreEditorProps {
   submitting: boolean;
   submittingLabel: string;
   totalMessage: string;
+  requiredTotalScore: number;
   scores: { score1: number; score2: number };
   onAdjustScore: (match: MRMatch, field: "score1" | "score2", delta: number) => void;
   onSubmit: (match: MRMatch) => void;
@@ -49,11 +50,12 @@ function MrScoreEditor({
   submitting,
   submittingLabel,
   totalMessage,
+  requiredTotalScore,
   scores,
   onAdjustScore,
   onSubmit,
 }: MrScoreEditorProps) {
-  const totalValid = scores.score1 + scores.score2 === 4;
+  const totalValid = scores.score1 + scores.score2 === requiredTotalScore;
 
   return (
     <div className="border-t pt-4">
@@ -161,6 +163,7 @@ export default function MatchRaceParticipantPage({
   const {
     reportingScores,
     setReportingScores,
+    requiredTotalScore,
     getInitialScores,
     hasOwnReport,
     adjustScore,
@@ -187,6 +190,7 @@ export default function MatchRaceParticipantPage({
       submitting: ctx.submitting === match.id,
       submittingLabel: tMatch("submitting"),
       totalMessage: tMatch("totalMustEqual4"),
+      requiredTotalScore,
       onAdjustScore: adjustScore,
       onSubmit: handleSubmitScore,
     };

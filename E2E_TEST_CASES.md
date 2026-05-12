@@ -1396,7 +1396,8 @@
   1. BM と MR の participant ページはいずれも `useParticipantScoreInput` を使い、ページ内に重複した初期スコア計算・送信処理を持たない
   2. 未編集の確定済み試合を送信する場合、BM/MR とも `getInitialScores(match)` の completed score fallback を使う
   3. issue #1469/#1470 の再発防止として、クランプ値は `maxScorePerSide`、合計値は `requiredTotalScore` で揃えられ、`clearScores` は public hook API として公開されない
-  4. 既存 UI シナリオは BM `TC-322` と MR `TC-1083` が担当し、共通化の構造は static/unit test で固定する
+  4. issue #1472/#1473 の再発防止として、呼び出し元 UI の `totalValid` も hook から返る `requiredTotalScore` を参照し、`maxScorePerSide < requiredTotalScore` の valid/invalid 境界を unit test で固定する
+  5. 既存 UI シナリオは BM `TC-322` と MR `TC-1083` が担当し、共通化の構造は static/unit test で固定する
 - **期待結果**: BM/MR participant のスコア入力ロジックが共通フックで維持され、mode-specific な報告フィールド差分だけが各ページに残る
 - **スクリプト**: static guard `__tests__/static/tc-1082-shared-score-input.test.ts` + unit `__tests__/lib/hooks/useParticipantScoreInput.test.ts`
 
