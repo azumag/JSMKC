@@ -71,6 +71,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { updateWithRetry } from '@/lib/optimistic-locking';
 import { POST } from '@/app/api/tournaments/[id]/gp/match/[matchId]/report/route';
+import { Prisma } from '@prisma/client';
 
 const {
   createSuccessResponse,
@@ -231,7 +232,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         data: expect.objectContaining({
           player1ReportedPoints1: 37,
           player1ReportedPoints2: 24,
-          player1ReportedRaces: expect.any(Object),
+          player1ReportedRaces: Prisma.JsonNull,
         }),
       }));
       expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith(expect.objectContaining({
