@@ -34,6 +34,7 @@ describe('TC-1417 home recommendation static guard', () => {
     );
 
     const sectionStart = source.indexOf('Sponsored recommendation block');
+    expect(sectionStart).toBeGreaterThanOrEqual(0);
     const sectionEnd = source.indexOf('\n    </div>', sectionStart);
     const section = source.slice(sectionStart, sectionEnd);
 
