@@ -103,7 +103,8 @@ describe('E2E case drift coverage', () => {
     const tc1083 = sectionBetween(tcMr, 'async function runTc1083', '/**\n * TC-603');
 
     expect(section).toContain('issue #1083');
-    expect(section).toContain('issue #1463/#1464');
+    expect(section).toContain('issue #1463/#1464/#1466');
+    expect(section).toContain('ドキュメント確認は drift test に一本化');
     expect(section).toContain('Correct Score');
     expect(section).toContain('Submit Correction');
     expect(section).toContain('player1ReportedPoints');

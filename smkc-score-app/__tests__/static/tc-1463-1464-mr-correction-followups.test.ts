@@ -1,14 +1,6 @@
-import { e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
+import { readRepoFile, sectionBetween } from '../helpers/e2e-cases';
 
 describe('TC-1463-1464 MR correction follow-up guards', () => {
-  it('documents the condition wait and extracted MR score editor follow-ups', () => {
-    const section = e2eCaseSection('TC-1083');
-
-    expect(section).toContain('issue #1463/#1464');
-    expect(section).toContain('固定 sleep ではなく更新済みスコアを条件待機');
-    expect(section).toContain('MrScoreEditor');
-  });
-
   it('keeps TC-1083 correction wait tied to the updated MR score instead of a fixed sleep', () => {
     const source = readRepoFile('smkc-score-app', 'e2e', 'tc-mr.js');
     const tc1083 = sectionBetween(
