@@ -244,7 +244,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(200);
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1' },
+        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm1', 'pm2', 'pm3', 'pm4'] } },
         data: { cup: 'Flower', assignedCups: ['Flower'] },
       });
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
@@ -276,11 +276,11 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(200);
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(2);
       expect(prisma.gPMatch.updateMany).toHaveBeenNthCalledWith(1, {
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1' },
+        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm1', 'pm2'] } },
         data: { cup: 'Flower', assignedCups: ['Flower'] },
       });
       expect(prisma.gPMatch.updateMany).toHaveBeenNthCalledWith(2, {
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r2' },
+        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r2', id: { in: ['pm3', 'pm4'] } },
         data: { cup: 'Mushroom', assignedCups: ['Mushroom'] },
       });
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
@@ -347,7 +347,12 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
       const updateCall = (prisma.gPMatch.updateMany as jest.Mock).mock.calls[0][0];
-      expect(updateCall.where).toEqual({ tournamentId: 't1', stage: 'playoff', round: 'playoff_r1' });
+      expect(updateCall.where).toEqual({
+        tournamentId: 't1',
+        stage: 'playoff',
+        round: 'playoff_r1',
+        id: { in: ['pm1', 'pm2', 'pm3', 'pm4'] },
+      });
       expect(updateCall.data.assignedCups).toHaveLength(1);
       expect(updateCall.data.cup).toBe(updateCall.data.assignedCups[0]);
       expect(['Mushroom', 'Flower', 'Star', 'Special']).toContain(updateCall.data.cup);
@@ -381,7 +386,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1' },
+        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm2'] } },
         data: { cup: 'Flower', assignedCups: ['Flower'] },
       });
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
@@ -417,7 +422,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       }));
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1' },
+        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm2'] } },
         data: { cup: 'Star', assignedCups: ['Star'] },
       });
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
