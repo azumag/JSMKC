@@ -1117,10 +1117,10 @@ describe('Qualification Route Factory', () => {
       try {
         const randomValues = [
           ...Array(3).fill(0),
-          0.25, 0.5, 0.5,
-          0.25, 0.5, 0.5,
-          0.25, 0.5, 0.5,
-          0.25, 0.5, 0.5,
+          0.25, 0.5, 0.5, 0.5,
+          0.25, 0.5, 0.5, 0.5,
+          0.25, 0.5, 0.5, 0.5,
+          0.25, 0.5, 0.5, 0.5,
         ];
         randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
 
@@ -1171,7 +1171,8 @@ describe('Qualification Route Factory', () => {
         /*
          * The forced shuffle values make each deck after the first start with
          * the previous deck's final cup before boundary normalization. The
-         * final assigned sequence must still avoid adjacent repeats.
+         * boundary random value picks a later non-repeating cup to swap into
+         * the first slot, so this also protects against fixed rotations.
          */
         for (let i = 1; i < assignedRoundCups.length; i++) {
           expect(assignedRoundCups[i]).not.toBe(assignedRoundCups[i - 1]);
@@ -1182,7 +1183,8 @@ describe('Qualification Route Factory', () => {
         expect([...firstDeck].sort()).toEqual([...CUPS].sort());
         expect([...secondDeck].sort()).toEqual([...CUPS].sort());
         expect([...fifthDeck].sort()).toEqual([...CUPS].sort());
-        expect(secondDeck).not.toEqual(firstDeck);
+        expect(secondDeck).toEqual(['Special', 'Star', 'Mushroom', 'Flower']);
+        expect(secondDeck).not.toEqual(['Star', 'Special', 'Flower', 'Mushroom']);
       } finally {
         randomSpy.mockRestore();
       }
