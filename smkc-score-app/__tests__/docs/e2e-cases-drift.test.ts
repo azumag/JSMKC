@@ -72,7 +72,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('FT2 相当');
     expect(section).toContain('FT3 相当');
     expect(section).toContain('first-seen');
-    expect(section).toContain('逐次待ちせず並列に開始');
+    expect(section).toContain('round-scoped `updateMany()`');
+    expect(section).toContain('O(rounds)');
     expect(section).toContain('一部失敗しても閲覧レスポンスを継続');
     expect(section).toContain('失敗件数と理由を警告ログ');
     expect(section).toContain('gp/finals/route.test.ts');

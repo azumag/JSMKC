@@ -29,7 +29,6 @@ import { createErrorResponse, createSuccessResponse, handleValidationError, hand
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
-import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 import { computeQualificationRanks } from '@/lib/server-ranking';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
@@ -228,6 +227,7 @@ function isValidGpCupSequence(sequence: string[], maxCups: number): boolean {
 async function normalizeRoundCupsToSingleSequence(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   modelInstance: any,
+  tournamentId: string,
   stage: 'finals' | 'playoff',
   matches: Array<{ id: string; cup?: string | null; assignedCups?: unknown; round?: string | null }>,
   logger?: ReturnType<typeof createLogger>,
@@ -300,24 +300,22 @@ async function normalizeRoundCupsToSingleSequence(
     canonicalByRound.set(round, { cup: assignedCups[0], assignedCups });
   }
 
+  /* Collapse legacy GP repairs to one write per round. We intentionally do
+   * not add JSON equality predicates here: Prisma's JSON filters are brittle
+   * on D1/SQLite, and canonicalByRound only contains rounds that JS already
+   * proved need repair. */
   const writes: Array<Promise<unknown>> = [];
   for (const [round, data] of canonicalByRound) {
-    const canonicalKey = JSON.stringify(data.assignedCups);
-    for (const match of matchesByRound.get(round) ?? []) {
-      if (match.cup === data.cup && JSON.stringify(match.assignedCups) === canonicalKey) {
-        continue;
-      }
-      writes.push(modelInstance.update({
-        where: { id: match.id },
-        data,
-      }));
-    }
+    writes.push(modelInstance.updateMany({
+      where: { tournamentId, stage, round },
+      data,
+    }));
   }
 
   const writeResults = await Promise.allSettled(writes);
   const failedWrites = writeResults.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
   if (failedWrites.length > 0) {
-    logger?.warn('Failed to backfill some GP assigned cup rows', {
+    logger?.warn('Failed to backfill some GP assigned cup rounds', {
       failedWrites: failedWrites.length,
       totalWrites: writes.length,
       reasons: failedWrites.map((result) => result.reason instanceof Error
@@ -919,6 +917,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       if (config.assignGpCupByRound && playoffMatches.length > 0) {
         const cupResult = await normalizeRoundCupsToSingleSequence(
           model(prisma),
+          tournamentId,
           'playoff',
           playoffMatches,
           logger,
@@ -1054,6 +1053,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         if (legacyFinals.length > 0) {
           await normalizeRoundCupsToSingleSequence(
             model(prisma),
+            tournamentId,
             'finals',
             legacyFinals,
             logger,
