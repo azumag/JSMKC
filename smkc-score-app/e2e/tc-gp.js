@@ -60,6 +60,10 @@ const results = makeResults();
 const log = makeLog(results);
 let sharedFixture = null;
 
+function importsMaxGpDriverPointsFromConstants(source) {
+  return /import\s+\{[\s\S]*\bMAX_GP_DRIVER_POINTS\b[\s\S]*\}\s+from\s+["']@\/lib\/constants["'];/.test(source);
+}
+
 function sharedGpPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
   return sharedFixture.players.slice(0, count);
@@ -78,8 +82,8 @@ async function runTc1098() {
     const routeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'api', 'tournaments', '[id]', 'gp', 'match', '[matchId]', 'report', 'route.ts'), 'utf8');
 
     const constantExported = /export const MAX_GP_DRIVER_POINTS\b/.test(constantsSource);
-    const participantImportsConstant = /import \{[^}]*MAX_GP_DRIVER_POINTS[^}]*\} from ["']@\/lib\/constants["'];/.test(participantSource);
-    const routeImportsConstant = /import \{[^}]*MAX_GP_DRIVER_POINTS[^}]*\} from ["']@\/lib\/constants["'];/.test(routeSource);
+    const participantImportsConstant = importsMaxGpDriverPointsFromConstants(participantSource);
+    const routeImportsConstant = importsMaxGpDriverPointsFromConstants(routeSource);
     const localDefinitionsRemoved = !/const MAX_GP_DRIVER_POINTS\s*=/.test(participantSource) &&
       !/const MAX_GP_DRIVER_POINTS\s*=/.test(routeSource);
 
