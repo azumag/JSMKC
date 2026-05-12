@@ -22,4 +22,23 @@ describe('TC-1073 16-player finals LR2 slot routing', () => {
       });
     }
   });
+
+  it('TC-1396 keeps QF loser slots in bracket data instead of recalculating them', () => {
+    const bracket = generateBracketStructure(16);
+
+    expect(
+      bracket
+        .filter((match) => match.round === 'winners_qf')
+        .map((match) => ({
+          matchNumber: match.matchNumber,
+          loserGoesTo: match.loserGoesTo,
+          loserPosition: match.loserPosition,
+        })),
+    ).toEqual([
+      { matchNumber: 9, loserGoesTo: 23, loserPosition: 1 },
+      { matchNumber: 10, loserGoesTo: 22, loserPosition: 1 },
+      { matchNumber: 11, loserGoesTo: 21, loserPosition: 1 },
+      { matchNumber: 12, loserGoesTo: 20, loserPosition: 1 },
+    ]);
+  });
 });

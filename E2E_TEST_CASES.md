@@ -1590,6 +1590,16 @@
 - **期待結果**: M12→M20、M11→M21、M10→M22、M9→M23 の Winners QF 敗者がすべて 1P に入り、M16-M19 の Losers R1 勝者が対応する Losers R2 の 2P に入る
 - **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
 
+## TC-1396: 16人決勝 QF 敗者スロット定義の一元化 (issue #1396)
+- **背景**: TC-1073 の 16人決勝 QF 敗者スロットは、進行ロジック・API・ブラケット表示で同じ `BracketMatch.loserPosition` を参照し、個別の `loserPosition=1` ハードコードを増やさない
+- **手順**:
+  1. 16人決勝ブラケットを生成する
+  2. Winners QF M9-M12 の `loserGoesTo` と `loserPosition` を確認する
+  3. Losers R1 M16-M19 の winner `position` と比較する
+  4. API 進行処理が `BracketMatch.loserPosition` に従って敗者スロットを更新することを確認する
+- **期待結果**: QF 敗者はブラケットデータ上で M23/M22/M21/M20 の `loserPosition: 1` として定義され、API/表示側はそのフィールドを参照する
+- **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
+
 ## TC-611: BM/MR/GP予選確定 — スコアロック検証
 - **URL**: /api/tournaments/[temp-id]/mr (PUT), /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
 - **authRequired**: true (admin)

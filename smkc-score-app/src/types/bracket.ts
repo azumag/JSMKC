@@ -51,6 +51,8 @@ export interface BracketMatch {
   loserGoesTo?: number;
   /** Display position within the receiving match (1 or 2) */
   position?: 1 | 2;
+  /** Display position within the loser's receiving match (1 or 2) */
+  loserPosition?: 1 | 2;
   /**
    * For playoff matches only: the Upper-Bracket seed (1-16) the winner receives
    * when entering the 16-player double-elimination bracket. Only set on final

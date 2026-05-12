@@ -536,6 +536,21 @@ describe('Double Elimination Bracket Structure', () => {
       });
     });
 
+    it('should store 16-player Winners QF loser slots on the bracket matches', () => {
+      const matches16 = generateBracketStructure(16);
+
+      expect(
+        matches16
+          .filter((m) => m.round === 'winners_qf')
+          .map((m) => [m.matchNumber, m.loserGoesTo, m.loserPosition]),
+      ).toEqual([
+        [9, 23, 1],
+        [10, 22, 1],
+        [11, 21, 1],
+        [12, 20, 1],
+      ]);
+    });
+
     it('should route Losers R1 winners into Losers R2 player2 slots', () => {
       const matches16 = generateBracketStructure(16);
 
