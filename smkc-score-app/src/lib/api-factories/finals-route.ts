@@ -300,14 +300,19 @@ async function normalizeRoundCupsToSingleSequence(
     canonicalByRound.set(round, { cup: assignedCups[0], assignedCups });
   }
 
-  /* Collapse legacy GP repairs to one write per round. We intentionally do
-   * not add JSON equality predicates here: Prisma's JSON filters are brittle
-   * on D1/SQLite, and canonicalByRound only contains rounds that JS already
-   * proved need repair. */
+  /* Collapse legacy GP repairs to one write per round. Keep JSON comparison in
+   * JS, then scope updateMany by id list instead of adding brittle Prisma JSON
+   * predicates on D1/SQLite. */
   const writes: Array<Promise<unknown>> = [];
   for (const [round, data] of canonicalByRound) {
+    const canonicalKey = JSON.stringify(data.assignedCups);
+    const staleIds = (matchesByRound.get(round) ?? [])
+      .filter((match) => match.cup !== data.cup || JSON.stringify(match.assignedCups) !== canonicalKey)
+      .map((match) => match.id);
+    if (staleIds.length === 0) continue;
+
     writes.push(modelInstance.updateMany({
-      where: { tournamentId, stage, round },
+      where: { tournamentId, stage, round, id: { in: staleIds } },
       data,
     }));
   }
