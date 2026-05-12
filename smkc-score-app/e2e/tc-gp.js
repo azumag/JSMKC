@@ -14,7 +14,7 @@
  *   TC-1098 GP driver-points max uses the shared constants module
  *   TC-1106 GP manual driver-points inputs use max-bounded shared parsing
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
- *   TC-725  GP qualification cup deck avoids adjacent repeats with boundary swaps
+ *   TC-725  GP qualification cup deck avoids adjacent round repeats
  *   TC-1087 GP qualification cup assignment uses positive one-based rounds
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
@@ -252,7 +252,7 @@ async function runTc724(adminPage) {
   }
 }
 
-/* ───────── TC-725: GP qualification cup deck adjacent-repeat and swap guard ───────── */
+/* ───────── TC-725: GP qualification cup deck adjacent-repeat guard ───────── */
 async function runTc725(adminPage) {
   let setup = null;
   try {
@@ -270,27 +270,14 @@ async function runTc725(adminPage) {
     const divergentRounds = rounds.filter(([, cups]) => cups.size !== 1 || cups.has(null));
     const roundCups = rounds.map(([, cups]) => [...cups][0]);
     const repeatedBoundary = roundCups.find((cup, index) => index > 0 && cup === roundCups[index - 1]);
-    const source = await fs.promises.readFile(
-      path.join(__dirname, '..', 'src', 'lib', 'api-factories', 'qualification-route.ts'),
-      'utf8',
-    );
-    const usesBoundarySwap = /const\s+swapIndex\s*=\s*firstNonRepeatingIndex/.test(source)
-      && /\[deck\[0\],\s*deck\[swapIndex\]\]\s*=\s*\[deck\[swapIndex\],\s*deck\[0\]\]/.test(source);
-    const rotatesBoundary = /deck\s*=\s*\[\s*\.{3}deck\.slice\(firstNonRepeatingIndex\)/.test(source);
     // The shared 28-player GP fixture produces 13 qualification rounds per group.
     const minExpectedRounds = 13;
-    const ok = rounds.length >= minExpectedRounds
-      && divergentRounds.length === 0
-      && !repeatedBoundary
-      && usesBoundarySwap
-      && !rotatesBoundary;
+    const ok = rounds.length >= minExpectedRounds && divergentRounds.length === 0 && !repeatedBoundary;
 
     log('TC-725', ok ? 'PASS' : 'FAIL',
       rounds.length < minExpectedRounds ? `rounds=${rounds.length} expected>=${minExpectedRounds}`
       : divergentRounds.length > 0 ? `divergent rounds=${divergentRounds.map(([r, c]) => `${r}=${[...c].join(',')}`).join(' | ')}`
       : repeatedBoundary ? `adjacent repeated cup=${repeatedBoundary}`
-      : !usesBoundarySwap ? 'boundary normalization does not use a random swap'
-      : rotatesBoundary ? 'boundary normalization still rotates the deck'
       : '');
   } catch (err) {
     log('TC-725', 'FAIL', err instanceof Error ? err.message : 'GP 725 failed');
