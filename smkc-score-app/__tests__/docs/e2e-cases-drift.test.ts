@@ -115,6 +115,37 @@ describe('E2E case drift coverage', () => {
     expect(tc1083).not.toContain('waitForTimeout(3000)');
   });
 
+  it('keeps TC-1082 aligned with shared BM/MR participant score input coverage', () => {
+    const section = e2eCaseSection('TC-1082');
+    const bmPage = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'app',
+      'tournaments',
+      '[id]',
+      'bm',
+      'participant',
+      'page.tsx',
+    );
+    const mrPage = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'app',
+      'tournaments',
+      '[id]',
+      'mr',
+      'participant',
+      'page.tsx',
+    );
+
+    expect(section).toContain('issue #1082');
+    expect(section).toContain('useParticipantScoreInput');
+    expect(section).toContain('TC-322');
+    expect(section).toContain('TC-1083');
+    expect(bmPage).toContain('useParticipantScoreInput<BMMatch>');
+    expect(mrPage).toContain('useParticipantScoreInput<MRMatch>');
+  });
+
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
     const section = e2eCaseSection('TC-722');
 

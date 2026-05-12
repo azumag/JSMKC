@@ -1388,6 +1388,17 @@
 - **期待結果**: MR participant で過去報告を確認でき、確定済みスコアを参加者自身が修正できる
 - **スクリプト**: `tc-mr.js TC-1083`
 
+## TC-1082: BM/MR participant スコア入力ロジック共通化
+- **URL**: /tournaments/[temp-id]/bm/participant, /tournaments/[temp-id]/mr/participant
+- **authRequired**: true (player)
+- **背景**: issue #1082。BM/MR participant ページの `getInitialScores` / `hasOwnReport` / `adjustScore` / `handleSubmitScore` は同じ入力ルールを持つ。BM は `player*ReportedScore*`、MR は `player*ReportedPoints*` を読む差分だけを page 側に残し、共通処理は `useParticipantScoreInput` に集約する。
+- **回帰チェック**:
+  1. BM と MR の participant ページはいずれも `useParticipantScoreInput` を使い、ページ内に重複した初期スコア計算・送信処理を持たない
+  2. 未編集の確定済み試合を送信する場合、BM/MR とも `getInitialScores(match)` の completed score fallback を使う
+  3. 既存 UI シナリオは BM `TC-322` と MR `TC-1083` が担当し、共通化の構造は static/unit test で固定する
+- **期待結果**: BM/MR participant のスコア入力ロジックが共通フックで維持され、mode-specific な報告フィールド差分だけが各ページに残る
+- **スクリプト**: static guard `__tests__/static/tc-1082-shared-score-input.test.ts` + unit `__tests__/lib/hooks/useParticipantScoreInput.test.ts`
+
 ## TC-603: MR引き分け(2-2)スコアの受理確認
 - **URL**: /api/tournaments/[temp-id]/mr (PUT)
 - **authRequired**: true (admin)

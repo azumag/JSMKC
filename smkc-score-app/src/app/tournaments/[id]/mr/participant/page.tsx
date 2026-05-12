@@ -9,11 +9,12 @@
  */
 "use client";
 
-import { useState, use } from "react";
+import { use, useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Flag } from "lucide-react";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
+import { useParticipantScoreInput } from "@/lib/hooks/useParticipantScoreInput";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
 import { getScoreReportSuccessMessage } from "@/lib/participant-report-message";
 
@@ -142,68 +143,10 @@ export default function MatchRaceParticipantPage({
 
   const ctx = useParticipantMatches<MRMatch>({ tournamentId, mode: "mr" });
 
-  const [reportingScores, setReportingScores] = useState<
-    Record<string, { score1: number; score2: number }>
-  >({});
   const [editingCorrections, setEditingCorrections] = useState<Record<string, boolean>>({});
 
-  const getInitialScores = (match: MRMatch) => {
-    const isPlayer1 = match.player1.id === ctx.playerId;
-    const ownScore1 = isPlayer1 ? match.player1ReportedPoints1 : match.player2ReportedPoints1;
-    const ownScore2 = isPlayer1 ? match.player1ReportedPoints2 : match.player2ReportedPoints2;
-
-    if (ownScore1 != null && ownScore2 != null) {
-      return { score1: ownScore1, score2: ownScore2 };
-    }
-
-    if (match.completed) {
-      return { score1: match.score1 ?? 0, score2: match.score2 ?? 0 };
-    }
-
-    return { score1: 0, score2: 0 };
-  };
-
-  const hasOwnReport = (match: MRMatch) => {
-    const isPlayer1 = match.player1.id === ctx.playerId;
-    return isPlayer1
-      ? match.player1ReportedPoints1 != null
-      : match.player2ReportedPoints1 != null;
-  };
-
-  const adjustScore = (
-    match: MRMatch,
-    field: "score1" | "score2",
-    delta: number
-  ) => {
-    setReportingScores((prev) => {
-      const current = prev[match.id] ?? getInitialScores(match);
-      const clamped = Math.max(0, Math.min(4, current[field] + delta));
-      return { ...prev, [match.id]: { ...current, [field]: clamped } };
-    });
-  };
-
-  const handleSubmitScore = async (match: MRMatch) => {
-    const scores = reportingScores[match.id] ?? getInitialScores(match);
-    const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
-
-    if (scores.score1 + scores.score2 !== 4) {
-      ctx.setError(tMatch("totalMustEqual4"));
-      return;
-    }
-
-    ctx.setError(null);
-    const data = await ctx.submitReport(match.id, {
-      reportingPlayer,
-      score1: scores.score1,
-      score2: scores.score2,
-    });
-
-    if (data) {
-      setReportingScores((prev) => {
-        const next = { ...prev };
-        delete next[match.id];
-        return next;
-      });
+  const handleScoreSubmitSuccess = useCallback(
+    (data: Record<string, unknown>, match: MRMatch) => {
       setEditingCorrections((prev) => ({ ...prev, [match.id]: false }));
       alert(getScoreReportSuccessMessage(data, {
         correctionSubmittedSuccess: tPart("correctionSubmittedSuccess"),
@@ -211,8 +154,28 @@ export default function MatchRaceParticipantPage({
         scoresConfirmedSuccess: tPart("scoresConfirmedSuccess"),
         scoresMismatchSubmitted: tPart("scoresMismatchSubmitted"),
       }));
-    }
-  };
+    },
+    [tPart]
+  );
+
+  const {
+    reportingScores,
+    setReportingScores,
+    getInitialScores,
+    hasOwnReport,
+    adjustScore,
+    handleSubmitScore,
+  } = useParticipantScoreInput<MRMatch>({
+    playerId: ctx.playerId,
+    getReportedScores: (match, isPlayer1) => ({
+      score1: isPlayer1 ? match.player1ReportedPoints1 : match.player2ReportedPoints1,
+      score2: isPlayer1 ? match.player1ReportedPoints2 : match.player2ReportedPoints2,
+    }),
+    submitReport: ctx.submitReport,
+    setError: ctx.setError,
+    totalMustEqualMessage: tMatch("totalMustEqual4"),
+    onSubmitSuccess: handleScoreSubmitSuccess,
+  });
 
   const scoreEditorProps = (match: MRMatch, title: string, submitLabel: string) => {
     const scores = reportingScores[match.id] ?? getInitialScores(match);
