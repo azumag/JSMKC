@@ -60,6 +60,8 @@ interface BracketMatch {
   loserGoesTo?: number;
   /** Position in the receiving match (1 or 2), used for winner routing */
   position?: 1 | 2;
+  /** Position in the receiving match (1 or 2), used for loser routing */
+  loserPosition?: 1 | 2;
 }
 
 /** Props for the main DoubleEliminationBracket component */
@@ -336,38 +338,20 @@ export function DoubleEliminationBracket({
    * Reverse routing map: `${matchNumber}-${slot}` → source match number.
    *
    * `bracketStructure` is always produced by `generateBracketStructure()` on the
-   * server, which guarantees `winnerGoesTo`, `loserGoesTo`, and `position` are
-   * populated for every non-terminal match. The map will therefore contain an
-   * entry for every non-seeded slot under normal circumstances.
-   *
-   * Loser position rules (same as getNextMatchInfo in double-elimination.ts):
-   *   winners_r1:  (matchNumber - 1) % 2 + 1
-   *   winners_qf:  position 1 for 16-player; (matchNumber - 1) % 2 + 1 for 8-player
-   *   winners_sf:  always 1
-   *   winners_final: always 2
+   * server, which guarantees `winnerGoesTo`, `loserGoesTo`, `position`, and
+   * `loserPosition` are populated for every non-terminal match. The map will
+   * therefore contain an entry for every non-seeded slot under normal
+   * circumstances.
    */
   const slotSourceMap = (() => {
     const map = new Map<string, number>();
-    /* 8-player bracket = 17 matches; 16-player = 31 matches. */
-    const is16Player = bracketStructure.length > 17;
     for (const bm of bracketStructure) {
       if (bm.winnerGoesTo) {
         const pos = bm.position ?? 1;
         map.set(`${bm.winnerGoesTo}-${pos}`, bm.matchNumber);
       }
       if (bm.loserGoesTo) {
-        let loserPos: 1 | 2;
-        if (bm.round === 'winners_r1') {
-          loserPos = ((bm.matchNumber - 1) % 2 + 1) as 1 | 2;
-        } else if (bm.round === 'winners_qf') {
-          loserPos = is16Player ? 1 : ((bm.matchNumber - 1) % 2 + 1) as 1 | 2;
-        } else if (bm.round === 'winners_sf') {
-          loserPos = 1;
-        } else if (bm.round === 'winners_final') {
-          loserPos = 2;
-        } else {
-          continue;
-        }
+        const loserPos = bm.loserPosition ?? 1;
         map.set(`${bm.loserGoesTo}-${loserPos}`, bm.matchNumber);
       }
     }

@@ -203,13 +203,13 @@ describe('Finals Route Factory', () => {
       // Grand Final Reset (match 18): played if losers bracket winner wins first GF
       // Note: Match 17 is not used - grand_final winnerGoesTo points to 18
       return [
-        { matchNumber: 1, round: 'winners_qf', bracket: 'winners', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9 },
-        { matchNumber: 2, round: 'winners_qf', bracket: 'winners', player1Seed: 4, player2Seed: 5, winnerGoesTo: 5, loserGoesTo: 10 },
-        { matchNumber: 3, round: 'winners_qf', bracket: 'winners', player1Seed: 2, player2Seed: 7, winnerGoesTo: 6, loserGoesTo: 10 },
-        { matchNumber: 4, round: 'winners_qf', bracket: 'winners', player1Seed: 3, player2Seed: 6, winnerGoesTo: 6, loserGoesTo: 9 },
-        { matchNumber: 5, round: 'winners_sf', bracket: 'winners', player1Seed: null, player2Seed: null, winnerGoesTo: 7, loserGoesTo: 13 },
-        { matchNumber: 6, round: 'winners_sf', bracket: 'winners', player1Seed: null, player2Seed: null, winnerGoesTo: 7, loserGoesTo: 14 },
-        { matchNumber: 7, round: 'winners_final', bracket: 'winners', player1Seed: null, player2Seed: null, winnerGoesTo: 16, loserGoesTo: 15 },
+        { matchNumber: 1, round: 'winners_qf', bracket: 'winners', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1, loserPosition: 1 },
+        { matchNumber: 2, round: 'winners_qf', bracket: 'winners', player1Seed: 4, player2Seed: 5, winnerGoesTo: 5, loserGoesTo: 10, position: 2, loserPosition: 2 },
+        { matchNumber: 3, round: 'winners_qf', bracket: 'winners', player1Seed: 2, player2Seed: 7, winnerGoesTo: 6, loserGoesTo: 10, position: 1, loserPosition: 1 },
+        { matchNumber: 4, round: 'winners_qf', bracket: 'winners', player1Seed: 3, player2Seed: 6, winnerGoesTo: 6, loserGoesTo: 9, position: 2, loserPosition: 2 },
+        { matchNumber: 5, round: 'winners_sf', bracket: 'winners', player1Seed: null, player2Seed: null, winnerGoesTo: 7, loserGoesTo: 13, position: 1, loserPosition: 1 },
+        { matchNumber: 6, round: 'winners_sf', bracket: 'winners', player1Seed: null, player2Seed: null, winnerGoesTo: 7, loserGoesTo: 14, position: 2, loserPosition: 1 },
+        { matchNumber: 7, round: 'winners_final', bracket: 'winners', player1Seed: null, player2Seed: null, winnerGoesTo: 16, loserGoesTo: 15, position: 1, loserPosition: 2 },
         { matchNumber: 8, round: 'losers_r1', bracket: 'losers', player1Seed: null, player2Seed: null, winnerGoesTo: 11, loserGoesTo: undefined },
         { matchNumber: 9, round: 'losers_r1', bracket: 'losers', player1Seed: null, player2Seed: null, winnerGoesTo: 12, loserGoesTo: undefined },
         { matchNumber: 10, round: 'losers_r2', bracket: 'losers', player1Seed: null, player2Seed: null, winnerGoesTo: 11, loserGoesTo: undefined },
@@ -224,21 +224,21 @@ describe('Finals Route Factory', () => {
     };
 
     const create16PlayerBracketStructure = () => [
-      { matchNumber: 1, round: 'winners_r1', bracket: 'winners', player1Seed: 1, player2Seed: 16, winnerGoesTo: 9, loserGoesTo: 16 },
-      { matchNumber: 2, round: 'winners_r1', bracket: 'winners', player1Seed: 8, player2Seed: 9, winnerGoesTo: 9, loserGoesTo: 16 },
-      { matchNumber: 3, round: 'winners_r1', bracket: 'winners', player1Seed: 5, player2Seed: 12, winnerGoesTo: 10, loserGoesTo: 17 },
-      { matchNumber: 4, round: 'winners_r1', bracket: 'winners', player1Seed: 4, player2Seed: 13, winnerGoesTo: 10, loserGoesTo: 17 },
-      { matchNumber: 5, round: 'winners_r1', bracket: 'winners', player1Seed: 3, player2Seed: 14, winnerGoesTo: 11, loserGoesTo: 18 },
-      { matchNumber: 6, round: 'winners_r1', bracket: 'winners', player1Seed: 6, player2Seed: 11, winnerGoesTo: 11, loserGoesTo: 18 },
-      { matchNumber: 7, round: 'winners_r1', bracket: 'winners', player1Seed: 7, player2Seed: 10, winnerGoesTo: 12, loserGoesTo: 19 },
-      { matchNumber: 8, round: 'winners_r1', bracket: 'winners', player1Seed: 2, player2Seed: 15, winnerGoesTo: 12, loserGoesTo: 19 },
-      { matchNumber: 9, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 23 },
-      { matchNumber: 10, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 22 },
-      { matchNumber: 11, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 21 },
-      { matchNumber: 12, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 20 },
-      { matchNumber: 13, round: 'winners_sf', bracket: 'winners', winnerGoesTo: 15, loserGoesTo: 26, position: 1 },
-      { matchNumber: 14, round: 'winners_sf', bracket: 'winners', winnerGoesTo: 15, loserGoesTo: 27, position: 2 },
-      { matchNumber: 15, round: 'winners_final', bracket: 'winners', winnerGoesTo: 30, loserGoesTo: 29, position: 1 },
+      { matchNumber: 1, round: 'winners_r1', bracket: 'winners', player1Seed: 1, player2Seed: 16, winnerGoesTo: 9, loserGoesTo: 16, position: 1, loserPosition: 1 },
+      { matchNumber: 2, round: 'winners_r1', bracket: 'winners', player1Seed: 8, player2Seed: 9, winnerGoesTo: 9, loserGoesTo: 16, position: 2, loserPosition: 2 },
+      { matchNumber: 3, round: 'winners_r1', bracket: 'winners', player1Seed: 5, player2Seed: 12, winnerGoesTo: 10, loserGoesTo: 17, position: 1, loserPosition: 1 },
+      { matchNumber: 4, round: 'winners_r1', bracket: 'winners', player1Seed: 4, player2Seed: 13, winnerGoesTo: 10, loserGoesTo: 17, position: 2, loserPosition: 2 },
+      { matchNumber: 5, round: 'winners_r1', bracket: 'winners', player1Seed: 3, player2Seed: 14, winnerGoesTo: 11, loserGoesTo: 18, position: 1, loserPosition: 1 },
+      { matchNumber: 6, round: 'winners_r1', bracket: 'winners', player1Seed: 6, player2Seed: 11, winnerGoesTo: 11, loserGoesTo: 18, position: 2, loserPosition: 2 },
+      { matchNumber: 7, round: 'winners_r1', bracket: 'winners', player1Seed: 7, player2Seed: 10, winnerGoesTo: 12, loserGoesTo: 19, position: 1, loserPosition: 1 },
+      { matchNumber: 8, round: 'winners_r1', bracket: 'winners', player1Seed: 2, player2Seed: 15, winnerGoesTo: 12, loserGoesTo: 19, position: 2, loserPosition: 2 },
+      { matchNumber: 9, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 23, position: 1, loserPosition: 1 },
+      { matchNumber: 10, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 22, position: 2, loserPosition: 1 },
+      { matchNumber: 11, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 21, position: 1, loserPosition: 1 },
+      { matchNumber: 12, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 20, position: 2, loserPosition: 1 },
+      { matchNumber: 13, round: 'winners_sf', bracket: 'winners', winnerGoesTo: 15, loserGoesTo: 26, position: 1, loserPosition: 1 },
+      { matchNumber: 14, round: 'winners_sf', bracket: 'winners', winnerGoesTo: 15, loserGoesTo: 27, position: 2, loserPosition: 1 },
+      { matchNumber: 15, round: 'winners_final', bracket: 'winners', winnerGoesTo: 30, loserGoesTo: 29, position: 1, loserPosition: 2 },
       { matchNumber: 16, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 20, position: 2 },
       { matchNumber: 17, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 21, position: 2 },
       { matchNumber: 18, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 22, position: 2 },
@@ -1674,6 +1674,50 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: nextLoserMatch.id },
         data: { player1Id: 'player-2' },
+      });
+    });
+
+    it('should use bracket-defined loserPosition for loser routing', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({
+        matchNumber: 9,
+        round: 'winners_qf',
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      const nextLoserMatch = createMockMatch({ matchNumber: 23 });
+
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+      mockGenerateBracketStructure.mockReturnValue([
+        {
+          matchNumber: 9,
+          round: 'winners_qf',
+          bracket: 'winners',
+          loserGoesTo: 23,
+          loserPosition: 2,
+        },
+      ] as any);
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).findFirst.mockImplementation((args: any) => {
+        if (args?.where?.matchNumber === 23) return Promise.resolve(nextLoserMatch);
+        return Promise.resolve(null);
+      });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: nextLoserMatch.id },
+        data: { player2Id: 'player-2' },
       });
     });
 

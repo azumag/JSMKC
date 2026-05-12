@@ -94,7 +94,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
     mrMatch.findFirst.mockResolvedValue(null);
     mrMatch.createMany.mockResolvedValue({ count: 0 });
     (generateBracketStructure as jest.Mock).mockReturnValue([
-      { matchNumber: 1, round: 'winners_qf', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1 },
+      { matchNumber: 1, round: 'winners_qf', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1, loserPosition: 1 },
     ]);
   });
 
@@ -499,7 +499,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
 
       (prisma.mRMatch.count as jest.Mock).mockResolvedValue(31);
       (generateBracketStructure as jest.Mock).mockReturnValue([
-        { matchNumber: 2, round: 'winners_r1', winnerGoesTo: 9, loserGoesTo: 16, position: 2 },
+        { matchNumber: 2, round: 'winners_r1', winnerGoesTo: 9, loserGoesTo: 16, position: 2, loserPosition: 2 },
       ]);
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockUpdatedMatch);

@@ -81,6 +81,7 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
       loserGoesTo: 8 + Math.floor(i / 2),
       // Position alternates 1,2,1,2 for the receiving semi-final match slots
       position: ((i % 2) + 1) as 1 | 2,
+      loserPosition: ((i % 2) + 1) as 1 | 2,
     });
     matchNumber++;
   }
@@ -98,6 +99,7 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
       loserGoesTo: 12 + i,
       // Position 1 or 2 in the Winners Final
       position: (i + 1) as 1 | 2,
+      loserPosition: 1,
     });
     matchNumber++;
   }
@@ -113,6 +115,7 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
     loserGoesTo: 15,
     // Enters Grand Final as player 1 (advantaged position for display)
     position: 1,
+    loserPosition: 2,
   });
   matchNumber++;
 
@@ -244,6 +247,7 @@ function generate16PlayerBracket(): BracketMatch[] {
       /* R1 losers → Losers R1: pairs of 2 map to one L_R1 match (16-19) */
       loserGoesTo: 16 + Math.floor(i / 2),
       position: ((i % 2) + 1) as 1 | 2,
+      loserPosition: ((i % 2) + 1) as 1 | 2,
     });
     mn++;
   }
@@ -260,6 +264,7 @@ function generate16PlayerBracket(): BracketMatch[] {
        * against B3, A4, A3, B4 instead of B4, A3, A4, B3. */
       loserGoesTo: 23 - i,
       position: ((i % 2) + 1) as 1 | 2,
+      loserPosition: 1,
     });
     mn++;
   }
@@ -274,6 +279,7 @@ function generate16PlayerBracket(): BracketMatch[] {
       /* SF losers → Losers R4 (26-27) */
       loserGoesTo: 26 + i,
       position: (i + 1) as 1 | 2,
+      loserPosition: 1,
     });
     mn++;
   }
@@ -286,6 +292,7 @@ function generate16PlayerBracket(): BracketMatch[] {
     winnerGoesTo: 30,
     loserGoesTo: 29,
     position: 1,
+    loserPosition: 2,
   });
   mn++;
 
@@ -495,36 +502,10 @@ export function getNextMatchInfo(
       position: match.position || 1,
     };
   } else if (!isWinner && match.loserGoesTo) {
-    // Loser drops down -- position depends on the round to maintain
-    // proper bracket placement and visual consistency
-    if (match.round === "winners_r1") {
-      /* 16-player R1 losers: position based on match number parity */
-      return {
-        nextMatchNumber: match.loserGoesTo,
-        position: ((completedMatchNumber - 1) % 2 + 1) as 1 | 2,
-      };
-    } else if (match.round === "winners_qf") {
-      /* QF losers enter Losers R2 as position 1 (L_R1 winners enter as position 2).
-       * In 16-player bracket, QF matches 9-12 route to L_R2 matches 23-20.
-       * In 8-player bracket, QF is matches 1-4 → position based on parity. */
-      const is16Player = matches.length > 17;
-      return {
-        nextMatchNumber: match.loserGoesTo,
-        position: is16Player ? 1 : ((completedMatchNumber - 1) % 2 + 1) as 1 | 2,
-      };
-    } else if (match.round === "winners_sf") {
-      /* SF losers enter as player 1 (the "higher seed" position) */
-      return {
-        nextMatchNumber: match.loserGoesTo,
-        position: 1,
-      };
-    } else if (match.round === "winners_final") {
-      /* Winners Final loser enters Losers Final as player 2 */
-      return {
-        nextMatchNumber: match.loserGoesTo,
-        position: 2,
-      };
-    }
+    return {
+      nextMatchNumber: match.loserGoesTo,
+      position: match.loserPosition || 1,
+    };
   }
 
   // No next match: player is eliminated or tournament is complete
