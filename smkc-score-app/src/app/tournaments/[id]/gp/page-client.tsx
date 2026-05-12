@@ -82,13 +82,12 @@ import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
-import { parseManualScore } from "@/lib/parse-manual-score";
 import {
   canCreateFinalsFromQualification,
   canResetFinalsFromQualification,
 } from "@/lib/finals-action-availability";
 import { calculateMaxMatchPoints, normalizePoints } from "@/lib/points/qualification-points";
-import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
+import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from "@/lib/gp-driver-points-input";
 
 import type { Player } from "@/lib/types";
 
@@ -426,8 +425,8 @@ export default function GrandPrixPageClient({
 
   const getCurrentBroadcastPoints = () => {
     if (manualScoreEnabled) {
-      const points1 = parseManualScore(manualPoints1);
-      const points2 = parseManualScore(manualPoints2);
+      const points1 = parseGpDriverPointsInput(manualPoints1);
+      const points2 = parseGpDriverPointsInput(manualPoints2);
       if (points1 === null || points2 === null) return null;
       return { points1, points2 };
     }
@@ -480,10 +479,10 @@ export default function GrandPrixPageClient({
     }
 
     if (manualScoreEnabled) {
-      /* Strict parse: reject "12.5", "1e2", etc. that parseInt would
-       * silently truncate into a valid-looking integer. */
-      const points1 = parseManualScore(manualPoints1);
-      const points2 = parseManualScore(manualPoints2);
+      /* Strict parse: reject "12.5", "1e2", and values outside the one-cup
+       * driver-points range. */
+      const points1 = parseGpDriverPointsInput(manualPoints1);
+      const points2 = parseGpDriverPointsInput(manualPoints2);
 
       if (points1 === null || points2 === null) {
         alert(t('manualScoreValidation'));

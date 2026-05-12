@@ -12,6 +12,7 @@
  *   TC-708  GP dual report — mismatch (2 players)
  *   TC-709  GP finals admin-only enforcement (403)
  *   TC-1098 GP driver-points max uses the shared constants module
+ *   TC-1106 GP manual driver-points inputs use max-bounded shared parsing
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
  *   TC-725  GP qualification cup deck avoids adjacent round repeats
  *   TC-1087 GP qualification cup assignment uses positive one-based rounds
@@ -101,6 +102,37 @@ async function runTc1098() {
       : '');
   } catch (err) {
     log('TC-1098', 'FAIL', err instanceof Error ? err.message : 'GP 1098 failed');
+  }
+}
+
+/* ───────── TC-1106: GP manual driver-points inputs use bounded parser ───────── */
+async function runTc1106() {
+  try {
+    const inputHelperSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'gp-driver-points-input.ts'), 'utf8');
+    const gpPageSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx'), 'utf8');
+    const gpFinalsSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'), 'utf8');
+
+    const parserExported = /export function parseGpDriverPointsInput\b/.test(inputHelperSource);
+    const parserUsesMax = inputHelperSource.includes('MAX_GP_DRIVER_POINTS') &&
+      inputHelperSource.includes('value <= MAX_GP_DRIVER_POINTS');
+    const propsKeepMobileHints = inputHelperSource.includes('type: "text"') &&
+      inputHelperSource.includes('inputMode: "numeric"') &&
+      inputHelperSource.includes('pattern: "[0-9]*"');
+    const gpPageUsesParser = gpPageSource.includes('parseGpDriverPointsInput(manualPoints1)') &&
+      gpPageSource.includes('parseGpDriverPointsInput(manualPoints2)');
+    const gpFinalsUsesParser = gpFinalsSource.includes('parseGpDriverPointsInput(cup.manualPoints1)') &&
+      gpFinalsSource.includes('parseGpDriverPointsInput(cup.manualPoints2)');
+
+    const ok = parserExported && parserUsesMax && propsKeepMobileHints && gpPageUsesParser && gpFinalsUsesParser;
+    log('TC-1106', ok ? 'PASS' : 'FAIL',
+      !parserExported ? 'parseGpDriverPointsInput export missing'
+      : !parserUsesMax ? 'GP driver-points parser does not enforce MAX_GP_DRIVER_POINTS'
+      : !propsKeepMobileHints ? 'GP input props lost mobile numeric text hints'
+      : !gpPageUsesParser ? 'gp/page-client manual points do not use parseGpDriverPointsInput'
+      : !gpFinalsUsesParser ? 'gp/finals manual cup points do not use parseGpDriverPointsInput'
+      : '');
+  } catch (err) {
+    log('TC-1106', 'FAIL', err instanceof Error ? err.message : 'GP 1106 failed');
   }
 }
 
@@ -1754,6 +1786,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     tests: [
       { name: 'TC-702', fn: runTc702 },
       { name: 'TC-1098', fn: runTc1098 },
+      { name: 'TC-1106', fn: runTc1106 },
       { name: 'TC-707', fn: runTc707 },
       { name: 'TC-708', fn: runTc708 },
       { name: 'TC-701', fn: runTc701 },
@@ -1792,7 +1825,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc727, runTc729, runTc719,
+  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc1106, runTc727, runTc729, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc1087, runTc821, runTc831, runTc832,
   gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult,
   getSuite,
