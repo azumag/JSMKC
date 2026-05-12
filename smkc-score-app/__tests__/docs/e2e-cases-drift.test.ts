@@ -118,6 +118,8 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain("log('TC-1109'");
     expect(tcGp).toContain('getGpFinalsMaxCups');
     expect(tcGp).toContain('getLockedCupCountForMatch');
+    expect(tcGp).toContain('getGpFinalsMaxCups(match)');
+    expect(tcGp).toContain('getGpFinalsMaxCups(selectedMatch)');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(
