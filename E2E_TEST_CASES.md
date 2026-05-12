@@ -837,6 +837,17 @@
 - **期待結果**: 新しい match model 追加時は TypeScript の `Record<MatchQualificationModel, ...>` が未対応を検出し、TA の空エントリは総合ランキングに正のポイントを発生させない
 - **スクリプト**: n/a (static/unit coverage) — `smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts`, `smkc-score-app/__tests__/lib/points/overall-ranking.test.ts`
 
+## TC-1451-1452: E2E case helper — static guard の重複と脆さを抑える
+- **URL**: n/a
+- **authRequired**: false
+- **背景**: issue #1451/#1452。TC-1090-1091 追加時に static test と drift test が E2E case section parser を重複定義し、さらに overall-ranking 実装の具体的な finder 文字列に依存していた。
+- **手順**:
+  1. `__tests__/helpers/e2e-cases.ts` の共通 helper から E2E case section を取得する
+  2. `tc-1090-1091-overall-ranking.test.ts` と `e2e-cases-drift.test.ts` が同じ helper を使うことを確認する
+  3. static guard は `Record<MatchQualificationModel, ...>` と暗黙 default の不在を確認し、個別 finder の実装文字列には依存しない
+- **期待結果**: E2E case parsing の仕様が1か所に集約され、formatter や finder 分割のような安全な実装変更で static guard が不要に失敗しない
+- **スクリプト**: n/a (static/doc coverage) — `smkc-score-app/__tests__/helpers/e2e-cases.ts`, `smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)
