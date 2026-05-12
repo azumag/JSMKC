@@ -65,15 +65,20 @@ export function functionReturnObjectLiteral(source: string, functionName: string
   let returnObject: ts.ObjectLiteralExpression | null = null;
 
   function objectLiteralFromBody(body: ts.ConciseBody) {
-    if (ts.isObjectLiteralExpression(body)) {
-      return body;
+    let expression = body;
+    while (ts.isParenthesizedExpression(expression)) {
+      expression = expression.expression;
     }
 
-    if (!ts.isBlock(body)) {
+    if (ts.isObjectLiteralExpression(expression)) {
+      return expression;
+    }
+
+    if (!ts.isBlock(expression)) {
       return null;
     }
 
-    for (const statement of [...body.statements].reverse()) {
+    for (const statement of [...expression.statements].reverse()) {
       if (
         ts.isReturnStatement(statement) &&
         statement.expression &&
