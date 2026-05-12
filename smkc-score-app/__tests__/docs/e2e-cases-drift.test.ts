@@ -96,6 +96,22 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('Number.isInteger(match.roundNumber)');
   });
 
+  it('keeps TC-1088 aligned with the GP round-robin unit-test comment', () => {
+    const section = e2eCaseSection('TC-1088');
+    const qualificationRouteTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'api-factories',
+      'qualification-route.test.ts',
+    );
+
+    expect(section).toContain('issue #1088');
+    expect(section).toContain('C(4,2)/2');
+    expect(qualificationRouteTest).toContain('4-player round-robin => 3 rounds (C(4,2)/2)');
+    expect(qualificationRouteTest).toContain('expect(matchesByRound.size).toBe(3)');
+  });
+
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
     const section = e2eCaseSection('TC-722');
 
@@ -180,6 +196,7 @@ describe('E2E case drift coverage', () => {
     ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
     ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
     ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
+    ['TC-1088', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts'],
     ['TC-1090-1091', 'n/a (static/unit coverage)', 'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts'],
     ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
