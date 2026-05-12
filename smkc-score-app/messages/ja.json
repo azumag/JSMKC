@@ -162,7 +162,11 @@
     "matchRace": "マッチレース",
     "matchRaceDesc": "1対1 レース対戦",
     "grandPrix": "グランプリ",
-    "grandPrixDesc": "カップ別ドライバーズポイント制"
+    "grandPrixDesc": "カップ別ドライバーズポイント制",
+    "recommended": "おすすめ",
+    "recommendedDesc": "パドックが選ぶ機材・関連書籍。",
+    "viewOnAmazon": "Amazonで見る",
+    "affiliateLabel": "PR"
   },
   "auth": {
     "loginTitle": "JSMKC ログイン",

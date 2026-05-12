@@ -92,6 +92,37 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* Sponsored recommendation block: keep the disclosure label and rel contract visible. */}
+      <section
+        aria-labelledby="recommended-heading"
+        className="border-t border-foreground/15 pt-8"
+      >
+        <header className="mb-3 flex items-baseline justify-between gap-4">
+          <h2
+            id="recommended-heading"
+            className="text-base font-semibold"
+          >
+            {t('recommended')}
+          </h2>
+          <span className="text-[10px] font-mono tabular tracking-[0.18em] uppercase text-muted-foreground border border-foreground/20 px-1.5 py-0.5">
+            {t('affiliateLabel')}
+          </span>
+        </header>
+        <a
+          href="https://amzn.to/42upwDm"
+          target="_blank"
+          rel="sponsored noopener noreferrer"
+          className="block border border-foreground/15 bg-card p-5 transition-colors hover:border-foreground/40"
+        >
+          <p className="text-sm text-foreground">
+            {t('recommendedDesc')}
+          </p>
+          <p className="mt-2 text-xs font-mono tabular tracking-[0.12em] uppercase text-muted-foreground">
+            {t('viewOnAmazon')} →
+          </p>
+        </a>
+      </section>
     </div>
   );
 }
