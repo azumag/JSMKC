@@ -859,6 +859,16 @@
 - **期待結果**: E2E case section 取得は不要なファイル再読み込みを避け、section 抽出失敗時は marker 名のあるエラーで原因を特定できる
 - **スクリプト**: n/a (static/doc coverage) — `smkc-score-app/__tests__/helpers/e2e-cases.ts`, `smkc-score-app/__tests__/static/tc-1417-home-recommendation.test.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1457: E2E case helper — readRepoFile 定義後に cache 初期化する
+- **URL**: n/a
+- **authRequired**: false
+- **背景**: issue #1457。`readRepoFile` は関数宣言として hoist されるが、module cache 初期化より後に定義されていると、上から読んだときに未定義関数を呼んでいるように見える。
+- **手順**:
+  1. `__tests__/helpers/e2e-cases.ts` で `readRepoFile` 定義が `const e2eCases = readRepoFile(...)` より前にあることを確認する
+  2. 既存の E2E case drift/static tests が helper 経由で通ることを確認する
+- **期待結果**: helper の module-level cache は読みやすい宣言順で初期化され、既存の E2E case section 取得挙動は変わらない
+- **スクリプト**: n/a (static/doc coverage) — `smkc-score-app/__tests__/helpers/e2e-cases.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)

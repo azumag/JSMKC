@@ -2,11 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 const repoRoot = path.join(process.cwd(), '..');
-const e2eCases = readRepoFile('E2E_TEST_CASES.md');
 
 export function readRepoFile(...parts: string[]) {
   return fs.readFileSync(path.join(repoRoot, ...parts), 'utf8');
 }
+
+const e2eCases = readRepoFile('E2E_TEST_CASES.md');
 
 export function sectionBetween(
   source: string,
