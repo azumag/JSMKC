@@ -38,4 +38,16 @@ describe('assertResetApiBlocked', () => {
       'GP reset API allowed locked qualification (200)',
     );
   });
+
+  it('throws for an unsupported mode before calling the browser page', async () => {
+    const common = loadCommon();
+    const page = {
+      evaluate: jest.fn(),
+    };
+
+    await expect(common.assertResetApiBlocked(page, 'tournament-1', 'ta')).rejects.toThrow(
+      'Unsupported finals reset mode: ta',
+    );
+    expect(page.evaluate).not.toHaveBeenCalled();
+  });
 });
