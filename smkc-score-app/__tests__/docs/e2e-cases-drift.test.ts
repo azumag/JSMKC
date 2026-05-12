@@ -183,6 +183,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1090-1091', 'n/a (static/unit coverage)', 'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts'],
     ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
+    ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
     ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
   ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
@@ -215,6 +216,14 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1454/#1455');
     expect(section).toContain('module-level cache');
     expect(section).toContain('helper 内で `expect()` を呼ばず');
+  });
+
+  it('keeps TC-1457 aligned with the readRepoFile/cache declaration order', () => {
+    const section = e2eCaseSection('TC-1457');
+
+    expect(section).toContain('issue #1457');
+    expect(section).toContain('readRepoFile` 定義が `const e2eCases');
+    expect(section).toContain('__tests__/helpers/e2e-cases.ts');
   });
 
   it('keeps TC-111 aligned with the preview D1 columns that fail GP finals before browser launch', () => {
