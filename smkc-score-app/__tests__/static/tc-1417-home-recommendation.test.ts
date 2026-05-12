@@ -23,6 +23,7 @@ function sectionFor(
   }
 
   if (sectionEndCandidate === -1) {
+    expect(source.length).toBeGreaterThan(sectionStart + startMarker.length);
     return source.slice(sectionStart);
   }
 
@@ -39,6 +40,12 @@ describe('TC-1417 home recommendation static guard', () => {
     expect(section).toContain('rel="sponsored noopener noreferrer"');
     expect(section).toContain('e2e/tc-all.js TC-1417');
     expect(section).toContain('__tests__/static/tc-1417-home-recommendation.test.ts');
+    expect(section).toContain('terminal セクション guard');
+  });
+
+  it('keeps terminal sections from silently accepting empty slices', () => {
+    expect(() => sectionFor('prefix ## TC-1417:', '## TC-1417:', '\n## TC-', { allowTerminal: true }))
+      .toThrow();
   });
 
   it('keeps the home page recommendation link disclosed and product-specific', () => {
