@@ -1,5 +1,5 @@
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
-import { e2eCaseSection, readRepoFile } from '../helpers/e2e-cases';
+import { e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
 
 function readE2eScript(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', script);
@@ -100,14 +100,18 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1083 aligned with MR participant correction coverage', () => {
     const section = e2eCaseSection('TC-1083');
+    const tc1083 = sectionBetween(tcMr, 'async function runTc1083', '/**\n * TC-603');
 
     expect(section).toContain('issue #1083');
+    expect(section).toContain('issue #1463/#1464');
     expect(section).toContain('Correct Score');
     expect(section).toContain('Submit Correction');
     expect(section).toContain('player1ReportedPoints');
-    expect(tcMr).toContain("log('TC-1083'");
-    expect(tcMr).toContain('Previous Reports');
-    expect(tcMr).toContain('apiFetchMr');
+    expect(section).toContain('MrScoreEditor');
+    expect(tc1083).toContain("log('TC-1083'");
+    expect(tc1083).toContain('Previous Reports');
+    expect(tc1083).toContain('apiFetchMr');
+    expect(tc1083).not.toContain('waitForTimeout(3000)');
   });
 
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {

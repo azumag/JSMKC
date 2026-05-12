@@ -1378,6 +1378,7 @@
 - **URL**: /tournaments/[temp-id]/mr/participant
 - **authRequired**: true (player)
 - **背景**: issue #1083。BM participant は確定済み試合で過去報告を表示し、「Correct Score」から参加者自身が修正できる。MR participant も同じデータフィールド (`player1ReportedPoints*` / `player2ReportedPoints*`) と correction API を持つため、UI でも同等の確認・訂正導線が必要。
+- **回帰チェック**: issue #1463/#1464。修正送信後は固定 sleep ではなく更新済みスコアを条件待機し、MR スコアエディタは `MrScoreEditor` コンポーネントとしてページ外に切り出して再利用する。
 - **手順**:
   1. 管理者セッションでMR予選2名マッチを作成する
   2. player1 として `/mr/participant` にログインし、3-1 を送信する

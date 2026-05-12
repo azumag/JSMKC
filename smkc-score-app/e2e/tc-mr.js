@@ -362,7 +362,13 @@ async function runTc1083(adminPage) {
 
     playerPage.once('dialog', (d) => d.accept());
     await playerPage.getByRole('button', { name: /修正を送信|Submit Correction/ }).click();
-    await playerPage.waitForTimeout(3000);
+    await playerPage.waitForFunction(async ({ tournamentId: tid, matchId }) => {
+      const response = await fetch(`/api/tournaments/${tid}/mr`);
+      const json = await response.json();
+      const data = json.data ?? json;
+      const updated = (data.matches || []).find((m) => m.id === matchId);
+      return updated?.completed === true && updated.score1 === 2 && updated.score2 === 2;
+    }, { tournamentId, matchId: match.id }, { timeout: 15000 });
 
     const correctedMr = await apiFetchMr(adminPage, tournamentId);
     const correctedMatch = (correctedMr.matches || []).find((m) => m.id === match.id);

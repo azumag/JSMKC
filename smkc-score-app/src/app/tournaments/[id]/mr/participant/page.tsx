@@ -29,6 +29,108 @@ interface MRMatch extends BaseMatch {
   player2ReportedPoints2?: number;
 }
 
+interface MrScoreEditorProps {
+  match: MRMatch;
+  title: string;
+  submitLabel: string;
+  submitting: boolean;
+  submittingLabel: string;
+  totalMessage: string;
+  scores: { score1: number; score2: number };
+  onAdjustScore: (match: MRMatch, field: "score1" | "score2", delta: number) => void;
+  onSubmit: (match: MRMatch) => void;
+}
+
+function MrScoreEditor({
+  match,
+  title,
+  submitLabel,
+  submitting,
+  submittingLabel,
+  totalMessage,
+  scores,
+  onAdjustScore,
+  onSubmit,
+}: MrScoreEditorProps) {
+  const totalValid = scores.score1 + scores.score2 === 4;
+
+  return (
+    <div className="border-t pt-4">
+      <h4 className="font-medium mb-3">{title}</h4>
+      <div className="flex items-center justify-center gap-3 mb-4">
+        <div className="text-center min-w-0 max-w-[120px]">
+          <p className="text-sm mb-2 truncate">{match.player1.nickname}</p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 w-10 text-lg"
+              aria-label={`${match.player1.nickname} -1`}
+              onClick={() => onAdjustScore(match, "score1", -1)}
+            >
+              -
+            </Button>
+            <span className="text-3xl font-bold w-10 text-center">
+              {scores.score1}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 w-10 text-lg"
+              aria-label={`${match.player1.nickname} +1`}
+              onClick={() => onAdjustScore(match, "score1", 1)}
+            >
+              +
+            </Button>
+          </div>
+        </div>
+        <span className="text-xl mt-6">-</span>
+        <div className="text-center min-w-0 max-w-[120px]">
+          <p className="text-sm mb-2 truncate">{match.player2.nickname}</p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 w-10 text-lg"
+              aria-label={`${match.player2.nickname} -1`}
+              onClick={() => onAdjustScore(match, "score2", -1)}
+            >
+              -
+            </Button>
+            <span className="text-3xl font-bold w-10 text-center">
+              {scores.score2}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 w-10 text-lg"
+              aria-label={`${match.player2.nickname} +1`}
+              onClick={() => onAdjustScore(match, "score2", 1)}
+            >
+              +
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <p className={`text-sm text-center mb-3 ${
+        !totalValid && (scores.score1 > 0 || scores.score2 > 0)
+          ? 'text-yellow-600' : 'invisible'
+      }`}>
+        {totalMessage}
+      </p>
+
+      <Button
+        onClick={() => onSubmit(match)}
+        disabled={submitting || !totalValid}
+        className="w-full"
+      >
+        {submitting ? submittingLabel : submitLabel}
+      </Button>
+    </div>
+  );
+}
+
 export default function MatchRaceParticipantPage({
   params,
 }: {
@@ -112,87 +214,19 @@ export default function MatchRaceParticipantPage({
     }
   };
 
-  const renderScoreEditor = (match: MRMatch, title: string, submitLabel: string) => {
+  const scoreEditorProps = (match: MRMatch, title: string, submitLabel: string) => {
     const scores = reportingScores[match.id] ?? getInitialScores(match);
-    const totalValid = scores.score1 + scores.score2 === 4;
-
-    return (
-      <div className="border-t pt-4">
-        <h4 className="font-medium mb-3">{title}</h4>
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <div className="text-center min-w-0 max-w-[120px]">
-            <p className="text-sm mb-2 truncate">{match.player1.nickname}</p>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 text-lg"
-                aria-label={`${match.player1.nickname} -1`}
-                onClick={() => adjustScore(match, "score1", -1)}
-              >
-                -
-              </Button>
-              <span className="text-3xl font-bold w-10 text-center">
-                {scores.score1}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 text-lg"
-                aria-label={`${match.player1.nickname} +1`}
-                onClick={() => adjustScore(match, "score1", 1)}
-              >
-                +
-              </Button>
-            </div>
-          </div>
-          <span className="text-xl mt-6">-</span>
-          <div className="text-center min-w-0 max-w-[120px]">
-            <p className="text-sm mb-2 truncate">{match.player2.nickname}</p>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 text-lg"
-                aria-label={`${match.player2.nickname} -1`}
-                onClick={() => adjustScore(match, "score2", -1)}
-              >
-                -
-              </Button>
-              <span className="text-3xl font-bold w-10 text-center">
-                {scores.score2}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 text-lg"
-                aria-label={`${match.player2.nickname} +1`}
-                onClick={() => adjustScore(match, "score2", 1)}
-              >
-                +
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <p className={`text-sm text-center mb-3 ${
-          !totalValid && (scores.score1 > 0 || scores.score2 > 0)
-            ? 'text-yellow-600' : 'invisible'
-        }`}>
-          {tMatch("totalMustEqual4")}
-        </p>
-
-        <Button
-          onClick={() => handleSubmitScore(match)}
-          disabled={ctx.submitting === match.id || !totalValid}
-          className="w-full"
-        >
-          {ctx.submitting === match.id
-            ? tMatch("submitting")
-            : submitLabel}
-        </Button>
-      </div>
-    );
+    return {
+      match,
+      title,
+      submitLabel,
+      scores,
+      submitting: ctx.submitting === match.id,
+      submittingLabel: tMatch("submitting"),
+      totalMessage: tMatch("totalMustEqual4"),
+      onAdjustScore: adjustScore,
+      onSubmit: handleSubmitScore,
+    };
   };
 
   return (
@@ -214,10 +248,14 @@ export default function MatchRaceParticipantPage({
       submitting={ctx.submitting}
       qualificationConfirmed={ctx.qualificationConfirmed}
       renderMatchForm={(match) => {
-        return renderScoreEditor(
-          match,
-          hasOwnReport(match) ? tPart("editYourReport") : tPart("reportMatchResult"),
-          hasOwnReport(match) ? tPart("submitCorrection") : tPart("submitScores")
+        return (
+          <MrScoreEditor
+            {...scoreEditorProps(
+              match,
+              hasOwnReport(match) ? tPart("editYourReport") : tPart("reportMatchResult"),
+              hasOwnReport(match) ? tPart("submitCorrection") : tPart("submitScores")
+            )}
+          />
         );
       }}
       renderPreviousReports={(match) => {
@@ -248,7 +286,9 @@ export default function MatchRaceParticipantPage({
             {match.completed && (
               editingCorrections[match.id] ? (
                 <div className="mt-4 space-y-3">
-                  {renderScoreEditor(match, tPart("correctScore"), tPart("submitCorrection"))}
+                  <MrScoreEditor
+                    {...scoreEditorProps(match, tPart("correctScore"), tPart("submitCorrection"))}
+                  />
                   <Button
                     type="button"
                     variant="outline"
