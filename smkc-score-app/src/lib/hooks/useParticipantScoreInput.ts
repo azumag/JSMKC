@@ -28,6 +28,8 @@ interface UseParticipantScoreInputOptions<TMatch extends ParticipantScoreInputMa
   ) => Promise<Record<string, unknown> | null>;
   setError: (error: string | null) => void;
   totalMustEqualMessage: string;
+  requiredTotalScore?: number;
+  maxScorePerSide?: number;
   onSubmitSuccess?: (data: Record<string, unknown>, match: TMatch) => void;
 }
 
@@ -37,6 +39,8 @@ export function useParticipantScoreInput<TMatch extends ParticipantScoreInputMat
   submitReport,
   setError,
   totalMustEqualMessage,
+  requiredTotalScore = 4,
+  maxScorePerSide = requiredTotalScore,
   onSubmitSuccess,
 }: UseParticipantScoreInputOptions<TMatch>) {
   const [reportingScores, setReportingScores] = useState<
@@ -82,11 +86,11 @@ export function useParticipantScoreInput<TMatch extends ParticipantScoreInputMat
     (match: TMatch, field: keyof ParticipantScorePair, delta: number) => {
       setReportingScores((prev) => {
         const current = prev[match.id] ?? getInitialScores(match);
-        const clamped = Math.max(0, Math.min(4, current[field] + delta));
+        const clamped = Math.max(0, Math.min(maxScorePerSide, current[field] + delta));
         return { ...prev, [match.id]: { ...current, [field]: clamped } };
       });
     },
-    [getInitialScores]
+    [getInitialScores, maxScorePerSide]
   );
 
   const handleSubmitScore = useCallback(
@@ -94,7 +98,7 @@ export function useParticipantScoreInput<TMatch extends ParticipantScoreInputMat
       const scores = reportingScores[match.id] ?? getInitialScores(match);
       const reportingPlayer = isPlayer1ForMatch(match) ? 1 : 2;
 
-      if (scores.score1 + scores.score2 !== 4) {
+      if (scores.score1 + scores.score2 !== requiredTotalScore) {
         setError(totalMustEqualMessage);
         return null;
       }
@@ -119,6 +123,7 @@ export function useParticipantScoreInput<TMatch extends ParticipantScoreInputMat
       isPlayer1ForMatch,
       onSubmitSuccess,
       reportingScores,
+      requiredTotalScore,
       setError,
       submitReport,
       totalMustEqualMessage,
@@ -131,7 +136,6 @@ export function useParticipantScoreInput<TMatch extends ParticipantScoreInputMat
     getInitialScores,
     hasOwnReport,
     adjustScore,
-    clearScores,
     handleSubmitScore,
   };
 }

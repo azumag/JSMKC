@@ -30,6 +30,8 @@ describe('TC-1082 shared BM/MR participant score input guards', () => {
     expect(mrPage).not.toContain('const getInitialScores =');
     expect(hook).toContain('const getInitialScores = useCallback');
     expect(hook).toContain('const handleSubmitScore = useCallback');
+    expect(hook).toContain('maxScorePerSide = requiredTotalScore');
+    expect(hook).toContain('requiredTotalScore = 4');
   });
 
   it('documents TC-1082 as the BM/MR shared participant score-input scenario', () => {

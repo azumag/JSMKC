@@ -30,6 +30,8 @@ function renderScoreInput(options: {
   submitReport?: jest.Mock;
   setError?: jest.Mock;
   onSubmitSuccess?: jest.Mock;
+  requiredTotalScore?: number;
+  maxScorePerSide?: number;
 } = {}) {
   const submitReport = options.submitReport ?? jest.fn().mockResolvedValue({ ok: true });
   const setError = options.setError ?? jest.fn();
@@ -45,6 +47,8 @@ function renderScoreInput(options: {
       submitReport,
       setError,
       totalMustEqualMessage: 'total must equal 4',
+      requiredTotalScore: options.requiredTotalScore,
+      maxScorePerSide: options.maxScorePerSide,
       onSubmitSuccess,
     })
   );
@@ -105,6 +109,38 @@ describe('useParticipantScoreInput', () => {
 
     expect(setError).toHaveBeenCalledWith('total must equal 4');
     expect(submitReport).not.toHaveBeenCalled();
+  });
+
+  it('allows callers to align the max score clamp with a non-default required total', async () => {
+    const { result, submitReport } = renderScoreInput({
+      requiredTotalScore: 7,
+      maxScorePerSide: 7,
+    });
+    const match = makeMatch();
+
+    act(() => {
+      result.current.adjustScore(match, 'score1', 8);
+      result.current.adjustScore(match, 'score2', 2);
+      result.current.adjustScore(match, 'score1', -2);
+    });
+
+    expect(result.current.reportingScores[match.id]).toEqual({ score1: 5, score2: 2 });
+
+    await act(async () => {
+      await result.current.handleSubmitScore(match);
+    });
+
+    expect(submitReport).toHaveBeenCalledWith('match-1', {
+      reportingPlayer: 1,
+      score1: 5,
+      score2: 2,
+    });
+  });
+
+  it('does not expose clearScores as a public hook API', () => {
+    const { result } = renderScoreInput();
+
+    expect(Object.prototype.hasOwnProperty.call(result.current, 'clearScores')).toBe(false);
   });
 
   it('submits as player2 when the logged-in player owns player2', async () => {
