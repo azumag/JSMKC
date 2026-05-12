@@ -559,11 +559,12 @@ async function hasCompletedRealQualificationMatch(
   const select = { id: true };
   const take = 1;
 
-  const matches = matchModel === "bMMatch"
-    ? await prisma.bMMatch.findMany({ where, select, take })
-    : matchModel === "mRMatch"
-      ? await prisma.mRMatch.findMany({ where, select, take })
-      : await prisma.gPMatch.findMany({ where, select, take });
+  const finders: Record<MatchQualificationModel, () => Promise<Array<{ id: string }>>> = {
+    bMMatch: () => prisma.bMMatch.findMany({ where, select, take }),
+    mRMatch: () => prisma.mRMatch.findMany({ where, select, take }),
+    gPMatch: () => prisma.gPMatch.findMany({ where, select, take }),
+  };
+  const matches = await finders[matchModel]();
 
   return matches.length > 0;
 }

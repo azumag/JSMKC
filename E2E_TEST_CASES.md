@@ -826,6 +826,17 @@
 - **期待結果**: 4モード対応の総合ランキングが返り、ページも正常に表示される
 - **スクリプト**: tc-all.js TC-402
 
+## TC-1090-1091: 総合ランキング — match model 網羅性と TA 空エントリ検証
+- **URL**: /api/tournaments/[id]/overall-ranking
+- **authRequired**: true (admin)
+- **背景**: issue #1090/#1091。BM/MR/GP の real qualification match 検出は `gPMatch` を暗黙 default にせず、`Record<MatchQualificationModel, ...>` で網羅する。TA は TTEntry ベースで BREAK match を生成しないため、BREAK-like な `times=null` / `{}` entry が総合ランキングへ加点されないことを確認する。
+- **手順**:
+  1. `hasCompletedRealQualificationMatch` が `bMMatch` / `mRMatch` / `gPMatch` を exhaustive map で選択することを static guard で確認する
+  2. TA qualification の `times=null` / `{}` entry を overall ranking の TA qualification 集計へ渡す
+  3. 空 entry が 0 点として playerId に map され、BM/MR/GP の BREAK-only ガードとは別経路で扱われることを確認する
+- **期待結果**: 新しい match model 追加時は TypeScript の `Record<MatchQualificationModel, ...>` が未対応を検出し、TA の空エントリは総合ランキングに正のポイントを発生させない
+- **スクリプト**: n/a (static/unit coverage) — `smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts`, `smkc-score-app/__tests__/lib/points/overall-ranking.test.ts`
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)
