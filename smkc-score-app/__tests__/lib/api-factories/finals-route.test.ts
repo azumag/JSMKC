@@ -236,10 +236,17 @@ describe('Finals Route Factory', () => {
       { matchNumber: 10, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 22 },
       { matchNumber: 11, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 21 },
       { matchNumber: 12, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 20 },
-      ...Array.from({ length: 19 }, (_, i) => ({
-        matchNumber: i + 13,
-        round: i < 2 ? 'winners_sf' : i === 2 ? 'winners_final' : 'losers_r1',
-        bracket: i < 3 ? 'winners' : 'losers',
+      { matchNumber: 13, round: 'winners_sf', bracket: 'winners', winnerGoesTo: 15, loserGoesTo: 26, position: 1 },
+      { matchNumber: 14, round: 'winners_sf', bracket: 'winners', winnerGoesTo: 15, loserGoesTo: 27, position: 2 },
+      { matchNumber: 15, round: 'winners_final', bracket: 'winners', winnerGoesTo: 30, loserGoesTo: 29, position: 1 },
+      { matchNumber: 16, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 20, position: 2 },
+      { matchNumber: 17, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 21, position: 2 },
+      { matchNumber: 18, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 22, position: 2 },
+      { matchNumber: 19, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 23, position: 2 },
+      ...Array.from({ length: 12 }, (_, i) => ({
+        matchNumber: i + 20,
+        round: i < 4 ? 'losers_r2' : i < 6 ? 'losers_r3' : i < 8 ? 'losers_r4' : i === 8 ? 'losers_sf' : i === 9 ? 'losers_final' : i === 10 ? 'grand_final' : 'grand_final_reset',
+        bracket: i >= 10 ? 'grand_final' : 'losers',
       })),
     ];
 
@@ -1633,8 +1640,8 @@ describe('Finals Route Factory', () => {
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
     });
 
-    it('should route 16-player QF loser to reversed L_R2 slot and player2Id', async () => {
-      // In 16-player bracket, QF losers enter L_R2 at position 2.
+    it('should route 16-player QF loser to reversed L_R2 slot and player1Id', async () => {
+      // In 16-player bracket, QF losers enter L_R2 at position 1.
       // M9 routes to M23 so the two-group LR2 order is B3/A4/A3/B4.
       const requestBody = createMockRequestBody();
       const mockMatch = createMockMatch({
@@ -1663,10 +1670,45 @@ describe('Finals Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      // In 16-player QF, loserPosition=2 → player2Id set
+      // In 16-player QF, loserPosition=1 → player1Id set
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: nextLoserMatch.id },
-        data: { player2Id: 'player-2' },
+        data: { player1Id: 'player-2' },
+      });
+    });
+
+    it('should route 16-player Losers R1 winner to L_R2 player2Id', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({
+        matchNumber: 16, // losers_r1 in 16-player bracket
+        round: 'losers_r1',
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      const nextWinnerMatch = createMockMatch({ matchNumber: 20 }); // L_R2 in 16-player
+
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).findFirst.mockImplementation((args: any) => {
+        if (args?.where?.matchNumber === 20) return Promise.resolve(nextWinnerMatch);
+        return Promise.resolve(null);
+      });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: nextWinnerMatch.id },
+        data: { player2Id: 'player-1' },
       });
     });
 

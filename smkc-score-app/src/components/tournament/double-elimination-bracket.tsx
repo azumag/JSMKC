@@ -342,7 +342,7 @@ export function DoubleEliminationBracket({
    *
    * Loser position rules (same as getNextMatchInfo in double-elimination.ts):
    *   winners_r1:  (matchNumber - 1) % 2 + 1
-   *   winners_qf:  position 2 for 16-player; (matchNumber - 1) % 2 + 1 for 8-player
+   *   winners_qf:  position 1 for 16-player; (matchNumber - 1) % 2 + 1 for 8-player
    *   winners_sf:  always 1
    *   winners_final: always 2
    */
@@ -360,7 +360,7 @@ export function DoubleEliminationBracket({
         if (bm.round === 'winners_r1') {
           loserPos = ((bm.matchNumber - 1) % 2 + 1) as 1 | 2;
         } else if (bm.round === 'winners_qf') {
-          loserPos = is16Player ? 2 : ((bm.matchNumber - 1) % 2 + 1) as 1 | 2;
+          loserPos = is16Player ? 1 : ((bm.matchNumber - 1) % 2 + 1) as 1 | 2;
         } else if (bm.round === 'winners_sf') {
           loserPos = 1;
         } else if (bm.round === 'winners_final') {

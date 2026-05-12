@@ -2052,9 +2052,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
            * Odd matchNumber (1,3,5,7) enters position 1; even (2,4,6,8) enters position 2. */
           loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
         } else if (currentBracketMatch.round === 'winners_qf') {
-          /* 16-player: losers from QF enter L_R2 at position 2.
+          /* 16-player: losers from QF enter L_R2 at position 1.
            * 8-player: uses parity-based calculation ((matchNumber-1)%2 + 1). */
-          loserPosition = bracketSize === 16 ? 2 : (((matchNumber - 1) % 2) + 1) as 1 | 2;
+          loserPosition = bracketSize === 16 ? 1 : (((matchNumber - 1) % 2) + 1) as 1 | 2;
         } else if (currentBracketMatch.round === 'winners_sf') {
           loserPosition = 1;
         } else if (currentBracketMatch.round === 'winners_final') {
