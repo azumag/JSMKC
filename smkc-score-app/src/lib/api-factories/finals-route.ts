@@ -296,22 +296,23 @@ async function normalizeRoundCupsToSingleSequence(
     canonicalByRound.set(round, { cup: assignedCups[0], assignedCups });
   }
 
-  let writes = 0;
+  const writes: Array<Promise<unknown>> = [];
   for (const [round, data] of canonicalByRound) {
     const canonicalKey = JSON.stringify(data.assignedCups);
     for (const match of matchesByRound.get(round) ?? []) {
       if (match.cup === data.cup && JSON.stringify(match.assignedCups) === canonicalKey) {
         continue;
       }
-      await modelInstance.update({
+      writes.push(modelInstance.update({
         where: { id: match.id },
         data,
-      });
-      writes += 1;
+      }));
     }
   }
 
-  return { repaired: writes > 0, canonicalByRound };
+  await Promise.all(writes);
+
+  return { repaired: writes.length > 0, canonicalByRound };
 }
 
 /**
