@@ -35,6 +35,7 @@ describe('TC-1398-1399 bracket contract E2E guard', () => {
     );
 
     expect(source).toMatch(/import type \{[^}]*\bBracketMatch\b[^}]*\} from "@\/types\/bracket";/);
+    expect(source).toMatch(/import type \{[^}]*\bSeededPlayer\b[^}]*\} from "@\/types\/bracket";/);
     expect(source).toContain('bracketStructure: BracketMatch[];');
     expect(source).not.toMatch(/interface\s+BracketMatch\s*{/);
   });
