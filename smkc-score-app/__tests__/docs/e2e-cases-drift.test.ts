@@ -134,7 +134,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('page-local / route-local');
     expect(tcGp).toContain("log('TC-1098'");
     expect(tcGp).toContain('importsMaxGpDriverPointsFromConstants');
-    expect(tcGp).toContain('[\\s\\S]*\\bMAX_GP_DRIVER_POINTS\\b[\\s\\S]*');
+    expect(tcGp).toContain(".split(';')");
+    expect(tcGp).toContain("statement.includes('MAX_GP_DRIVER_POINTS')");
     expect(tcGp).toContain('participant page does not import MAX_GP_DRIVER_POINTS from constants');
     expect(tcGp).toContain('report route does not import MAX_GP_DRIVER_POINTS from constants');
     expect(tcGp).toContain('page-local or route-local MAX_GP_DRIVER_POINTS definition remains');

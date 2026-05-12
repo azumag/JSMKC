@@ -61,7 +61,12 @@ const log = makeLog(results);
 let sharedFixture = null;
 
 function importsMaxGpDriverPointsFromConstants(source) {
-  return /import\s+\{[\s\S]*\bMAX_GP_DRIVER_POINTS\b[\s\S]*\}\s+from\s+["']@\/lib\/constants["'];/.test(source);
+  return source
+    .split(';')
+    .some((statement) =>
+      statement.includes('MAX_GP_DRIVER_POINTS') &&
+      /from\s+["']@\/lib\/constants["']/.test(statement)
+    );
 }
 
 function sharedGpPlayers(count = 28) {
