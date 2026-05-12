@@ -42,7 +42,7 @@ describe('finals-target-wins', () => {
     expect(getGpFinalsMaxCups({ round: 'grand_final' })).toBe(5);
   });
 
-  it('keeps the shared top-four target band explicit for MR and GP', () => {
+  it('keeps the shared top-four target band explicit for BM, MR, and GP', () => {
     const topFourRounds = [
       'winners_final',
       'losers_sf',
@@ -52,10 +52,12 @@ describe('finals-target-wins', () => {
     ];
 
     for (const round of topFourRounds) {
+      expect(getBmFinalsTargetWins({ round })).toBe(7);
       expect(getMrFinalsTargetWins({ round })).toBe(9);
       expect(getGpFinalsTargetWins({ round })).toBe(3);
     }
 
+    expect(getBmFinalsTargetWins({ round: 'winners_sf' })).toBe(7);
     expect(getMrFinalsTargetWins({ round: 'winners_sf' })).toBe(7);
     expect(getGpFinalsTargetWins({ round: 'winners_sf' })).toBe(2);
   });

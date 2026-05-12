@@ -7,7 +7,7 @@ function readRepoFile(...parts: string[]) {
   return fs.readFileSync(path.join(root, ...parts), 'utf8');
 }
 
-describe('TC-1100-1085 finals target naming E2E guard', () => {
+describe('TC-1100-1085 finals target naming static guard', () => {
   it('documents the top-four target-wins naming scenario', () => {
     const cases = readRepoFile('E2E_TEST_CASES.md');
     const sectionStart = cases.indexOf('## TC-1100-1085:');
@@ -22,7 +22,7 @@ describe('TC-1100-1085 finals target naming E2E guard', () => {
     expect(section).toContain('issues #1100, #1085');
     expect(section).toContain('isTopFourTargetRound');
     expect(section).toContain('losers_sf');
-    expect(section).toContain('__tests__/e2e/tc-1100-1085-finals-target-naming.test.ts');
+    expect(section).toContain('__tests__/static/tc-1100-1085-finals-target-naming.test.ts');
   });
 
   it('keeps the helper name aligned with the rounds it covers', () => {
@@ -33,9 +33,9 @@ describe('TC-1100-1085 finals target naming E2E guard', () => {
       'finals-target-wins.ts',
     );
 
-    expect(source).toContain('function isTopFourTargetRound(round?: string | null): boolean');
+    expect(source).toMatch(/function\s+isTopFourTargetRound\b/);
     expect(source).toContain("round === 'losers_sf'");
-    expect(source).not.toContain('function isFinalRound(');
-    expect(source).not.toContain('isFinalRound(context?.round)');
+    expect(source).not.toMatch(/function\s+isFinalRound\b/);
+    expect(source).not.toMatch(/\bisFinalRound\s*\(/);
   });
 });
