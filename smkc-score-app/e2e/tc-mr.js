@@ -1344,6 +1344,16 @@ async function runTc616(adminPage) {
       name: /Reset Bracket|ブラケットリセット/,
     });
     const resetHiddenWhileLocked = (await resetBtn.count()) === 0;
+    const resetApiLocked = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/mr/finals`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status, body: await r.json().catch(() => ({})) };
+    }, tournamentId);
+    const resetApiBlockedWhileLocked = resetApiLocked.s === 409
+      && resetApiLocked.body?.code === 'QUALIFICATION_LOCKED';
 
     const unlockRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false });
     if (unlockRes.s !== 200) throw new Error(`Failed to unlock qualification (${unlockRes.s})`);
@@ -1370,10 +1380,11 @@ async function runTc616(adminPage) {
     const resetHiddenAfterReset = !postResetText.includes('Reset Bracket') && !postResetText.includes('ブラケットリセット');
     const generateHiddenWhileUnlocked = !postResetText.includes('Generate Finals Bracket') && !postResetText.includes('Generate Bracket') && !postResetText.includes('ブラケット生成') && !postResetText.includes('generateFinalsBracket') && !postResetText.includes('Start Playoff') && !postResetText.includes('バラッジ開始');
 
-    const ok = hasViewTournament && resetHiddenWhileLocked && hasViewTournamentUnlocked && hasResetBracketUnlocked && resetVisible && resetHiddenAfterReset && generateHiddenWhileUnlocked;
+    const ok = hasViewTournament && resetHiddenWhileLocked && resetApiBlockedWhileLocked && hasViewTournamentUnlocked && hasResetBracketUnlocked && resetVisible && resetHiddenAfterReset && generateHiddenWhileUnlocked;
     log('TC-616', ok ? 'PASS' : 'FAIL',
       !hasViewTournament ? 'View Tournament button missing after bracket creation'
       : !resetHiddenWhileLocked ? 'Reset Bracket visible while qualification is locked'
+      : !resetApiBlockedWhileLocked ? `Reset API allowed locked qualification (${resetApiLocked.s})`
       : !hasViewTournamentUnlocked ? 'View Tournament button missing after unlocking qualification'
       : !hasResetBracketUnlocked ? 'Reset Bracket button missing after qualification unlock'
       : !resetVisible ? 'Reset Bracket not found as button element'

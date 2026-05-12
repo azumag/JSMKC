@@ -48,6 +48,15 @@ const BRACKET_SIZE_THRESHOLD = 20;
  */
 const PLAYOFF_ENTRANT_COUNT = 12;
 
+type QualificationConfirmedField =
+  | 'bmQualificationConfirmed'
+  | 'mrQualificationConfirmed'
+  | 'gpQualificationConfirmed';
+
+function getQualificationConfirmedField(eventTypeCode: 'bm' | 'mr' | 'gp'): QualificationConfirmedField {
+  return `${eventTypeCode}QualificationConfirmed` as QualificationConfirmedField;
+}
+
 interface FinalsMatchResult {
   winnerId?: string;
   loserId?: string;
@@ -869,10 +878,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     // the mode-specific qualificationConfirmed flag, so the projection stays
     // tight. Using per-mode flags (issue #696) prevents BM confirmation from
     // locking MR/GP bracket creation.
-    const modeField = `${config.eventTypeCode}QualificationConfirmed` as
-      | 'bmQualificationConfirmed'
-      | 'mrQualificationConfirmed'
-      | 'gpQualificationConfirmed';
+    const modeField = getQualificationConfirmedField(config.eventTypeCode);
     // Select all three flags explicitly to avoid computed-key type inference issues with Prisma generics.
     let tournament;
     try {
@@ -1254,6 +1260,27 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * start over from qualification. Triggered by a dedicated reset button
        * on the qualification page. */
       if (reset) {
+        const modeField = getQualificationConfirmedField(config.eventTypeCode);
+        const tournament = await prisma.tournament.findUnique({
+          where: { id: tournamentId },
+          select: {
+            bmQualificationConfirmed: true,
+            mrQualificationConfirmed: true,
+            gpQualificationConfirmed: true,
+          },
+        });
+
+        if (!tournament) {
+          return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
+        }
+        if (tournament[modeField]) {
+          return createErrorResponse(
+            'Cannot reset bracket while qualification is locked',
+            409,
+            'QUALIFICATION_LOCKED',
+          );
+        }
+
         await model(prisma).deleteMany({
           where: { tournamentId, stage: { in: ['playoff', 'finals'] } },
         });

@@ -948,6 +948,44 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
     });
 
+    it.each([
+      ['bm', 'bMMatch', 'bMQualification', 'bmQualificationConfirmed'],
+      ['mr', 'mRMatch', 'mRQualification', 'mrQualificationConfirmed'],
+      ['gp', 'gPMatch', 'gPQualification', 'gpQualificationConfirmed'],
+    ] as const)('should reject %s bracket reset while qualification is locked', async (eventTypeCode, matchModel, qualificationModel, flag) => {
+      (prisma.tournament as any).findUnique.mockResolvedValue({
+        id: 'tournament-123',
+        bmQualificationConfirmed: false,
+        mrQualificationConfirmed: false,
+        gpQualificationConfirmed: false,
+        [flag]: true,
+      });
+
+      const config = createMockConfig({
+        eventTypeCode,
+        matchModel,
+        qualificationModel,
+      });
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ reset: true }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(409);
+      const json = await response.json();
+      expect(json).toMatchObject({
+        success: false,
+        error: 'Cannot reset bracket while qualification is locked',
+        code: 'QUALIFICATION_LOCKED',
+      });
+      expect((prisma[matchModel] as any).deleteMany).not.toHaveBeenCalled();
+    });
+
     it('should return 400 when topN is not 8', async () => {
       const config = createMockConfig();
       const { POST } = createFinalsHandlers(config);
