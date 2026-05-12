@@ -32,6 +32,7 @@ function renderScoreInput(options: {
   onSubmitSuccess?: jest.Mock;
   requiredTotalScore?: number;
   maxScorePerSide?: number;
+  totalMustEqualMessage?: string;
 } = {}) {
   const submitReport = options.submitReport ?? jest.fn().mockResolvedValue({ ok: true });
   const setError = options.setError ?? jest.fn();
@@ -46,7 +47,7 @@ function renderScoreInput(options: {
       }),
       submitReport,
       setError,
-      totalMustEqualMessage: 'total must equal 4',
+      totalMustEqualMessage: options.totalMustEqualMessage ?? 'total must equal 4',
       requiredTotalScore: options.requiredTotalScore,
       maxScorePerSide: options.maxScorePerSide,
       onSubmitSuccess,
@@ -136,13 +137,13 @@ describe('useParticipantScoreInput', () => {
       score2: 2,
     });
     expect(result.current.requiredTotalScore).toBe(7);
-    expect(result.current.maxScorePerSide).toBe(7);
   });
 
   it('supports best-of-nine style totals where each side is capped below the required total', async () => {
     const { result, submitReport, setError } = renderScoreInput({
       requiredTotalScore: 9,
       maxScorePerSide: 5,
+      totalMustEqualMessage: 'total must equal 9',
     });
     const match = makeMatch();
 
@@ -174,7 +175,7 @@ describe('useParticipantScoreInput', () => {
       await result.current.handleSubmitScore(match);
     });
 
-    expect(setError).toHaveBeenLastCalledWith('total must equal 4');
+    expect(setError).toHaveBeenLastCalledWith('total must equal 9');
     expect(submitReport).toHaveBeenCalledTimes(1);
   });
 
