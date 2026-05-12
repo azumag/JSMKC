@@ -230,6 +230,7 @@ async function normalizeRoundCupsToSingleSequence(
   modelInstance: any,
   stage: 'finals' | 'playoff',
   matches: Array<{ id: string; cup?: string | null; assignedCups?: unknown; round?: string | null }>,
+  logger?: ReturnType<typeof createLogger>,
 ): Promise<CupNormalizationResult> {
   const matchesByRound = new Map<string, Array<{
     id: string;
@@ -310,7 +311,14 @@ async function normalizeRoundCupsToSingleSequence(
     }
   }
 
-  await Promise.all(writes);
+  const writeResults = await Promise.allSettled(writes);
+  const failedWrites = writeResults.filter((result) => result.status === 'rejected');
+  if (failedWrites.length > 0) {
+    logger?.warn('Failed to backfill some GP assigned cup rows', {
+      failedWrites: failedWrites.length,
+      totalWrites: writes.length,
+    });
+  }
 
   return { repaired: writes.length > 0, canonicalByRound };
 }
@@ -907,6 +915,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           model(prisma),
           'playoff',
           playoffMatches,
+          logger,
         );
         if (cupResult.repaired) {
           for (const m of playoffMatches) {
@@ -1040,6 +1049,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             model(prisma),
             'finals',
             legacyFinals,
+            logger,
           );
         }
       }
