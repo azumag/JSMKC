@@ -9,11 +9,12 @@
  */
 "use client";
 
-import { useState, use } from "react";
+import { use, useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Trophy } from "lucide-react";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
+import { useParticipantScoreInput } from "@/lib/hooks/useParticipantScoreInput";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
 import { getScoreReportSuccessMessage } from "@/lib/participant-report-message";
 
@@ -40,71 +41,10 @@ export default function BattleModeParticipantPage({
   /* Shared hook for session, data fetching, polling, match filtering */
   const ctx = useParticipantMatches<BMMatch>({ tournamentId, mode: "bm" });
 
-  /* BM-specific: score entry form state (number-based for +/- button UI) */
-  const [reportingScores, setReportingScores] = useState<
-    Record<string, { score1: number; score2: number }>
-  >({});
   const [editingCorrections, setEditingCorrections] = useState<Record<string, boolean>>({});
 
-  const getInitialScores = (match: BMMatch) => {
-    const isPlayer1 = match.player1.id === ctx.playerId;
-    const ownScore1 = isPlayer1 ? match.player1ReportedScore1 : match.player2ReportedScore1;
-    const ownScore2 = isPlayer1 ? match.player1ReportedScore2 : match.player2ReportedScore2;
-
-    if (ownScore1 != null && ownScore2 != null) {
-      return { score1: ownScore1, score2: ownScore2 };
-    }
-
-    if (match.completed) {
-      return { score1: match.score1 ?? 0, score2: match.score2 ?? 0 };
-    }
-
-    return { score1: 0, score2: 0 };
-  };
-
-  const hasOwnReport = (match: BMMatch) => {
-    const isPlayer1 = match.player1.id === ctx.playerId;
-    return isPlayer1
-      ? match.player1ReportedScore1 != null
-      : match.player2ReportedScore1 != null;
-  };
-
-  /** Increment or decrement a score field, clamped to [0, 4] */
-  const adjustScore = (
-    match: BMMatch,
-    field: "score1" | "score2",
-    delta: number
-  ) => {
-    setReportingScores((prev) => {
-      const current = prev[match.id] ?? getInitialScores(match);
-      const clamped = Math.max(0, Math.min(4, current[field] + delta));
-      return { ...prev, [match.id]: { ...current, [field]: clamped } };
-    });
-  };
-
-  /** BM validation: total must equal 4 (ties allowed per §4.1) */
-  const handleSubmitScore = async (match: BMMatch) => {
-    const scores = reportingScores[match.id] ?? { score1: 0, score2: 0 };
-    const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
-
-    if (scores.score1 + scores.score2 !== 4) {
-      ctx.setError(tMatch("totalMustEqual4"));
-      return;
-    }
-
-    const data = await ctx.submitReport(match.id, {
-      reportingPlayer,
-      score1: scores.score1,
-      score2: scores.score2,
-    });
-
-    if (data) {
-      /* Clear form for this match on success */
-      setReportingScores((prev) => {
-        const next = { ...prev };
-        delete next[match.id];
-        return next;
-      });
+  const handleScoreSubmitSuccess = useCallback(
+    (data: Record<string, unknown>, match: BMMatch) => {
       setEditingCorrections((prev) => ({ ...prev, [match.id]: false }));
       alert(getScoreReportSuccessMessage(data, {
         correctionSubmittedSuccess: tPart("correctionSubmittedSuccess"),
@@ -112,8 +52,28 @@ export default function BattleModeParticipantPage({
         scoresConfirmedSuccess: tPart("scoresConfirmedSuccess"),
         scoresMismatchSubmitted: tPart("scoresMismatchSubmitted"),
       }));
-    }
-  };
+    },
+    [tPart]
+  );
+
+  const {
+    reportingScores,
+    setReportingScores,
+    getInitialScores,
+    hasOwnReport,
+    adjustScore,
+    handleSubmitScore,
+  } = useParticipantScoreInput<BMMatch>({
+    playerId: ctx.playerId,
+    getReportedScores: (match, isPlayer1) => ({
+      score1: isPlayer1 ? match.player1ReportedScore1 : match.player2ReportedScore1,
+      score2: isPlayer1 ? match.player1ReportedScore2 : match.player2ReportedScore2,
+    }),
+    submitReport: ctx.submitReport,
+    setError: ctx.setError,
+    totalMustEqualMessage: tMatch("totalMustEqual4"),
+    onSubmitSuccess: handleScoreSubmitSuccess,
+  });
 
   const renderScoreEditor = (match: BMMatch, title: string, submitLabel: string) => {
     const scores = reportingScores[match.id] ?? getInitialScores(match);
