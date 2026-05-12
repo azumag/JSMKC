@@ -89,6 +89,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('有限な正の1始まり整数');
     expect(section).toContain('NaN');
     expect(section).toContain('Infinity');
+    expect(tcGp).toContain('Keep the finite check explicit');
     expect(tcGp).toContain('Number.isFinite(match.roundNumber)');
     expect(tcGp).toContain('Number.isInteger(match.roundNumber)');
   });
