@@ -1973,6 +1973,17 @@
 - **期待結果**: E2E の GP 予選生成経路は有限な `roundNumber >= 1` のみを返し、`0` / `-1` / `1.5` / `NaN` / `Infinity` 入力時の例外は `qualification-route.test.ts` でカバーする
 - **スクリプト**: tc-gp.js TC-1087
 
+## TC-1088: GP 予選単体テスト — 4人ラウンドロビンの3ラウンド前提を明記する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1088。`qualification-route.test.ts` の `matchesByRound.size === 3` は、4人ラウンドロビンでは各プレイヤーが3ラウンド走るという組み合わせ前提を表す。コメントなしでは単なるマジックナンバーに見えるため、テスト内で前提を明示する。
+- **手順**:
+  1. `qualification-route.test.ts` の GP 予選同一ラウンド cup テストを確認する
+  2. `matchesByRound.size` の直前に4人ラウンドロビンの3ラウンド前提コメントがあることを確認する
+  3. コメントが `C(4,2)/2` の組み合わせ根拠を含むことを確認する
+- **期待結果**: 4人 GP 予選で3ラウンドになる理由が単体テスト上で読み取れ、将来の fixture 変更時に前提の更新漏れを検知できる
+- **スクリプト**: smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts
+
 ## TC-717: GP決勝 — ラウンドごとのカップ組み合わせがFT3の5カップ目以外で重複しない
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)

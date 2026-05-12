@@ -1001,6 +1001,7 @@ describe('Qualification Route Factory', () => {
         matchesByRound.set(match.roundNumber, cups);
       }
 
+      // 4-player round-robin => 3 rounds (C(4,2)/2), with two matches per round.
       expect(matchesByRound.size).toBe(3);
       for (const cups of matchesByRound.values()) {
         expect(cups).toHaveLength(2);
