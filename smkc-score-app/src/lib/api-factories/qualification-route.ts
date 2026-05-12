@@ -75,8 +75,8 @@ function generateShuffledCourseList(): string[] {
  * The GP qualification rule is: shuffle the full cup list five separate
  * times, concatenate those five orders, then assign one cup per round from
  * the resulting sequence. If a deck boundary would repeat the previous
- * round's cup, rotate the next shuffled deck so rounds never use the same
- * cup consecutively.
+ * round's cup, swap in a random non-repeating cup so rounds never use the
+ * same cup consecutively without always rotating the same boundary shape.
  */
 function generateShuffledCupList(
   cupList: readonly string[],
@@ -86,15 +86,14 @@ function generateShuffledCupList(
   let warnedUnavoidableRepeat = false;
 
   for (let i = 0; i < GP_QUALIFICATION_CUP_DECK_REPEATS; i++) {
-    let deck = fisherYatesShuffle(cupList);
+    const deck = fisherYatesShuffle(cupList);
     const previousCup = shuffled[shuffled.length - 1];
     if (previousCup && deck[0] === previousCup) {
       const firstNonRepeatingIndex = deck.findIndex((cup) => cup !== previousCup);
       if (firstNonRepeatingIndex > 0) {
-        deck = [
-          ...deck.slice(firstNonRepeatingIndex),
-          ...deck.slice(0, firstNonRepeatingIndex),
-        ];
+        const swapIndex = firstNonRepeatingIndex
+          + Math.floor(Math.random() * (deck.length - firstNonRepeatingIndex));
+        [deck[0], deck[swapIndex]] = [deck[swapIndex], deck[0]];
       } else if (firstNonRepeatingIndex === -1 && !warnedUnavoidableRepeat) {
         logger?.warn('GP qualification cup deck cannot avoid adjacent repeated cups', {
           cup: previousCup,
