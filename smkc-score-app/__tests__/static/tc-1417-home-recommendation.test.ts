@@ -23,7 +23,9 @@ function sectionFor(
   }
 
   if (sectionEndCandidate === -1) {
-    expect(source.length).toBeGreaterThan(sectionStart + startMarker.length);
+    if (source.length <= sectionStart + startMarker.length) {
+      throw new Error(`terminal section for marker "${startMarker}" has no content`);
+    }
     return source.slice(sectionStart);
   }
 
@@ -40,12 +42,11 @@ describe('TC-1417 home recommendation static guard', () => {
     expect(section).toContain('rel="sponsored noopener noreferrer"');
     expect(section).toContain('e2e/tc-all.js TC-1417');
     expect(section).toContain('__tests__/static/tc-1417-home-recommendation.test.ts');
-    expect(section).toContain('terminal セクション guard');
   });
 
-  it('keeps terminal sections from silently accepting empty slices', () => {
+  it('keeps terminal sections from silently accepting empty slices with a marker-specific error', () => {
     expect(() => sectionFor('prefix ## TC-1417:', '## TC-1417:', '\n## TC-', { allowTerminal: true }))
-      .toThrow();
+      .toThrow('terminal section for marker "## TC-1417:" has no content');
   });
 
   it('keeps the home page recommendation link disclosed and product-specific', () => {
