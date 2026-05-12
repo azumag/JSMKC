@@ -64,22 +64,47 @@ export function functionReturnObjectLiteral(source: string, functionName: string
 
   let returnObject: ts.ObjectLiteralExpression | null = null;
 
+  function objectLiteralFromBody(body: ts.ConciseBody) {
+    if (ts.isObjectLiteralExpression(body)) {
+      return body;
+    }
+
+    if (!ts.isBlock(body)) {
+      return null;
+    }
+
+    for (const statement of [...body.statements].reverse()) {
+      if (
+        ts.isReturnStatement(statement) &&
+        statement.expression &&
+        ts.isObjectLiteralExpression(statement.expression)
+      ) {
+        return statement.expression;
+      }
+    }
+
+    return null;
+  }
+
   function visit(node: ts.Node) {
     if (
       ts.isFunctionDeclaration(node) &&
       node.name?.text === functionName &&
       node.body
     ) {
-      for (const statement of [...node.body.statements].reverse()) {
-        if (
-          ts.isReturnStatement(statement) &&
-          statement.expression &&
-          ts.isObjectLiteralExpression(statement.expression)
-        ) {
-          returnObject = statement.expression;
-          return;
-        }
-      }
+      returnObject = objectLiteralFromBody(node.body);
+      return;
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === functionName &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+    ) {
+      returnObject = objectLiteralFromBody(node.initializer.body);
+      return;
     }
 
     if (!returnObject) {

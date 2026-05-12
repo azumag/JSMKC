@@ -58,6 +58,28 @@ describe('TC-1082 shared BM/MR participant score input guards', () => {
     expect(returnObject).toContain('maxScorePerSide');
   });
 
+  it('can inspect arrow-function and function-expression hook forms', () => {
+    const arrowReturnObject = functionReturnObjectLiteral(`
+      export const useParticipantScoreInput = () => {
+        return {
+          diagnostics: { source: 'arrow' },
+          requiredTotalScore: 4,
+        };
+      };
+    `, 'useParticipantScoreInput');
+    const functionExpressionReturnObject = functionReturnObjectLiteral(`
+      export const useParticipantScoreInput = function() {
+        return {
+          diagnostics: { source: 'function expression' },
+          requiredTotalScore: 4,
+        };
+      };
+    `, 'useParticipantScoreInput');
+
+    expect(arrowReturnObject).toContain("source: 'arrow'");
+    expect(functionExpressionReturnObject).toContain("source: 'function expression'");
+  });
+
   it('documents TC-1082 as the BM/MR shared participant score-input scenario', () => {
     const cases = readRepoFile('E2E_TEST_CASES.md');
     const driftTest = readRepoFile(
@@ -70,6 +92,7 @@ describe('TC-1082 shared BM/MR participant score input guards', () => {
     expect(cases).toContain('## TC-1082: BM/MR participant スコア入力ロジック共通化');
     expect(cases).toContain('issue #1082');
     expect(cases).toContain('issue #1480');
+    expect(cases).toContain('issue #1482');
     expect(cases).toContain('useParticipantScoreInput');
     expect(driftTest).toContain("e2eCaseSection('TC-1082')");
   });
