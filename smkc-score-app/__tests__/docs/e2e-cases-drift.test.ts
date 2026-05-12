@@ -144,6 +144,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1475/#1476/#1478');
     expect(section).toContain('issue #1480');
     expect(section).toContain('issue #1482');
+    expect(section).toContain('issue #1484');
     expect(section).toContain('TypeScript AST');
     expect(section).toContain('useParticipantScoreInput');
     expect(section).toContain('requiredTotalScore');

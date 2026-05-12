@@ -75,9 +75,16 @@ describe('TC-1082 shared BM/MR participant score input guards', () => {
         };
       };
     `, 'useParticipantScoreInput');
+    const conciseArrowReturnObject = functionReturnObjectLiteral(`
+      export const useParticipantScoreInput = () => ({
+        diagnostics: { source: 'concise arrow' },
+        requiredTotalScore: 4,
+      });
+    `, 'useParticipantScoreInput');
 
     expect(arrowReturnObject).toContain("source: 'arrow'");
     expect(functionExpressionReturnObject).toContain("source: 'function expression'");
+    expect(conciseArrowReturnObject).toContain("source: 'concise arrow'");
   });
 
   it('documents TC-1082 as the BM/MR shared participant score-input scenario', () => {
@@ -93,6 +100,7 @@ describe('TC-1082 shared BM/MR participant score input guards', () => {
     expect(cases).toContain('issue #1082');
     expect(cases).toContain('issue #1480');
     expect(cases).toContain('issue #1482');
+    expect(cases).toContain('issue #1484');
     expect(cases).toContain('useParticipantScoreInput');
     expect(driftTest).toContain("e2eCaseSection('TC-1082')");
   });
