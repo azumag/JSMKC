@@ -28,6 +28,21 @@ describe('translation messages', () => {
     expect(jaMessages.common.viewTournament).toBe('トーナメントを見る');
   });
 
+  it('defines home recommendation disclosure copy in both locales', () => {
+    expect(enMessages.home).toEqual(expect.objectContaining({
+      recommended: 'Recommended',
+      recommendedDesc: 'Gear and references picked up by the paddock.',
+      viewOnAmazon: 'View on Amazon',
+      affiliateLabel: 'PR',
+    }));
+    expect(jaMessages.home).toEqual(expect.objectContaining({
+      recommended: 'おすすめ',
+      recommendedDesc: 'パドックが選ぶ機材・関連書籍。',
+      viewOnAmazon: 'Amazonで見る',
+      affiliateLabel: 'PR',
+    }));
+  });
+
   /**
    * ModePublishSwitch (src/components/tournament/mode-publish-switch.tsx) reads
    * mode labels from the `common` namespace via `useTranslations('common')` and

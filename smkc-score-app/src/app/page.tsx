@@ -93,16 +93,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/*
-        Affiliate / sponsored recommendation block.
-        - rel="sponsored": signals paid placement to search engines (Google
-          guidelines for affiliate links).
-        - rel="noopener noreferrer": prevents tabnabbing and referrer leak
-          when target="_blank".
-        - The PR (Promotional) label is required disclosure under Japan's
-          "stealth marketing" regulation (景品表示法, in force 2023-10) and
-          aligns with US FTC endorsement guides.
-      */}
+      {/* Sponsored recommendation block: keep the disclosure label and rel contract visible. */}
       <section
         aria-labelledby="recommended-heading"
         className="border-t border-foreground/15 pt-8"
