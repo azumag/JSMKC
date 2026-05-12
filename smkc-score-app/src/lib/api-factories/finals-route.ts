@@ -277,6 +277,10 @@ async function normalizeRoundCupsToSingleSequence(
 
     let canonical: string[] | undefined;
     let dominantCount = 0;
+    /* Map iteration preserves insertion order, so equal-count sequences keep
+     * the first valid sequence seen in this round. This makes legacy
+     * divergent-row repair deterministic without adding another arbitrary
+     * sort key. */
     for (const [key, count] of keyCounts) {
       if (count > dominantCount) {
         canonical = keyToArray.get(key);
