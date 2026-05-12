@@ -11,6 +11,7 @@
  *   TC-707  GP dual report — agreement → autoConfirmed (2 players)
  *   TC-708  GP dual report — mismatch (2 players)
  *   TC-709  GP finals admin-only enforcement (403)
+ *   TC-1098 GP driver-points max uses the shared constants module
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
  *   TC-725  GP qualification cup deck avoids adjacent round repeats
  *   TC-1087 GP qualification cup assignment uses positive one-based rounds
@@ -67,6 +68,30 @@ function sharedGpPlayers(count = 28) {
 async function loginSharedPlayer(adminPage, player) {
   await ensurePlayerPassword(adminPage, player);
   return loginPlayerBrowser(player.nickname, player.password);
+}
+
+/* ───────── TC-1098: GP driver-points max uses shared constant ───────── */
+async function runTc1098() {
+  try {
+    const constantsSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'constants.ts'), 'utf8');
+    const participantSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'participant', 'page.tsx'), 'utf8');
+    const routeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'api', 'tournaments', '[id]', 'gp', 'match', '[matchId]', 'report', 'route.ts'), 'utf8');
+
+    const constantExported = /export const MAX_GP_DRIVER_POINTS\b/.test(constantsSource);
+    const participantImportsConstant = /import \{[^}]*MAX_GP_DRIVER_POINTS[^}]*\} from ["']@\/lib\/constants["'];/.test(participantSource);
+    const routeImportsConstant = /import \{[^}]*MAX_GP_DRIVER_POINTS[^}]*\} from ["']@\/lib\/constants["'];/.test(routeSource);
+    const localDefinitionsRemoved = !/const MAX_GP_DRIVER_POINTS\s*=/.test(participantSource) &&
+      !/const MAX_GP_DRIVER_POINTS\s*=/.test(routeSource);
+
+    log('TC-1098', constantExported && participantImportsConstant && routeImportsConstant && localDefinitionsRemoved ? 'PASS' : 'FAIL',
+      !constantExported ? 'MAX_GP_DRIVER_POINTS export missing from constants.ts'
+      : !participantImportsConstant ? 'participant page does not import MAX_GP_DRIVER_POINTS from constants'
+      : !routeImportsConstant ? 'report route does not import MAX_GP_DRIVER_POINTS from constants'
+      : !localDefinitionsRemoved ? 'page-local or route-local MAX_GP_DRIVER_POINTS definition remains'
+      : '');
+  } catch (err) {
+    log('TC-1098', 'FAIL', err instanceof Error ? err.message : 'GP 1098 failed');
+  }
 }
 
 async function prepareSharedGpPair(adminPage, { dualReport = false } = {}) {
@@ -1718,6 +1743,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     },
     tests: [
       { name: 'TC-702', fn: runTc702 },
+      { name: 'TC-1098', fn: runTc1098 },
       { name: 'TC-707', fn: runTc707 },
       { name: 'TC-708', fn: runTc708 },
       { name: 'TC-701', fn: runTc701 },

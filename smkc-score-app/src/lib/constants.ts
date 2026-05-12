@@ -180,6 +180,9 @@ export const OPTIMISTIC_LOCK_STATUS_CODE = 409;
  */
 export const DRIVER_POINTS = [0, 9, 6, 3, 1, 0, 0, 0, 0] as const;
 
+/** Maximum GP driver points a player can score in one qualification match. */
+export const MAX_GP_DRIVER_POINTS = DRIVER_POINTS[1] * TOTAL_GP_RACES;
+
 /** GP UI/API position options for normal race finishes. */
 export const GP_POSITION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 

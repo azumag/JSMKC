@@ -40,6 +40,7 @@ describe('E2E case drift coverage', () => {
     ['TC-722', tcGp],
     ['TC-1103', tcGp],
     ['TC-1109', tcGp],
+    ['TC-1098', tcGp],
     ['TC-725', tcGp],
     ['TC-1087', tcGp],
     ['TC-729', tcGp],
@@ -121,6 +122,20 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('getLockedCupCountForMatch');
     expect(tcGp).toContain('/getGpFinalsMaxCups\\([A-Za-z_][A-Za-z0-9_]*\\)/g');
     expect(tcGp).toContain('directMatchCalls.length >= 2');
+  });
+
+  it('keeps TC-1098 aligned with shared GP driver-points max usage', () => {
+    const section = sectionFor('TC-1098');
+
+    expect(section).toContain('MAX_GP_DRIVER_POINTS');
+    expect(section).toContain('src/lib/constants.ts');
+    expect(section).toContain('gp/participant/page.tsx');
+    expect(section).toContain('gp/match/[matchId]/report/route.ts');
+    expect(section).toContain('page-local / route-local');
+    expect(tcGp).toContain("log('TC-1098'");
+    expect(tcGp).toContain('participantImportsConstant');
+    expect(tcGp).toContain('routeImportsConstant');
+    expect(tcGp).toContain('localDefinitionsRemoved');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(

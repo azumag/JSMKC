@@ -33,7 +33,7 @@ import {
   type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateGPRacePosition } from "@/lib/score-validation";
-import { COURSE_INFO, getDriverPoints, TOTAL_GP_RACES } from "@/lib/constants";
+import { COURSE_INFO, getDriverPoints, MAX_GP_DRIVER_POINTS, TOTAL_GP_RACES } from "@/lib/constants";
 import { isValidCupChoice } from "@/lib/event-types/gp-config";
 import {
   createErrorResponse,
@@ -47,8 +47,6 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { checkQualificationConfirmed } from "@/lib/qualification-confirmed-check";
-
-const MAX_GP_DRIVER_POINTS = 45;
 
 type ProcessedRace = {
   course: string;

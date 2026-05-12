@@ -1648,6 +1648,18 @@
   6. クリーンアップ
 - **期待結果**: GP participant 入力でdriver points合計送信→永続化が動作
 
+## TC-1098: GPドライバーズポイント上限を共有定数で参照する
+- **URL**: n/a (source guard)
+- **authRequired**: false
+- **背景**: GP participant 入力と report API がそれぞれ `MAX_GP_DRIVER_POINTS = 45` を定義すると、GPレース数やポイント配点の変更時に片方だけ更新されるリスクがある。
+- **手順**:
+  1. `src/lib/constants.ts` が `MAX_GP_DRIVER_POINTS` をエクスポートしていることを確認する
+  2. `gp/participant/page.tsx` が `@/lib/constants` から `MAX_GP_DRIVER_POINTS` を import していることを確認する
+  3. `gp/match/[matchId]/report/route.ts` が `@/lib/constants` から `MAX_GP_DRIVER_POINTS` を import していることを確認する
+  4. participant page と API route に `const MAX_GP_DRIVER_POINTS = 45` のような page-local / route-local 定義が残っていないことを確認する
+- **期待結果**: GPドライバーズポイント上限は UI/API とも共有定数を参照し、上限変更時の drift を起こさない
+- **スクリプト**: tc-gp.js TC-1098
+
 ## TC-729: GP奇数人数BREAK — ソロ走行ドライバーズポイント入力
 - **URL**: /tournaments/[temp-id]/gp
 - **authRequired**: true (admin)
