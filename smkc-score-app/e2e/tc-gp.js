@@ -223,7 +223,7 @@ async function runTc1087(adminPage) {
     const data = await apiFetchGp(adminPage, setup.tournamentId);
     const realMatches = (data.matches || []).filter((m) => !m.isBye);
     const invalidRoundMatches = realMatches.filter((match) =>
-      !Number.isInteger(match.roundNumber) || match.roundNumber < 1
+      !Number.isFinite(match.roundNumber) || !Number.isInteger(match.roundNumber) || match.roundNumber < 1
     );
     const missingCupMatches = realMatches.filter((match) => !match.cup);
     const ok = realMatches.length > 0 && invalidRoundMatches.length === 0 && missingCupMatches.length === 0;

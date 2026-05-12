@@ -1021,6 +1021,12 @@ describe('Qualification Route Factory', () => {
       expect(() => getAssignedCupForRound(shuffled, 1.5)).toThrow(
         'GP qualification roundNumber must be a positive integer: 1.5',
       );
+      expect(() => getAssignedCupForRound(shuffled, NaN)).toThrow(
+        'GP qualification roundNumber must be a positive integer: NaN',
+      );
+      expect(() => getAssignedCupForRound(shuffled, Infinity)).toThrow(
+        'GP qualification roundNumber must be a positive integer: Infinity',
+      );
       expect(getAssignedCupForRound(shuffled, 1)).toBe('Mushroom');
     });
 
