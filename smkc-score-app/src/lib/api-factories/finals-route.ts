@@ -277,10 +277,9 @@ async function normalizeRoundCupsToSingleSequence(
 
     let canonical: string[] | undefined;
     let dominantCount = 0;
-    /* Map iteration preserves insertion order, so equal-count sequences keep
-     * the first valid sequence seen in this round. This makes legacy
-     * divergent-row repair deterministic without adding another arbitrary
-     * sort key. */
+    /* Callers pass matches in matchNumber order. Map iteration then preserves
+     * insertion order, so equal-count sequences keep the first valid sequence
+     * seen in this round without adding another arbitrary sort key. */
     for (const [key, count] of keyCounts) {
       if (count > dominantCount) {
         canonical = keyToArray.get(key);
@@ -1050,6 +1049,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const legacyFinals = await model(prisma).findMany({
           where: { tournamentId, stage: 'finals' },
           select: { id: true, round: true, cup: true, assignedCups: true },
+          orderBy: { matchNumber: 'asc' },
         });
         if (legacyFinals.length > 0) {
           await normalizeRoundCupsToSingleSequence(

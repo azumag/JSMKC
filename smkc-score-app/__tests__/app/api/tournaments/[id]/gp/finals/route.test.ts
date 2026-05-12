@@ -227,7 +227,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         .mockResolvedValueOnce(mixedRoundMatches)
         .mockResolvedValueOnce([]);
 
-      (prisma.gPMatch as any).update = jest.fn().mockResolvedValue({});
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({});
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -420,8 +420,14 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await GET(request, { params });
 
       expect(result.status).toBe(200);
-      expect((prisma.gPMatch as any).update).toHaveBeenCalledTimes(1);
-      expect((prisma.gPMatch as any).update).toHaveBeenCalledWith({
+      expect(prisma.gPMatch.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        orderBy: { matchNumber: 'asc' },
+      }));
+      expect(prisma.gPMatch.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        orderBy: { matchNumber: 'asc' },
+      }));
+      expect(prisma.gPMatch.update).toHaveBeenCalledTimes(1);
+      expect(prisma.gPMatch.update).toHaveBeenCalledWith({
         where: { id: 'pm2' },
         data: { cup: 'Star', assignedCups: ['Star'] },
       });
