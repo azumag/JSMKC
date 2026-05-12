@@ -7,17 +7,30 @@ function readRepoFile(...parts: string[]) {
   return fs.readFileSync(path.join(root, ...parts), 'utf8');
 }
 
+function sectionFor(
+  source: string,
+  startMarker: string,
+  endMarker: string,
+  { allowTerminal = false }: { allowTerminal?: boolean } = {},
+) {
+  const sectionStart = source.indexOf(startMarker);
+  expect(sectionStart).toBeGreaterThanOrEqual(0);
+
+  const sectionEndCandidate = source.indexOf(endMarker, sectionStart + startMarker.length);
+  if (!allowTerminal) {
+    expect(sectionEndCandidate).toBeGreaterThan(sectionStart);
+    return source.slice(sectionStart, sectionEndCandidate);
+  }
+
+  const sectionEnd = sectionEndCandidate === -1 ? source.length : sectionEndCandidate;
+  expect(sectionEnd).toBeGreaterThan(sectionStart);
+  return source.slice(sectionStart, sectionEnd);
+}
+
 describe('TC-1417 home recommendation static guard', () => {
   it('documents the sponsored recommendation scenario in the E2E case list', () => {
     const cases = readRepoFile('E2E_TEST_CASES.md');
-    const sectionStart = cases.indexOf('## TC-1417:');
-    expect(sectionStart).toBeGreaterThanOrEqual(0);
-
-    const sectionEnd = cases.indexOf('\n## TC-', sectionStart + 1);
-    const section = cases.slice(
-      sectionStart,
-      sectionEnd === -1 ? cases.length : sectionEnd,
-    );
+    const section = sectionFor(cases, '## TC-1417:', '\n## TC-', { allowTerminal: true });
 
     expect(section).toContain('issue #1417');
     expect(section).toContain('rel="sponsored noopener noreferrer"');
@@ -33,11 +46,7 @@ describe('TC-1417 home recommendation static guard', () => {
       'page.tsx',
     );
 
-    const sectionStart = source.indexOf('Sponsored recommendation block');
-    expect(sectionStart).toBeGreaterThanOrEqual(0);
-    const sectionEnd = source.indexOf('\n    </div>', sectionStart);
-    expect(sectionEnd).toBeGreaterThan(sectionStart);
-    const section = source.slice(sectionStart, sectionEnd);
+    const section = sectionFor(source, 'Sponsored recommendation block', '\n    </div>');
 
     expect(section).toContain('aria-labelledby="recommended-heading"');
     expect(section).toContain('id="recommended-heading"');
