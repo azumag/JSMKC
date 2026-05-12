@@ -1184,7 +1184,6 @@ describe('Qualification Route Factory', () => {
         expect([...secondDeck].sort()).toEqual([...CUPS].sort());
         expect([...fifthDeck].sort()).toEqual([...CUPS].sort());
         expect(secondDeck).toEqual(['Special', 'Star', 'Mushroom', 'Flower']);
-        expect(secondDeck).not.toEqual(['Star', 'Special', 'Flower', 'Mushroom']);
       } finally {
         randomSpy.mockRestore();
       }
