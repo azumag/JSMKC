@@ -23,6 +23,8 @@ describe("GP driver points input", () => {
     expect(parseGpDriverPointsInput("+1")).toBeNull();
     expect(parseGpDriverPointsInput("1e2")).toBeNull();
     expect(parseGpDriverPointsInput("abc")).toBeNull();
+    expect(parseGpDriverPointsInput("")).toBeNull();
+    expect(parseGpDriverPointsInput("   ")).toBeNull();
     expect(parseGpDriverPointsInput(String(Number.MAX_SAFE_INTEGER) + "0")).toBeNull();
     expect(parseGpDriverPointsInput(String(MAX_GP_DRIVER_POINTS + 1))).toBeNull();
   });
