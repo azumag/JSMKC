@@ -1675,7 +1675,7 @@
      `{ reportingPlayer: 1, points1: 45, points2: 0 }` を POST
   4. レスポンスに `autoConfirmed: true` が含まれること（`dualReportEnabled=false` のため即時確定）
   5. 管理者APIでマッチが completed、`points1=45, points2=0` で保存されていること
-  6. issue #1099: driver points 直接入力時の `player1ReportedRaces` は `Prisma.JsonNull` として保存され、テストも `expect.any(Object)` に依存しないことを確認する
+  6. issue #1099/#1437: driver points 直接入力時の `player1ReportedRaces` は `Prisma.JsonNull` として保存され、API 再取得では `null` として返ることを確認する
   7. クリーンアップ
 - **期待結果**: GP participant 入力でdriver points合計送信→永続化が動作し、race breakdown がない直接入力は Prisma の JsonNull sentinel として扱われる
 - **スクリプト**: e2e/tc-gp.js TC-702

@@ -400,12 +400,14 @@ async function runTc702(adminPage) {
 
     const after = await apiFetchGp(adminPage, tournamentId);
     const updated = (after.matches || []).find((m) => m.id === match.id);
-    /* P1/P2 driver-point totals are persisted directly. */
-    const persisted = updated?.completed === true && updated.points1 === 45 && updated.points2 === 0;
+    /* P1/P2 driver-point totals are persisted directly; no race breakdown is stored. */
+    const directPointsPersisted = updated?.completed === true && updated.points1 === 45 && updated.points2 === 0;
+    const reportedRacesPersistedAsNull = updated?.player1ReportedRaces === null;
 
-    log('TC-702', confirmed && persisted ? 'PASS' : 'FAIL',
+    log('TC-702', confirmed && directPointsPersisted && reportedRacesPersistedAsNull ? 'PASS' : 'FAIL',
       !confirmed ? `report not confirmed: status=${reportRes.s}`
-      : !persisted ? `points: ${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
+      : !directPointsPersisted ? `points: ${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
+      : !reportedRacesPersistedAsNull ? `reportedRaces=${JSON.stringify(updated?.player1ReportedRaces)}`
       : '');
   } catch (err) {
     log('TC-702', 'FAIL', err instanceof Error ? err.message : 'GP 702 failed');
