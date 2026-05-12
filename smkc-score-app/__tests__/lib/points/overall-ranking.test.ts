@@ -156,6 +156,31 @@ describe('Overall Ranking module', () => {
         })
       );
     });
+
+    it('keeps BREAK-like empty TA qualification entries at 0 overall points', async () => {
+      mockPrisma.tTEntry.findMany.mockResolvedValue([
+        { id: 'empty-null', playerId: 'p1', times: null, player: PLAYER_P1 },
+        { id: 'empty-object', playerId: 'p2', times: {}, player: PLAYER_P2 },
+      ]);
+      getMockCalculateAllCourseScores().mockReturnValue(
+        new Map([
+          ['empty-null', { courseScores: {}, qualificationPoints: 0 }],
+          ['empty-object', { courseScores: {}, qualificationPoints: 0 }],
+        ]),
+      );
+
+      const result = await calculateTAQualificationPointsFromDB(
+        mockPrisma as any,
+        TOURNAMENT_ID,
+      );
+
+      expect(result.get('p1')?.totalPoints).toBe(0);
+      expect(result.get('p2')?.totalPoints).toBe(0);
+      expect(getMockCalculateAllCourseScores()).toHaveBeenCalledWith([
+        { id: 'empty-null', times: null },
+        { id: 'empty-object', times: {} },
+      ]);
+    });
   });
 
   // =========================================================================

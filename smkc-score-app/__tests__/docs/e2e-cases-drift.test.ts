@@ -195,6 +195,7 @@ describe('E2E case drift coverage', () => {
     ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
     ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
     ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
+    ['TC-1090-1091', 'n/a (static/unit coverage)', 'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
     ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
   ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
@@ -202,6 +203,15 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain(marker);
     expect(section).toContain(coverage);
+  });
+
+  it('keeps TC-1090-1091 aligned with overall-ranking static and unit coverage', () => {
+    const section = sectionFor('TC-1090-1091');
+
+    expect(section).toContain('issue #1090/#1091');
+    expect(section).toContain('Record<MatchQualificationModel');
+    expect(section).toContain('BREAK-like');
+    expect(section).toContain('__tests__/lib/points/overall-ranking.test.ts');
   });
 
   it('keeps TC-111 aligned with the preview D1 columns that fail GP finals before browser launch', () => {
