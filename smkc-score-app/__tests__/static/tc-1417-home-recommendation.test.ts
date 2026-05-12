@@ -22,9 +22,12 @@ function sectionFor(
     return source.slice(sectionStart, sectionEndCandidate);
   }
 
-  const sectionEnd = sectionEndCandidate === -1 ? source.length : sectionEndCandidate;
-  expect(sectionEnd).toBeGreaterThan(sectionStart);
-  return source.slice(sectionStart, sectionEnd);
+  if (sectionEndCandidate === -1) {
+    return source.slice(sectionStart);
+  }
+
+  expect(sectionEndCandidate).toBeGreaterThan(sectionStart);
+  return source.slice(sectionStart, sectionEndCandidate);
 }
 
 describe('TC-1417 home recommendation static guard', () => {
