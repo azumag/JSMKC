@@ -248,6 +248,48 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       }
     });
 
+    it('should start all GP assigned cup backfill updates before waiting for completion', async () => {
+      const mixedRoundMatches = [
+        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star',   player1: {}, player2: {} },
+        { id: 'pm3', matchNumber: 3, round: 'playoff_r1', cup: null,     player1: {}, player2: {} },
+        { id: 'pm4', matchNumber: 4, round: 'playoff_r1', cup: 'Special', player1: {}, player2: {} },
+      ];
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce(mixedRoundMatches)
+        .mockResolvedValueOnce([]);
+
+      const resolvers: Array<(value: unknown) => void> = [];
+      (prisma.gPMatch as any).update = jest.fn().mockImplementation(() => (
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        })
+      ));
+
+      (paginate as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
+      });
+      (generateBracketStructure as jest.Mock).mockReturnValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
+      const params = Promise.resolve({ id: 't1' });
+      const resultPromise = GET(request, { params });
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const updateMock = (prisma.gPMatch as any).update as jest.Mock;
+      expect(updateMock).toHaveBeenCalledTimes(4);
+      expect(resolvers).toHaveLength(4);
+
+      resolvers.forEach((resolve) => resolve({}));
+      const result = await resultPromise;
+
+      expect(result.status).toBe(200);
+    });
+
     it('should assign the same planned cup to every entirely null-cup playoff match in a round', async () => {
       const nullRoundMatches = [1, 2, 3, 4].map((n) => ({
         id: `pm${n}`,
