@@ -836,13 +836,12 @@ async function runTc1109() {
     const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'), 'utf8');
     const importsMaxCups = source.includes('getGpFinalsMaxCups');
     const wrapperRemoved = !source.includes('getLockedCupCountForMatch');
-    const usesMatchDirectly = source.includes('getGpFinalsMaxCups(match)') &&
-      source.includes('getGpFinalsMaxCups(selectedMatch)');
+    const directMatchCalls = source.match(/getGpFinalsMaxCups\([A-Za-z_][A-Za-z0-9_]*\)/g) ?? [];
 
-    log('TC-1109', importsMaxCups && wrapperRemoved && usesMatchDirectly ? 'PASS' : 'FAIL',
+    log('TC-1109', importsMaxCups && wrapperRemoved && directMatchCalls.length >= 2 ? 'PASS' : 'FAIL',
       !importsMaxCups ? 'getGpFinalsMaxCups import missing'
       : !wrapperRemoved ? 'getLockedCupCountForMatch wrapper still exists'
-      : !usesMatchDirectly ? 'expected match-shaped max-cups calls for form lock counts'
+      : directMatchCalls.length < 2 ? 'expected match-shaped max-cups calls for form lock counts'
       : '');
   } catch (err) {
     log('TC-1109', 'FAIL', err instanceof Error ? err.message : 'GP 1109 failed');

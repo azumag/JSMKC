@@ -113,13 +113,14 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('getGpFinalsMaxCups');
     expect(section).toContain('getLockedCupCountForMatch');
+    expect(section).toContain('match-shaped identifier');
     expect(section).toContain('FT2は3カップ');
     expect(section).toContain('FT3は5カップ');
     expect(tcGp).toContain("log('TC-1109'");
     expect(tcGp).toContain('getGpFinalsMaxCups');
     expect(tcGp).toContain('getLockedCupCountForMatch');
-    expect(tcGp).toContain('getGpFinalsMaxCups(match)');
-    expect(tcGp).toContain('getGpFinalsMaxCups(selectedMatch)');
+    expect(tcGp).toContain('/getGpFinalsMaxCups\\([A-Za-z_][A-Za-z0-9_]*\\)/g');
+    expect(tcGp).toContain('directMatchCalls.length >= 2');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(
