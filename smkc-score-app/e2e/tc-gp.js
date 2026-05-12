@@ -222,7 +222,7 @@ async function runTc1087(adminPage) {
     setup = await prepareSharedGpFinalsSetup(adminPage);
     const data = await apiFetchGp(adminPage, setup.tournamentId);
     const realMatches = (data.matches || []).filter((m) => !m.isBye);
-    // Keep the finite check explicit so TC-1087 documents the NaN/Infinity edge cases.
+    // Keep the finite check explicit to cover NaN/Infinity edge cases tested in TC-1087.
     const invalidRoundMatches = realMatches.filter((match) =>
       !Number.isFinite(match.roundNumber) || !Number.isInteger(match.roundNumber) || match.roundNumber < 1
     );
