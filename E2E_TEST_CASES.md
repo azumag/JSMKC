@@ -848,6 +848,17 @@
 - **期待結果**: E2E case parsing の仕様が1か所に集約され、formatter や finder 分割のような安全な実装変更で static guard が不要に失敗しない
 - **スクリプト**: n/a (static/doc coverage) — `smkc-score-app/__tests__/helpers/e2e-cases.ts`, `smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1454-1455: E2E case helper — キャッシュと明確な section error
+- **URL**: n/a
+- **authRequired**: false
+- **背景**: issue #1454/#1455。共通化した E2E case helper が `E2E_TEST_CASES.md` を呼び出しごとに読み込み、`sectionBetween` 内で直接 `expect()` していたため、不要な IO と読みにくい失敗位置が残っていた。
+- **手順**:
+  1. `e2eCaseSection` が module-level cache された E2E cases をデフォルト source として使うことを確認する
+  2. `sectionBetween` が helper 内で `expect()` を呼ばず、marker 名入りの例外を返すことを確認する
+  3. 既存の drift/static tests が同じ helper 経由で通ることを確認する
+- **期待結果**: E2E case section 取得は不要なファイル再読み込みを避け、section 抽出失敗時は marker 名のあるエラーで原因を特定できる
+- **スクリプト**: n/a (static/doc coverage) — `smkc-score-app/__tests__/helpers/e2e-cases.ts`, `smkc-score-app/__tests__/static/tc-1417-home-recommendation.test.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)
