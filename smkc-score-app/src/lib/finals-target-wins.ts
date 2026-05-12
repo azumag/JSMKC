@@ -15,7 +15,7 @@ function isMidLowerRound(round?: string | null): boolean {
   return round === 'losers_r3' || round === 'losers_r4';
 }
 
-function isFinalRound(round?: string | null): boolean {
+function isTopFourTargetRound(round?: string | null): boolean {
   return round === 'winners_final'
     || round === 'losers_sf'
     || round === 'losers_final'
@@ -30,7 +30,7 @@ export function getBmFinalsTargetWins(context?: FinalsTargetContext): number {
   if (isEarlyUpperRound(context?.round) || isEarlyLowerRound(context?.round)) {
     return 5;
   }
-  if (context?.round === 'winners_sf' || isMidLowerRound(context?.round) || isFinalRound(context?.round)) {
+  if (context?.round === 'winners_sf' || isMidLowerRound(context?.round) || isTopFourTargetRound(context?.round)) {
     return 7;
   }
   return 5;
@@ -46,7 +46,7 @@ export function getMrFinalsTargetWins(context?: FinalsTargetContext): number {
   if (context?.round === 'winners_sf' || isMidLowerRound(context?.round)) {
     return 7;
   }
-  if (isFinalRound(context?.round)) {
+  if (isTopFourTargetRound(context?.round)) {
     return 9;
   }
   return 5;
@@ -56,7 +56,7 @@ export function getGpFinalsTargetWins(context?: FinalsTargetContext): number {
   if (context?.stage === 'playoff') {
     return 1;
   }
-  if (isFinalRound(context?.round)) {
+  if (isTopFourTargetRound(context?.round)) {
     return 3;
   }
   return 2;

@@ -1994,6 +1994,18 @@
 - **期待結果**: FT2は3カップ、FT3は5カップまでの固定フォーム数を最大カップ数ヘルパーで直接表現し、ページ内の薄いラッパーや重複した引数構築を経由しない
 - **スクリプト**: tc-gp.js TC-1109 (`npm run e2e:gp`, preview: `npm run e2e:preview:gp`)
 
+## TC-1100-1085: GP/MR決勝 — top-four target-wins helper の命名を実態に合わせる
+- **URL**: /tournaments/[temp-id]/gp/finals, /tournaments/[temp-id]/mr/finals
+- **authRequired**: true (admin)
+- **背景**: issues #1100, #1085。target-wins 共有ヘルパーは Winners Final / Losers Semi Final / Losers Final / Grand Final / Grand Final Reset を同じ上位4帯として扱う。`losers_sf` を含むため、`isFinalRound` という名前だと「決勝だけ」と誤読しやすい。
+- **手順**:
+  1. `finals-target-wins.ts` の共有ヘルパー名を確認する
+  2. helper 名が `isTopFourTargetRound` で、`losers_sf` を対象に含めていることを確認する
+  3. 古い `isFinalRound` helper 名が残っていないことを確認する
+  4. MR は上位4帯をFT9、GPは上位4帯をFT3として扱い、`winners_sf` はそれぞれFT7/FT2に残ることを確認する
+- **期待結果**: target-wins helper 名が `losers_sf` を含む実態を表し、MR/GPの上位4帯 target-wins 挙動は変わらない
+- **スクリプト**: __tests__/e2e/tc-1100-1085-finals-target-naming.test.ts, __tests__/lib/finals-target-wins.test.ts
+
 ## TC-727: GP決勝 — 取得カップ数がFT上限を超える保存を拒否する
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
 - **authRequired**: true (admin)
