@@ -83,6 +83,16 @@ describe('E2E case drift coverage', () => {
     }));
   });
 
+  it('keeps TC-1087 aligned with finite positive round-number guards', () => {
+    const section = sectionFor('TC-1087');
+
+    expect(section).toContain('有限な正の1始まり整数');
+    expect(section).toContain('NaN');
+    expect(section).toContain('Infinity');
+    expect(tcGp).toContain('Number.isFinite(match.roundNumber)');
+    expect(tcGp).toContain('Number.isInteger(match.roundNumber)');
+  });
+
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
     const section = sectionFor('TC-722');
 

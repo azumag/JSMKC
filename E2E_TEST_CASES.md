@@ -1863,13 +1863,13 @@
 ## TC-1087: GP 予選カップ割り当て — roundNumber は正の1始まりだけを使う
 - **URL**: /api/tournaments/[temp-id]/gp (GET)
 - **authRequired**: true (admin)
-- **背景**: GP 予選カップ選択は `(roundNumber - 1) % deck.length` でシャッフル済みデッキを参照する。`roundNumber <= 0` が混入すると JavaScript の負剰余により `undefined` cup が割り当たるため、API 生成結果と単体ガードの両方で正の1始まりを保証する。
+- **背景**: GP 予選カップ選択は `(roundNumber - 1) % deck.length` でシャッフル済みデッキを参照する。`roundNumber <= 0` や `NaN` / `Infinity` が混入すると `undefined` cup が割り当たるため、API 生成結果と単体ガードの両方で有限な正の1始まり整数を保証する。
 - **手順**:
   1. 共有 GP フィクスチャと同じ構成で GP 予選を作成する
   2. `GET /api/.../gp` で予選マッチ一覧を取得する
-  3. BYE を除いた全マッチの `roundNumber` が正の整数であることを確認する
+  3. BYE を除いた全マッチの `roundNumber` が有限な正の整数であることを確認する
   4. 同じ全マッチに `cup` が割り当たっていることを確認する
-- **期待結果**: E2E の GP 予選生成経路は `roundNumber >= 1` のみを返し、無効値入力時の例外は `qualification-route.test.ts` でカバーする
+- **期待結果**: E2E の GP 予選生成経路は有限な `roundNumber >= 1` のみを返し、`0` / `-1` / `1.5` / `NaN` / `Infinity` 入力時の例外は `qualification-route.test.ts` でカバーする
 - **スクリプト**: tc-gp.js TC-1087
 
 ## TC-717: GP決勝 — ラウンドごとのカップ組み合わせがFT3の5カップ目以外で重複しない
