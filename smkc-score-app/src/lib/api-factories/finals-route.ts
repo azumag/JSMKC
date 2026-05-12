@@ -312,11 +312,14 @@ async function normalizeRoundCupsToSingleSequence(
   }
 
   const writeResults = await Promise.allSettled(writes);
-  const failedWrites = writeResults.filter((result) => result.status === 'rejected');
+  const failedWrites = writeResults.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
   if (failedWrites.length > 0) {
     logger?.warn('Failed to backfill some GP assigned cup rows', {
       failedWrites: failedWrites.length,
       totalWrites: writes.length,
+      reasons: failedWrites.map((result) => result.reason instanceof Error
+        ? result.reason.message
+        : String(result.reason)),
     });
   }
 
