@@ -39,6 +39,7 @@ describe('E2E case drift coverage', () => {
     ['TC-717', tcGp],
     ['TC-722', tcGp],
     ['TC-1103', tcGp],
+    ['TC-1109', tcGp],
     ['TC-725', tcGp],
     ['TC-1087', tcGp],
     ['TC-729', tcGp],
@@ -105,6 +106,18 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('gpFinalsUpdatedMatchFromPutResult');
     expect(tcGp).toContain('updated?.completed === true');
     expect(tcGp).not.toContain('gpFinalsTargetWinsForRound');
+  });
+
+  it('keeps TC-1109 aligned with direct GP max-cups usage', () => {
+    const section = sectionFor('TC-1109');
+
+    expect(section).toContain('getGpFinalsMaxCups');
+    expect(section).toContain('getLockedCupCountForMatch');
+    expect(section).toContain('FT2は3カップ');
+    expect(section).toContain('FT3は5カップ');
+    expect(tcGp).toContain("log('TC-1109'");
+    expect(tcGp).toContain('getGpFinalsMaxCups');
+    expect(tcGp).toContain('getLockedCupCountForMatch');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(
