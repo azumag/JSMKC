@@ -449,8 +449,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
-      /* #1413: an already-canonical round must take the skip path and avoid
-       * issuing updateMany for rows that do not need repair. */
+      // #1413: canonical rounds must skip updateMany to avoid unnecessary repair writes.
       expect(prisma.gPMatch.updateMany).not.toHaveBeenCalled();
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
