@@ -321,6 +321,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(logger.warn).toHaveBeenCalledWith('Failed to backfill some GP assigned cup rows', {
         failedWrites: 1,
         totalWrites: 2,
+        reasons: ['D1 update failed'],
       });
     });
 
