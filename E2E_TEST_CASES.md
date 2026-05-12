@@ -1580,6 +1580,16 @@
 - **期待結果**: Winners R1 M2 の敗者が M16 `player2Id` に反映され、`player1Id` を上書きしない
 - **スクリプト**: tc-mr.js TC-858
 
+## TC-1073: 16人決勝 Winners QF 敗者の Losers R2 1P 反映 (issue #1073)
+- **背景**: 16人決勝ブラケットでは、Winners QF から Losers R2 に落ちる敗者を 1P、Losers R1 から勝ち上がる選手を 2P に揃える必要がある。Losers R2 の対戦相手順は #1071 の B3/A4/A3/B4 順を維持する。
+- **手順**:
+  1. 16人決勝ブラケットを生成する
+  2. Winners QF M9-M12 の敗者ルーティングを取得する
+  3. Losers R1 M16-M19 の勝者ルーティングを取得する
+  4. Losers R2 M20-M23 で Winners QF 敗者が `player1`、Losers R1 勝者が `player2` に入ることを確認する
+- **期待結果**: M12→M20、M11→M21、M10→M22、M9→M23 の Winners QF 敗者がすべて 1P に入り、M16-M19 の Losers R1 勝者が対応する Losers R2 の 2P に入る
+- **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
+
 ## TC-611: BM/MR/GP予選確定 — スコアロック検証
 - **URL**: /api/tournaments/[temp-id]/mr (PUT), /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
 - **authRequired**: true (admin)

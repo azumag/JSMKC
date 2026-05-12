@@ -520,7 +520,7 @@ describe('Double Elimination Bracket Structure', () => {
       });
     });
 
-    it('should route Winners QF losers into reversed Losers R2 slots', () => {
+    it('should route Winners QF losers into reversed Losers R2 player1 slots', () => {
       const matches16 = generateBracketStructure(16);
 
       [
@@ -531,6 +531,17 @@ describe('Double Elimination Bracket Structure', () => {
       ].forEach(([matchNumber, nextMatchNumber]) => {
         expect(getNextMatchInfo(matches16, matchNumber, false)).toEqual({
           nextMatchNumber,
+          position: 1,
+        });
+      });
+    });
+
+    it('should route Losers R1 winners into Losers R2 player2 slots', () => {
+      const matches16 = generateBracketStructure(16);
+
+      [16, 17, 18, 19].forEach((matchNumber, index) => {
+        expect(getNextMatchInfo(matches16, matchNumber, true)).toEqual({
+          nextMatchNumber: 20 + index,
           position: 2,
         });
       });
