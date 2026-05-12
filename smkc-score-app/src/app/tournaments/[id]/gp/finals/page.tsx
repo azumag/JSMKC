@@ -86,7 +86,7 @@ import { getGpFinalsMaxCups, getGpFinalsTargetWins } from "@/lib/finals-target-w
 import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
 import { getAssignedCupLabelsForMatch } from "@/lib/gp-finals-assigned-cups";
 import { isValidGpFinalsSimpleScore } from "@/lib/gp-finals-simple-score";
-import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
+import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from "@/lib/gp-driver-points-input";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
@@ -446,8 +446,8 @@ export default function GrandPrixFinals({
 
   const calculateCupPoints = (cup: CupScoreForm) => {
     if (cup.manualEnabled) {
-      const p1 = parseManualScore(cup.manualPoints1);
-      const p2 = parseManualScore(cup.manualPoints2);
+      const p1 = parseGpDriverPointsInput(cup.manualPoints1);
+      const p2 = parseGpDriverPointsInput(cup.manualPoints2);
       return { valid: p1 !== null && p2 !== null, points1: p1 ?? 0, points2: p2 ?? 0 };
     }
     const ready = cup.races.length === TOTAL_GP_RACES &&

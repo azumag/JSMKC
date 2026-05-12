@@ -41,6 +41,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1103', tcGp],
     ['TC-1109', tcGp],
     ['TC-1098', tcGp],
+    ['TC-1106', tcGp],
     ['TC-725', tcGp],
     ['TC-1087', tcGp],
     ['TC-729', tcGp],
@@ -140,6 +141,22 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('participant page does not import MAX_GP_DRIVER_POINTS from constants');
     expect(tcGp).toContain('report route does not import MAX_GP_DRIVER_POINTS from constants');
     expect(tcGp).toContain('page-local or route-local MAX_GP_DRIVER_POINTS definition remains');
+  });
+
+  it('keeps TC-1106 aligned with GP manual driver-points input bounds', () => {
+    const section = sectionFor('TC-1106');
+
+    expect(section).toContain('parseGpDriverPointsInput');
+    expect(section).toContain('MAX_GP_DRIVER_POINTS');
+    expect(section).toContain('gp/page-client.tsx');
+    expect(section).toContain('gp/finals/page.tsx');
+    expect(section).toContain('type="text"');
+    expect(section).toContain('inputMode="numeric"');
+    expect(section).toContain('pattern="[0-9]*"');
+    expect(tcGp).toContain("log('TC-1106'");
+    expect(tcGp).toContain('parseGpDriverPointsInput(manualPoints1)');
+    expect(tcGp).toContain('parseGpDriverPointsInput(cup.manualPoints1)');
+    expect(tcGp).toContain('value <= MAX_GP_DRIVER_POINTS');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(

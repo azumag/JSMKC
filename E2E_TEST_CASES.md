@@ -1660,6 +1660,18 @@
 - **期待結果**: GPドライバーズポイント上限は UI/API とも共有定数を参照し、上限変更時の drift を起こさない
 - **スクリプト**: tc-gp.js TC-1098
 
+## TC-1106: GP手入力ドライバーズポイントは整数かつ上限内だけ受け付ける
+- **URL**: n/a (source guard)
+- **authRequired**: false
+- **背景**: GP予選とGP決勝の管理者向け手入力欄はモバイル数値キーボードのため `type="text"` を使うため、HTMLの `min` / `max` / `step` だけに頼れない。UI側でも `0..MAX_GP_DRIVER_POINTS` の整数制約を共有ヘルパーで保つ必要がある。
+- **手順**:
+  1. `src/lib/gp-driver-points-input.ts` が `MAX_GP_DRIVER_POINTS` を参照し、`parseGpDriverPointsInput` をエクスポートしていることを確認する
+  2. `gp/page-client.tsx` の管理者手入力保存・配信反映が `parseGpDriverPointsInput` を使うことを確認する
+  3. `gp/finals/page.tsx` のカップ単位手入力が `parseGpDriverPointsInput` を使うことを確認する
+  4. 共通入力propsが `type="text"` / `inputMode="numeric"` / `pattern="[0-9]*"` を維持していることを確認する
+- **期待結果**: GPの手入力ドライバーズポイントは小数・負数・上限超過をUI側で拒否し、ブラウザ制約の有無で挙動がdriftしない
+- **スクリプト**: tc-gp.js TC-1106
+
 ## TC-729: GP奇数人数BREAK — ソロ走行ドライバーズポイント入力
 - **URL**: /tournaments/[temp-id]/gp
 - **authRequired**: true (admin)
