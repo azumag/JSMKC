@@ -1007,15 +1007,16 @@
 ## TC-516: BM 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)
-- **背景**: 決勝ブラケット生成後に予選ページを再訪すると「View Tournament / トーナメントを見る」が表示される。危険操作である「Reset Bracket / ブラケットリセット」は予選ロック中は非表示で、予選ロック解除後のみ表示される
+- **背景**: 決勝ブラケット生成後に予選ページを再訪すると「View Tournament / トーナメントを見る」が表示される。危険操作である「Reset Bracket / ブラケットリセット」は予選ロック中は非表示で、直接 API リセットも 409 で拒否され、予選ロック解除後のみ表示される
 - **手順**:
   1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、Top-8 ブラケットを生成する
   2. 予選ページ（`/bm`）を開き「View Tournament」が表示され、「Reset Bracket」が表示されないことを確認する
-  3. qualificationConfirmed=false にして予選ロックを解除し、「Reset Bracket」ボタンが表示されることを確認する
-  4. 「Reset Bracket」ボタンをクリックし、確認ダイアログで OK を選択する
-  5. リセット後は予選が未ロックのままなので、「Reset Bracket」と「Start Playoff / Generate Finals Bracket」が表示されないことを確認する
-  6. クリーンアップ
-- **期待結果**: ブラケット生成後は「View Tournament」のみ、予選ロック解除後だけ「Reset Bracket」が表示され、リセット後は再ロックまで生成ボタンも出ない
+  3. ロック中に `POST /api/tournaments/[id]/bm/finals { reset: true }` を直接呼び、409 `QUALIFICATION_LOCKED` が返ることを確認する
+  4. qualificationConfirmed=false にして予選ロックを解除し、「Reset Bracket」ボタンが表示されることを確認する
+  5. 「Reset Bracket」ボタンをクリックし、確認ダイアログで OK を選択する
+  6. リセット後は予選が未ロックのままなので、「Reset Bracket」と「Start Playoff / Generate Finals Bracket」が表示されないことを確認する
+  7. クリーンアップ
+- **期待結果**: ブラケット生成後は「View Tournament」のみ、予選ロック中の直接 API リセットは拒否され、予選ロック解除後だけ「Reset Bracket」が表示され、リセット後は再ロックまで生成ボタンも出ない
 
 ## TC-505: BM Grand Final → チャンピオン決定（28名予選後）
 - **URL**: /tournaments/[temp-id]/bm/finals
@@ -1493,15 +1494,16 @@
 ## TC-616: MR 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/mr
 - **authRequired**: true (admin)
-- **背景**: BM TC-516 の MR 版。決勝ブラケット生成後に予選ページを再訪すると「View Tournament」が表示される。危険操作である「Reset Bracket」は予選ロック中は非表示で、予選ロック解除後のみ表示される
+- **背景**: BM TC-516 の MR 版。決勝ブラケット生成後に予選ページを再訪すると「View Tournament」が表示される。危険操作である「Reset Bracket」は予選ロック中は非表示で、直接 API リセットも 409 で拒否され、予選ロック解除後のみ表示される
 - **手順**:
   1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、Top-8 ブラケットを生成する
   2. 予選ページ（`/mr`）を開き「View Tournament / トーナメントを見る」が表示され、「Reset Bracket / ブラケットリセット」が表示されないことを確認する
-  3. qualificationConfirmed=false にして予選ロックを解除し、「Reset Bracket / ブラケットリセット」ボタンが表示されることを確認する
-  4. 「Reset Bracket / ブラケットリセット」ボタンをクリックし、確認ダイアログで OK を選択する
-  5. リセット後は予選が未ロックのままなので、「Reset Bracket」と「Start Playoff / Generate Finals Bracket」が表示されないことを確認する
-  6. クリーンアップ
-- **期待結果**: ブラケット生成後は「View Tournament」のみ、予選ロック解除後だけ「Reset Bracket」が表示され、リセット後は再ロックまで生成ボタンも出ない
+  3. ロック中に `POST /api/tournaments/[id]/mr/finals { reset: true }` を直接呼び、409 `QUALIFICATION_LOCKED` が返ることを確認する
+  4. qualificationConfirmed=false にして予選ロックを解除し、「Reset Bracket / ブラケットリセット」ボタンが表示されることを確認する
+  5. 「Reset Bracket / ブラケットリセット」ボタンをクリックし、確認ダイアログで OK を選択する
+  6. リセット後は予選が未ロックのままなので、「Reset Bracket」と「Start Playoff / Generate Finals Bracket」が表示されないことを確認する
+  7. クリーンアップ
+- **期待結果**: ブラケット生成後は「View Tournament」のみ、予選ロック中の直接 API リセットは拒否され、予選ロック解除後だけ「Reset Bracket」が表示され、リセット後は再ロックまで生成ボタンも出ない
 
 ## TC-812: TA 予選同着解決 — 同タイムで average 課題ポイント
 - **URL**: /tournaments/[temp-id]/ta
@@ -2075,15 +2077,16 @@
 ## TC-716: GP 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/gp
 - **authRequired**: true (admin)
-- **背景**: BM TC-516 / MR TC-616 の GP 版。決勝ブラケット生成後に予選ページを再訪すると「View Tournament」が表示される。危険操作である「Reset Bracket」は予選ロック中は非表示で、予選ロック解除後のみ表示される
+- **背景**: BM TC-516 / MR TC-616 の GP 版。決勝ブラケット生成後に予選ページを再訪すると「View Tournament」が表示される。危険操作である「Reset Bracket」は予選ロック中は非表示で、直接 API リセットも 409 で拒否され、予選ロック解除後のみ表示される
 - **手順**:
   1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、Top-8 ブラケットを生成する
   2. 予選ページ（`/gp`）を開き「View Tournament / トーナメントを見る」が表示され、「Reset Bracket / ブラケットリセット」が表示されないことを確認する
-  3. qualificationConfirmed=false にして予選ロックを解除し、「Reset Bracket / ブラケットリセット」ボタンが表示されることを確認する
-  4. 「Reset Bracket / ブラケットリセット」ボタンをクリックし、確認ダイアログで OK を選択する
-  5. リセット後は予選が未ロックのままなので、「Reset Bracket」と「Start Playoff / Generate Finals Bracket」が表示されないことを確認する
-  6. クリーンアップ
-- **期待結果**: ブラケット生成後は「View Tournament」のみ、予選ロック解除後だけ「Reset Bracket」が表示され、リセット後は再ロックまで生成ボタンも出ない
+  3. ロック中に `POST /api/tournaments/[id]/gp/finals { reset: true }` を直接呼び、409 `QUALIFICATION_LOCKED` が返ることを確認する
+  4. qualificationConfirmed=false にして予選ロックを解除し、「Reset Bracket / ブラケットリセット」ボタンが表示されることを確認する
+  5. 「Reset Bracket / ブラケットリセット」ボタンをクリックし、確認ダイアログで OK を選択する
+  6. リセット後は予選が未ロックのままなので、「Reset Bracket」と「Start Playoff / Generate Finals Bracket」が表示されないことを確認する
+  7. クリーンアップ
+- **期待結果**: ブラケット生成後は「View Tournament」のみ、予選ロック中の直接 API リセットは拒否され、予選ロック解除後だけ「Reset Bracket」が表示され、リセット後は再ロックまで生成ボタンも出ない
 
 ## TC-719: GP 決勝 — 非 Grand Final マッチの同点カップ継続
 - **背景**: GP の Grand Final 以外のブラケットマッチでも、カップ内同点時はサドンデスではなく次カップへ進むこと
