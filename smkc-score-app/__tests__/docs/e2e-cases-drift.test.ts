@@ -12,6 +12,7 @@ function readE2eLib(script: string) {
 describe('E2E case drift coverage', () => {
   const tcAll = readE2eScript('tc-all.js');
   const tcBm = readE2eScript('tc-bm.js');
+  const tcMr = readE2eScript('tc-mr.js');
   const tcGp = readE2eScript('tc-gp.js');
   const tcOverlay = readE2eScript('tc-overlay.js');
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
@@ -31,6 +32,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1417', tcAll],
     ['TC-725', tcGp],
     ['TC-1087', tcGp],
+    ['TC-1083', tcMr],
     ['TC-729', tcGp],
     ['TC-926', tcOverlay],
     ['TC-TA-FLOW-24', tcTaFlow],
@@ -94,6 +96,18 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('Keep the finite check explicit to cover NaN/Infinity edge cases tested in TC-1087.');
     expect(tcGp).toContain('Number.isFinite(match.roundNumber)');
     expect(tcGp).toContain('Number.isInteger(match.roundNumber)');
+  });
+
+  it('keeps TC-1083 aligned with MR participant correction coverage', () => {
+    const section = e2eCaseSection('TC-1083');
+
+    expect(section).toContain('issue #1083');
+    expect(section).toContain('Correct Score');
+    expect(section).toContain('Submit Correction');
+    expect(section).toContain('player1ReportedPoints');
+    expect(tcMr).toContain("log('TC-1083'");
+    expect(tcMr).toContain('Previous Reports');
+    expect(tcMr).toContain('apiFetchMr');
   });
 
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {

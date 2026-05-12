@@ -1374,6 +1374,19 @@
   8. 一時トーナメントと一時プレイヤーを削除する
 - **期待結果**: MRのparticipant入力フォームからレース結果を送信でき、結果が永続化される
 
+## TC-1083: MR participant 過去報告表示とスコア修正フロー
+- **URL**: /tournaments/[temp-id]/mr/participant
+- **authRequired**: true (player)
+- **背景**: issue #1083。BM participant は確定済み試合で過去報告を表示し、「Correct Score」から参加者自身が修正できる。MR participant も同じデータフィールド (`player1ReportedPoints*` / `player2ReportedPoints*`) と correction API を持つため、UI でも同等の確認・訂正導線が必要。
+- **手順**:
+  1. 管理者セッションでMR予選2名マッチを作成する
+  2. player1 として `/mr/participant` にログインし、3-1 を送信する
+  3. 試合確定後、過去報告と `Correct Score` ボタンが表示されることを確認する
+  4. `Correct Score` を開き、3-1 から 2-2 に修正して `Submit Correction` を送信する
+  5. 管理者APIで対象マッチが completed のまま score1=2, score2=2 に更新されていることを確認する
+- **期待結果**: MR participant で過去報告を確認でき、確定済みスコアを参加者自身が修正できる
+- **スクリプト**: `tc-mr.js TC-1083`
+
 ## TC-603: MR引き分け(2-2)スコアの受理確認
 - **URL**: /api/tournaments/[temp-id]/mr (PUT)
 - **authRequired**: true (admin)

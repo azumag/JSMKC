@@ -10,6 +10,7 @@
  *
  *  TC-601  28-player qualification full flow + standings + course assignment
  *  TC-602  MR participant score entry (UI, 2 players)
+ *  TC-1083 MR participant previous reports + correction (UI, 2 players)
  *  TC-603  MR draw 2-2 score (admin PUT, 2 players)
  *  TC-604  28-player full + finals bracket gen + race-format UI score entry
  *  TC-605  28-player full + finals bracket reset
@@ -37,7 +38,7 @@
  * Run: node e2e/tc-mr.js  (from smkc-score-app/)
  */
 const {
-  makeResults, makeLog, nav,
+  makeResults, makeLog, nav, escapeRegex,
   matchUpdateUsesLeanPayload,
   uiCreatePlayer: createPlayer,
   uiCreateTournament: createTournament,
@@ -319,6 +320,63 @@ async function runTc602(adminPage) {
       : `completed=${updatedMatch?.completed} score=${updatedMatch?.score1}-${updatedMatch?.score2}`);
   } catch (err) {
     log('TC-602', 'FAIL', err instanceof Error ? err.message : 'MR participant flow failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+  }
+}
+
+/**
+ * TC-1083: MR participant previous reports + correction (UI)
+ *
+ * Submit 3-1, verify the completed participant card exposes previous reports
+ * and the "Correct Score" affordance, then correct the score to 2-2.
+ */
+async function runTc1083(adminPage) {
+  let playerBrowser = null;
+
+  try {
+    const { tournamentId, p1, match } = await prepareSharedMrPair(adminPage);
+    const p1Label = match.player1.nickname;
+    const p2Label = match.player2.nickname;
+
+    const ctx = await loginSharedPlayer(adminPage, p1);
+    playerBrowser = ctx.browser;
+    const playerPage = ctx.page;
+    await nav(playerPage, `/tournaments/${tournamentId}/mr/participant`);
+
+    for (let i = 0; i < 3; i++) {
+      await playerPage.getByRole('button', { name: new RegExp(`${escapeRegex(p1Label)} \\+1`) }).click();
+    }
+    await playerPage.getByRole('button', { name: new RegExp(`${escapeRegex(p2Label)} \\+1`) }).click();
+
+    playerPage.once('dialog', (d) => d.accept());
+    await playerPage.getByRole('button', { name: /スコア送信|Submit Scores/ }).click();
+    await playerPage.waitForFunction(() => {
+      const text = document.body.innerText;
+      return text.includes('前回の報告') || text.includes('Previous Reports');
+    }, null, { timeout: 15000 });
+    await playerPage.getByRole('button', { name: /スコアを修正|Correct Score/ }).click();
+
+    await playerPage.getByRole('button', { name: new RegExp(`${escapeRegex(p1Label)} -1`) }).click();
+    await playerPage.getByRole('button', { name: new RegExp(`${escapeRegex(p2Label)} \\+1`) }).click();
+
+    playerPage.once('dialog', (d) => d.accept());
+    await playerPage.getByRole('button', { name: /修正を送信|Submit Correction/ }).click();
+    await playerPage.waitForTimeout(3000);
+
+    const correctedMr = await apiFetchMr(adminPage, tournamentId);
+    const correctedMatch = (correctedMr.matches || []).find((m) => m.id === match.id);
+    const ok =
+      correctedMatch?.completed === true &&
+      correctedMatch.score1 === 2 &&
+      correctedMatch.score2 === 2;
+
+    log('TC-1083', ok ? 'PASS' : 'FAIL',
+      ok ? ''
+      : !correctedMatch ? 'Corrected MR match not found'
+      : `completed=${correctedMatch.completed} score=${correctedMatch.score1}-${correctedMatch.score2}`);
+  } catch (err) {
+    log('TC-1083', 'FAIL', err instanceof Error ? err.message : 'MR correction flow failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
   }
@@ -1636,6 +1694,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     },
     tests: [
       { name: 'TC-602', fn: runTc602 },
+      { name: 'TC-1083', fn: runTc1083 },
       { name: 'TC-603', fn: runTc603 },
       { name: 'TC-608', fn: runTc608 },
       { name: 'TC-609', fn: runTc609 },
