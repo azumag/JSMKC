@@ -42,6 +42,14 @@ describe('finals-target-wins', () => {
     expect(getGpFinalsMaxCups({ round: 'grand_final' })).toBe(5);
   });
 
+  it('accepts match-shaped GP finals context objects for max cup counts', () => {
+    const winnersMatch = { id: 'm1', round: 'winners_sf', stage: 'finals', player1Id: 'p1', player2Id: 'p2' };
+    const grandFinalMatch = { id: 'm16', round: 'grand_final', stage: 'finals', player1Id: 'p1', player2Id: 'p2' };
+
+    expect(getGpFinalsMaxCups(winnersMatch)).toBe(3);
+    expect(getGpFinalsMaxCups(grandFinalMatch)).toBe(5);
+  });
+
   it('maps MR target wins to max round counts', () => {
     expect(getMrFinalsMaxRounds({ stage: 'playoff', round: 'playoff_r1' })).toBe(5);
     expect(getMrFinalsMaxRounds({ stage: 'playoff', round: 'playoff_r2' })).toBe(7);

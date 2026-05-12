@@ -545,7 +545,7 @@ export default function GrandPrixFinals({
           };
         })
       : [makeBlankCupForm(0, cup, match.assignedCups)];
-    const lockedCupCount = getGpFinalsMaxCups({ round: match.round, stage: match.stage ?? "finals" });
+    const lockedCupCount = getGpFinalsMaxCups(match);
     const forms = Array.from(
       { length: Math.max(savedForms.length, lockedCupCount) },
       (_, index) => savedForms[index] ?? makeBlankCupForm(index, cup, match.assignedCups),
@@ -1047,7 +1047,7 @@ export default function GrandPrixFinals({
                         {isRemovableCupForm(
                           cupIndex,
                           selectedMatch
-                            ? getGpFinalsMaxCups({ round: selectedMatch.round, stage: selectedMatch.stage ?? "finals" })
+                            ? getGpFinalsMaxCups(selectedMatch)
                             : 1,
                         ) && (
                           <Button
@@ -1060,7 +1060,7 @@ export default function GrandPrixFinals({
                               current,
                               cupIndex,
                               selectedMatch
-                                ? getGpFinalsMaxCups({ round: selectedMatch.round, stage: selectedMatch.stage ?? "finals" })
+                                ? getGpFinalsMaxCups(selectedMatch)
                                 : 1,
                             ))}
                           >
