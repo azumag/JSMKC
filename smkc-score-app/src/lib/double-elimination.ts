@@ -504,7 +504,7 @@ export function getNextMatchInfo(
   } else if (!isWinner && match.loserGoesTo) {
     return {
       nextMatchNumber: match.loserGoesTo,
-      position: match.loserPosition || 1,
+      position: match.loserPosition ?? 1,
     };
   }
 

@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 
 import type { Player } from "@/lib/types";
-import type { SeededPlayer } from "@/types/bracket";
+import type { BracketMatch, SeededPlayer } from "@/types/bracket";
 
 /** BM match data from the database including player relations */
 interface BMMatch {
@@ -47,21 +47,6 @@ interface BMMatch {
   completed: boolean;
   player1: Player;
   player2: Player;
-}
-
-/** Bracket structure definition for a single match position */
-interface BracketMatch {
-  matchNumber: number;
-  round: string;
-  bracket: "winners" | "losers" | "grand_final";
-  player1Seed?: number;
-  player2Seed?: number;
-  winnerGoesTo?: number;
-  loserGoesTo?: number;
-  /** Position in the receiving match (1 or 2), used for winner routing */
-  position?: 1 | 2;
-  /** Position in the receiving match (1 or 2), used for loser routing */
-  loserPosition?: 1 | 2;
 }
 
 /** Props for the main DoubleEliminationBracket component */
