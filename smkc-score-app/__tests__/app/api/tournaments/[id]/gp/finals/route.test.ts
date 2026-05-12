@@ -260,9 +260,14 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         .mockResolvedValueOnce([]);
 
       const resolvers: Array<(value: unknown) => void> = [];
+      let firstUpdateStarted!: () => void;
+      const firstUpdateStartedPromise = new Promise<void>((resolve) => {
+        firstUpdateStarted = resolve;
+      });
       (prisma.gPMatch as any).update = jest.fn().mockImplementation(() => (
         new Promise((resolve) => {
           resolvers.push(resolve);
+          if (resolvers.length === 1) firstUpdateStarted();
         })
       ));
 
@@ -276,9 +281,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const resultPromise = GET(request, { params });
 
-      await Promise.resolve();
-      await Promise.resolve();
-      await new Promise((resolve) => setImmediate(resolve));
+      await firstUpdateStartedPromise;
 
       const updateMock = (prisma.gPMatch as any).update as jest.Mock;
       expect(updateMock).toHaveBeenCalledTimes(4);
@@ -288,6 +291,37 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await resultPromise;
 
       expect(result.status).toBe(200);
+    });
+
+    it('should keep returning finals data when one assigned cup backfill update fails', async () => {
+      const mixedRoundMatches = [
+        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star', player1: {}, player2: {} },
+      ];
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce(mixedRoundMatches)
+        .mockResolvedValueOnce([]);
+
+      (prisma.gPMatch as any).update = jest.fn()
+        .mockResolvedValueOnce({})
+        .mockRejectedValueOnce(new Error('D1 update failed'));
+
+      (paginate as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
+      });
+      (generateBracketStructure as jest.Mock).mockReturnValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect((prisma.gPMatch as any).update).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith('Failed to backfill some GP assigned cup rows', {
+        failedWrites: 1,
+        totalWrites: 2,
+      });
     });
 
     it('should assign the same planned cup to every entirely null-cup playoff match in a round', async () => {
