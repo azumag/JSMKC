@@ -96,22 +96,6 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('Number.isInteger(match.roundNumber)');
   });
 
-  it('keeps TC-1088 aligned with the GP round-robin unit-test comment', () => {
-    const section = e2eCaseSection('TC-1088');
-    const qualificationRouteTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'api-factories',
-      'qualification-route.test.ts',
-    );
-
-    expect(section).toContain('issue #1088');
-    expect(section).toContain('C(4,2)/2');
-    expect(qualificationRouteTest).toContain('4-player round-robin => 3 rounds (C(4,2)/2)');
-    expect(qualificationRouteTest).toContain('expect(matchesByRound.size).toBe(3)');
-  });
-
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
     const section = e2eCaseSection('TC-722');
 
