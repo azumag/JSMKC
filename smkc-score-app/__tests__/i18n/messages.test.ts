@@ -32,12 +32,16 @@ describe('translation messages', () => {
     expect(enMessages.home).toEqual(expect.objectContaining({
       recommended: 'Recommended',
       recommendedDesc: 'Gear and references picked up by the paddock.',
+      recommendedProductName: 'Lenovo 14e Chromebook Gen 3 (Renewed)',
+      recommendedProductDesc: 'A compact ChromeOS laptop for tournament desks, stream checks, and score operations.',
       viewOnAmazon: 'View on Amazon',
       affiliateLabel: 'PR',
     }));
     expect(jaMessages.home).toEqual(expect.objectContaining({
       recommended: 'おすすめ',
       recommendedDesc: 'パドックが選ぶ機材・関連書籍。',
+      recommendedProductName: 'Lenovo 14e Chromebook Gen 3（整備済み品）',
+      recommendedProductDesc: '大会受付・配信確認・スコア運用に使いやすいコンパクトな ChromeOS ノート。',
       viewOnAmazon: 'Amazonで見る',
       affiliateLabel: 'PR',
     }));

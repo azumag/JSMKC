@@ -105,7 +105,7 @@ export default function Home() {
           >
             {t('recommended')}
           </h2>
-          <span className="text-[10px] font-mono tabular tracking-[0.18em] uppercase text-muted-foreground border border-foreground/20 px-1.5 py-0.5">
+          <span className="text-[10px] font-mono tabular-nums tracking-[0.18em] uppercase text-muted-foreground border border-foreground/20 px-1.5 py-0.5">
             {t('affiliateLabel')}
           </span>
         </header>
@@ -115,10 +115,16 @@ export default function Home() {
           rel="sponsored noopener noreferrer"
           className="block border border-foreground/15 bg-card p-5 transition-colors hover:border-foreground/40"
         >
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('recommendedProductName')}
+          </h3>
           <p className="text-sm text-foreground">
             {t('recommendedDesc')}
           </p>
-          <p className="mt-2 text-xs font-mono tabular tracking-[0.12em] uppercase text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t('recommendedProductDesc')}
+          </p>
+          <p className="mt-3 text-xs font-mono tabular-nums tracking-[0.12em] uppercase text-muted-foreground">
             {t('viewOnAmazon')} →
           </p>
         </a>
