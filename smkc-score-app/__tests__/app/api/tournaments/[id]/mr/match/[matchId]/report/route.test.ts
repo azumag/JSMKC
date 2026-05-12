@@ -81,7 +81,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
-import { checkScoreReportAuth, createScoreEntryLog, createCharacterUsageLog, isDualReportEnabled, validateCharacter } from '@/lib/api-factories/score-report-helpers';
+import { checkScoreReportAuth, createScoreEntryLog, createCharacterUsageLog, isDualReportEnabled, validateCharacter, recalculatePlayersStats } from '@/lib/api-factories/score-report-helpers';
 import { POST } from '@/app/api/tournaments/[id]/mr/match/[matchId]/report/route';
 
 const {
@@ -304,6 +304,59 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       expect(result).toEqual({
         data: { match: finalMatch, autoConfirmed: true },
         message: 'Scores confirmed and match completed',
+        status: 200,
+      });
+    });
+
+    it('should save a participant correction for a completed MR match', async () => {
+      const completedMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        version: 3,
+        completed: true,
+        score1: 3,
+        score2: 1,
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1ReportedPoints1: 3,
+        player1ReportedPoints2: 1,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+      const correctedMatch = {
+        ...completedMatch,
+        version: 4,
+        score1: 2,
+        score2: 2,
+        player1ReportedPoints1: 2,
+        player1ReportedPoints2: 2,
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce(completedMatch)
+        .mockResolvedValueOnce({ version: completedMatch.version });
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(correctedMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', { reportingPlayer: 1, score1: 2, score2: 2 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(prisma.mRMatch.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'm1', version: completedMatch.version },
+        data: expect.objectContaining({
+          score1: 2,
+          score2: 2,
+          completed: true,
+          player1ReportedPoints1: 2,
+          player1ReportedPoints2: 2,
+        }),
+      }));
+      expect(recalculatePlayersStats).toHaveBeenCalledWith(expect.any(Object), 't1', ['p1', 'p2']);
+      expect(result).toEqual({
+        data: { match: correctedMatch, corrected: true },
+        message: 'Score correction saved',
         status: 200,
       });
     });

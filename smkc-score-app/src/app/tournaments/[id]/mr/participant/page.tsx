@@ -43,6 +43,7 @@ export default function MatchRaceParticipantPage({
   const [reportingScores, setReportingScores] = useState<
     Record<string, { score1: number; score2: number }>
   >({});
+  const [editingCorrections, setEditingCorrections] = useState<Record<string, boolean>>({});
 
   const getInitialScores = (match: MRMatch) => {
     const isPlayer1 = match.player1.id === ctx.playerId;
@@ -101,6 +102,7 @@ export default function MatchRaceParticipantPage({
         delete next[match.id];
         return next;
       });
+      setEditingCorrections((prev) => ({ ...prev, [match.id]: false }));
       alert(getScoreReportSuccessMessage(data, {
         correctionSubmittedSuccess: tPart("correctionSubmittedSuccess"),
         scoresReportedSuccess: tPart("scoresReportedSuccess"),
@@ -108,6 +110,89 @@ export default function MatchRaceParticipantPage({
         scoresMismatchSubmitted: tPart("scoresMismatchSubmitted"),
       }));
     }
+  };
+
+  const renderScoreEditor = (match: MRMatch, title: string, submitLabel: string) => {
+    const scores = reportingScores[match.id] ?? getInitialScores(match);
+    const totalValid = scores.score1 + scores.score2 === 4;
+
+    return (
+      <div className="border-t pt-4">
+        <h4 className="font-medium mb-3">{title}</h4>
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="text-center min-w-0 max-w-[120px]">
+            <p className="text-sm mb-2 truncate">{match.player1.nickname}</p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-10 text-lg"
+                aria-label={`${match.player1.nickname} -1`}
+                onClick={() => adjustScore(match, "score1", -1)}
+              >
+                -
+              </Button>
+              <span className="text-3xl font-bold w-10 text-center">
+                {scores.score1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-10 text-lg"
+                aria-label={`${match.player1.nickname} +1`}
+                onClick={() => adjustScore(match, "score1", 1)}
+              >
+                +
+              </Button>
+            </div>
+          </div>
+          <span className="text-xl mt-6">-</span>
+          <div className="text-center min-w-0 max-w-[120px]">
+            <p className="text-sm mb-2 truncate">{match.player2.nickname}</p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-10 text-lg"
+                aria-label={`${match.player2.nickname} -1`}
+                onClick={() => adjustScore(match, "score2", -1)}
+              >
+                -
+              </Button>
+              <span className="text-3xl font-bold w-10 text-center">
+                {scores.score2}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-10 text-lg"
+                aria-label={`${match.player2.nickname} +1`}
+                onClick={() => adjustScore(match, "score2", 1)}
+              >
+                +
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <p className={`text-sm text-center mb-3 ${
+          !totalValid && (scores.score1 > 0 || scores.score2 > 0)
+            ? 'text-yellow-600' : 'invisible'
+        }`}>
+          {tMatch("totalMustEqual4")}
+        </p>
+
+        <Button
+          onClick={() => handleSubmitScore(match)}
+          disabled={ctx.submitting === match.id || !totalValid}
+          className="w-full"
+        >
+          {ctx.submitting === match.id
+            ? tMatch("submitting")
+            : submitLabel}
+        </Button>
+      </div>
+    );
   };
 
   return (
@@ -129,110 +214,77 @@ export default function MatchRaceParticipantPage({
       submitting={ctx.submitting}
       qualificationConfirmed={ctx.qualificationConfirmed}
       renderMatchForm={(match) => {
-        const scores = reportingScores[match.id] ?? getInitialScores(match);
-        const totalValid = scores.score1 + scores.score2 === 4;
-
+        return renderScoreEditor(
+          match,
+          hasOwnReport(match) ? tPart("editYourReport") : tPart("reportMatchResult"),
+          hasOwnReport(match) ? tPart("submitCorrection") : tPart("submitScores")
+        );
+      }}
+      renderPreviousReports={(match) => {
+        const p1reported = match.player1ReportedPoints1 != null;
+        const p2reported = match.player2ReportedPoints1 != null;
+        if (!p1reported && !p2reported && !match.completed) return null;
         return (
           <div className="border-t pt-4">
-            <h4 className="font-medium mb-3">
-              {hasOwnReport(match) ? tPart("editYourReport") : tPart("reportMatchResult")}
-            </h4>
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="text-center min-w-0 max-w-[120px]">
-                <p className="text-sm mb-2 truncate">{match.player1.nickname}</p>
-                <div className="flex items-center gap-1">
+            {(p1reported || p2reported) && (
+              <>
+                <h4 className="font-medium mb-2">{tPart("previousReports")}</h4>
+                <div className="space-y-2 text-sm">
+                  {p1reported && (
+                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                      <span>{tPart("playerReported", { player: match.player1.nickname })}</span>
+                      <span className="font-mono">{match.player1ReportedPoints1} - {match.player1ReportedPoints2}</span>
+                    </div>
+                  )}
+                  {p2reported && (
+                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                      <span>{tPart("playerReported", { player: match.player2.nickname })}</span>
+                      <span className="font-mono">{match.player2ReportedPoints1} - {match.player2ReportedPoints2}</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {match.completed && (
+              editingCorrections[match.id] ? (
+                <div className="mt-4 space-y-3">
+                  {renderScoreEditor(match, tPart("correctScore"), tPart("submitCorrection"))}
                   <Button
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    className="h-10 w-10 text-lg"
-                    aria-label={`${match.player1.nickname} -1`}
-                    onClick={() => adjustScore(match, "score1", -1)}
+                    className="w-full"
+                    onClick={() => {
+                      setEditingCorrections((prev) => ({ ...prev, [match.id]: false }));
+                      setReportingScores((prev) => {
+                        const next = { ...prev };
+                        delete next[match.id];
+                        return next;
+                      });
+                    }}
                   >
-                    -
-                  </Button>
-                  <span className="text-3xl font-bold w-10 text-center">
-                    {scores.score1}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-10 w-10 text-lg"
-                    aria-label={`${match.player1.nickname} +1`}
-                    onClick={() => adjustScore(match, "score1", 1)}
-                  >
-                    +
+                    {tPart("cancelCorrection")}
                   </Button>
                 </div>
-              </div>
-              <span className="text-xl mt-6">-</span>
-              <div className="text-center min-w-0 max-w-[120px]">
-                <p className="text-sm mb-2 truncate">{match.player2.nickname}</p>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-10 w-10 text-lg"
-                    aria-label={`${match.player2.nickname} -1`}
-                    onClick={() => adjustScore(match, "score2", -1)}
-                  >
-                    -
-                  </Button>
-                  <span className="text-3xl font-bold w-10 text-center">
-                    {scores.score2}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-10 w-10 text-lg"
-                    aria-label={`${match.player2.nickname} +1`}
-                    onClick={() => adjustScore(match, "score2", 1)}
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <p className={`text-sm text-center mb-3 ${
-              !totalValid && (scores.score1 > 0 || scores.score2 > 0)
-                ? 'text-yellow-600' : 'invisible'
-            }`}>
-              {tMatch("totalMustEqual4")}
-            </p>
-
-            <Button
-              onClick={() => handleSubmitScore(match)}
-              disabled={ctx.submitting === match.id || !totalValid}
-              className="w-full"
-            >
-              {ctx.submitting === match.id
-                ? tMatch("submitting")
-                : hasOwnReport(match) ? tPart("submitCorrection") : tPart("submitScores")}
-            </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full mt-4"
+                  onClick={() => {
+                    setReportingScores((prev) => ({
+                      ...prev,
+                      [match.id]: getInitialScores(match),
+                    }));
+                    setEditingCorrections((prev) => ({ ...prev, [match.id]: true }));
+                  }}
+                >
+                  {tPart("correctScore")}
+                </Button>
+              )
+            )}
           </div>
         );
       }}
-      renderPreviousReports={(match) =>
-        match.player1ReportedPoints1 !== undefined || match.player2ReportedPoints1 !== undefined ? (
-          <div className="border-t pt-4">
-            <h4 className="font-medium mb-2">{tPart("previousReports")}</h4>
-            <div className="space-y-2 text-sm">
-              {match.player1ReportedPoints1 !== undefined && (
-                <div className="flex justify-between p-2 bg-gray-50 rounded">
-                  <span>{tPart("playerReported", { player: match.player1.nickname })}</span>
-                  <span className="font-mono">{match.player1ReportedPoints1} - {match.player1ReportedPoints2}</span>
-                </div>
-              )}
-              {match.player2ReportedPoints1 !== undefined && (
-                <div className="flex justify-between p-2 bg-gray-50 rounded">
-                  <span>{tPart("playerReported", { player: match.player2.nickname })}</span>
-                  <span className="font-mono">{match.player2ReportedPoints1} - {match.player2ReportedPoints2}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null
-      }
     />
   );
 }
