@@ -36,6 +36,7 @@ describe('E2E case drift coverage', () => {
   it.each([
     ['TC-352', tcAll],
     ['TC-357', tcAll],
+    ['TC-702', tcGp],
     ['TC-717', tcGp],
     ['TC-722', tcGp],
     ['TC-1103', tcGp],
@@ -55,6 +56,21 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('**期待結果**');
     expect(section).toContain(`**スクリプト**:`);
     expect(scriptSource).toContain(`log('${tc}'`);
+  });
+
+  it('keeps TC-702 aligned with direct driver-points JsonNull reporting coverage', () => {
+    const section = sectionFor('TC-702');
+    const gpReportRouteTest = fs.readFileSync(
+      path.join(process.cwd(), '__tests__', 'app', 'api', 'tournaments', '[id]', 'gp', 'match', '[matchId]', 'report', 'route.test.ts'),
+      'utf8',
+    );
+
+    expect(section).toContain('issue #1099');
+    expect(section).toContain('`Prisma.JsonNull`');
+    expect(section).toContain('`expect.any(Object)`');
+    expect(tcGp).toContain("{ name: 'TC-702', fn: runTc702 }");
+    expect(gpReportRouteTest).toContain('player1ReportedRaces: Prisma.JsonNull');
+    expect(gpReportRouteTest).not.toContain('player1ReportedRaces: expect.any(Object)');
   });
 
   it('keeps TC-TA-FLOW-24 documented as the parent runnable for rank sub-coverage', () => {
