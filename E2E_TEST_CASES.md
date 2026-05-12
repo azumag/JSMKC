@@ -1399,7 +1399,8 @@
   4. issue #1472/#1473 の再発防止として、呼び出し元 UI の `totalValid` も hook から返る `requiredTotalScore` を参照し、`maxScorePerSide < requiredTotalScore` の valid/invalid 境界を unit test で固定する
   5. issue #1475/#1476/#1478 の再発防止として、テストヘルパーの `totalMustEqualMessage` は可変にし、`maxScorePerSide` は未使用の public return API として公開しない。static guard は return object を正規表現で検証し、インデントに依存しない
   6. issue #1480 の再発防止として、static guard は `return { ... }` 内にネストしたオブジェクトリテラルが先に来ても後続プロパティを見落とさないよう、TypeScript AST で hook の最上位 return object を抽出して検証する
-  7. 既存 UI シナリオは BM `TC-322` と MR `TC-1083` が担当し、共通化の構造は static/unit test で固定する
+  7. issue #1482 の再発防止として、return object helper は function declaration だけでなく arrow function と function expression の hook 形式も検査できる
+  8. 既存 UI シナリオは BM `TC-322` と MR `TC-1083` が担当し、共通化の構造は static/unit test で固定する
 - **期待結果**: BM/MR participant のスコア入力ロジックが共通フックで維持され、mode-specific な報告フィールド差分だけが各ページに残る
 - **スクリプト**: static guard `__tests__/static/tc-1082-shared-score-input.test.ts` + unit `__tests__/lib/hooks/useParticipantScoreInput.test.ts`
 
