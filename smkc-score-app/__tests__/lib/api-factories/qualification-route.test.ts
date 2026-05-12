@@ -32,7 +32,7 @@
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
-import { createQualificationHandlers } from '@/lib/api-factories/qualification-route';
+import { createQualificationHandlers, getAssignedCupForRound } from '@/lib/api-factories/qualification-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 import { EventTypeConfig } from '@/lib/event-types/types';
@@ -1007,6 +1007,21 @@ describe('Qualification Route Factory', () => {
         expect(new Set(cups).size).toBe(1);
         expect(cupList).toContain(cups[0]);
       }
+    });
+
+    it('rejects non-positive GP round numbers before cup assignment (#1087)', () => {
+      const shuffled = ['Mushroom', 'Flower', 'Star', 'Special'];
+
+      expect(() => getAssignedCupForRound(shuffled, 0)).toThrow(
+        'GP qualification roundNumber must be a positive integer: 0',
+      );
+      expect(() => getAssignedCupForRound(shuffled, -1)).toThrow(
+        'GP qualification roundNumber must be a positive integer: -1',
+      );
+      expect(() => getAssignedCupForRound(shuffled, 1.5)).toThrow(
+        'GP qualification roundNumber must be a positive integer: 1.5',
+      );
+      expect(getAssignedCupForRound(shuffled, 1)).toBe('Mushroom');
     });
 
     it('should assign unique cups while consuming the first GP qualification round deck', async () => {
