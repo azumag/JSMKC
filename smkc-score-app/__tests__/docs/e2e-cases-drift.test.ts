@@ -139,7 +139,10 @@ describe('E2E case drift coverage', () => {
     );
 
     expect(section).toContain('issue #1082');
+    expect(section).toContain('issue #1469/#1470');
     expect(section).toContain('useParticipantScoreInput');
+    expect(section).toContain('requiredTotalScore');
+    expect(section).toContain('maxScorePerSide');
     expect(section).toContain('TC-322');
     expect(section).toContain('TC-1083');
     expect(bmPage).toContain('useParticipantScoreInput<BMMatch>');
