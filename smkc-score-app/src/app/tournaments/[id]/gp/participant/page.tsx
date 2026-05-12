@@ -15,6 +15,7 @@ import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipan
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
 import { getMatchReportSuccessMessage } from "@/lib/participant-report-message";
 import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
+import { MAX_GP_DRIVER_POINTS } from "@/lib/constants";
 
 /** GP Match extends BaseMatch with GP-specific fields */
 interface GPMatch extends BaseMatch {
@@ -32,8 +33,6 @@ interface DriverPointInput {
   points1: string;
   points2: string;
 }
-
-const MAX_GP_DRIVER_POINTS = 45;
 
 function isValidDriverPointInput(value: string): boolean {
   if (!/^\d+$/.test(value)) return false;
