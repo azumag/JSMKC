@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import ts from 'typescript';
 
 const repoRoot = path.join(process.cwd(), '..');
 
@@ -50,4 +51,47 @@ export function e2eCaseSection(tc: string, source = e2eCases) {
   const next = source.slice(start + 1).search(/\n#{2,3} TC-/);
   const end = next === -1 ? source.length : start + 1 + next;
   return source.slice(start, end);
+}
+
+export function functionReturnObjectLiteral(source: string, functionName: string) {
+  const sourceFile = ts.createSourceFile(
+    'source.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+
+  let returnObject: ts.ObjectLiteralExpression | null = null;
+
+  function visit(node: ts.Node) {
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name?.text === functionName &&
+      node.body
+    ) {
+      for (const statement of [...node.body.statements].reverse()) {
+        if (
+          ts.isReturnStatement(statement) &&
+          statement.expression &&
+          ts.isObjectLiteralExpression(statement.expression)
+        ) {
+          returnObject = statement.expression;
+          return;
+        }
+      }
+    }
+
+    if (!returnObject) {
+      ts.forEachChild(node, visit);
+    }
+  }
+
+  visit(sourceFile);
+
+  if (!returnObject) {
+    throw new Error(`return object not found for function: ${functionName}`);
+  }
+
+  return returnObject.getText(sourceFile);
 }
