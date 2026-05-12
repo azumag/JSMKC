@@ -13,6 +13,7 @@
  *   TC-709  GP finals admin-only enforcement (403)
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
  *   TC-725  GP qualification cup deck avoids adjacent round repeats
+ *   TC-1087 GP qualification cup assignment uses positive one-based rounds
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
  *   TC-1103 GP finals upper bracket score-only cup-win save
@@ -209,6 +210,31 @@ async function runTc725(adminPage) {
       : '');
   } catch (err) {
     log('TC-725', 'FAIL', err instanceof Error ? err.message : 'GP 725 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-1087: GP qualification cups only use positive one-based rounds ───────── */
+async function runTc1087(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const data = await apiFetchGp(adminPage, setup.tournamentId);
+    const realMatches = (data.matches || []).filter((m) => !m.isBye);
+    const invalidRoundMatches = realMatches.filter((match) =>
+      !Number.isInteger(match.roundNumber) || match.roundNumber < 1
+    );
+    const missingCupMatches = realMatches.filter((match) => !match.cup);
+    const ok = realMatches.length > 0 && invalidRoundMatches.length === 0 && missingCupMatches.length === 0;
+
+    log('TC-1087', ok ? 'PASS' : 'FAIL',
+      realMatches.length === 0 ? 'no real GP qualification matches found'
+      : invalidRoundMatches.length > 0 ? `invalid roundNumber matches=${invalidRoundMatches.map((m) => m.matchNumber).join(',')}`
+      : missingCupMatches.length > 0 ? `missing cup matches=${missingCupMatches.map((m) => m.matchNumber).join(',')}`
+      : '');
+  } catch (err) {
+    log('TC-1087', 'FAIL', err instanceof Error ? err.message : 'GP 1087 failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -1675,6 +1701,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-701', fn: runTc701 },
       { name: 'TC-724', fn: runTc724 },
       { name: 'TC-725', fn: runTc725 },
+      { name: 'TC-1087', fn: runTc1087 },
       { name: 'TC-729', fn: runTc729 },
       { name: 'TC-703', fn: runTc703 },
       { name: 'TC-704', fn: runTc704 },
@@ -1707,7 +1734,7 @@ module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc727, runTc729, runTc719,
-  runTc720, runTc721, runTc722, runTc724, runTc725, runTc821, runTc831, runTc832,
+  runTc720, runTc721, runTc722, runTc724, runTc725, runTc1087, runTc821, runTc831, runTc832,
   gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult,
   getSuite,
   results,

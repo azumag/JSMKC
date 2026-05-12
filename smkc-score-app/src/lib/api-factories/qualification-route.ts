@@ -132,7 +132,10 @@ function getAssignedCoursesForRound(shuffled: string[], roundNumber: number): st
  * deck item 0. All groups and matches with the same round number therefore
  * share the same selected cup.
  */
-function getAssignedCupForRound(shuffled: string[], roundNumber: number): string {
+export function getAssignedCupForRound(shuffled: string[], roundNumber: number): string {
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) {
+    throw new Error(`GP qualification roundNumber must be a positive integer: ${roundNumber}`);
+  }
   return shuffled[(roundNumber - 1) % shuffled.length];
 }
 
