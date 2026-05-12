@@ -1,27 +1,12 @@
-import fs from 'fs';
-import path from 'path';
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
-
-const root = path.join(process.cwd(), '..');
-const casesPath = path.join(root, 'E2E_TEST_CASES.md');
-const cases = fs.readFileSync(casesPath, 'utf8');
+import { e2eCaseSection, readRepoFile } from '../helpers/e2e-cases';
 
 function readE2eScript(script: string) {
-  return fs.readFileSync(path.join(process.cwd(), 'e2e', script), 'utf8');
+  return readRepoFile('smkc-score-app', 'e2e', script);
 }
 
 function readE2eLib(script: string) {
-  return fs.readFileSync(path.join(process.cwd(), 'e2e', 'lib', script), 'utf8');
-}
-
-function sectionFor(tc: string) {
-  const heading = new RegExp(`^#{2,3} ${tc}:`, 'm');
-  const match = heading.exec(cases);
-  const start = match?.index ?? -1;
-  if (start === -1) throw new Error(`${tc} section not found`);
-  const next = cases.slice(start + 1).search(/\n#{2,3} TC-/);
-  const end = next === -1 ? cases.length : start + 1 + next;
-  return cases.slice(start, end);
+  return readRepoFile('smkc-score-app', 'e2e', 'lib', script);
 }
 
 describe('E2E case drift coverage', () => {
@@ -50,7 +35,7 @@ describe('E2E case drift coverage', () => {
     ['TC-926', tcOverlay],
     ['TC-TA-FLOW-24', tcTaFlow],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
-    const section = sectionFor(tc);
+    const section = e2eCaseSection(tc);
 
     expect(section).toContain('**手順**');
     expect(section).toContain('**期待結果**');
@@ -59,7 +44,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-702 aligned with direct driver-points JsonNull reporting coverage', () => {
-    const section = sectionFor('TC-702');
+    const section = e2eCaseSection('TC-702');
 
     expect(section).toContain('issue #1099/#1437');
     expect(section).toContain('`Prisma.JsonNull`');
@@ -69,7 +54,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-TA-FLOW-24 documented as the parent runnable for rank sub-coverage', () => {
-    const section = sectionFor('TC-TA-FLOW-24');
+    const section = e2eCaseSection('TC-TA-FLOW-24');
 
     expect(section).toContain('24名 TA');
     expect(section).toContain('TC-TA-FLOW-24-RANK');
@@ -78,7 +63,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
-    const section = sectionFor('TC-717');
+    const section = e2eCaseSection('TC-717');
 
     expect(section).toContain('assignedCups');
     expect(section).toContain('FT2 相当');
@@ -101,7 +86,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-1087 aligned with finite positive round-number guards', () => {
-    const section = sectionFor('TC-1087');
+    const section = e2eCaseSection('TC-1087');
 
     expect(section).toContain('有限な正の1始まり整数');
     expect(section).toContain('NaN');
@@ -112,7 +97,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
-    const section = sectionFor('TC-722');
+    const section = e2eCaseSection('TC-722');
 
     expect(section).toContain('completed=true');
     expect(section).toContain('FT数を再計算せず');
@@ -125,7 +110,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-1109 aligned with direct GP max-cups usage', () => {
-    const section = sectionFor('TC-1109');
+    const section = e2eCaseSection('TC-1109');
 
     expect(section).toContain('getGpFinalsMaxCups');
     expect(section).toContain('getLockedCupCountForMatch');
@@ -140,7 +125,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-1098 aligned with shared GP driver-points max usage', () => {
-    const section = sectionFor('TC-1098');
+    const section = e2eCaseSection('TC-1098');
 
     expect(section).toContain('MAX_GP_DRIVER_POINTS');
     expect(section).toContain('src/lib/constants.ts');
@@ -158,7 +143,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-1106 aligned with GP manual driver-points input bounds', () => {
-    const section = sectionFor('TC-1106');
+    const section = e2eCaseSection('TC-1106');
 
     expect(section).toContain('parseGpDriverPointsInput');
     expect(section).toContain('MAX_GP_DRIVER_POINTS');
@@ -176,7 +161,7 @@ describe('E2E case drift coverage', () => {
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(
     'keeps %s documented as runnable focused debug-fill coverage',
     (tc) => {
-      const section = sectionFor(tc);
+      const section = e2eCaseSection(tc);
 
       expect(section).toContain(`tc-debug-fill.js ${tc}`);
       expect(section).toContain('npm run e2e:preview:debug-fill');
@@ -196,17 +181,18 @@ describe('E2E case drift coverage', () => {
     ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
     ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
     ['TC-1090-1091', 'n/a (static/unit coverage)', 'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts'],
+    ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
     ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
   ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
-    const section = sectionFor(tc);
+    const section = e2eCaseSection(tc);
 
     expect(section).toContain(marker);
     expect(section).toContain(coverage);
   });
 
   it('keeps TC-1090-1091 aligned with overall-ranking static and unit coverage', () => {
-    const section = sectionFor('TC-1090-1091');
+    const section = e2eCaseSection('TC-1090-1091');
 
     expect(section).toContain('issue #1090/#1091');
     expect(section).toContain('Record<MatchQualificationModel');
@@ -214,8 +200,16 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/lib/points/overall-ranking.test.ts');
   });
 
+  it('keeps TC-1451-1452 aligned with the shared E2E case helper coverage', () => {
+    const section = e2eCaseSection('TC-1451-1452');
+
+    expect(section).toContain('issue #1451/#1452');
+    expect(section).toContain('__tests__/helpers/e2e-cases.ts');
+    expect(section).toContain('個別 finder の実装文字列には依存しない');
+  });
+
   it('keeps TC-111 aligned with the preview D1 columns that fail GP finals before browser launch', () => {
-    const section = sectionFor('TC-111');
+    const section = e2eCaseSection('TC-111');
 
     expect(section).toContain('Tournament.publicModes');
     expect(section).toContain('GPMatch.assignedCups');
@@ -225,7 +219,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
-    const section = sectionFor('TC-534');
+    const section = e2eCaseSection('TC-534');
 
     expect(section).toContain('playoff_r2');
     expect(section).toContain('winner 不定');
@@ -237,7 +231,7 @@ describe('E2E case drift coverage', () => {
   });
 
   it('documents TC-535 as BM Top-24 qualification label coverage', () => {
-    const section = sectionFor('TC-535');
+    const section = e2eCaseSection('TC-535');
 
     expect(section).toContain('qualificationRankLabel');
     expect(section).toContain('buildQualificationRankLabelMap');
