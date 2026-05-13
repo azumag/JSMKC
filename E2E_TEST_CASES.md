@@ -771,10 +771,10 @@
 - **手順**:
   1. 新規トーナメントを作成
   2. GET → `{ player1Name, player2Name, matchLabel, player1Wins, player2Wins, matchFt, layout }` の形状が返ること（初期値は空文字/null/default 座標）
-  3. 管理者として PUT `{ player1Name: '1P-Alice', player2Name: '2P-Bob', matchLabel: 'QF1', player1Wins: 2, player2Wins: 1, matchFt: 5, layout: { ...座標 } }` → 200。レスポンス body は API 向け `player1Wins/player2Wins` のみを返し、DB カラム名 `overlayPlayer1Wins/overlayPlayer2Wins` を含まないこと
+  3. 管理者として PUT `{ player1Name: '1P-Alice', player2Name: '2P-Bob', matchLabel: 'QF1', player1Wins: 2, player2Wins: 1, matchFt: 5, layout: { ...座標 } }` → 200。レスポンス body は API 向け `matchLabel/player1Wins/player2Wins/matchFt` のみを返し、DB カラム名 `overlayMatchLabel/overlayPlayer1Wins/overlayPlayer2Wins/overlayMatchFt` を含まないこと
   4. GET → PUT した値が永続化されていること
-  5. PUT `{ matchLabel: null }` → フィールドがクリアされること（200）
-  6. PUT `{ player1Wins: null, player2Wins: null }` → レスポンス body と再取得 GET の両方で 1P/2P 勝利数が null にクリアされ、レスポンス body に `overlayPlayer1Wins/overlayPlayer2Wins` が含まれないこと（200）
+  5. PUT `{ matchLabel: null }` → フィールドがクリアされ、レスポンス body に `overlayMatchLabel/overlayMatchFt` を含まないこと（200）
+  6. PUT `{ player1Wins: null, player2Wins: null }` → レスポンス body と再取得 GET の両方で 1P/2P 勝利数が null にクリアされ、レスポンス body に `overlayMatchLabel/overlayPlayer1Wins/overlayPlayer2Wins/overlayMatchFt` が含まれないこと（200）
   7. OBS 1920×1080 キャンバス外の `layout` 座標は 400 で拒否されること
 - **期待結果**: GET は正しい形状を返し、PUT は値を永続化・クリアできる
 - **スクリプト**: tc-all.js TC-354

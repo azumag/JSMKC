@@ -3806,9 +3806,15 @@ async function main() {
 
       // Persistence is verified by the subsequent GET; body shape varies by implementation
       const putOk = putResp.s === 200;
+      const hasNoInternalBroadcastFields = (data) => (
+        data &&
+        !('overlayMatchLabel' in data) &&
+        !('overlayPlayer1Wins' in data) &&
+        !('overlayPlayer2Wins' in data) &&
+        !('overlayMatchFt' in data)
+      );
       const putResponsePublicShape = (
-        !('overlayPlayer1Wins' in putResp.data) &&
-        !('overlayPlayer2Wins' in putResp.data) &&
+        hasNoInternalBroadcastFields(putResp.data) &&
         putResp.data.player1Wins === 2 &&
         putResp.data.player2Wins === 1
       );
@@ -3840,9 +3846,14 @@ async function main() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ matchLabel: null }),
         });
-        return { s: r.status };
+        const j = await r.json().catch(() => ({}));
+        return { s: r.status, data: j.data ?? j };
       }, tc354TournamentId);
-      const clearOk = putClear.s === 200;
+      const clearOk = (
+        putClear.s === 200 &&
+        putClear.data.matchLabel === null &&
+        hasNoInternalBroadcastFields(putClear.data)
+      );
 
       // PUT with null clears both score fields.
       const putClearWins = await page.evaluate(async (tid) => {
@@ -3864,8 +3875,7 @@ async function main() {
         putClearWins.s === 200 &&
         putClearWins.data.player1Wins === null &&
         putClearWins.data.player2Wins === null &&
-        !('overlayPlayer1Wins' in putClearWins.data) &&
-        !('overlayPlayer2Wins' in putClearWins.data) &&
+        hasNoInternalBroadcastFields(putClearWins.data) &&
         getAfterClearWins.s === 200 &&
         getAfterClearWins.data.player1Wins === null &&
         getAfterClearWins.data.player2Wins === null

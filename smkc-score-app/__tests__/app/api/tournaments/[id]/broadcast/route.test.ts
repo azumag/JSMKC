@@ -223,10 +223,16 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
       mockParams('t1'),
     );
 
+    expect(prisma.tournament.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ overlayMatchLabel: null }),
+      }),
+    );
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
       data: { matchLabel: null },
     });
+    expectNoInternalBroadcastFields((NextResponse.json as jest.Mock).mock.calls[0][0].data);
   });
 
   it('clears player1 wins when null is passed', async () => {
