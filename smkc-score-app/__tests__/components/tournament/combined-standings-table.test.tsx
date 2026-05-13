@@ -21,6 +21,20 @@ describe("CombinedStandingsTable", () => {
     qualificationPoints: "QP",
   };
 
+  function cellsByHeader(row: HTMLTableRowElement) {
+    const table = row.closest("table");
+    expect(table).not.toBeNull();
+
+    const headers = within(table!).getAllByRole("columnheader").map((header) => {
+      const text = header.textContent?.trim();
+      expect(text).toBeTruthy();
+      return text!;
+    });
+    const cells = within(row).getAllByRole("cell");
+
+    return Object.fromEntries(headers.map((header, index) => [header, cells[index]]));
+  }
+
   it("renders shared BM/MR combined standings rows", () => {
     render(
       <CombinedStandingsTable
@@ -61,16 +75,20 @@ describe("CombinedStandingsTable", () => {
 
     const marioRow = screen.getByText("Mario").closest("tr");
     expect(marioRow).not.toBeNull();
-    expect(within(marioRow!).getAllByText("1")).toHaveLength(2);
-    expect(within(marioRow!).getByText("Group A")).toBeInTheDocument();
-    expect(within(marioRow!).getByText("+5")).toBeInTheDocument();
-    expect(within(marioRow!).getByText("50")).toBeInTheDocument();
+    const marioCells = cellsByHeader(marioRow!);
+    expect(marioCells["#"]).toHaveTextContent("1");
+    expect(marioCells["W"]).toHaveTextContent("2");
+    expect(marioCells["T"]).toHaveTextContent("1");
+    expect(marioCells.Group).toHaveTextContent("Group A");
+    expect(marioCells["+/-"]).toHaveTextContent("+5");
+    expect(marioCells.QP).toHaveTextContent("50");
 
     const luigiRow = screen.getByText("Luigi").closest("tr");
     expect(luigiRow).not.toBeNull();
-    expect(within(luigiRow!).getByText("Group B")).toBeInTheDocument();
-    expect(within(luigiRow!).getByText("-3")).toBeInTheDocument();
-    expect(within(luigiRow!).getByText("20")).toBeInTheDocument();
+    const luigiCells = cellsByHeader(luigiRow!);
+    expect(luigiCells.Group).toHaveTextContent("Group B");
+    expect(luigiCells["+/-"]).toHaveTextContent("-3");
+    expect(luigiCells.QP).toHaveTextContent("20");
   });
 
   it("renders zero points without a plus sign", () => {
@@ -99,7 +117,10 @@ describe("CombinedStandingsTable", () => {
     const peachRow = screen.getByText("Peach").closest("tr");
     expect(peachRow).not.toBeNull();
     expect(within(peachRow!).queryByText("+0")).not.toBeInTheDocument();
-    expect(within(peachRow!).getAllByText("0")).toHaveLength(7);
+    const peachCells = cellsByHeader(peachRow!);
+    expect(peachCells["+/-"]).toHaveTextContent("0");
+    expect(peachCells.Pts).toHaveTextContent("0");
+    expect(peachCells.QP).toHaveTextContent("0");
   });
 
   it("renders no data rows when rankings is empty", () => {
