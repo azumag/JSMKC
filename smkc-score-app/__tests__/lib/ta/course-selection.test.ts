@@ -175,6 +175,52 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
     expect(getAvailableCourses(played)).not.toContain("KB1");
   });
 
+  it("keeps a Phase1 sudden-death course unavailable at Phase2 start", async () => {
+    const prisma = {
+      tTPhaseRound: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "p1-r1",
+            phase: "phase1",
+            roundNumber: 1,
+            course: "MC1",
+            suddenDeathRounds: [
+              { id: "sd1", course: "KB1" },
+            ],
+          },
+          {
+            id: "p1-r2",
+            phase: "phase1",
+            roundNumber: 2,
+            course: "DP1",
+            suddenDeathRounds: [],
+          },
+          {
+            id: "p1-r3",
+            phase: "phase1",
+            roundNumber: 3,
+            course: "GV1",
+            suddenDeathRounds: [],
+          },
+          {
+            id: "p1-r4",
+            phase: "phase1",
+            roundNumber: 4,
+            course: "BC1",
+            suddenDeathRounds: [],
+          },
+        ]),
+      },
+    };
+
+    const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase2");
+    const available = getAvailableCourses(played);
+
+    expect(played).toEqual(["MC1", "KB1", "DP1", "GV1", "BC1"]);
+    expect(available).toHaveLength(15);
+    expect(available).not.toContain("KB1");
+  });
+
   it("excludes an unresolved sudden-death round when changing that course", async () => {
     const prisma = {
       tTPhaseRound: {
