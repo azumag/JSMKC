@@ -3845,7 +3845,8 @@ async function main() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ player1Wins: null, player2Wins: null }),
         });
-        return { s: r.status };
+        const j = await r.json().catch(() => ({}));
+        return { s: r.status, data: j.data ?? j };
       }, tc354TournamentId);
 
       const getAfterClearWins = await page.evaluate(async (tid) => {
@@ -3855,6 +3856,8 @@ async function main() {
       }, tc354TournamentId);
       const clearWinsOk = (
         putClearWins.s === 200 &&
+        putClearWins.data.player1Wins === null &&
+        putClearWins.data.player2Wins === null &&
         getAfterClearWins.s === 200 &&
         getAfterClearWins.data.player1Wins === null &&
         getAfterClearWins.data.player2Wins === null

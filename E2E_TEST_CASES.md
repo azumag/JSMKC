@@ -774,7 +774,7 @@
   3. 管理者として PUT `{ player1Name: '1P-Alice', player2Name: '2P-Bob', matchLabel: 'QF1', player1Wins: 2, player2Wins: 1, matchFt: 5, layout: { ...座標 } }` → 200
   4. GET → PUT した値が永続化されていること
   5. PUT `{ matchLabel: null }` → フィールドがクリアされること（200）
-  6. PUT `{ player1Wins: null, player2Wins: null }` → 1P/2P 勝利数が null にクリアされること（200）
+  6. PUT `{ player1Wins: null, player2Wins: null }` → レスポンス body と再取得 GET の両方で 1P/2P 勝利数が null にクリアされること（200）
   7. OBS 1920×1080 キャンバス外の `layout` 座標は 400 で拒否されること
 - **期待結果**: GET は正しい形状を返し、PUT は値を永続化・クリアできる
 - **スクリプト**: tc-all.js TC-354
