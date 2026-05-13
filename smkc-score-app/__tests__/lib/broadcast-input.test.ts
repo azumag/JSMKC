@@ -1,4 +1,5 @@
 import {
+  invalidBroadcastIntegerInputLabels,
   isBroadcastIntegerInputValid,
   nullableBroadcastIntegerInput,
 } from '@/lib/broadcast-input';
@@ -30,5 +31,15 @@ describe('isBroadcastIntegerInputValid', () => {
     ['Infinity', false],
   ])('reports "%s" validity as %s', (value, expected) => {
     expect(isBroadcastIntegerInputValid(value)).toBe(expected);
+  });
+});
+
+describe('invalidBroadcastIntegerInputLabels', () => {
+  it('returns all invalid field labels in display order', () => {
+    expect(invalidBroadcastIntegerInputLabels([
+      { label: '1P 点数', value: '1.5' },
+      { label: '2P 点数', value: '-1' },
+      { label: 'FT', value: '3' },
+    ])).toEqual(['1P 点数', '2P 点数']);
   });
 });
