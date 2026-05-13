@@ -2517,6 +2517,7 @@
   3. 該当 round の `eliminatedIds` を `[player-a, player-b]` にする
   4. `/api/tournaments/[temp-id]/ta/phases?phase=phase3` の表示用 entries 並び順を取得する
 - **期待結果**: active player が先頭になり、同一ラウンド・同一タイムの脱落者は `eliminatedIds` の先頭 `player-a`、次に `player-b` の順に並ぶ
+- **備考**: route test の fixture は `totalTime` / `rank` を意図的に `eliminatedIds` 順と逆向きにし、同一ラウンド・同一タイムでは fallback の qualification fields ではなく `eliminatedIds` index が使われることを固定する
 - **スクリプト**: smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts
 
 ## TC-809: TA Phase 1 で未提出ラウンドをキャンセルできる

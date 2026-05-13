@@ -111,6 +111,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('同一ラウンド');
     expect(section).toContain('同じ `timeMs`');
     expect(section).toContain('eliminatedIds');
+    expect(section).toContain('totalTime');
+    expect(section).toContain('rank');
+    expect(section).toContain('fallback の qualification fields ではなく `eliminatedIds` index');
     expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts');
 
     const routeCase = sectionBetween(
@@ -120,6 +123,7 @@ describe('E2E case drift coverage', () => {
     );
     expect(routeCase).toContain('player-eliminated-first');
     expect(routeCase).toContain('player-eliminated-second');
+    expect(routeCase).toContain('Keep totalTime/rank intentionally opposite to eliminatedIds order');
     expect(routeCase).toContain("eliminatedIds: ['player-eliminated-first', 'player-eliminated-second']");
     expect(routeCase).toContain('timeMs: 88000');
     const anchorIdx = routeCase.indexOf('expect(call.data.entries.map');
