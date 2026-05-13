@@ -1428,6 +1428,71 @@ async function main() {
     } else { log('TC-305', 'SKIP', 'No update button'); }
   } else { log('TC-305', 'SKIP', 'No edit button'); }
 
+  // TC-1075: BM group setup dialog applies 4-group serpentine seeding in UI
+  {
+    let tc1075TournamentId = null;
+    const createdPlayers1075 = [];
+    try {
+      const existingPlayers = await page.evaluate(async () => {
+        const r = await fetch('/api/players?limit=100');
+        const j = await r.json();
+        return (j.data || []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          nickname: p.nickname,
+        }));
+      });
+      const players1075 = existingPlayers.slice(0, 8);
+      for (let i = players1075.length; i < 8; i++) {
+        const suffix = `${Date.now()}_${i}`;
+        const created = await uiCreatePlayer(page, `E2E Seed ${i + 1}`, `e2e_seed_${suffix}`);
+        players1075.push(created);
+        createdPlayers1075.push(created.id);
+      }
+
+      tc1075TournamentId = await uiCreateTournament(page, `TC-1075-seeding-${Date.now()}`);
+      await uiActivateTournament(page, tc1075TournamentId);
+
+      await setupModePlayersViaUi(page, 'bm', tc1075TournamentId, players1075, { groupCount: 4 });
+
+      const bm1075 = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        const j = await r.json();
+        return j.data || j;
+      }, `/api/tournaments/${tc1075TournamentId}/bm`);
+      const qualifications = bm1075.qualifications || [];
+      const groupBySeed = new Map(qualifications.map((q) => [q.seeding, q.group]));
+      const counts = qualifications.reduce((acc, q) => {
+        acc[q.group] = (acc[q.group] || 0) + 1;
+        return acc;
+      }, {});
+      const expectedGroups = {
+        1: 'A',
+        2: 'B',
+        3: 'C',
+        4: 'D',
+        5: 'D',
+        6: 'C',
+        7: 'B',
+        8: 'A',
+      };
+      const seedsMatch = Object.entries(expectedGroups).every(([seed, group]) => groupBySeed.get(Number(seed)) === group);
+      const balanced = ['A', 'B', 'C', 'D'].every((group) => counts[group] === 2);
+      log('TC-1075', seedsMatch && balanced ? 'PASS' : 'FAIL',
+        !seedsMatch ? `groups=${JSON.stringify(Object.fromEntries(groupBySeed))}` :
+        !balanced ? `counts=${JSON.stringify(counts)}` : '');
+    } catch (e) {
+      log('TC-1075', 'FAIL', e.message);
+    } finally {
+      if (tc1075TournamentId) {
+        await deleteTournament(page, tc1075TournamentId);
+      }
+      for (const playerId of createdPlayers1075) {
+        await deletePlayer(page, playerId);
+      }
+    }
+  }
+
   // TC-315: BM group setup with odd player count (3 players) must not return 500
   // Regression test for FK violation when player2Id='__BREAK__' (BYE match sentinel)
   {

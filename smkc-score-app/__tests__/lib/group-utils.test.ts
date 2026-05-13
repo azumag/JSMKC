@@ -45,6 +45,27 @@ describe('assignGroupsBySeeding', () => {
     expect(result.filter(p => p.group === 'D').map(p => p.seeding)).toEqual([4, 5, 12, 13]);
   });
 
+  it('should place seed 5 in group D when 8 players are split into 4 groups', () => {
+    const players: SetupPlayer[] = Array.from({ length: 8 }, (_, i) => ({
+      playerId: `p${i + 1}`,
+      group: 'A',
+      seeding: i + 1,
+    }));
+
+    const result = assignGroupsBySeeding(players, 4);
+
+    expect(Object.fromEntries(result.map(p => [p.seeding, p.group]))).toEqual({
+      1: 'A',
+      2: 'B',
+      3: 'C',
+      4: 'D',
+      5: 'D',
+      6: 'C',
+      7: 'B',
+      8: 'A',
+    });
+  });
+
   it('should distribute players to 2 groups using serpentine balance', () => {
     const players: SetupPlayer[] = Array.from({ length: 6 }, (_, i) => ({
       playerId: `p${i + 1}`,

@@ -1528,9 +1528,11 @@ async function selectGroupPlayer(dialog, player) {
  *  - Clears any existing selection (so re-running on an already-configured
  *    tournament is idempotent)
  *  - Selects each provided player by nickname+name label
- *  - Sets group count = 2, fills seeding 1..N, clicks Distribute by Seed
+ *  - Sets group count, fills seeding 1..N, clicks Distribute by Seed
  *  - Saves and waits for the POST response to return 201 */
-async function setupModePlayersViaUi(page, mode, tournamentId, players) {
+async function setupModePlayersViaUi(page, mode, tournamentId, players, options = {}) {
+  const targetGroupCount = options.groupCount ?? 2;
+  const shouldDistributeBySeed = options.distributeBySeed ?? players.length >= 4;
   await nav(page, `/tournaments/${tournamentId}/${mode}`);
   const trigger = page.getByRole('button', { name: /Setup Groups|Edit Groups|グループ設定|グループ編集/ });
   await trigger.first().click();
@@ -1543,11 +1545,14 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players) {
     await selectGroupPlayer(dialog, player);
   }
 
-  /* Force product-default group count of 2 regardless of dialog-inferred
-   * state. Safe for every player count because distribute is gated below. */
-  await dialog.getByRole('button', { name: /^2$/ }).click();
+  if (players.length >= 4 || options.groupCount !== undefined) {
+    /* Force product-default group count of 2 unless the caller is explicitly
+     * exercising another setup shape. Pair tests with 2 players rely on the
+     * dialog default group rather than a split A/B setup. */
+    await dialog.getByRole('button', { name: new RegExp(`^${targetGroupCount}$`) }).click();
+  }
 
-  if (players.length >= 4) {
+  if (shouldDistributeBySeed) {
     /* Only distribute by seed when we have ≥4 players (≥2 per group), so
      * round-robin actually produces matches. Pair tests (2 players) rely on
      * the dialog default: both players land in availableGroups[0]='A' via
