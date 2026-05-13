@@ -32,7 +32,7 @@ export interface ScorePointsEntry {
   points: number;
 }
 
-export function compareByScoreThenPoints<T extends ScorePointsEntry>(a: T, b: T): number {
+export function compareByScoreThenPoints(a: ScorePointsEntry, b: ScorePointsEntry): number {
   return b.score - a.score || b.points - a.points;
 }
 

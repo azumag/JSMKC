@@ -76,4 +76,13 @@ describe('TC-1063 combined standings memoization guard', () => {
     expect(bmSource).not.toContain('compareBmQualificationEntries');
     expect(mrSource).not.toContain('compareMrQualificationEntries');
   });
+
+  it('keeps the shared comparator signature non-generic', () => {
+    const rankingUtils = readRepoFile('smkc-score-app', 'src', 'lib', 'ranking-utils.ts');
+
+    expect(rankingUtils).toContain(
+      'export function compareByScoreThenPoints(a: ScorePointsEntry, b: ScorePointsEntry): number',
+    );
+    expect(rankingUtils).not.toContain('compareByScoreThenPoints<T extends ScorePointsEntry>');
+  });
 });
