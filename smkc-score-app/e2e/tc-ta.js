@@ -178,12 +178,8 @@ async function submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase,
   return submitTaPhaseRound(adminPage, tournamentId, phase, course, results);
 }
 
-function phaseCourseLabel(phase, course) {
-  return course ? `${phase} ${course}` : phase;
-}
-
 async function submitTaPhaseRound(adminPage, tournamentId, phase, course, results) {
-  const label = phaseCourseLabel(phase, course);
+  const label = course ? `${phase} ${course}` : phase;
   const startPayload = { action: 'start_round', phase };
   if (course) startPayload.course = course;
 
@@ -1755,7 +1751,6 @@ module.exports = {
   getSuite,
   results,
   __testHooks: {
-    submitTaPhaseRound,
     submitTaPhaseRoundByApi,
     submitTaPhaseRoundWithCourseByApi,
   },

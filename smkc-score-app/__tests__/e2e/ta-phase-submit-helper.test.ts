@@ -25,6 +25,17 @@ function createMockAdminPage(roundNumber = 7) {
 }
 
 describe('TA E2E phase round submission helper', () => {
+  it('only exposes public helper paths through test hooks', async () => {
+    const { __testHooks } = await import('../../e2e/tc-ta.js') as {
+      __testHooks: Record<string, unknown>;
+    };
+
+    expect(Object.keys(__testHooks).sort()).toEqual([
+      'submitTaPhaseRoundByApi',
+      'submitTaPhaseRoundWithCourseByApi',
+    ]);
+  });
+
   it('keeps automatic-course phase submissions on the shared start/submit helper', async () => {
     const { __testHooks } = await import('../../e2e/tc-ta.js') as {
       __testHooks: {
