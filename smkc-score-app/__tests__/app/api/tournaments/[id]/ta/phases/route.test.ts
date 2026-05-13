@@ -623,6 +623,65 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       ]);
     });
 
+    it('uses eliminatedIds order as the tiebreaker for same-round same-time eliminations', async () => {
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([
+        {
+          ...mockEntries[0],
+          id: 'entry-eliminated-second',
+          playerId: 'player-eliminated-second',
+          lives: 0,
+          eliminated: true,
+          totalTime: 45000,
+          rank: 1,
+          player: { ...mockEntries[0].player, id: 'player-eliminated-second', nickname: 'second-out' },
+        },
+        {
+          ...mockEntries[0],
+          id: 'entry-eliminated-first',
+          playerId: 'player-eliminated-first',
+          lives: 0,
+          eliminated: true,
+          totalTime: 90000,
+          rank: 4,
+          player: { ...mockEntries[0].player, id: 'player-eliminated-first', nickname: 'first-out' },
+        },
+        {
+          ...mockEntries[0],
+          id: 'entry-active',
+          playerId: 'player-active',
+          lives: 2,
+          eliminated: false,
+          totalTime: 80000,
+          rank: 3,
+          player: { ...mockEntries[0].player, id: 'player-active', nickname: 'active' },
+        },
+      ]);
+      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'round-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'MC1',
+          results: [
+            { playerId: 'player-eliminated-second', timeMs: 88000, isRetry: false },
+            { playerId: 'player-eliminated-first', timeMs: 88000, isRetry: false },
+          ],
+          eliminatedIds: ['player-eliminated-first', 'player-eliminated-second'],
+          livesReset: false,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ]);
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      expect(call.data.entries.map((entry: { playerId: string }) => entry.playerId)).toEqual([
+        'player-active',
+        'player-eliminated-first',
+        'player-eliminated-second',
+      ]);
+    });
+
     it('keeps orphaned eliminated entries after round-backed eliminations', async () => {
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([
         {
