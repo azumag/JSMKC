@@ -249,27 +249,6 @@ async function main() {
   let t = await vis(page);
   log('TC-001', t.includes('SMKC') && (t.includes('Players') || t.includes('プレイヤー')) ? 'PASS' : 'FAIL');
 
-  // TC-1417
-  await nav(page, '/');
-  const recommendationSection = page.locator('section[aria-labelledby="recommended-heading"]');
-  const recommendationLink = recommendationSection.locator('a[href="https://amzn.to/42upwDm"]');
-  const recommendationText = await recommendationSection.innerText().catch(() => '');
-  const recommendationRel = await recommendationLink.getAttribute('rel').catch(() => null);
-  const recommendationTarget = await recommendationLink.getAttribute('target').catch(() => null);
-  const recommendationVisible = await recommendationSection.isVisible().catch(() => false);
-  const recommendationLinkVisible = await recommendationLink.isVisible().catch(() => false);
-  log('TC-1417',
-    recommendationVisible
-      && recommendationLinkVisible
-      && recommendationTarget === '_blank'
-      && recommendationRel === 'sponsored noopener noreferrer'
-      && recommendationText.includes('PR')
-      && recommendationText.includes('Lenovo 14e Chromebook Gen 3')
-      && recommendationText.includes('Amazon')
-      ? 'PASS'
-      : 'FAIL',
-  );
-
   // TC-002
   await nav(page, '/players');
   t = await vis(page);

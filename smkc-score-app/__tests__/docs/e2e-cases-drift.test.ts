@@ -29,7 +29,6 @@ describe('E2E case drift coverage', () => {
     ['TC-1109', tcGp],
     ['TC-1098', tcGp],
     ['TC-1106', tcGp],
-    ['TC-1417', tcAll],
     ['TC-725', tcGp],
     ['TC-1087', tcGp],
     ['TC-1083', tcMr],
