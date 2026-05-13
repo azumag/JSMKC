@@ -80,16 +80,26 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-1068 aligned with orphan eliminated-entry ordering coverage', () => {
     const section = e2eCaseSection('TC-1068');
 
+    // Keep the doc assertions intentionally narrow: TC prose can change as long as
+    // it still links the issue to the executable API route coverage.
     expect(section).toContain('issue #1068');
-    expect(section).toContain('`eliminatedIds`');
-    expect(section).toContain('orphan player');
-    expect(section).toContain('fallback round `-1`');
     expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts');
-    expect(taPhasesRouteTest).toContain('keeps orphaned eliminated entries after round-backed eliminations');
-    expect(taPhasesRouteTest).toContain('player-orphan-eliminated');
-    expect(taPhasesRouteTest).toContain("'player-eliminated-late'");
-    expect(taPhasesRouteTest).toContain("'player-eliminated-early'");
-    expect(taPhasesRouteTest).toContain("'player-orphan-eliminated'");
+    const routeCase = sectionBetween(
+      taPhasesRouteTest,
+      "it('keeps orphaned eliminated entries after round-backed eliminations'",
+      "it('should query rounds with correct phase filter'",
+    );
+    expect(routeCase).toContain('player-orphan-eliminated');
+    const orderAssertion = routeCase.slice(routeCase.indexOf('expect(call.data.entries.map'));
+    const expectedOrder = [
+      "'player-active'",
+      "'player-eliminated-late'",
+      "'player-eliminated-early'",
+      "'player-orphan-eliminated'",
+    ];
+    const orderIndexes = expectedOrder.map((playerId) => orderAssertion.indexOf(playerId));
+    expect(orderIndexes.every((index) => index >= 0)).toBe(true);
+    expect(orderIndexes).toEqual([...orderIndexes].sort((a, b) => a - b));
   });
 
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
