@@ -16,6 +16,7 @@ describe('E2E case drift coverage', () => {
   const tcGp = readE2eScript('tc-gp.js');
   const tcOverlay = readE2eScript('tc-overlay.js');
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
+  const tcTa = readE2eScript('tc-ta.js');
   const tcTaFlow = readE2eScript('tc-ta-flow.js');
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
 
@@ -34,6 +35,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1083', tcMr],
     ['TC-729', tcGp],
     ['TC-926', tcOverlay],
+    ['TC-817', tcTa],
     ['TC-TA-FLOW-24', tcTaFlow],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
     const section = e2eCaseSection(tc);

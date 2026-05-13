@@ -27,6 +27,7 @@
  *   TC-913  TA time input hint/title/placeholder are localized.
  *   TC-816  Started TA phase page does not flash a Start Phase button while
  *           phase status is still loading.
+ *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-preview-profile by default).
@@ -185,6 +186,25 @@ async function submitTaPhaseRoundByApi(adminPage, tournamentId, phase, activeEnt
     throw new Error(`submit_results ${phase} failed (${submit.s}): ${JSON.stringify(submit.b).slice(0, 500)}`);
   }
   return submit.b?.data ?? {};
+}
+
+async function submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase, course, results) {
+  const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase, course });
+  if (start.s !== 200) {
+    throw new Error(`start_round ${phase} ${course} failed (${start.s}): ${JSON.stringify(start.b).slice(0, 300)}`);
+  }
+  const roundNumber = start.b?.data?.roundNumber;
+  if (!roundNumber) throw new Error(`start_round ${phase} ${course} did not return roundNumber`);
+  const submit = await apiPostTaPhase(adminPage, tournamentId, {
+    action: 'submit_results',
+    phase,
+    roundNumber,
+    results,
+  });
+  if (submit.s !== 200) {
+    throw new Error(`submit_results ${phase} ${course} failed (${submit.s}): ${JSON.stringify(submit.b).slice(0, 500)}`);
+  }
+  return { roundNumber, data: submit.b?.data ?? {} };
 }
 
 async function completeTaSingleEliminationPhaseByApi(adminPage, tournamentId, phase, targetActiveCount) {
@@ -1575,6 +1595,88 @@ async function runTc815(adminPage) {
   }
 }
 
+/* ───────── TC-817: Phase1 sudden-death courses consume the shared cycle ───────── */
+async function runTc817(adminPage) {
+  let fixture = null;
+  try {
+    fixture = await setupIsolatedPhase1SuddenDeath(adminPage, `SD Course Cycle ${Date.now()}`);
+    const { tournamentId } = fixture;
+    const phase = 'phase1';
+    const firstPhase = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const firstEntries = firstPhase.entries ?? [];
+    if (firstEntries.length !== 8) throw new Error(`phase1 entries=${firstEntries.length}, expected 8`);
+
+    const firstResults = firstEntries.map((entry, index) => ({
+      playerId: entry.playerId,
+      timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
+    }));
+    const firstSubmit = await submitTaPhaseRoundWithCourseByApi(
+      adminPage,
+      tournamentId,
+      phase,
+      'MC1',
+      firstResults,
+    );
+    const sudden = firstSubmit.data.suddenDeathRound;
+    const targets = sudden?.targetPlayerIds ?? [];
+    if (firstSubmit.data.tieBreakRequired !== true || !sudden?.id || targets.length !== 2) {
+      log('TC-817', 'FAIL', `expected sudden death after first round, got ${JSON.stringify(firstSubmit.data).slice(0, 220)}`);
+      return;
+    }
+
+    const changed = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'change_sudden_death_course',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      course: 'KB1',
+    });
+    if (changed.s !== 200) throw new Error(`change_sudden_death_course KB1 failed (${changed.s})`);
+
+    const resolved = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      results: [
+        { playerId: targets[0], timeMs: 90000 },
+        { playerId: targets[1], timeMs: 91000 },
+      ],
+    });
+    if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired) {
+      throw new Error(`submit_sudden_death KB1 failed (${resolved.s}): ${JSON.stringify(resolved.b).slice(0, 220)}`);
+    }
+
+    for (const course of ['DP1', 'GV1', 'BC1']) {
+      const active = ((await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [])
+        .filter((entry) => !entry.eliminated);
+      const results = active.map((entry, index) => ({
+        playerId: entry.playerId,
+        timeMs: 80000 + index * 1000,
+      }));
+      await submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase, course, results);
+    }
+
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
+    if (promote.s !== 200) throw new Error(`promote_phase2 failed (${promote.s}): ${JSON.stringify(promote.b).slice(0, 300)}`);
+
+    const phase2 = (await apiFetchTaPhase(adminPage, tournamentId, 'phase2')).b?.data ?? {};
+    const played = phase2.playedCourses ?? [];
+    const available = phase2.availableCourses ?? [];
+    const rejected = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'start_round',
+      phase: 'phase2',
+      course: 'KB1',
+    });
+    const ok = played.includes('KB1') && available.length === 15 &&
+      !available.includes('KB1') && rejected.s === 400;
+    log('TC-817', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `played=${played.join(',')} available=${available.join(',')} rejected=${rejected.s}`);
+  } catch (err) {
+    log('TC-817', 'FAIL', err instanceof Error ? err.message : 'TA sudden-death course cycle failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -1642,6 +1744,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
       { name: 'TC-815', fn: runTc815 },
+      { name: 'TC-817', fn: runTc817 },
     ],
   };
 }
@@ -1649,7 +1752,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
-  runTc812, runTc813, runTc814, runTc815, runTc816,
+  runTc812, runTc813, runTc814, runTc815, runTc816, runTc817,
   getSuite,
   results,
 };
