@@ -624,6 +624,8 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
     });
 
     it('uses eliminatedIds order as the tiebreaker for same-round same-time eliminations', async () => {
+      // Keep totalTime/rank intentionally opposite to eliminatedIds order so this
+      // test proves same-time ordering does not fall through to qualification fields.
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([
         {
           ...mockEntries[0],
