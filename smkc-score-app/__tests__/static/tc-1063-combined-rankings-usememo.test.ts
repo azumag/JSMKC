@@ -46,7 +46,7 @@ describe('TC-1063 combined standings memoization guard', () => {
     expect(declaration).toContain('computeCombinedRanks(qualifications');
     expect(declaration).toContain(comparator);
     expect(declaration).toContain('[qualifications]');
-    expect(combinedTab).toContain('combinedRankings.map');
+    expect(combinedTab).toContain('combinedRankings');
     expect(combinedTab).not.toContain('const combinedRankings = computeCombinedRanks');
     expect(combinedTab).not.toContain('computeCombinedRanks(');
   });

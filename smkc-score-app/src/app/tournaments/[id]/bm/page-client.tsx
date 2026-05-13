@@ -59,6 +59,7 @@ import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { QualificationPlayoffManager } from "@/components/tournament/qualification-playoff-manager";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
+import { CombinedStandingsTable } from "@/components/tournament/combined-standings-table";
 import { DebugFillButton } from "@/components/tournament/debug-fill-button";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import {
@@ -729,52 +730,25 @@ export default function BattleModePageClient({
 
           {/* Combined standings tab - display-only ranking across all groups */}
           <TabsContent value="combined">
-            <Card>
-              <CardHeader>
-                <CardTitle>{tc('combinedStandings')}</CardTitle>
-                <CardDescription>
-                  {tc('playersCount', { count: qualifications.length })}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>{tc('group')}</TableHead>
-                      <TableHead>{tc('player')}</TableHead>
-                      <TableHead className="text-center">{t('mp')}</TableHead>
-                      <TableHead className="text-center">{t('w')}</TableHead>
-                      <TableHead className="text-center">{t('t')}</TableHead>
-                      <TableHead className="text-center">{t('l')}</TableHead>
-                      <TableHead className="text-center">{t('plusMinus')}</TableHead>
-                      <TableHead className="text-center">{t('pts')}</TableHead>
-                      <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {combinedRankings.map((q) => (
-                      <TableRow key={q.id}>
-                        <TableCell className="font-semibold">{q._autoRank}</TableCell>
-                        <TableCell>{tc('groupLabel', { group: q.group })}</TableCell>
-                        <TableCell className="font-medium">{q.player.nickname}</TableCell>
-                        <TableCell className="text-center">{q.mp}</TableCell>
-                        <TableCell className="text-center">{q.wins}</TableCell>
-                        <TableCell className="text-center">{q.ties}</TableCell>
-                        <TableCell className="text-center">{q.losses}</TableCell>
-                        <TableCell className="text-center">
-                          {q.points > 0 ? `+${q.points}` : q.points}
-                        </TableCell>
-                        <TableCell className="text-center font-bold">{q.score}</TableCell>
-                        <TableCell className="text-center font-bold">
-                          {getQualificationPoints(q)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <CombinedStandingsTable
+              labels={{
+                title: tc('combinedStandings'),
+                playersCount: tc('playersCount', { count: qualifications.length }),
+                rank: '#',
+                group: tc('group'),
+                player: tc('player'),
+                mp: t('mp'),
+                wins: t('w'),
+                ties: t('t'),
+                losses: t('l'),
+                plusMinus: t('plusMinus'),
+                points: t('pts'),
+                qualificationPoints: tc('qualificationPointsShort'),
+              }}
+              rankings={combinedRankings}
+              getGroupLabel={(group) => tc('groupLabel', { group })}
+              getQualificationPoints={getQualificationPoints}
+            />
           </TabsContent>
 
           {/* Matches Tab - Group-filtered, round-grouped match list */}
