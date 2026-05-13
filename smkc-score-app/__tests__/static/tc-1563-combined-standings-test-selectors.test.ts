@@ -13,6 +13,7 @@ describe('TC-1563 combined standings test selectors', () => {
     const section = e2eCaseSection('TC-1563');
     const tc1565 = e2eCaseSection('TC-1565');
     const tc1566 = e2eCaseSection('TC-1566');
+    const tc1568 = e2eCaseSection('TC-1568');
 
     expect(section).toContain('issue #1563');
     expect(section).toContain('列ヘッダー名');
@@ -22,6 +23,8 @@ describe('TC-1563 combined standings test selectors', () => {
     expect(tc1565).toContain('expect(cells).toHaveLength(headers.length)');
     expect(tc1566).toContain('issue #1566');
     expect(tc1566).toContain('正規表現');
+    expect(tc1568).toContain('issue #1568');
+    expect(tc1568).toContain('[\\s\\S]*?');
   });
 
   it('keeps combined standings tests away from duplicate-text count assertions', () => {
@@ -29,6 +32,6 @@ describe('TC-1563 combined standings test selectors', () => {
     expect(unitTest).toContain('getAllByRole("columnheader")');
     expect(unitTest).toContain('getAllByRole("cell")');
     expect(unitTest).toContain('expect(cells).toHaveLength(headers.length)');
-    expect(unitTest).not.toMatch(/getAllByText\([^)]+\)\)\.toHaveLength/);
+    expect(unitTest).not.toMatch(/getAllByText\([\s\S]*?\)\)\.toHaveLength/);
   });
 });
