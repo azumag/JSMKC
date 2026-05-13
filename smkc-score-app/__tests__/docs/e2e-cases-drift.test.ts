@@ -111,6 +111,23 @@ describe('E2E case drift coverage', () => {
     expect(testCase).not.toContain('expect.arrayContaining');
   });
 
+  it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
+    const section = e2eCaseSection('TC-1063');
+    const guard = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-1063-combined-rankings-usememo.test.ts',
+    );
+
+    expect(section).toContain('issue #1063');
+    expect(section).toContain('BM/MR/GP');
+    expect(section).toContain('useMemo');
+    expect(section).toContain('computeCombinedRanks');
+    expect(section).toContain('tc-1063-combined-rankings-usememo.test.ts');
+    expect(guard).toContain('combinedRankings');
+  });
+
   it('keeps TC-1068 aligned with orphan eliminated-entry ordering coverage', () => {
     const section = e2eCaseSection('TC-1068');
 
