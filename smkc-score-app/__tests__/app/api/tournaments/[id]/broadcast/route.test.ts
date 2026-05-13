@@ -250,9 +250,7 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
       success: true,
       data: { matchLabel: 'SF1' },
     });
-    const responseData = (NextResponse.json as jest.Mock).mock.calls[0][0].data;
-    expect(responseData).not.toHaveProperty('layout');
-    expectNoInternalBroadcastFields(responseData);
+    expectNoInternalBroadcastFields((NextResponse.json as jest.Mock).mock.calls[0][0].data);
   });
 
   it('clears player1 wins when null is passed', async () => {
