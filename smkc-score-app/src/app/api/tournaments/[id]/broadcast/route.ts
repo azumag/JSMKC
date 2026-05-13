@@ -220,40 +220,65 @@ export async function PUT(
     });
 
     const responseData: BroadcastUpdateResponse = {};
-    if (updateData.overlayPlayer1Name !== undefined) {
-      responseData.player1Name = String(updateData.overlayPlayer1Name ?? "");
-    }
-    if (updateData.overlayPlayer2Name !== undefined) {
-      responseData.player2Name = String(updateData.overlayPlayer2Name ?? "");
-    }
-    if (updateData.overlayPlayer1NoCamera !== undefined) {
-      responseData.player1NoCamera = Boolean(updateData.overlayPlayer1NoCamera);
-    }
-    if (updateData.overlayPlayer2NoCamera !== undefined) {
-      responseData.player2NoCamera = Boolean(updateData.overlayPlayer2NoCamera);
-    }
-    if (updateData.overlayMatchLabel !== undefined) {
-      responseData.matchLabel = typeof updateData.overlayMatchLabel === "string"
-        ? updateData.overlayMatchLabel
-        : null;
-    }
-    if (updateData.overlayPlayer1Wins !== undefined) {
-      responseData.player1Wins = typeof updateData.overlayPlayer1Wins === "number"
-        ? updateData.overlayPlayer1Wins
-        : null;
-    }
-    if (updateData.overlayPlayer2Wins !== undefined) {
-      responseData.player2Wins = typeof updateData.overlayPlayer2Wins === "number"
-        ? updateData.overlayPlayer2Wins
-        : null;
-    }
-    if (updateData.overlayMatchFt !== undefined) {
-      responseData.matchFt = typeof updateData.overlayMatchFt === "number"
-        ? updateData.overlayMatchFt
-        : null;
-    }
-    if (normalizedLayout !== undefined) {
-      responseData.layout = normalizedLayout;
+    const responseFieldMappers = [
+      {
+        source: "overlayPlayer1Name",
+        apply: (value: unknown) => {
+          responseData.player1Name = typeof value === "string" ? value : "";
+        },
+      },
+      {
+        source: "overlayPlayer2Name",
+        apply: (value: unknown) => {
+          responseData.player2Name = typeof value === "string" ? value : "";
+        },
+      },
+      {
+        source: "overlayPlayer1NoCamera",
+        apply: (value: unknown) => {
+          responseData.player1NoCamera = value === true;
+        },
+      },
+      {
+        source: "overlayPlayer2NoCamera",
+        apply: (value: unknown) => {
+          responseData.player2NoCamera = value === true;
+        },
+      },
+      {
+        source: "overlayMatchLabel",
+        apply: (value: unknown) => {
+          responseData.matchLabel = typeof value === "string" ? value : null;
+        },
+      },
+      {
+        source: "overlayPlayer1Wins",
+        apply: (value: unknown) => {
+          responseData.player1Wins = typeof value === "number" ? value : null;
+        },
+      },
+      {
+        source: "overlayPlayer2Wins",
+        apply: (value: unknown) => {
+          responseData.player2Wins = typeof value === "number" ? value : null;
+        },
+      },
+      {
+        source: "overlayMatchFt",
+        apply: (value: unknown) => {
+          responseData.matchFt = typeof value === "number" ? value : null;
+        },
+      },
+      {
+        source: "overlayLayout",
+        apply: () => {
+          if (normalizedLayout !== undefined) responseData.layout = normalizedLayout;
+        },
+      },
+    ] as const;
+
+    for (const { source, apply } of responseFieldMappers) {
+      if (updateData[source] !== undefined) apply(updateData[source]);
     }
 
     return createSuccessResponse(responseData);
