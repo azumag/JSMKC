@@ -111,6 +111,8 @@ function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
 
     const aMeta = eliminationMeta.get(a.playerId);
     const bMeta = eliminationMeta.get(b.playerId);
+    // Entries marked eliminated without matching round history are legacy/orphaned data;
+    // keep them behind all round-backed eliminations instead of inventing placement.
     const aRound = aMeta?.roundNumber ?? -1;
     const bRound = bMeta?.roundNumber ?? -1;
     if (aRound !== bRound) return bRound - aRound;
