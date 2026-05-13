@@ -31,6 +31,7 @@ describe("CombinedStandingsTable", () => {
       return text!;
     });
     const cells = within(row).getAllByRole("cell");
+    expect(cells).toHaveLength(headers.length);
 
     return Object.fromEntries(headers.map((header, index) => [header, cells[index]]));
   }
