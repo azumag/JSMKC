@@ -11,6 +11,51 @@ describe('TC-1073 16-player finals LR2 slot routing', () => {
     ).toEqual([23, 22, 21, 20]);
   });
 
+  it('TC-1535 keeps LR2 source routes explicit on both bracket sides', () => {
+    const bracket = generateBracketStructure(16);
+
+    expect(
+      bracket
+        .filter((match) => match.round === 'winners_qf')
+        .map((match) => match.loserGoesTo),
+    ).toEqual([23, 22, 21, 20]);
+    expect(
+      bracket
+        .filter((match) => match.round === 'losers_r1')
+        .map((match) => match.winnerGoesTo),
+    ).toEqual([20, 21, 22, 23]);
+
+    expect(
+      bracket
+        .filter((match) => match.round === 'winners_qf')
+        .map((match) => ({
+          matchNumber: match.matchNumber,
+          loserGoesTo: match.loserGoesTo,
+          loserPosition: match.loserPosition,
+        })),
+    ).toEqual([
+      { matchNumber: 9, loserGoesTo: 23, loserPosition: 1 },
+      { matchNumber: 10, loserGoesTo: 22, loserPosition: 1 },
+      { matchNumber: 11, loserGoesTo: 21, loserPosition: 1 },
+      { matchNumber: 12, loserGoesTo: 20, loserPosition: 1 },
+    ]);
+
+    expect(
+      bracket
+        .filter((match) => match.round === 'losers_r1')
+        .map((match) => ({
+          matchNumber: match.matchNumber,
+          winnerGoesTo: match.winnerGoesTo,
+          position: match.position,
+        })),
+    ).toEqual([
+      { matchNumber: 16, winnerGoesTo: 20, position: 2 },
+      { matchNumber: 17, winnerGoesTo: 21, position: 2 },
+      { matchNumber: 18, winnerGoesTo: 22, position: 2 },
+      { matchNumber: 19, winnerGoesTo: 23, position: 2 },
+    ]);
+  });
+
   it('keeps Winners QF losers in player1 slots and Losers R1 winners in player2 slots', () => {
     const bracket = generateBracketStructure(16);
 

@@ -175,12 +175,24 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1072');
     expect(section).toContain('`loserGoesTo`');
     expect(section).toContain('[23, 22, 21, 20]');
-    expect(section).toContain('Map');
-    expect(section).toContain('find()');
     expect(section).toContain('tc-1073-16p-lr2-slots.test.ts');
     expect(tc1073Lr2Slots).toContain('TC-1072 keeps LR2 pairing coverage on direct loserGoesTo values');
     expect(tc1073Lr2Slots).toContain('.map((match) => match.loserGoesTo)');
     expect(tc1073Lr2Slots).toContain(').toEqual([23, 22, 21, 20])');
+  });
+
+  it('keeps TC-1534-1535 aligned with direct LR2 source route coverage', () => {
+    const section = e2eCaseSection('TC-1534-1535');
+
+    expect(section).toContain('issues #1534, #1535');
+    expect(section).toContain('`winnerGoesTo`');
+    expect(section).toContain('`position`');
+    expect(section).toContain('tc-1073-16p-lr2-slots.test.ts');
+    expect(tc1073Lr2Slots).toContain('TC-1535 keeps LR2 source routes explicit on both bracket sides');
+    expect(tc1073Lr2Slots).toContain(".filter((match) => match.round === 'losers_r1')");
+    expect(tc1073Lr2Slots).toContain('.map((match) => match.winnerGoesTo)');
+    expect(tc1073Lr2Slots).not.toContain('new Map(');
+    expect(tc1073Lr2Slots).not.toContain('.find(');
   });
 
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
