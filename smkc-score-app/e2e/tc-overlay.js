@@ -38,6 +38,7 @@
  *           variant (dashboard-timeline-ta-total) — qualification toast
  *           collapsed from per-course to one summary per player
  *   TC-926  Broadcast layout coordinates persist and drive dashboard positions
+ *   TC-927  Overlay toast title recognizer accepts every known title term
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -96,6 +97,26 @@ function hasQualificationCompletedTitle(title) {
 function hasQualificationLockedTitle(title) {
   return /予選確定/.test(title || '') || /Qualification\s+Locked/i.test(title || '');
 }
+
+const OVERLAY_TOAST_TITLE_CASES = [
+  '総合順位を更新しました',
+  '予選確定',
+  '試合終了',
+  'スコア申告',
+  'タイム更新',
+  'Overall Ranking Updated',
+  'Qualification Locked',
+  'Match Completed',
+  'Time Attack Phase 1 Started',
+  'Score Reported',
+  'Qualification summary',
+  'Ranking snapshot',
+];
+
+const OVERLAY_TOAST_TITLE_REJECTIONS = [
+  'Server Time: 2026-05-01T00:00:00.000Z',
+  'Time',
+];
 
 /**
  * Unauthenticated GET against the configured overlay endpoint via Node's
@@ -1141,6 +1162,22 @@ async function runTc906(adminPage) {
   }
 }
 
+/* ───────── TC-927: known overlay toast title terms ───────── */
+async function runTc927() {
+  try {
+    const rejected = OVERLAY_TOAST_TITLE_CASES.filter((title) => !hasKnownOverlayToastTitle(title));
+    const falselyAccepted = OVERLAY_TOAST_TITLE_REJECTIONS.filter((title) => hasKnownOverlayToastTitle(title));
+    const pass = rejected.length === 0 && falselyAccepted.length === 0;
+    log('TC-927',
+      pass ? 'PASS' : 'FAIL',
+      pass ? '' :
+      rejected.length > 0 ? `known title terms rejected: ${rejected.join(', ')}` :
+      `generic titles accepted: ${falselyAccepted.join(', ')}`);
+  } catch (err) {
+    log('TC-927', 'FAIL', err instanceof Error ? err.message : 'TC-927 threw');
+  }
+}
+
 function getSuite() {
   return {
     suiteName: 'OVERLAY',
@@ -1170,9 +1207,12 @@ function getSuite() {
      *     back from overlay-events. Both after TC-909 to avoid races.
      *   - TC-921/922/923 after TC-920: TC-921 re-navigates to dashboard for
      *     a clean backfill; TC-922/923 reuse that page.
+     *   - TC-927 is a pure title-pattern guard and can run before fixture
+     *     state changes.
      *   - TC-906 (real-browser render) last: navigates the admin page
      *     away from anything cleanup might need. */
     tests: [
+      { name: 'TC-927', fn: runTc927 },
       { name: 'TC-901', fn: runTc901 },
       { name: 'TC-914', fn: runTc914 },
       { name: 'TC-902', fn: runTc902 },
@@ -1221,7 +1261,7 @@ module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
   runTc916, runTc917, runTc918, runTc919, runTc920, runTc926,
-  runTc921, runTc922, runTc923, runTc924, runTc925,
+  runTc921, runTc922, runTc923, runTc924, runTc925, runTc927,
   getSuite,
   results,
 };
