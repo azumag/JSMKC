@@ -2026,6 +2026,17 @@
 - **期待結果**: 4人 GP 予選で3ラウンドになる理由が単体テスト上で読み取れ、将来の fixture 変更時に前提の更新漏れを検知できる
 - **スクリプト**: smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts
 
+## TC-1080: MR 予選単体テスト — 8人ラウンドロビンの4試合/ラウンド前提を明記する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1080。`qualification-route.test.ts` の `roundMatches` に対する `toHaveLength(4)` は、8人グループのラウンドロビンでは各ラウンドが `n/2 = 8/2 = 4` 試合になるという前提を表す。fixture の人数が変わった時に失敗理由が分かるよう、単体テスト内で前提を明示する。
+- **手順**:
+  1. `qualification-route.test.ts` の MR raw insert assignedCourses テストを確認する
+  2. `expect(roundMatches).toHaveLength(4)` の直前に8人ラウンドロビンの4試合前提コメントがあることを確認する
+  3. コメントが `8/2 = 4` の人数根拠を含むことを確認する
+- **期待結果**: 8人 MR 予選で各ラウンドが4試合になる理由が単体テスト上で読み取れ、将来の fixture 変更時に前提の更新漏れを検知できる
+- **スクリプト**: smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts
+
 ## TC-717: GP決勝 — ラウンドごとのカップ組み合わせがFT3の5カップ目以外で重複しない
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
