@@ -32,7 +32,11 @@
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
-import { createQualificationHandlers, getAssignedCupForRound } from '@/lib/api-factories/qualification-route';
+import {
+  createQualificationHandlers,
+  getAssignedCoursesForRound,
+  getAssignedCupForRound,
+} from '@/lib/api-factories/qualification-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 import { EventTypeConfig } from '@/lib/event-types/types';
@@ -906,6 +910,18 @@ describe('Qualification Route Factory', () => {
         expect(secondDeck).not.toEqual(firstDeck);
       } finally {
         randomSpy.mockRestore();
+      }
+    });
+
+    it('should reject invalid MR qualification round numbers before assigning courses', () => {
+      const shuffledCourses = COURSES.concat(COURSES, COURSES, COURSES);
+
+      expect(getAssignedCoursesForRound(shuffledCourses, 1)).toEqual(COURSES.slice(0, 4));
+      expect(getAssignedCoursesForRound(shuffledCourses, 2)).toEqual(COURSES.slice(4, 8));
+      for (const invalidRoundNumber of [0, -1, 1.5, NaN, Infinity]) {
+        expect(() => getAssignedCoursesForRound(shuffledCourses, invalidRoundNumber)).toThrow(
+          `MR qualification roundNumber must be a positive integer: ${invalidRoundNumber}`,
+        );
       }
     });
 
