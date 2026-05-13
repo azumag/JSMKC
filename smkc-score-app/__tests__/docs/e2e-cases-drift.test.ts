@@ -105,9 +105,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('NaN');
     expect(section).toContain('Infinity');
     expect(section).toContain('tc-mr.js TC-601 内で検証');
-    expect(tcMr).toContain('Keep the finite check explicit to cover NaN/Infinity edge cases tested in TC-1079.');
-    expect(tcMr).toContain('Number.isFinite(match.roundNumber)');
     expect(tcMr).toContain('Number.isInteger(match.roundNumber)');
+    expect(tcMr).toContain('match.roundNumber < 1');
+    expect(tcMr).not.toContain('Number.isFinite(match.roundNumber)');
   });
 
   it('keeps TC-1083 aligned with MR participant correction coverage', () => {

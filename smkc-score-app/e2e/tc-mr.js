@@ -235,8 +235,7 @@ async function runTc601(adminPage) {
     const postScoreMatches = postScoreData.matches || [];
     const realMatches = postScoreMatches.filter((m) => !m.isBye);
     const invalidRoundMatches = realMatches.filter((match) => (
-      // Keep the finite check explicit to cover NaN/Infinity edge cases tested in TC-1079.
-      !Number.isFinite(match.roundNumber) || !Number.isInteger(match.roundNumber) || match.roundNumber < 1
+      !Number.isInteger(match.roundNumber) || match.roundNumber < 1
     ));
     const roundCourseVariants = new Map();
     for (const match of realMatches) {

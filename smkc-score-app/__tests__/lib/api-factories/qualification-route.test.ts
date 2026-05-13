@@ -913,7 +913,7 @@ describe('Qualification Route Factory', () => {
       }
     });
 
-    it('should reject invalid MR qualification round numbers before assigning courses', () => {
+    it('should reject non-positive, fractional, and non-finite MR qualification round numbers before assigning courses', () => {
       const shuffledCourses = COURSES.concat(COURSES, COURSES, COURSES);
 
       expect(getAssignedCoursesForRound(shuffledCourses, 1)).toEqual(COURSES.slice(0, 4));
