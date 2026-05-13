@@ -3900,6 +3900,11 @@ async function main() {
       }, tc354TournamentId);
       const invalidScoresBlocked = putDecimalWins.s === 400 && putNegativeFt.s === 400;
 
+      await page.goto(`${BASE}/tournaments/${tc354TournamentId}/broadcast`);
+      await page.locator('#broadcast-player1-wins').fill('1.5');
+      await page.getByRole('button', { name: '配信に反映' }).click();
+      const uiInvalidScoreVisible = await page.getByText('1P 点数は0以上の整数で入力してください。').isVisible().catch(() => false);
+
       // Invalid layout coordinates outside the OBS 1920x1080 canvas are rejected.
       const putInvalidLayout = await page.evaluate(async (tid) => {
         const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
@@ -3938,9 +3943,9 @@ async function main() {
       }
       const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
 
-      const ok = hasShape && putOk && putResponsePublicShape && getOk && clearOk && clearWinsOk && invalidScoresBlocked && invalidLayoutBlocked && nonAdminBlocked;
+      const ok = hasShape && putOk && putResponsePublicShape && getOk && clearOk && clearWinsOk && invalidScoresBlocked && uiInvalidScoreVisible && invalidLayoutBlocked && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
-        `shape=${hasShape} put=${putOk} putPublicShape=${putResponsePublicShape} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidScoresBlocked=${invalidScoresBlocked} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
+        `shape=${hasShape} put=${putOk} putPublicShape=${putResponsePublicShape} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidScoresBlocked=${invalidScoresBlocked} uiInvalidScoreVisible=${uiInvalidScoreVisible} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
     } catch (err) {
       log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
     } finally {
