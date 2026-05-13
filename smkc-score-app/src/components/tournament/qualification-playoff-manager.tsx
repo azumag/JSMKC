@@ -110,7 +110,7 @@ export function QualificationPlayoffManager({
                     onClick={async () => {
                       setBroadcastingGroupId(group.id);
                       await onBroadcast(group.players[0].nickname, group.players[1].nickname, {
-                        matchLabel: `Qualification Playoff Rank ${group.rank}`,
+                        matchLabel: tc("playoffGroupTitle", { rank: group.rank }),
                         player1Wins: null,
                         player2Wins: null,
                         matchFt: null,

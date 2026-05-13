@@ -2495,6 +2495,18 @@
   5. 最後に脱落したプレイヤーの `taFinalsPoints` が、最初に脱落したプレイヤーの `taFinalsPoints` より大きいことを確認
 - **期待結果**: 総合ランキングの TA Finals 配点が「最後まで生き残った順」を反映する。早期脱落者が後期脱落者を上回ることはない
 
+## TC-1062: 予選同着プレーオフの配信ラベルは表示言語と一致する (issue #1062)
+- **URL**: /tournaments/[temp-id]/bm, /tournaments/[temp-id]/mr
+- **authRequired**: true (admin)
+- **背景**: BM/MR 予選で同順位プレーオフが必要になったとき、管理画面の同着プレーオフカードと OBS 配信用 `matchLabel` は同じ翻訳キーを使う。過去の実装ではカード表示だけが翻訳され、配信ラベルは英語固定の `Qualification Playoff Rank N` になっていた。
+- **手順**:
+  1. 2名以上が同じ暫定順位になる予選データを用意し、`QualificationPlayoffManager` を表示する
+  2. 同着プレーオフカードのタイトルが `playoffGroupTitle` の翻訳で表示されることを確認する
+  3. 管理者として「配信に反映」を実行する
+  4. `onBroadcast` に渡される `matchInfo.matchLabel` がカードタイトルと同じ `playoffGroupTitle` 翻訳値になることを確認する
+- **期待結果**: OBS 配信用の lower-frame label は UI 表示と同じ言語・同じ順位表記になる
+- **スクリプト**: smkc-score-app/__tests__/components/tournament/qualification-playoff-manager.test.tsx + smkc-score-app/__tests__/static/tc-1062-qualification-playoff-label.test.ts
+
 ## TC-1068: TA Finals の orphan eliminated entry は末尾に並ぶ (issue #1068)
 - **URL**: /api/tournaments/[temp-id]/ta/phases?phase=phase3
 - **authRequired**: true (admin)
