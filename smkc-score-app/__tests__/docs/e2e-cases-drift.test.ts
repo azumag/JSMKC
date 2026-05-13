@@ -258,6 +258,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
+    ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
     ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
   ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
@@ -298,6 +299,19 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1457');
     expect(section).toContain('readRepoFile` 定義が `const e2eCases');
     expect(section).toContain('__tests__/helpers/e2e-cases.ts');
+  });
+
+  it('keeps TC-1528 aligned with TA phase helper unit coverage', () => {
+    const section = e2eCaseSection('TC-1528');
+
+    expect(section).toContain('issue #1528');
+    expect(section).toContain('自動コース選択経路');
+    expect(section).toContain('コース明示経路');
+    expect(section).toContain('同じ内部 start/submit 実装');
+    expect(section).toContain('__tests__/e2e/ta-phase-submit-helper.test.ts');
+    expect(tcTa).toContain('submitTaPhaseRoundByApi');
+    expect(tcTa).toContain('submitTaPhaseRoundWithCourseByApi');
+    expect(tcTa).toContain('submitTaPhaseRound(adminPage, tournamentId, phase, course, results)');
   });
 
   it('keeps TC-111 aligned with the preview D1 columns that fail GP finals before browser launch', () => {
