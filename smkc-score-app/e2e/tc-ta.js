@@ -166,35 +166,34 @@ function makeTc813QualificationTimes(pattern) {
 }
 
 async function submitTaPhaseRoundByApi(adminPage, tournamentId, phase, activeEntries) {
-  const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
-  if (start.s !== 200) {
-    throw new Error(`start_round ${phase} failed (${start.s}): ${JSON.stringify(start.b).slice(0, 300)}`);
-  }
-  const roundNumber = start.b?.data?.roundNumber;
-  if (!roundNumber) throw new Error(`start_round ${phase} did not return roundNumber`);
   const results = activeEntries.map((e) => ({
     playerId: e.playerId,
     timeMs: 60000 + (e.rank || 20) * 200,
   }));
-  const submit = await apiPostTaPhase(adminPage, tournamentId, {
-    action: 'submit_results',
-    phase,
-    roundNumber,
-    results,
-  });
-  if (submit.s !== 200) {
-    throw new Error(`submit_results ${phase} failed (${submit.s}): ${JSON.stringify(submit.b).slice(0, 500)}`);
-  }
-  return submit.b?.data ?? {};
+  const submission = await submitTaPhaseRound(adminPage, tournamentId, phase, undefined, results);
+  return submission.data;
 }
 
 async function submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase, course, results) {
-  const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase, course });
+  return submitTaPhaseRound(adminPage, tournamentId, phase, course, results);
+}
+
+function phaseCourseLabel(phase, course) {
+  return course ? `${phase} ${course}` : phase;
+}
+
+async function submitTaPhaseRound(adminPage, tournamentId, phase, course, results) {
+  const label = phaseCourseLabel(phase, course);
+  const startPayload = { action: 'start_round', phase };
+  if (course) startPayload.course = course;
+
+  const start = await apiPostTaPhase(adminPage, tournamentId, startPayload);
   if (start.s !== 200) {
-    throw new Error(`start_round ${phase} ${course} failed (${start.s}): ${JSON.stringify(start.b).slice(0, 300)}`);
+    throw new Error(`start_round ${label} failed (${start.s}): ${JSON.stringify(start.b).slice(0, 300)}`);
   }
   const roundNumber = start.b?.data?.roundNumber;
-  if (!roundNumber) throw new Error(`start_round ${phase} ${course} did not return roundNumber`);
+  if (!roundNumber) throw new Error(`start_round ${label} did not return roundNumber`);
+
   const submit = await apiPostTaPhase(adminPage, tournamentId, {
     action: 'submit_results',
     phase,
@@ -202,7 +201,7 @@ async function submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase,
     results,
   });
   if (submit.s !== 200) {
-    throw new Error(`submit_results ${phase} ${course} failed (${submit.s}): ${JSON.stringify(submit.b).slice(0, 500)}`);
+    throw new Error(`submit_results ${label} failed (${submit.s}): ${JSON.stringify(submit.b).slice(0, 500)}`);
   }
   return { roundNumber, data: submit.b?.data ?? {} };
 }
@@ -1755,6 +1754,11 @@ module.exports = {
   runTc812, runTc813, runTc814, runTc815, runTc816, runTc817,
   getSuite,
   results,
+  __testHooks: {
+    submitTaPhaseRound,
+    submitTaPhaseRoundByApi,
+    submitTaPhaseRoundWithCourseByApi,
+  },
 };
 
 if (require.main === module) {
