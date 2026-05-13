@@ -45,7 +45,7 @@ describe('assignGroupsBySeeding', () => {
     expect(result.filter(p => p.group === 'D').map(p => p.seeding)).toEqual([4, 5, 12, 13]);
   });
 
-  it('should place seed 5 in group D when 8 players are split into 4 groups', () => {
+  it('should distribute 8 players into 4 groups using serpentine seeding', () => {
     const players: SetupPlayer[] = Array.from({ length: 8 }, (_, i) => ({
       playerId: `p${i + 1}`,
       group: 'A',
