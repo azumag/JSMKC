@@ -1545,10 +1545,11 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players, options 
     await selectGroupPlayer(dialog, player);
   }
 
+  /* Force product-default group count of 2 for normal multi-player setup unless
+   * the caller explicitly exercises another setup shape. Skip the click for
+   * small pair tests with no explicit groupCount: those rely on the dialog
+   * default group rather than a split A/B setup. */
   if (players.length >= 4 || options.groupCount !== undefined) {
-    /* Force product-default group count of 2 unless the caller is explicitly
-     * exercising another setup shape. Pair tests with 2 players rely on the
-     * dialog default group rather than a split A/B setup. */
     await dialog.getByRole('button', { name: new RegExp(`^${targetGroupCount}$`) }).click();
   }
 
