@@ -776,7 +776,7 @@
   5. PUT `{ matchLabel: null }` → フィールドがクリアされ、レスポンス body に `overlayMatchLabel/overlayMatchFt` を含まないこと（200）
   6. PUT `{ player1Wins: null, player2Wins: null }` → レスポンス body と再取得 GET の両方で 1P/2P 勝利数が null にクリアされ、レスポンス body に `overlayMatchLabel/overlayPlayer1Wins/overlayPlayer2Wins/overlayMatchFt` が含まれないこと（200）
   7. 小数・負数の `player1Wins/player2Wins/matchFt` は 400 で拒否されること
-  8. 配信管理ページで点数欄に小数を入力して「配信に反映」を押すと、送信前に 0 以上の整数エラーが表示されること
+  8. 配信管理ページで複数の点数欄に小数・負数を入力して「配信に反映」を押すと、送信前に対象欄を列挙した 0 以上の整数エラーと赤枠表示が出ること
   9. OBS 1920×1080 キャンバス外の `layout` 座標は 400 で拒否されること
 - **期待結果**: GET は正しい形状を返し、PUT は値を永続化・クリアできる
 - **スクリプト**: tc-all.js TC-354

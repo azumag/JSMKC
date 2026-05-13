@@ -3902,8 +3902,13 @@ async function main() {
 
       await page.goto(`${BASE}/tournaments/${tc354TournamentId}/broadcast`);
       await page.locator('#broadcast-player1-wins').fill('1.5');
+      await page.locator('#broadcast-player2-wins').fill('-1');
       await page.getByRole('button', { name: '配信に反映' }).click();
-      const uiInvalidScoreVisible = await page.getByText('1P 点数は0以上の整数で入力してください。').isVisible().catch(() => false);
+      const uiInvalidScoreVisible = await page.getByText('1P 点数、2P 点数は0以上の整数で入力してください。').isVisible().catch(() => false);
+      const uiInvalidScoreStyled = await page.locator('#broadcast-player1-wins').evaluate((el) => (
+        el.getAttribute('aria-invalid') === 'true' &&
+        el.className.includes('border-destructive')
+      )).catch(() => false);
 
       // Invalid layout coordinates outside the OBS 1920x1080 canvas are rejected.
       const putInvalidLayout = await page.evaluate(async (tid) => {
@@ -3943,9 +3948,9 @@ async function main() {
       }
       const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
 
-      const ok = hasShape && putOk && putResponsePublicShape && getOk && clearOk && clearWinsOk && invalidScoresBlocked && uiInvalidScoreVisible && invalidLayoutBlocked && nonAdminBlocked;
+      const ok = hasShape && putOk && putResponsePublicShape && getOk && clearOk && clearWinsOk && invalidScoresBlocked && uiInvalidScoreVisible && uiInvalidScoreStyled && invalidLayoutBlocked && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
-        `shape=${hasShape} put=${putOk} putPublicShape=${putResponsePublicShape} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidScoresBlocked=${invalidScoresBlocked} uiInvalidScoreVisible=${uiInvalidScoreVisible} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
+        `shape=${hasShape} put=${putOk} putPublicShape=${putResponsePublicShape} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidScoresBlocked=${invalidScoresBlocked} uiInvalidScoreVisible=${uiInvalidScoreVisible} uiInvalidScoreStyled=${uiInvalidScoreStyled} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
     } catch (err) {
       log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
     } finally {

@@ -33,6 +33,7 @@ import {
   type OverlayBroadcastLayout,
 } from "@/lib/overlay/layout";
 import {
+  invalidBroadcastIntegerInputLabels,
   isBroadcastIntegerInputValid,
   nullableBroadcastIntegerInput,
 } from "@/lib/broadcast-input";
@@ -95,14 +96,15 @@ export default function BroadcastPage({
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
-  const invalidScoreField = [
+  const invalidScoreLabels = invalidBroadcastIntegerInputLabels([
     { label: "1P 点数", value: player1WinsInput },
     { label: "2P 点数", value: player2WinsInput },
     { label: "FT", value: matchFtInput },
-  ].find(({ value }) => !isBroadcastIntegerInputValid(value));
-  const scoreInputError = invalidScoreField
-    ? `${invalidScoreField.label}は0以上の整数で入力してください。`
+  ]);
+  const scoreInputError = invalidScoreLabels.length > 0
+    ? `${invalidScoreLabels.join("、")}は0以上の整数で入力してください。`
     : "";
+  const invalidScoreClassName = "border-destructive focus-visible:ring-destructive";
 
   const fetchBroadcastState = useCallback(async () => {
     try {
@@ -377,6 +379,7 @@ export default function BroadcastPage({
                   min={0}
                   step={1}
                   aria-invalid={!isBroadcastIntegerInputValid(player1WinsInput)}
+                  className={!isBroadcastIntegerInputValid(player1WinsInput) ? invalidScoreClassName : undefined}
                   placeholder="0"
                 />
               </div>
@@ -391,6 +394,7 @@ export default function BroadcastPage({
                   min={0}
                   step={1}
                   aria-invalid={!isBroadcastIntegerInputValid(player2WinsInput)}
+                  className={!isBroadcastIntegerInputValid(player2WinsInput) ? invalidScoreClassName : undefined}
                   placeholder="0"
                 />
               </div>
@@ -405,6 +409,7 @@ export default function BroadcastPage({
                   min={0}
                   step={1}
                   aria-invalid={!isBroadcastIntegerInputValid(matchFtInput)}
+                  className={!isBroadcastIntegerInputValid(matchFtInput) ? invalidScoreClassName : undefined}
                   placeholder="任意"
                 />
               </div>
