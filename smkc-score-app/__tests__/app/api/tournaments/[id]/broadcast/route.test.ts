@@ -235,6 +235,26 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
     expectNoInternalBroadcastFields((NextResponse.json as jest.Mock).mock.calls[0][0].data);
   });
 
+  it('omits layout from partial update responses when layout is not sent', async () => {
+    await PUT(
+      mockReq({ matchLabel: 'SF1' }),
+      mockParams('t1'),
+    );
+
+    expect(prisma.tournament.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ overlayLayout: expect.anything() }),
+      }),
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: { matchLabel: 'SF1' },
+    });
+    const responseData = (NextResponse.json as jest.Mock).mock.calls[0][0].data;
+    expect(responseData).not.toHaveProperty('layout');
+    expectNoInternalBroadcastFields(responseData);
+  });
+
   it('clears player1 wins when null is passed', async () => {
     await PUT(
       mockReq({ player1Wins: null }),
