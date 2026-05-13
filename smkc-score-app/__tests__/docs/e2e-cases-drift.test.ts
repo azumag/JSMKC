@@ -304,14 +304,17 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-1528 aligned with TA phase helper unit coverage', () => {
     const section = e2eCaseSection('TC-1528');
 
-    expect(section).toContain('issue #1528');
+    expect(section).toContain('issue #1528/#1530/#1531');
     expect(section).toContain('自動コース選択経路');
     expect(section).toContain('コース明示経路');
     expect(section).toContain('同じ内部 start/submit 実装');
+    expect(section).toContain('内部 `submitTaPhaseRound` は公開しない');
     expect(section).toContain('__tests__/e2e/ta-phase-submit-helper.test.ts');
     expect(tcTa).toContain('submitTaPhaseRoundByApi');
     expect(tcTa).toContain('submitTaPhaseRoundWithCourseByApi');
     expect(tcTa).toContain('submitTaPhaseRound(adminPage, tournamentId, phase, course, results)');
+    expect(tcTa).not.toContain('function phaseCourseLabel');
+    expect(tcTa).not.toContain('submitTaPhaseRound,');
   });
 
   it('keeps TC-111 aligned with the preview D1 columns that fail GP finals before browser launch', () => {
