@@ -31,6 +31,17 @@ import {
 import type { Prisma } from "@prisma/client";
 
 const MAX_NAME_LENGTH = 50;
+type BroadcastUpdateResponse = Partial<{
+  player1Name: string;
+  player2Name: string;
+  player1NoCamera: boolean;
+  player2NoCamera: boolean;
+  matchLabel: string | null;
+  player1Wins: number | null;
+  player2Wins: number | null;
+  matchFt: number | null;
+  layout: OverlayBroadcastLayout;
+}>;
 
 /**
  * GET /api/tournaments/[id]/broadcast
@@ -208,33 +219,44 @@ export async function PUT(
       data: updateData,
     });
 
-    return createSuccessResponse({
-      player1Name: updateData.overlayPlayer1Name !== undefined
-        ? (updateData.overlayPlayer1Name ?? "")
-        : undefined,
-      player2Name: updateData.overlayPlayer2Name !== undefined
-        ? (updateData.overlayPlayer2Name ?? "")
-        : undefined,
-      player1NoCamera: updateData.overlayPlayer1NoCamera !== undefined
-        ? Boolean(updateData.overlayPlayer1NoCamera)
-        : undefined,
-      player2NoCamera: updateData.overlayPlayer2NoCamera !== undefined
-        ? Boolean(updateData.overlayPlayer2NoCamera)
-        : undefined,
-      matchLabel: updateData.overlayMatchLabel !== undefined
-        ? (updateData.overlayMatchLabel ?? null)
-        : undefined,
-      player1Wins: updateData.overlayPlayer1Wins !== undefined
-        ? (updateData.overlayPlayer1Wins ?? null)
-        : undefined,
-      player2Wins: updateData.overlayPlayer2Wins !== undefined
-        ? (updateData.overlayPlayer2Wins ?? null)
-        : undefined,
-      matchFt: updateData.overlayMatchFt !== undefined
-        ? (updateData.overlayMatchFt ?? null)
-        : undefined,
-      layout: normalizedLayout,
-    });
+    const responseData: BroadcastUpdateResponse = {};
+    if (updateData.overlayPlayer1Name !== undefined) {
+      responseData.player1Name = String(updateData.overlayPlayer1Name ?? "");
+    }
+    if (updateData.overlayPlayer2Name !== undefined) {
+      responseData.player2Name = String(updateData.overlayPlayer2Name ?? "");
+    }
+    if (updateData.overlayPlayer1NoCamera !== undefined) {
+      responseData.player1NoCamera = Boolean(updateData.overlayPlayer1NoCamera);
+    }
+    if (updateData.overlayPlayer2NoCamera !== undefined) {
+      responseData.player2NoCamera = Boolean(updateData.overlayPlayer2NoCamera);
+    }
+    if (updateData.overlayMatchLabel !== undefined) {
+      responseData.matchLabel = typeof updateData.overlayMatchLabel === "string"
+        ? updateData.overlayMatchLabel
+        : null;
+    }
+    if (updateData.overlayPlayer1Wins !== undefined) {
+      responseData.player1Wins = typeof updateData.overlayPlayer1Wins === "number"
+        ? updateData.overlayPlayer1Wins
+        : null;
+    }
+    if (updateData.overlayPlayer2Wins !== undefined) {
+      responseData.player2Wins = typeof updateData.overlayPlayer2Wins === "number"
+        ? updateData.overlayPlayer2Wins
+        : null;
+    }
+    if (updateData.overlayMatchFt !== undefined) {
+      responseData.matchFt = typeof updateData.overlayMatchFt === "number"
+        ? updateData.overlayMatchFt
+        : null;
+    }
+    if (normalizedLayout !== undefined) {
+      responseData.layout = normalizedLayout;
+    }
+
+    return createSuccessResponse(responseData);
   } catch (error) {
     logger.error("Failed to update broadcast state", { error, tournamentId: id });
     return createErrorResponse("Failed to update broadcast state", 500);

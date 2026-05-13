@@ -3806,6 +3806,12 @@ async function main() {
 
       // Persistence is verified by the subsequent GET; body shape varies by implementation
       const putOk = putResp.s === 200;
+      const putResponsePublicShape = (
+        !('overlayPlayer1Wins' in putResp.data) &&
+        !('overlayPlayer2Wins' in putResp.data) &&
+        putResp.data.player1Wins === 2 &&
+        putResp.data.player2Wins === 1
+      );
 
       // GET after PUT: persisted values returned
       const getAfter = await page.evaluate(async (tid) => {
@@ -3858,6 +3864,8 @@ async function main() {
         putClearWins.s === 200 &&
         putClearWins.data.player1Wins === null &&
         putClearWins.data.player2Wins === null &&
+        !('overlayPlayer1Wins' in putClearWins.data) &&
+        !('overlayPlayer2Wins' in putClearWins.data) &&
         getAfterClearWins.s === 200 &&
         getAfterClearWins.data.player1Wins === null &&
         getAfterClearWins.data.player2Wins === null
@@ -3901,9 +3909,9 @@ async function main() {
       }
       const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
 
-      const ok = hasShape && putOk && getOk && clearOk && clearWinsOk && invalidLayoutBlocked && nonAdminBlocked;
+      const ok = hasShape && putOk && putResponsePublicShape && getOk && clearOk && clearWinsOk && invalidLayoutBlocked && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
-        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
+        `shape=${hasShape} put=${putOk} putPublicShape=${putResponsePublicShape} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
     } catch (err) {
       log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
     } finally {

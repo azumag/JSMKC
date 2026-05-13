@@ -47,6 +47,12 @@ const mockReq = (body?: unknown) =>
   }) as unknown as NextRequest;
 
 const mockResolveTournament = resolveTournament as jest.Mock;
+const expectNoInternalBroadcastFields = (data: Record<string, unknown>) => {
+  expect(data).not.toHaveProperty('overlayPlayer1Wins');
+  expect(data).not.toHaveProperty('overlayPlayer2Wins');
+  expect(data).not.toHaveProperty('overlayMatchLabel');
+  expect(data).not.toHaveProperty('overlayMatchFt');
+};
 
 describe('GET /api/tournaments/[id]/broadcast', () => {
   beforeEach(() => {
@@ -188,6 +194,27 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
       }),
     );
     expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status ?? 200).toBe(200);
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: {
+        player1Name: 'Alice',
+        player2Name: 'Bob',
+        player1NoCamera: true,
+        player2NoCamera: false,
+        matchLabel: 'QF1',
+        player1Wins: 2,
+        player2Wins: 1,
+        matchFt: 5,
+        layout: {
+          player1Name: { x: 120, y: 500 },
+          player1Score: { x: 140, y: 540 },
+          player2Name: { x: 120, y: 890 },
+          player2Score: { x: 140, y: 930 },
+          footer: { x: 180, y: 990 },
+        },
+      },
+    });
+    expectNoInternalBroadcastFields((NextResponse.json as jest.Mock).mock.calls[0][0].data);
   });
 
   it('clears a field when null is passed', async () => {
@@ -196,11 +223,10 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
       mockParams('t1'),
     );
 
-    expect(prisma.tournament.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ overlayMatchLabel: null }),
-      }),
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: { matchLabel: null },
+    });
   });
 
   it('clears player1 wins when null is passed', async () => {
@@ -216,8 +242,9 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
     );
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
-      data: expect.objectContaining({ player1Wins: null }),
+      data: { player1Wins: null },
     });
+    expectNoInternalBroadcastFields((NextResponse.json as jest.Mock).mock.calls[0][0].data);
   });
 
   it('clears player2 wins when null is passed', async () => {
@@ -233,8 +260,9 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
     );
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
-      data: expect.objectContaining({ player2Wins: null }),
+      data: { player2Wins: null },
     });
+    expectNoInternalBroadcastFields((NextResponse.json as jest.Mock).mock.calls[0][0].data);
   });
 
   it('trims whitespace from player names', async () => {
