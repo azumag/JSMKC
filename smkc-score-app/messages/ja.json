@@ -162,13 +162,7 @@
     "matchRace": "マッチレース",
     "matchRaceDesc": "1対1 レース対戦",
     "grandPrix": "グランプリ",
-    "grandPrixDesc": "カップ別ドライバーズポイント制",
-    "recommended": "おすすめ",
-    "recommendedDesc": "パドックが選ぶ機材・関連書籍。",
-    "recommendedProductName": "Lenovo 14e Chromebook Gen 3（整備済み品）",
-    "recommendedProductDesc": "大会受付・配信確認・スコア運用に使いやすいコンパクトな ChromeOS ノート。",
-    "viewOnAmazon": "Amazonで見る",
-    "affiliateLabel": "PR"
+    "grandPrixDesc": "カップ別ドライバーズポイント制"
   },
   "auth": {
     "loginTitle": "JSMKC ログイン",
