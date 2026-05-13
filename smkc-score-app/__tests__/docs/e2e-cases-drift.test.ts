@@ -77,6 +77,40 @@ describe('E2E case drift coverage', () => {
     expect(tcTaFlow).toContain("{ name: 'TC-TA-FLOW-24', fn: runFullFlow }");
   });
 
+  it('keeps TC-1060 aligned with complete TA finals position unit coverage', () => {
+    const section = e2eCaseSection('TC-1060');
+    const unitTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'points',
+      'overall-ranking.test.ts',
+    );
+    const testCase = sectionBetween(
+      unitTest,
+      "it('assigns TA finals bonus positions through 24th from phase eliminations'",
+      '  });\n\n  // =========================================================================',
+    );
+
+    expect(section).toContain('issue #1060');
+    expect(section).toContain('18・19・22・23');
+    expect(section).toContain('smkc-score-app/__tests__/lib/points/overall-ranking.test.ts');
+    expect(testCase).toContain("expect(positions).toEqual([");
+    for (const [playerId, position] of [
+      ['p17', 17],
+      ['p18', 18],
+      ['p19', 19],
+      ['p20', 20],
+      ['p21', 21],
+      ['p22', 22],
+      ['p23', 23],
+      ['p24', 24],
+    ] as const) {
+      expect(testCase).toContain(`{ playerId: '${playerId}', position: ${position} }`);
+    }
+    expect(testCase).not.toContain('expect.arrayContaining');
+  });
+
   it('keeps TC-1068 aligned with orphan eliminated-entry ordering coverage', () => {
     const section = e2eCaseSection('TC-1068');
 

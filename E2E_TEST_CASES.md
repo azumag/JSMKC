@@ -2495,6 +2495,18 @@
   5. 最後に脱落したプレイヤーの `taFinalsPoints` が、最初に脱落したプレイヤーの `taFinalsPoints` より大きいことを確認
 - **期待結果**: 総合ランキングの TA Finals 配点が「最後まで生き残った順」を反映する。早期脱落者が後期脱落者を上回ることはない
 
+## TC-1060: TA Finals Phase 1/2 脱落者の中間順位を全件検証する (issue #1060)
+- **URL**: /api/tournaments/[temp-id]/overall-ranking
+- **authRequired**: true (admin)
+- **背景**: TA Finals の Phase 1/2 脱落者は Phase 2 が17〜20位、Phase 1 が21〜24位に割り当てられる。従来の回帰テストは境界値だけを `arrayContaining` で確認していたため、18・19・22・23位の割り当て誤りを検出できなかった。
+- **手順**:
+  1. Phase 3 の優勝者/脱落者に加え、Phase 2 の4名と Phase 1 の4名の脱落履歴を用意する
+  2. Phase 2 round 1〜4 の `eliminatedIds` が 20→19→18→17 位へ逆順に割り当たることを確認する
+  3. Phase 1 round 1〜4 の `eliminatedIds` が 24→23→22→21 位へ逆順に割り当たることを確認する
+  4. `getTAFinalsPositions` の結果が1位、2位、17〜24位を欠落なく完全一致で返すことを確認する
+- **期待結果**: TA Finals position mapping が境界値だけでなく 18・19・22・23 位を含む全対象順位を検証する
+- **スクリプト**: smkc-score-app/__tests__/lib/points/overall-ranking.test.ts
+
 ## TC-1062: 予選同着プレーオフの配信ラベルは表示言語と一致する (issue #1062)
 - **URL**: /tournaments/[temp-id]/bm, /tournaments/[temp-id]/mr
 - **authRequired**: true (admin)
