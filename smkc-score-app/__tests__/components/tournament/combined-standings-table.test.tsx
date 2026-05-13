@@ -72,4 +72,48 @@ describe("CombinedStandingsTable", () => {
     expect(within(luigiRow!).getByText("-3")).toBeInTheDocument();
     expect(within(luigiRow!).getByText("20")).toBeInTheDocument();
   });
+
+  it("renders zero points without a plus sign", () => {
+    render(
+      <CombinedStandingsTable
+        labels={labels}
+        rankings={[
+          {
+            id: "q-zero",
+            _autoRank: 1,
+            group: "A",
+            player: { nickname: "Peach" },
+            mp: 0,
+            wins: 0,
+            ties: 0,
+            losses: 0,
+            points: 0,
+            score: 0,
+          },
+        ]}
+        getGroupLabel={(group) => `Group ${group}`}
+        getQualificationPoints={(entry) => entry.score}
+      />,
+    );
+
+    const peachRow = screen.getByText("Peach").closest("tr");
+    expect(peachRow).not.toBeNull();
+    expect(within(peachRow!).queryByText("+0")).not.toBeInTheDocument();
+    expect(within(peachRow!).getAllByText("0")).toHaveLength(7);
+  });
+
+  it("renders no data rows when rankings is empty", () => {
+    const { container } = render(
+      <CombinedStandingsTable
+        labels={{ ...labels, playersCount: "0 players" }}
+        rankings={[]}
+        getGroupLabel={(group) => `Group ${group}`}
+        getQualificationPoints={(entry) => entry.score}
+      />,
+    );
+
+    expect(screen.getByText("Combined standings")).toBeInTheDocument();
+    expect(screen.getByText("0 players")).toBeInTheDocument();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(0);
+  });
 });
