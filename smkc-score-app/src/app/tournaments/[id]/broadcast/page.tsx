@@ -32,7 +32,10 @@ import {
   normalizeOverlayBroadcastLayout,
   type OverlayBroadcastLayout,
 } from "@/lib/overlay/layout";
-import { nullableBroadcastIntegerInput } from "@/lib/broadcast-input";
+import {
+  isBroadcastIntegerInputValid,
+  nullableBroadcastIntegerInput,
+} from "@/lib/broadcast-input";
 
 interface Player {
   id: string;
@@ -92,6 +95,15 @@ export default function BroadcastPage({
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
+  const invalidScoreField = [
+    { label: "1P 点数", value: player1WinsInput },
+    { label: "2P 点数", value: player2WinsInput },
+    { label: "FT", value: matchFtInput },
+  ].find(({ value }) => !isBroadcastIntegerInputValid(value));
+  const scoreInputError = invalidScoreField
+    ? `${invalidScoreField.label}は0以上の整数で入力してください。`
+    : "";
+
   const fetchBroadcastState = useCallback(async () => {
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`);
@@ -142,6 +154,8 @@ export default function BroadcastPage({
 
   const handleSave = async () => {
     if (!isAdmin) return;
+    if (scoreInputError) return;
+
     setSaving(true);
     const player1 = players.find((p) => p.nickname === player1Input.trim());
     const player2 = players.find((p) => p.nickname === player2Input.trim());
@@ -362,6 +376,7 @@ export default function BroadcastPage({
                   inputMode="numeric"
                   min={0}
                   step={1}
+                  aria-invalid={!isBroadcastIntegerInputValid(player1WinsInput)}
                   placeholder="0"
                 />
               </div>
@@ -375,6 +390,7 @@ export default function BroadcastPage({
                   inputMode="numeric"
                   min={0}
                   step={1}
+                  aria-invalid={!isBroadcastIntegerInputValid(player2WinsInput)}
                   placeholder="0"
                 />
               </div>
@@ -388,10 +404,16 @@ export default function BroadcastPage({
                   inputMode="numeric"
                   min={0}
                   step={1}
+                  aria-invalid={!isBroadcastIntegerInputValid(matchFtInput)}
                   placeholder="任意"
                 />
               </div>
             </div>
+            {scoreInputError && (
+              <p className="text-sm font-semibold text-destructive" role="alert">
+                {scoreInputError}
+              </p>
+            )}
             <div className="border-t border-foreground/10 pt-4 space-y-3">
               <div>
                 <p className="text-sm font-semibold">表示位置を調整</p>

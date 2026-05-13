@@ -1,9 +1,17 @@
+export function isBroadcastIntegerInputValid(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed === "") return true;
+
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) && parsed >= 0;
+}
+
 export function nullableBroadcastIntegerInput(value: string): number | null {
   const trimmed = value.trim();
   if (trimmed === "") return null;
 
   const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed)) return null;
+  if (!isBroadcastIntegerInputValid(trimmed)) return null;
 
-  return Math.max(0, Math.trunc(parsed));
+  return parsed;
 }

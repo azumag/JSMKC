@@ -94,7 +94,6 @@ export async function GET(
 const MAX_LABEL_LENGTH = 50;
 const isNonNegativeInteger = (value: unknown) => (
   typeof value === "number" &&
-  Number.isFinite(value) &&
   Number.isInteger(value) &&
   value >= 0
 );
