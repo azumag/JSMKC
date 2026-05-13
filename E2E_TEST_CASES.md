@@ -1378,7 +1378,7 @@
 - **背景**: MR 予選コース選択は `(roundNumber - 1) * 4` でシャッフル済みコースデッキを参照する。`roundNumber <= 0` や `NaN` / `Infinity` が混入すると round 1 と同じコースへサイレントにフォールバックし、呼び出し元のバグを隠す可能性がある。
 - **手順**:
   1. 28名 MR 予選を作成し、全予選試合にスコアを投入する
-  2. BYE を除いた全マッチの `roundNumber` が有限な正の整数であることを確認する
+  2. BYE を除いた全マッチの `roundNumber` が `Number.isInteger` で検証できる正の1始まり整数であることを確認する
   3. 同じ `roundNumber` のマッチが同じ4コースの `assignedCourses` を持つことを確認する
   4. `0` / `-1` / `1.5` / `NaN` / `Infinity` 入力時の例外を `qualification-route.test.ts` で確認する
 - **期待結果**: E2E の MR 予選生成経路は有限な `roundNumber >= 1` のみを返し、単体ガードは不正な roundNumber を round 1 に丸めず例外にする
