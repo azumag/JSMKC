@@ -480,16 +480,18 @@ describe('Overall Ranking module', () => {
 
       const positions = await getTAFinalsPositions(mockPrisma as any, TOURNAMENT_ID);
 
-      expect(positions).toEqual(
-        expect.arrayContaining([
-          { playerId: 'p1', position: 1 },
-          { playerId: 'p2', position: 2 },
-          { playerId: 'p17', position: 17 },
-          { playerId: 'p20', position: 20 },
-          { playerId: 'p21', position: 21 },
-          { playerId: 'p24', position: 24 },
-        ])
-      );
+      expect(positions).toEqual([
+        { playerId: 'p1', position: 1 },
+        { playerId: 'p2', position: 2 },
+        { playerId: 'p17', position: 17 },
+        { playerId: 'p18', position: 18 },
+        { playerId: 'p19', position: 19 },
+        { playerId: 'p20', position: 20 },
+        { playerId: 'p21', position: 21 },
+        { playerId: 'p22', position: 22 },
+        { playerId: 'p23', position: 23 },
+        { playerId: 'p24', position: 24 },
+      ]);
     });
   });
 
