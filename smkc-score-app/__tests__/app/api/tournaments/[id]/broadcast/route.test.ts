@@ -203,6 +203,32 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
     );
   });
 
+  it('clears player1 wins when null is passed', async () => {
+    await PUT(
+      mockReq({ player1Wins: null }),
+      mockParams('t1'),
+    );
+
+    expect(prisma.tournament.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ overlayPlayer1Wins: null }),
+      }),
+    );
+  });
+
+  it('clears player2 wins when null is passed', async () => {
+    await PUT(
+      mockReq({ player2Wins: null }),
+      mockParams('t1'),
+    );
+
+    expect(prisma.tournament.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ overlayPlayer2Wins: null }),
+      }),
+    );
+  });
+
   it('trims whitespace from player names', async () => {
     await PUT(
       mockReq({ player1Name: '  Alice  ' }),
