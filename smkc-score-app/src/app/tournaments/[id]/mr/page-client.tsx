@@ -17,7 +17,7 @@
 "use client";
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -131,6 +131,12 @@ interface MRMatch {
   player2: Player;
 }
 
+function compareMrQualificationEntries(a: MRQualification, b: MRQualification): number {
+  return b.score - a.score || b.points - a.points;
+}
+
+const EMPTY_MR_QUALIFICATIONS: MRQualification[] = [];
+
 /** Individual race result in a match */
 interface Round {
   course: CourseAbbr | "";
@@ -214,9 +220,13 @@ export default function MatchRacePageClient({
    * Derive display data directly from polling response.
    * Avoids redundant local state and provides instant display from cache.
    */
-  const qualifications: MRQualification[] = pollData?.qualifications ?? [];
+  const qualifications: MRQualification[] = pollData?.qualifications ?? EMPTY_MR_QUALIFICATIONS;
   const matches: MRMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
+  const combinedRankings = useMemo(
+    () => computeCombinedRanks(qualifications, compareMrQualificationEntries),
+    [qualifications],
+  );
   /* Whether qualification scores are locked by admin confirmation */
   const qualificationConfirmed: boolean = pollData?.qualificationConfirmed ?? false;
   const canCreateFinals = canCreateFinalsFromQualification({
@@ -774,50 +784,42 @@ export default function MatchRacePageClient({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {(() => {
-                  const combinedRankings = computeCombinedRanks(
-                    qualifications,
-                    (a, b) => b.score - a.score || b.points - a.points
-                  );
-                  return (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-16">#</TableHead>
-                          <TableHead>{tc('group')}</TableHead>
-                          <TableHead>{tc('player')}</TableHead>
-                          <TableHead className="text-center">{t('mp')}</TableHead>
-                          <TableHead className="text-center">{t('w')}</TableHead>
-                          <TableHead className="text-center">{t('t')}</TableHead>
-                          <TableHead className="text-center">{t('l')}</TableHead>
-                          <TableHead className="text-center">{t('plusMinus')}</TableHead>
-                          <TableHead className="text-center">{t('pts')}</TableHead>
-                          <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {combinedRankings.map((q) => (
-                          <TableRow key={q.id}>
-                            <TableCell className="font-semibold">{q._autoRank}</TableCell>
-                            <TableCell>{tc('groupLabel', { group: q.group })}</TableCell>
-                            <TableCell className="font-medium">{q.player.nickname}</TableCell>
-                            <TableCell className="text-center">{q.mp}</TableCell>
-                            <TableCell className="text-center">{q.wins}</TableCell>
-                            <TableCell className="text-center">{q.ties}</TableCell>
-                            <TableCell className="text-center">{q.losses}</TableCell>
-                            <TableCell className="text-center">
-                              {q.points > 0 ? `+${q.points}` : q.points}
-                            </TableCell>
-                            <TableCell className="text-center font-bold">{q.score}</TableCell>
-                            <TableCell className="text-center font-bold">
-                              {getQualificationPoints(q)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  );
-                })()}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">#</TableHead>
+                      <TableHead>{tc('group')}</TableHead>
+                      <TableHead>{tc('player')}</TableHead>
+                      <TableHead className="text-center">{t('mp')}</TableHead>
+                      <TableHead className="text-center">{t('w')}</TableHead>
+                      <TableHead className="text-center">{t('t')}</TableHead>
+                      <TableHead className="text-center">{t('l')}</TableHead>
+                      <TableHead className="text-center">{t('plusMinus')}</TableHead>
+                      <TableHead className="text-center">{t('pts')}</TableHead>
+                      <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {combinedRankings.map((q) => (
+                      <TableRow key={q.id}>
+                        <TableCell className="font-semibold">{q._autoRank}</TableCell>
+                        <TableCell>{tc('groupLabel', { group: q.group })}</TableCell>
+                        <TableCell className="font-medium">{q.player.nickname}</TableCell>
+                        <TableCell className="text-center">{q.mp}</TableCell>
+                        <TableCell className="text-center">{q.wins}</TableCell>
+                        <TableCell className="text-center">{q.ties}</TableCell>
+                        <TableCell className="text-center">{q.losses}</TableCell>
+                        <TableCell className="text-center">
+                          {q.points > 0 ? `+${q.points}` : q.points}
+                        </TableCell>
+                        <TableCell className="text-center font-bold">{q.score}</TableCell>
+                        <TableCell className="text-center font-bold">
+                          {getQualificationPoints(q)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
