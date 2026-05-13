@@ -113,6 +113,8 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
+    const tc1555 = e2eCaseSection('TC-1555');
+    const tc1556 = e2eCaseSection('TC-1556');
     const guard = readRepoFile(
       'smkc-score-app',
       '__tests__',
@@ -121,11 +123,20 @@ describe('E2E case drift coverage', () => {
     );
 
     expect(section).toContain('issue #1063');
+    expect(section).toContain('issue #1555/#1556');
     expect(section).toContain('BM/MR/GP');
     expect(section).toContain('useMemo');
     expect(section).toContain('computeCombinedRanks');
     expect(section).toContain('tc-1063-combined-rankings-usememo.test.ts');
+    expect(tc1555).toContain('issue #1555');
+    expect(tc1555).toContain('ranking-utils.test.ts');
+    expect(tc1555).toContain('comparator');
+    expect(tc1556).toContain('issue #1556');
+    expect(tc1556).toContain('import 順');
+    expect(tc1556).toContain('tc-1063-combined-rankings-usememo.test.ts');
     expect(guard).toContain('combinedRankings');
+    expect(guard).toContain('compareByScoreThenPoints');
+    expect(guard).toContain('toMatch(/import');
   });
 
   it('keeps TC-1068 aligned with orphan eliminated-entry ordering coverage', () => {

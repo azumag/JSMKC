@@ -4,12 +4,12 @@ const pageClients = [
   {
     mode: 'BM',
     path: ['src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx'],
-    comparator: 'compareBmQualificationEntries',
+    comparator: 'compareByScoreThenPoints',
   },
   {
     mode: 'MR',
     path: ['src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx'],
-    comparator: 'compareMrQualificationEntries',
+    comparator: 'compareByScoreThenPoints',
   },
   {
     mode: 'GP',
@@ -23,6 +23,7 @@ describe('TC-1063 combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
 
     expect(section).toContain('issue #1063');
+    expect(section).toContain('issue #1555/#1556');
     expect(section).toContain('useMemo');
     expect(section).toContain('BM/MR/GP');
     expect(section).toContain('tc-1063-combined-rankings-usememo.test.ts');
@@ -33,7 +34,7 @@ describe('TC-1063 combined standings memoization guard', () => {
     const declaration = sectionBetween(
       source,
       'const combinedRankings = useMemo(',
-      '/* Whether qualification scores are locked by admin confirmation */',
+      'const qualificationConfirmed',
     );
     const combinedTab = sectionBetween(
       source,
@@ -41,12 +42,38 @@ describe('TC-1063 combined standings memoization guard', () => {
       '{/* Matches Tab - Group-filtered, round-grouped match list */}',
     );
 
-    expect(source).toContain('useMemo } from "react"');
+    expect(source).toMatch(/import\s*\{[^}]*\buseMemo\b[^}]*\}\s*from "react"/s);
     expect(declaration).toContain('computeCombinedRanks(qualifications');
     expect(declaration).toContain(comparator);
     expect(declaration).toContain('[qualifications]');
     expect(combinedTab).toContain('combinedRankings.map');
     expect(combinedTab).not.toContain('const combinedRankings = computeCombinedRanks');
     expect(combinedTab).not.toContain('computeCombinedRanks(');
+  });
+
+  it('keeps BM/MR on the shared score-then-points comparator', () => {
+    const bmSource = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'app',
+      'tournaments',
+      '[id]',
+      'bm',
+      'page-client.tsx',
+    );
+    const mrSource = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'app',
+      'tournaments',
+      '[id]',
+      'mr',
+      'page-client.tsx',
+    );
+
+    expect(bmSource).toContain('compareByScoreThenPoints');
+    expect(mrSource).toContain('compareByScoreThenPoints');
+    expect(bmSource).not.toContain('compareBmQualificationEntries');
+    expect(mrSource).not.toContain('compareMrQualificationEntries');
   });
 });

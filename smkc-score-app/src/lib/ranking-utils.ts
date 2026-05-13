@@ -27,6 +27,15 @@ export interface RankAssignment {
   rankOverride: number;
 }
 
+export interface ScorePointsEntry {
+  score: number;
+  points: number;
+}
+
+export function compareByScoreThenPoints<T extends ScorePointsEntry>(a: T, b: T): number {
+  return b.score - a.score || b.points - a.points;
+}
+
 /**
  * Assign 1224 competition ranks to entries, then sort by effective rank.
  *

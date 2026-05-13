@@ -64,6 +64,7 @@ import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
+  compareByScoreThenPoints,
   computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
@@ -130,10 +131,6 @@ interface BMMatch {
   player2ReportedScore2?: number | null;
   player1: Player;
   player2: Player;
-}
-
-function compareBmQualificationEntries(a: BMQualification, b: BMQualification): number {
-  return b.score - a.score || b.points - a.points;
 }
 
 const EMPTY_BM_QUALIFICATIONS: BMQualification[] = [];
@@ -229,7 +226,7 @@ export default function BattleModePageClient({
   const matches: BMMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const combinedRankings = useMemo(
-    () => computeCombinedRanks(qualifications, compareBmQualificationEntries),
+    () => computeCombinedRanks(qualifications, compareByScoreThenPoints),
     [qualifications],
   );
   /* Whether qualification scores are locked by admin confirmation */

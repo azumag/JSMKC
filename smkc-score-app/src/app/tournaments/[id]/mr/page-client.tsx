@@ -31,6 +31,7 @@ import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
+  compareByScoreThenPoints,
   computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
@@ -131,10 +132,6 @@ interface MRMatch {
   player2: Player;
 }
 
-function compareMrQualificationEntries(a: MRQualification, b: MRQualification): number {
-  return b.score - a.score || b.points - a.points;
-}
-
 const EMPTY_MR_QUALIFICATIONS: MRQualification[] = [];
 
 /** Individual race result in a match */
@@ -224,7 +221,7 @@ export default function MatchRacePageClient({
   const matches: MRMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const combinedRankings = useMemo(
-    () => computeCombinedRanks(qualifications, compareMrQualificationEntries),
+    () => computeCombinedRanks(qualifications, compareByScoreThenPoints),
     [qualifications],
   );
   /* Whether qualification scores are locked by admin confirmation */
