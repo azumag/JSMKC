@@ -214,6 +214,10 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
         data: expect.objectContaining({ overlayPlayer1Wins: null }),
       }),
     );
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({ player1Wins: null }),
+    });
   });
 
   it('clears player2 wins when null is passed', async () => {
@@ -227,6 +231,10 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
         data: expect.objectContaining({ overlayPlayer2Wins: null }),
       }),
     );
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({ player2Wins: null }),
+    });
   });
 
   it('trims whitespace from player names', async () => {
