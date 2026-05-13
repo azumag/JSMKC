@@ -24,6 +24,7 @@
  *  TC-612  GP race position validation (no-tie + double-game-over)
  *  TC-820  MR match/[matchId] page view-only
  *  TC-822  SKIP — feature not implemented
+ *  TC-1079 MR qualification course assignment rejects invalid roundNumber before fallback
  *  TC-617  MR finals same-courses-per-round enforcement (PR #585 normalizer)
  *  TC-618  MR finals admin manual total-score override (PR #585 manual form)
  *  TC-620  MR qualification tie resolution (tie warning → resolveAllTies)
@@ -233,6 +234,10 @@ async function runTc601(adminPage) {
     const postScoreData = await apiFetchMr(adminPage, tournamentId);
     const postScoreMatches = postScoreData.matches || [];
     const realMatches = postScoreMatches.filter((m) => !m.isBye);
+    const invalidRoundMatches = realMatches.filter((match) => (
+      // Keep the finite check explicit to cover NaN/Infinity edge cases tested in TC-1079.
+      !Number.isFinite(match.roundNumber) || !Number.isInteger(match.roundNumber) || match.roundNumber < 1
+    ));
     const roundCourseVariants = new Map();
     for (const match of realMatches) {
       const roundNumber = match.roundNumber;
@@ -247,7 +252,7 @@ async function runTc601(adminPage) {
       return variants.size === 1 && Array.isArray(courses) && courses.length === 4;
     });
 
-    const allPassed = hasExpectedMatches && allScoresOk && hasStandings && qualificationPointsOk && standingsSorted && coursesSharedByRound;
+    const allPassed = hasExpectedMatches && allScoresOk && hasStandings && qualificationPointsOk && standingsSorted && invalidRoundMatches.length === 0 && coursesSharedByRound;
     log('TC-601', allPassed ? 'PASS' : 'FAIL',
       !allPassed
         ? (!hasExpectedMatches ? `Expected 182 non-bye matches, got ${nonByeMatches.length}`
@@ -255,6 +260,7 @@ async function runTc601(adminPage) {
            : !hasStandings ? 'Standings page did not render properly'
            : !qualificationPointsOk ? `qualification points rows=${qualificationPoints.length} expected>=28`
            : !standingsSorted ? 'Standings not sorted correctly'
+           : invalidRoundMatches.length > 0 ? `invalid roundNumber matches=${invalidRoundMatches.map((m) => m.matchNumber).join(',')}`
            : !coursesSharedByRound ? 'MR assignedCourses are not shared by round'
            : '')
         : '');

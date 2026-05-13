@@ -117,8 +117,11 @@ function generateShuffledCupList(
  * @param roundNumber - One-based round/day number in the round-robin schedule
  * @returns Array of TOTAL_MR_RACES (4) course abbreviations
  */
-function getAssignedCoursesForRound(shuffled: string[], roundNumber: number): string[] {
-  const roundIndex = Math.max(0, roundNumber - 1);
+export function getAssignedCoursesForRound(shuffled: string[], roundNumber: number): string[] {
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) {
+    throw new Error(`MR qualification roundNumber must be a positive integer: ${roundNumber}`);
+  }
+  const roundIndex = roundNumber - 1;
   return Array.from({ length: TOTAL_MR_RACES }, (_, i) =>
     shuffled[(roundIndex * TOTAL_MR_RACES + i) % shuffled.length]
   );

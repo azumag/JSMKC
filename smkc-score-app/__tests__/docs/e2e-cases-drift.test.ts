@@ -98,6 +98,18 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('Number.isInteger(match.roundNumber)');
   });
 
+  it('keeps TC-1079 aligned with MR finite positive round-number guards', () => {
+    const section = e2eCaseSection('TC-1079');
+
+    expect(section).toContain('MR 予選コース選択');
+    expect(section).toContain('NaN');
+    expect(section).toContain('Infinity');
+    expect(section).toContain('tc-mr.js TC-601 内で検証');
+    expect(tcMr).toContain('Keep the finite check explicit to cover NaN/Infinity edge cases tested in TC-1079.');
+    expect(tcMr).toContain('Number.isFinite(match.roundNumber)');
+    expect(tcMr).toContain('Number.isInteger(match.roundNumber)');
+  });
+
   it('keeps TC-1083 aligned with MR participant correction coverage', () => {
     const section = e2eCaseSection('TC-1083');
     const tc1083 = sectionBetween(tcMr, 'async function runTc1083', '/**\n * TC-603');
