@@ -3838,6 +3838,28 @@ async function main() {
       }, tc354TournamentId);
       const clearOk = putClear.s === 200;
 
+      // PUT with null clears both score fields.
+      const putClearWins = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player1Wins: null, player2Wins: null }),
+        });
+        return { s: r.status };
+      }, tc354TournamentId);
+
+      const getAfterClearWins = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`);
+        const j = await r.json().catch(() => ({}));
+        return { s: r.status, data: j.data ?? j };
+      }, tc354TournamentId);
+      const clearWinsOk = (
+        putClearWins.s === 200 &&
+        getAfterClearWins.s === 200 &&
+        getAfterClearWins.data.player1Wins === null &&
+        getAfterClearWins.data.player2Wins === null
+      );
+
       // Invalid layout coordinates outside the OBS 1920x1080 canvas are rejected.
       const putInvalidLayout = await page.evaluate(async (tid) => {
         const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
@@ -3876,9 +3898,9 @@ async function main() {
       }
       const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
 
-      const ok = hasShape && putOk && getOk && clearOk && invalidLayoutBlocked && nonAdminBlocked;
+      const ok = hasShape && putOk && getOk && clearOk && clearWinsOk && invalidLayoutBlocked && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
-        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
+        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
     } catch (err) {
       log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
     } finally {
