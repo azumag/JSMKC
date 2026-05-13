@@ -1682,6 +1682,16 @@
 - **期待結果**: Winners R1 M2 の敗者が M16 `player2Id` に反映され、`player1Id` を上書きしない
 - **スクリプト**: tc-mr.js TC-858
 
+## TC-1072: 16人決勝 LR2 ペアリング検証の単純化 (issue #1072)
+- **背景**: 16人決勝の Losers R2 ペアリング検証は、テスト内で参加者ラベルを再構成せず、ブラケット定義が持つ `loserGoesTo` を直接確認する。これにより #1071 で決めた B3/A4/A3/B4 順の保証を、余計なテスト側変換ロジックなしで読み取れるようにする。
+- **手順**:
+  1. 16人決勝ブラケットを生成する
+  2. Winners QF M9-M12 を上から順に取得する
+  3. 各 match の `loserGoesTo` を直接読み取る
+  4. Losers R2 M23/M22/M21/M20 へ逆順に落ちることを確認する
+- **期待結果**: Winners QF の `loserGoesTo` は `[23, 22, 21, 20]` で、テストは LR2 ラベル変換用の Map や `find()` を使わずに意図を検証する
+- **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
+
 ## TC-1073: 16人決勝 Winners QF 敗者の Losers R2 1P 反映 (issue #1073)
 - **背景**: 16人決勝ブラケットでは、Winners QF から Losers R2 に落ちる敗者を 1P、Losers R1 から勝ち上がる選手を 2P に揃える必要がある。Losers R2 の対戦相手順は #1071 の B3/A4/A3/B4 順を維持する。
 - **手順**:

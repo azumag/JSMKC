@@ -1,6 +1,16 @@
 import { generateBracketStructure, getNextMatchInfo } from '@/lib/double-elimination';
 
 describe('TC-1073 16-player finals LR2 slot routing', () => {
+  it('TC-1072 keeps LR2 pairing coverage on direct loserGoesTo values', () => {
+    const bracket = generateBracketStructure(16);
+
+    expect(
+      bracket
+        .filter((match) => match.round === 'winners_qf')
+        .map((match) => match.loserGoesTo),
+    ).toEqual([23, 22, 21, 20]);
+  });
+
   it('keeps Winners QF losers in player1 slots and Losers R1 winners in player2 slots', () => {
     const bracket = generateBracketStructure(16);
 
