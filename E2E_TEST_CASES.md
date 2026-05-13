@@ -1689,7 +1689,7 @@
   2. Winners QF M9-M12 を上から順に取得する
   3. 各 match の `loserGoesTo` を直接読み取る
   4. Losers R2 M23/M22/M21/M20 へ逆順に落ちることを確認する
-- **期待結果**: Winners QF の `loserGoesTo` は `[23, 22, 21, 20]` で、テストは LR2 ラベル変換用の Map や `find()` を使わずに意図を検証する
+- **期待結果**: Winners QF の `loserGoesTo` は `[23, 22, 21, 20]` で、テストは LR2 ラベル変換用の辞書化や探索処理を使わずに意図を検証する
 - **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
 
 ## TC-1073: 16人決勝 Winners QF 敗者の Losers R2 1P 反映 (issue #1073)
@@ -1700,6 +1700,16 @@
   3. Losers R1 M16-M19 の勝者ルーティングを取得する
   4. Losers R2 M20-M23 で Winners QF 敗者が `player1`、Losers R1 勝者が `player2` に入ることを確認する
 - **期待結果**: M12→M20、M11→M21、M10→M22、M9→M23 の Winners QF 敗者がすべて 1P に入り、M16-M19 の Losers R1 勝者が対応する Losers R2 の 2P に入る
+- **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
+
+## TC-1534-1535: 16人決勝 LR2 ルーティング follow-up 検証 (issues #1534, #1535)
+- **背景**: TC-1072/TC-1073 の LR2 検証は、ドキュメント文言に含まれる単語ではなく、実際のテスト本体が補助的な変換・探索ロジックを持たないことと、QF 敗者・LR1 勝者の両ルートを直接読むことを保証する。
+- **手順**:
+  1. 16人決勝ブラケットを生成する
+  2. Winners QF M9-M12 の `loserGoesTo` と `loserPosition` を確認する
+  3. Losers R1 M16-M19 の `winnerGoesTo` と `position` を確認する
+  4. static drift test で LR2 検証ファイルに補助的な変換・探索呼び出しが混入していないことを確認する
+- **期待結果**: Winners QF 側は M23/M22/M21/M20 の 1P、Losers R1 側は M20/M21/M22/M23 の 2P に直接ルーティングされ、テスト本体はルーティング値を直接検証する
 - **スクリプト**: smkc-score-app/__tests__/e2e/tc-1073-16p-lr2-slots.test.ts
 
 ## TC-1396: 16人決勝 QF 敗者スロット定義の一元化 (issue #1396)

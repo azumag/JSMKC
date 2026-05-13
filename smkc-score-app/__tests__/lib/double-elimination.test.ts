@@ -578,13 +578,17 @@ describe('Double Elimination Bracket Structure', () => {
       });
     });
 
-    it('should pair two-group LR2 matches in the requested top-to-bottom order', () => {
+    it('should pair two-group LR2 matches from both source rounds in the requested order', () => {
       const matches16 = generateBracketStructure(16);
 
       expect(matches16
         .filter((m) => m.round === 'winners_qf')
         .map((m) => m.loserGoesTo),
       ).toEqual([23, 22, 21, 20]);
+      expect(matches16
+        .filter((m) => m.round === 'losers_r1')
+        .map((m) => m.winnerGoesTo),
+      ).toEqual([20, 21, 22, 23]);
     });
   });
 
