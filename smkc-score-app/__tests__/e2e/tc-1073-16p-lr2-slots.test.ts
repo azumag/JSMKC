@@ -17,17 +17,6 @@ describe('TC-1073 16-player finals LR2 slot routing', () => {
     expect(
       bracket
         .filter((match) => match.round === 'winners_qf')
-        .map((match) => match.loserGoesTo),
-    ).toEqual([23, 22, 21, 20]);
-    expect(
-      bracket
-        .filter((match) => match.round === 'losers_r1')
-        .map((match) => match.winnerGoesTo),
-    ).toEqual([20, 21, 22, 23]);
-
-    expect(
-      bracket
-        .filter((match) => match.round === 'winners_qf')
         .map((match) => ({
           matchNumber: match.matchNumber,
           loserGoesTo: match.loserGoesTo,

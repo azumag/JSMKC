@@ -184,13 +184,13 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-1534-1535 aligned with direct LR2 source route coverage', () => {
     const section = e2eCaseSection('TC-1534-1535');
 
-    expect(section).toContain('issues #1534, #1535');
+    expect(section).toContain('issues #1534, #1535, #1537');
     expect(section).toContain('`winnerGoesTo`');
     expect(section).toContain('`position`');
     expect(section).toContain('tc-1073-16p-lr2-slots.test.ts');
     expect(tc1073Lr2Slots).toContain('TC-1535 keeps LR2 source routes explicit on both bracket sides');
     expect(tc1073Lr2Slots).toContain(".filter((match) => match.round === 'losers_r1')");
-    expect(tc1073Lr2Slots).toContain('.map((match) => match.winnerGoesTo)');
+    expect(tc1073Lr2Slots).toContain('winnerGoesTo: match.winnerGoesTo');
     expect(tc1073Lr2Slots).not.toContain('new Map(');
     expect(tc1073Lr2Slots).not.toContain('.find(');
   });
