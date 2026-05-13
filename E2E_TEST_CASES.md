@@ -2495,6 +2495,18 @@
   5. 最後に脱落したプレイヤーの `taFinalsPoints` が、最初に脱落したプレイヤーの `taFinalsPoints` より大きいことを確認
 - **期待結果**: 総合ランキングの TA Finals 配点が「最後まで生き残った順」を反映する。早期脱落者が後期脱落者を上回ることはない
 
+## TC-1068: TA Finals の orphan eliminated entry は末尾に並ぶ (issue #1068)
+- **URL**: /api/tournaments/[temp-id]/ta/phases?phase=phase3
+- **authRequired**: true (admin)
+- **背景**: `eliminated: true` だが Phase 3 の `rounds[].eliminatedIds` に存在しない legacy/orphan entry は、脱落ラウンドを復元できないため、round-backed の脱落者より低い順位として扱う。
+- **手順**:
+  1. Phase 3 entries に active player、round 1 脱落者、round 2 脱落者、`eliminated=true` だが `eliminatedIds` 未登録の orphan player を用意する
+  2. `/api/tournaments/[temp-id]/ta/phases?phase=phase3` の表示用 entries 並び順を取得する
+  3. active player が先頭、round 2 脱落者、round 1 脱落者、orphan player の順になることを確認する
+  4. orphan player の速い qualification time や rank が round-backed 脱落者を追い越さないことを確認する
+- **期待結果**: `eliminatedIds` に履歴がない eliminated entry は fallback round `-1` として扱われ、すべての round-backed 脱落者の後ろに表示される
+- **スクリプト**: smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts
+
 ## TC-809: TA Phase 1 で未提出ラウンドをキャンセルできる
 - **URL**: /tournaments/[temp-id]/ta/phase1
 - **authRequired**: true (admin)
