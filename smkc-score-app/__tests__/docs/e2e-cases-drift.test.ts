@@ -115,6 +115,7 @@ describe('E2E case drift coverage', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');
     const tc1556 = e2eCaseSection('TC-1556');
+    const tc1558 = e2eCaseSection('TC-1558');
     const guard = readRepoFile(
       'smkc-score-app',
       '__tests__',
@@ -134,6 +135,9 @@ describe('E2E case drift coverage', () => {
     expect(tc1556).toContain('issue #1556');
     expect(tc1556).toContain('import 順');
     expect(tc1556).toContain('tc-1063-combined-rankings-usememo.test.ts');
+    expect(tc1558).toContain('issue #1558');
+    expect(tc1558).toContain('ScorePointsEntry');
+    expect(tc1558).toContain('ranking-utils.test.ts');
     expect(guard).toContain('combinedRankings');
     expect(guard).toContain('compareByScoreThenPoints');
     expect(guard).toContain('toMatch(/import');
