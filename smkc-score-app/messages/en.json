@@ -162,11 +162,7 @@
     "matchRace": "Match Race",
     "matchRaceDesc": "1v1 race competition",
     "grandPrix": "Grand Prix",
-    "grandPrixDesc": "Cup-based driver's points",
-    "recommended": "Recommended",
-    "recommendedDesc": "Gear and references picked up by the paddock.",
-    "viewOnAmazon": "View on Amazon",
-    "affiliateLabel": "PR"
+    "grandPrixDesc": "Cup-based driver's points"
   },
   "auth": {
     "loginTitle": "JSMKC Login",

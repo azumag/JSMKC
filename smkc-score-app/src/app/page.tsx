@@ -92,46 +92,6 @@ export default function Home() {
           ))}
         </div>
       </section>
-
-      {/*
-        Affiliate / sponsored recommendation block.
-        - rel="sponsored": signals paid placement to search engines (Google
-          guidelines for affiliate links).
-        - rel="noopener noreferrer": prevents tabnabbing and referrer leak
-          when target="_blank".
-        - The PR (Promotional) label is required disclosure under Japan's
-          "stealth marketing" regulation (景品表示法, in force 2023-10) and
-          aligns with US FTC endorsement guides.
-      */}
-      <section
-        aria-labelledby="recommended-heading"
-        className="border-t border-foreground/15 pt-8"
-      >
-        <header className="mb-3 flex items-baseline justify-between gap-4">
-          <h2
-            id="recommended-heading"
-            className="text-base font-semibold"
-          >
-            {t('recommended')}
-          </h2>
-          <span className="text-[10px] font-mono tabular tracking-[0.18em] uppercase text-muted-foreground border border-foreground/20 px-1.5 py-0.5">
-            {t('affiliateLabel')}
-          </span>
-        </header>
-        <a
-          href="https://amzn.to/42upwDm"
-          target="_blank"
-          rel="sponsored noopener noreferrer"
-          className="block border border-foreground/15 bg-card p-5 transition-colors hover:border-foreground/40"
-        >
-          <p className="text-sm text-foreground">
-            {t('recommendedDesc')}
-          </p>
-          <p className="mt-2 text-xs font-mono tabular tracking-[0.12em] uppercase text-muted-foreground">
-            {t('viewOnAmazon')} →
-          </p>
-        </a>
-      </section>
     </div>
   );
 }
