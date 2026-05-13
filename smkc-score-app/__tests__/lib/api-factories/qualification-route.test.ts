@@ -402,6 +402,7 @@ describe('Qualification Route Factory', () => {
         return acc;
       }, {});
       Object.values(realMatchesByRound).forEach((roundMatches: any[]) => {
+        // 8-player round-robin: each round has 4 real matches (8 / 2 = 4).
         expect(roundMatches).toHaveLength(4);
         const expectedCourses = roundMatches[0].assignedCourses;
         expect(expectedCourses).toHaveLength(4);
