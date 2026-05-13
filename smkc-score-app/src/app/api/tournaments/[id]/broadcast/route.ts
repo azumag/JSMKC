@@ -92,6 +92,12 @@ export async function GET(
 }
 
 const MAX_LABEL_LENGTH = 50;
+const isNonNegativeInteger = (value: unknown) => (
+  typeof value === "number" &&
+  Number.isFinite(value) &&
+  Number.isInteger(value) &&
+  value >= 0
+);
 
 /**
  * PUT /api/tournaments/[id]/broadcast
@@ -154,14 +160,14 @@ export async function PUT(
     if (typeof matchLabel === "string" && matchLabel.length > MAX_LABEL_LENGTH) {
       return handleValidationError(`matchLabel must be at most ${MAX_LABEL_LENGTH} characters`, "matchLabel");
     }
-    if (player1Wins !== undefined && player1Wins !== null && typeof player1Wins !== "number") {
-      return handleValidationError("player1Wins must be a number", "player1Wins");
+    if (player1Wins !== undefined && player1Wins !== null && !isNonNegativeInteger(player1Wins)) {
+      return handleValidationError("player1Wins must be a non-negative integer", "player1Wins");
     }
-    if (player2Wins !== undefined && player2Wins !== null && typeof player2Wins !== "number") {
-      return handleValidationError("player2Wins must be a number", "player2Wins");
+    if (player2Wins !== undefined && player2Wins !== null && !isNonNegativeInteger(player2Wins)) {
+      return handleValidationError("player2Wins must be a non-negative integer", "player2Wins");
     }
-    if (matchFt !== undefined && matchFt !== null && typeof matchFt !== "number") {
-      return handleValidationError("matchFt must be a number", "matchFt");
+    if (matchFt !== undefined && matchFt !== null && !isNonNegativeInteger(matchFt)) {
+      return handleValidationError("matchFt must be a non-negative integer", "matchFt");
     }
     if (layout !== undefined && layout !== null && !isOverlayBroadcastLayoutInput(layout)) {
       return handleValidationError(

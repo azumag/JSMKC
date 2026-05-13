@@ -32,6 +32,7 @@ import {
   normalizeOverlayBroadcastLayout,
   type OverlayBroadcastLayout,
 } from "@/lib/overlay/layout";
+import { nullableBroadcastIntegerInput } from "@/lib/broadcast-input";
 
 interface Player {
   id: string;
@@ -45,14 +46,13 @@ interface BroadcastState {
   player2Name: string;
   player1NoCamera: boolean;
   player2NoCamera: boolean;
-  matchLabel: string;
+  matchLabel: string | null;
   player1Wins: number | null;
   player2Wins: number | null;
   matchFt: number | null;
   layout: OverlayBroadcastLayout;
 }
 
-const nullableNumberInput = (value: string) => value.trim() === "" ? null : Number(value);
 const coordinateInput = (value: string, fallback: number) => {
   const next = Number(value);
   return Number.isFinite(next) ? next : fallback;
@@ -155,9 +155,9 @@ export default function BroadcastPage({
           player1NoCamera: player1?.noCamera === true,
           player2NoCamera: player2?.noCamera === true,
           matchLabel: matchLabelInput.trim(),
-          player1Wins: nullableNumberInput(player1WinsInput),
-          player2Wins: nullableNumberInput(player2WinsInput),
-          matchFt: nullableNumberInput(matchFtInput),
+          player1Wins: nullableBroadcastIntegerInput(player1WinsInput),
+          player2Wins: nullableBroadcastIntegerInput(player2WinsInput),
+          matchFt: nullableBroadcastIntegerInput(matchFtInput),
           layout: layoutInput,
         }),
       });

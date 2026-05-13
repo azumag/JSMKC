@@ -353,6 +353,17 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
     expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status).toBe(400);
   });
 
+  it.each([
+    ['player1Wins', 1.5],
+    ['player2Wins', -1],
+    ['matchFt', 2.25],
+  ])('returns 400 when %s is not a non-negative integer', async (field, value) => {
+    await PUT(mockReq({ [field]: value }), mockParams('t1'));
+
+    expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status).toBe(400);
+    expect(prisma.tournament.update).not.toHaveBeenCalled();
+  });
+
   it('returns 400 when layout contains unsupported coordinate slots', async () => {
     await PUT(mockReq({ layout: { player3Name: { x: 1, y: 2 } } }), mockParams('t1'));
 
