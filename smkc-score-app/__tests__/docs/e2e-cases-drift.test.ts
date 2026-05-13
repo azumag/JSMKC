@@ -19,6 +19,7 @@ describe('E2E case drift coverage', () => {
   const tcTa = readE2eScript('tc-ta.js');
   const tcTaFlow = readE2eScript('tc-ta-flow.js');
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
+  const tc1073Lr2Slots = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-1073-16p-lr2-slots.test.ts');
 
   it.each([
     ['TC-352', tcAll],
@@ -166,6 +167,20 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('TC-1083');
     expect(bmPage).toContain('useParticipantScoreInput<BMMatch>');
     expect(mrPage).toContain('useParticipantScoreInput<MRMatch>');
+  });
+
+  it('keeps TC-1072 aligned with direct LR2 loserGoesTo coverage', () => {
+    const section = e2eCaseSection('TC-1072');
+
+    expect(section).toContain('issue #1072');
+    expect(section).toContain('`loserGoesTo`');
+    expect(section).toContain('[23, 22, 21, 20]');
+    expect(section).toContain('Map');
+    expect(section).toContain('find()');
+    expect(section).toContain('tc-1073-16p-lr2-slots.test.ts');
+    expect(tc1073Lr2Slots).toContain('TC-1072 keeps LR2 pairing coverage on direct loserGoesTo values');
+    expect(tc1073Lr2Slots).toContain('.map((match) => match.loserGoesTo)');
+    expect(tc1073Lr2Slots).toContain(').toEqual([23, 22, 21, 20])');
   });
 
   it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
