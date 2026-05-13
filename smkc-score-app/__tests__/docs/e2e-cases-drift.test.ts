@@ -90,7 +90,9 @@ describe('E2E case drift coverage', () => {
       "it('should query rounds with correct phase filter'",
     );
     expect(routeCase).toContain('player-orphan-eliminated');
-    const orderAssertion = routeCase.slice(routeCase.indexOf('expect(call.data.entries.map'));
+    const anchorIdx = routeCase.indexOf('expect(call.data.entries.map');
+    expect(anchorIdx).toBeGreaterThanOrEqual(0);
+    const orderAssertion = routeCase.slice(anchorIdx);
     const expectedOrder = [
       "'player-active'",
       "'player-eliminated-late'",
