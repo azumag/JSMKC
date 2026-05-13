@@ -9,10 +9,25 @@ describe('overlay toast title assertions', () => {
   });
 
   it('accepts concrete overlay event title terms', () => {
-    expect(hasKnownOverlayToastTitle('Overall Ranking Updated')).toBe(true);
-    expect(hasKnownOverlayToastTitle('Qualification Locked')).toBe(true);
-    expect(hasKnownOverlayToastTitle('Time Attack Phase 1 Started')).toBe(true);
-    expect(hasKnownOverlayToastTitle('タイムトライアル予選を完走')).toBe(true);
+    const cases = [
+      '総合順位を更新しました',
+      '予選確定',
+      '試合終了',
+      'スコア申告',
+      'タイム更新',
+      'Overall Ranking Updated',
+      'Qualification Locked',
+      'Match Completed',
+      'Time Attack Phase 1 Started',
+      'Score Reported',
+      'Qualification summary',
+      'Ranking snapshot',
+      'タイムトライアル予選を完走',
+    ];
+
+    for (const title of cases) {
+      expect(hasKnownOverlayToastTitle(title)).toBe(true);
+    }
   });
 
   it('does not accept the generic Time word by itself', () => {
