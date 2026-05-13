@@ -11,6 +11,7 @@
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
+  compareByScoreThenPoints,
   computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
@@ -27,8 +28,7 @@ interface Entry {
 }
 
 /** Standard BM/MR comparator: score desc, points desc */
-const bmCompareFn = (a: Entry, b: Entry) =>
-  b.score - a.score || b.points - a.points;
+const bmCompareFn: (a: Entry, b: Entry) => number = compareByScoreThenPoints;
 
 /** GP comparator: score desc, points (driver points) desc */
 const gpCompareFn = (a: Entry, b: Entry) =>
@@ -136,6 +136,20 @@ describe("computeTieAwareRanks", () => {
 // ── computeCombinedRanks ─────────────────────────────────────────────────────
 
 describe("computeCombinedRanks", () => {
+  it("shares the standard score-then-points comparator across qualification modes", () => {
+    const entries: Entry[] = [
+      { id: "low-score", score: 6, points: 99, rankOverride: null },
+      { id: "high-score", score: 8, points: 0, rankOverride: null },
+      { id: "score-tie-high-points", score: 8, points: 3, rankOverride: null },
+    ];
+
+    expect([...entries].sort(compareByScoreThenPoints).map((entry) => entry.id)).toEqual([
+      "score-tie-high-points",
+      "high-score",
+      "low-score",
+    ]);
+  });
+
   it("assigns 1224 ranks across all entries using only the comparator", () => {
     const entries: Entry[] = [
       { id: "a", score: 10, points: 2, rankOverride: null },
