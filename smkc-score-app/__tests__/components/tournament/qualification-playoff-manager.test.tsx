@@ -41,7 +41,7 @@ describe("QualificationPlayoffManager broadcast", () => {
 
     await waitFor(() => expect(onBroadcast).toHaveBeenCalledTimes(1));
     expect(onBroadcast).toHaveBeenCalledWith("Mario", "Luigi", {
-      matchLabel: "Qualification Playoff Rank 3",
+      matchLabel: "Playoff rank 3",
       player1Wins: null,
       player2Wins: null,
       matchFt: null,
