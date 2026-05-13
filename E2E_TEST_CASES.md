@@ -775,7 +775,8 @@
   4. GET → PUT した値が永続化されていること
   5. PUT `{ matchLabel: null }` → フィールドがクリアされ、レスポンス body に `overlayMatchLabel/overlayMatchFt` を含まないこと（200）
   6. PUT `{ player1Wins: null, player2Wins: null }` → レスポンス body と再取得 GET の両方で 1P/2P 勝利数が null にクリアされ、レスポンス body に `overlayMatchLabel/overlayPlayer1Wins/overlayPlayer2Wins/overlayMatchFt` が含まれないこと（200）
-  7. OBS 1920×1080 キャンバス外の `layout` 座標は 400 で拒否されること
+  7. 小数・負数の `player1Wins/player2Wins/matchFt` は 400 で拒否されること
+  8. OBS 1920×1080 キャンバス外の `layout` 座標は 400 で拒否されること
 - **期待結果**: GET は正しい形状を返し、PUT は値を永続化・クリアできる
 - **スクリプト**: tc-all.js TC-354
 

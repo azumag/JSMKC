@@ -3881,6 +3881,25 @@ async function main() {
         getAfterClearWins.data.player2Wins === null
       );
 
+      // Score fields are integer counters; decimals and negatives must not persist.
+      const putDecimalWins = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player1Wins: 1.5 }),
+        });
+        return { s: r.status };
+      }, tc354TournamentId);
+      const putNegativeFt = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchFt: -1 }),
+        });
+        return { s: r.status };
+      }, tc354TournamentId);
+      const invalidScoresBlocked = putDecimalWins.s === 400 && putNegativeFt.s === 400;
+
       // Invalid layout coordinates outside the OBS 1920x1080 canvas are rejected.
       const putInvalidLayout = await page.evaluate(async (tid) => {
         const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
@@ -3919,9 +3938,9 @@ async function main() {
       }
       const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
 
-      const ok = hasShape && putOk && putResponsePublicShape && getOk && clearOk && clearWinsOk && invalidLayoutBlocked && nonAdminBlocked;
+      const ok = hasShape && putOk && putResponsePublicShape && getOk && clearOk && clearWinsOk && invalidScoresBlocked && invalidLayoutBlocked && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
-        `shape=${hasShape} put=${putOk} putPublicShape=${putResponsePublicShape} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
+        `shape=${hasShape} put=${putOk} putPublicShape=${putResponsePublicShape} persist=${getOk} clear=${clearOk} clearWins=${clearWinsOk} invalidScoresBlocked=${invalidScoresBlocked} invalidLayoutBlocked=${invalidLayoutBlocked} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
     } catch (err) {
       log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
     } finally {
