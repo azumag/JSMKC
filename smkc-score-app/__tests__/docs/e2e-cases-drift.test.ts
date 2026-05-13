@@ -104,6 +104,37 @@ describe('E2E case drift coverage', () => {
     expect(orderIndexes).toEqual([...orderIndexes].sort((a, b) => a - b));
   });
 
+  it('keeps TC-1067 aligned with eliminatedIds index tiebreak coverage', () => {
+    const section = e2eCaseSection('TC-1067');
+
+    expect(section).toContain('issue #1067');
+    expect(section).toContain('同一ラウンド');
+    expect(section).toContain('同じ `timeMs`');
+    expect(section).toContain('eliminatedIds');
+    expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts');
+
+    const routeCase = sectionBetween(
+      taPhasesRouteTest,
+      "it('uses eliminatedIds order as the tiebreaker for same-round same-time eliminations'",
+      "it('keeps orphaned eliminated entries after round-backed eliminations'",
+    );
+    expect(routeCase).toContain('player-eliminated-first');
+    expect(routeCase).toContain('player-eliminated-second');
+    expect(routeCase).toContain("eliminatedIds: ['player-eliminated-first', 'player-eliminated-second']");
+    expect(routeCase).toContain('timeMs: 88000');
+    const anchorIdx = routeCase.indexOf('expect(call.data.entries.map');
+    expect(anchorIdx).toBeGreaterThanOrEqual(0);
+    const orderAssertion = routeCase.slice(anchorIdx);
+    const expectedOrder = [
+      "'player-active'",
+      "'player-eliminated-first'",
+      "'player-eliminated-second'",
+    ];
+    const orderIndexes = expectedOrder.map((playerId) => orderAssertion.indexOf(playerId));
+    expect(orderIndexes.every((index) => index >= 0)).toBe(true);
+    expect(orderIndexes).toEqual([...orderIndexes].sort((a, b) => a - b));
+  });
+
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
     const section = e2eCaseSection('TC-717');
 

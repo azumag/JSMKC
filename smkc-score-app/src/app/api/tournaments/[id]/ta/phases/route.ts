@@ -119,6 +119,7 @@ function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
     if ((aMeta?.timeMs ?? Number.POSITIVE_INFINITY) !== (bMeta?.timeMs ?? Number.POSITIVE_INFINITY)) {
       return (aMeta?.timeMs ?? Number.POSITIVE_INFINITY) - (bMeta?.timeMs ?? Number.POSITIVE_INFINITY);
     }
+    // eliminatedIds preserves the authoritative same-round display order when timeMs is tied.
     if ((aMeta?.index ?? Number.POSITIVE_INFINITY) !== (bMeta?.index ?? Number.POSITIVE_INFINITY)) {
       return (aMeta?.index ?? Number.POSITIVE_INFINITY) - (bMeta?.index ?? Number.POSITIVE_INFINITY);
     }

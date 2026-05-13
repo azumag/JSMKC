@@ -2507,6 +2507,18 @@
 - **期待結果**: `eliminatedIds` に履歴がない eliminated entry は fallback round `-1` として扱われ、すべての round-backed 脱落者の後ろに表示される
 - **スクリプト**: smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts
 
+## TC-1067: TA Finals の同時脱落者は eliminatedIds の順序で並ぶ (issue #1067)
+- **URL**: /api/tournaments/[temp-id]/ta/phases?phase=phase3
+- **authRequired**: true (admin)
+- **背景**: 同一ラウンドで同じ `timeMs` のまま複数プレイヤーが脱落した場合、表示順位は `rounds[].eliminatedIds` の配列順で安定させる。`eliminatedIds` は同ラウンド・同タイムの脱落者を並べるための保存順で、先頭ほど表示順でも先に扱う。
+- **手順**:
+  1. Phase 3 entries に active player と、同一ラウンドで脱落した2名を用意する
+  2. 該当 round の `results` では2名の `timeMs` を同じ値にする
+  3. 該当 round の `eliminatedIds` を `[player-a, player-b]` にする
+  4. `/api/tournaments/[temp-id]/ta/phases?phase=phase3` の表示用 entries 並び順を取得する
+- **期待結果**: active player が先頭になり、同一ラウンド・同一タイムの脱落者は `eliminatedIds` の先頭 `player-a`、次に `player-b` の順に並ぶ
+- **スクリプト**: smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts
+
 ## TC-809: TA Phase 1 で未提出ラウンドをキャンセルできる
 - **URL**: /tournaments/[temp-id]/ta/phase1
 - **authRequired**: true (admin)
