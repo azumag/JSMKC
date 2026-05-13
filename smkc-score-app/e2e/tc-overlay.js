@@ -75,7 +75,11 @@ const {
   makeTaTimesForRank,
   BASE,
 } = require('./lib/common');
-const { hasKnownOverlayToastTitle } = require('./lib/overlay-toast-assertions');
+const {
+  OVERLAY_TOAST_TITLE_CASES,
+  OVERLAY_TOAST_TITLE_REJECTIONS,
+  hasKnownOverlayToastTitle,
+} = require('./lib/overlay-toast-assertions');
 const { runSuite } = require('./lib/runner');
 
 const POLL_TIMEOUT_MS = 15_000;
@@ -97,26 +101,6 @@ function hasQualificationCompletedTitle(title) {
 function hasQualificationLockedTitle(title) {
   return /予選確定/.test(title || '') || /Qualification\s+Locked/i.test(title || '');
 }
-
-const OVERLAY_TOAST_TITLE_CASES = [
-  '総合順位を更新しました',
-  '予選確定',
-  '試合終了',
-  'スコア申告',
-  'タイム更新',
-  'Overall Ranking Updated',
-  'Qualification Locked',
-  'Match Completed',
-  'Time Attack Phase 1 Started',
-  'Score Reported',
-  'Qualification summary',
-  'Ranking snapshot',
-];
-
-const OVERLAY_TOAST_TITLE_REJECTIONS = [
-  'Server Time: 2026-05-01T00:00:00.000Z',
-  'Time',
-];
 
 /**
  * Unauthenticated GET against the configured overlay endpoint via Node's
@@ -1163,7 +1147,7 @@ async function runTc906(adminPage) {
 }
 
 /* ───────── TC-927: known overlay toast title terms ───────── */
-async function runTc927() {
+function runTc927() {
   try {
     const rejected = OVERLAY_TOAST_TITLE_CASES.filter((title) => !hasKnownOverlayToastTitle(title));
     const falselyAccepted = OVERLAY_TOAST_TITLE_REJECTIONS.filter((title) => hasKnownOverlayToastTitle(title));
