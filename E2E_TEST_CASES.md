@@ -1361,6 +1361,18 @@
 - **期待結果**: Top-24 Phase 2 は `playoffUpperSeeds` が4件そろわない構造を無音で受け入れず、Upper Bracket 勝者シード欠落を防ぐ
 - **スクリプト**: n/a（構造異常のサーバーサイド防御のため `smkc-score-app/__tests__/static/tc-1053-playoff-upper-seeds-guard.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` で検証）
 
+## TC-1052: BM Top-24 — 3グループ時は未定義のシード衝突を拒否する
+- **URL**: /api/tournaments/[id]/bm/finals (POST)
+- **authRequired**: true (admin)
+- **背景**: issue #1052。現行の Top-24 紙配置は2グループ専用で、playoff_r2 勝者が Upper Bracket の seed 16/12/14/10 に入る。3グループの暫定 interleave をそのまま使うと direct seed 10/12 とバラッジ勝者 seed 10/12 が衝突するため、3+グループ用の正式配置が決まるまでは明示的に拒否する。
+- **手順**:
+  1. 管理者セッションで3グループの BM 予選を27名分作成し、全予選マッチを completed にする
+  2. `POST /api/tournaments/[id]/bm/finals` `{ topN: 24 }` を実行する
+  3. レスポンスが 400 `VALIDATION_ERROR` で、`qualifications` フィールドのエラーとして「Top-24 は2グループのみ対応」と分かることを確認する
+  4. playoff/finals stage のマッチが作成されていないことを確認する
+- **期待結果**: 3+グループの Top-24 はサイレントに壊れたブラケットを作らず、正式な3+グループ配置実装まで安全に停止する
+- **スクリプト**: tc-bm.js TC-1052 + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
+
 ---
 
 ## MR (Match Race) フルワークフローテスト
