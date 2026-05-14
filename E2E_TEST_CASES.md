@@ -1109,6 +1109,28 @@
 - **期待結果**: TC-1612 テスト本文の抽出に失敗した場合、禁止文字列チェックが空振りで成功せず、drift テスト自体が失敗する
 - **スクリプト**: `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1618: drift guard の境界文字列をインデント非依存にする
+- **URL**: N/A (static coverage)
+- **authRequired**: false
+- **背景**: issue #1618。`sectionBetween()` の終了境界に `"  it(...` のような先頭スペースを含めると、フォーマット変更だけで抽出に失敗する。
+- **手順**:
+  1. TC-1614 / TC-1616 の drift guard が `sectionBetween()` を使っていることを確認する
+  2. 終了境界文字列が先頭スペースに依存していないことを確認する
+  3. 抽出成功を確認する陽性アサーションが維持されていることを確認する
+- **期待結果**: インデント変更だけでは drift guard の抽出境界が壊れない
+- **スクリプト**: `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-1619: drift guard の抽出長しきい値に根拠コメントを付ける
+- **URL**: N/A (static coverage)
+- **authRequired**: false
+- **背景**: issue #1619。TC-1614 guard の `length` しきい値は、なぜその値で空抽出や短すぎる抽出を検出できるのかをコード上で説明する必要がある。
+- **手順**:
+  1. TC-1614 drift guard に抽出長の陽性アサーションがあることを確認する
+  2. しきい値が名前付き定数になっていることを確認する
+  3. 現在の抽出本文サイズに対する安全側の閾値であることをコメントで説明していることを確認する
+- **期待結果**: 抽出長の閾値がマジックナンバーではなく、将来の調整根拠を読める
+- **スクリプト**: `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-516: BM 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)

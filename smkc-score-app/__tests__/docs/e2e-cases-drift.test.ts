@@ -635,14 +635,18 @@ describe('E2E case drift coverage', () => {
     const tc1612DriftTest = sectionBetween(
       driftTestSource,
       "it('keeps TC-1612 aligned with the PlayoffCompleteCard className merge contract'",
-      "  it('keeps TC-1614 aligned",
+      "it('keeps TC-1614 aligned",
     );
+    // Current TC-1612 guard body is substantially longer than this threshold;
+    // the named lower bound catches empty/truncated extraction while allowing
+    // harmless wording edits in the test body.
+    const TC1612_DRIFT_MIN_BODY_LENGTH = 300;
 
     expect(section).toContain('issue #1614');
     expect(section).toContain('コンポーネントソースファイルの文字列詳細を検査していない');
     // Positive anchors keep the negative string checks from passing against an
     // empty extraction if the surrounding test names are refactored later.
-    expect(tc1612DriftTest.length).toBeGreaterThan(300);
+    expect(tc1612DriftTest.length).toBeGreaterThan(TC1612_DRIFT_MIN_BODY_LENGTH);
     expect(tc1612DriftTest).toContain("const section = e2eCaseSection('TC-1612');");
     expect(tc1612DriftTest).not.toContain("'src'");
     expect(tc1612DriftTest).not.toContain("'playoff-complete-card.tsx'");
@@ -661,7 +665,7 @@ describe('E2E case drift coverage', () => {
     const tc1614DriftTest = sectionBetween(
       driftTestSource,
       "it('keeps TC-1614 aligned with implementation-detail-free TC-1612 drift coverage'",
-      "  it('keeps TC-1616 aligned",
+      "it('keeps TC-1616 aligned",
     );
 
     expect(section).toContain('issue #1616');
@@ -671,6 +675,30 @@ describe('E2E case drift coverage', () => {
     expect(tc1614DriftTest.indexOf('toBeGreaterThan')).toBeLessThan(
       tc1614DriftTest.indexOf("not.toContain(\"'src'\")"),
     );
+  });
+
+  it('keeps TC-1618 and TC-1619 aligned with stable TC-1614 extraction anchors', () => {
+    const tc1618 = e2eCaseSection('TC-1618');
+    const tc1619 = e2eCaseSection('TC-1619');
+    const driftTestSource = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'docs',
+      'e2e-cases-drift.test.ts',
+    );
+    const tc1614DriftTest = sectionBetween(
+      driftTestSource,
+      "it('keeps TC-1614 aligned with implementation-detail-free TC-1612 drift coverage'",
+      "it('keeps TC-1616 aligned",
+    );
+
+    expect(tc1618).toContain('issue #1618');
+    expect(tc1618).toContain('先頭スペースに依存していない');
+    expect(tc1619).toContain('issue #1619');
+    expect(tc1619).toContain('名前付き定数');
+    expect(tc1614DriftTest).not.toContain('"  it(');
+    expect(tc1614DriftTest).toContain('TC1612_DRIFT_MIN_BODY_LENGTH');
+    expect(tc1614DriftTest).toContain('Current TC-1612 guard body is substantially longer');
   });
 
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
