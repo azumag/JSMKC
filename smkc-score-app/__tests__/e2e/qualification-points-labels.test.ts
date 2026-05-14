@@ -42,8 +42,5 @@ describe('qualification points E2E label source', () => {
         require('../../e2e/lib/common');
       }).toThrow('messages/ja.json common.qualificationPointsShort is required');
     });
-
-    jest.dontMock('../../messages/ja.json');
-    jest.dontMock('../../messages/en.json');
   });
 });

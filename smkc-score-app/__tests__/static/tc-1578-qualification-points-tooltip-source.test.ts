@@ -8,6 +8,12 @@ describe('TC-1578 qualification points tooltip source', () => {
     'docs',
     'e2e-cases-drift.test.ts',
   );
+  const testFile = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'static',
+    'tc-1578-qualification-points-tooltip-source.test.ts',
+  );
 
   it('documents the i18n-backed tooltip source scenario', () => {
     const section = e2eCaseSection('TC-1578');
@@ -52,12 +58,21 @@ describe('TC-1578 qualification points tooltip source', () => {
   it('keeps follow-up coverage documented without depending on unrelated require order', () => {
     const tc1587 = e2eCaseSection('TC-1587');
     const tc1588 = e2eCaseSection('TC-1588');
+    const tc1590 = e2eCaseSection('TC-1590');
+    const tc1591 = e2eCaseSection('TC-1591');
+    const forbiddenSectionHelper = 'section' + 'Between';
+    const chromiumRequire = "const { chromium } = require('play" + "wright');";
 
     expect(tc1587).toContain('issue #1587');
     expect(tc1587).toContain('jest.isolateModules');
     expect(tc1588).toContain('issue #1588');
     expect(tc1588).toContain('chromium');
     expect(tc1588).toContain('正規表現');
-    expect(helper).not.toContain("sectionBetween(\n      helper,\n      'const LOCALE_COMMON_MESSAGES = [',\n      \"const { chromium } = require('playwright');\"");
+    expect(tc1590).toContain('issue #1590');
+    expect(tc1590).toContain('dontMock');
+    expect(tc1591).toContain('issue #1591');
+    expect(tc1591).toContain('自分自身');
+    expect(testFile).not.toContain(forbiddenSectionHelper);
+    expect(testFile).not.toContain(chromiumRequire);
   });
 });
