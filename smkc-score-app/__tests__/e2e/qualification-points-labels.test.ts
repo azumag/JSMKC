@@ -19,4 +19,11 @@ describe('qualification points E2E label source', () => {
       enMessages.common.qualificationPointsTooltip,
     ]);
   });
+
+  it('does not silently skip missing i18n labels', () => {
+    expect(getQualificationPointsHeaderLabels()).toHaveLength(2);
+    expect(getQualificationPointsHeaderLabels()).not.toContain(undefined);
+    expect(getQualificationPointsTooltipTitles()).toHaveLength(2);
+    expect(getQualificationPointsTooltipTitles()).not.toContain(undefined);
+  });
 });

@@ -24,16 +24,23 @@ const {
 const { assertGpCombinedStandingsHeaders } = require('./standings-assertions');
 
 const DEFAULT_E2E_BROWSER_HOME = path.join(os.tmpdir(), 'playwright-e2e-home');
-const COMMON_MESSAGES_BY_LOCALE = {
-  ja: require('../../messages/ja.json').common,
-  en: require('../../messages/en.json').common,
-};
-const QUALIFICATION_POINTS_HEADER_LABELS = Object.values(COMMON_MESSAGES_BY_LOCALE)
-  .map((messages) => messages.qualificationPointsShort)
-  .filter(Boolean);
-const QUALIFICATION_POINTS_TOOLTIP_TITLES = Object.values(COMMON_MESSAGES_BY_LOCALE)
-  .map((messages) => messages.qualificationPointsTooltip)
-  .filter(Boolean);
+const LOCALE_COMMON_MESSAGES = [
+  { locale: 'ja', messages: require('../../messages/ja.json').common },
+  { locale: 'en', messages: require('../../messages/en.json').common },
+];
+
+function getRequiredCommonMessage({ locale, messages }, key) {
+  const value = messages[key];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`messages/${locale}.json common.${key} is required`);
+  }
+  return value;
+}
+
+const QUALIFICATION_POINTS_HEADER_LABELS = LOCALE_COMMON_MESSAGES
+  .map((entry) => getRequiredCommonMessage(entry, 'qualificationPointsShort'));
+const QUALIFICATION_POINTS_TOOLTIP_TITLES = LOCALE_COMMON_MESSAGES
+  .map((entry) => getRequiredCommonMessage(entry, 'qualificationPointsTooltip'));
 
 const { chromium } = require('playwright');
 
