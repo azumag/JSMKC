@@ -1518,14 +1518,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
           'qualifications',
         );
       }
-      if (selection.groupCount !== TOP24_SUPPORTED_GROUP_COUNT) {
+      if (selection.groupCount > TOP24_SUPPORTED_GROUP_COUNT) {
         /* The current Top-24 paper layout reserves Upper Bracket seeds 10/12/14/16
          * for playoff_r2 winners. The legacy 3+ group interleave assigns direct
          * advancers to seeds 1..12, which overlaps those reserved barrage slots.
          * Rejecting the unsupported shape at the API boundary keeps bracket
          * seeding one-to-one until a real 3+ group Top-24 layout is specified. */
         return handleValidationError(
-          `Top-24 playoff currently supports exactly ${TOP24_SUPPORTED_GROUP_COUNT} qualification groups; found ${selection.groupCount}`,
+          `Top-24 playoff currently supports at most ${TOP24_SUPPORTED_GROUP_COUNT} qualification groups; found ${selection.groupCount}`,
           'qualifications',
         );
       }
