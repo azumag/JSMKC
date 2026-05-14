@@ -141,8 +141,9 @@ describe('E2E case drift coverage', () => {
       expect(section).toContain('説明 title');
     }
 
-    expect(helper).toContain('Qualification points (0-1000 normalized)');
-    expect(helper).toContain('予選点（0-1000に正規化した勝点）');
+    expect(helper).toContain('getQualificationPointsTooltipTitles');
+    expect(helper).toContain("require('../../messages/ja.json').common");
+    expect(helper).toContain("require('../../messages/en.json').common");
     expect(helper).toContain('qualification points header missing tooltip title');
   });
 

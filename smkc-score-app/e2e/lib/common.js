@@ -24,6 +24,16 @@ const {
 const { assertGpCombinedStandingsHeaders } = require('./standings-assertions');
 
 const DEFAULT_E2E_BROWSER_HOME = path.join(os.tmpdir(), 'playwright-e2e-home');
+const COMMON_MESSAGES_BY_LOCALE = {
+  ja: require('../../messages/ja.json').common,
+  en: require('../../messages/en.json').common,
+};
+const QUALIFICATION_POINTS_HEADER_LABELS = Object.values(COMMON_MESSAGES_BY_LOCALE)
+  .map((messages) => messages.qualificationPointsShort)
+  .filter(Boolean);
+const QUALIFICATION_POINTS_TOOLTIP_TITLES = Object.values(COMMON_MESSAGES_BY_LOCALE)
+  .map((messages) => messages.qualificationPointsTooltip)
+  .filter(Boolean);
 
 const { chromium } = require('playwright');
 
@@ -87,6 +97,14 @@ function installApiLogging(target, label = 'E2E') {
     const detail = failure?.errorText ? ` ${failure.errorText}` : '';
     console.log(`[API ${label}] ${request.method()} ERR ${formatApiLogUrl(request.url())}${elapsed}${detail}`);
   });
+}
+
+function getQualificationPointsHeaderLabels() {
+  return [...QUALIFICATION_POINTS_HEADER_LABELS];
+}
+
+function getQualificationPointsTooltipTitles() {
+  return [...QUALIFICATION_POINTS_TOOLTIP_TITLES];
 }
 
 function makeResults() {
@@ -2217,11 +2235,13 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
   await nav(page, `/tournaments/${tournamentId}/${mode}`);
   await page.locator('main').waitFor({ timeout: 15000 });
 
-  const column = await page.locator('table').evaluateAll((tables) => {
-    const headerMatches = (text) => text === '予選点' || text === 'Qual Pts';
-    const titleMatches = (title) =>
-      title === '予選点（0-1000に正規化した勝点）' ||
-      title === 'Qualification points (0-1000 normalized)';
+  const expectedLabels = {
+    headerLabels: getQualificationPointsHeaderLabels(),
+    tooltipTitles: getQualificationPointsTooltipTitles(),
+  };
+  const column = await page.locator('table').evaluateAll((tables, expected) => {
+    const headerMatches = (text) => expected.headerLabels.includes(text);
+    const titleMatches = (title) => expected.tooltipTitles.includes(title);
     const values = [];
     let matchedHeaders = null;
     let matchedTitle = '';
@@ -2250,7 +2270,7 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
     }
 
     return matchedHeaders ? { headers: matchedHeaders, title: matchedTitle, titleOk: titleMatches(matchedTitle), values } : null;
-  });
+  }, expectedLabels);
 
   if (!column) {
     throw new Error(`${mode.toUpperCase()} qualification points column not found`);
@@ -2686,6 +2706,8 @@ module.exports = {
   /* retry */
   withRetry,
   matchUpdateUsesLeanPayload,
+  getQualificationPointsHeaderLabels,
+  getQualificationPointsTooltipTitles,
   assertQualificationPointsColumn,
   assertCombinedStandingsTab,
   assertGpCombinedStandingsHeaders,
