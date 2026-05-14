@@ -27,6 +27,8 @@
  *   TC-913  TA time input hint/title/placeholder are localized.
  *   TC-816  Started TA phase page does not flash a Start Phase button while
  *           phase status is still loading.
+ *   TC-1032 Phase 3 revival race targets every zero-life candidate when a
+ *           reset threshold would otherwise be crossed.
  *   TC-1033 Sudden-death API payload exposes only the actionable target ids,
  *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
@@ -166,6 +168,17 @@ function makeTc813QualificationTimes(pattern) {
     totalMs += courseMs;
   }
   return { times, totalMs };
+}
+
+async function apiUpdateTaLives(adminPage, tournamentId, entryId, livesDelta) {
+  return adminPage.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_lives', livesDelta }]);
 }
 
 async function submitTaPhaseRoundByApi(adminPage, tournamentId, phase, activeEntries) {
@@ -1553,6 +1566,64 @@ async function runTc1033(adminPage) {
   }
 }
 
+/* ───────── TC-1032: Phase3 revival targets all reset-overflow candidates ───────── */
+async function runTc1032(adminPage) {
+  let fixture = null;
+  try {
+    const stamp = Date.now();
+    const players = [];
+    for (let i = 1; i <= 9; i++) {
+      players.push(await uiCreatePlayer(adminPage, `E2E TA Revival P3 ${i} ${stamp}`, `e2e_ta_revival_p3_${i}_${stamp}`));
+    }
+    const baseFixture = await createIsolatedTaQualification(adminPage, `Revival P3 ${stamp}`, players, { seedTimes: false });
+    fixture = {
+      ...baseFixture,
+      cleanup: async () => {
+        await baseFixture.cleanup();
+        for (const player of players) await apiDeletePlayer(adminPage, player.id);
+      },
+    };
+    const { tournamentId } = fixture;
+    await seedTaQualificationRanks(adminPage, tournamentId, fixture.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+
+    const phase = 'phase3';
+    const phaseData = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const entries = orderTaEntriesForDeterministicResultSlots(phaseData.entries ?? []);
+    if (entries.length !== 9) throw new Error(`phase3 entries=${entries.length}, expected 9`);
+
+    const candidates = entries.slice(6);
+    for (const entry of candidates) {
+      const lifeUpdate = await apiUpdateTaLives(adminPage, tournamentId, entry.id, -2);
+      if (lifeUpdate.s !== 200) throw new Error(`update_lives failed (${lifeUpdate.s}) for ${entry.playerId}`);
+    }
+
+    const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
+    if (start.s !== 200) throw new Error(`start_round phase3 failed (${start.s})`);
+    const tied = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase,
+      roundNumber: start.b?.data?.roundNumber,
+      results: entries.map((entry, index) => ({
+        playerId: entry.playerId,
+        timeMs: 80000 + index * 1000,
+      })),
+    });
+    const targetIds = [...(tied.b?.data?.suddenDeathRound?.targetPlayerIds ?? [])].sort();
+    const expectedTargetIds = candidates.map((entry) => entry.playerId).sort();
+    const ok = tied.s === 200 &&
+      tied.b?.data?.tieBreakRequired === true &&
+      JSON.stringify(targetIds) === JSON.stringify(expectedTargetIds);
+    log('TC-1032', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')} body=${JSON.stringify(tied.b).slice(0, 220)}`);
+  } catch (err) {
+    log('TC-1032', 'FAIL', err instanceof Error ? err.message : 'TA phase3 revival target coverage failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* ───────── TC-815: TA Phase3 boundary sudden-death + retie ───────── */
 async function runTc815(adminPage) {
   let fixture = null;
@@ -1786,6 +1857,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
       { name: 'TC-815', fn: runTc815 },
+      { name: 'TC-1032', fn: runTc1032 },
       { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-817', fn: runTc817 },
     ],
@@ -1795,7 +1867,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
-  runTc812, runTc813, runTc814, runTc1033, runTc815, runTc816, runTc817,
+  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817,
   getSuite,
   results,
   __testHooks: {

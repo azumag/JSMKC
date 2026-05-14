@@ -952,6 +952,8 @@ function detectTieBreakRequired(
       .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0)
       .sort((a, b) => b.timeMs - a.timeMs);
     if (eliminationCandidates.length > eliminationLimit) {
+      // Zero-life overflows at a reset threshold must send every candidate to sudden death:
+      // partially ordering only the slowest players can still drop the active field below the reset size.
       return {
         targetPlayerIds: eliminationCandidates.map((result) => result.playerId),
       };
