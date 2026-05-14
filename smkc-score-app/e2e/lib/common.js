@@ -2219,8 +2219,12 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
 
   const column = await page.locator('table').evaluateAll((tables) => {
     const headerMatches = (text) => text === '予選点' || text === 'Qual Pts';
+    const titleMatches = (title) =>
+      title === '予選点（0-1000に正規化した勝点）' ||
+      title === 'Qualification points (0-1000 normalized)';
     const values = [];
     let matchedHeaders = null;
+    let matchedTitle = '';
 
     for (const table of tables) {
       const style = window.getComputedStyle(table);
@@ -2234,6 +2238,7 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
       const columnIndex = headers.findIndex(headerMatches);
       if (columnIndex === -1) continue;
       matchedHeaders = headers;
+      matchedTitle = table.querySelectorAll('thead th')[columnIndex]?.getAttribute('title') || '';
 
       values.push(...Array.from(table.querySelectorAll('tbody tr'))
         .map((row) => {
@@ -2244,7 +2249,7 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
         .map((value) => Number(value)));
     }
 
-    return matchedHeaders ? { headers: matchedHeaders, values } : null;
+    return matchedHeaders ? { headers: matchedHeaders, title: matchedTitle, titleOk: titleMatches(matchedTitle), values } : null;
   });
 
   if (!column) {
@@ -2252,6 +2257,9 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
   }
   if (column.values.length === 0) {
     throw new Error(`${mode.toUpperCase()} qualification points column has no row values`);
+  }
+  if (!column.titleOk) {
+    throw new Error(`${mode.toUpperCase()} qualification points header missing tooltip title: ${column.title || '(empty)'}`);
   }
 
   const invalid = column.values.filter((value) =>

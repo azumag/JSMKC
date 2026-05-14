@@ -131,6 +131,21 @@ describe('E2E case drift coverage', () => {
     expect(unitTest).toContain('p20-overflow');
   });
 
+  it('keeps qualification points header tooltip coverage documented and scripted', () => {
+    const helper = readE2eLib('common.js');
+
+    for (const tc of ['TC-532', 'TC-622', 'TC-723'] as const) {
+      const section = e2eCaseSection(tc);
+
+      expect(section).toContain('title に 0-1000 正規化の説明');
+      expect(section).toContain('説明 title');
+    }
+
+    expect(helper).toContain('Qualification points (0-1000 normalized)');
+    expect(helper).toContain('予選点（0-1000に正規化した勝点）');
+    expect(helper).toContain('qualification points header missing tooltip title');
+  });
+
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');

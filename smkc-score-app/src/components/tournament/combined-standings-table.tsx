@@ -42,6 +42,7 @@ export interface CombinedStandingsTableLabels {
   plusMinus: string;
   points: string;
   qualificationPoints: string;
+  qualificationPointsTooltip?: string;
 }
 
 interface CombinedStandingsTableProps<T extends CombinedStandingsEntry> {
@@ -76,7 +77,9 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
               <TableHead className="text-center">{labels.losses}</TableHead>
               <TableHead className="text-center">{labels.plusMinus}</TableHead>
               <TableHead className="text-center">{labels.points}</TableHead>
-              <TableHead className="text-center">{labels.qualificationPoints}</TableHead>
+              <TableHead className="text-center" title={labels.qualificationPointsTooltip}>
+                {labels.qualificationPoints}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
