@@ -709,7 +709,7 @@
 
 ## TC-349: レスポンシブ — BM/MR/GP 予選ページが 375px 幅で JS エラーなしに表示される
 - **authRequired**: true (admin)
-- **背景**: スマートフォン幅でも JS エラーなしにレンダリングできること。issue #1028 の回帰として、途中で例外が発生しても TC-349 が登録した `pageerror` / `response` listener を残留させず、後続 TC に 5xx 検知や JS エラー検知を漏らさないことも確認する。
+- **背景**: スマートフォン幅でも JS エラーなしにレンダリングできること。issue #1028 の回帰として、途中で例外が発生しても TC-349 が登録した `pageerror` / `response` listener を残留させず、後続 TC に 5xx 検知や JS エラー検知を漏らさないことも確認する。issue #1649 の回帰として、cleanup 検証は外側の `else` 構造ではなく TC-349 cleanup 専用マーカーで範囲を特定する。
 - **手順**:
   1. ビューポートを 375×812 に設定
   2. /bm, /mr, /gp を順に nav → pageerror がゼロ、body に内容あり
