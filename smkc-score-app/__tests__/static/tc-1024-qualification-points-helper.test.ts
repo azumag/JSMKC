@@ -11,6 +11,7 @@ function precedingJsdocForFunction(source: string, functionName: string) {
 
   expect(jsdocStart).toBeGreaterThanOrEqual(0);
   expect(jsdocEnd).toBeGreaterThan(jsdocStart);
+  expect(beforeFunction.slice(jsdocEnd + 2).trim()).toBe('');
 
   return beforeFunction.slice(jsdocStart, jsdocEnd + 2);
 }
@@ -77,9 +78,33 @@ describe('TC-1024 shared qualification-points helper', () => {
       expect(jsdoc).toContain(mode);
     }
     expect(jsdoc).toMatch(/page[- ]client/i);
+    // Stem match: centraliz(e|ed|ation) keeps the why guard wording-tolerant.
     expect(jsdoc).toMatch(/drift|sync|centraliz/i);
     expect(jsdoc).not.toContain('@param');
     expect(jsdoc).not.toContain('@returns');
+  });
+
+  it('keeps the JSDoc guard adjacent to the target function', () => {
+    const section = e2eCaseSection('TC-1654');
+
+    expect(section).toContain('issue #1654/#1655');
+    expect(section).toContain('const unrelated = true;');
+    expect(() => precedingJsdocForFunction(`
+      /**
+       * BM/MR/GP page-client components remain centralized.
+       */
+      const unrelated = true;
+      export function getQualificationPoints() {}
+    `, 'getQualificationPoints')).toThrow();
+  });
+
+  it('documents the centraliz stem match used by the why guard', () => {
+    expect(readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-1024-qualification-points-helper.test.ts',
+    )).toContain('centraliz(e|ed|ation)');
   });
 
   it.each([
