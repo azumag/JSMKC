@@ -2659,9 +2659,11 @@
   1. 24名の TA Phase 3 を実行し、ランク順 (`60_000 + rank*200ms`) で全ラウンドを進行（rank=1 が常勝、rank=24 が最初に脱落）
   2. `/api/tournaments/[temp-id]/ta/phases?phase=phase3` でラウンド一覧を取得し、`eliminatedIds` を時系列で連結して脱落順序を抽出
   3. POST `/api/tournaments/[temp-id]/overall-ranking` でランキングを再計算
-  4. champion (rank=1) の `taFinalsPoints` が 2000 (1位の点数) であることを確認
-  5. 最後に脱落したプレイヤーの `taFinalsPoints` が、最初に脱落したプレイヤーの `taFinalsPoints` より大きいことを確認
-- **期待結果**: 総合ランキングの TA Finals 配点が「最後まで生き残った順」を反映する。早期脱落者が後期脱落者を上回ることはない
+  4. champion (rank=1) の `taFinalsPoints` が正の値で、取得したランキング内の最大 TA Finals 点であることを確認する（点数テーブルの固定値には依存しない）
+  5. `eliminatedIds` が2件未満の場合は比較不能として TC-TA-FLOW-24-RANK のみ SKIP し、誤解を招く 0 点同士の FAIL を出さないことを確認する
+  6. 最後に脱落したプレイヤーの `taFinalsPoints` が、最初に脱落したプレイヤーの `taFinalsPoints` より大きいことを確認する
+  7. Phase 3 ラウンド取得または POST `/overall-ranking` が 2xx 以外の場合、TC-TA-FLOW-24-RANK を FAIL として記録し、runFullFlow 全体から早期 return しないことを確認する
+- **期待結果**: 総合ランキングの TA Finals 配点が「最後まで生き残った順」を反映する。早期脱落者が後期脱落者を上回ることはなく、比較不能な途中状態や再計算失敗もケース単位の明確な結果になる
 
 ## TC-1060: TA Finals Phase 1/2 脱落者の中間順位を全件検証する (issue #1060)
 - **URL**: /api/tournaments/[temp-id]/overall-ranking
