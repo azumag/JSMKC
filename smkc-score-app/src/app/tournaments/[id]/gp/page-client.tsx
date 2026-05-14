@@ -86,16 +86,12 @@ import {
   canCreateFinalsFromQualification,
   canResetFinalsFromQualification,
 } from "@/lib/finals-action-availability";
-import { calculateMaxMatchPoints, normalizePoints } from "@/lib/points/qualification-points";
+import { getQualificationPoints } from "@/lib/points/qualification-points";
 import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from "@/lib/gp-driver-points-input";
 
 import type { Player } from "@/lib/types";
 
 const logger = createLogger({ serviceName: 'tournaments-gp' });
-
-function getQualificationPoints(q: Pick<GPQualification, "mp" | "score">): number {
-  return normalizePoints(q.score, calculateMaxMatchPoints(q.mp));
-}
 
 /** GP qualification standing entry with group assignment and stats */
 interface GPQualification {
@@ -866,7 +862,7 @@ export default function GrandPrixPageClient({
                                     {q.points}
                                   </TableCell>
                                   <TableCell className="text-center font-bold">
-                                    {getQualificationPoints(q)}
+                                    {getQualificationPoints(q.mp, q.score)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -921,7 +917,7 @@ export default function GrandPrixPageClient({
                         <TableCell className="text-center font-bold">{q.score}</TableCell>
                         <TableCell className="text-center font-bold">{q.points}</TableCell>
                         <TableCell className="text-center font-bold">
-                          {getQualificationPoints(q)}
+                          {getQualificationPoints(q.mp, q.score)}
                         </TableCell>
                       </TableRow>
                     ))}

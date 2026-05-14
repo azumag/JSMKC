@@ -32,7 +32,7 @@ describe('TC-1064 combined standings table extraction', () => {
     expect(source).toContain('CombinedStandingsTable');
     expect(combinedTab).toContain('<CombinedStandingsTable');
     expect(combinedTab).toContain('rankings={combinedRankings}');
-    expect(combinedTab).toContain('getQualificationPoints={getQualificationPoints}');
+    expect(combinedTab).toContain('getQualificationPoints={(q) => getQualificationPoints(q.mp, q.score)}');
     expect(combinedTab).not.toContain('<TableHeader>');
     expect(combinedTab).not.toContain('combinedRankings.map');
   });
