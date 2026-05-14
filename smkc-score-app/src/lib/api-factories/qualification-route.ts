@@ -35,6 +35,7 @@ import {
 } from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 
+export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
 const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
 
 /**
@@ -60,13 +61,16 @@ function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
  *
  * The VSMR qualification rule is: shuffle the full MC1-RR course list four
  * separate times, concatenate those four orders, then assign each round from
- * the resulting sequence. Every match in the same round consumes the same 4
- * consecutive courses in the same order.
+ * the resulting sequence. Keep the deck-repeat count separate from
+ * TOTAL_MR_RACES: the former is how many full-course decks the qualification
+ * schedule owns, while the latter is how many courses a single MR match uses.
+ * They are both 4 today, but coupling them would silently change schedule
+ * length if match format and qualification deck policy ever diverge.
  *
  * @returns Array of 80 course abbreviations (4 shuffled full-course decks)
  */
-function generateShuffledCourseList(): string[] {
-  return Array.from({ length: TOTAL_MR_RACES }, () => fisherYatesShuffle(COURSES)).flat();
+export function generateShuffledCourseList(): string[] {
+  return Array.from({ length: MR_QUALIFICATION_COURSE_DECK_REPEATS }, () => fisherYatesShuffle(COURSES)).flat();
 }
 
 /**
