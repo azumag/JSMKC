@@ -3,7 +3,10 @@
  */
 
 import { render, screen, within } from "@testing-library/react";
-import { CombinedStandingsTable } from "@/components/tournament/combined-standings-table";
+import {
+  CombinedStandingsTable,
+  type CombinedStandingsTableLabels,
+} from "@/components/tournament/combined-standings-table";
 
 describe("CombinedStandingsTable", () => {
   const labels = {
@@ -20,7 +23,7 @@ describe("CombinedStandingsTable", () => {
     points: "Pts",
     qualificationPoints: "QP",
     qualificationPointsTooltip: "Qualification points (0-1000 normalized)",
-  };
+  } satisfies CombinedStandingsTableLabels;
 
   function cellsByHeader(row: HTMLTableRowElement) {
     const table = row.closest("table");

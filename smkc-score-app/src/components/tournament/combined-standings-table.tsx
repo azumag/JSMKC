@@ -42,7 +42,7 @@ export interface CombinedStandingsTableLabels {
   plusMinus: string;
   points: string;
   qualificationPoints: string;
-  qualificationPointsTooltip?: string;
+  qualificationPointsTooltip: string;
 }
 
 interface CombinedStandingsTableProps<T extends CombinedStandingsEntry> {
