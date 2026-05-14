@@ -2241,6 +2241,17 @@
 - **期待結果**: 8人 MR 予選で各ラウンドが4試合になる理由が単体テスト上で読み取れ、将来の fixture 変更時に前提の更新漏れを検知できる
 - **スクリプト**: smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts
 
+## TC-1017: MR 予選コースデッキ回数を試合レース数から分離する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1017。MR 予選では「4コースで1試合を構成する」ことと「フルコースデッキを4回シャッフルして予選全体の割当順を作る」ことが別仕様であるため、`TOTAL_MR_RACES` をデッキ繰り返し回数として流用しないことを固定する。
+- **手順**:
+  1. `qualification-route.ts` が `MR_QUALIFICATION_COURSE_DECK_REPEATS` を宣言していることを確認する
+  2. `generateShuffledCourseList()` が `TOTAL_MR_RACES` ではなく `MR_QUALIFICATION_COURSE_DECK_REPEATS` でフルコースデッキを生成することを確認する
+  3. 単体テストで MR コースリスト長が `COURSES.length * MR_QUALIFICATION_COURSE_DECK_REPEATS` になることを確認する
+- **期待結果**: MR の1試合あたりレース数を変更しても、予選全体の4デッキ割当仕様が暗黙に変わらない
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts / smkc-score-app/__tests__/lib/api-factories/qualification-route.test.ts
+
 ## TC-717: GP決勝 — ラウンドごとのカップ組み合わせがFT3の5カップ目以外で重複しない
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
