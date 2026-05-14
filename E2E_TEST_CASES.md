@@ -2230,6 +2230,17 @@
 - **期待結果**: 4人 GP 予選で3ラウンドになる理由が単体テスト上で読み取れ、将来の fixture 変更時に前提の更新漏れを検知できる
 - **スクリプト**: smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts
 
+## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1009。`isSixteenPlayerOrTop24Bracket` は `generateBracketStructure(8)` と `generateBracketStructure(16)` の matchNumber 割り当て差分を使って、8人決勝ではなく16人決勝/Top-24経路の順位帯を選ぶ。閾値だけが残ると、ブラケット生成側の番号体系に依存していることが読めず、将来の構造変更で静かに壊れる。
+- **手順**:
+  1. `overall-ranking.ts` の `isSixteenPlayerOrTop24Bracket` を確認する
+  2. `generateBracketStructure(8)` と `generateBracketStructure(16)` の番号差分がコメントで説明されていることを確認する
+  3. losers_r1 / losers_r2 / losers_r3 / losers_sf / losers_final / grand_final / grand_final_reset の各閾値が 16人決勝側の matchNumber 範囲と対応していることを確認する
+- **期待結果**: 16人決勝/Top-24 判定の matchNumber 閾値が、8人決勝との差分として読み取れ、静的テストでコメントの脱落を検知できる
+- **スクリプト**: smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts
+
 ## TC-1080: MR 予選単体テスト — 8人ラウンドロビンの4試合/ラウンド前提を明記する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
