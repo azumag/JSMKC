@@ -123,6 +123,25 @@ export function normalizePoints(
 }
 
 /**
+ * Calculate the display value for a qualification standing row.
+ *
+ * BM/MR/GP page-client components all receive the same pair of persisted fields:
+ * `mp` (matches played) and `score` (raw match points). Keeping the UI formula
+ * here prevents the three mode pages from drifting if the 0-1000 normalization
+ * rule or its zero-match guard changes.
+ *
+ * @param matchesPlayed - Number of completed qualification matches for the player
+ * @param score         - Raw match points stored on the qualification row
+ * @returns Normalized qualification points for table display
+ */
+export function getQualificationPoints(
+  matchesPlayed: number,
+  score: number
+): number {
+  return normalizePoints(score, calculateMaxMatchPoints(matchesPlayed));
+}
+
+/**
  * Calculate qualification points for all players in a single group.
  *
  * Assumes a full round-robin: each player plays (n-1) matches where n

@@ -81,15 +81,11 @@ import {
   canCreateFinalsFromQualification,
   canResetFinalsFromQualification,
 } from "@/lib/finals-action-availability";
-import { calculateMaxMatchPoints, normalizePoints } from "@/lib/points/qualification-points";
+import { getQualificationPoints } from "@/lib/points/qualification-points";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr' });
-
-function getQualificationPoints(q: Pick<MRQualification, "mp" | "score">): number {
-  return normalizePoints(q.score, calculateMaxMatchPoints(q.mp));
-}
 
 /** MR qualification standing record */
 interface MRQualification {
@@ -759,7 +755,7 @@ export default function MatchRacePageClient({
                                     {q.score}
                                   </TableCell>
                                   <TableCell className="text-center font-bold">
-                                    {getQualificationPoints(q)}
+                                    {getQualificationPoints(q.mp, q.score)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -794,7 +790,7 @@ export default function MatchRacePageClient({
               }}
               rankings={combinedRankings}
               getGroupLabel={(group) => tc('groupLabel', { group })}
-              getQualificationPoints={getQualificationPoints}
+              getQualificationPoints={(q) => getQualificationPoints(q.mp, q.score)}
             />
           </TabsContent>
 

@@ -10,7 +10,9 @@ import {
   calculateMaxMatchPoints,
   normalizePoints,
   calculateQualificationPoints,
+  calculateQualificationPointsFromMatches,
   aggregateGroupQualificationPoints,
+  getQualificationPoints,
 } from "@/lib/points/qualification-points";
 
 describe("BM/MR/GP Qualification Points", () => {
@@ -122,6 +124,60 @@ describe("BM/MR/GP Qualification Points", () => {
       expect(results[0].playerId).toBe("p2");
       expect(results[1].playerId).toBe("p3");
       expect(results[2].playerId).toBe("p1");
+    });
+  });
+
+  describe("calculateQualificationPointsFromMatches", () => {
+    it("normalizes completed match records by each player's actual matches played", () => {
+      const results = calculateQualificationPointsFromMatches([
+        { playerId: "p1", wins: 3, ties: 0, losses: 0, matchesPlayed: 3 },
+        { playerId: "p2", wins: 1, ties: 1, losses: 1, matchesPlayed: 3 },
+        { playerId: "p3", wins: 0, ties: 0, losses: 3, matchesPlayed: 3 },
+      ]);
+
+      expect(results).toEqual([
+        { playerId: "p1", matchPoints: 6, normalizedPoints: 1000, rank: 1 },
+        { playerId: "p2", matchPoints: 3, normalizedPoints: 500, rank: 2 },
+        { playerId: "p3", matchPoints: 0, normalizedPoints: 0, rank: 3 },
+      ]);
+    });
+
+    it("compares players fairly when they have played different match counts", () => {
+      const results = calculateQualificationPointsFromMatches([
+        { playerId: "twoOfTwo", wins: 2, ties: 0, losses: 0, matchesPlayed: 2 },
+        { playerId: "threeOfFour", wins: 3, ties: 0, losses: 1, matchesPlayed: 4 },
+        { playerId: "oneTie", wins: 0, ties: 1, losses: 0, matchesPlayed: 1 },
+      ]);
+
+      expect(results.map((result) => result.playerId)).toEqual([
+        "twoOfTwo",
+        "threeOfFour",
+        "oneTie",
+      ]);
+      expect(results.map((result) => result.normalizedPoints)).toEqual([
+        1000,
+        750,
+        500,
+      ]);
+    });
+
+    it("guards matchesPlayed=0 from division by zero", () => {
+      const results = calculateQualificationPointsFromMatches([
+        { playerId: "notStarted", wins: 0, ties: 0, losses: 0, matchesPlayed: 0 },
+        { playerId: "oneWin", wins: 1, ties: 0, losses: 0, matchesPlayed: 1 },
+      ]);
+
+      expect(results).toEqual([
+        { playerId: "oneWin", matchPoints: 2, normalizedPoints: 1000, rank: 1 },
+        { playerId: "notStarted", matchPoints: 0, normalizedPoints: 0, rank: 2 },
+      ]);
+    });
+  });
+
+  describe("getQualificationPoints", () => {
+    it("uses the shared display formula for qualification points", () => {
+      expect(getQualificationPoints(7, 10)).toBe(714);
+      expect(getQualificationPoints(0, 5)).toBe(0);
     });
   });
 
