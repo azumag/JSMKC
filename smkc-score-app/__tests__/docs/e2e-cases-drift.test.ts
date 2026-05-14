@@ -18,6 +18,7 @@ describe('E2E case drift coverage', () => {
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
   const tcTa = readE2eScript('tc-ta.js');
   const tcTaFlow = readE2eScript('tc-ta-flow.js');
+  const taFlowRankAssertionsTypes = readE2eLib('ta-flow-rank-assertions.d.ts');
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
   const tc1073Lr2Slots = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-1073-16p-lr2-slots.test.ts');
   const taPhasesRouteTest = readRepoFile(
@@ -75,6 +76,18 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('TC-TA-FLOW-24-RANK');
     expect(section).toContain('npm run e2e:preview:ta-flow');
     expect(tcTaFlow).toContain("{ name: 'TC-TA-FLOW-24', fn: runFullFlow }");
+  });
+
+  it('keeps TC-TA-FLOW-24-RANK aligned with direct helper and TypeScript contract coverage', () => {
+    const section = e2eCaseSection('TC-TA-FLOW-24-RANK');
+    const unitTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'ta-flow-rank-assertions.test.ts');
+
+    expect(section).toContain('collectEliminationOrder');
+    expect(section).toContain('ta-flow-rank-assertions.d.ts');
+    expect(unitTest).toContain('collects no eliminations from missing phase3 rounds');
+    expect(unitTest).toContain('ignores missing eliminatedIds and invalid player ids');
+    expect(taFlowRankAssertionsTypes).toContain('export function collectEliminationOrder');
+    expect(taFlowRankAssertionsTypes).toContain('export function evaluateTaFlowRankAssertion');
   });
 
   it('keeps TC-1060 aligned with complete TA finals position unit coverage', () => {

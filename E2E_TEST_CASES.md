@@ -2663,6 +2663,8 @@
   5. `eliminatedIds` が2件未満の場合は比較不能として TC-TA-FLOW-24-RANK のみ SKIP し、誤解を招く 0 点同士の FAIL を出さないことを確認する
   6. 最後に脱落したプレイヤーの `taFinalsPoints` が、最初に脱落したプレイヤーの `taFinalsPoints` より大きいことを確認する
   7. Phase 3 ラウンド取得または POST `/overall-ranking` が 2xx 以外の場合、TC-TA-FLOW-24-RANK を FAIL として記録し、runFullFlow 全体から早期 return しないことを確認する
+  8. `collectEliminationOrder` は Phase 3 レスポンスの `rounds` / `eliminatedIds` が欠損しても runner を落とさず、空文字や非文字列の playerId を脱落順序に混ぜないことを単体テストで固定する
+  9. TypeScript テストから CommonJS helper を安全に import できるよう、`ta-flow-rank-assertions.d.ts` で公開 API の型を明示する
 - **期待結果**: 総合ランキングの TA Finals 配点が「最後まで生き残った順」を反映する。早期脱落者が後期脱落者を上回ることはなく、比較不能な途中状態や再計算失敗もケース単位の明確な結果になる
 
 ## TC-1060: TA Finals Phase 1/2 脱落者の中間順位を全件検証する (issue #1060)

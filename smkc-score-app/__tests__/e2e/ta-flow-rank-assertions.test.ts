@@ -1,4 +1,4 @@
-import { evaluateTaFlowRankAssertion } from '../../e2e/lib/ta-flow-rank-assertions';
+import { collectEliminationOrder, evaluateTaFlowRankAssertion } from '../../e2e/lib/ta-flow-rank-assertions';
 
 const entries = [
   { playerId: 'champion', rank: 1 },
@@ -7,6 +7,28 @@ const entries = [
 ];
 
 describe('TC-TA-FLOW-24-RANK assertion helper', () => {
+  it('collects phase3 eliminations in chronological order', () => {
+    expect(collectEliminationOrder([
+      { eliminatedIds: ['p24', 'p23'] },
+      { eliminatedIds: ['p22'] },
+      { eliminatedIds: ['p21', 'p20'] },
+    ])).toEqual(['p24', 'p23', 'p22', 'p21', 'p20']);
+  });
+
+  it('collects no eliminations from missing phase3 rounds', () => {
+    expect(collectEliminationOrder(null)).toEqual([]);
+    expect(collectEliminationOrder(undefined)).toEqual([]);
+  });
+
+  it('ignores missing eliminatedIds and invalid player ids', () => {
+    expect(collectEliminationOrder([
+      null,
+      {},
+      { eliminatedIds: null },
+      { eliminatedIds: ['', 42, 'p19', false, 'p18'] },
+    ])).toEqual(['p19', 'p18']);
+  });
+
   it('passes when the champion has the highest TA finals points and late eliminations outrank early eliminations', () => {
     expect(evaluateTaFlowRankAssertion({
       entries,
