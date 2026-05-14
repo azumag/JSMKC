@@ -147,6 +147,13 @@ function formatTc813Time(ms) {
   return `${minutes}:${seconds.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
 }
 
+function orderTaEntriesForDeterministicResultSlots(entries) {
+  /* API/database ordering is not part of the TC-1033 contract. Sort by the stable
+   * playerId before assigning result slots so the two tied players are selected
+   * deterministically even if D1 changes the raw entries order. */
+  return [...entries].sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
+}
+
 function makeTc813QualificationTimes(pattern) {
   const times = {};
   let totalMs = 0;
@@ -1518,12 +1525,15 @@ async function runTc1033(adminPage) {
     const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
     if (start.s !== 200) throw new Error(`start_round failed (${start.s})`);
 
-    const entries = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [];
+    const entries = orderTaEntriesForDeterministicResultSlots(
+      (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [],
+    );
     if (entries.length !== 8) throw new Error(`phase1 entries=${entries.length}, expected 8`);
     const results = entries.map((entry, index) => ({
       playerId: entry.playerId,
       timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
     }));
+    const expectedTargetIds = entries.slice(6).map((entry) => entry.playerId).sort();
 
     const tied = await apiPostTaPhase(adminPage, tournamentId, {
       action: 'submit_results',
@@ -1532,11 +1542,14 @@ async function runTc1033(adminPage) {
       results,
     });
     const sudden = tied.b?.data?.suddenDeathRound;
-    const targetCount = sudden?.targetPlayerIds?.length ?? 0;
+    const targetIds = [...(sudden?.targetPlayerIds ?? [])].sort();
+    const targetCount = targetIds.length;
+    const targetIdsMatch = JSON.stringify(targetIds) === JSON.stringify(expectedTargetIds);
     const hasReason = Object.prototype.hasOwnProperty.call(sudden ?? {}, 'reason');
-    log('TC-1033', tied.s === 200 && targetCount === 2 && !hasReason ? 'PASS' : 'FAIL',
+    log('TC-1033', tied.s === 200 && targetCount === 2 && targetIdsMatch && !hasReason ? 'PASS' : 'FAIL',
       tied.s !== 200 ? `submit_results status=${tied.s}`
       : targetCount !== 2 ? `targetPlayerIds length=${targetCount}`
+      : !targetIdsMatch ? `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')}`
       : hasReason ? `unexpected reason=${sudden.reason}`
       : '');
   } catch (err) {
@@ -1778,8 +1791,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-812', fn: runTc812 },
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
-      { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-815', fn: runTc815 },
+      { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-817', fn: runTc817 },
     ],
   };
