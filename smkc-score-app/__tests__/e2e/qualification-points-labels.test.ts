@@ -26,4 +26,24 @@ describe('qualification points E2E label source', () => {
     expect(getQualificationPointsTooltipTitles()).toHaveLength(2);
     expect(getQualificationPointsTooltipTitles()).not.toContain(undefined);
   });
+
+  it('throws when a required i18n label is missing during helper initialization', () => {
+    jest.isolateModules(() => {
+      jest.doMock('../../messages/ja.json', () => ({
+        common: {
+          ...jaMessages.common,
+          qualificationPointsShort: undefined,
+        },
+      }));
+      jest.doMock('../../messages/en.json', () => enMessages);
+
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('../../e2e/lib/common');
+      }).toThrow('messages/ja.json common.qualificationPointsShort is required');
+    });
+
+    jest.dontMock('../../messages/ja.json');
+    jest.dontMock('../../messages/en.json');
+  });
 });
