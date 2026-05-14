@@ -26,6 +26,7 @@
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *   TC-535  BM Top-24 playoff seed labels use group-rank labels
+ *   TC-1051 BM Top-24 direct-seed API no longer depends on legacy direct[]
  *   TC-1052 BM Top-24 rejects unsupported 3-group seeding
  *
  * Setup:
@@ -205,7 +206,6 @@ function expectedTwoGroupPaperSeedIds(qualifications) {
   ];
 
   return {
-    direct: directTokensByUpperSeed.map(([, token]) => playerIdForToken(token)),
     directSeeds: directTokensByUpperSeed.map(([seed, token]) => ({
       seed,
       playerId: playerIdForToken(token),
@@ -955,6 +955,9 @@ async function runTc510(adminPage) {
     const phase2Data = phase2.b?.data || {};
     state = await apiFetchBmFinalsState(adminPage, tournamentId);
     const seededPlayers = phase2Data.seededPlayers || [];
+    const legacyDirectPayloadAbsent =
+      !Object.prototype.hasOwnProperty.call(phase1Data, 'direct') &&
+      !Object.prototype.hasOwnProperty.call(phase2Data, 'direct');
     const directSeedOrderOk = expectedSeedIds.directSeeds.every(({ seed, playerId }) => {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === playerId;
@@ -975,6 +978,11 @@ async function runTc510(adminPage) {
       directSeedOrderOk &&
       directSeedLabelsOk &&
       playoffWinnersSeeded;
+
+    log('TC-1051', legacyDirectPayloadAbsent && directSeedOrderOk ? 'PASS' : 'FAIL',
+      !legacyDirectPayloadAbsent ? 'Top-24 response exposed legacy direct[] payload'
+      : !directSeedOrderOk ? `direct seed order mismatch expected=${JSON.stringify(expectedSeedIds.directSeeds)} actual=${JSON.stringify(seededPlayers)}`
+      : '');
 
     const ok = playoffCreated && playoffSeedOrderOk && playoffSeedLabelsOk && playoffBlocksOk && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
     log('TC-510', ok ? 'PASS' : 'FAIL',

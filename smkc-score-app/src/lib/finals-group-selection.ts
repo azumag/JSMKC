@@ -38,8 +38,6 @@ export interface FinalsQualInput {
 }
 
 interface FinalsGroupSelection {
-  /** 12 direct advancers, in deterministic display/spec order. */
-  direct: FinalsQualInput[];
   /** Direct advancers with their actual Upper Bracket seed numbers. */
   directSeeds: Array<{ seed: number; qualification: FinalsQualInput }>;
   /** 12 barrage entrants, ordered for Playoff seeds 1-12. */
@@ -144,7 +142,6 @@ export function selectFinalsEntrantsByGroup(
     }));
 
     return {
-      direct: directSeeds.map(({ qualification }) => qualification),
       directSeeds,
       barrage: TWO_GROUP_BARRAGE_SEED_TOKENS.map(playerForToken),
       groupCount: 2,
@@ -164,7 +161,10 @@ export function selectFinalsEntrantsByGroup(
   }
 
   return {
-    direct,
+    /* `directSeeds` is the sole public direct-advancer contract. Keeping a
+     * parallel unseeded `direct[]` array would duplicate the same qualifiers
+     * without the Upper Bracket seed metadata that every current caller needs,
+     * and risks future drift between two representations of one bracket slot. */
     directSeeds: direct.map((qualification, index) => ({
       seed: index + 1,
       qualification,

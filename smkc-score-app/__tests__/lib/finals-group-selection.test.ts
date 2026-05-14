@@ -62,12 +62,8 @@ describe('selectFinalsEntrantsByGroup', () => {
       ]);
     });
 
-    it('direct[] follows the same deterministic order as directSeeds[]', () => {
-      expect(result.direct.map(q => q.playerId)).toEqual([
-        'A1', 'B3', 'B1', 'A3',
-        'B2', 'A4', 'A2', 'B4',
-        'A5', 'B5', 'B6', 'A6',
-      ]);
+    it('does not expose the redundant direct[] projection for 2 groups', () => {
+      expect('direct' in result).toBe(false);
     });
 
     it('directSeeds[] renders top-to-bottom as the handwritten 2-group Upper R1 bracket', () => {
@@ -117,8 +113,18 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(3);
     });
 
-    it('direct[] is Top1-4 from each group, interleaved', () => {
-      expect(result.direct.map(q => q.playerId)).toEqual([
+    it('directSeeds[] is Top1-4 from each group, interleaved', () => {
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [1, 'A1'], [2, 'B1'], [3, 'C1'],
+        [4, 'A2'], [5, 'B2'], [6, 'C2'],
+        [7, 'A3'], [8, 'B3'], [9, 'C3'],
+        [10, 'A4'], [11, 'B4'], [12, 'C4'],
+      ]);
+    });
+
+    it('does not expose legacy direct[] because callers should use directSeeds[]', () => {
+      expect('direct' in result).toBe(false);
+      expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1', 'B1', 'C1',
         'A2', 'B2', 'C2',
         'A3', 'B3', 'C3',
@@ -144,8 +150,17 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(4);
     });
 
-    it('direct[] is Top1-3 from each group, interleaved', () => {
-      expect(result.direct.map(q => q.playerId)).toEqual([
+    it('directSeeds[] is Top1-3 from each group, interleaved', () => {
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [1, 'A1'], [2, 'B1'], [3, 'C1'], [4, 'D1'],
+        [5, 'A2'], [6, 'B2'], [7, 'C2'], [8, 'D2'],
+        [9, 'A3'], [10, 'B3'], [11, 'C3'], [12, 'D3'],
+      ]);
+    });
+
+    it('does not expose legacy direct[] because callers should use directSeeds[]', () => {
+      expect('direct' in result).toBe(false);
+      expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1', 'B1', 'C1', 'D1',
         'A2', 'B2', 'C2', 'D2',
         'A3', 'B3', 'C3', 'D3',
@@ -227,11 +242,12 @@ describe('selectFinalsEntrantsByGroup', () => {
         quals.push(mk('A', r), mk('B', r));
       }
       const result = selectFinalsEntrantsByGroup(quals);
-      expect(result.direct.map(q => q.playerId)).toEqual([
+      expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1', 'B3', 'B1', 'A3',
         'B2', 'A4', 'A2', 'B4',
         'A5', 'B5', 'B6', 'A6',
       ]);
+      expect('direct' in result).toBe(false);
     });
   });
 });

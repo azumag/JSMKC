@@ -1361,6 +1361,18 @@
 - **期待結果**: Top-24 Phase 2 は `playoffUpperSeeds` が4件そろわない構造を無音で受け入れず、Upper Bracket 勝者シード欠落を防ぐ
 - **スクリプト**: n/a（構造異常のサーバーサイド防御のため `smkc-score-app/__tests__/static/tc-1053-playoff-upper-seeds-guard.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` で検証）
 
+## TC-1051: BM Top-24 — directSeeds を唯一の direct advancer 公開契約にする
+- **URL**: /api/tournaments/[id]/bm/finals (POST)
+- **authRequired**: true (admin)
+- **背景**: issue #1051。2グループ Top-24 の direct advancer は Upper Bracket seed 1/2/3/4/5/6/7/8/9/11/13/15 に配置されるため、呼び出し側に必要なのは seed 付きの `directSeeds` である。旧 `direct[]` は `directSeeds[].qualification` から派生できる冗長な配列で、2グループでは source of truth を増やすだけになる。
+- **手順**:
+  1. 28名 BM 予選を2グループで完了し、Top-24 playoff を作成する
+  2. playoff 完了後に Phase 2 finals を生成する
+  3. Phase 1/2 の API payload が legacy `direct[]` を公開せず、Phase 2 の `seededPlayers` が `directSeeds` 由来の Upper Bracket seed へ配置されることを確認する
+  4. ユニットテストで `selectFinalsEntrantsByGroup` の戻り値も `direct[]` を持たず、3/4グループの内部 direct order は `directSeeds` として保持されることを確認する
+- **期待結果**: BM Top-24 の公開契約は `directSeeds` と `barrage` に集約され、2グループ専用の冗長 `direct[]` が再導入されない
+- **スクリプト**: tc-bm.js TC-510 内の TC-1051 assertion + `smkc-score-app/__tests__/lib/finals-group-selection.test.ts`
+
 ## TC-1052: BM Top-24 — 3グループ時は未定義のシード衝突を拒否する
 - **URL**: /api/tournaments/[id]/bm/finals (POST)
 - **authRequired**: true (admin)
