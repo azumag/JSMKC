@@ -21,6 +21,8 @@ describe('TC-1009 overall-ranking bracket threshold comments', () => {
 
     expect(helper).toContain('generateBracketStructure(8)');
     expect(helper).toContain('generateBracketStructure(16)');
+    expect(helper).toContain('losers_r4: 26-27');
+    expect(helper).toContain('m.round === "losers_r4"');
 
     for (const [round, lowerBound, range] of [
       ['losers_r1', 16, '16-19'],
