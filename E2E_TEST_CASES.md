@@ -1393,6 +1393,18 @@
 - **期待結果**: winners_qf 等のラウンドヘッダー下に startingCourseNumber が「バトルコース {n}」として表示される
 - **スクリプト**: tc-bm.js TC-531
 
+## TC-1011: BM 決勝生成 — 空の qualification orderBy では H2H クエリを発行しない
+- **URL**: /api/tournaments/[id]/bm/finals (POST)
+- **authRequired**: true (admin)
+- **背景**: issue #1011。`hasAutomaticRankTies` は決勝シード用の予選順位に自動同順位がある場合だけ H2H 用 qualification match を追加取得する。`qualificationOrderBy` が空なら比較基準がないため、JavaScript の `[].every()` の vacuous truth で全行を同順位扱いしてはいけない。
+- **手順**:
+  1. 8名分の BM qualification を用意する
+  2. テスト専用設定で `qualificationOrderBy: []` の finals handler を作る
+  3. `POST /api/tournaments/[id]/bm/finals` `{ topN: 8 }` を実行する
+  4. `stage: 'qualification'` の H2H match 取得が呼ばれず、決勝ブラケット作成だけが進むことを確認する
+- **期待結果**: 空の orderBy は「比較基準なし」として扱われ、不要な H2H クエリを発行しない
+- **スクリプト**: n/a（defensive server-side guard のため `smkc-score-app/__tests__/e2e/tc-1011-finals-h2h-guard.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` で検証）
+
 ## TC-532: BM 予選順位表 — 0-1000 予選点列の表示
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)

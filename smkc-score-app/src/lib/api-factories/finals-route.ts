@@ -751,6 +751,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
   ): boolean {
     const firstOrderField = Object.keys(orderBy[0] ?? {})[0];
     const rankingOrder = firstOrderField === 'group' ? orderBy.slice(1) : orderBy;
+    /* Without a ranking field there is no business rule for determining
+     * automatic ties. Returning false avoids JavaScript's [].every()
+     * vacuous truth from treating every adjacent row as tied and issuing an
+     * unnecessary qualification H2H query. */
+    if (rankingOrder.length === 0) return false;
     const byPartition = new Map<string, typeof qualifications>();
 
     for (const q of qualifications) {
