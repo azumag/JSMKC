@@ -553,6 +553,25 @@ describe('E2E case drift coverage', () => {
     expect(tcBm).toContain('directSeedLabelsOk');
   });
 
+  it('documents TC-1051 as the Top-24 directSeeds-only contract', () => {
+    const section = e2eCaseSection('TC-1051');
+    const unitTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'finals-group-selection.test.ts',
+    );
+
+    expect(section).toContain('issue #1051');
+    expect(section).toContain('legacy `direct[]`');
+    expect(section).toContain('`directSeeds`');
+    expect(section).toContain('tc-bm.js TC-510');
+    expect(tcBm).toContain("log('TC-1051'");
+    expect(tcBm).toContain('legacyDirectPayloadAbsent');
+    expect(unitTest).toContain("does not expose the redundant direct[] projection for 2 groups");
+    expect(unitTest).toContain("expect('direct' in result).toBe(false)");
+  });
+
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
     expect(tcAll).not.toContain('TC-403');
   });
