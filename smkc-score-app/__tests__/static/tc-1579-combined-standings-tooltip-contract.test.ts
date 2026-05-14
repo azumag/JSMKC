@@ -42,7 +42,7 @@ describe('TC-1579 combined standings tooltip label contract', () => {
   it.each([
     ['BM', ['src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx']],
     ['MR', ['src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx']],
-  ] as const)('passes the localized tooltip label from %0 combined standings', (_mode, path) => {
+  ] as const)('passes the localized tooltip label from %s combined standings', (_mode, path) => {
     const source = readRepoFile('smkc-score-app', ...path);
     const combinedTab = sectionBetween(
       source,
