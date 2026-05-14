@@ -100,12 +100,19 @@ describe('TC-1024 shared qualification-points helper', () => {
 
   it('documents the centraliz stem match used by the why guard', () => {
     const section = e2eCaseSection('TC-1657');
+    const commentSection = e2eCaseSection('TC-1659');
     const source = readRepoFile(
       'smkc-score-app',
       '__tests__',
       'static',
       'tc-1024-qualification-points-helper.test.ts',
     );
+    const selfMatchComment = 'Split to prevent the assertion string from self-matching';
+    expect(commentSection).toContain('issue #1659');
+    expect(commentSection).toContain('自己参照防止');
+    expect(source).toContain(selfMatchComment);
+
+    // Split to prevent the assertion string from self-matching when this file is scanned.
     const stemCommentNeedle = 'centraliz' + '(e|ed|ation)';
 
     expect(section).toContain('issue #1657');
