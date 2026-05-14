@@ -1373,6 +1373,18 @@
 - **期待結果**: 3+グループの Top-24 はサイレントに壊れたブラケットを作らず、正式な3+グループ配置実装まで安全に停止する
 - **スクリプト**: tc-bm.js TC-1052 + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
 
+## TC-1603: BM Top-24 — 1グループ時も予選グループ数エラーで停止する
+- **URL**: /api/tournaments/[id]/bm/finals (POST)
+- **authRequired**: true (admin)
+- **背景**: issue #1603。3+グループ拒否 guard は `groupCount > 2` を見るため、1グループ入力は `selectFinalsEntrantsByGroup` 側の「2〜4グループのみ対応」バリデーションで止まる。この経路が書き込み前に 400 になることを明示する。
+- **手順**:
+  1. 1グループ24名分の BM 予選済みデータを用意する
+  2. `POST /api/tournaments/[id]/bm/finals` `{ topN: 24 }` を実行する
+  3. レスポンスが 400 `VALIDATION_ERROR` で、`Unsupported group count 1` が返ることを確認する
+  4. playoff/finals stage のマッチが作成されていないことを確認する
+- **期待結果**: 1グループの Top-24 も未定義ブラケットを作らず、予選グループ数バリデーションで安全に停止する
+- **スクリプト**: n/a（server-side guard のため `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` で検証）
+
 ---
 
 ## MR (Match Race) フルワークフローテスト
