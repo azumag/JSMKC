@@ -35,6 +35,7 @@ const {
 } = require('./lib/common');
 const { createSharedE2eFixture } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
+const { evaluateTaFlowRankAssertion } = require('./lib/ta-flow-rank-assertions');
 
 const PLAYER_COUNT = 24;
 const PHASE1_ROUNDS = 4;
@@ -161,53 +162,24 @@ async function runFullFlow(adminPage) {
      * appear at TA finals position 1, and the top finals positions must
      * not be dominated by players who were eliminated earliest.
      */
-    const eliminationOrder = [];
     const phase3RoundsResp = await adminPage.evaluate(async (u) => {
       const r = await fetch(u);
       return { s: r.status, b: await r.json().catch(() => ({})) };
     }, `/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
     const phase3Rounds = phase3RoundsResp.b?.data?.rounds ?? [];
-    for (const round of phase3Rounds) {
-      for (const pid of (round.eliminatedIds ?? [])) {
-        eliminationOrder.push(pid);
-      }
-    }
 
     const recRes = await adminPage.evaluate(async (u) => {
       const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       return { s: r.status, b: await r.json().catch(() => ({})) };
     }, `/api/tournaments/${tournamentId}/overall-ranking`);
-    if (recRes.s < 200 || recRes.s >= 300) {
-      log('TC-TA-FLOW-24-RANK', 'FAIL', `recalculate failed: ${recRes.s}`);
-      return;
-    }
-    const ranked = (recRes.b?.data?.scores ?? recRes.b?.scores ?? []);
-
-    /* The player with qualification rank 1 (fastest under our formula)
-     * survives every round and must take TA finals points for 1st place. */
-    const champion = entries.find((e) => e.rank === 1);
-    const championScore = ranked.find((s) => s.playerId === champion?.playerId);
-    const championPoints = championScore?.taFinalsPoints ?? 0;
-
-    /* Identify the latest-eliminated player (the one in the last round to
-     * have a non-empty eliminatedIds list).  They must outrank earlier
-     * eliminations in TA finals points — which would not hold under the
-     * old `totalTime ASC` logic when an early-out player happened to have
-     * a low cumulative time from playing few rounds. */
-    const lastEliminatedId = eliminationOrder[eliminationOrder.length - 1];
-    const earliestEliminatedId = eliminationOrder[0];
-    const lastEliminatedPoints = ranked.find((s) => s.playerId === lastEliminatedId)?.taFinalsPoints ?? 0;
-    const earliestEliminatedPoints = ranked.find((s) => s.playerId === earliestEliminatedId)?.taFinalsPoints ?? 0;
-
-    if (championPoints !== 2000) {
-      log('TC-TA-FLOW-24-RANK', 'FAIL',
-        `champion (rank 1) expected 2000 TA finals points, got ${championPoints}`);
-    } else if (lastEliminatedPoints <= earliestEliminatedPoints) {
-      log('TC-TA-FLOW-24-RANK', 'FAIL',
-        `late-eliminated player (${lastEliminatedPoints} pts) should outrank earliest eliminated (${earliestEliminatedPoints} pts)`);
-    } else {
-      log('TC-TA-FLOW-24-RANK', 'PASS', '');
-    }
+    const rankResult = evaluateTaFlowRankAssertion({
+      entries,
+      phase3Status: phase3RoundsResp.s,
+      phase3Rounds,
+      recalcStatus: recRes.s,
+      recalcBody: recRes.b,
+    });
+    log('TC-TA-FLOW-24-RANK', rankResult.status, rankResult.detail);
   } catch (err) {
     log('TC-TA-FLOW-24', 'FAIL', err instanceof Error ? err.message : 'TA flow failed');
   }
