@@ -633,6 +633,17 @@ describe('E2E case drift coverage', () => {
     expect(unitTest).toContain('does not build a Top-16 preview when a Top-24 playoff has fewer than 24 qualifiers');
   });
 
+  it('keeps TC-1622 aligned with the BM 28-to-23 reseed guard', () => {
+    const section = e2eCaseSection('TC-1622');
+
+    expect(section).toContain('issue #1622');
+    expect(section).toContain('23名に置換');
+    expect(section).toContain('tc-bm.js TC-1046');
+    expect(section).toContain('finals-route.test.ts');
+    expect(tcBm).toContain('TC-1622');
+    expect(tcBm).toContain('qualificationCountAfterReseed === 23');
+  });
+
   it('keeps TC-1612 aligned with the PlayoffCompleteCard className merge contract', () => {
     const section = e2eCaseSection('TC-1612');
     const componentTest = readRepoFile(
