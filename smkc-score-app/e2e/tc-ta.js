@@ -1594,14 +1594,19 @@ async function runTc1032(adminPage) {
     if (entries.length !== 9) throw new Error(`phase3 entries=${entries.length}, expected 9`);
 
     const candidates = entries.slice(6);
+    const phase3InitialLives = 3;
+    const oneLifeRemainingDelta = -(phase3InitialLives - 1);
     for (const entry of candidates) {
-      const lifeUpdate = await apiUpdateTaLives(adminPage, tournamentId, entry.id, -2);
+      /* Phase3 entries start with 3 lives. Reduce the reset-overflow candidates
+       * to 1 life so one more bottom-half loss makes each of them a zero-life
+       * candidate for the 9 -> 8 reset threshold check. */
+      const lifeUpdate = await apiUpdateTaLives(adminPage, tournamentId, entry.id, oneLifeRemainingDelta);
       if (lifeUpdate.s !== 200) throw new Error(`update_lives failed (${lifeUpdate.s}) for ${entry.playerId}`);
     }
 
     const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
     if (start.s !== 200) throw new Error(`start_round phase3 failed (${start.s})`);
-    const tied = await apiPostTaPhase(adminPage, tournamentId, {
+    const submitResult = await apiPostTaPhase(adminPage, tournamentId, {
       action: 'submit_results',
       phase,
       roundNumber: start.b?.data?.roundNumber,
@@ -1610,13 +1615,13 @@ async function runTc1032(adminPage) {
         timeMs: 80000 + index * 1000,
       })),
     });
-    const targetIds = [...(tied.b?.data?.suddenDeathRound?.targetPlayerIds ?? [])].sort();
+    const targetIds = [...(submitResult.b?.data?.suddenDeathRound?.targetPlayerIds ?? [])].sort();
     const expectedTargetIds = candidates.map((entry) => entry.playerId).sort();
-    const ok = tied.s === 200 &&
-      tied.b?.data?.tieBreakRequired === true &&
+    const ok = submitResult.s === 200 &&
+      submitResult.b?.data?.tieBreakRequired === true &&
       JSON.stringify(targetIds) === JSON.stringify(expectedTargetIds);
     log('TC-1032', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')} body=${JSON.stringify(tied.b).slice(0, 220)}`);
+      ok ? '' : `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')} body=${JSON.stringify(submitResult.b).slice(0, 220)}`);
   } catch (err) {
     log('TC-1032', 'FAIL', err instanceof Error ? err.message : 'TA phase3 revival target coverage failed');
   } finally {
