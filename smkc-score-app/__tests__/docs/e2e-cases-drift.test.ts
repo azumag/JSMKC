@@ -640,10 +640,37 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('issue #1614');
     expect(section).toContain('コンポーネントソースファイルの文字列詳細を検査していない');
+    // Positive anchors keep the negative string checks from passing against an
+    // empty extraction if the surrounding test names are refactored later.
+    expect(tc1612DriftTest.length).toBeGreaterThan(300);
+    expect(tc1612DriftTest).toContain("const section = e2eCaseSection('TC-1612');");
     expect(tc1612DriftTest).not.toContain("'src'");
     expect(tc1612DriftTest).not.toContain("'playoff-complete-card.tsx'");
     expect(tc1612DriftTest).not.toContain('import { cn }');
     expect(tc1612DriftTest).not.toContain('className={cn(');
+  });
+
+  it('keeps TC-1616 aligned with positive extraction assertions for the TC-1614 guard', () => {
+    const section = e2eCaseSection('TC-1616');
+    const driftTestSource = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'docs',
+      'e2e-cases-drift.test.ts',
+    );
+    const tc1614DriftTest = sectionBetween(
+      driftTestSource,
+      "it('keeps TC-1614 aligned with implementation-detail-free TC-1612 drift coverage'",
+      "  it('keeps TC-1616 aligned",
+    );
+
+    expect(section).toContain('issue #1616');
+    expect(section).toContain('陽性アサーション');
+    expect(tc1614DriftTest).toContain('toBeGreaterThan');
+    expect(tc1614DriftTest).toContain('e2eCaseSection');
+    expect(tc1614DriftTest.indexOf('toBeGreaterThan')).toBeLessThan(
+      tc1614DriftTest.indexOf("not.toContain(\"'src'\")"),
+    );
   });
 
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
