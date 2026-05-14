@@ -29,6 +29,7 @@
     "score": "Score",
     "points": "Points",
     "qualificationPointsShort": "Qual Pts",
+    "qualificationPointsTooltip": "Qualification points (0-1000 normalized)",
     "selectPlayer": "Select Player",
     "choosePlayer": "Choose player...",
     "noPlayersSelected": "No players selected yet",

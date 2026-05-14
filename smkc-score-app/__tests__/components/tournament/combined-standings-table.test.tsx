@@ -19,6 +19,7 @@ describe("CombinedStandingsTable", () => {
     plusMinus: "+/-",
     points: "Pts",
     qualificationPoints: "QP",
+    qualificationPointsTooltip: "Qualification points (0-1000 normalized)",
   };
 
   function cellsByHeader(row: HTMLTableRowElement) {
@@ -83,6 +84,10 @@ describe("CombinedStandingsTable", () => {
     expect(marioCells.Group).toHaveTextContent("Group A");
     expect(marioCells["+/-"]).toHaveTextContent("+5");
     expect(marioCells.QP).toHaveTextContent("50");
+    expect(screen.getByRole("columnheader", { name: "QP" })).toHaveAttribute(
+      "title",
+      "Qualification points (0-1000 normalized)",
+    );
 
     const luigiRow = screen.getByText("Luigi").closest("tr");
     expect(luigiRow).not.toBeNull();

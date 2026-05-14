@@ -29,6 +29,7 @@
     "score": "スコア",
     "points": "ポイント",
     "qualificationPointsShort": "予選点",
+    "qualificationPointsTooltip": "予選点（0-1000に正規化した勝点）",
     "selectPlayer": "プレイヤー選択",
     "choosePlayer": "プレイヤーを選択...",
     "noPlayersSelected": "プレイヤーが選択されていません",

@@ -680,7 +680,9 @@ export default function BattleModePageClient({
                                 <TableHead className="text-center">{t('l')}</TableHead>
                                 <TableHead className="text-center">{t('plusMinus')}</TableHead>
                                 <TableHead className="text-center">{t('pts')}</TableHead>
-                                <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
+                                <TableHead className="text-center" title={tc('qualificationPointsTooltip')}>
+                                  {tc('qualificationPointsShort')}
+                                </TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -744,6 +746,7 @@ export default function BattleModePageClient({
                 plusMinus: t('plusMinus'),
                 points: t('pts'),
                 qualificationPoints: tc('qualificationPointsShort'),
+                qualificationPointsTooltip: tc('qualificationPointsTooltip'),
               }}
               rankings={combinedRankings}
               getGroupLabel={(group) => tc('groupLabel', { group })}

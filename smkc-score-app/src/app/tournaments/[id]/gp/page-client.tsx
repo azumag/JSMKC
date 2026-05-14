@@ -832,7 +832,9 @@ export default function GrandPrixPageClient({
                                 <TableHead className="text-center">{t('l')}</TableHead>
                                 <TableHead className="text-center">{t('matchPointsShort')}</TableHead>
                                 <TableHead className="text-center">{t('driverPointsShort')}</TableHead>
-                                <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
+                                <TableHead className="text-center" title={tc('qualificationPointsTooltip')}>
+                                  {tc('qualificationPointsShort')}
+                                </TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -901,7 +903,9 @@ export default function GrandPrixPageClient({
                       <TableHead className="text-center">{t('l')}</TableHead>
                       <TableHead className="text-center">{t('matchPointsShort')}</TableHead>
                       <TableHead className="text-center">{t('driverPointsShort')}</TableHead>
-                      <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
+                      <TableHead className="text-center" title={tc('qualificationPointsTooltip')}>
+                        {tc('qualificationPointsShort')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
