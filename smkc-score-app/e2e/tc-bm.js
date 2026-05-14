@@ -984,7 +984,7 @@ async function runTc510(adminPage) {
       : !directSeedOrderOk ? `direct seed order mismatch expected=${JSON.stringify(expectedSeedIds.directSeeds)} actual=${JSON.stringify(seededPlayers)}`
       : '');
 
-    const ok = playoffCreated && playoffSeedOrderOk && playoffSeedLabelsOk && playoffBlocksOk && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
+    const ok = playoffCreated && playoffSeedOrderOk && playoffSeedLabelsOk && playoffBlocksOk && phase2Blocked && r1Routed && playoffCompleteSignal && legacyDirectPayloadAbsent && finalsCreated;
     log('TC-510', ok ? 'PASS' : 'FAIL',
       !playoffCreated ? `playoff=${state.playoffMatches.length} finals=${state.matches.length} r1=${r1.length} r2=${r2.length}`
       : !playoffSeedOrderOk ? `playoff seed order mismatch expected=${expectedSeedIds.barrage.join(',')} actual=${playoffSeedIds.join(',')}`
@@ -993,6 +993,7 @@ async function runTc510(adminPage) {
       : !phase2Blocked ? `Phase 2 was not blocked before completion (${blocked.s}, ${blocked.b?.code || blocked.b?.error})`
       : !r1Routed ? 'R1 winner did not route into R2 player2'
       : !playoffCompleteSignal ? 'Last R2 PUT did not signal playoffComplete=true'
+      : !legacyDirectPayloadAbsent ? 'Top-24 response exposed legacy direct[] payload'
       : !finalsCreated ? `finals=${state.matches.length} bracketSize=${state.bracketSize} directSeedOrder=${directSeedOrderOk} directSeedLabels=${directSeedLabelsOk} winnersSeeded=${playoffWinnersSeeded}`
       : '');
   } catch (err) {
