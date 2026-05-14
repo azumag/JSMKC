@@ -63,6 +63,7 @@ const {
 const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
 const { assertStackedCardBoxes } = require('./lib/layout-assertions');
 const { runSuite } = require('./lib/runner');
+const { orderTaEntriesForDeterministicResultSlots } = require('./lib/deterministic-order');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -145,13 +146,6 @@ function formatTc813Time(ms) {
   const seconds = Math.floor((ms % 60000) / 1000);
   const hundredths = Math.floor((ms % 1000) / 10);
   return `${minutes}:${seconds.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
-}
-
-function orderTaEntriesForDeterministicResultSlots(entries) {
-  /* API/database ordering is not part of the TC-1033 contract. Sort by the stable
-   * playerId before assigning result slots so the two tied players are selected
-   * deterministically even if D1 changes the raw entries order. */
-  return [...entries].sort((a, b) => String(a.playerId).localeCompare(String(b.playerId)));
 }
 
 function makeTc813QualificationTimes(pattern) {
