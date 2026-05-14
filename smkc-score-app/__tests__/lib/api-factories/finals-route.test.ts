@@ -1247,7 +1247,7 @@ describe('Finals Route Factory', () => {
       const json = await response.json();
       expect(json.error).toBe('Top-24 playoff currently supports at most 2 qualification groups; found 3');
       expect(json.details).toEqual({ field: 'qualifications' });
-      expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
+      expectNoBmMatchWrites();
     });
 
     it('returns 400 for 1-group Top-24 before creating playoff rows', async () => {
