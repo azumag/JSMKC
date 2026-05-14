@@ -1087,6 +1087,18 @@
 - **期待結果**: Top-24 preview は「24名必要」という仕様を専用定数で表し、12名のバラージ参加者数に誤置換されない
 - **スクリプト**: tc-bm.js TC-1046 + `smkc-score-app/__tests__/static/tc-1046-top24-qualifier-count.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
 
+## TC-1622: BM Top-24 preview 前の23名再セットアップは資格者を置換する
+- **URL**: /api/tournaments/[id]/bm, /api/tournaments/[id]/bm/finals (GET)
+- **authRequired**: true (admin)
+- **背景**: issue #1622。TC-1046 は 28名で Top-24 playoff を作った後、同じ大会を23名で再セットアップして preview guard を確認する。`setupBmQualViaUi` が既存資格者を差し替えず追記した場合、DBに28名残ってテスト前提が崩れるため、再セットアップ後の資格者数を明示的に検証する。
+- **手順**:
+  1. 管理者セッションで 28名 BM 予選を完了し、Top-24 playoff を生成する
+  2. 同じ大会に対して `setupBmQualViaUi(..., players.slice(0, 23))` を再実行する
+  3. BM qualification API の資格者数が23名に置換されていることを確認する
+  4. その状態で finals GET preview を呼び、TC-1046 と同じく Top-16 preview が作られないことを確認する
+- **期待結果**: TC-1046 の「24名未満」前提は UI セットアップの置換動作で保証され、古い28名 qualification が残って偽陽性にならない
+- **スクリプト**: tc-bm.js TC-1046 + `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
+
 ## TC-1612: Top-24 Phase 2 アクションカードの追加 className マージ
 - **URL**: /tournaments/[temp-id]/bm/finals, /mr/finals, /gp/finals
 - **authRequired**: true (admin)

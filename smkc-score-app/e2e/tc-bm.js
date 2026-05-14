@@ -27,6 +27,7 @@
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *   TC-535  BM Top-24 playoff seed labels use group-rank labels
  *   TC-1046 BM Top-24 preview uses a qualifier-count constant, not barrage count
+ *   TC-1622 BM Top-24 28-to-23 reseed replaces qualification entries
  *   TC-1051 BM Top-24 direct-seed API no longer depends on legacy direct[]
  *   TC-1052 BM Top-24 rejects unsupported 3-group seeding
  *
@@ -1011,11 +1012,14 @@ async function runTc510(adminPage) {
   }
 }
 
-/* ───────── TC-1046: BM Top-24 preview keeps the 24-player guard ─────────
+/* ───────── TC-1046 / TC-1622: BM Top-24 preview keeps the 24-player guard ─────────
  * Builds a valid Top-24 playoff first, then replaces qualification with only
  * 23 players while leaving the playoff rows in place. GET /bm/finals must not
  * synthesize a 16-player Upper Bracket preview from incomplete qualification
- * data; the 24-player requirement is distinct from the 12-player barrage pool. */
+ * data; the 24-player requirement is distinct from the 12-player barrage pool.
+ * TC-1622 explicitly verifies the reseed step replaced the 28-player
+ * qualification set with 23 rows, otherwise TC-1046 could accidentally pass
+ * against stale qualification data rather than the intended under-24 state. */
 async function runTc1046(adminPage) {
   let tournamentId = null;
   try {
@@ -1029,9 +1033,13 @@ async function runTc1046(adminPage) {
     }
 
     await setupBmQualViaUi(adminPage, tournamentId, players.slice(0, 23));
+    const bmAfterReseed = await apiFetchBm(adminPage, tournamentId);
+    const qualificationCountAfterReseed =
+      (bmAfterReseed.qualifications || bmAfterReseed.data?.qualifications || []).length;
     const state = await apiFetchBmFinalsState(adminPage, tournamentId);
     const seededPlayersAbsent = !Object.prototype.hasOwnProperty.call(state.raw?.data || {}, 'seededPlayers');
     const ok =
+      qualificationCountAfterReseed === 23 &&
       state.phase === 'playoff' &&
       state.playoffMatches.length === 8 &&
       seededPlayersAbsent &&
@@ -1039,7 +1047,8 @@ async function runTc1046(adminPage) {
       state.matches.length === 0;
 
     log('TC-1046', ok ? 'PASS' : 'FAIL',
-      state.phase !== 'playoff' ? `phase=${state.phase}`
+      qualificationCountAfterReseed !== 23 ? `TC-1622 qualification count after 23-player reseed=${qualificationCountAfterReseed}`
+      : state.phase !== 'playoff' ? `phase=${state.phase}`
       : state.playoffMatches.length !== 8 ? `playoffMatches=${state.playoffMatches.length}`
       : !seededPlayersAbsent ? 'seededPlayers preview was present with fewer than 24 qualifiers'
       : state.bracketSize !== 8 ? `bracketSize=${state.bracketSize}`

@@ -2353,7 +2353,10 @@ async function assertCombinedStandingsTab(page, mode, tournamentId) {
 
 /** UI-driven BM qualification: group assignment + all match scores.
  *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
- *  because setupModePlayersViaUi clears selected players before re-adding. */
+ *  because setupModePlayersViaUi clears the existing selection before
+ *  re-adding. That replacement contract matters for Top-24 guard tests:
+ *  re-running with fewer players replaces the qualification set instead of
+ *  leaving stale higher-count rows behind. */
 async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, score2 = 1, randomize = true, resolveTies = true } = {}) {
   /* Freshly created tournaments start in draft status. The setup dialog
    * opens on draft pages but score PUTs require status='active' — without
