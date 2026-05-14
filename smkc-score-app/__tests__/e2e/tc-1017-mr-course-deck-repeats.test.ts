@@ -29,9 +29,9 @@ describe('TC-1017 MR course deck repeat guard', () => {
   it('documents that the TC-1017 static guard validates the extracted block', () => {
     const section = e2eCaseSection('TC-1664');
 
-    expect(section).toContain('issue #1664');
     expect(section).toContain('sectionBetween');
     expect(section).toContain('MR_QUALIFICATION_COURSE_DECK_REPEATS');
+    expect(section).toContain('toHaveLength(COURSES.length * MR_QUALIFICATION_COURSE_DECK_REPEATS)');
   });
 
   it('keeps MR course-deck repeats independent from the per-match race count', () => {
