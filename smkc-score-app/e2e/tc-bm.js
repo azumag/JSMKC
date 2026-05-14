@@ -1045,15 +1045,16 @@ async function runTc1046(adminPage) {
       seededPlayersAbsent &&
       state.bracketSize === 8 &&
       state.matches.length === 0;
-
-    log('TC-1046', ok ? 'PASS' : 'FAIL',
+    const reason =
       qualificationCountAfterReseed !== 23 ? `TC-1622 qualification count after 23-player reseed=${qualificationCountAfterReseed}`
       : state.phase !== 'playoff' ? `phase=${state.phase}`
       : state.playoffMatches.length !== 8 ? `playoffMatches=${state.playoffMatches.length}`
       : !seededPlayersAbsent ? 'seededPlayers preview was present with fewer than 24 qualifiers'
       : state.bracketSize !== 8 ? `bracketSize=${state.bracketSize}`
       : state.matches.length !== 0 ? `finals matches=${state.matches.length}`
-      : '');
+      : '';
+
+    log('TC-1046', ok ? 'PASS' : 'FAIL', reason);
   } catch (err) {
     log('TC-1046', 'FAIL', err instanceof Error ? err.message : 'TC-1046 failed');
   } finally {
