@@ -1087,6 +1087,17 @@
 - **期待結果**: 呼び出し側が配置・余白だけを追加しても、Top-24 完了カードの意味を示すデフォルトスタイルが保持される
 - **スクリプト**: `smkc-score-app/__tests__/components/tournament/playoff-complete-card.test.tsx` + `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1614: TC-1612 drift テストの実装詳細固定を避ける
+- **URL**: N/A (static coverage)
+- **authRequired**: false
+- **背景**: issue #1614。TC-1612 の drift テストは E2E シナリオと振る舞いテストの関連を守るためのもので、`PlayoffCompleteCard` の import 文・`cn()` 呼び出し構文・クラス文字列の並びを固定してはいけない。
+- **手順**:
+  1. `E2E_TEST_CASES.md` に TC-1612 の背景・期待結果・対応スクリプトが記載されていることを確認する
+  2. `playoff-complete-card.test.tsx` に追加 className と空文字 className の振る舞いテストがあることを確認する
+  3. `e2e-cases-drift.test.ts` の TC-1612 drift テストが、コンポーネントソースファイルの文字列詳細を検査していないことを確認する
+- **期待結果**: TC-1612 の E2E ドキュメント連携は維持しつつ、振る舞いを変えない JSX 整形・import 整理・クラス順変更で drift テストが壊れない
+- **スクリプト**: `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-516: BM 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)
