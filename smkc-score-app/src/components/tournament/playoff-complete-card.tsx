@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type PlayoffCompleteCardProps = {
   description: string;
@@ -23,7 +24,15 @@ export function PlayoffCompleteCard({
   className,
 }: PlayoffCompleteCardProps) {
   return (
-    <Card className={className ?? "border-green-500/50 bg-green-500/10"}>
+    <Card
+      className={cn(
+        // The green complete-state styling is semantic, not optional decoration:
+        // callers may add spacing/layout classes, but they should not have to
+        // repeat the state classes to keep the Phase-2 action visually clear.
+        "border-green-500/50 bg-green-500/10",
+        className,
+      )}
+    >
       <CardContent className="py-4 text-center">
         <p className="text-sm text-muted-foreground mb-3">{description}</p>
         <Button onClick={onCreateUpperBracket}>{actionLabel}</Button>

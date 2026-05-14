@@ -36,4 +36,35 @@ describe("PlayoffCompleteCard", () => {
 
     expect(screen.getByText("全プレーオフ試合が完了しました！上位ブラケットを作成してください。").closest(".mt-4")).toBeInTheDocument();
   });
+
+  it("keeps the default complete-state styling when callers provide only additional layout classes", () => {
+    render(
+      <PlayoffCompleteCard
+        className="mt-4"
+        description="The playoff is complete."
+        actionLabel="Create Upper Bracket"
+        onCreateUpperBracket={jest.fn()}
+      />,
+    );
+
+    const card = screen.getByText("The playoff is complete.").closest(".mt-4");
+
+    expect(card).toHaveClass("border-green-500/50");
+    expect(card).toHaveClass("bg-green-500/10");
+  });
+
+  it("does not drop the default complete-state styling when className is empty", () => {
+    render(
+      <PlayoffCompleteCard
+        className=""
+        description="The playoff is complete with empty classes."
+        actionLabel="Create Upper Bracket"
+        onCreateUpperBracket={jest.fn()}
+      />,
+    );
+
+    const card = screen.getByText("The playoff is complete with empty classes.").closest(".border-green-500\\/50");
+
+    expect(card).toHaveClass("bg-green-500/10");
+  });
 });

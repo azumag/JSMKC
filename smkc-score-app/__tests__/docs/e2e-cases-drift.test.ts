@@ -607,6 +607,34 @@ describe('E2E case drift coverage', () => {
     }
   });
 
+  it('keeps TC-1612 aligned with the PlayoffCompleteCard className merge contract', () => {
+    const section = e2eCaseSection('TC-1612');
+    const component = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'components',
+      'tournament',
+      'playoff-complete-card.tsx',
+    );
+    const componentTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'components',
+      'tournament',
+      'playoff-complete-card.test.tsx',
+    );
+
+    expect(section).toContain('issue #1612');
+    expect(section).toContain('border-green-500/50');
+    expect(section).toContain('bg-green-500/10');
+    expect(component).toContain('import { cn } from "@/lib/utils"');
+    expect(component).toContain('className={cn(');
+    expect(component).toContain('"border-green-500/50 bg-green-500/10"');
+    expect(component).toContain('className,');
+    expect(componentTest).toContain('callers provide only additional layout classes');
+    expect(componentTest).toContain('className is empty');
+  });
+
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
     expect(tcAll).not.toContain('TC-403');
   });

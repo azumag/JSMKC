@@ -1075,6 +1075,18 @@
 - **期待結果**: BM/MR/GP の Top-24 バラージ完了状態で同じ Phase 2 アクションが表示され、共通コンポーネントの unit test と既存 Top-24 E2E フローで退行を検出できる
 - **スクリプト**: tc-bm.js TC-515 + tc-mr.js TC-615 + tc-gp.js TC-715 + `smkc-score-app/__tests__/components/tournament/playoff-complete-card.test.tsx`
 
+## TC-1612: Top-24 Phase 2 アクションカードの追加 className マージ
+- **URL**: /tournaments/[temp-id]/bm/finals, /mr/finals, /gp/finals
+- **authRequired**: true (admin)
+- **背景**: issue #1612。Top-24 バラージ完了後の共通アクションカードは、呼び出し側が `mt-4` などの配置用 className だけを渡しても完了状態を示す緑の枠線・背景を失ってはいけない。
+- **手順**:
+  1. TC-1048 と同じ Top-24 バラージ完了状態を作る
+  2. finals ページで Phase 2 アクションカードが表示されることを確認する
+  3. 共通コンポーネントに追加 className だけを渡すケースでも、カードが `border-green-500/50` と `bg-green-500/10` を保持することを確認する
+  4. 空文字の className を渡す退行ケースでも同じデフォルトスタイルが残ることを確認する
+- **期待結果**: 呼び出し側が配置・余白だけを追加しても、Top-24 完了カードの意味を示すデフォルトスタイルが保持される
+- **スクリプト**: `smkc-score-app/__tests__/components/tournament/playoff-complete-card.test.tsx` + `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-516: BM 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)
