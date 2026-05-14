@@ -2241,6 +2241,17 @@
 - **期待結果**: 16人決勝/Top-24 判定の matchNumber 閾値が、8人決勝との差分として読み取れ、静的テストでコメントの脱落を検知できる
 - **スクリプト**: smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts
 
+## TC-1669: TC-1009 静的ガード — losers_r4 のコメント行も検証する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1669。`losers_r4` は8人決勝に存在しないラウンドなので、`isSixteenPlayerOrTop24Bracket` では `matchNumber` 閾値なしで検出する。TC-1009のループ型アサーションは閾値付きラウンドだけを検証するため、`losers_r4: 26-27` のコメント行を別アサーションで保護する必要がある。
+- **手順**:
+  1. TC-1009 の静的テストを実行する
+  2. `overall-ranking.ts` のコメントが `losers_r4: 26-27` を含むことを確認する
+  3. `m.round === "losers_r4"` の即時判定が静的ガード対象に含まれることを確認する
+- **期待結果**: `losers_r4` だけコメント保護から漏れず、16人決勝固有ラウンドの説明削除をCIで検出できる
+- **スクリプト**: smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts
+
 ## TC-1080: MR 予選単体テスト — 8人ラウンドロビンの4試合/ラウンド前提を明記する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
