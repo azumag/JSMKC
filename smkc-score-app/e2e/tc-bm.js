@@ -26,6 +26,7 @@
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *   TC-535  BM Top-24 playoff seed labels use group-rank labels
+ *   TC-1046 BM Top-24 preview uses a qualifier-count constant, not barrage count
  *   TC-1051 BM Top-24 direct-seed API no longer depends on legacy direct[]
  *   TC-1052 BM Top-24 rejects unsupported 3-group seeding
  *
@@ -1007,6 +1008,47 @@ async function runTc510(adminPage) {
     log('TC-510', 'FAIL', err instanceof Error ? err.message : 'BM 510 failed');
   } finally {
     if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-1046: BM Top-24 preview keeps the 24-player guard ─────────
+ * Builds a valid Top-24 playoff first, then replaces qualification with only
+ * 23 players while leaving the playoff rows in place. GET /bm/finals must not
+ * synthesize a 16-player Upper Bracket preview from incomplete qualification
+ * data; the 24-player requirement is distinct from the 12-player barrage pool. */
+async function runTc1046(adminPage) {
+  let tournamentId = null;
+  try {
+    const players = sharedBmPlayers(28);
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM TC-1046 ${Date.now()}`);
+    await setupBmQualViaUi(adminPage, tournamentId, players);
+
+    const phase1 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    if (phase1.s !== 201 || phase1.b?.data?.phase !== 'playoff') {
+      throw new Error(`Top-24 playoff setup failed (${phase1.s})`);
+    }
+
+    await setupBmQualViaUi(adminPage, tournamentId, players.slice(0, 23));
+    const state = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const seededPlayersAbsent = !Object.prototype.hasOwnProperty.call(state.raw?.data || {}, 'seededPlayers');
+    const ok =
+      state.phase === 'playoff' &&
+      state.playoffMatches.length === 8 &&
+      seededPlayersAbsent &&
+      state.bracketSize === 8 &&
+      state.matches.length === 0;
+
+    log('TC-1046', ok ? 'PASS' : 'FAIL',
+      state.phase !== 'playoff' ? `phase=${state.phase}`
+      : state.playoffMatches.length !== 8 ? `playoffMatches=${state.playoffMatches.length}`
+      : !seededPlayersAbsent ? 'seededPlayers preview was present with fewer than 24 qualifiers'
+      : state.bracketSize !== 8 ? `bracketSize=${state.bracketSize}`
+      : state.matches.length !== 0 ? `finals matches=${state.matches.length}`
+      : '');
+  } catch (err) {
+    log('TC-1046', 'FAIL', err instanceof Error ? err.message : 'TC-1046 failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
   }
 }
 
@@ -2235,6 +2277,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-533', fn: runTc533 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
+      { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },
       { name: 'TC-516', fn: runTc516 },
@@ -2259,7 +2302,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1052,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1046, runTc1052,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

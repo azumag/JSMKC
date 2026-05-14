@@ -1536,6 +1536,33 @@ describe('Finals Route Factory', () => {
       });
     });
 
+    it('does not build a Top-16 preview when a Top-24 playoff has fewer than 24 qualifiers', async () => {
+      (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(23));
+      const playoffRows = [
+        { id: 'p-r2-5', matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-19', player2Id: 'player-8', player1: { id: 'player-19' }, player2: { id: 'player-8' } },
+      ];
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(playoffRows);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
+
+      const config = createMockConfig({ getStyle: 'grouped' });
+      const { GET } = createFinalsHandlers(config);
+
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.phase).toBe('playoff');
+      expect(json.data.playoffMatches).toHaveLength(1);
+      expect(json.data.seededPlayers).toBeUndefined();
+      expect(json.data.bracketSize).toBe(8);
+      expect(json.data.bracketStructure).toEqual([]);
+    });
+
     it('GET Top-24 preview warns and skips a direct seed with an invalid player payload', async () => {
       const qualifications = createMockQualifications(24);
       qualifications[0].player = null;

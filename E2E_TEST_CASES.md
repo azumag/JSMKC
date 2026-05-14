@@ -1075,6 +1075,18 @@
 - **期待結果**: BM/MR/GP の Top-24 バラージ完了状態で同じ Phase 2 アクションが表示され、共通コンポーネントの unit test と既存 Top-24 E2E フローで退行を検出できる
 - **スクリプト**: tc-bm.js TC-515 + tc-mr.js TC-615 + tc-gp.js TC-715 + `smkc-score-app/__tests__/components/tournament/playoff-complete-card.test.tsx`
 
+## TC-1046: BM Top-24 preview は 24名要件を専用定数で判定する
+- **URL**: /api/tournaments/[id]/bm/finals (GET)
+- **authRequired**: true (admin)
+- **背景**: issue #1046。Top-24 Phase 2 preview の資格者数 guard が裸の `24` だと、12名のバラージ参加者数 (`PLAYOFF_ENTRANT_COUNT`) と誤って同一視されやすい。Top-24 全体の必要資格者数とバラージ参加者数は別概念として固定する。
+- **手順**:
+  1. 管理者セッションで BM Top-24 の playoff stage が存在する状態を用意する
+  2. 資格者数が24名未満の状態で finals GET preview を呼ぶ
+  3. preview 用の `seededPlayers` / Top-16 `bracketStructure` が作られず、既存 playoff 情報だけが返ることを確認する
+  4. 静的テストで `TOP24_QUALIFIER_COUNT` が `PLAYOFF_ENTRANT_COUNT` と別に定義され、`buildTop24FinalsPreview` と POST guard の両方で使われることを確認する
+- **期待結果**: Top-24 preview は「24名必要」という仕様を専用定数で表し、12名のバラージ参加者数に誤置換されない
+- **スクリプト**: tc-bm.js TC-1046 + `smkc-score-app/__tests__/static/tc-1046-top24-qualifier-count.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
+
 ## TC-1612: Top-24 Phase 2 アクションカードの追加 className マージ
 - **URL**: /tournaments/[temp-id]/bm/finals, /mr/finals, /gp/finals
 - **authRequired**: true (admin)
