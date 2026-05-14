@@ -2252,6 +2252,17 @@
 - **期待結果**: `losers_r4` だけコメント保護から漏れず、16人決勝固有ラウンドの説明削除をCIで検出できる
 - **スクリプト**: smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts
 
+## TC-1671: docs drift 分類 — TC-1669 を番号順に並べる
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1671。`e2e-cases-drift.test.ts` の static-only 分類配列で TC-1669 が TC-1528 より前にあると、後続の追加時に同じ順序崩れが混入しやすい。分類表は検索性のため、近接ブロック内でTC番号順を維持する。
+- **手順**:
+  1. `e2e-cases-drift.test.ts` の standalone browser runner 対象外分類を確認する
+  2. TC-1451-1452 / TC-1454-1455 / TC-1457 / TC-1528 / TC-1669 / TC-1671 の順で並んでいることを確認する
+  3. 順序ガードが同じ分類ブロックを検査していることを確認する
+- **期待結果**: TC-1669 が TC-1528 の後ろにあり、以後の追加で局所的な番号順崩れを検出できる
+- **スクリプト**: smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts
+
 ## TC-1080: MR 予選単体テスト — 8人ラウンドロビンの4試合/ラウンド前提を明記する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
