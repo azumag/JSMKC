@@ -3436,6 +3436,7 @@ async function main() {
       } catch (err) {
         log('TC-349', 'FAIL', err instanceof Error ? err.message : 'Responsive test failed');
       } finally {
+        // TC-349 cleanup start
         if (listenersRegistered) {
           // TC-349 installs broad page-level listeners; using finally keeps those
           // listeners scoped to this responsive probe even when navigation or
@@ -3444,6 +3445,7 @@ async function main() {
           page.off('response', onResponse);
         }
         await page.setViewportSize({ width: 1280, height: 720 });
+        // TC-349 cleanup end
       }
     } else {
       log('TC-349', 'SKIP', 'No tournament ID available');

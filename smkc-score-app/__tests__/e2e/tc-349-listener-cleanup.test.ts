@@ -7,9 +7,11 @@ describe('TC-349 listener cleanup', () => {
     const section = e2eCaseSection('TC-349');
 
     expect(section).toContain('issue #1028');
+    expect(section).toContain('issue #1649');
     expect(section).toContain("page.off('pageerror', onErr)");
     expect(section).toContain("page.off('response', onResponse)");
     expect(section).toContain('失敗時にも解除');
+    expect(section).toContain('TC-349 cleanup 専用マーカー');
   });
 
   it('removes the TC-349 listeners through a finally block', () => {
@@ -23,10 +25,11 @@ describe('TC-349 listener cleanup', () => {
 
     const cleanup = sectionBetween(
       tc349Runner,
-      'finally {',
-      '} else {',
+      '// TC-349 cleanup start',
+      '// TC-349 cleanup end',
     );
 
+    expect(cleanup).not.toContain('} else {');
     expect(cleanup).toContain("page.off('pageerror', onErr)");
     expect(cleanup).toContain("page.off('response', onResponse)");
     expect(cleanup).toContain('page.setViewportSize({ width: 1280, height: 720 })');
