@@ -2275,6 +2275,17 @@
 - **期待結果**: static guard は TC-1017 の配列長テスト本体を検査していることを先に固定し、境界変更で無関係な範囲を検査してしまう退行を検出できる
 - **スクリプト**: n/a (static coverage) — smkc-score-app/__tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts
 
+## TC-1666: TC-1664 文書 guard から issue 番号リテラル依存を外す
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1666。TC-1664 の文書 guard が `issue #1664` の文字列そのものに依存すると、E2E シナリオ文書の整理で issue 番号表記を変えただけでもテストが壊れる。guard はシナリオ固有の仕様語に絞る。
+- **手順**:
+  1. `tc-1017-mr-course-deck-repeats.test.ts` の TC-1664 文書 guard を確認する
+  2. 同 guard が `sectionBetween`、`MR_QUALIFICATION_COURSE_DECK_REPEATS`、`toHaveLength(COURSES.length * MR_QUALIFICATION_COURSE_DECK_REPEATS)` を確認していることを確認する
+  3. 同 guard が `issue #1664` の文字列リテラルを要求していないことを確認する
+- **期待結果**: TC-1664 の文書 guard は仕様内容に依存し、issue 番号表記の変更では壊れない
+- **スクリプト**: n/a (static coverage) — smkc-score-app/__tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts
+
 ## TC-717: GP決勝 — ラウンドごとのカップ組み合わせがFT3の5カップ目以外で重複しない
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
