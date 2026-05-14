@@ -465,7 +465,7 @@ export async function getTAFinalsPositions(
     });
   };
 
-  const assignPhaseEliminations = (phase: string, startingPosition: number) => {
+  const assignPhaseEliminations = (phase: string, startingPosition: number, lowestPosition: number) => {
     let position = startingPosition;
     const eliminations = [...getPhaseEliminations(phase).entries()].sort(([, a], [, b]) => {
       if (a.round !== b.round) return a.round - b.round;
@@ -475,6 +475,16 @@ export async function getTAFinalsPositions(
 
     for (const [playerId] of eliminations) {
       if (assignedPlayerIds.has(playerId)) continue;
+      if (position < lowestPosition) {
+        logger.warn("Skipping excess TA phase elimination outside placement range", {
+          tournamentId,
+          phase,
+          playerId,
+          attemptedPosition: position,
+          lowestPosition,
+        });
+        continue;
+      }
       positions.push({ playerId, position });
       assignedPlayerIds.add(playerId);
       position -= 1;
@@ -496,8 +506,8 @@ export async function getTAFinalsPositions(
 
   // TA finals are staged from the bottom up: Phase 1 eliminations decide
   // 24th through 21st, and Phase 2 eliminations decide 20th through 17th.
-  assignPhaseEliminations("phase2", 20);
-  assignPhaseEliminations("phase1", 24);
+  assignPhaseEliminations("phase2", 20, 17);
+  assignPhaseEliminations("phase1", 24, 21);
 
   return positions.sort((a, b) => a.position - b.position || a.playerId.localeCompare(b.playerId));
 }

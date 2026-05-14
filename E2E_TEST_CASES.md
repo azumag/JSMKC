@@ -2520,6 +2520,18 @@
 - **期待結果**: TA Finals position mapping が境界値だけでなく 18・19・22・23 位を含む全対象順位を検証する
 - **スクリプト**: smkc-score-app/__tests__/lib/points/overall-ranking.test.ts
 
+## TC-1059: TA Finals Phase 1/2 の想定外脱落数は順位帯を越えない (issue #1059)
+- **URL**: /api/tournaments/[temp-id]/overall-ranking
+- **authRequired**: true (admin)
+- **背景**: Phase 2 の脱落者は17〜20位、Phase 1 の脱落者は21〜24位にだけ割り当てる。想定外データで Phase 2 に5名以上、Phase 1 に5名以上の `eliminatedIds` が残ると、以前の実装では position を単純に減算し続けて Phase 2 が16位以下、Phase 1 が20位以下へ溢れる可能性があった。
+- **手順**:
+  1. Phase 3 の優勝者/脱落者に加え、Phase 2 と Phase 1 に通常より多い脱落履歴を用意する
+  2. `getTAFinalsPositions` を実行し、Phase 2 由来の順位が17〜20位だけに収まることを確認する
+  3. Phase 1 由来の順位が21〜24位だけに収まることを確認する
+  4. 範囲外の余剰脱落者が16位以下や20位以下に割り当てられないことを確認する
+- **期待結果**: TA Finals の Phase 1/2 position mapping はデータ不整合時もフェーズごとの順位帯を越えず、Phase 3 の順位帯と衝突しない
+- **スクリプト**: smkc-score-app/__tests__/lib/points/overall-ranking.test.ts + smkc-score-app/__tests__/e2e/tc-1059-ta-phase-position-floor.test.ts
+
 ## TC-1062: 予選同着プレーオフの配信ラベルは表示言語と一致する (issue #1062)
 - **URL**: /tournaments/[temp-id]/bm, /tournaments/[temp-id]/mr
 - **authRequired**: true (admin)
