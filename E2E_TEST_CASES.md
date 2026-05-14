@@ -1909,6 +1909,19 @@
   7. クリーンアップ
 - **期待結果**: 不一致時はマッチが未完了のまま管理者レビュー待ちになる
 
+## TC-1015: participant report success message branch coverage
+- **URL**: /tournaments/[temp-id]/bm/participant, /tournaments/[temp-id]/mr/participant, /tournaments/[temp-id]/gp/participant
+- **authRequired**: true (player)
+- **背景**: issue #1015/#1016。参加者側の報告完了メッセージは API の `mismatch`/`corrected`/`autoConfirmed`/`waitingFor` フラグで分岐するため、dual-report の不一致や修正送信時に汎用成功文へ落ちないことを固定する。
+- **手順**:
+  1. BM/MR/GP の既存 dual-report E2E (TC-508, TC-609, TC-708) で `mismatch: true` レスポンスが返ることを確認する
+  2. participant success-message helper の単体テストで score report の `mismatch: true` が mismatch 文言を返すことを確認する
+  3. participant success-message helper の単体テストで score report の `corrected: true` が correction 文言を返すことを確認する
+  4. participant success-message helper の単体テストで match report の `mismatch: true` が mismatch 文言を返すことを確認する
+  5. `ParticipantReportResult` の型が API レスポンス実態に合わせて boolean/string に厳密化されていることを静的ガードで確認する
+- **期待結果**: mismatch/corrected 分岐が UI helper と型定義の両方で保護され、参加者側の完了通知が API 状態に一致する
+- **スクリプト**: `smkc-score-app/__tests__/static/tc-1015-participant-report-message.test.ts`, `smkc-score-app/__tests__/lib/participant-report-message.test.ts`
+
 ## TC-709: GP決勝 — 非管理者のスコア入力拒否
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
 - **authRequired**: true (player — 管理者ではない)

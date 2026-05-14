@@ -1,8 +1,8 @@
 export type ParticipantReportResult = {
-  autoConfirmed?: unknown;
-  corrected?: unknown;
-  mismatch?: unknown;
-  waitingFor?: unknown;
+  autoConfirmed?: boolean;
+  corrected?: boolean;
+  mismatch?: boolean;
+  waitingFor?: string;
 };
 
 export type ScoreReportMessages = {
