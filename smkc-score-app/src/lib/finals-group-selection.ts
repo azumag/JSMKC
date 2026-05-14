@@ -161,10 +161,7 @@ export function selectFinalsEntrantsByGroup(
   }
 
   return {
-    /* `directSeeds` is the sole public direct-advancer contract. Keeping a
-     * parallel unseeded `direct[]` array would duplicate the same qualifiers
-     * without the Upper Bracket seed metadata that every current caller needs,
-     * and risks future drift between two representations of one bracket slot. */
+    // directSeeds is the sole direct-advancer contract; a parallel direct[] would risk drift between two slot representations.
     directSeeds: direct.map((qualification, index) => ({
       seed: index + 1,
       qualification,

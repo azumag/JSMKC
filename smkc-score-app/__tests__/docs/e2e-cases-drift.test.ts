@@ -561,6 +561,11 @@ describe('E2E case drift coverage', () => {
       'lib',
       'finals-group-selection.test.ts',
     );
+    const runTc510OkBlock = sectionBetween(
+      tcBm,
+      'const ok = playoffCreated',
+      "log('TC-510'",
+    );
 
     expect(section).toContain('issue #1051');
     expect(section).toContain('legacy `direct[]`');
@@ -568,6 +573,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('tc-bm.js TC-510');
     expect(tcBm).toContain("log('TC-1051'");
     expect(tcBm).toContain('legacyDirectPayloadAbsent');
+    expect(runTc510OkBlock).toContain('legacyDirectPayloadAbsent');
     expect(unitTest).toContain("does not expose the redundant direct[] projection for 2 groups");
     expect(unitTest).toContain("expect('direct' in result).toBe(false)");
   });
