@@ -1677,6 +1677,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const playoffUpperSeeds = playoffStructure
         .filter((m) => m.round === 'playoff_r2' && m.advancesToUpperSeed)
         .map((m) => m.advancesToUpperSeed as number);
+      if (playoffUpperSeeds.length !== 4) {
+        throw new Error(`Expected 4 playoff R2 upper seeds, got ${playoffUpperSeeds.length}`);
+      }
       const playoffWinnerSeeds = playoffUpperSeeds.map((upperSeed) => {
         const winner = upperSeedToPlayer.get(upperSeed);
         if (!winner) {

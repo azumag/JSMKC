@@ -1348,6 +1348,19 @@
 - **期待結果**: Top-24 playoff と Phase 2 finals のシード表示は、seed 番号ではなく予選グループ順位ラベルを優先する
 - **スクリプト**: tc-bm.js TC-510（API payload の `qualificationRankLabel` を検証） + `smkc-score-app/__tests__/components/tournament/playoff-bracket.test.tsx`（UI 表示を検証）
 
+## TC-1053: BM Top-24 Phase 2 — playoff upper seed 定義欠損を検出する
+- **URL**: /api/tournaments/[id]/bm/finals (POST)
+- **authRequired**: true (admin)
+- **背景**: issue #1053。Top-24 Phase 2 は `generatePlayoffStructure(12)` の `playoff_r2` 4試合にある `advancesToUpperSeed` を使い、playoff 勝者を Upper Bracket の seed 16/12/14/10 に配置する。構造定義の変更やバグで `playoffUpperSeeds` が4件そろわない場合、勝者を欠落させたままブラケットを作ると原因調査が難しい。
+- **手順**:
+  1. 24名以上の予選済みトーナメントで Top-24 playoff を作成する
+  2. `playoff_r2` の4試合を completed にする
+  3. テストでは `generatePlayoffStructure(12)` が `playoff_r2` の `advancesToUpperSeed` を返さない状態を再現する
+  4. `POST /bm/finals { topN: 24 }` で Phase 2 を生成しようとする
+  5. Phase 2 作成が `Expected 4 playoff R2 upper seeds` の guard で停止し、finals stage の `createMany` が呼ばれないことを確認する
+- **期待結果**: Top-24 Phase 2 は `playoffUpperSeeds` が4件そろわない構造を無音で受け入れず、Upper Bracket 勝者シード欠落を防ぐ
+- **スクリプト**: n/a（構造異常のサーバーサイド防御のため `smkc-score-app/__tests__/static/tc-1053-playoff-upper-seeds-guard.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` で検証）
+
 ---
 
 ## MR (Match Race) フルワークフローテスト

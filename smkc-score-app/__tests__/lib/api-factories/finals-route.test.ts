@@ -1355,6 +1355,49 @@ describe('Finals Route Factory', () => {
       ]);
     });
 
+    it('Phase 2 fails fast when the malformed playoff structure is missing R2 upper seeds', async () => {
+      (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
+      mockGeneratePlayoffStructure.mockReturnValue([
+        { matchNumber: 1, round: 'playoff_r1', bracket: 'winners', player1Seed: 8, player2Seed: 9, winnerGoesTo: 5, position: 2 },
+        { matchNumber: 2, round: 'playoff_r1', bracket: 'winners', player1Seed: 5, player2Seed: 12, winnerGoesTo: 6, position: 2 },
+        { matchNumber: 3, round: 'playoff_r1', bracket: 'winners', player1Seed: 6, player2Seed: 11, winnerGoesTo: 7, position: 2 },
+        { matchNumber: 4, round: 'playoff_r1', bracket: 'winners', player1Seed: 7, player2Seed: 10, winnerGoesTo: 8, position: 2 },
+        { matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 1 },
+        { matchNumber: 6, round: 'playoff_r2', bracket: 'winners', player1Seed: 4 },
+        { matchNumber: 7, round: 'playoff_r2', bracket: 'winners', player1Seed: 3 },
+        { matchNumber: 8, round: 'playoff_r2', bracket: 'winners', player1Seed: 2 },
+      ]);
+      const playoffRows = [
+        { id: 'p-r2-5', matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-19', player2Id: 'player-8', player1: { id: 'player-19' }, player2: { id: 'player-8' } },
+        { id: 'p-r2-6', matchNumber: 6, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-6', player2Id: 'player-21', player1: { id: 'player-6' }, player2: { id: 'player-21' } },
+        { id: 'p-r2-7', matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-7', player2Id: 'player-20', player1: { id: 'player-7' }, player2: { id: 'player-20' } },
+        { id: 'p-r2-8', matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-18', player2Id: 'player-9', player1: { id: 'player-18' }, player2: { id: 'player-9' } },
+      ];
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'finals') return Promise.resolve([]);
+        return Promise.resolve(playoffRows);
+      });
+
+      const config = createMockConfig();
+      const { POST } = createFinalsHandlers(config);
+
+      const response = await POST(new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 24 }),
+      }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(500);
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create Top-24 finals', {
+        error: expect.objectContaining({
+          message: 'Expected 4 playoff R2 upper seeds, got 0',
+        }),
+        tournamentId: 'tournament-123',
+      });
+      expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
+    });
+
     it('Phase 2: derives playoff winners from configured score fields for GP-style routes', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
       const playoffRows = [
