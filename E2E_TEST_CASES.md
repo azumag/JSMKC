@@ -2263,6 +2263,18 @@
 - **期待結果**: TC-1017 の単体テストは配列長ポリシーだけを最小限に検証し、不要なランダム mock を持たない
 - **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts / smkc-score-app/__tests__/lib/api-factories/qualification-route.test.ts
 
+## TC-1664: TC-1017 静的ガードの抽出範囲を対象テスト固有の内容で検証する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1664。TC-1017 の static guard は `sectionBetween()` で単体テストの一部を切り出して `Math.random` mock の再導入を拒否するため、切り出した範囲が空や無関係なブロックでないことも確認する必要がある。
+- **手順**:
+  1. `tc-1017-mr-course-deck-repeats.test.ts` の static guard を確認する
+  2. `sectionBetween()` の戻り値が空でないことを確認する
+  3. 同じ戻り値に `MR_QUALIFICATION_COURSE_DECK_REPEATS` と `toHaveLength(COURSES.length * MR_QUALIFICATION_COURSE_DECK_REPEATS)` が含まれることを確認する
+  4. その対象範囲に `Math.random` / `mockReturnValue` / `mockRestore` が含まれないことを確認する
+- **期待結果**: static guard は TC-1017 の配列長テスト本体を検査していることを先に固定し、境界変更で無関係な範囲を検査してしまう退行を検出できる
+- **スクリプト**: n/a (static coverage) — smkc-score-app/__tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts
+
 ## TC-717: GP決勝 — ラウンドごとのカップ組み合わせがFT3の5カップ目以外で重複しない
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
