@@ -62,6 +62,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
+import { PlayoffCompleteCard } from "@/components/tournament/playoff-complete-card";
 import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { getBmFinalsTargetWins } from "@/lib/finals-target-wins";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -773,16 +774,12 @@ export default function BattleModeFinals({
               getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
             />
             {matches.length === 0 && playoffComplete && isAdmin && (
-              <Card className="mt-4 border-green-500/50 bg-green-500/10">
-                <CardContent className="py-4 text-center">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {tFinals('allPlayoffMatchesComplete')}
-                  </p>
-                  <Button onClick={handleCreateUpperBracket}>
-                    {tFinals('createUpperBracket')}
-                  </Button>
-                </CardContent>
-              </Card>
+              <PlayoffCompleteCard
+                className="mt-4 border-green-500/50 bg-green-500/10"
+                description={tFinals('allPlayoffMatchesComplete')}
+                actionLabel={tFinals('createUpperBracket')}
+                onCreateUpperBracket={handleCreateUpperBracket}
+              />
             )}
           </TabsContent>
         </Tabs>
@@ -799,16 +796,11 @@ export default function BattleModeFinals({
             getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
           />
           {playoffComplete && isAdmin && (
-            <Card className="border-green-500/50 bg-green-500/10">
-              <CardContent className="py-4 text-center">
-                <p className="text-sm text-muted-foreground mb-3">
-                  {tFinals('allPlayoffMatchesComplete')}
-                </p>
-                <Button onClick={handleCreateUpperBracket}>
-                  {tFinals('createUpperBracket')}
-                </Button>
-              </CardContent>
-            </Card>
+            <PlayoffCompleteCard
+              description={tFinals('allPlayoffMatchesComplete')}
+              actionLabel={tFinals('createUpperBracket')}
+              onCreateUpperBracket={handleCreateUpperBracket}
+            />
           )}
         </>
       ) : (
