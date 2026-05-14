@@ -476,8 +476,9 @@ describe('E2E case drift coverage', () => {
     ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
-    ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
     ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
+    ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
+    ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
     ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
   ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
@@ -485,6 +486,21 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain(marker);
     expect(section).toContain(coverage);
+  });
+
+  it('keeps late static-only TC classifications ordered within their local block', () => {
+    const source = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
+    const block = sectionBetween(
+      source,
+      "['TC-1451-1452', 'n/a (static/doc coverage)'",
+      "['TC-803', 'TC-318 でカバー済み'",
+    );
+
+    const orderedTcs = ['TC-1451-1452', 'TC-1454-1455', 'TC-1457', 'TC-1528', 'TC-1669', 'TC-1671'];
+    const indexes = orderedTcs.map((tc) => block.indexOf(`['${tc}'`));
+
+    expect(indexes.every((index) => index >= 0)).toBe(true);
+    expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
   });
 
   it('keeps TC-1090-1091 aligned with overall-ranking static and unit coverage', () => {
