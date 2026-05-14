@@ -1432,13 +1432,13 @@
 ## TC-1047: BM Top-24 Phase 2 preview — preview 構築失敗時の最小 structured error logging
 - **URL**: /api/tournaments/[id]/bm/finals (GET)
 - **authRequired**: true (admin)
-- **背景**: issue #1047/#1045/#1628。Top-24 playoff が存在する GET preview で qualification 読み込みや ranking 計算が失敗しても、ユーザー向けには従来どおり playoff 状態へフォールバックする。一方で無言の `catch` は本番調査を妨げるため、errorName・errorCode・tournamentId・eventTypeCode を構造化ログに残し、Prisma error オブジェクト全体や preview 入力型の `any`/`unknown` へ戻さない。
+- **背景**: issue #1047/#1045/#1628/#1630。Top-24 playoff が存在する GET preview で qualification 読み込みや ranking 計算が失敗しても、ユーザー向けには従来どおり playoff 状態へフォールバックする。一方で無言の `catch` は本番調査を妨げるため、errorName・errorCode・tournamentId・eventTypeCode を構造化ログに残し、Prisma error オブジェクト全体や preview 入力型の `any`/`unknown` へ戻さない。
 - **手順**:
   1. Top-24 playoff stage が存在し、finals stage が未作成の大会を用意する
   2. `GET /api/tournaments/[id]/bm/finals` の Phase 2 preview 構築中に qualification 読み込み失敗を再現する
   3. API レスポンスは 200 の playoff フォールバックを返すことを確認する
   4. logger は preview 構築失敗を `error` として、最小化した errorName/errorCode・大会ID・イベント種別付きで記録することを確認する
-  5. static test で `buildTop24FinalsPreview` の `playoffMatches` と qualification player 型が `any[]` / `unknown` に戻っていないことを確認する
+  5. static test で `buildTop24FinalsPreview` の `playoffMatches` と qualification player 型が `any[]` / `unknown` に戻っていないことを確認する。コメント文言ではなくログ helper 呼び出しと出力フィールドだけを固定する。
 - **期待結果**: Top-24 preview の一時的な失敗は UI を壊さずフォールバックしつつ、クエリ詳細を含み得る Error オブジェクト全体をログに渡さず、原因調査に必要な最小構造化 error log と型安全な入力契約を維持する
 - **スクリプト**: n/a（server-side fallback/logging のため `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` + `smkc-score-app/__tests__/static/tc-1047-top24-preview-logging.test.ts` で検証）
 

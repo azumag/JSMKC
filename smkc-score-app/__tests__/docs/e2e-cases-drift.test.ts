@@ -656,13 +656,15 @@ describe('E2E case drift coverage', () => {
       'tc-1047-top24-preview-logging.test.ts',
     );
 
-    expect(section).toContain('issue #1047/#1045/#1628');
+    expect(section).toContain('issue #1047/#1045/#1628/#1630');
     expect(section).toContain('errorName・errorCode・tournamentId・eventTypeCode');
     expect(section).toContain('Error オブジェクト全体をログに渡さず');
+    expect(section).toContain('コメント文言ではなくログ helper 呼び出し');
     expect(section).toContain('`any[]` / `unknown`');
     expect(routeFactory).toContain('Failed to build Top-24 finals preview');
     expect(routeFactory).toContain('getSafeErrorLogFields');
     expect(routeFactory).toContain('playoffMatches: Top24FinalsPreviewMatch[]');
+    expect(staticTest).not.toContain('Do not log Error objects or messages here');
     expect(routeTest).toContain('logs and falls back when Top-24 preview construction fails');
     expect(staticTest).toContain('playoffMatches: Top24FinalsPreviewMatch[]');
   });
