@@ -98,6 +98,11 @@ interface Top24FinalsQualification extends QualificationRankLabelInput {
   player: PublicFinalsPlayer | null;
 }
 
+interface SafeErrorLogFields {
+  errorName: string;
+  errorCode?: string;
+}
+
 export interface QualificationRankLabelInput {
   playerId: string;
   group?: string | null;
@@ -138,6 +143,27 @@ export function buildQualificationRankLabelMap(
 
 function isPublicFinalsPlayer(value: unknown): value is PublicFinalsPlayer {
   return Boolean(value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string');
+}
+
+function getSafeErrorLogFields(error: unknown): SafeErrorLogFields {
+  const errorLike = error && typeof error === 'object'
+    ? error as { name?: unknown; code?: unknown }
+    : null;
+  const errorName = error instanceof Error
+    ? error.name
+    : typeof error === 'string'
+      ? 'StringError'
+      : errorLike && typeof errorLike.name === 'string'
+        ? errorLike.name
+        : 'UnknownError';
+
+  /* Do not log Error objects or messages here. Prisma errors can embed SQL
+   * fragments or parameter values in `message`/`meta`; the preview fallback only
+   * needs a coarse error class plus Prisma-style code to route investigation. */
+  return {
+    errorName,
+    ...(errorLike && typeof errorLike.code === 'string' ? { errorCode: errorLike.code } : {}),
+  };
 }
 
 function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
@@ -881,7 +907,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * trail incomplete; the structured context here is intentionally limited
        * to non-sensitive identifiers needed for production diagnosis. */
       logger.error('Failed to build Top-24 finals preview', {
-        error,
+        ...getSafeErrorLogFields(error),
         tournamentId,
         eventTypeCode: config.eventTypeCode,
       });
