@@ -26,6 +26,7 @@
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *   TC-535  BM Top-24 playoff seed labels use group-rank labels
+ *   TC-1052 BM Top-24 rejects unsupported 3-group seeding
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -45,6 +46,7 @@ const {
   matchUpdateUsesLeanPayload,
   apiFetchBm, apiPutBmQualScore,
   apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches, apiFetchBmFinalsState,
+  apiPutAllBmQualScores,
   apiUpdateTournament,
   loginPlayerBrowser,
   setupBmQualViaUi,
@@ -988,6 +990,56 @@ async function runTc510(adminPage) {
   } catch (err) {
     log('TC-510', 'FAIL', err instanceof Error ? err.message : 'BM 510 failed');
   } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-1052: BM Top-24 rejects unsupported 3-group seeding ─────────
+ * The shipped Top-24 paper layout is intentionally 2-group only. A 3-group
+ * direct-seed interleave would collide with the playoff-winner slots reserved
+ * in the 16-player Upper Bracket, so the API must fail before creating rows. */
+async function runTc1052(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+    const players = sharedBmPlayers(27);
+
+    await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: false });
+    const resetRes = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status };
+    }, tournamentId);
+    if (resetRes.s !== 200 && resetRes.s !== 201) {
+      throw new Error(`Bracket reset failed before TC-1052 (${resetRes.s})`);
+    }
+
+    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players, { groupCount: 3 });
+    await apiPutAllBmQualScores(adminPage, tournamentId, { score1: 3, score2: 1, randomize: false });
+
+    const rejected = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    const state = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const ok =
+      rejected.s === 400 &&
+      rejected.b?.code === 'VALIDATION_ERROR' &&
+      /exactly 2 qualification groups/.test(rejected.b?.error || '') &&
+      state.matches.length === 0 &&
+      state.playoffMatches.length === 0;
+
+    log('TC-1052', ok ? 'PASS' : 'FAIL',
+      rejected.s !== 400 ? `expected 400, got ${rejected.s}`
+      : rejected.b?.code !== 'VALIDATION_ERROR' ? `expected VALIDATION_ERROR, got ${rejected.b?.code}`
+      : !/exactly 2 qualification groups/.test(rejected.b?.error || '') ? `unexpected error=${rejected.b?.error}`
+      : state.matches.length !== 0 || state.playoffMatches.length !== 0 ? `created matches finals=${state.matches.length} playoff=${state.playoffMatches.length}`
+      : '');
+  } catch (err) {
+    log('TC-1052', 'FAIL', err instanceof Error ? err.message : 'TC-1052 failed');
+  } finally {
+    sharedBmFinalsReady = false;
     if (setup) await setup.cleanup();
   }
 }
@@ -2181,6 +2233,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-533', fn: runTc533 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
+      { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },
       { name: 'TC-516', fn: runTc516 },
       { name: 'TC-517', fn: runTc517 },
@@ -2204,7 +2257,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1052,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

@@ -1218,6 +1218,31 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).create).not.toHaveBeenCalled();
     });
 
+    it('returns 400 for 3-group Top-24 because direct seeds would overlap playoff winner slots', async () => {
+      /* Issue #1052: the only specified Top-24 paper layout is the 2-group
+       * layout. Letting the old 3-group interleave through would assign direct
+       * advancers to seeds 10 and 12 while playoff winners also target reserved
+       * seeds 10/12/14/16, corrupting the final 16-player bracket. */
+      (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(27, 3));
+
+      const config = createMockConfig();
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 24 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('Top-24 playoff currently supports exactly 2 qualification groups; found 3');
+      expect(json.details).toEqual({ field: 'qualifications' });
+      expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
+    });
+
     it('Phase 2 blocked: returns 409 when playoff R2 matches are still incomplete', async () => {
       /* Second POST after Phase 1 must wait until all 4 playoff_r2 matches
        * are completed. If the admin tries to jump ahead, we return
