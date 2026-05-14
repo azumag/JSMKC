@@ -749,6 +749,7 @@ describe("TA Finals Phase Manager", () => {
           }),
         })
       );
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data).not.toHaveProperty("reason");
       expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
     });
 
