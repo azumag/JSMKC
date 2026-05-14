@@ -531,6 +531,25 @@ interface FinalsMatchRecord {
 function isSixteenPlayerOrTop24Bracket(matches: FinalsMatchRecord[]): boolean {
   return matches.some((m) => {
     if (m.stage === "playoff" || m.round?.startsWith("playoff_")) return true;
+    /*
+     * The placement table changes once finals are generated from the 16-player
+     * bracket used by both native Top-16 and Top-24 after the barrage. This
+     * helper intentionally detects that shape from persisted match rows instead
+     * of trusting tournament setup metadata, because older archived rows may not
+     * carry the same source flags.
+     *
+     * The thresholds below are the first matchNumber values that only appear in
+     * generateBracketStructure(16), while generateBracketStructure(8) ends the
+     * same rounds earlier:
+     *   losers_r1: 16-19 (8-player uses 8-9)
+     *   losers_r2: 20-23 (8-player uses 10-11)
+     *   losers_r3: 24-25 (8-player uses 12-13)
+     *   losers_r4: 26-27 (round does not exist in 8-player brackets)
+     *   losers_sf: 28 (8-player uses 14)
+     *   losers_final: 29 (8-player uses 15)
+     *   grand_final: 30 (8-player uses 16)
+     *   grand_final_reset: 31 (8-player uses 17)
+     */
     if (m.round === "losers_r4") return true;
     if (m.round === "losers_r1" && m.matchNumber >= 16) return true;
     if (m.round === "losers_r2" && m.matchNumber >= 20) return true;
