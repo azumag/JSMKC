@@ -31,17 +31,17 @@
 import { GROUPS } from './group-utils';
 
 /** Minimum shape required from a qualification record. */
-export interface FinalsQualInput {
+export interface FinalsQualInput<TPlayer = unknown> {
   playerId: string;
   group: string;
-  player: unknown;
+  player: TPlayer;
 }
 
-interface FinalsGroupSelection {
+interface FinalsGroupSelection<TPlayer = unknown> {
   /** Direct advancers with their actual Upper Bracket seed numbers. */
-  directSeeds: Array<{ seed: number; qualification: FinalsQualInput }>;
+  directSeeds: Array<{ seed: number; qualification: FinalsQualInput<TPlayer> }>;
   /** 12 barrage entrants, ordered for Playoff seeds 1-12. */
-  barrage: FinalsQualInput[];
+  barrage: FinalsQualInput<TPlayer>[];
   /** Detected group count (2, 3, or 4). */
   groupCount: 2 | 3 | 4;
 }
@@ -75,15 +75,15 @@ const TWO_GROUP_BARRAGE_SEED_TOKENS = [
  * @throws Error if input is empty, if group count is not 2/3/4, or if any group
  *   has fewer than `2 * perGroup` qualified players.
  */
-export function selectFinalsEntrantsByGroup(
-  allQualifications: FinalsQualInput[],
-): FinalsGroupSelection {
+export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
+  allQualifications: FinalsQualInput<TPlayer>[],
+): FinalsGroupSelection<TPlayer> {
   if (allQualifications.length === 0) {
     throw new Error('selectFinalsEntrantsByGroup: qualifications array is empty');
   }
 
   /* Bucket preserving caller-provided order within each group. */
-  const byGroup = new Map<string, FinalsQualInput[]>();
+  const byGroup = new Map<string, FinalsQualInput<TPlayer>[]>();
   for (const q of allQualifications) {
     const bucket = byGroup.get(q.group);
     if (bucket) bucket.push(q);
@@ -110,7 +110,7 @@ export function selectFinalsEntrantsByGroup(
 
   /* Snapshot each group's bucket so repeated lookups are cheap and we can drop the
    * `byGroup.get(g)!` non-null assertions. */
-  const buckets: FinalsQualInput[][] = orderedGroupKeys.map(g => byGroup.get(g) as FinalsQualInput[]);
+  const buckets: FinalsQualInput<TPlayer>[][] = orderedGroupKeys.map(g => byGroup.get(g) as FinalsQualInput<TPlayer>[]);
 
   /* Verify each group has enough players for both direct (perGroup) and barrage (perGroup). */
   for (let i = 0; i < orderedGroupKeys.length; i++) {
@@ -126,7 +126,7 @@ export function selectFinalsEntrantsByGroup(
       ['A', buckets[0]],
       ['B', buckets[1]],
     ]);
-    const playerForToken = (token: string): FinalsQualInput => {
+    const playerForToken = (token: string): FinalsQualInput<TPlayer> => {
       const paperGroup = token[0];
       const rank = Number(token.slice(1));
       const bucket = bucketByPaperGroup.get(paperGroup);
@@ -151,8 +151,8 @@ export function selectFinalsEntrantsByGroup(
   /* Interleave round-robin for 3+ groups until the combined-ranking rule lands:
    * for slot k in [0, perGroup), take each group's k-th player.
    *   3 groups: [A0,B0,C0,A1,B1,C1,...] */
-  const direct: FinalsQualInput[] = [];
-  const barrage: FinalsQualInput[] = [];
+  const direct: FinalsQualInput<TPlayer>[] = [];
+  const barrage: FinalsQualInput<TPlayer>[] = [];
   for (let k = 0; k < perGroup; k++) {
     for (const bucket of buckets) direct.push(bucket[k]);
   }

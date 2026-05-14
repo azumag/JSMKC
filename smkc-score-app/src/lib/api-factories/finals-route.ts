@@ -87,6 +87,17 @@ interface PublicFinalsPlayer {
   noCamera?: boolean;
 }
 
+interface Top24FinalsPreviewMatch extends Record<string, unknown> {
+  matchNumber: number;
+  round?: string | null;
+  completed?: boolean;
+}
+
+interface Top24FinalsQualification extends QualificationRankLabelInput {
+  group: string;
+  player: PublicFinalsPlayer | null;
+}
+
 export interface QualificationRankLabelInput {
   playerId: string;
   group?: string | null;
@@ -791,8 +802,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
   async function buildTop24FinalsPreview(
     tournamentId: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    playoffMatches: any[],
+    playoffMatches: Top24FinalsPreviewMatch[],
     logger: ReturnType<typeof createLogger>,
   ): Promise<{
     bracketStructure: ReturnType<typeof generateBracketStructure>;
@@ -805,7 +815,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: config.qualificationOrderBy,
-      });
+      }) as Top24FinalsQualification[];
 
       /* This guard is deliberately tied to the full Top-24 qualifier count,
        * not PLAYOFF_ENTRANT_COUNT. The preview seeds direct qualifiers plus
@@ -821,8 +831,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       );
       const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
 
-      const selection = selectFinalsEntrantsByGroup(
-        rankedQualifications as Array<{ playerId: string; player: unknown; group: string }>,
+      const selection = selectFinalsEntrantsByGroup<PublicFinalsPlayer | null>(
+        rankedQualifications as Top24FinalsQualification[],
       );
 
       const seededPlayers = buildDirectSeededPlayers(
@@ -833,14 +843,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       );
 
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
-      const r2Matches = playoffMatches.filter(
-        (m: { round?: string | null }) => m.round === 'playoff_r2',
-      );
+      const r2Matches = playoffMatches.filter((m) => m.round === 'playoff_r2');
 
       for (const r2BracketMatch of playoffStructure.filter((m) => m.round === 'playoff_r2')) {
         if (!r2BracketMatch.advancesToUpperSeed) continue;
         const dbMatch = r2Matches.find(
-          (m: { matchNumber: number }) => m.matchNumber === r2BracketMatch.matchNumber,
+          (m) => m.matchNumber === r2BracketMatch.matchNumber,
         );
         if (!dbMatch?.completed) continue;
 
@@ -866,7 +874,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
         bracketStructure: generateBracketStructure(16),
         seededPlayers,
       };
-    } catch {
+    } catch (error) {
+      /* Keep the GET response compatible with the existing playoff fallback,
+       * but never swallow preview construction failures silently. OWASP's
+       * exception-handling guidance warns that empty catches leave the audit
+       * trail incomplete; the structured context here is intentionally limited
+       * to non-sensitive identifiers needed for production diagnosis. */
+      logger.error('Failed to build Top-24 finals preview', {
+        error,
+        tournamentId,
+        eventTypeCode: config.eventTypeCode,
+      });
       return null;
     }
   }
@@ -1489,7 +1507,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: finalsConfig.qualificationOrderBy,
-      });
+      }) as Top24FinalsQualification[];
 
       if (qualifications.length < TOP24_QUALIFIER_COUNT) {
         return handleValidationError(
@@ -1513,10 +1531,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * creates playoff rows, the Phase-2 direct/barrage computation can diverge
        * from what Phase 1 used — acceptable since the admin workflow freezes
        * qualification before finals. */
-      let selection: ReturnType<typeof selectFinalsEntrantsByGroup>;
+      let selection: ReturnType<typeof selectFinalsEntrantsByGroup<PublicFinalsPlayer | null>>;
       try {
-        selection = selectFinalsEntrantsByGroup(
-          rankedQualifications as Array<{ playerId: string; player: unknown; group: string }>,
+        selection = selectFinalsEntrantsByGroup<PublicFinalsPlayer | null>(
+          rankedQualifications as Top24FinalsQualification[],
         );
       } catch (err) {
         return handleValidationError(

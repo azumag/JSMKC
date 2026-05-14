@@ -633,6 +633,38 @@ describe('E2E case drift coverage', () => {
     expect(unitTest).toContain('does not build a Top-16 preview when a Top-24 playoff has fewer than 24 qualifiers');
   });
 
+  it('keeps TC-1047 aligned with Top-24 preview fallback logging and typing', () => {
+    const section = e2eCaseSection('TC-1047');
+    const routeFactory = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'lib',
+      'api-factories',
+      'finals-route.ts',
+    );
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'api-factories',
+      'finals-route.test.ts',
+    );
+    const staticTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-1047-top24-preview-logging.test.ts',
+    );
+
+    expect(section).toContain('issue #1047/#1045');
+    expect(section).toContain('error・tournamentId・eventTypeCode');
+    expect(section).toContain('`any[]` / `unknown`');
+    expect(routeFactory).toContain('Failed to build Top-24 finals preview');
+    expect(routeFactory).toContain('playoffMatches: Top24FinalsPreviewMatch[]');
+    expect(routeTest).toContain('logs and falls back when Top-24 preview construction fails');
+    expect(staticTest).toContain('playoffMatches: Top24FinalsPreviewMatch[]');
+  });
+
   it('keeps TC-1622 aligned with the BM 28-to-23 reseed guard', () => {
     const section = e2eCaseSection('TC-1622');
 

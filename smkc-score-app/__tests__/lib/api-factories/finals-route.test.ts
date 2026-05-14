@@ -1536,6 +1536,37 @@ describe('Finals Route Factory', () => {
       });
     });
 
+    it('logs and falls back when Top-24 preview construction fails', async () => {
+      const previewError = new Error('qualification read failed');
+      (prisma.bMQualification as any).findMany.mockRejectedValue(previewError);
+      const playoffRows = [
+        { id: 'p-r2-5', matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-19', player2Id: 'player-8', player1: { id: 'player-19' }, player2: { id: 'player-8' } },
+      ];
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(playoffRows);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
+
+      const config = createMockConfig({ getStyle: 'grouped' });
+      const { GET } = createFinalsHandlers(config);
+
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.phase).toBe('playoff');
+      expect(json.data.playoffMatches).toEqual(playoffRows);
+      expect(json.data.seededPlayers).toBeUndefined();
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to build Top-24 finals preview', {
+        error: previewError,
+        tournamentId: 'tournament-123',
+        eventTypeCode: 'bm',
+      });
+    });
+
     it('does not build a Top-16 preview when a Top-24 playoff has fewer than 24 qualifiers', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(23));
       const playoffRows = [
