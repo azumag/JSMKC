@@ -60,6 +60,7 @@ describe('TC-1578 qualification points tooltip source', () => {
     const tc1588 = e2eCaseSection('TC-1588');
     const tc1590 = e2eCaseSection('TC-1590');
     const tc1591 = e2eCaseSection('TC-1591');
+    // Split forbidden strings so this self-inspection guard does not match itself.
     const forbiddenSectionHelper = 'section' + 'Between';
     const chromiumRequire = "const { chromium } = require('play" + "wright');";
 
