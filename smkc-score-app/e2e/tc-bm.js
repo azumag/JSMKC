@@ -999,25 +999,12 @@ async function runTc510(adminPage) {
  * direct-seed interleave would collide with the playoff-winner slots reserved
  * in the 16-player Upper Bracket, so the API must fail before creating rows. */
 async function runTc1052(adminPage) {
-  let setup = null;
+  let tournamentId = null;
   try {
-    setup = await prepareSharedBmFinalsSetup(adminPage);
-    const { tournamentId } = setup;
     const players = sharedBmPlayers(27);
 
-    await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: false });
-    const resetRes = await adminPage.evaluate(async (tid) => {
-      const r = await fetch(`/api/tournaments/${tid}/bm/finals`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reset: true }),
-      });
-      return { s: r.status };
-    }, tournamentId);
-    if (resetRes.s !== 200 && resetRes.s !== 201) {
-      throw new Error(`Bracket reset failed before TC-1052 (${resetRes.s})`);
-    }
-
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM TC-1052 ${Date.now()}`);
+    await uiActivateTournament(adminPage, tournamentId);
     await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players, { groupCount: 3 });
     await apiPutAllBmQualScores(adminPage, tournamentId, { score1: 3, score2: 1, randomize: false });
 
@@ -1026,21 +1013,20 @@ async function runTc1052(adminPage) {
     const ok =
       rejected.s === 400 &&
       rejected.b?.code === 'VALIDATION_ERROR' &&
-      /exactly 2 qualification groups/.test(rejected.b?.error || '') &&
+      /at most 2 qualification groups/.test(rejected.b?.error || '') &&
       state.matches.length === 0 &&
       state.playoffMatches.length === 0;
 
     log('TC-1052', ok ? 'PASS' : 'FAIL',
       rejected.s !== 400 ? `expected 400, got ${rejected.s}`
       : rejected.b?.code !== 'VALIDATION_ERROR' ? `expected VALIDATION_ERROR, got ${rejected.b?.code}`
-      : !/exactly 2 qualification groups/.test(rejected.b?.error || '') ? `unexpected error=${rejected.b?.error}`
+      : !/at most 2 qualification groups/.test(rejected.b?.error || '') ? `unexpected error=${rejected.b?.error}`
       : state.matches.length !== 0 || state.playoffMatches.length !== 0 ? `created matches finals=${state.matches.length} playoff=${state.playoffMatches.length}`
       : '');
   } catch (err) {
     log('TC-1052', 'FAIL', err instanceof Error ? err.message : 'TC-1052 failed');
   } finally {
-    sharedBmFinalsReady = false;
-    if (setup) await setup.cleanup();
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
   }
 }
 

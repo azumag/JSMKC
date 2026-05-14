@@ -1368,7 +1368,7 @@
 - **手順**:
   1. 管理者セッションで3グループの BM 予選を27名分作成し、全予選マッチを completed にする
   2. `POST /api/tournaments/[id]/bm/finals` `{ topN: 24 }` を実行する
-  3. レスポンスが 400 `VALIDATION_ERROR` で、`qualifications` フィールドのエラーとして「Top-24 は2グループのみ対応」と分かることを確認する
+  3. レスポンスが 400 `VALIDATION_ERROR` で、`qualifications` フィールドのエラーとして「Top-24 は最大2グループまで対応」と分かることを確認する
   4. playoff/finals stage のマッチが作成されていないことを確認する
 - **期待結果**: 3+グループの Top-24 はサイレントに壊れたブラケットを作らず、正式な3+グループ配置実装まで安全に停止する
 - **スクリプト**: tc-bm.js TC-1052 + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
