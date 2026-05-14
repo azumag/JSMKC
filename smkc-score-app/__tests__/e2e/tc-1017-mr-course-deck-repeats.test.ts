@@ -18,6 +18,14 @@ describe('TC-1017 MR course deck repeat guard', () => {
     expect(section).toContain('tc-1017-mr-course-deck-repeats.test.ts');
   });
 
+  it('documents that the TC-1017 length test does not need a random mock', () => {
+    const section = e2eCaseSection('TC-1662');
+
+    expect(section).toContain('issue #1662');
+    expect(section).toContain('Math.random');
+    expect(section).toContain('配列長');
+  });
+
   it('keeps MR course-deck repeats independent from the per-match race count', () => {
     const deckBuilder = sectionBetween(
       qualificationRoute,
@@ -28,5 +36,25 @@ describe('TC-1017 MR course deck repeat guard', () => {
     expect(qualificationRoute).toContain('export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;');
     expect(deckBuilder).toContain('MR_QUALIFICATION_COURSE_DECK_REPEATS');
     expect(deckBuilder).not.toContain('TOTAL_MR_RACES');
+  });
+
+  it('keeps the TC-1017 unit assertion free of unused Math.random mocking', () => {
+    const unitTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'api-factories',
+      'qualification-route.test.ts',
+    );
+    const testBlock = sectionBetween(
+      unitTest,
+      "it('should size MR qualification course decks from the deck repeat policy, not per-match race count'",
+      "it('should reject non-positive, fractional, and non-finite MR qualification round numbers before assigning courses'",
+    );
+
+    expect(testBlock).toContain('generateShuffledCourseList()');
+    expect(testBlock).not.toContain('Math.random');
+    expect(testBlock).not.toContain('mockReturnValue');
+    expect(testBlock).not.toContain('mockRestore');
   });
 });

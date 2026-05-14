@@ -916,22 +916,17 @@ describe('Qualification Route Factory', () => {
     });
 
     it('should size MR qualification course decks from the deck repeat policy, not per-match race count', () => {
-      const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
-      try {
-        const shuffledCourses = generateShuffledCourseList();
+      const shuffledCourses = generateShuffledCourseList();
 
-        /*
-         * Regression for issue #1017 / TC-1017: MR uses 4 races per match
-         * today, but the qualification deck policy is independently "four
-         * full course decks". Assert the exported policy constant directly so
-         * a future TOTAL_MR_RACES format change cannot hide an unintended
-         * schedule-length change inside this test.
-         */
-        expect(MR_QUALIFICATION_COURSE_DECK_REPEATS).toBe(4);
-        expect(shuffledCourses).toHaveLength(COURSES.length * MR_QUALIFICATION_COURSE_DECK_REPEATS);
-      } finally {
-        randomSpy.mockRestore();
-      }
+      /*
+       * Regression for issue #1017 / TC-1017: MR uses 4 races per match
+       * today, but the qualification deck policy is independently "four
+       * full course decks". Assert the exported policy constant directly so
+       * a future TOTAL_MR_RACES format change cannot hide an unintended
+       * schedule-length change inside this test.
+       */
+      expect(MR_QUALIFICATION_COURSE_DECK_REPEATS).toBe(4);
+      expect(shuffledCourses).toHaveLength(COURSES.length * MR_QUALIFICATION_COURSE_DECK_REPEATS);
     });
 
     it('should reject non-positive, fractional, and non-finite MR qualification round numbers before assigning courses', () => {

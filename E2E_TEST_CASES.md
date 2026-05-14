@@ -2252,6 +2252,17 @@
 - **期待結果**: MR の1試合あたりレース数を変更しても、予選全体の4デッキ割当仕様が暗黙に変わらない
 - **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts / smkc-score-app/__tests__/lib/api-factories/qualification-route.test.ts
 
+## TC-1662: TC-1017 の配列長テストから未使用 Math.random mock を除去する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1662。TC-1017 の単体テストは MR コースデッキの配列長だけを検証するため、シャッフル順に影響する `Math.random` mock は不要である。未使用 mock を残すと、テストの意図が「順序固定も必要」に見えてしまう。
+- **手順**:
+  1. `qualification-route.test.ts` の TC-1017 単体テストを確認する
+  2. 同テストが `generateShuffledCourseList()` の戻り値長だけを検証し、`Math.random` / `mockReturnValue` / `mockRestore` を使っていないことを確認する
+  3. TC-1017 の static guard が引き続き MR デッキ回数の独立性を検査していることを確認する
+- **期待結果**: TC-1017 の単体テストは配列長ポリシーだけを最小限に検証し、不要なランダム mock を持たない
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts / smkc-score-app/__tests__/lib/api-factories/qualification-route.test.ts
+
 ## TC-717: GP決勝 — ラウンドごとのカップ組み合わせがFT3の5カップ目以外で重複しない
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
