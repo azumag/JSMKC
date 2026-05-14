@@ -99,12 +99,18 @@ describe('TC-1024 shared qualification-points helper', () => {
   });
 
   it('documents the centraliz stem match used by the why guard', () => {
-    expect(readRepoFile(
+    const section = e2eCaseSection('TC-1657');
+    const source = readRepoFile(
       'smkc-score-app',
       '__tests__',
       'static',
       'tc-1024-qualification-points-helper.test.ts',
-    )).toContain('centraliz(e|ed|ation)');
+    );
+    const stemCommentNeedle = 'centraliz' + '(e|ed|ation)';
+
+    expect(section).toContain('issue #1657');
+    expect(section).toContain('検索語を分割');
+    expect(source).toContain(`// Stem match: ${stemCommentNeedle}`);
   });
 
   it.each([
