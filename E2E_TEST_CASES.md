@@ -2530,7 +2530,7 @@
   3. Phase 1 由来の順位が21〜24位だけに収まることを確認する
   4. 範囲外の余剰脱落者が16位以下や20位以下に割り当てられないことを確認する
 - **期待結果**: TA Finals の Phase 1/2 position mapping はデータ不整合時もフェーズごとの順位帯を越えず、Phase 3 の順位帯と衝突しない
-- **スクリプト**: smkc-score-app/__tests__/lib/points/overall-ranking.test.ts + smkc-score-app/__tests__/e2e/tc-1059-ta-phase-position-floor.test.ts
+- **スクリプト**: smkc-score-app/__tests__/lib/points/overall-ranking.test.ts + smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts
 
 ## TC-1062: 予選同着プレーオフの配信ラベルは表示言語と一致する (issue #1062)
 - **URL**: /tournaments/[temp-id]/bm, /tournaments/[temp-id]/mr
