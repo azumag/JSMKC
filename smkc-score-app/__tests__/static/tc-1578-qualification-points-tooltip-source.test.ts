@@ -1,4 +1,4 @@
-import { e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
+import { e2eCaseSection, readRepoFile } from '../helpers/e2e-cases';
 
 describe('TC-1578 qualification points tooltip source', () => {
   const helper = readRepoFile('smkc-score-app', 'e2e', 'lib', 'common.js');
@@ -35,11 +35,6 @@ describe('TC-1578 qualification points tooltip source', () => {
   it('keeps follow-up guards for strict locale label initialization', () => {
     const tc1584 = e2eCaseSection('TC-1584');
     const tc1585 = e2eCaseSection('TC-1585');
-    const labelInitialization = sectionBetween(
-      helper,
-      'const LOCALE_COMMON_MESSAGES = [',
-      "const { chromium } = require('playwright');",
-    );
 
     expect(tc1584).toContain('issue #1584');
     expect(tc1584).toContain('filter(Boolean)');
@@ -48,7 +43,21 @@ describe('TC-1578 qualification points tooltip source', () => {
     expect(tc1585).toContain('LOCALE_COMMON_MESSAGES');
     expect(helper).toContain('function getRequiredCommonMessage');
     expect(helper).toContain('messages/${locale}.json common.${key} is required');
-    expect(labelInitialization).not.toContain('filter(Boolean)');
-    expect(labelInitialization).not.toContain('Object.values(COMMON_MESSAGES_BY_LOCALE)');
+    expect(helper).toMatch(/const QUALIFICATION_POINTS_HEADER_LABELS = LOCALE_COMMON_MESSAGES\s+\.map\(\(entry\) => getRequiredCommonMessage\(entry, 'qualificationPointsShort'\)\);/);
+    expect(helper).toMatch(/const QUALIFICATION_POINTS_TOOLTIP_TITLES = LOCALE_COMMON_MESSAGES\s+\.map\(\(entry\) => getRequiredCommonMessage\(entry, 'qualificationPointsTooltip'\)\);/);
+    expect(helper).not.toMatch(/QUALIFICATION_POINTS_(?:HEADER_LABELS|TOOLTIP_TITLES)[\s\S]{0,200}filter\(Boolean\)/);
+    expect(helper).not.toContain('Object.values(COMMON_MESSAGES_BY_LOCALE)');
+  });
+
+  it('keeps follow-up coverage documented without depending on unrelated require order', () => {
+    const tc1587 = e2eCaseSection('TC-1587');
+    const tc1588 = e2eCaseSection('TC-1588');
+
+    expect(tc1587).toContain('issue #1587');
+    expect(tc1587).toContain('jest.isolateModules');
+    expect(tc1588).toContain('issue #1588');
+    expect(tc1588).toContain('chromium');
+    expect(tc1588).toContain('正規表現');
+    expect(helper).not.toContain("sectionBetween(\n      helper,\n      'const LOCALE_COMMON_MESSAGES = [',\n      \"const { chromium } = require('playwright');\"");
   });
 });
