@@ -1098,6 +1098,17 @@
 - **期待結果**: TC-1612 の E2E ドキュメント連携は維持しつつ、振る舞いを変えない JSX 整形・import 整理・クラス順変更で drift テストが壊れない
 - **スクリプト**: `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1616: TC-1614 drift テストの抽出空振りを防ぐ
+- **URL**: N/A (static coverage)
+- **authRequired**: false
+- **背景**: issue #1616。TC-1614 の drift テストは `sectionBetween()` で TC-1612 テスト本文を抽出して禁止文字列がないことを確認するため、境界文字列の変更で抽出に失敗しても `not.toContain()` だけが空文字列に対して通ってはいけない。
+- **手順**:
+  1. TC-1614 drift テストが `sectionBetween()` で TC-1612 テスト本文を抽出していることを確認する
+  2. 抽出結果に対して、十分な長さや既知の正規アンカーを含むことを確認する陽性アサーションがあることを確認する
+  3. その後に禁止文字列の `not.toContain()` を実行していることを確認する
+- **期待結果**: TC-1612 テスト本文の抽出に失敗した場合、禁止文字列チェックが空振りで成功せず、drift テスト自体が失敗する
+- **スクリプト**: `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-516: BM 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)
