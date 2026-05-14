@@ -3403,18 +3403,20 @@ async function main() {
   {
     const respTid = sharedFixture?.tournamentId ?? TID;
     if (respTid) {
+      const jsErrors = [];
+      const onErr = (e) => jsErrors.push(e.message);
+      const serverErrors = [];
+      const onResponse = (response) => {
+        if (response.status() >= 500) {
+          serverErrors.push(`${response.status()} ${response.url()}`);
+        }
+      };
+      let listenersRegistered = false;
       try {
         await page.setViewportSize({ width: 375, height: 812 });
-        const jsErrors = [];
-        const onErr = (e) => jsErrors.push(e.message);
-        const serverErrors = [];
-        const onResponse = (response) => {
-          if (response.status() >= 500) {
-            serverErrors.push(`${response.status()} ${response.url()}`);
-          }
-        };
         page.on('pageerror', onErr);
         page.on('response', onResponse);
+        listenersRegistered = true;
 
         const modePages = [
           `/tournaments/${respTid}/bm`,
@@ -3428,15 +3430,19 @@ async function main() {
           const body = await page.locator('body').innerText();
           if (body.includes('Failed to fetch')) { allOk = false; break; }
         }
-        page.off('pageerror', onErr);
-        page.off('response', onResponse);
-        // Restore default viewport
-        await page.setViewportSize({ width: 1280, height: 720 });
 
         log('TC-349', allOk ? 'PASS' : 'FAIL',
           !allOk ? `mobile viewport errors: ${[...jsErrors, ...serverErrors].join('; ')}` : '');
       } catch (err) {
         log('TC-349', 'FAIL', err instanceof Error ? err.message : 'Responsive test failed');
+      } finally {
+        if (listenersRegistered) {
+          // TC-349 installs broad page-level listeners; using finally keeps those
+          // listeners scoped to this responsive probe even when navigation or
+          // body extraction throws, preventing false failures in later cases.
+          page.off('pageerror', onErr);
+          page.off('response', onResponse);
+        }
         await page.setViewportSize({ width: 1280, height: 720 });
       }
     } else {
