@@ -27,6 +27,8 @@
  *   TC-913  TA time input hint/title/placeholder are localized.
  *   TC-816  Started TA phase page does not flash a Start Phase button while
  *           phase status is still loading.
+ *   TC-1033 Sudden-death API payload exposes only the actionable target ids,
+ *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
  *
  * Setup:
@@ -1506,6 +1508,44 @@ async function runTc814(adminPage) {
   }
 }
 
+/* ───────── TC-1033: Sudden-death payload keeps internal reason private ───────── */
+async function runTc1033(adminPage) {
+  let fixture = null;
+  try {
+    fixture = await setupIsolatedPhase1SuddenDeath(adminPage, `Sudden Death Contract ${Date.now()}`);
+    const { tournamentId } = fixture;
+    const phase = 'phase1';
+    const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
+    if (start.s !== 200) throw new Error(`start_round failed (${start.s})`);
+
+    const entries = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [];
+    if (entries.length !== 8) throw new Error(`phase1 entries=${entries.length}, expected 8`);
+    const results = entries.map((entry, index) => ({
+      playerId: entry.playerId,
+      timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
+    }));
+
+    const tied = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase,
+      roundNumber: start.b?.data?.roundNumber,
+      results,
+    });
+    const sudden = tied.b?.data?.suddenDeathRound;
+    const targetCount = sudden?.targetPlayerIds?.length ?? 0;
+    const hasReason = Object.prototype.hasOwnProperty.call(sudden ?? {}, 'reason');
+    log('TC-1033', tied.s === 200 && targetCount === 2 && !hasReason ? 'PASS' : 'FAIL',
+      tied.s !== 200 ? `submit_results status=${tied.s}`
+      : targetCount !== 2 ? `targetPlayerIds length=${targetCount}`
+      : hasReason ? `unexpected reason=${sudden.reason}`
+      : '');
+  } catch (err) {
+    log('TC-1033', 'FAIL', err instanceof Error ? err.message : 'TA sudden-death payload contract failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* ───────── TC-815: TA Phase3 boundary sudden-death + retie ───────── */
 async function runTc815(adminPage) {
   let fixture = null;
@@ -1738,6 +1778,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-812', fn: runTc812 },
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
+      { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-815', fn: runTc815 },
       { name: 'TC-817', fn: runTc817 },
     ],
@@ -1747,7 +1788,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
-  runTc812, runTc813, runTc814, runTc815, runTc816, runTc817,
+  runTc812, runTc813, runTc814, runTc1033, runTc815, runTc816, runTc817,
   getSuite,
   results,
   __testHooks: {
