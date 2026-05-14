@@ -1353,6 +1353,12 @@ async function runTc615(adminPage) {
     const finalState = await apiFetchMrFinalsState(adminPage, tournamentId);
     const playoffComplete = finalState.playoffComplete === true;
 
+    await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
+    const phase2ActionVisible = await adminPage
+      .getByRole('button', { name: /Create Upper Bracket|上位ブラケット作成/ })
+      .isVisible()
+      .catch(() => false);
+
     // Trigger Phase 2 (Upper Bracket creation) via API
     const phase2 = await generateMrFinalsBracket(adminPage, tournamentId, 24);
     const phase2Ok = phase2.s === 201 && phase2.b?.data?.phase === 'finals';
@@ -1362,13 +1368,14 @@ async function runTc615(adminPage) {
     const postPhase2Text = await adminPage.locator('body').innerText();
     const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
 
-    const ok = hasStartPlayoff && playoffCreated && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
+    const ok = hasStartPlayoff && playoffCreated && hasPlayoffLabel && hasM1 && playoffComplete && phase2ActionVisible && phase2Ok && hasFinalsPhase;
     log('TC-615', ok ? 'PASS' : 'FAIL',
       !hasStartPlayoff ? 'Start Playoff button missing'
       : !playoffCreated ? `Playoff not created server-side (matches=${playoffState.playoffMatches?.length ?? 0}, phase=${playoffState.phase})`
       : !hasPlayoffLabel ? 'Playoff label missing on finals page'
       : !hasM1 ? 'M1 missing on playoff bracket'
       : !playoffComplete ? 'playoffComplete not true'
+      : !phase2ActionVisible ? 'Create Upper Bracket action missing after playoff completion'
       : !phase2Ok ? `Phase 2 failed (${phase2.s})`
       : !hasFinalsPhase ? 'Finals phase not shown after Upper Bracket creation'
       : '');

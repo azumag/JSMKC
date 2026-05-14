@@ -578,6 +578,35 @@ describe('E2E case drift coverage', () => {
     expect(unitTest).toContain("expect('direct' in result).toBe(false)");
   });
 
+  it('keeps TC-1048 aligned with the shared Top-24 Phase-2 action card', () => {
+    const section = e2eCaseSection('TC-1048');
+    const component = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'components',
+      'tournament',
+      'playoff-complete-card.tsx',
+    );
+    const componentTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'components',
+      'tournament',
+      'playoff-complete-card.test.tsx',
+    );
+
+    expect(section).toContain('issue #1048');
+    expect(section).toContain('tc-bm.js TC-515');
+    expect(section).toContain('tc-mr.js TC-615');
+    expect(section).toContain('tc-gp.js TC-715');
+    expect(component).toContain('export function PlayoffCompleteCard');
+    expect(componentTest).toContain('Create Upper Bracket');
+    for (const script of [tcBm, tcMr, tcGp]) {
+      expect(script).toContain('phase2ActionVisible');
+      expect(script).toContain('Create Upper Bracket action missing after playoff completion');
+    }
+  });
+
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
     expect(tcAll).not.toContain('TC-403');
   });

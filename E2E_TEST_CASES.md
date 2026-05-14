@@ -1062,6 +1062,19 @@
   9. クリーンアップ
 - **期待結果**: BM Top-24 バラッジの UI フローが全段階で正常動作する
 
+## TC-1048: BM/MR/GP Top-24 Phase 2 アクションカード共通化
+- **URL**: /tournaments/[temp-id]/bm/finals, /mr/finals, /gp/finals
+- **authRequired**: true (admin)
+- **背景**: issue #1048。バラージ完了後に表示する「上位ブラケット作成」カードは BM/MR/GP で同じ Phase 2 遷移アクションなので、表示・文言・クリック処理を共通コンポーネントから提供する。
+- **手順**:
+  1. TC-515 / TC-615 / TC-715 と同じ Top-24 バラージを作成する
+  2. 各モードで playoff_r1 と playoff_r2 を全て完了し、`playoffComplete=true` にする
+  3. Phase 2 API を呼ぶ前に finals ページを開く
+  4. 「Create Upper Bracket / 上位ブラケット作成」ボタンが表示されることを確認する
+  5. Phase 2 を生成し、Upper Bracket 表示へ遷移できることを確認する
+- **期待結果**: BM/MR/GP の Top-24 バラージ完了状態で同じ Phase 2 アクションが表示され、共通コンポーネントの unit test と既存 Top-24 E2E フローで退行を検出できる
+- **スクリプト**: tc-bm.js TC-515 + tc-mr.js TC-615 + tc-gp.js TC-715 + `smkc-score-app/__tests__/components/tournament/playoff-complete-card.test.tsx`
+
 ## TC-516: BM 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)

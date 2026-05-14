@@ -72,6 +72,7 @@ import {
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
+import { PlayoffCompleteCard } from "@/components/tournament/playoff-complete-card";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -857,12 +858,12 @@ export default function GrandPrixFinals({
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
             {matches.length === 0 && playoffComplete && isAdmin && (
-              <Card className="mt-4 border-green-500/50 bg-green-500/10">
-                <CardContent className="py-4 text-center">
-                  <p className="text-sm text-muted-foreground mb-3">{tFinals('allPlayoffMatchesComplete')}</p>
-                  <Button onClick={handleCreateUpperBracket}>{tFinals('createUpperBracket')}</Button>
-                </CardContent>
-              </Card>
+              <PlayoffCompleteCard
+                className="mt-4 border-green-500/50 bg-green-500/10"
+                description={tFinals('allPlayoffMatchesComplete')}
+                actionLabel={tFinals('createUpperBracket')}
+                onCreateUpperBracket={handleCreateUpperBracket}
+              />
             )}
           </TabsContent>
         </Tabs>
@@ -878,12 +879,11 @@ export default function GrandPrixFinals({
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
           />
           {playoffComplete && isAdmin && (
-            <Card className="border-green-500/50 bg-green-500/10">
-              <CardContent className="py-4 text-center">
-                <p className="text-sm text-muted-foreground mb-3">{tFinals('allPlayoffMatchesComplete')}</p>
-                <Button onClick={handleCreateUpperBracket}>{tFinals('createUpperBracket')}</Button>
-              </CardContent>
-            </Card>
+            <PlayoffCompleteCard
+              description={tFinals('allPlayoffMatchesComplete')}
+              actionLabel={tFinals('createUpperBracket')}
+              onCreateUpperBracket={handleCreateUpperBracket}
+            />
           )}
         </>
       ) : (
