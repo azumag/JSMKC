@@ -31,6 +31,18 @@ describe("participant report success messages", () => {
     );
   });
 
+  it("shows mismatch score copy when both score reports disagree", () => {
+    expect(getScoreReportSuccessMessage({ mismatch: true }, scoreMessages)).toBe(
+      "Scores reported, but the two reports do not match. Admin review is needed."
+    );
+  });
+
+  it("shows correction copy before generic score-report success copy", () => {
+    expect(getScoreReportSuccessMessage({ corrected: true }, scoreMessages)).toBe(
+      "Score correction saved."
+    );
+  });
+
   it("shows confirmed match-result copy when dual report is disabled and the API auto-confirms", () => {
     expect(getMatchReportSuccessMessage({ autoConfirmed: true }, matchMessages)).toBe(
       "Match result saved and confirmed."
@@ -40,6 +52,12 @@ describe("participant report success messages", () => {
   it("keeps dual-report waiting copy for MR/GP when the API is waiting for the other player", () => {
     expect(getMatchReportSuccessMessage({ waitingFor: "player1" }, matchMessages)).toContain(
       "Both players must report matching results"
+    );
+  });
+
+  it("shows mismatch match-result copy when both match reports disagree", () => {
+    expect(getMatchReportSuccessMessage({ mismatch: true }, matchMessages)).toBe(
+      "Match result reported, but the two reports do not match. Admin review is needed."
     );
   });
 });
