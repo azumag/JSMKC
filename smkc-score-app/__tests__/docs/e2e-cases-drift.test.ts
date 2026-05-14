@@ -111,6 +111,34 @@ describe('E2E case drift coverage', () => {
     expect(testCase).not.toContain('expect.arrayContaining');
   });
 
+  it('keeps TC-1059 aligned with the TA phase position floor guard', () => {
+    const section = e2eCaseSection('TC-1059');
+    const unitTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'points',
+      'overall-ranking.test.ts',
+    );
+    const e2eGuard = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'e2e',
+      'tc-1059-ta-phase-position-floor.test.ts',
+    );
+
+    expect(section).toContain('issue #1059');
+    expect(section).toContain('17〜20位');
+    expect(section).toContain('21〜24位');
+    expect(section).toContain('順位帯を越えず');
+    expect(section).toContain('tc-1059-ta-phase-position-floor.test.ts');
+    expect(unitTest).toContain("does not assign excess phase1/2 eliminations outside their position ranges");
+    expect(unitTest).toContain("{ playerId: 'p16-overflow', position: 16 }");
+    expect(unitTest).toContain("{ playerId: 'p20-overflow', position: 20 }");
+    expect(e2eGuard).toContain('TC-1059');
+    expect(e2eGuard).toContain('issue #1059');
+  });
+
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');

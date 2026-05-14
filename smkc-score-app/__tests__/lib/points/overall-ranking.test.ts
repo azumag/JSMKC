@@ -493,6 +493,57 @@ describe('Overall Ranking module', () => {
         { playerId: 'p24', position: 24 },
       ]);
     });
+
+    it('does not assign excess phase1/2 eliminations outside their position ranges', async () => {
+      mockPrisma.tTEntry.findMany.mockResolvedValueOnce([
+        { playerId: 'p1', stage: 'phase3', eliminated: false, lives: 1, totalTime: 90000 },
+        { playerId: 'p2', stage: 'phase3', eliminated: true, lives: 0, totalTime: 92000 },
+        ...['p20', 'p19', 'p18', 'p17', 'p16-overflow'].map((playerId, index) => ({
+          playerId,
+          stage: 'phase2',
+          eliminated: true,
+          lives: 0,
+          totalTime: 100000 + index,
+        })),
+        ...['p24', 'p23', 'p22', 'p21', 'p20-overflow'].map((playerId, index) => ({
+          playerId,
+          stage: 'phase1',
+          eliminated: true,
+          lives: 0,
+          totalTime: 110000 + index,
+        })),
+      ]);
+      mockPrisma.tTPhaseRound.findMany.mockResolvedValueOnce([
+        { phase: 'phase1', roundNumber: 1, results: [{ playerId: 'p24', timeMs: 124000 }], eliminatedIds: ['p24'] },
+        { phase: 'phase1', roundNumber: 2, results: [{ playerId: 'p23', timeMs: 123000 }], eliminatedIds: ['p23'] },
+        { phase: 'phase1', roundNumber: 3, results: [{ playerId: 'p22', timeMs: 122000 }], eliminatedIds: ['p22'] },
+        { phase: 'phase1', roundNumber: 4, results: [{ playerId: 'p21', timeMs: 121000 }], eliminatedIds: ['p21'] },
+        { phase: 'phase1', roundNumber: 5, results: [{ playerId: 'p20-overflow', timeMs: 120000 }], eliminatedIds: ['p20-overflow'] },
+        { phase: 'phase2', roundNumber: 1, results: [{ playerId: 'p20', timeMs: 116000 }], eliminatedIds: ['p20'] },
+        { phase: 'phase2', roundNumber: 2, results: [{ playerId: 'p19', timeMs: 115000 }], eliminatedIds: ['p19'] },
+        { phase: 'phase2', roundNumber: 3, results: [{ playerId: 'p18', timeMs: 114000 }], eliminatedIds: ['p18'] },
+        { phase: 'phase2', roundNumber: 4, results: [{ playerId: 'p17', timeMs: 113000 }], eliminatedIds: ['p17'] },
+        { phase: 'phase2', roundNumber: 5, results: [{ playerId: 'p16-overflow', timeMs: 112000 }], eliminatedIds: ['p16-overflow'] },
+        { phase: 'phase3', roundNumber: 1, results: [{ playerId: 'p2', timeMs: 111000 }], eliminatedIds: ['p2'] },
+      ]);
+
+      const positions = await getTAFinalsPositions(mockPrisma as any, TOURNAMENT_ID);
+
+      expect(positions).toEqual([
+        { playerId: 'p1', position: 1 },
+        { playerId: 'p2', position: 2 },
+        { playerId: 'p17', position: 17 },
+        { playerId: 'p18', position: 18 },
+        { playerId: 'p19', position: 19 },
+        { playerId: 'p20', position: 20 },
+        { playerId: 'p21', position: 21 },
+        { playerId: 'p22', position: 22 },
+        { playerId: 'p23', position: 23 },
+        { playerId: 'p24', position: 24 },
+      ]);
+      expect(positions).not.toContainEqual({ playerId: 'p16-overflow', position: 16 });
+      expect(positions).not.toContainEqual({ playerId: 'p20-overflow', position: 20 });
+    });
   });
 
   // =========================================================================
