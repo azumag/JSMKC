@@ -102,6 +102,13 @@ describe('Finals Route Factory', () => {
     ...overrides,
   });
 
+  const expectNoBmMatchWrites = () => {
+    const matchModel = prisma.bMMatch as any;
+    for (const method of ['create', 'createMany', 'deleteMany', 'update', 'updateMany']) {
+      expect(matchModel[method]).not.toHaveBeenCalled();
+    }
+  };
+
   describe('buildQualificationRankLabelMap', () => {
     it('assigns group labels from rank order even when input rows are shuffled', () => {
       const labels = buildQualificationRankLabelMap([
@@ -1241,6 +1248,30 @@ describe('Finals Route Factory', () => {
       expect(json.error).toBe('Top-24 playoff currently supports at most 2 qualification groups; found 3');
       expect(json.details).toEqual({ field: 'qualifications' });
       expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for 1-group Top-24 before creating playoff rows', async () => {
+      /* Issue #1603: the explicit 3+ group guard should not hide the separate
+       * selection-layer contract. Top-24 still needs at least two qualification
+       * groups, and the API must surface that validation failure without writes. */
+      (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24, 1));
+
+      const config = createMockConfig();
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 24 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('selectFinalsEntrantsByGroup: Unsupported group count 1 (must be 2, 3, or 4)');
+      expect(json.details).toEqual({ field: 'qualifications' });
+      expectNoBmMatchWrites();
     });
 
     it('Phase 2 blocked: returns 409 when playoff R2 matches are still incomplete', async () => {
