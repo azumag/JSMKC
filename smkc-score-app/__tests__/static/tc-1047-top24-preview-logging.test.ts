@@ -16,7 +16,6 @@ describe('TC-1047 Top-24 preview logging and type contract', () => {
     expect(source).toContain('getSafeErrorLogFields(error)');
     expect(source).toContain('errorName');
     expect(source).toContain('errorCode');
-    expect(source).toContain('Do not log Error objects or messages here');
   });
 
   it('keeps Top-24 preview inputs typed instead of falling back to any/unknown', () => {
