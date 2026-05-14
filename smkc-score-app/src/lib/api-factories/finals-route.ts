@@ -47,6 +47,7 @@ const BRACKET_SIZE_THRESHOLD = 20;
  * positions 13-24 competing for the 4 Upper-Bracket barrage seats.
  */
 const PLAYOFF_ENTRANT_COUNT = 12;
+const PLAYOFF_R2_UPPER_SEED_COUNT = 4;
 
 type QualificationConfirmedField =
   | 'bmQualificationConfirmed'
@@ -1677,8 +1678,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const playoffUpperSeeds = playoffStructure
         .filter((m) => m.round === 'playoff_r2' && m.advancesToUpperSeed)
         .map((m) => m.advancesToUpperSeed as number);
-      if (playoffUpperSeeds.length !== 4) {
-        throw new Error(`Expected 4 playoff R2 upper seeds, got ${playoffUpperSeeds.length}`);
+      if (playoffUpperSeeds.length !== PLAYOFF_R2_UPPER_SEED_COUNT) {
+        throw new Error(`Expected ${PLAYOFF_R2_UPPER_SEED_COUNT} playoff R2 upper seeds, got ${playoffUpperSeeds.length}`);
       }
       const playoffWinnerSeeds = playoffUpperSeeds.map((upperSeed) => {
         const winner = upperSeedToPlayer.get(upperSeed);
