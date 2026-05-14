@@ -607,6 +607,32 @@ describe('E2E case drift coverage', () => {
     }
   });
 
+  it('keeps TC-1046 aligned with the Top-24 qualifier-count guard', () => {
+    const section = e2eCaseSection('TC-1046');
+    const routeFactory = readRepoFile(
+      'smkc-score-app',
+      'src',
+      'lib',
+      'api-factories',
+      'finals-route.ts',
+    );
+    const unitTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'api-factories',
+      'finals-route.test.ts',
+    );
+
+    expect(section).toContain('issue #1046');
+    expect(section).toContain('TOP24_QUALIFIER_COUNT');
+    expect(section).toContain('PLAYOFF_ENTRANT_COUNT');
+    expect(section).toContain('tc-bm.js TC-1046');
+    expect(tcBm).toContain("log('TC-1046'");
+    expect(routeFactory).toContain('const TOP24_QUALIFIER_COUNT = 24');
+    expect(unitTest).toContain('does not build a Top-16 preview when a Top-24 playoff has fewer than 24 qualifiers');
+  });
+
   it('keeps TC-1612 aligned with the PlayoffCompleteCard className merge contract', () => {
     const section = e2eCaseSection('TC-1612');
     const componentTest = readRepoFile(

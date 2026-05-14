@@ -46,6 +46,7 @@ const BRACKET_SIZE_THRESHOLD = 20;
  * Top 24 qualifiers → Top 16 Upper Bracket, with 12 entrants from qualification
  * positions 13-24 competing for the 4 Upper-Bracket barrage seats.
  */
+const TOP24_QUALIFIER_COUNT = 24;
 const PLAYOFF_ENTRANT_COUNT = 12;
 const PLAYOFF_R2_UPPER_SEED_COUNT = 4;
 const TOP24_SUPPORTED_GROUP_COUNT = 2;
@@ -806,7 +807,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: config.qualificationOrderBy,
       });
 
-      if (qualifications.length < 24) return null;
+      /* This guard is deliberately tied to the full Top-24 qualifier count,
+       * not PLAYOFF_ENTRANT_COUNT. The preview seeds direct qualifiers plus
+       * playoff winners into a 16-player Upper Bracket, so using the 12-player
+       * barrage pool here would let incomplete qualification data produce a
+       * misleading Phase-2 preview. */
+      if (qualifications.length < TOP24_QUALIFIER_COUNT) return null;
 
       const rankedQualifications = await applyFinalsQualificationRanks(
         model,
@@ -1485,9 +1491,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: finalsConfig.qualificationOrderBy,
       });
 
-      if (qualifications.length < 24) {
+      if (qualifications.length < TOP24_QUALIFIER_COUNT) {
         return handleValidationError(
-          `Not enough players qualified. Need 24, found ${qualifications.length}`,
+          `Not enough players qualified. Need ${TOP24_QUALIFIER_COUNT}, found ${qualifications.length}`,
           'qualifications',
         );
       }
