@@ -641,7 +641,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('tc-bm.js TC-1046');
     expect(section).toContain('finals-route.test.ts');
     expect(tcBm).toContain('TC-1622');
-    expect(tcBm).toContain('qualificationCountAfterReseed === 23');
+    expect(tcBm).toContain('TC-1622 qualification count after 23-player reseed');
   });
 
   it('keeps TC-1612 aligned with the PlayoffCompleteCard className merge contract', () => {
