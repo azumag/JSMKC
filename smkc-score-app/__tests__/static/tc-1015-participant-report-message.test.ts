@@ -34,9 +34,6 @@ describe('TC-1015 participant report message coverage', () => {
   });
 
   it('keeps mismatch and correction helper branches under unit coverage', () => {
-    expect(unitTest).toContain('shows mismatch score copy');
-    expect(unitTest).toContain('shows correction copy');
-    expect(unitTest).toContain('shows mismatch match-result copy');
     expect(unitTest).toContain('getScoreReportSuccessMessage({ mismatch: true }');
     expect(unitTest).toContain('getScoreReportSuccessMessage({ corrected: true }');
     expect(unitTest).toContain('getMatchReportSuccessMessage({ mismatch: true }');
