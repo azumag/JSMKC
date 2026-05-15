@@ -61,6 +61,22 @@ describe('E2E case drift coverage', () => {
     expect(scriptSource).toContain(`log('${tc}'`);
   });
 
+  it('keeps TC-1007 aligned with the GroupSetupDialog static guard', () => {
+    const section = e2eCaseSection('TC-1007');
+    const guard = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-1007-group-setup-dialog-prop-contract.test.ts',
+    );
+
+    expect(section).toContain('issue #1007');
+    expect(section).toContain('GroupSetupDialog');
+    expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
+    expect(guard).toContain("e2eCaseSection('TC-1007')");
+    expect(guard).toContain("not.toContain('groupCount={groupCount}')");
+  });
+
   it('keeps TC-702 aligned with direct driver-points JsonNull reporting coverage', () => {
     const section = e2eCaseSection('TC-702');
 

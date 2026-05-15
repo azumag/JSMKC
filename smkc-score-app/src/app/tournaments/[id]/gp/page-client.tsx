@@ -179,7 +179,7 @@ export default function GrandPrixPageClient({
     { playerId: string; group: string; seeding?: number }[]
   >([]);
   /* Product default: 2 groups (§10.2). */
-  const [groupCount, setGroupCount] = useState(2);
+  const [, setGroupCount] = useState(2);
   const [setupSaving, setSetupSaving] = useState(false);
   const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
   const [manualPoints1, setManualPoints1] = useState("");
@@ -732,7 +732,6 @@ export default function GrandPrixPageClient({
               group: q.group,
               seeding: q.seeding ?? undefined,
             }))}
-            groupCount={groupCount}
             setGroupCount={setGroupCount}
           />}
 
