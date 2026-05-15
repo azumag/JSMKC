@@ -308,7 +308,7 @@ export function GroupSetupDialog({
                   {[LOCKED_GROUP_COUNT].map((n) => (
                     <Button
                       key={n}
-                      variant="default"
+                      variant="outline"
                       size="sm"
                       className="h-7 w-7 p-0 text-xs"
                       disabled
