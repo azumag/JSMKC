@@ -108,10 +108,39 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('issue #1004');
     expect(section).toContain('availableCourses.length');
+    expect(section).toContain('availableCoursesCount');
     expect(section).toContain('tc-1004-course-cycle-status-contract.test.ts');
     expect(guard).toContain("e2eCaseSection('TC-1004')");
     expect(guard).toContain("expect(helperSource).not.toContain('availableCount')");
+    expect(guard).toContain('availableCoursesCount={availableCourses.length}');
     expect(unitTest).not.toContain('availableCount');
+  });
+
+  it('keeps TC-1005 aligned with the shared TA course-cycle panel guard', () => {
+    const section = e2eCaseSection('TC-1005');
+    const guard = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-1005-course-cycle-panel-contract.test.ts',
+    );
+    const componentTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'components',
+      'tournament',
+      'course-cycle-status-panel.test.tsx',
+    );
+
+    expect(section).toContain('issue #1005');
+    expect(section).toContain('CourseCycleStatusPanel');
+    expect(section).toContain('E2E_TESTS=TC-1005 node e2e/tc-ta.js');
+    expect(section).toContain('tc-1005-course-cycle-panel-contract.test.ts');
+    expect(guard).toContain("e2eCaseSection('TC-1005')");
+    expect(guard).toContain("expect(finalsPageSource).toContain('<CourseCycleStatusPanel')");
+    expect(componentTest).toContain('availableCoursesCount={13}');
+    expect(tcTa).toContain("{ name: 'TC-1005', fn: runTc1005 }");
+    expect(tcTa).toContain("log('TC-1005'");
   });
 
   it('keeps TC-702 aligned with direct driver-points JsonNull reporting coverage', () => {

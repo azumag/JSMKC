@@ -2261,13 +2261,29 @@
 - **手順**:
   1. TC-1004 の静的 E2E guard を実行する
   2. `CourseCycleStatus` の公開フィールドを検査する
-  3. TA Finals と TA elimination のコースサイクル表示が `availableCourses.length` を使うことを確認する
+  3. TA Finals と TA elimination のコースサイクル表示が `availableCourses.length` を `CourseCycleStatusPanel` の `availableCoursesCount` に渡すことを確認する
   4. `getCourseCycleStatus` の単体テストを実行し、cycle/played/total/totalPlayed のみが返ることを確認する
 - **期待結果**:
   - `CourseCycleStatus` に `availableCount` が存在しない
   - `getCourseCycleStatus` は UI が実際に使う cycle/played/total/totalPlayed だけを返す
-  - 利用可能コース数の表示は `availableCourses.length` から算出され、重複した派生値を持たない
+  - 利用可能コース数の表示は `availableCourses.length` から渡され、重複した派生値を持たない
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1004-course-cycle-status-contract.test.ts __tests__/lib/ta/course-cycle-status.test.ts`
+
+## TC-1005: TA コースサイクル — Finals/Elimination 表示を共有コンポーネントに集約
+- **URL**: `/tournaments/{id}/ta/phase1`, `/tournaments/{id}/ta/finals`
+- **authRequired**: true
+- **背景**: issue #1005。TA Finals と TA elimination phases のコースサイクル表示は同じ `courseCycleLabel` / `availableCoursesLabel` / `courseCycleHint` UI 契約を持つため、表示ブロックを別々に持つと文言・算出元・スタイルの片側だけが変わるリスクがある。
+- **手順**:
+  1. TA Phase 1 用の隔離トーナメントを作成し、予選順位 17-24 の8名を Phase 1 に昇格する
+  2. `/ta/phase1` にアクセスし、コースサイクルと利用可能コース数が表示されることを確認する
+  3. TA Finals 用の隔離トーナメントを作成し、予選上位の選手を Phase 3 に昇格する
+  4. `/ta/finals` にアクセスし、同じコースサイクル表示が出ることを確認する
+  5. 静的 E2E guard と `CourseCycleStatusPanel` の単体テストで、TA Finals と TA elimination が `availableCourses.length` を `availableCoursesCount` に渡すことを確認する
+- **期待結果**:
+  - TA Finals と TA elimination のコースサイクル表示は同じ `CourseCycleStatusPanel` に集約される
+  - `CourseCycleStatusPanel` は cycle/played/total/available/totalPlayed を表示する
+  - 表示ロジックの重複が残らず、今後の文言・スタイル変更が1箇所で済む
+- **スクリプト**: `E2E_TESTS=TC-1005 node e2e/tc-ta.js` + `npm test -- --runTestsByPath __tests__/static/tc-1005-course-cycle-panel-contract.test.ts __tests__/components/tournament/course-cycle-status-panel.test.tsx`
 
 ## TC-1678: BM/MR/GP グループ設定 — setGroupCount コールバックを親から渡さない
 - **背景**: issue #1678。TC-1007 で `groupCount` prop は削除済みだが、`setGroupCount` コールバックと親の `useState(2)` が残ると、ダイアログの2グループ固定が親 state に依存しているように読める。

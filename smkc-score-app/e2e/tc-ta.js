@@ -32,6 +32,7 @@
  *   TC-1033 Sudden-death API payload exposes only the actionable target ids,
  *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
+ *   TC-1005 TA Phase 1 and Finals render the shared course-cycle status panel.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-preview-profile by default).
@@ -131,14 +132,13 @@ async function seedTaQualificationRanks(adminPage, tournamentId, entries, startR
      * the desired rank (e.g. 17..24 for Phase 1 promotion tests) without
      * re-triggering rank recalculation (rank-only PUT skips recalculate). */
     await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, times, totalMs, rank);
-    /* recalculateRanks (triggered inside the PUT route when `times` is present)
-     * reorders by actual time values and may derive a different rank than the
-     * requested one when fewer than 24 players are in the tournament. Force the
-     * desired rank with a separate rank-only PUT (no `times` → no recalculate)
-     * so the Finals Phases card sees ranks in the 17–24 range and shows the
-     * "Start Phase 1" button. Must run before uiFreezeTaQualification. */
-    await apiForceRankOnly(adminPage, tournamentId, entries[i].entryId, rank);
     seeded.push({ ...entries[i], rank, times, totalMs });
+  }
+  for (const entry of seeded) {
+    /* recalculateRanks runs for every time-seeding PUT and can rewrite ranks
+     * seeded earlier in this helper. Force all desired ranks after all timing
+     * writes finish so promotion tests get a stable 17-24 or 1-N field. */
+    await apiForceRankOnly(adminPage, tournamentId, entry.entryId, entry.rank);
   }
   return seeded;
 }
@@ -1795,6 +1795,59 @@ async function runTc817(adminPage) {
   }
 }
 
+/* ───────── TC-1005: Shared TA course-cycle status panel renders in phases ───────── */
+async function runTc1005(adminPage) {
+  let phase1Setup = null;
+  let finalsSetup = null;
+  try {
+    phase1Setup = await createIsolatedTaQualification(
+      adminPage,
+      'Course Cycle Panel Phase1',
+      sharedTaPlayers(8),
+      { seedTimes: false },
+    );
+    await seedTaQualificationRanks(adminPage, phase1Setup.tournamentId, phase1Setup.entries, 17);
+    const phase1Promote = await apiPromoteTaPhase(adminPage, phase1Setup.tournamentId, 'promote_phase1');
+    if (phase1Promote.s !== 200) {
+      throw new Error(`promote_phase1 failed (${phase1Promote.s}): ${JSON.stringify(phase1Promote.b).slice(0, 240)}`);
+    }
+
+    await nav(adminPage, `/tournaments/${phase1Setup.tournamentId}/ta/phase1`);
+    const phase1Text = await adminPage.locator('main').innerText({ timeout: 15000 });
+    const phase1HasCycle = /コースサイクル|Course Cycle/.test(phase1Text);
+    const phase1HasAvailable = /利用可能コース|Available Courses/.test(phase1Text);
+    const phase1HasValue = /1周目 0\/20|Cycle 1 0\/20/.test(phase1Text);
+
+    finalsSetup = await createIsolatedTaQualification(
+      adminPage,
+      'Course Cycle Panel Finals',
+      sharedTaPlayers(2),
+      { seedTimes: false },
+    );
+    await seedTaQualificationRanks(adminPage, finalsSetup.tournamentId, finalsSetup.entries, 1);
+    const finalsPromote = await apiPromoteTaPhase(adminPage, finalsSetup.tournamentId, 'promote_phase3');
+    if (finalsPromote.s !== 200) {
+      throw new Error(`promote_phase3 failed (${finalsPromote.s}): ${JSON.stringify(finalsPromote.b).slice(0, 240)}`);
+    }
+
+    await nav(adminPage, `/tournaments/${finalsSetup.tournamentId}/ta/finals`);
+    const finalsText = await adminPage.locator('main').innerText({ timeout: 15000 });
+    const finalsHasCycle = /コースサイクル|Course Cycle/.test(finalsText);
+    const finalsHasAvailable = /利用可能コース|Available Courses/.test(finalsText);
+    const finalsHasValue = /1周目 0\/20|Cycle 1 0\/20/.test(finalsText);
+
+    const ok = phase1HasCycle && phase1HasAvailable && phase1HasValue &&
+      finalsHasCycle && finalsHasAvailable && finalsHasValue;
+    log('TC-1005', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `phase1 cycle=${phase1HasCycle} available=${phase1HasAvailable} value=${phase1HasValue}; finals cycle=${finalsHasCycle} available=${finalsHasAvailable} value=${finalsHasValue}`);
+  } catch (err) {
+    log('TC-1005', 'FAIL', err instanceof Error ? err.message : 'TA course-cycle panel render failed');
+  } finally {
+    if (finalsSetup) await finalsSetup.cleanup();
+    if (phase1Setup) await phase1Setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -1865,6 +1918,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-1032', fn: runTc1032 },
       { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-817', fn: runTc817 },
+      { name: 'TC-1005', fn: runTc1005 },
     ],
   };
 }
@@ -1872,7 +1926,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
-  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817,
+  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005,
   getSuite,
   results,
   __testHooks: {

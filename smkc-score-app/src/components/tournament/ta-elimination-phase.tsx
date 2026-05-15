@@ -75,6 +75,7 @@ import type { Player } from "@/lib/types";
 import { createLogger } from "@/lib/client-logger";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
+import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'ta-elimination-phase' });
@@ -1062,30 +1063,11 @@ export default function TAEliminationPhase({
                     <span className="font-bold">{completedRoundsCount}</span>
                   </div>
                 </div>
-                <div className="border border-foreground/15 bg-muted/30 p-3 text-sm space-y-2">
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">{tElim('courseCycleLabel')}</span>
-                    <span className="font-mono tabular-nums text-right">
-                      {tElim('courseCycleValue', {
-                        cycle: courseCycleStatus.cycleNumber,
-                        played: courseCycleStatus.playedInCycle,
-                        total: courseCycleStatus.totalCourses,
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">{tElim('availableCoursesLabel')}</span>
-                    <span className="font-mono tabular-nums text-right">
-                      {tElim('availableCoursesValue', {
-                        count: availableCourses.length,
-                        total: courseCycleStatus.totalCourses,
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {tElim('courseCycleHint', { totalPlayed: courseCycleStatus.totalPlayed })}
-                  </p>
-                </div>
+                <CourseCycleStatusPanel
+                  t={tElim}
+                  status={courseCycleStatus}
+                  availableCoursesCount={availableCourses.length}
+                />
                 {/* Admin manual course override: selects a specific course instead of random.
                     Available courses come from the server-calculated 20-course cycle pool.
                     Leaving this on "ランダム" (default) preserves the existing random behaviour. */}
