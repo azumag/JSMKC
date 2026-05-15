@@ -1148,6 +1148,13 @@ async function runTc1010(adminPage) {
     const seededPlayers = gen.b?.data?.seededPlayers || [];
     const rankOverrideSeededFirst = seededPlayers[0]?.playerId === players[15].id;
 
+    /* The 16-player DE generator numbers prerequisite matches in dependency
+     * order through match 27. Completing 1..27 deterministically resolves the
+     * losers_r4 and losers_r3 placement bands that TC-1010 verifies; matches
+     * 28..31 are later finals-path matches and would add runtime without
+     * affecting the rankOverride seeding or 5th/7th-place Overall points
+     * contract. If bracket numbering changes, the readiness assertion below
+     * fails at the first unresolved prerequisite instead of silently passing. */
     for (let matchNumber = 1; matchNumber <= 27; matchNumber++) {
       const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === matchNumber);

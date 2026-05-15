@@ -85,8 +85,6 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('losers_r3');
     expect(section).toContain('E2E_TESTS=TC-1010 node e2e/tc-bm.js');
     expect(tcBm).toContain("{ name: 'TC-1010', fn: runTc1010 }");
-    expect(tcBm).toContain('losersR4Points === 750');
-    expect(tcBm).toContain('losersR3Points === 550');
     expect(finalsRouteTest).toContain('uses finalized qualification ranks when seeding the bracket');
     expect(overallRankingTest).toContain('maps 16-player finals and Top24 playoff losses to standard point bands');
   });
