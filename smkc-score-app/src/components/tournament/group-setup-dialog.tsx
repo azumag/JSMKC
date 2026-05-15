@@ -86,8 +86,6 @@ interface GroupSetupDialogProps {
    * Pass an empty array when no qualifications exist yet.
    */
   existingAssignments: SetupPlayer[];
-  /** Number of groups (2, 3, or 4). Managed by parent component. */
-  groupCount: number;
   /** Callback to update group count */
   setGroupCount: (count: number) => void;
 }

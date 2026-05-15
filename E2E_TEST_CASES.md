@@ -2242,6 +2242,18 @@
 - **期待結果**: 4人 GP 予選で3ラウンドになる理由が単体テスト上で読み取れ、将来の fixture 変更時に前提の更新漏れを検知できる
 - **スクリプト**: smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts
 
+## TC-1007: BM/MR/GP グループ設定 — 未使用 groupCount prop を親から渡さない
+- **背景**: issue #1007。`GroupSetupDialog` は内部の `LOCKED_GROUP_COUNT` と `setGroupCount` で2グループ固定を管理しており、親ページから渡す `groupCount` は読み取られない。未使用 prop を残すと、3+グループ再開時に親状態が効くように見える誤解を生む。
+- **手順**:
+  1. TC-1007 の静的 E2E guard を実行する
+  2. `GroupSetupDialogProps` と BM/MR/GP の `<GroupSetupDialog>` 呼び出しを検査する
+  3. 親ページが `setGroupCount` だけを渡し、読み取り側の `groupCount` state を保持していないことを確認する
+- **期待結果**:
+  - `GroupSetupDialogProps` に `groupCount: number` が存在しない
+  - BM/MR/GP の呼び出し元が `groupCount={groupCount}` を渡さない
+  - 2グループ固定の理由は `GroupSetupDialog` 内の `LOCKED_GROUP_COUNT` とコメントに集約される
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
