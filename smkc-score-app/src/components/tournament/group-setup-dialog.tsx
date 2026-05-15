@@ -86,8 +86,6 @@ interface GroupSetupDialogProps {
    * Pass an empty array when no qualifications exist yet.
    */
   existingAssignments: SetupPlayer[];
-  /** Callback to update group count */
-  setGroupCount: (count: number) => void;
 }
 
 export function GroupSetupDialog({
@@ -100,7 +98,6 @@ export function GroupSetupDialog({
   onSave,
   saving = false,
   existingAssignments,
-  setGroupCount,
 }: GroupSetupDialogProps) {
   /* Resolve translations internally using mode prop - avoids props drilling */
   const t = useTranslations(mode);
@@ -128,7 +125,6 @@ export function GroupSetupDialog({
           ? assignment
           : { ...assignment, group: availableGroups[availableGroups.length - 1] },
       ));
-      setGroupCount(LOCKED_GROUP_COUNT);
     } else if (!open) {
       /* Close: reset all form state */
       setSetupPlayers([]);
@@ -162,11 +158,6 @@ export function GroupSetupDialog({
   const handleAutoDistribute = () => {
     if (setupPlayers.length === 0 || !allHaveSeeding) return;
     setSetupPlayers(assignGroupsBySeeding(setupPlayers, LOCKED_GROUP_COUNT, minGroups));
-  };
-
-  /** Keep the parent state pinned to the temporary two-group-only mode. */
-  const handleGroupCountChange = () => {
-    setGroupCount(LOCKED_GROUP_COUNT);
   };
 
   /* Filter players by search query (name or nickname) */
@@ -320,7 +311,6 @@ export function GroupSetupDialog({
                       variant="default"
                       size="sm"
                       className="h-7 w-7 p-0 text-xs"
-                      onClick={handleGroupCountChange}
                     >
                       {n}
                     </Button>

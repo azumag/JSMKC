@@ -9,10 +9,13 @@ const modeClients = [
 describe('TC-1007 GroupSetupDialog prop contract', () => {
   it('documents the unused groupCount prop removal scenario', () => {
     const section = e2eCaseSection('TC-1007');
+    const followupSection = e2eCaseSection('TC-1678');
 
     expect(section).toContain('issue #1007');
     expect(section).toContain('GroupSetupDialog');
     expect(section).toContain('groupCount');
+    expect(followupSection).toContain('issue #1678');
+    expect(followupSection).toContain('setGroupCount');
     expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
   });
 
@@ -29,15 +32,18 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
 
     expect(source).toContain('const LOCKED_GROUP_COUNT = 2');
     expect(props).not.toContain('groupCount: number');
+    expect(props).not.toContain('setGroupCount');
     expect(signature).not.toMatch(/\bgroupCount\b/);
-    expect(source).toContain('setGroupCount(LOCKED_GROUP_COUNT)');
+    expect(signature).not.toMatch(/\bsetGroupCount\b/);
+    expect(source).not.toContain('setGroupCount(LOCKED_GROUP_COUNT)');
   });
 
   it.each(modeClients)('does not pass the removed groupCount prop from %s', (_mode, path) => {
     const source = readRepoFile('smkc-score-app', ...path);
-    const dialogUsage = sectionBetween(source, '<GroupSetupDialog', 'setGroupCount={setGroupCount}');
+    const dialogUsage = sectionBetween(source, '<GroupSetupDialog', '/>');
 
     expect(dialogUsage).not.toContain('groupCount={groupCount}');
-    expect(source).toContain('const [, setGroupCount] = useState(2)');
+    expect(dialogUsage).not.toContain('setGroupCount={setGroupCount}');
+    expect(source).not.toMatch(/\bsetGroupCount\b/);
   });
 });

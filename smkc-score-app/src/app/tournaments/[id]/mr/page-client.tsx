@@ -164,8 +164,6 @@ export default function MatchRacePageClient({
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string; seeding?: number }[]
   >([]);
-  /* Product default: 2 groups (§10.2). */
-  const [, setGroupCount] = useState(2);
   const [setupSaving, setSetupSaving] = useState(false);
   const [generatingBracket, setGeneratingBracket] = useState(false);
   const [resettingBracket, setResettingBracket] = useState(false);
@@ -625,7 +623,6 @@ export default function MatchRacePageClient({
               group: q.group,
               seeding: q.seeding ?? undefined,
             }))}
-            setGroupCount={setGroupCount}
           />}
 
           {/* Per-mode independent publish toggle (issue #618) */}
