@@ -26,6 +26,7 @@
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *   TC-535  BM Top-24 playoff seed labels use group-rank labels
+ *   TC-1010 BM 16-player finals uses rankOverride seeding and standard points
  *   TC-1046 BM Top-24 preview uses a qualifier-count constant, not barrage count
  *   TC-1622 BM Top-24 28-to-23 reseed replaces qualification entries
  *   TC-1051 BM Top-24 direct-seed API no longer depends on legacy direct[]
@@ -1093,6 +1094,99 @@ async function runTc1052(adminPage) {
       : '');
   } catch (err) {
     log('TC-1052', 'FAIL', err instanceof Error ? err.message : 'TC-1052 failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+  }
+}
+
+/* ───────── TC-1010: BM 16-player finals seeding + placement points ─────────
+ * This issue is explicitly an E2E coverage gap for two cross-layer contracts:
+ * finals POST must seed from finalized qualification rankOverride, and the
+ * resulting 16-player losers_r4/losers_r3 eliminations must feed Overall
+ * Ranking as 5th/7th-place point bands.  The setup uses API-backed fixture
+ * writes after the normal admin setup because Playwright's recommended API
+ * test pattern keeps expensive state preparation out of brittle UI clicks
+ * while still validating the browser session and application endpoints. */
+function bmFinalsTargetWins() {
+  /* BM finals are best-of-9 across the 16-player bracket, so the API
+   * validator rejects any winner score above 5 even in later losers rounds.
+   * Keep the E2E helper intentionally narrower than the shared target-wins
+   * helpers because TC-1010 only needs deterministic propagation to
+   * losers_r4/losers_r3, not per-mode target-win coverage. */
+  return 5;
+}
+
+async function runTc1010(adminPage) {
+  let tournamentId = null;
+  try {
+    const players = sharedBmPlayers(16);
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM TC-1010 ${Date.now()}`);
+    await setupBmQualViaUi(adminPage, tournamentId, players, { randomize: true });
+
+    const bmBeforeOverride = await apiFetchBm(adminPage, tournamentId);
+    const qualifications = bmBeforeOverride.qualifications || bmBeforeOverride.data?.qualifications || [];
+    const overrideTarget = qualifications.find((q) => q.playerId === players[15].id);
+    if (!overrideTarget) throw new Error('TC-1010 override target qualification not found');
+
+    const overrideRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: overrideTarget.id, rankOverride: 1 }]);
+    if (overrideRes.s !== 200) {
+      throw new Error(`rankOverride PATCH failed (${overrideRes.s}): ${JSON.stringify(overrideRes.b).slice(0, 160)}`);
+    }
+
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`qualification confirm failed (${confirmRes.s})`);
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 16);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`16-player finals generation failed (${gen.s})`);
+    const seededPlayers = gen.b?.data?.seededPlayers || [];
+    const rankOverrideSeededFirst = seededPlayers[0]?.playerId === players[15].id;
+
+    for (let matchNumber = 1; matchNumber <= 27; matchNumber++) {
+      const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+      const match = matches.find((m) => m.matchNumber === matchNumber);
+      if (!match || !match.player1Id || !match.player2Id) {
+        throw new Error(`match ${matchNumber} not ready (p1=${match?.player1Id} p2=${match?.player2Id})`);
+      }
+      const score = bmFinalsTargetWins(match.round);
+      const put = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, score, 0);
+      if (put.s !== 200) throw new Error(`match ${matchNumber} score failed (${put.s})`);
+    }
+
+    const completed = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const loserOf = (round) => {
+      const match = completed.find((m) => m.round === round && m.completed && m.player1Id && m.player2Id);
+      if (!match) throw new Error(`${round} completed match not found`);
+      return match.score1 > match.score2 ? match.player2Id : match.player1Id;
+    };
+    const losersR4LoserId = loserOf('losers_r4');
+    const losersR3LoserId = loserOf('losers_r3');
+
+    const overallRes = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/overall-ranking`, { method: 'POST' });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, tournamentId);
+    if (overallRes.s !== 200) {
+      throw new Error(`overall-ranking POST failed (${overallRes.s}): ${JSON.stringify(overallRes.b).slice(0, 160)}`);
+    }
+    const rankings = overallRes.b?.data?.rankings || [];
+    const losersR4Points = rankings.find((row) => row.playerId === losersR4LoserId)?.bmFinalsPoints;
+    const losersR3Points = rankings.find((row) => row.playerId === losersR3LoserId)?.bmFinalsPoints;
+
+    const ok = rankOverrideSeededFirst && losersR4Points === 750 && losersR3Points === 550;
+    log('TC-1010', ok ? 'PASS' : 'FAIL',
+      !rankOverrideSeededFirst ? `rankOverride seed first=${seededPlayers[0]?.playerId}`
+      : losersR4Points !== 750 ? `losers_r4 points=${losersR4Points}`
+      : losersR3Points !== 550 ? `losers_r3 points=${losersR3Points}`
+      : '');
+  } catch (err) {
+    log('TC-1010', 'FAIL', err instanceof Error ? err.message : 'TC-1010 failed');
   } finally {
     if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
   }
@@ -2287,6 +2381,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-533', fn: runTc533 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
+      { name: 'TC-1010', fn: runTc1010 },
       { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },
@@ -2312,7 +2407,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1046, runTc1052,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1010, runTc1046, runTc1052,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

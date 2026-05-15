@@ -929,6 +929,33 @@ describe('Finals Route Factory', () => {
       expect(json.data.seededPlayers[0].playerId).toBe('player-7');
     });
 
+    it('uses finalized qualification ranks when seeding a 16-player bracket', async () => {
+      const qualifications = createMockQualifications(16).map((q, index) => ({
+        ...q,
+        rankOverride: index === 15 ? 1 : index + 2,
+      }));
+      (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
+      (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 31 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig();
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 16 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+      const json = await response.json();
+      expect(json.data.seededPlayers[0].playerId).toBe('player-15');
+    });
+
     it('does not fetch H2H matches when qualificationOrderBy is empty', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
