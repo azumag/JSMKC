@@ -2243,15 +2243,27 @@
 - **スクリプト**: smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts
 
 ## TC-1007: BM/MR/GP グループ設定 — 未使用 groupCount prop を親から渡さない
-- **背景**: issue #1007。`GroupSetupDialog` は内部の `LOCKED_GROUP_COUNT` と `setGroupCount` で2グループ固定を管理しており、親ページから渡す `groupCount` は読み取られない。未使用 prop を残すと、3+グループ再開時に親状態が効くように見える誤解を生む。
+- **背景**: issue #1007。`GroupSetupDialog` は内部の `LOCKED_GROUP_COUNT` で2グループ固定を管理しており、親ページから渡す `groupCount` は読み取られない。未使用 prop を残すと、3+グループ再開時に親状態が効くように見える誤解を生む。
 - **手順**:
   1. TC-1007 の静的 E2E guard を実行する
   2. `GroupSetupDialogProps` と BM/MR/GP の `<GroupSetupDialog>` 呼び出しを検査する
-  3. 親ページが `setGroupCount` だけを渡し、読み取り側の `groupCount` state を保持していないことを確認する
+  3. 親ページが読み取り側の `groupCount` state を保持していないことを確認する
 - **期待結果**:
   - `GroupSetupDialogProps` に `groupCount: number` が存在しない
   - BM/MR/GP の呼び出し元が `groupCount={groupCount}` を渡さない
   - 2グループ固定の理由は `GroupSetupDialog` 内の `LOCKED_GROUP_COUNT` とコメントに集約される
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
+
+## TC-1678: BM/MR/GP グループ設定 — setGroupCount コールバックを親から渡さない
+- **背景**: issue #1678。TC-1007 で `groupCount` prop は削除済みだが、`setGroupCount` コールバックと親の `useState(2)` が残ると、ダイアログの2グループ固定が親 state に依存しているように読める。
+- **手順**:
+  1. TC-1678 の静的 E2E guard を実行する
+  2. `GroupSetupDialogProps` と BM/MR/GP の `<GroupSetupDialog>` 呼び出しを検査する
+  3. 親ページに `const [, setGroupCount] = useState(2)` が残っていないことを確認する
+- **期待結果**:
+  - `GroupSetupDialogProps` に `setGroupCount` が存在しない
+  - BM/MR/GP の呼び出し元が `setGroupCount={setGroupCount}` を渡さない
+  - 2グループ固定は `GroupSetupDialog` 内の `LOCKED_GROUP_COUNT` と表示上の固定ボタンだけで完結する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
 
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
