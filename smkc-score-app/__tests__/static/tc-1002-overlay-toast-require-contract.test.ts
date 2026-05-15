@@ -7,8 +7,7 @@ describe('TC-1002 overlay toast require contract', () => {
     const section = e2eCaseSection('TC-1002');
 
     expect(section).toContain('issue #1002');
-    expect(section).toContain('CommonJS helper');
-    expect(section).toContain('require()');
+    expect(section).toContain('overlay-toast-assertions.test.ts');
     expect(section).toContain('tc-1002-overlay-toast-require-contract.test.ts');
   });
 
@@ -16,5 +15,10 @@ describe('TC-1002 overlay toast require contract', () => {
     expect(testSource).toContain("require('../../e2e/lib/overlay-toast-assertions.js')");
     expect(testSource).not.toContain('beforeAll(async');
     expect(testSource).not.toContain('await import(');
+  });
+
+  it('keeps the require rationale comment concise', () => {
+    expect(testSource).toContain('TC-1002');
+    expect(testSource).not.toContain('Promise boundary');
   });
 });

@@ -1,6 +1,4 @@
-// This helper is a CommonJS module used by the runtime E2E scripts, so the
-// Jest contract test loads it synchronously instead of adding an async setup
-// hook that would hide simple module-load failures behind a Promise boundary.
+// Load the CJS helper through the E2E scripts' synchronous require path (TC-1002).
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- TC-1002 intentionally verifies the CJS helper through the same synchronous loader shape as the E2E scripts.
 const helper = require('../../e2e/lib/overlay-toast-assertions.js') as {
   OVERLAY_TOAST_TITLE_CASES: string[];
