@@ -26,6 +26,7 @@ describe('TC-1004 CourseCycleStatus contract', () => {
     expect(section).toContain('issue #1004');
     expect(section).toContain('availableCount');
     expect(section).toContain('availableCourses.length');
+    expect(section).toContain('availableCoursesCount');
     expect(section).toContain('tc-1004-course-cycle-status-contract.test.ts');
   });
 
@@ -39,8 +40,8 @@ describe('TC-1004 CourseCycleStatus contract', () => {
   });
 
   it('keeps available course count display sourced from the server-calculated list length', () => {
-    expect(finalsPageSource).toContain('count: availableCourses.length');
-    expect(eliminationSource).toContain('count: availableCourses.length');
+    expect(finalsPageSource).toContain('availableCoursesCount={availableCourses.length}');
+    expect(eliminationSource).toContain('availableCoursesCount={availableCourses.length}');
     expect(finalsPageSource).not.toContain('courseCycleStatus.availableCount');
     expect(eliminationSource).not.toContain('courseCycleStatus.availableCount');
   });
