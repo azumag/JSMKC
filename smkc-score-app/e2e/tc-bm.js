@@ -1149,6 +1149,7 @@ async function runTc1010(adminPage) {
     const rankOverrideSeededFirst = seededPlayers[0]?.playerId === players[15].id;
 
     // Matches 1..27 resolve losers_r4/r3 bands; 28..31 are finals-path and do not affect the verified TC-1010 contracts.
+    // If bracket numbering changes, the readiness assertion below fails at the first unresolved prerequisite.
     for (let matchNumber = 1; matchNumber <= 27; matchNumber++) {
       const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === matchNumber);
