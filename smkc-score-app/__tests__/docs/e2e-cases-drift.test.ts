@@ -64,6 +64,7 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-1007 aligned with the GroupSetupDialog static guard', () => {
     const section = e2eCaseSection('TC-1007');
     const followupSection = e2eCaseSection('TC-1678');
+    const disabledButtonSection = e2eCaseSection('TC-1680');
     const guard = readRepoFile(
       'smkc-score-app',
       '__tests__',
@@ -76,10 +77,13 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
     expect(followupSection).toContain('issue #1678');
     expect(followupSection).toContain('setGroupCount');
+    expect(disabledButtonSection).toContain('issue #1680');
+    expect(disabledButtonSection).toContain('disabled');
     expect(guard).toContain("e2eCaseSection('TC-1007')");
     expect(guard).toContain("e2eCaseSection('TC-1678')");
     expect(guard).toContain("not.toContain('groupCount={groupCount}')");
     expect(guard).toContain("not.toContain('setGroupCount={setGroupCount}')");
+    expect(guard).toContain("expect(groupCountButton).toContain('disabled')");
   });
 
   it('keeps TC-702 aligned with direct driver-points JsonNull reporting coverage', () => {

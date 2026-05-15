@@ -2266,6 +2266,18 @@
   - 2グループ固定は `GroupSetupDialog` 内の `LOCKED_GROUP_COUNT` と表示上の固定ボタンだけで完結する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
 
+## TC-1680: BM/MR/GP グループ設定 — 固定グループ数表示を disabled にする
+- **背景**: issue #1680。2グループ固定表示のボタンは `setGroupCount` 削除後にクリックしても何も起きないため、disabled 状態で固定値表示であることを明示する。
+- **手順**:
+  1. TC-1680 の静的 E2E guard を実行する
+  2. `GroupSetupDialog` の `LOCKED_GROUP_COUNT` 表示ボタンを検査する
+  3. ボタンに `disabled` があり、`onClick` がないことを確認する
+- **期待結果**:
+  - 固定グループ数の UI が押せる操作として誤認されない
+  - `LOCKED_GROUP_COUNT = 2` の固定仕様は維持される
+  - 将来 3+ グループ対応を戻す場合は guard 更新が必要になる
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
