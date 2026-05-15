@@ -51,6 +51,7 @@ describe('E2E case drift coverage', () => {
     ['TC-817', tcTa],
     ['TC-1032', tcTa],
     ['TC-1033', tcTa],
+    ['TC-1010', tcBm],
     ['TC-TA-FLOW-24', tcTaFlow],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
     const section = e2eCaseSection(tc);
@@ -59,6 +60,35 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('**期待結果**');
     expect(section).toContain(`**スクリプト**:`);
     expect(scriptSource).toContain(`log('${tc}'`);
+  });
+
+  it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {
+    const section = e2eCaseSection('TC-1010');
+    const finalsRouteTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'api-factories',
+      'finals-route.test.ts',
+    );
+    const overallRankingTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'points',
+      'overall-ranking.test.ts',
+    );
+
+    expect(section).toContain('issue #1010');
+    expect(section).toContain('rankOverride');
+    expect(section).toContain('losers_r4');
+    expect(section).toContain('losers_r3');
+    expect(section).toContain('E2E_TESTS=TC-1010 node e2e/tc-bm.js');
+    expect(tcBm).toContain("{ name: 'TC-1010', fn: runTc1010 }");
+    expect(tcBm).toContain('losersR4Points === 750');
+    expect(tcBm).toContain('losersR3Points === 550');
+    expect(finalsRouteTest).toContain('uses finalized qualification ranks when seeding the bracket');
+    expect(overallRankingTest).toContain('maps 16-player finals and Top24 playoff losses to standard point bands');
   });
 
   it('keeps TC-1007 aligned with the GroupSetupDialog static guard', () => {

@@ -1504,6 +1504,19 @@
 - **期待結果**: 3+グループの Top-24 はサイレントに壊れたブラケットを作らず、正式な3+グループ配置実装まで安全に停止する
 - **スクリプト**: tc-bm.js TC-1052 + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
 
+## TC-1010: BM 16-player finals — rankOverride seeding と Overall Ranking 位置ポイント
+- **URL**: /api/tournaments/[id]/bm/finals, /api/tournaments/[id]/overall-ranking
+- **authRequired**: true (admin)
+- **背景**: issue #1010。16-player finals の bracket 作成は確定済みの `rankOverride` を seed 順に反映し、Overall Ranking は losers_r4 敗者を5位相当、losers_r3 敗者を7位相当の BM finals points として扱う必要がある。
+- **手順**:
+  1. 管理者で一時トーナメントと16名の BM qualification を作成する
+  2. 16人目の qualification に `rankOverride: 1` を設定して BM 予選を確定する
+  3. Top-16 finals bracket を作成し、返却された `seededPlayers` の先頭が rankOverride 対象者であることを確認する
+  4. winners/losers bracket を losers_r4 と losers_r3 の敗者が確定するまで進める
+  5. Overall Ranking を再計算し、該当敗者の BM finals points を確認する
+- **期待結果**: rankOverride 対象者が seed 1 に入り、losers_r4 敗者は750点（5位相当）、losers_r3 敗者は550点（7位相当）になる
+- **スクリプト**: `E2E_TESTS=TC-1010 node e2e/tc-bm.js` + `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` + `smkc-score-app/__tests__/lib/points/overall-ranking.test.ts`
+
 ## TC-1603: BM Top-24 — 1グループ時も予選グループ数エラーで停止する
 - **URL**: /api/tournaments/[id]/bm/finals (POST)
 - **authRequired**: true (admin)
