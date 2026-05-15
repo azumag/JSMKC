@@ -90,6 +90,30 @@ describe('E2E case drift coverage', () => {
     expect(guard).toContain('expect(groupCountButton).toContain(\'variant="outline"\')');
   });
 
+  it('keeps TC-1004 aligned with the CourseCycleStatus YAGNI guard', () => {
+    const section = e2eCaseSection('TC-1004');
+    const guard = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-1004-course-cycle-status-contract.test.ts',
+    );
+    const unitTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'ta',
+      'course-cycle-status.test.ts',
+    );
+
+    expect(section).toContain('issue #1004');
+    expect(section).toContain('availableCourses.length');
+    expect(section).toContain('tc-1004-course-cycle-status-contract.test.ts');
+    expect(guard).toContain("e2eCaseSection('TC-1004')");
+    expect(guard).toContain("expect(helperSource).not.toContain('availableCount')");
+    expect(unitTest).not.toContain('availableCount');
+  });
+
   it('keeps TC-702 aligned with direct driver-points JsonNull reporting coverage', () => {
     const section = e2eCaseSection('TC-702');
 

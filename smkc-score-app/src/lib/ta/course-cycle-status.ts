@@ -4,7 +4,6 @@ export interface CourseCycleStatus {
   cycleNumber: number;
   playedInCycle: number;
   totalCourses: number;
-  availableCount: number;
   totalPlayed: number;
 }
 
@@ -16,7 +15,8 @@ export function getCourseCycleStatus(playedCourses: string[]): CourseCycleStatus
     cycleNumber: Math.floor(totalPlayed / TOTAL_COURSES) + 1,
     playedInCycle,
     totalCourses: TOTAL_COURSES,
-    availableCount: TOTAL_COURSES - playedInCycle,
+    // The UI displays the server-calculated availableCourses.length instead of
+    // duplicating that derived value here, so this helper only exposes cycle progress.
     totalPlayed,
   };
 }

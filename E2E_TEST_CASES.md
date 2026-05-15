@@ -2254,6 +2254,21 @@
   - 2グループ固定の理由は `GroupSetupDialog` 内の `LOCKED_GROUP_COUNT` とコメントに集約される
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
 
+## TC-1004: TA コースサイクル — 未使用 availableCount フィールドを公開しない
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1004。TA のコースサイクル表示は `availableCourses.length` を画面に出しており、`CourseCycleStatus.availableCount` は UI で参照されない。未使用フィールドを返すと将来の表示契約が増えたように見え、サーバー側の利用可能コース計算と二重管理になる。
+- **手順**:
+  1. TC-1004 の静的 E2E guard を実行する
+  2. `CourseCycleStatus` の公開フィールドを検査する
+  3. TA Finals と TA elimination のコースサイクル表示が `availableCourses.length` を使うことを確認する
+  4. `getCourseCycleStatus` の単体テストを実行し、cycle/played/total/totalPlayed のみが返ることを確認する
+- **期待結果**:
+  - `CourseCycleStatus` に `availableCount` が存在しない
+  - `getCourseCycleStatus` は UI が実際に使う cycle/played/total/totalPlayed だけを返す
+  - 利用可能コース数の表示は `availableCourses.length` から算出され、重複した派生値を持たない
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1004-course-cycle-status-contract.test.ts __tests__/lib/ta/course-cycle-status.test.ts`
+
 ## TC-1678: BM/MR/GP グループ設定 — setGroupCount コールバックを親から渡さない
 - **背景**: issue #1678。TC-1007 で `groupCount` prop は削除済みだが、`setGroupCount` コールバックと親の `useState(2)` が残ると、ダイアログの2グループ固定が親 state に依存しているように読める。
 - **手順**:
