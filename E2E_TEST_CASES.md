@@ -2278,6 +2278,18 @@
   - 将来 3+ グループ対応を戻す場合は guard 更新が必要になる
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
 
+## TC-1682: BM/MR/GP グループ設定 — disabled 固定グループ数を outline 表示にする
+- **背景**: issue #1682。固定値の disabled ボタンが `variant="default"` のままだと、環境によってはアクティブな選択ボタンに見える可能性がある。`variant="outline"` にして情報表示寄りの見た目にする。
+- **手順**:
+  1. TC-1682 の静的 E2E guard を実行する
+  2. `GroupSetupDialog` の `LOCKED_GROUP_COUNT` 表示ボタンを検査する
+  3. ボタンが `variant="outline"` かつ `disabled` で、`onClick` がないことを確認する
+- **期待結果**:
+  - 固定グループ数表示がアクティブ操作に見えにくい
+  - disabled と non-clickable の契約は維持される
+  - 将来 selectable UI に戻す場合は guard 更新が必要になる
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
