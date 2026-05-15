@@ -7,7 +7,6 @@ describe("getCourseCycleStatus", () => {
       cycleNumber: 1,
       playedInCycle: 0,
       totalCourses: 20,
-      availableCount: 20,
       totalPlayed: 0,
     });
   });
@@ -17,7 +16,6 @@ describe("getCourseCycleStatus", () => {
       cycleNumber: 1,
       playedInCycle: 11,
       totalCourses: 20,
-      availableCount: 9,
       totalPlayed: 11,
     });
   });
@@ -27,7 +25,6 @@ describe("getCourseCycleStatus", () => {
       cycleNumber: 2,
       playedInCycle: 0,
       totalCourses: 20,
-      availableCount: 20,
       totalPlayed: 20,
     });
   });
@@ -39,7 +36,6 @@ describe("getCourseCycleStatus", () => {
       cycleNumber: 2,
       playedInCycle: 7,
       totalCourses: 20,
-      availableCount: 13,
       totalPlayed: 27,
     });
   });
