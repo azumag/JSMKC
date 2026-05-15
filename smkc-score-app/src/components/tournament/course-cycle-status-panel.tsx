@@ -23,11 +23,7 @@ export function CourseCycleStatusPanel({
   status,
   availableCoursesCount,
 }: CourseCycleStatusPanelProps) {
-  /*
-   * Finals phase 3 and elimination phases 1/2 share the same course-cycle UI.
-   * The available count stays as an explicit prop because it is calculated by
-   * the server-backed course pool, not by the lightweight cycle-status helper.
-   */
+  // availableCoursesCount comes from the server-backed course pool, not the cycle-status helper.
   return (
     <div className="border border-foreground/15 bg-muted/30 p-3 text-sm space-y-2">
       <div className="flex justify-between gap-3">
