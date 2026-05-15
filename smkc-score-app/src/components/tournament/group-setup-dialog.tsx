@@ -311,6 +311,7 @@ export function GroupSetupDialog({
                       variant="default"
                       size="sm"
                       className="h-7 w-7 p-0 text-xs"
+                      disabled
                     >
                       {n}
                     </Button>

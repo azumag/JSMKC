@@ -10,12 +10,15 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
   it('documents the unused groupCount prop removal scenario', () => {
     const section = e2eCaseSection('TC-1007');
     const followupSection = e2eCaseSection('TC-1678');
+    const disabledButtonSection = e2eCaseSection('TC-1680');
 
     expect(section).toContain('issue #1007');
     expect(section).toContain('GroupSetupDialog');
     expect(section).toContain('groupCount');
     expect(followupSection).toContain('issue #1678');
     expect(followupSection).toContain('setGroupCount');
+    expect(disabledButtonSection).toContain('issue #1680');
+    expect(disabledButtonSection).toContain('disabled');
     expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
   });
 
@@ -36,6 +39,14 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
     expect(signature).not.toMatch(/\bgroupCount\b/);
     expect(signature).not.toMatch(/\bsetGroupCount\b/);
     expect(source).not.toContain('setGroupCount(LOCKED_GROUP_COUNT)');
+
+    const groupCountButton = sectionBetween(
+      source,
+      '{[LOCKED_GROUP_COUNT].map((n) => (',
+      '</Button>',
+    );
+    expect(groupCountButton).toContain('disabled');
+    expect(groupCountButton).not.toContain('onClick');
   });
 
   it.each(modeClients)('does not pass the removed groupCount prop from %s', (_mode, path) => {
