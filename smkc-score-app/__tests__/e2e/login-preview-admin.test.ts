@@ -98,6 +98,49 @@ describe('preview admin login helper', () => {
     });
   });
 
+  it('keeps waiting when the OAuth navigation destroys the current execution context', async () => {
+    const page = {
+      evaluate: jest.fn(async () => {
+        throw new Error('Execution context was destroyed, most likely because of a navigation');
+      }),
+    };
+
+    const helper = loadLoginPreviewAdmin();
+    await expect(helper.isAuthenticated(page)).resolves.toMatchObject({
+      status: 0,
+      authenticated: false,
+      body: null,
+      error: 'Execution context was destroyed, most likely because of a navigation',
+    });
+  });
+
+  it('keeps waiting when the page is temporarily closed during login redirect handling', async () => {
+    const page = {
+      evaluate: jest.fn(async () => {
+        throw new Error('Target page, context or browser has been closed');
+      }),
+    };
+
+    const helper = loadLoginPreviewAdmin();
+    await expect(helper.isAuthenticated(page)).resolves.toMatchObject({
+      status: 0,
+      authenticated: false,
+      body: null,
+      error: 'Target page, context or browser has been closed',
+    });
+  });
+
+  it('does not hide unexpected Playwright failures while polling auth status', async () => {
+    const page = {
+      evaluate: jest.fn(async () => {
+        throw new Error('selector engine crashed');
+      }),
+    };
+
+    const helper = loadLoginPreviewAdmin();
+    await expect(helper.isAuthenticated(page)).rejects.toThrow('selector engine crashed');
+  });
+
   it('waits for the admin tab and Discord button instead of a fixed sleep', async () => {
     const adminTab = {
       waitFor: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),

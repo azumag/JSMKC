@@ -1,26 +1,47 @@
 const { launchPersistentChromiumContext, resolveE2EProfileDir } = require('./lib/common');
 const { buildPreviewRuntimeEnv, assertBaseUrlResolvable } = require('./run-preview');
 
+function isTransientLoginPollingError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Execution context was destroyed/i.test(message) ||
+    /Target page, context or browser has been closed/i.test(message);
+}
+
 async function isAuthenticated(page) {
-  const result = await page.evaluate(async () => {
-    try {
-      const response = await fetch('/api/auth/session-status', { credentials: 'same-origin' });
-      const body = await response.json().catch(() => null);
-      return {
-        status: response.status,
-        authenticated: body?.data?.authenticated === true,
-        body,
-      };
-    } catch (error) {
-      return {
-        status: 0,
-        authenticated: false,
-        body: null,
-        error: error instanceof Error ? error.message : String(error),
-      };
+  try {
+    const result = await page.evaluate(async () => {
+      try {
+        const response = await fetch('/api/auth/session-status', { credentials: 'same-origin' });
+        const body = await response.json().catch(() => null);
+        return {
+          status: response.status,
+          authenticated: body?.data?.authenticated === true,
+          body,
+        };
+      } catch (error) {
+        return {
+          status: 0,
+          authenticated: false,
+          body: null,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+    return result;
+  } catch (error) {
+    if (!isTransientLoginPollingError(error)) {
+      throw error;
     }
-  });
-  return result;
+    // Discord OAuth redirects can destroy the current page execution context
+    // while the helper is polling. Treat those transient Playwright errors the
+    // same as "not authenticated yet" so the manual login window remains open.
+    return {
+      status: 0,
+      authenticated: false,
+      body: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 async function waitForPreviewAdminLoginReady(page) {
@@ -87,6 +108,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isTransientLoginPollingError,
   isAuthenticated,
   waitForPreviewAdminLoginReady,
   main,
