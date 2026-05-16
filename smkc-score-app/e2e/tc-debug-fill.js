@@ -121,6 +121,10 @@ function taEntriesFromFetch(response) {
   return unwrapData(response?.b)?.entries ?? response?.entries ?? [];
 }
 
+function countDebugFillFailures(testResults) {
+  return testResults.filter((result) => result.s === 'FAIL').length;
+}
+
 async function tcDbg01(page) {
   let tournamentId = null;
   const players = [];
@@ -268,9 +272,9 @@ async function runDebugFillTests(page) {
   await tcDbg03(page);
   await tcDbg04(page);
 
-  const failed = results.filter((result) => result.s === 'FAIL');
-  console.log(`\nTC-DBG summary: ${results.length - failed.length}/${results.length} passed`);
-  return { failed: failed.length };
+  const failedCount = countDebugFillFailures(results);
+  console.log(`\nTC-DBG summary: ${results.length - failedCount}/${results.length} passed`);
+  return { failed: failedCount };
 }
 
 async function main() {
@@ -308,5 +312,6 @@ if (require.main === module) {
 
 module.exports = {
   runDebugFillTests,
+  countDebugFillFailures,
   taEntriesFromFetch,
 };

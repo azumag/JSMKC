@@ -21,6 +21,7 @@ import {
   requestKindForQualificationFetch,
 } from '../../e2e/tc-archive';
 import {
+  countDebugFillFailures,
   taEntriesFromFetch,
 } from '../../e2e/tc-debug-fill';
 
@@ -212,5 +213,13 @@ describe('group setup E2E helper', () => {
       .toEqual([{ id: 'entry-1' }]);
     expect(taEntriesFromFetch({ entries: [{ id: 'entry-2' }] }))
       .toEqual([{ id: 'entry-2' }]);
+  });
+
+  it('counts debug-fill failures as a numeric value', () => {
+    expect(countDebugFillFailures([
+      { tc: 'TC-DBG-01', s: 'PASS' },
+      { tc: 'TC-DBG-02', s: 'FAIL' },
+      { tc: 'TC-DBG-03', status: 'FAIL' },
+    ])).toBe(1);
   });
 });
