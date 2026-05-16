@@ -102,7 +102,10 @@ describe('group setup E2E helper', () => {
       waitForTimeout: jest.fn(async () => undefined),
       getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
         const name = options.name?.source ?? '';
-        const expectedLookups = ['role=button name includes Setup Groups', 'role=dialog'];
+        const expectedLookups = [
+          'role=button name=Setup Groups|Edit Groups|グループ設定|グループ編集',
+          'role=dialog name=',
+        ];
         if (name.includes('Setup Groups')) {
           return { first: jest.fn(() => ({ click: jest.fn(async () => undefined) })) };
         }
