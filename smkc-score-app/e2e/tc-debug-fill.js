@@ -308,4 +308,5 @@ if (require.main === module) {
 
 module.exports = {
   runDebugFillTests,
+  taEntriesFromFetch,
 };

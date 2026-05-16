@@ -1852,7 +1852,7 @@ module.exports = {
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc1106, runTc727, runTc729, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc1087, runTc821, runTc831, runTc832,
-  gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult,
+  gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult, gpFinalsTargetWins,
   getSuite,
   results,
 };

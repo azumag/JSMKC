@@ -4210,9 +4210,15 @@ async function main() {
   }
 }
 
-main()
-  .then((exitCode) => process.exit(exitCode))
-  .catch((err) => {
-    console.error('[tc-all] fatal error:', err instanceof Error ? err.stack || err.message : err);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then((exitCode) => process.exit(exitCode))
+    .catch((err) => {
+      console.error('[tc-all] fatal error:', err instanceof Error ? err.stack || err.message : err);
+      process.exit(1);
+    });
+}
+
+module.exports = {
+  pageFetchJson,
+};

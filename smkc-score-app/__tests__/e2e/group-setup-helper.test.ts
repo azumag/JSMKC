@@ -1,221 +1,190 @@
-import { describe, expect, it } from '@jest/globals';
-import { readFileSync } from 'fs';
-import path from 'path';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  setupModePlayersViaUi,
+} from '../../e2e/lib/common';
+import {
+  pageFetchJson,
+} from '../../e2e/tc-all';
+import {
+  bmFinalsTargetWinsForMatch,
+  getSuite as getBmSuite,
+} from '../../e2e/tc-bm';
+import {
+  getSuite as getMrSuite,
+  mrFinalsTargetWinsForMatch,
+} from '../../e2e/tc-mr';
+import {
+  getSuite as getGpSuite,
+  gpFinalsTargetWins,
+} from '../../e2e/tc-gp';
+import {
+  requestKindForQualificationFetch,
+} from '../../e2e/tc-archive';
+import {
+  taEntriesFromFetch,
+} from '../../e2e/tc-debug-fill';
 
 describe('group setup E2E helper', () => {
-  const source = readFileSync(path.join(process.cwd(), 'e2e/lib/common.js'), 'utf8');
-  const tcAllSource = readFileSync(path.join(process.cwd(), 'e2e/tc-all.js'), 'utf8');
-  const bmSuiteSource = readFileSync(path.join(process.cwd(), 'e2e/tc-bm.js'), 'utf8');
-  const mrSuiteSource = readFileSync(path.join(process.cwd(), 'e2e/tc-mr.js'), 'utf8');
-  const archiveSuiteSource = readFileSync(path.join(process.cwd(), 'e2e/tc-archive.js'), 'utf8');
-  const debugFillSuiteSource = readFileSync(path.join(process.cwd(), 'e2e/tc-debug-fill.js'), 'utf8');
-  const gpSuiteSource = readFileSync(path.join(process.cwd(), 'e2e/tc-gp.js'), 'utf8');
-  const bmFinalsPageSource = readFileSync(
-    path.join(process.cwd(), 'src/app/tournaments/[id]/bm/finals/page.tsx'),
-    'utf8',
-  );
-  const mrFinalsPageSource = readFileSync(
-    path.join(process.cwd(), 'src/app/tournaments/[id]/mr/finals/page.tsx'),
-    'utf8',
-  );
-  const gpFinalsPageSource = readFileSync(
-    path.join(process.cwd(), 'src/app/tournaments/[id]/gp/finals/page.tsx'),
-    'utf8',
-  );
-
-  it('skips the group-count click when the requested count is already selected and disabled', () => {
-    const helperStart = source.indexOf('async function setupModePlayersViaUi');
-    const helperEnd = source.indexOf('/** UI-based TA qualification roster setup.', helperStart);
-    const helperSource = source.slice(helperStart, helperEnd);
-
-    expect(helperSource).toContain('groupCountButton');
-    expect(helperSource).toContain('isDisabled()');
-    expect(helperSource).toContain('if (!groupCountDisabled)');
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
-  it('keeps GP finals score-only E2E inputs aligned with cup-win targets', () => {
-    expect(gpSuiteSource).toContain('function gpFinalsTargetWins(match)');
-    expect(gpSuiteSource).toContain('async function apiSetGpFinalsWinner');
-    expect(gpSuiteSource).not.toContain('apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0)');
-    expect(gpSuiteSource).not.toContain('apiSetGpFinalsScore(adminPage, tournamentId, m16.id, 0, 9)');
+  it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
+    const groupCountClick = jest.fn(async () => undefined);
+    const saveClick = jest.fn(async () => undefined);
+    const seedFills: string[] = [];
+    const selectedPlayers: string[] = [];
+    const searchFill = jest.fn(async (value: string) => {
+      if (value) selectedPlayers.push(value);
+    });
+
+    const removeButtons = {
+      count: jest.fn(async () => 0),
+      first: jest.fn(),
+    };
+    const groupCountButton = {
+      isDisabled: jest.fn(async () => true),
+      click: groupCountClick,
+    };
+    const seedInputs = {
+      nth: jest.fn((index: number) => ({
+        fill: jest.fn(async (value: string) => {
+          seedFills[index] = value;
+        }),
+      })),
+    };
+    const searchInput = { fill: searchFill };
+    const playerLabel = {
+      waitFor: jest.fn(async () => undefined),
+      getAttribute: jest.fn(async () => 'player-checkbox'),
+    };
+    const checkbox = {
+      scrollIntoViewIfNeeded: jest.fn(async () => undefined),
+      click: jest.fn(async () => undefined),
+    };
+    const dialog = {
+      waitFor: jest.fn(async () => undefined),
+      getByPlaceholder: jest.fn(() => searchInput),
+      locator: jest.fn((selector: string) => {
+        if (selector === 'label') {
+          return {
+            filter: jest.fn(() => ({
+              first: jest.fn(() => playerLabel),
+            })),
+          };
+        }
+        if (selector === 'button[id="player-checkbox"]') return checkbox;
+        if (selector === 'input[type="number"]') return seedInputs;
+        throw new Error(`Unexpected dialog locator: ${selector}`);
+      }),
+      getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
+        const name = options.name?.source ?? '';
+        if (name.includes('Remove')) return removeButtons;
+        if (name === '^2$') return groupCountButton;
+        if (name.includes('Distribute by Seed')) return { click: jest.fn(async () => undefined) };
+        if (name.includes('Create Groups')) return { click: saveClick };
+        throw new Error(`Unexpected dialog role lookup: ${name}`);
+      }),
+    };
+    const page = {
+      goto: jest.fn(async () => undefined),
+      waitForTimeout: jest.fn(async () => undefined),
+      getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
+        const name = options.name?.source ?? '';
+        if (name.includes('Setup Groups')) {
+          return { first: jest.fn(() => ({ click: jest.fn(async () => undefined) })) };
+        }
+        if (_role === 'dialog') {
+          return { first: jest.fn(() => dialog) };
+        }
+        throw new Error(`Unexpected page role lookup: ${name}`);
+      }),
+      waitForResponse: jest.fn(async () => ({ status: () => 201 })),
+    };
+
+    await setupModePlayersViaUi(page, 'bm', 'tournament-1', [
+      { name: 'Player 1', nickname: 'P1' },
+      { name: 'Player 2', nickname: 'P2' },
+      { name: 'Player 3', nickname: 'P3' },
+      { name: 'Player 4', nickname: 'P4' },
+    ], { groupCount: 2 });
+
+    expect(page.goto).toHaveBeenCalledWith(expect.stringContaining('/tournaments/tournament-1/bm'), expect.any(Object));
+    expect(groupCountButton.isDisabled).toHaveBeenCalled();
+    expect(groupCountClick).not.toHaveBeenCalled();
+    expect(selectedPlayers).toEqual(['P1', 'P2', 'P3', 'P4']);
+    expect(seedFills).toEqual(['1', '2', '3', '4']);
+    expect(saveClick).toHaveBeenCalled();
   });
 
-  it('keeps GP Top-24 reset unlocked before testing the locked action path', () => {
-    const tc715Start = gpSuiteSource.indexOf('async function runTc715');
-    const resetCall = gpSuiteSource.indexOf('body: JSON.stringify({ reset: true })', tc715Start);
-    const unlockCall = gpSuiteSource.indexOf('gpQualificationConfirmed: false', tc715Start);
-    const confirmCall = gpSuiteSource.indexOf('gpQualificationConfirmed: true', tc715Start);
-
-    expect(unlockCall).toBeGreaterThan(tc715Start);
-    expect(unlockCall).toBeLessThan(resetCall);
-    expect(confirmCall).toBeGreaterThan(resetCall);
+  it('exposes suite specs instead of requiring source scans for TC registration', () => {
+    expect(getBmSuite().tests.map((testCase: { name: string }) => testCase.name))
+      .toEqual(expect.arrayContaining(['TC-1010', 'TC-1052', 'TC-515', 'TC-529']));
+    expect(getMrSuite().tests.map((testCase: { name: string }) => testCase.name))
+      .toEqual(expect.arrayContaining(['TC-615', 'TC-820', 'TC-858']));
+    expect(getGpSuite().tests.map((testCase: { name: string }) => testCase.name))
+      .toEqual(expect.arrayContaining(['TC-715', 'TC-821', 'TC-831']));
   });
 
-  it('accepts both English and Japanese playoff labels in the GP Top-24 flow', () => {
-    const tc715Start = gpSuiteSource.indexOf('async function runTc715');
-    const tc715End = gpSuiteSource.indexOf('/* ───────── TC-716', tc715Start);
-    const tc715Source = gpSuiteSource.slice(tc715Start, tc715End);
+  it('checks finals target-win helpers by behavior', () => {
+    expect(bmFinalsTargetWinsForMatch({ round: 'winners_r1' })).toBe(5);
+    expect(bmFinalsTargetWinsForMatch({ round: 'losers_r3' })).toBe(7);
+    expect(bmFinalsTargetWinsForMatch({ round: 'grand_final_reset' })).toBe(7);
 
-    expect(tc715Source).toContain("finalsText.includes('Playoff (Barrage)')");
-    expect(tc715Source).toContain("finalsText.includes('プレーオフ（バラッジ）')");
-    expect(tc715Source).toContain("finalsText.includes('プレーオフ')");
+    expect(mrFinalsTargetWinsForMatch({ stage: 'playoff', round: 'playoff_r2' })).toBe(4);
+    expect(mrFinalsTargetWinsForMatch({ round: 'losers_r4' })).toBe(7);
+    expect(mrFinalsTargetWinsForMatch({ round: 'losers_sf' })).toBe(9);
+
+    expect(gpFinalsTargetWins({ stage: 'playoff', round: 'playoff_r1' })).toBe(1);
+    expect(gpFinalsTargetWins({ round: 'winners_r1' })).toBe(2);
+    expect(gpFinalsTargetWins({ round: 'grand_final' })).toBe(3);
   });
 
-  it('keeps the GP Top-24 phase-two action visible before finals rows exist', () => {
-    expect(gpFinalsPageSource).toContain('const defaultBracketTab');
-    expect(gpFinalsPageSource).toContain('type BracketTab');
-    expect(gpFinalsPageSource).toContain('matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff');
-    expect(gpFinalsPageSource).toContain('defaultValue={defaultBracketTab}');
-  });
+  it('bounds page.evaluate fetches with a synthetic failure status on browser fetch errors', async () => {
+    const page = {
+      evaluate: jest.fn(async (callback, payload) => callback(payload)),
+    };
+    const fetchError = new Error('The operation was aborted');
+    fetchError.name = 'AbortError';
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => {
+      throw fetchError;
+    }) as unknown as typeof fetch;
 
-  it('keeps BM and MR Top-24 phase-two actions visible before finals rows exist', () => {
-    for (const pageSource of [bmFinalsPageSource, mrFinalsPageSource]) {
-      expect(pageSource).toContain('const defaultBracketTab');
-      expect(pageSource).toContain('type BracketTab');
-      expect(pageSource).toContain('matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff');
-      expect(pageSource).toContain('defaultValue={defaultBracketTab}');
+    try {
+      await expect(pageFetchJson(page, '/api/tournaments/t1/overall-ranking', {}, 25))
+        .resolves.toEqual({
+          s: 0,
+          b: {
+            error: 'The operation was aborted',
+            name: 'AbortError',
+          },
+        });
+    } finally {
+      global.fetch = originalFetch;
     }
   });
 
-  it('uses the tournament id returned by uiCreateTournament in the GP solo BREAK case', () => {
-    const tc729Start = gpSuiteSource.indexOf('async function runTc729');
-    const tc729End = gpSuiteSource.indexOf('/* ───────── TC-702', tc729Start);
-    const tc729Source = gpSuiteSource.slice(tc729Start, tc729End);
+  it('classifies archive qualification fetches and accepts wrapped debug-fill TA data', () => {
+    expect(requestKindForQualificationFetch(
+      'https://preview.example.test/api/tournaments/tournament-1/bm',
+      'tournament-1',
+      'bm',
+    )).toBe('mode');
+    expect(requestKindForQualificationFetch(
+      'https://preview.example.test/api/players?limit=100',
+      'tournament-1',
+      'bm',
+    )).toBe('players');
+    expect(requestKindForQualificationFetch(
+      'https://preview.example.test/api/players?limit=50',
+      'tournament-1',
+      'bm',
+    )).toBeNull();
 
-    expect(tc729Source).toContain('tournamentId = await uiCreateTournament');
-    expect(tc729Source).not.toContain('tournamentId = tournament.id');
-  });
-
-  it('keeps BM group-count E2E coverage aligned with the locked two-group UI', () => {
-    const tc1075Start = tcAllSource.indexOf('TC-1075:');
-    const tc1075End = tcAllSource.indexOf('// TC-306', tc1075Start);
-    const tc1075Source = tcAllSource.slice(tc1075Start, tc1075End);
-    const tc1052Start = bmSuiteSource.indexOf('async function runTc1052');
-    const tc1052End = bmSuiteSource.indexOf('/* ───────── TC-1010', tc1052Start);
-    const tc1052Source = bmSuiteSource.slice(tc1052Start, tc1052End);
-
-    expect(tc1075Source).toContain("{ groupCount: 2 }");
-    expect(tc1075Source).not.toContain("{ groupCount: 4 }");
-    expect(tc1052Source).toContain('apiSetupBmGroup');
-    expect(tc1052Source).toContain("['A', 'B', 'C'][index % 3]");
-    expect(tc1052Source).toContain('setupRes.s === 400');
-    expect(tc1052Source).not.toContain("{ groupCount: 3 }");
-  });
-
-  it('keeps BM Top-24 reset tests unlocked before calling reset', () => {
-    for (const fnName of ['runTc515', 'runTc529']) {
-      const fnStart = bmSuiteSource.indexOf(`async function ${fnName}`);
-      const fnEnd = bmSuiteSource.indexOf('/* ─────────', fnStart + 1);
-      const fnSource = bmSuiteSource.slice(fnStart, fnEnd);
-      const unlockCall = fnSource.indexOf('bmQualificationConfirmed: false');
-      const resetCall = fnSource.indexOf('body: JSON.stringify({ reset: true })');
-      const confirmCall = fnSource.indexOf('bmQualificationConfirmed: true');
-
-      expect(unlockCall).toBeGreaterThan(0);
-      expect(unlockCall).toBeLessThan(resetCall);
-      expect(confirmCall).toBeGreaterThan(resetCall);
-    }
-  });
-
-  it('waits for the BM playoff completion action after API-driven scoring', () => {
-    const tc515Start = bmSuiteSource.indexOf('async function runTc515');
-    const tc515End = bmSuiteSource.indexOf('/* ───────── TC-529', tc515Start);
-    const tc515Source = bmSuiteSource.slice(tc515Start, tc515End);
-
-    expect(tc515Source).toContain("text.includes('Create Upper Bracket')");
-    expect(tc515Source).toContain("text.includes('プレーオフ完了')");
-    expect(tc515Source).toContain('timeout: 30000');
-  });
-
-  it('keeps TC-1010 aligned with round-aware BM finals target wins', () => {
-    const tc1010Start = bmSuiteSource.indexOf('function bmFinalsTargetWinsForMatch');
-    const tc1010End = bmSuiteSource.indexOf('/* ───────── TC-505', tc1010Start);
-    const tc1010Source = bmSuiteSource.slice(tc1010Start, tc1010End);
-
-    expect(tc1010Source).toContain("round === 'losers_r3'");
-    expect(tc1010Source).toContain("round === 'losers_r4'");
-    expect(tc1010Source).toContain('return 7');
-    expect(tc1010Source).toContain('bmFinalsTargetWinsForMatch(match)');
-  });
-
-  it('keeps GP finals mobile E2E coverage on the cup-win score dialog', () => {
-    const tc356Start = tcAllSource.indexOf('TC-356:');
-    const tc356End = tcAllSource.indexOf('// TC-357', tc356Start);
-    const tc356Source = tcAllSource.slice(tc356Start, tc356End);
-
-    expect(tc356Source).toContain('#gp-finals-simple-score1');
-    expect(tc356Source).toContain('#gp-finals-simple-score2');
-    expect(tc356Source).not.toContain('gp-finals-mobile-race-entry');
-  });
-
-  it('keeps TC-311 aligned with direct GP participant driver-point entry', () => {
-    const tc311Start = tcAllSource.indexOf('TC-311:');
-    const tc311End = tcAllSource.indexOf('// TC-312', tc311Start);
-    const tc311Source = tcAllSource.slice(tc311Start, tc311End);
-
-    expect(tc311Source).toContain("playerPage.locator('input[inputmode=\"numeric\"]')");
-    expect(tc311Source).toContain("document.querySelectorAll('input[inputmode=\"numeric\"]').length === 2");
-    expect(tc311Source).toContain("await pointInputs.nth(0).fill('45')");
-    expect(tc311Source).toContain("await pointInputs.nth(1).fill('0')");
-    expect(tc311Source).not.toContain("button[role=\"combobox\"]");
-    expect(tc311Source).not.toContain('[role="listbox"]');
-  });
-
-  it('bounds TC-402 browser fetches so a stalled worker cannot wedge the full preview run', () => {
-    const tc402Start = tcAllSource.indexOf('TC-402:');
-    const tc402End = tcAllSource.indexOf('// TC-101', tc402Start);
-    const tc402Source = tcAllSource.slice(tc402Start, tc402End);
-
-    expect(tcAllSource).toContain('async function pageFetchJson');
-    expect(tcAllSource).toContain('new AbortController()');
-    expect(tcAllSource).toContain("s: 0");
-    expect(tc402Source).toContain('pageFetchJson(page, `/api/tournaments/${TID}/overall-ranking`, { method:');
-    expect(tc402Source).toContain("pageFetchJson(page, `/api/tournaments/${TID}/overall-ranking?ts=${Date.now()}`, { cache: 'no-store' }");
-  });
-
-  it('checks MR/GP match detail pages against the actual match players', () => {
-    const tc820Start = mrSuiteSource.indexOf('TC-820:');
-    const tc820End = mrSuiteSource.indexOf('/* ───────── TC-617', tc820Start);
-    const tc820Source = mrSuiteSource.slice(tc820Start, tc820End);
-    const tc821Start = gpSuiteSource.indexOf('TC-821:');
-    const tc821End = gpSuiteSource.indexOf('/* ───────── TC-719', tc821Start);
-    const tc821Source = gpSuiteSource.slice(tc821Start, tc821End);
-
-    for (const sourceText of [tc820Source, tc821Source]) {
-      expect(sourceText).toContain('const expectedNames = [match.player1.nickname, match.player2.nickname]');
-      expect(sourceText).toContain('adminPage.waitForFunction((names) =>');
-      expect(sourceText).toContain('expectedNames.every((name) => matchText.includes(name))');
-      expect(sourceText).not.toContain('p1.nickname');
-      expect(sourceText).not.toContain('p2.nickname');
-    }
-  });
-
-  it('keeps MR finals E2E aligned with server target wins and reset locking', () => {
-    const targetStart = mrSuiteSource.indexOf('function mrFinalsTargetWinsForMatch');
-    const targetEnd = mrSuiteSource.indexOf('async function loginSharedPlayer', targetStart);
-    const targetSource = mrSuiteSource.slice(targetStart, targetEnd);
-    const tc615Start = mrSuiteSource.indexOf('async function runTc615');
-    const tc615End = mrSuiteSource.indexOf('/* ───────── TC-616', tc615Start);
-    const tc615Source = mrSuiteSource.slice(tc615Start, tc615End);
-    const tc858Start = mrSuiteSource.indexOf('async function runTc858');
-    const tc858End = mrSuiteSource.indexOf('/* See tc-bm.js::getSuite', tc858Start);
-    const tc858Source = mrSuiteSource.slice(tc858Start, tc858End);
-
-    expect(targetSource).toContain("round === 'losers_sf' || round === 'grand_final'");
-    expect(targetSource).not.toContain("|| round === 'losers_r4' || round === 'losers_sf'");
-    for (const sourceText of [tc615Source, tc858Source]) {
-      expect(sourceText).toContain('mrQualificationConfirmed: false');
-      expect(sourceText).toContain('body: JSON.stringify({ reset: true })');
-      expect(sourceText).toContain('mrQualificationConfirmed: true');
-    }
-  });
-
-  it('keeps archive and debug-fill focused suites isolated from stale browser state', () => {
-    expect(archiveSuiteSource).toContain('const targetPage = await page.context().newPage()');
-    expect(archiveSuiteSource).toContain('await targetPage.bringToFront()');
-    expect(archiveSuiteSource).toContain('await targetPage.close().catch(() => {})');
-    expect(archiveSuiteSource).toContain("result.status === 'FAIL'");
-    expect(debugFillSuiteSource).toContain('function taEntriesFromFetch');
-    expect(debugFillSuiteSource).toContain('unwrapData(response?.b)?.entries');
+    expect(taEntriesFromFetch({ b: { data: { entries: [{ id: 'entry-1' }] } } }))
+      .toEqual([{ id: 'entry-1' }]);
+    expect(taEntriesFromFetch({ entries: [{ id: 'entry-2' }] }))
+      .toEqual([{ id: 'entry-2' }]);
   });
 });
