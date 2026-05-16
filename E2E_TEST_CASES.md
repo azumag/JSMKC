@@ -236,14 +236,16 @@
 ## TC-110: Preview 管理者ログイン補助スクリプトの要素待機
 - **URL**: /auth/signin
 - **authRequired**: false (ログイン準備)
-- **背景**: preview E2E は永続プロファイルの Discord 管理者セッションを前提にする。`npm run e2e:preview:login` は手動ログイン用にサインイン画面を開くため、ページロード後の固定 sleep ではなく、実際の Admin タブと Discord ログインボタンの表示を待つ必要がある。
+- **背景**: preview E2E は永続プロファイルの Discord 管理者セッションを前提にする。`npm run e2e:preview:login` は手動ログイン用にサインイン画面を開くため、ページロード後の固定 sleep ではなく、実際の Admin タブと Discord ログインボタンの表示を待つ必要がある。Discord OAuth 遷移中は Playwright の実行コンテキストが一時的に破棄されるため、認証確認ポーリングはその一時エラーで終了してはいけない。
 - **手順**:
   1. `smkc-score-app/` で `npm run e2e:preview:login` を実行する
   2. script が `/auth/signin` を開くことを確認する
   3. Admin タブが表示されるまで待ち、Admin タブを選択することを確認する
   4. Discord ログインボタンが表示されるまで待つことを確認する
   5. 固定の `waitForTimeout(1500)` に依存しないことを確認する
+  6. OAuth 遷移中の `Execution context was destroyed` や一時的な page close は未認証扱いにして、手動ログイン待ちを続けることを確認する
 - **期待結果**: preview ログイン補助はページ描画速度に左右されず、Discord 管理者ログイン操作を開始できる
+- **補助検証**: `smkc-score-app/__tests__/e2e/login-preview-admin.test.ts`
 
 ## TC-359: CDM Export 失敗時の原因ヒント表示
 - **URL**: /tournaments/[id]
