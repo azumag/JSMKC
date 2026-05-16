@@ -473,9 +473,9 @@ async function runArchiveTests(page) {
   await tcArc08(page);
   await tcArc09(page);
 
-  const failed = { length: countArchiveFailures(results) };
-  console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
-  return { failed: failed.length };
+  const failedCount = countArchiveFailures(results);
+  console.log(`\nTC-ARC summary: ${results.length - failedCount}/${results.length} passed`);
+  return { failed: failedCount };
 }
 
 async function main() {
