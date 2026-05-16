@@ -46,6 +46,7 @@ const { chromium } = require('playwright');
 
 const BASE = resolveE2EBaseUrl();
 const NAV_WAIT_MS = 8000;
+const UI_PLAYER_CREATE_MAX_OBSERVED_POSTS = 3;
 /** D1 cold-start can push page render well past the default 30s Playwright timeout.
  * Use this constant for any waitFor/click/locator that depends on admin-gated UI
  * or API responses that may be delayed by D1 initialization (#678, #701, #777). */
@@ -145,6 +146,42 @@ async function nav(page, path) {
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function summarizeResponseBody(body) {
+  if (typeof body === 'string') return body.slice(0, 500);
+  return JSON.stringify(body ?? {}).slice(0, 500);
+}
+
+async function readResponseSummary(response) {
+  const text = await response.text().catch(() => '');
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function isPlayerCreateResponse(response) {
+  return response.url().includes('/api/players') && response.request().method() === 'POST';
+}
+
+async function findPlayerByNickname(page, nickname) {
+  return page.evaluate(async (targetNickname) => {
+    for (let pageNumber = 1; pageNumber <= 20; pageNumber += 1) {
+      const response = await fetch(`/api/players?page=${pageNumber}&limit=100`);
+      const payload = await response.json().catch(() => ({}));
+      const players = payload.data ?? [];
+      const found = players.find((player) => player.nickname === targetNickname);
+      if (found) return found;
+
+      const totalPages = payload.meta?.totalPages;
+      if (typeof totalPages === 'number' && pageNumber >= totalPages) break;
+      if (!totalPages && players.length < 100) break;
+    }
+    return null;
+  }, nickname);
 }
 
 /* ───────── Player / Tournament CRUD ───────── */
@@ -1167,18 +1204,44 @@ async function uiCreatePlayer(page, name, nickname) {
   await formDialog.locator('#name').fill(name);
   await formDialog.locator('#nickname').fill(nickname);
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes('/api/players') &&
-    res.request().method() === 'POST', { timeout: 30000 });
   const submitButton = formDialog.locator('button[type="submit"]').first();
+
+  const observedPosts = [];
+  const firstResponsePromise = page.waitForResponse(isPlayerCreateResponse, { timeout: 30000 });
   await submitButton.click();
-  const response = await responsePromise;
-  const body = await response.json().catch(() => ({}));
-  if (response.status() !== 201) {
-    throw new Error(`UI player creation failed for ${nickname} (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+
+  for (let attempt = 1; attempt <= UI_PLAYER_CREATE_MAX_OBSERVED_POSTS; attempt += 1) {
+    const response = attempt === 1
+      ? await firstResponsePromise
+      : await page.waitForResponse(isPlayerCreateResponse, { timeout: 5000 }).catch(() => null);
+    if (!response) break;
+
+    const post = { status: response.status(), body: await readResponseSummary(response) };
+    observedPosts.push(post);
+    if (post.status === 201 || post.status === 409 || post.status < 500) break;
   }
-  const id = body?.data?.player?.id ?? null;
-  const password = body?.data?.temporaryPassword ?? null;
+
+  const finalPost = observedPosts[observedPosts.length - 1] ?? { status: 0, body: {} };
+  const retryEndedWithConflict = finalPost.status === 409 && observedPosts.length > 1;
+  if (finalPost.status !== 201 && !retryEndedWithConflict) {
+    throw new Error(
+      `UI player creation failed for ${nickname} after ${observedPosts.length} observed POST(s) ` +
+      `(${finalPost.status}): ${summarizeResponseBody(finalPost.body)}`,
+    );
+  }
+
+  const body = finalPost.body && typeof finalPost.body === 'object' ? finalPost.body : {};
+  let id = body?.data?.player?.id ?? null;
+  let password = body?.data?.temporaryPassword ?? null;
+  if (retryEndedWithConflict) {
+    /* The /players UI treats retry-time 409 as "created but the success body was
+     * lost" because nickname uniqueness makes POST effectively idempotent.
+     * The E2E helper still needs the real id for cleanup and downstream setup,
+     * so it resolves the newly created player through the paginated list API. */
+    const player = await findPlayerByNickname(page, nickname);
+    id = player?.id ?? null;
+    password = null;
+  }
   if (!id) throw new Error(`UI player creation missing id for ${nickname}`);
 
   /* Post-create temporary-password dialog. Dismiss via "I've Saved It". */
@@ -2679,6 +2742,8 @@ module.exports = {
   apiDeleteTournament,
   /* UI helpers */
   uiCreatePlayer,
+  summarizeResponseBody,
+  readResponseSummary,
   uiCreateTournament,
   uiActivateTournament,
   uiFreezeTaQualification,
