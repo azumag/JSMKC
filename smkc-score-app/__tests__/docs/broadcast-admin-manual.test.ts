@@ -6,7 +6,9 @@ describe('broadcast admin manual', () => {
   const manual = fs.readFileSync(manualPath, 'utf8');
 
   it('documents which TA page to use for each broadcast phase', () => {
-    const section = manual.match(/### 6\.3 TA から反映する[\s\S]*?(?=\n### 6\.4 )/)?.[0] ?? '';
+    const sectionMatch = manual.match(/### [\d.]+\s+TA から反映する[\s\S]*?(?=\n###|$)/);
+    expect(sectionMatch).not.toBeNull();
+    const section = sectionMatch![0];
 
     expect(section).toContain('| TA 予選 | `/tournaments/[id]/ta` |');
     expect(section).toContain('| フェーズ1 | `/tournaments/[id]/ta/phase1` |');
