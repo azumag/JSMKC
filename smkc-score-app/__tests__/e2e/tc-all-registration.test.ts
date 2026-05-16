@@ -34,8 +34,9 @@ describe('tc-all focused suite registration', () => {
     expect(archiveSource).not.toContain('return { failed: failedCount > 0 }');
 
     const debugFillSource = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-debug-fill.js'), 'utf8');
-    expect(debugFillSource).toContain('return { failed: failed.length }');
-    expect(debugFillSource).not.toContain('return { failed: failed.length > 0 }');
+    expect(debugFillSource).toContain('const failedCount = countDebugFillFailures(results)');
+    expect(debugFillSource).toContain('return { failed: failedCount }');
+    expect(debugFillSource).not.toContain('return { failed: failedCount > 0 }');
   });
 
   it('keeps retired TC-401/TC-402 comments in one language', () => {
