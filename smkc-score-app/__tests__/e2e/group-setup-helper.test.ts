@@ -24,6 +24,17 @@ import {
   taEntriesFromFetch,
 } from '../../e2e/tc-debug-fill';
 
+const GROUP_SETUP_TRIGGER_NAME_SOURCE = 'Setup Groups|Edit Groups|グループ設定|グループ編集';
+const GROUP_SETUP_TRIGGER_NAME_FRAGMENT = 'Setup Groups';
+const EXPECTED_PAGE_ROLE_LOOKUPS = [
+  `role=button name=${GROUP_SETUP_TRIGGER_NAME_SOURCE}`,
+  'role=dialog name=',
+];
+
+function formatRoleLookup(role: string, name: string): string {
+  return `role=${role} name=${name}`;
+}
+
 function throwUnexpectedMockCall(kind: string, actual: string, expected: string[]): never {
   throw new Error(`${kind} received unexpected value "${actual}". Expected one of: ${expected.join(', ')}`);
 }
@@ -36,6 +47,13 @@ describe('group setup E2E helper', () => {
   it('prints expected mock lookups when the Playwright fixture receives an unexpected selector', () => {
     expect(() => throwUnexpectedMockCall('dialog.locator', 'section[data-new]', ['label', 'input[type="number"]']))
       .toThrow('dialog.locator received unexpected value "section[data-new]". Expected one of: label, input[type="number"]');
+  });
+
+  it('keeps page.getByRole diagnostic entries aligned with the lookup formatter', () => {
+    expect(EXPECTED_PAGE_ROLE_LOOKUPS).toEqual([
+      formatRoleLookup('button', GROUP_SETUP_TRIGGER_NAME_SOURCE),
+      formatRoleLookup('dialog', ''),
+    ]);
   });
 
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
@@ -102,17 +120,17 @@ describe('group setup E2E helper', () => {
       waitForTimeout: jest.fn(async () => undefined),
       getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
         const name = options.name?.source ?? '';
-        const expectedLookups = [
-          'role=button name=Setup Groups|Edit Groups|グループ設定|グループ編集',
-          'role=dialog name=',
-        ];
-        if (name.includes('Setup Groups')) {
+        if (name.includes(GROUP_SETUP_TRIGGER_NAME_FRAGMENT)) {
           return { first: jest.fn(() => ({ click: jest.fn(async () => undefined) })) };
         }
         if (_role === 'dialog') {
           return { first: jest.fn(() => dialog) };
         }
-        return throwUnexpectedMockCall('page.getByRole lookup', `role=${_role} name=${name}`, expectedLookups);
+        return throwUnexpectedMockCall(
+          'page.getByRole lookup',
+          formatRoleLookup(_role, name),
+          EXPECTED_PAGE_ROLE_LOOKUPS,
+        );
       }),
       waitForResponse: jest.fn(async () => ({ status: () => 201 })),
     };
