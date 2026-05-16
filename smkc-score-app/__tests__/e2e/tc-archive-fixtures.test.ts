@@ -98,6 +98,49 @@ describe('archive E2E fixtures', () => {
     )).toBeNull();
   });
 
+  it('uses the status field when summarizing archive failures', async () => {
+    const { suite } = await loadArchiveSuite();
+
+    expect(suite.countArchiveFailures([
+      { tc: 'TC-ARC-01', status: 'PASS' },
+      { tc: 'TC-ARC-02', status: 'FAIL' },
+      { tc: 'TC-ARC-03', s: 'FAIL' },
+    ])).toBe(1);
+  });
+
+  it('runs TA qualification hydration on an isolated fresh page and closes it', async () => {
+    const { suite } = await loadArchiveSuite({ BASE: 'https://preview.example.test' });
+    const targetPage = {
+      bringToFront: jest.fn(async () => undefined),
+      goto: jest.fn(async () => undefined),
+      waitForFunction: jest.fn(async () => undefined),
+      close: jest.fn(async () => undefined),
+    };
+    const newPage = jest.fn(async () => targetPage);
+    const rootPage = {
+      context: jest.fn(() => ({ newPage })),
+      goto: jest.fn(async () => undefined),
+    };
+
+    await expect(suite.assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta'))
+      .resolves.toBe(0);
+
+    expect(rootPage.context).toHaveBeenCalled();
+    expect(newPage).toHaveBeenCalled();
+    expect(rootPage.goto).not.toHaveBeenCalled();
+    expect(targetPage.bringToFront).toHaveBeenCalled();
+    expect(targetPage.goto).toHaveBeenCalledWith(
+      'https://preview.example.test/tournaments/tournament-1/ta',
+      { waitUntil: 'domcontentloaded' },
+    );
+    expect(targetPage.waitForFunction).toHaveBeenCalledWith(
+      expect.any(Function),
+      null,
+      { timeout: suite.QUALIFICATION_FETCH_TIMEOUT_MS },
+    );
+    expect(targetPage.close).toHaveBeenCalled();
+  });
+
   it('waits for both qualification requests before fulfilling either response', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-05-11T00:00:00.000Z'));
