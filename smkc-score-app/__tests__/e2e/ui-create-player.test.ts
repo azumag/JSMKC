@@ -122,6 +122,10 @@ describe('ui player-create response helpers', () => {
     await expect(readResponseSummary(createResponse(500, 'worker crashed'))).resolves.toBe('worker crashed');
   });
 
+  it('preserves empty response bodies as empty diagnostic text', async () => {
+    await expect(readResponseSummary(createResponse(500, ''))).resolves.toBe('');
+  });
+
   it('keeps failure-body summaries bounded for E2E logs', () => {
     expect(summarizeResponseBody({ error: 'x'.repeat(1000) }).length).toBeLessThanOrEqual(500);
   });
