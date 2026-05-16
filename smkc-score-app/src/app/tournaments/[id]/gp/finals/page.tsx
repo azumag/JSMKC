@@ -692,6 +692,10 @@ export default function GrandPrixFinals({
     () => playoffMatches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
     [playoffMatches],
   );
+  /* Top-24 Phase 1 can return a preview Upper Bracket before finals rows exist.
+   * In that state the actionable control lives under the playoff tab, so keep
+   * that tab open until Phase 2 has actually created finals matches. */
+  const defaultBracketTab = matches.length > 0 ? "finals" : "playoff";
 
   if (loading) {
     return (
@@ -831,7 +835,7 @@ export default function GrandPrixFinals({
           </CardContent>
         </Card>
       ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
-        <Tabs defaultValue="finals" className="space-y-4">
+        <Tabs defaultValue={defaultBracketTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="finals">{tFinals('upperBracket')}</TabsTrigger>
             <TabsTrigger value="playoff">{tFinals('playoffBracket')}</TabsTrigger>

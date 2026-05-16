@@ -62,6 +62,29 @@ const results = makeResults();
 const log = makeLog(results);
 let sharedFixture = null;
 
+function gpFinalsTargetWins(match) {
+  const topFourRounds = new Set([
+    'winners_final',
+    'losers_sf',
+    'losers_final',
+    'grand_final',
+    'grand_final_reset',
+  ]);
+  if (match?.stage === 'playoff') return 1;
+  return topFourRounds.has(match?.round) ? 3 : 2;
+}
+
+async function apiSetGpFinalsWinner(adminPage, tournamentId, match, winnerSide = 1) {
+  const targetWins = gpFinalsTargetWins(match);
+  return apiSetGpFinalsScore(
+    adminPage,
+    tournamentId,
+    match.id,
+    winnerSide === 1 ? targetWins : 0,
+    winnerSide === 1 ? 0 : targetWins,
+  );
+}
+
 function importsMaxGpDriverPointsFromConstants(source) {
   return source
     .split(';')
@@ -332,10 +355,10 @@ async function runTc729(adminPage) {
   let tournamentId = null;
   const players = [];
   try {
-    const tournament = await uiCreateTournament(adminPage, `GP Solo BREAK ${Date.now()}`, 'gp-solo-break');
-    tournamentId = tournament.id;
+    tournamentId = await uiCreateTournament(adminPage, `GP Solo BREAK ${Date.now()}`, { slug: `gp-solo-break-${Date.now()}` });
     for (let i = 0; i < 3; i++) {
-      players.push(await uiCreatePlayer(adminPage, `GP Solo ${Date.now()} ${i + 1}`));
+      const stamp = Date.now();
+      players.push(await uiCreatePlayer(adminPage, `GP Solo ${stamp} ${i + 1}`, `gp_solo_${stamp}_${i + 1}`));
     }
 
     await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
@@ -455,7 +478,7 @@ async function runTc703(adminPage) {
     const qfRendered = !!qfNick && pageText.includes(qfNick);
 
     /* Legacy raw score path now stores GP finals scores as cup wins. */
-    const valid = await apiSetGpFinalsScore(adminPage, setup.tournamentId, m1.id, 9, 0);
+    const valid = await apiSetGpFinalsWinner(adminPage, setup.tournamentId, m1, 1);
     if (valid.s !== 200) throw new Error(`Score put failed (${valid.s})`);
 
     const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
@@ -497,7 +520,7 @@ async function runTc704(adminPage) {
     const before = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const m1 = before.find((m) => m.matchNumber === 1);
     if (!m1) throw new Error('Match 1 missing');
-    const score = await apiSetGpFinalsScore(adminPage, setup.tournamentId, m1.id, 9, 0);
+    const score = await apiSetGpFinalsWinner(adminPage, setup.tournamentId, m1, 1);
     if (score.s !== 200) throw new Error(`Score put failed (${score.s})`);
 
     const completedBefore = (await apiFetchGpFinalsMatches(adminPage, setup.tournamentId))
@@ -529,7 +552,7 @@ async function runTc705(adminPage) {
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    /* Drive M1..M16 with P1 always winning 9-0. Each match must have two
+    /* Drive M1..M16 with P1 always winning by the round's target cup wins. Each match must have two
      * DISTINCT real qualifier IDs by the time we score it — if routing broke
      * and both slots stayed on the seededPlayers[0] placeholder, the put would
      * still succeed and the test would silently "pass" without real players. */
@@ -545,7 +568,7 @@ async function runTc705(adminPage) {
       if (!playerIds.includes(match.player1Id) || !playerIds.includes(match.player2Id)) {
         throw new Error(`Match ${mn} has unregistered player IDs`);
       }
-      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      const res = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
@@ -582,21 +605,21 @@ async function runTc706(adminPage) {
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    /* M1..M15: P1 wins 9-0 each */
+    /* M1..M15: P1 wins by the round's target cup wins. */
     for (let mn = 1; mn <= 15; mn++) {
       const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === mn);
       if (!match || !match.player1Id || !match.player2Id) throw new Error(`Match ${mn} not ready`);
-      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      const res = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
-    /* M16: P2 wins 0-9 → triggers Reset Match (M17) */
+    /* M16: P2 wins by the Grand Final target → triggers Reset Match (M17) */
     let matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const m16 = matches.find((m) => m.matchNumber === 16);
     if (!m16 || !m16.player1Id || !m16.player2Id) throw new Error('M16 not ready');
     const expectedResetChampionId = m16.player2Id;
-    const m16Res = await apiSetGpFinalsScore(adminPage, tournamentId, m16.id, 0, 9);
+    const m16Res = await apiSetGpFinalsWinner(adminPage, tournamentId, m16, 2);
     if (m16Res.s !== 200) throw new Error(`M16 put failed (${m16Res.s})`);
 
     matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
@@ -605,9 +628,7 @@ async function runTc706(adminPage) {
     const m17Populated = !!m17.player1Id && !!m17.player2Id;
 
     const m17ScoreP1Wins = m17.player1Id === expectedResetChampionId;
-    const m17Res = await apiSetGpFinalsScore(adminPage, tournamentId, m17.id,
-      m17ScoreP1Wins ? 9 : 0,
-      m17ScoreP1Wins ? 0 : 9);
+    const m17Res = await apiSetGpFinalsWinner(adminPage, tournamentId, m17, m17ScoreP1Wins ? 1 : 2);
     if (m17Res.s !== 200) throw new Error(`M17 put failed (${m17Res.s})`);
 
     const finalMatches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
@@ -966,12 +987,11 @@ async function runTc715(adminPage) {
     setup = await prepareSharedGpFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
-    /* The bracket action button requires qualificationConfirmed. */
-    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: true });
-    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
-
     /* Previous tests may have left a bracket behind. Reset it so
-     * the qualification page shows "Start Playoff" instead of "View Tournament". */
+     * the qualification page shows "Start Playoff" instead of "View Tournament".
+     * Reset must happen while qualification is unlocked; the API correctly
+     * rejects reset during the locked qualification state. */
+    await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: false });
     const resetRes = await adminPage.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}/gp/finals`, {
         method: 'POST',
@@ -983,6 +1003,10 @@ async function runTc715(adminPage) {
     if (resetRes.s !== 200 && resetRes.s !== 201) {
       throw new Error(`Bracket reset failed (${resetRes.s})`);
     }
+
+    /* The bracket action button requires qualificationConfirmed. */
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     await nav(adminPage, `/tournaments/${tournamentId}/gp`);
 
@@ -1024,14 +1048,20 @@ async function runTc715(adminPage) {
     await nav(adminPage, `/tournaments/${tournamentId}/gp/finals`);
 
     const finalsText = await adminPage.locator('body').innerText();
-    const hasPlayoffLabel = finalsText.includes('Playoff (Barrage)') || finalsText.includes('Playoff');
+    /* Preview profile locale can be Japanese. Accept the actual localized
+     * PlayoffBracket title instead of tying this UI-flow check to English-only
+     * text. */
+    const hasPlayoffLabel = finalsText.includes('Playoff (Barrage)')
+      || finalsText.includes('Playoff')
+      || finalsText.includes('プレーオフ（バラッジ）')
+      || finalsText.includes('プレーオフ');
     const hasM1 = finalsText.includes('M1');
 
     for (let mn = 1; mn <= 4; mn++) {
       const state = await apiFetchGpFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R1 M${mn} missing`);
-      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      const res = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
       if (res.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${res.s})`);
     }
 
@@ -1039,7 +1069,7 @@ async function runTc715(adminPage) {
       const state = await apiFetchGpFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R2 M${mn} missing`);
-      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      const res = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
       if (res.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${res.s})`);
     }
 
@@ -1222,14 +1252,14 @@ async function runTc712(adminPage) {
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    /* Drive M1..M15 with P1 always winning 9-0. */
+    /* Drive M1..M15 with P1 always winning by the round's target cup wins. */
     for (let mn = 1; mn <= 15; mn++) {
       const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === mn);
       if (!match || !match.player1Id || !match.player2Id) {
         throw new Error(`Match ${mn} not ready`);
       }
-      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      const res = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 

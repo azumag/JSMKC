@@ -1587,6 +1587,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const existingPlayoff = await matchModel(prisma).findMany({
         where: { tournamentId, stage: 'playoff' },
+        /* Phase 2 turns completed playoff scores into Upper Bracket seeded
+         * players. Stored player IDs are enough to choose the winner, but
+         * seededPlayers also needs the public player payload returned to the UI;
+         * include both relations here so getCompletedMatchWinner can validate and
+         * carry the winner object forward. */
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
       const existingFinals = await matchModel(prisma).findMany({
