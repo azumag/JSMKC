@@ -85,6 +85,8 @@ describe('archive E2E case registration', () => {
     );
 
     expect(section).toContain('TA/BM/MR/GP');
+    expect(section).toContain('players API が必要な場合は mode API と並列');
+    expect(section).toContain('mode API 単独の `allPlayers` payload');
     expect(section).toContain('Playwright');
     expect(section).toContain('route interception');
     expect(section).toContain('/api/players?limit=100');

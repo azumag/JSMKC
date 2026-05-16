@@ -336,16 +336,16 @@
   6. エラー時はエラーメッセージがalertで表示されること
 - **期待結果**: ダイアログが正常に閉じ、保存中はボタンが無効化される
 
-## TC-1075: BMグループ設定ダイアログのシード順4グループ蛇腹配分
+## TC-1075: BMグループ設定ダイアログのシード順2グループ蛇腹配分
 - **URL**: /tournaments/[temp-id]/bm
 - **authRequired**: true (admin)
-- **背景**: issue #1075。グループ分けアルゴリズムは §10.2 の蛇腹方式だが、UI の「シード順で振分け」操作から保存された配分結果を E2E で固定する必要がある。
+- **背景**: issue #1075。グループ分けアルゴリズムは §10.2 の蛇腹方式だが、現在のUIは3+グループ仕様確定まで2グループ固定であるため、UIの「シード順で振分け」操作から保存された2グループ配分結果をE2Eで固定する必要がある。
 - **手順**:
   1. 管理者で一時トーナメントと検証用プレイヤー8名を用意する
   2. BMグループ設定ダイアログで8名を選択し、シード1〜8を入力する
-  3. グループ数4を選び、「シード順で振分け」を押して保存する
+  3. 固定グループ数2のまま「シード順で振分け」を押して保存する
   4. BM API の qualifications を取得し、シードごとのグループを確認する
-- **期待結果**: シード1→A、2→B、3→C、4→D、5→D、6→C、7→B、8→A となり、A/B/C/D が各2名になる
+- **期待結果**: シード1→A、2→B、3→B、4→A、5→A、6→B、7→B、8→A となり、A/B が各4名になる
 - **スクリプト**: tc-all.js TC-1075
 
 ## TC-307: BM/MR/GP スコア入力リンク (#253)
@@ -801,17 +801,17 @@
   - エラーメッセージなし
 - **スクリプト**: tc-all.js TC-355
 
-## TC-356: GP 決勝 — スコア入力テーブルが横スクロール可能である
+## TC-356: GP 決勝 — cup-win スコア入力がモバイル幅に収まる
 - **authRequired**: true (admin)
-- **背景**: GP 決勝のカップ別レース入力テーブルはモバイル幅で P2 側の順位列まで操作できる必要がある。テーブル直上に `overflow-x-auto` ラッパーがない場合は UI リグレッションとして FAIL する。
+- **背景**: GP 決勝は cup-win score-only 入力に移行済み。モバイル幅でもP1/P2の数値入力がダイアログ内に収まり、横スクロールなしで操作できる必要がある。
 - **手順**:
   1. 8名 GP 予選を作成し、全予選スコアを入力して決勝ブラケットを生成
   2. GP 決勝ページ `/tournaments/[id]/gp/finals` を開く
   3. 最初の決勝マッチをクリックしてスコア入力ダイアログを開く
-  4. ダイアログ内で `div.overflow-x-auto` が `table` または `[role="table"]` を内包していることを確認
+  4. `#gp-finals-simple-score1` / `#gp-finals-simple-score2` がダイアログ幅内に収まることを確認
 - **期待結果**:
-  - 横スクロール可能なテーブルラッパーが存在する
-  - ラッパー未検出時は SKIP ではなく FAIL
+  - P1/P2 の cup-win 入力がモバイル幅で表示される
+  - どちらの入力もダイアログ外にはみ出さない
 - **スクリプト**: tc-all.js TC-356
 
 ## TC-357: Suspense fallback — 4モード予選ページの見出しが即時描画される
@@ -1527,11 +1527,11 @@
 - **authRequired**: true (admin)
 - **背景**: issue #1052。現行の Top-24 紙配置は2グループ専用で、playoff_r2 勝者が Upper Bracket の seed 16/12/14/10 に入る。3グループの暫定 interleave をそのまま使うと direct seed 10/12 とバラッジ勝者 seed 10/12 が衝突するため、3+グループ用の正式配置が決まるまでは明示的に拒否する。
 - **手順**:
-  1. 管理者セッションで3グループの BM 予選を27名分作成し、全予選マッチを completed にする
-  2. `POST /api/tournaments/[id]/bm/finals` `{ topN: 24 }` を実行する
-  3. レスポンスが 400 `VALIDATION_ERROR` で、`qualifications` フィールドのエラーとして「Top-24 は最大2グループまで対応」と分かることを確認する
-  4. playoff/finals stage のマッチが作成されていないことを確認する
-- **期待結果**: 3+グループの Top-24 はサイレントに壊れたブラケットを作らず、正式な3+グループ配置実装まで安全に停止する
+  1. 管理者セッションでAPIから3グループの BM 予選作成を試みる
+  2. setup API が3グループを400で拒否した場合は、その時点でplayoff/finals stage のマッチが作成されていないことを確認する
+  3. setup が通った環境では全予選マッチを completed にし、`POST /api/tournaments/[id]/bm/finals` `{ topN: 24 }` を実行する
+  4. レスポンスが 400 `VALIDATION_ERROR` で、`qualifications` フィールドのエラーとして「Top-24 は最大2グループまで対応」と分かることを確認する
+- **期待結果**: 3+グループの Top-24 はsetupまたはfinals生成のどちらかで拒否され、サイレントに壊れたブラケットを作らない
 - **スクリプト**: tc-bm.js TC-1052 + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts`
 
 ## TC-1010: BM 16-player finals — rankOverride seeding と Overall Ranking 位置ポイント
@@ -2169,19 +2169,17 @@
 - **期待結果**: GP決勝APIは21件以上の `cupResults` を拒否し、マッチ状態を更新しない
 - **スクリプト**: tc-gp.js TC-832
 
-## TC-831: GP決勝 — 入力済みの追加カップフォームを削除しても古いスコアが残らない
+## TC-831: GP決勝 — 上位ブラケットはカップ勝数のシンプル入力で保存できる
 - **URL**: /tournaments/[temp-id]/gp/finals
 - **authRequired**: true (admin)
-- **背景**: GP決勝スコア入力ダイアログでは、誤って `Add Cup` した追加フォームを閉じ直しなしで取り消せる必要がある。ただし最初のカップフォームは必須なので削除不可。追加カップに入力済みスコアがあっても、削除後にその古いスコアが保存 payload に残ってはいけない。
+- **背景**: GP上位ブラケット決勝はカップ別レース詳細ではなく、勝利カップ数だけを保存する。旧カップフォームが残ると、不要な `cupResults` や古い詳細スコアが payload に混入する。
 - **手順**:
   1. 28名予選 + Top-8 GP決勝ブラケット生成
   2. 管理者として GP決勝ページを開き、M1 のスコア入力ダイアログを開く
-  3. 初期状態で Cup 1 の削除ボタンが表示されないことを確認
-  4. Cup 1 に手動スコア `45-0` を入力する
-  5. `Add Cup` を押し、Cup 2 と `Remove Cup 2` が表示されることを確認
-  6. Cup 2 に手動スコア `45-0` を入力してから `Remove Cup 2` を押し、Cup 2 が消え、Cup 1 は残ることを確認
-  7. 再度 `Add Cup` し、新しい Cup 2 に手動スコア `0-45` を入力して保存する
-- **期待結果**: 追加したカップフォームだけを削除でき、必須の最初のカップフォームは削除できない。保存後の `cupResults` は Cup 1=`45-0`、新しい Cup 2=`0-45` になり、削除済み Cup 2 の `45-0` は残らない
+  3. `gp-finals-simple-score1/2` の数値入力と FT2 表示があることを確認
+  4. 旧 `gp-finals-cup-form-*` と `Add Cup` が表示されないことを確認
+  5. `2-0` を入力して保存する
+- **期待結果**: 保存後の M1 は `points1=2`、`points2=0`、`completed=true` になり、`cupResults` は保存されない
 - **スクリプト**: tc-gp.js TC-831
 
 ## TC-721: GP決勝 — 同点カップはサドンデスではなく次カップへ進む
@@ -3202,20 +3200,22 @@
 
 ---
 
-## TC-ARC-09: アーカイブ対応ページ — qualification data と player list を並列取得
+## TC-ARC-09: アーカイブ対応ページ — qualification data と player list の不要な直列待ち防止
 - **URL**: `/tournaments/:id/ta`, `/tournaments/:id/bm`, `/tournaments/:id/mr`, `/tournaments/:id/gp`
 - **authRequired**: false (公開済み mode の閲覧) / admin controls は session 依存
-- **背景**: archive fallback 対応後も通常 tournament では mode data と
-  `/api/players?limit=100` を直列取得してはいけない。TA/BM/MR/GP の
-  qualification page は `Promise.all` で同時に開始し、players endpoint が失敗した
-  場合だけ archive payload の `allPlayers` に fallback する。
+- **背景**: archive fallback 対応後も通常 tournament では player list が必要な
+  mode data と `/api/players?limit=100` を直列取得してはいけない。qualification
+  page は mode payload の `allPlayers` だけで成立する場合は重複 fetch を必須にせず、
+  players endpoint を使う場合は mode response を待たずに開始する。
 - **手順**:
   1. TA/BM/MR/GP の qualification page を Playwright で開く
-  2. route interception で mode API と `/api/players?limit=100` の応答を両方の request が揃うまで保留する
-  3. 片方の API response を待たずに両方の request が開始されることを確認
-  4. players fetch が失敗した場合に mode payload の `allPlayers` が使われることを確認
+  2. route interception で mode API の応答を保留し、`/api/players?limit=100` が出る場合はその応答も両方の request が揃うまで保留する
+  3. players request が出る場合、mode API response を待たずに request が開始されることを確認
+  4. players request が出ない場合、mode API の `allPlayers` payload だけで表示できることを確認
+  5. players fetch が失敗した場合に mode payload の `allPlayers` が使われることを確認
 - **期待結果**:
-  - TA/BM/MR/GP 全てで mode API と players API が並列に起動する
+  - players API が必要な場合は mode API と並列に起動する
+  - mode API 単独の `allPlayers` payload で成立する場合は、不要な追加 fetch を要求しない
   - players API 成功時は最新の player list を使う
   - players API 失敗時は archive fallback の `allPlayers` を使い、空配列に落ちても throw しない
 - **スクリプト**: tc-archive.js TC-ARC-09 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)

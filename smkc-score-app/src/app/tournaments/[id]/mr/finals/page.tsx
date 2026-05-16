@@ -87,6 +87,12 @@ import { buildMatchLabel } from "@/lib/overlay/phase";
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr-finals' });
 
+const BRACKET_TABS = {
+  finals: "finals",
+  playoff: "playoff",
+} as const;
+type BracketTab = typeof BRACKET_TABS[keyof typeof BRACKET_TABS];
+
 /** MR finals match record */
 interface MRMatch {
   id: string;
@@ -576,6 +582,11 @@ export default function MatchRaceFinals({
     qualificationConfirmed,
     finalsExists: bracketExists,
   });
+  /* Top-24 Phase 1 can expose a bracket preview before finals matches exist.
+   * Keep the playoff tab selected until Phase 2 materializes finals rows, so
+   * the admin sees the completed playoff and the required creation action. */
+  // Top-24 Phase 1 only has playoff rows; defaulting to the playoff tab keeps the actionable bracket visible.
+  const defaultBracketTab: BracketTab = matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff;
 
   /* Loading skeleton */
   if (loading) {
@@ -718,10 +729,10 @@ export default function MatchRaceFinals({
           </CardContent>
         </Card>
       ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
-        <Tabs defaultValue="finals" className="space-y-4">
+        <Tabs defaultValue={defaultBracketTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="finals">{tFinals('upperBracket')}</TabsTrigger>
-            <TabsTrigger value="playoff">{tFinals('playoffBracket')}</TabsTrigger>
+            <TabsTrigger value={BRACKET_TABS.finals}>{tFinals('upperBracket')}</TabsTrigger>
+            <TabsTrigger value={BRACKET_TABS.playoff}>{tFinals('playoffBracket')}</TabsTrigger>
           </TabsList>
           <TabsContent value="finals">
             <DoubleEliminationBracket

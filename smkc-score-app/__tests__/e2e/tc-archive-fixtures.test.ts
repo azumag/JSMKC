@@ -124,13 +124,16 @@ describe('archive E2E fixtures', () => {
       }
     };
 
-    const page = {
+    const targetPage = {
       route: jest.fn(async (_pattern, handler) => {
         routeHandler = handler;
       }),
       unroute: jest.fn(async () => undefined),
       waitForRequest: jest.fn((predicate) =>
         new Promise((resolve) => pendingRequests.push({ predicate, resolve }))),
+      waitForFunction: jest.fn(async () => undefined),
+      bringToFront: jest.fn(async () => undefined),
+      close: jest.fn(async () => undefined),
       goto: jest.fn(async () => {
         if (!routeHandler) throw new Error('route handler missing');
         const modeUrl = 'https://preview.example.test/api/tournaments/tournament-1/bm';
@@ -145,14 +148,21 @@ describe('archive E2E fixtures', () => {
         await Promise.all([modePromise, playersPromise]);
       }),
     };
+    const page = {
+      context: jest.fn(() => ({
+        newPage: jest.fn(async () => targetPage),
+      })),
+    };
 
     await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm'))
       .resolves.toBe(0);
     expect(fulfillOrder.sort()).toEqual(['mode', 'players']);
-    expect(page.goto).toHaveBeenCalledWith(
+    expect(targetPage.goto).toHaveBeenCalledWith(
       'https://preview.example.test/tournaments/tournament-1/bm',
       { waitUntil: 'domcontentloaded' },
     );
+    expect(targetPage.unroute).toHaveBeenCalledWith('**/api/**', expect.any(Function));
+    expect(targetPage.close).toHaveBeenCalled();
     expect(continueOrder).toEqual(['mode-duplicate']);
     jest.useRealTimers();
   });
@@ -184,13 +194,18 @@ describe('archive E2E fixtures', () => {
       }
     };
 
-    const page = {
+    const targetPage = {
       route: jest.fn(async (_pattern, handler) => {
         routeHandler = handler;
       }),
       unroute: jest.fn(async () => undefined),
       waitForRequest: jest.fn((predicate) =>
         new Promise((resolve) => pendingRequests.push({ predicate, resolve }))),
+      waitForFunction: jest.fn(async () => {
+        throw new Error('qualification hydration failed');
+      }),
+      bringToFront: jest.fn(async () => undefined),
+      close: jest.fn(async () => undefined),
       goto: jest.fn(async () => {
         if (!routeHandler) throw new Error('route handler missing');
         const modeUrl = 'https://preview.example.test/api/tournaments/tournament-1/bm';
@@ -203,11 +218,19 @@ describe('archive E2E fixtures', () => {
         await routeHandler(routeFor('players-late', playersUrl));
       }),
     };
+    const page = {
+      context: jest.fn(() => ({
+        newPage: jest.fn(async () => targetPage),
+      })),
+    };
 
     await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm'))
-      .rejects.toThrow('bm: missing mode or players request');
+      .rejects.toThrow('qualification hydration failed');
     expect(fulfillStatuses).toEqual([504]);
     expect(continueOrder).toEqual(['players-late']);
+    expect(targetPage.waitForFunction).toHaveBeenCalled();
+    expect(targetPage.unroute).toHaveBeenCalledWith('**/api/**', expect.any(Function));
+    expect(targetPage.close).toHaveBeenCalled();
     jest.useRealTimers();
   });
 });
