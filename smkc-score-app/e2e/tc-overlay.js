@@ -952,7 +952,11 @@ async function runTc926(adminPage) {
 
     const readPosition = async (selector) => adminPage.locator(selector).evaluate((el) => {
       const style = window.getComputedStyle(el);
-      return { left: Math.round(parseFloat(style.left)), top: Math.round(parseFloat(style.top)) };
+      /* The browser exposes computed CSS as left/top, while the persisted
+       * broadcast contract is x/y. Normalize here so the rendered assertion
+       * compares the same coordinate shape as GET /broadcast and
+       * /overlay-events. */
+      return { x: Math.round(parseFloat(style.left)), y: Math.round(parseFloat(style.top)) };
     });
     const rendered = {
       player1Name: await readPosition('[data-testid="overlay-p1-name"]'),

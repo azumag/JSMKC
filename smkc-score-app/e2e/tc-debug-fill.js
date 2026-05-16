@@ -117,6 +117,10 @@ function taEntriesAreFilled(entries) {
   );
 }
 
+function taEntriesFromFetch(response) {
+  return unwrapData(response?.b)?.entries ?? response?.entries ?? [];
+}
+
 async function tcDbg01(page) {
   let tournamentId = null;
   const players = [];
@@ -145,7 +149,7 @@ async function tcDbg01(page) {
       allTwoPlayerMatchesAreFilled(bm.matches) &&
       allTwoPlayerMatchesAreFilled(mr.matches) &&
       gpMatchesAreFilled(gp.matches) &&
-      taEntriesAreFilled(ta.entries)
+      taEntriesAreFilled(taEntriesFromFetch(ta))
     );
 
     log('TC-DBG-01', ok ? 'PASS' : 'FAIL',

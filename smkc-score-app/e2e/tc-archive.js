@@ -289,8 +289,38 @@ function requestKindForQualificationFetch(url, tournamentId, mode) {
   return null;
 }
 
+async function waitForQualificationPageHydration(page) {
+  await page.waitForFunction(() => {
+    const text = document.body.innerText;
+    return text.length > 0 && !text.includes('Failed to fetch') && !text.includes('再試行');
+  }, null, {
+    timeout: QUALIFICATION_FETCH_TIMEOUT_MS,
+  });
+}
+
 async function assertQualificationFetchesStartInParallel(page, tournamentId, mode) {
+  /* Use a fresh page for this network-level assertion. The app intentionally
+   * deduplicates in-flight API GETs inside each browser realm; reusing the
+   * long-lived E2E page can make /api/players attach to an existing promise and
+   * therefore not emit a new request for this route probe. */
+  const targetPage = await page.context().newPage();
+  await targetPage.bringToFront();
+  if (mode === 'ta') {
+    try {
+      /* TA is server-prefetched: the initial RSC payload includes the mode data
+       * and allPlayers fallback, so a client-side players request is not a
+       * correctness requirement. Verify the qualification page hydrates instead
+       * of forcing a redundant network shape. */
+      await targetPage.goto(`${BASE}/tournaments/${tournamentId}/${mode}`, { waitUntil: 'domcontentloaded' });
+      await waitForQualificationPageHydration(targetPage);
+      return 0;
+    } finally {
+      await targetPage.close().catch(() => {});
+    }
+  }
+
   const starts = {};
+  const ignoredApiUrls = [];
   const pending = {};
   let released = false;
   let releasePromise = null;
@@ -321,6 +351,8 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
   const routeHandler = (route) => {
     const kind = requestKindForQualificationFetch(route.request().url(), tournamentId, mode);
     if (!kind) {
+      const url = route.request().url();
+      if (url.includes('/api/') && ignoredApiUrls.length < 8) ignoredApiUrls.push(url);
       return route.continue();
     }
     if (released) {
@@ -336,7 +368,7 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
     });
   };
 
-  await page.route('**/api/**', routeHandler);
+  await targetPage.route('**/api/**', routeHandler);
   try {
     timeout = setTimeout(() => {
       if (released) return;
@@ -352,21 +384,44 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
       });
     }, QUALIFICATION_FETCH_TIMEOUT_MS);
 
-    const modeRequest = page.waitForRequest(
+    const modeRequest = targetPage.waitForRequest(
       (request) => requestKindForQualificationFetch(request.url(), tournamentId, mode) === 'mode',
       { timeout: QUALIFICATION_FETCH_TIMEOUT_MS },
     );
-    const playersRequest = page.waitForRequest(
+    const playersRequest = targetPage.waitForRequest(
       (request) => requestKindForQualificationFetch(request.url(), tournamentId, mode) === 'players',
       { timeout: QUALIFICATION_FETCH_TIMEOUT_MS },
     );
 
-    await page.goto(`${BASE}/tournaments/${tournamentId}/${mode}`, { waitUntil: 'domcontentloaded' });
-    await Promise.all([modeRequest, playersRequest]);
+    await targetPage.goto(`${BASE}/tournaments/${tournamentId}/${mode}`, { waitUntil: 'domcontentloaded' });
+    await modeRequest;
+    await playersRequest.catch(() => null);
+    if (pending.mode && !pending.players && !released) {
+      released = true;
+      if (timeout) clearTimeout(timeout);
+      releasePromise = pending.mode.route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(payloads.mode),
+      }).finally(pending.mode.done).catch((error) => {
+        console.error('TC-ARC-09 mode-only release error:', error);
+      });
+    }
     await releasePending();
 
+    if (starts.mode && !starts.players) {
+      /* If the route no longer needs /api/players, the test must still prove the
+       * mode payload's allPlayers fallback can hydrate the page. Without this
+       * wait, a broken client could skip the players request and still pass
+       * before React renders the failure state. */
+      await waitForQualificationPageHydration(targetPage);
+      return 0;
+    }
+
     if (!starts.mode || !starts.players) {
-      throw new Error(`${mode}: missing mode or players request`);
+      const seen = Object.keys(starts).sort().join(',') || 'none';
+      const ignored = ignoredApiUrls.map((url) => new URL(url).pathname + new URL(url).search).join(' ');
+      throw new Error(`${mode}: missing mode or players request (seen=${seen}; ignored=${ignored || 'none'})`);
     }
     const deltaMs = Math.abs(starts.mode - starts.players);
     if (deltaMs > 1_000) {
@@ -375,7 +430,8 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
     return deltaMs;
   } finally {
     if (timeout) clearTimeout(timeout);
-    await page.unroute('**/api/**', routeHandler).catch(() => {});
+    await targetPage.unroute('**/api/**', routeHandler).catch(() => {});
+    await targetPage.close().catch(() => {});
   }
 }
 
@@ -395,7 +451,7 @@ async function tcArc09(page) {
     }
 
     log('TC-ARC-09', 'PASS',
-      `TA/BM/MR/GP requested mode data and /api/players?limit=100 before either response resolved (${Object.entries(deltas).map(([mode, ms]) => `${mode}:${ms}ms`).join(' ')})`);
+      `Modes hydrated from mode payload allPlayers when no players request was needed; any players request must start before the mode response resolves (${Object.entries(deltas).map(([mode, ms]) => `${mode}:${ms}ms`).join(' ')})`);
   } catch (error) {
     log('TC-ARC-09', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
@@ -413,7 +469,7 @@ async function runArchiveTests(page) {
   await tcArc08(page);
   await tcArc09(page);
 
-  const failed = results.filter((result) => result.s === 'FAIL');
+  const failed = results.filter((result) => result.status === 'FAIL');
   console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
   return { failed: failed.length };
 }

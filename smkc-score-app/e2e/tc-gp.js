@@ -1391,14 +1391,23 @@ async function runTc713(adminPage) {
  * Score entry is consolidated to the /gp/participant page. */
 async function runTc821(adminPage) {
   try {
-    const { tournamentId, p1, p2, match } = await prepareSharedGpPair(adminPage);
+    const { tournamentId, match } = await prepareSharedGpPair(adminPage);
+    const expectedNames = [match.player1.nickname, match.player2.nickname];
 
     // Visit match page
     await nav(adminPage, `/tournaments/${tournamentId}/gp/match/${match.id}`);
+    /* Use the player names from the actual match record being opened. In the
+     * shared E2E fixture the qualification setup can reuse normalized match
+     * rows, so coupling this view-only assertion to the seed array order makes
+     * the test fail even when the page renders the target match correctly. */
+    await adminPage.waitForFunction((names) => {
+      const text = document.body.innerText;
+      return names.every((name) => text.includes(name));
+    }, expectedNames, { timeout: 15000 });
     const matchText = await adminPage.locator('body').innerText();
 
     // Should show player names
-    const showsPlayers = matchText.includes(p1.nickname) && matchText.includes(p2.nickname);
+    const showsPlayers = expectedNames.every((name) => matchText.includes(name));
     // Should NOT have score entry form (position selectors, course selectors)
     const noScoreForm =
       !matchText.includes('Select Course') &&
@@ -1580,7 +1589,7 @@ async function runTc832(adminPage) {
   }
 }
 
-/* ───────── TC-831: GP finals added cup form can be removed without stale scores ───────── */
+/* ───────── TC-831: GP finals score-only dialog saves cup wins without stale cup controls ───────── */
 async function runTc831(adminPage) {
   let setup = null;
   try {
@@ -1597,32 +1606,13 @@ async function runTc831(adminPage) {
     await m1Card.click();
 
     const dialog = adminPage.getByRole('dialog');
-    await dialog.getByText('Cup 1', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
-    const firstCupRemoveHidden = await dialog.getByRole('button', { name: 'Remove Cup 1' }).count() === 0;
-    const cup1 = dialog.getByTestId('gp-finals-cup-form-0');
-    await cup1.getByRole('checkbox').check();
-    await cup1.getByTestId('gp-finals-cup-0-manual-p1').fill('45');
-    await cup1.getByTestId('gp-finals-cup-0-manual-p2').fill('0');
-
-    await dialog.getByRole('button', { name: 'Add Cup' }).click();
-    await dialog.getByText('Cup 2', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
-    const removeCup2 = dialog.getByRole('button', { name: 'Remove Cup 2' });
-    const addedCupRemovable = await removeCup2.count() === 1;
-    const staleCup2 = dialog.getByTestId('gp-finals-cup-form-1');
-    await staleCup2.getByRole('checkbox').check();
-    await staleCup2.getByTestId('gp-finals-cup-1-manual-p1').fill('45');
-    await staleCup2.getByTestId('gp-finals-cup-1-manual-p2').fill('0');
-
-    await removeCup2.click();
-    const secondCupRemoved = await dialog.getByText('Cup 2', { exact: true }).count() === 0;
-    const firstCupStillVisible = await dialog.getByText('Cup 1', { exact: true }).count() === 1;
-
-    await dialog.getByRole('button', { name: 'Add Cup' }).click();
-    const freshCup2 = dialog.getByTestId('gp-finals-cup-form-1');
-    await freshCup2.waitFor({ state: 'visible', timeout: 5000 });
-    await freshCup2.getByRole('checkbox').check();
-    await freshCup2.getByTestId('gp-finals-cup-1-manual-p1').fill('0');
-    await freshCup2.getByTestId('gp-finals-cup-1-manual-p2').fill('45');
+    await dialog.locator('#gp-finals-simple-score1').waitFor({ state: 'visible', timeout: 5000 });
+    const legacyCupControlsHidden =
+      await dialog.getByTestId('gp-finals-cup-form-0').count() === 0 &&
+      await dialog.getByRole('button', { name: 'Add Cup' }).count() === 0;
+    const targetWinsVisible = /FT2|2本先取|First to 2/.test(await dialog.innerText());
+    await dialog.locator('#gp-finals-simple-score1').fill('2');
+    await dialog.locator('#gp-finals-simple-score2').fill('0');
 
     const saveScore = dialog.getByRole('button', { name: /^(Save Score|スコア保存)$/ });
     const [saveResponse] = await Promise.all([
@@ -1635,22 +1625,16 @@ async function runTc831(adminPage) {
 
     const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const m1After = after.find((m) => m.id === m1.id);
-    const cupResultsSynced = Array.isArray(m1After?.cupResults) &&
-      m1After.cupResults.length === 2 &&
-      m1After.cupResults[0].points1 === 45 &&
-      m1After.cupResults[0].points2 === 0 &&
-      m1After.cupResults[1].points1 === 0 &&
-      m1After.cupResults[1].points2 === 45 &&
-      m1After.points1 === 1 &&
-      m1After.points2 === 1;
+    const scoreSaved = m1After?.points1 === 2 &&
+      m1After?.points2 === 0 &&
+      m1After?.completed === true &&
+      (!Array.isArray(m1After?.cupResults) || m1After.cupResults.length === 0);
 
-    log('TC-831', firstCupRemoveHidden && addedCupRemovable && secondCupRemoved && firstCupStillVisible && saved && cupResultsSynced ? 'PASS' : 'FAIL',
-      !firstCupRemoveHidden ? 'Cup 1 remove button is visible'
-      : !addedCupRemovable ? 'Cup 2 remove button missing'
-      : !secondCupRemoved ? 'Cup 2 still visible after removal'
-      : !firstCupStillVisible ? 'Cup 1 missing after removing Cup 2'
+    log('TC-831', legacyCupControlsHidden && targetWinsVisible && saved && scoreSaved ? 'PASS' : 'FAIL',
+      !legacyCupControlsHidden ? 'legacy cup controls are visible in finals score-only dialog'
+      : !targetWinsVisible ? 'FT2 target is missing from score dialog'
       : !saved ? `save failed status=${saveResponse.status()}`
-      : !cupResultsSynced ? `stale cup scores persisted score=${m1After?.points1}-${m1After?.points2} cups=${JSON.stringify(m1After?.cupResults ?? null)}`
+      : !scoreSaved ? `score-only result mismatch score=${m1After?.points1}-${m1After?.points2} completed=${m1After?.completed} cups=${JSON.stringify(m1After?.cupResults ?? null)}`
       : '');
   } catch (err) {
     log('TC-831', 'FAIL', err instanceof Error ? err.message : 'GP 831 failed');

@@ -92,6 +92,12 @@ import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from "@/lib/gp
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
 
+const BRACKET_TABS = {
+  finals: "finals",
+  playoff: "playoff",
+} as const;
+type BracketTab = typeof BRACKET_TABS[keyof typeof BRACKET_TABS];
+
 /** Individual race entry in the finals score form */
 interface Race {
   course: CourseAbbr | "";
@@ -695,7 +701,8 @@ export default function GrandPrixFinals({
   /* Top-24 Phase 1 can return a preview Upper Bracket before finals rows exist.
    * In that state the actionable control lives under the playoff tab, so keep
    * that tab open until Phase 2 has actually created finals matches. */
-  const defaultBracketTab = matches.length > 0 ? "finals" : "playoff";
+  // Top-24 Phase 1 only has playoff rows; defaulting to the playoff tab keeps the actionable bracket visible.
+  const defaultBracketTab: BracketTab = matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff;
 
   if (loading) {
     return (
@@ -837,8 +844,8 @@ export default function GrandPrixFinals({
       ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
         <Tabs defaultValue={defaultBracketTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="finals">{tFinals('upperBracket')}</TabsTrigger>
-            <TabsTrigger value="playoff">{tFinals('playoffBracket')}</TabsTrigger>
+            <TabsTrigger value={BRACKET_TABS.finals}>{tFinals('upperBracket')}</TabsTrigger>
+            <TabsTrigger value={BRACKET_TABS.playoff}>{tFinals('playoffBracket')}</TabsTrigger>
           </TabsList>
           <TabsContent value="finals">
             <DoubleEliminationBracket

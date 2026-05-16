@@ -87,11 +87,11 @@ function mrFinalsTargetWinsForMatch(match) {
     return 5;
   }
   if (round === 'winners_sf'
-    || round === 'losers_r3' || round === 'losers_r4' || round === 'losers_sf') {
+    || round === 'losers_r3' || round === 'losers_r4') {
     return 7;
   }
   if (round === 'winners_final' || round === 'losers_final'
-    || round === 'grand_final' || round === 'grand_final_reset') {
+    || round === 'losers_sf' || round === 'grand_final' || round === 'grand_final_reset') {
     return 9;
   }
   return 5;
@@ -1115,14 +1115,24 @@ async function runTc612(adminPage) {
  * Score entry is consolidated to the /mr/participant page. */
 async function runTc820(adminPage) {
   try {
-    const { tournamentId, p1, p2, match } = await prepareSharedMrPair(adminPage);
+    const { tournamentId, match } = await prepareSharedMrPair(adminPage);
+    const expectedNames = [match.player1.nickname, match.player2.nickname];
 
     // Visit match page
     await nav(adminPage, `/tournaments/${tournamentId}/mr/match/${match.id}`);
+    /* Assert against the match payload rather than the seed input order. The
+     * setup helper may normalize or reuse existing shared-fixture rows, but
+     * the match page contract is to render the two players attached to this
+     * exact match id. Waiting for both names also avoids judging the page
+     * while the polling skeleton is still resolving. */
+    await adminPage.waitForFunction((names) => {
+      const text = document.body.innerText;
+      return names.every((name) => text.includes(name));
+    }, expectedNames, { timeout: 15000 });
     const matchText = await adminPage.locator('body').innerText();
 
     // Should show player names
-    const showsPlayers = matchText.includes(p1.nickname) && matchText.includes(p2.nickname);
+    const showsPlayers = expectedNames.every((name) => matchText.includes(name));
     // Should NOT have score entry form (winner buttons, course selectors)
     const noScoreForm = !matchText.includes('wins race') && !matchText.includes('I am') && !matchText.includes('私は');
 
@@ -1281,6 +1291,8 @@ async function runTc615(adminPage) {
 
     /* Previous tests may have left a bracket behind. Reset it so
      * the qualification page shows "Start Playoff" instead of "View Tournament". */
+    const unlockRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false });
+    if (unlockRes.s !== 200) throw new Error(`Failed to unlock qualification before reset (${unlockRes.s})`);
     const resetRes = await adminPage.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}/mr/finals`, {
         method: 'POST',
@@ -1292,6 +1304,8 @@ async function runTc615(adminPage) {
     if (resetRes.s !== 200 && resetRes.s !== 201) {
       throw new Error(`Bracket reset failed (${resetRes.s})`);
     }
+    const reconfirmRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true });
+    if (reconfirmRes.s !== 200) throw new Error(`Failed to reconfirm qualification after reset (${reconfirmRes.s})`);
 
     // Navigate to qualification page
     await nav(adminPage, `/tournaments/${tournamentId}/mr`);
@@ -1634,6 +1648,8 @@ async function runTc858(adminPage) {
     setup = await prepareSharedMrFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
+    const unlockRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false });
+    if (unlockRes.s !== 200) throw new Error(`Failed to unlock MR qualification before TC-858 reset (${unlockRes.s})`);
     const resetRes = await adminPage.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}/mr/finals`, {
         method: 'POST',
@@ -1645,6 +1661,8 @@ async function runTc858(adminPage) {
     if (resetRes.s !== 200 && resetRes.s !== 201) {
       throw new Error(`MR finals reset failed before TC-858 (${resetRes.s})`);
     }
+    const reconfirmRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true });
+    if (reconfirmRes.s !== 200) throw new Error(`Failed to reconfirm MR qualification before TC-858 (${reconfirmRes.s})`);
 
     const genPlayoff = await generateMrFinalsBracket(adminPage, tournamentId, 24);
     if (genPlayoff.s !== 201 && genPlayoff.s !== 200) {

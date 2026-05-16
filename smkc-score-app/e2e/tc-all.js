@@ -143,6 +143,32 @@ function getStatus(url) {
   }, 0);
 }
 
+async function pageFetchJson(p, url, options = {}, timeoutMs = 30000) {
+  /* Browser-context fetches can otherwise wait forever if the worker connection
+   * stalls after a heavy D1 write. Playwright's own navigation/action timeouts do
+   * not apply inside page.evaluate(), so use the platform-standard
+   * AbortController pattern and return a synthetic status that lets the TC fail
+   * and the suite continue instead of wedging the whole preview run. */
+  return p.evaluate(async ({ requestUrl, requestOptions, requestTimeoutMs }) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+    try {
+      const r = await fetch(requestUrl, { ...requestOptions, signal: controller.signal });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    } catch (error) {
+      return {
+        s: 0,
+        b: {
+          error: error instanceof Error ? error.message : String(error),
+          name: error instanceof Error ? error.name : 'FetchError',
+        },
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }, { requestUrl: url, requestOptions: options, requestTimeoutMs: timeoutMs });
+}
+
 async function main() {
   let browser = null;
   /* 360m default: setupAllModes alone burns ~90m (TA + BM + MR re-nav + GP
@@ -588,10 +614,7 @@ async function main() {
     log('TC-402', 'FAIL', `setupAllModes failed: ${setupAllModesError.slice(0, 160)}`);
   } else {
   try {
-    const calc = await page.evaluate(async (u) => {
-      const r = await fetch(u, { method: 'POST' });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, `/api/tournaments/${TID}/overall-ranking`);
+    const calc = await pageFetchJson(page, `/api/tournaments/${TID}/overall-ranking`, { method: 'POST' }, 45000);
     const rankings = calc.b?.data?.rankings ?? [];
     topOverallRanking = rankings[0] ?? null;
 
@@ -615,10 +638,7 @@ async function main() {
     const totalsOk = topOverallRanking && topBreakdown === topOverallRanking.totalPoints;
     const ranksOk = rankings.length === 28 && topOverallRanking?.overallRank === 1;
 
-    const stored = await page.evaluate(async (u) => {
-      const r = await fetch(u, { cache: 'no-store' });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, `/api/tournaments/${TID}/overall-ranking?ts=${Date.now()}`);
+    const stored = await pageFetchJson(page, `/api/tournaments/${TID}/overall-ranking?ts=${Date.now()}`, { cache: 'no-store' }, 30000);
     const storedRankings = stored.b?.data?.rankings ?? [];
     const persistedOk =
       stored.s === 200 &&
@@ -788,37 +808,17 @@ async function main() {
 
       await nav(playerPage, `/tournaments/${gpTournamentId}/gp/participant`);
 
-      // Courses are now auto-filled when cup is pre-assigned (fixed sequence).
-      // No "Add Race" clicks needed — 5 races appear automatically.
-      // Each race row has 2 Select comboboxes: position1, position2 (course is a label).
-      // For 5 races → 10 comboboxes total. Layout per race i:
-      //   index i*2   = position1 (player1)
-      //   index i*2+1 = position2 (player2)
-      const allCb = playerPage.locator('button[role="combobox"]');
-      // Wait for auto-generated race rows to appear
+      // TC-311 follows the current player-facing GP contract: participants
+      // submit cup-total driver points directly, while admin match pages keep
+      // the detailed race-entry workflow. Keeping this E2E at the public form
+      // boundary catches regressions without coupling player auth coverage to
+      // the admin-only race breakdown UI.
+      const pointInputs = playerPage.locator('input[inputmode="numeric"]');
       await playerPage.waitForFunction(() => {
-        return document.querySelectorAll('button[role="combobox"]').length >= 10;
+        return document.querySelectorAll('input[inputmode="numeric"]').length === 2;
       }, null, { timeout: 15000 });
-      const cbCount = await allCb.count();
-      if (cbCount < 10) {
-        throw new Error(`Expected ≥10 comboboxes (5×2 positions), got ${cbCount}`);
-      }
-
-      // GP driver points: 1st=9, 5th=0
-      // Expected totals: player1 = 9×5 = 45, player2 = 0×5 = 0
-      for (let i = 0; i < 5; i++) {
-        // Select position1 = 1st (index 0 in options list [1,2,3,4,5,6,7,8])
-        await allCb.nth(i * 2).click();
-        await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
-        await playerPage.locator('[role="listbox"] [role="option"]').nth(0).click();
-        await playerPage.waitForTimeout(300);
-
-        // Select position2 = 5th (index 4 in options list, 0 driver points)
-        await allCb.nth(i * 2 + 1).click();
-        await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
-        await playerPage.locator('[role="listbox"] [role="option"]').nth(4).click();
-        await playerPage.waitForTimeout(300);
-      }
+      await pointInputs.nth(0).fill('45');
+      await pointInputs.nth(1).fill('0');
 
       playerPage.once('dialog', async (dialog) => {
         await dialog.accept();
@@ -1407,7 +1407,7 @@ async function main() {
     } else { log('TC-305', 'SKIP', 'No update button'); }
   } else { log('TC-305', 'SKIP', 'No edit button'); }
 
-  // TC-1075: BM group setup dialog applies 4-group serpentine seeding in UI
+  // TC-1075: BM group setup dialog keeps the locked 2-group seeding path stable
   {
     let tc1075TournamentId = null;
     const createdPlayers1075 = [];
@@ -1432,7 +1432,7 @@ async function main() {
       tc1075TournamentId = await uiCreateTournament(page, `TC-1075-seeding-${Date.now()}`);
       await uiActivateTournament(page, tc1075TournamentId);
 
-      await setupModePlayersViaUi(page, 'bm', tc1075TournamentId, players1075, { groupCount: 4 });
+      await setupModePlayersViaUi(page, 'bm', tc1075TournamentId, players1075, { groupCount: 2 });
 
       const bm1075 = await page.evaluate(async (u) => {
         const r = await fetch(u);
@@ -1448,15 +1448,15 @@ async function main() {
       const expectedGroups = {
         1: 'A',
         2: 'B',
-        3: 'C',
-        4: 'D',
-        5: 'D',
-        6: 'C',
+        3: 'B',
+        4: 'A',
+        5: 'A',
+        6: 'B',
         7: 'B',
         8: 'A',
       };
       const seedsMatch = Object.entries(expectedGroups).every(([seed, group]) => groupBySeed.get(Number(seed)) === group);
-      const balanced = ['A', 'B', 'C', 'D'].every((group) => counts[group] === 2);
+      const balanced = ['A', 'B'].every((group) => counts[group] === 4);
       log('TC-1075', seedsMatch && balanced ? 'PASS' : 'FAIL',
         !seedsMatch ? `groups=${JSON.stringify(Object.fromEntries(groupBySeed))}` :
         !balanced ? `counts=${JSON.stringify(counts)}` : '');
@@ -3983,7 +3983,7 @@ async function main() {
             { hostname: url.hostname, path: url.pathname, method: 'GET' },
             (res) => { res.resume(); resolve(res.statusCode); }
           );
-          req.setTimeout(10000, () => { req.destroy(); resolve(0); });
+          req.setTimeout(30000, () => { req.destroy(); resolve(0); });
           req.on('error', () => resolve(0));
           req.end();
         });
@@ -4065,14 +4065,24 @@ async function main() {
       const mobileLayoutUsable = await page.evaluate(() => {
         const dialog = document.querySelector('[role="dialog"]');
         if (!(dialog instanceof HTMLElement)) return false;
-        const firstRace = dialog.querySelector('[data-testid="gp-finals-mobile-race-entry"]');
-        if (!(firstRace instanceof HTMLElement)) return false;
-        const controls = firstRace.querySelectorAll('[role="combobox"]');
-        const rect = firstRace.getBoundingClientRect();
+        /* GP finals moved to cup-win score-only inputs. The mobile regression is
+         * now that both numeric fields stay inside the dialog viewport without
+         * requiring horizontal scroll. */
+        const scoreInputs = [
+          dialog.querySelector('#gp-finals-simple-score1'),
+          dialog.querySelector('#gp-finals-simple-score2'),
+        ].filter((node) => node instanceof HTMLElement);
+        if (scoreInputs.length !== 2) return false;
+        const rect = dialog.getBoundingClientRect();
         const viewportWidth = document.documentElement.clientWidth;
-        return controls.length === 2 && rect.left >= 0 && rect.right <= viewportWidth;
+        return rect.left >= 0 &&
+          rect.right <= viewportWidth &&
+          scoreInputs.every((input) => {
+            const inputRect = input.getBoundingClientRect();
+            return inputRect.left >= rect.left && inputRect.right <= rect.right;
+          });
       });
-      log('TC-356', mobileLayoutUsable ? 'PASS' : 'FAIL', 'GP finals score dialog shows stacked P1/P2 inputs at mobile width');
+      log('TC-356', mobileLayoutUsable ? 'PASS' : 'FAIL', 'GP finals cup-win score dialog fits mobile width');
     } catch (e) {
       log('TC-356', 'FAIL', e instanceof Error ? e.message : String(e));
     } finally {

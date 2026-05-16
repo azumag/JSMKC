@@ -1815,7 +1815,7 @@ async function runTc1005(adminPage) {
     await nav(adminPage, `/tournaments/${phase1Setup.tournamentId}/ta/phase1`);
     const phase1Text = await adminPage.locator('main').innerText({ timeout: 15000 });
     const phase1HasCycle = /コースサイクル|Course Cycle/.test(phase1Text);
-    const phase1HasAvailable = /利用可能コース|Available Courses/.test(phase1Text);
+    const phase1HasAvailable = /選択可能コース|利用可能コース|Available Courses/.test(phase1Text);
     const phase1HasValue = /1周目 0\/20|Cycle 1 0\/20/.test(phase1Text);
 
     finalsSetup = await createIsolatedTaQualification(
@@ -1833,7 +1833,7 @@ async function runTc1005(adminPage) {
     await nav(adminPage, `/tournaments/${finalsSetup.tournamentId}/ta/finals`);
     const finalsText = await adminPage.locator('main').innerText({ timeout: 15000 });
     const finalsHasCycle = /コースサイクル|Course Cycle/.test(finalsText);
-    const finalsHasAvailable = /利用可能コース|Available Courses/.test(finalsText);
+    const finalsHasAvailable = /選択可能コース|利用可能コース|Available Courses/.test(finalsText);
     const finalsHasValue = /1周目 0\/20|Cycle 1 0\/20/.test(finalsText);
 
     const ok = phase1HasCycle && phase1HasAvailable && phase1HasValue &&

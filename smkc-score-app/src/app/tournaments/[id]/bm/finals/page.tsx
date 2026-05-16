@@ -83,6 +83,12 @@ import { buildMatchLabel } from "@/lib/overlay/phase";
 
 const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
 
+const BRACKET_TABS = {
+  finals: "finals",
+  playoff: "playoff",
+} as const;
+type BracketTab = typeof BRACKET_TABS[keyof typeof BRACKET_TABS];
+
 /** BM Match data with player relations */
 interface BMMatch {
   id: string;
@@ -562,6 +568,12 @@ export default function BattleModeFinals({
     qualificationConfirmed,
     finalsExists: bracketExists,
   });
+  /* Top-24 Phase 1 returns a preview Upper Bracket structure before the actual
+   * finals rows are created. If the tabs default to "finals" in that state,
+   * admins land on an empty/non-actionable preview while the required Phase-2
+   * "Create Upper Bracket" control is hidden under the playoff tab. */
+  // Top-24 Phase 1 only has playoff rows; defaulting to the playoff tab keeps the actionable bracket visible.
+  const defaultBracketTab: BracketTab = matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff;
 
   /* Loading skeleton for initial page load */
   if (loading) {
@@ -747,10 +759,10 @@ export default function BattleModeFinals({
       ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
         /* Both playoff and finals exist — show tabs so the admin can review
          * the playoff (barrage) results after the Upper Bracket is created. */
-        <Tabs defaultValue="finals" className="space-y-4">
+        <Tabs defaultValue={defaultBracketTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="finals">{tFinals('upperBracket')}</TabsTrigger>
-            <TabsTrigger value="playoff">{tFinals('playoffBracket')}</TabsTrigger>
+            <TabsTrigger value={BRACKET_TABS.finals}>{tFinals('upperBracket')}</TabsTrigger>
+            <TabsTrigger value={BRACKET_TABS.playoff}>{tFinals('playoffBracket')}</TabsTrigger>
           </TabsList>
           <TabsContent value="finals">
             <DoubleEliminationBracket
