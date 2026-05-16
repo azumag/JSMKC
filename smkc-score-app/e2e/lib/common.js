@@ -1636,9 +1636,18 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players, options 
   /* Force product-default group count of 2 for normal multi-player setup unless
    * the caller explicitly exercises another setup shape. Skip the click for
    * small pair tests with no explicit groupCount: those rely on the dialog
-   * default group rather than a split A/B setup. */
+   * default group rather than a split A/B setup.
+   *
+   * Radix renders the currently selected segmented-control item as disabled.
+   * Reused preview fixtures frequently reopen the dialog with group count "2"
+   * already active; clicking that disabled button makes Playwright wait until
+   * timeout even though the requested state is already correct. */
   if (players.length >= 4 || options.groupCount !== undefined) {
-    await dialog.getByRole('button', { name: new RegExp(`^${targetGroupCount}$`) }).click();
+    const groupCountButton = dialog.getByRole('button', { name: new RegExp(`^${targetGroupCount}$`) });
+    const groupCountDisabled = await groupCountButton.isDisabled();
+    if (!groupCountDisabled) {
+      await groupCountButton.click();
+    }
   }
 
   if (shouldDistributeBySeed) {

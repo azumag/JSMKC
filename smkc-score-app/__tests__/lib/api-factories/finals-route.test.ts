@@ -1423,6 +1423,17 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(201);
       const json = await response.json();
       expect(json.data.phase).toBe('finals');
+      /* Phase 2 resolves playoff winners into seeded player payloads. The real
+       * D1 query must therefore include both player relations; otherwise stored
+       * scores alone identify winnerId but cannot provide the public player
+       * object required by seededPlayers. */
+      expect((prisma.bMMatch as any).findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { tournamentId: 'tournament-123', stage: 'playoff' },
+        include: {
+          player1: { select: expect.any(Object) },
+          player2: { select: expect.any(Object) },
+        },
+      }));
       /* 16-player bracket generator is invoked once we have 4 playoff winners. */
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
       /* Existing finals (if any) must be cleared before Phase-2 creation —
