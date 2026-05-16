@@ -1760,6 +1760,7 @@ module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc620, runTc820, runTc822,
   runTc615, runTc616, runTc617, runTc618, runTc621, runTc623, runTc858,
+  mrFinalsTargetWinsForMatch,
   getSuite,
   results,
 };
