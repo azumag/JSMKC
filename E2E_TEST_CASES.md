@@ -1294,6 +1294,19 @@
 - **期待結果**: 選択即保存。ダイアログを開いたまま TV 番号だけが永続化され、toast が出る
 - **スクリプト**: tc-bm.js TC-523
 
+## TC-999: 配信管理マニュアル — TA反映ページのフェーズ別使い分けを明記する
+- **URL**: docs/broadcast-admin-manual.md
+- **authRequired**: false
+- **背景**: issue #999。配信管理者マニュアルの「TAから反映する」は、TAのどのフェーズで `/ta`、`/ta/phase1`、`/ta/phase2`、`/ta/finals` を使うかが曖昧だと当日の配信担当が誤った画面から反映しやすい。
+- **手順**:
+  1. `docs/broadcast-admin-manual.md` の「6.3 TA から反映する」を読む
+  2. TA予選は `/tournaments/[id]/ta` を使うことを確認する
+  3. フェーズ1/2は `/tournaments/[id]/ta/phase1` と `/tournaments/[id]/ta/phase2` を使うことを確認する
+  4. 決勝は `/tournaments/[id]/ta/finals` を使うことを確認する
+  5. 迷う場合は `/tournaments/[id]/ta` から対象フェーズへ移動する案内があることを確認する
+- **期待結果**: 配信担当がTAの現在フェーズに応じて正しい反映ページを選べる
+- **スクリプト**: n/a (docs/static coverage)
+
 ## TC-525: BM 決勝スコアダイアログ — 開始コースが選択時に自動保存され、同一ラウンド全試合へ伝播する
 - **背景**: スコアダイアログ内の「開始コース」ドロップダウンは、選択した瞬間に PATCH で永続化され、toast を表示する。スコア保存ボタンを押さなくても保存される（TV# と同じUI）。仕様（issue #671 / #728）として「同一ラウンド内の全試合は同じ `startingCourseNumber` を持つ」必要があるため、PATCH は対象マッチだけでなく **同じ stage / 同じ round の全マッチ** に同じ値を反映する。
 - **手順**:
