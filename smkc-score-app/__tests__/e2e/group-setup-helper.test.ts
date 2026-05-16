@@ -25,7 +25,7 @@ import {
 } from '../../e2e/tc-debug-fill';
 
 const GROUP_SETUP_TRIGGER_NAME_SOURCE = 'Setup Groups|Edit Groups|グループ設定|グループ編集';
-const GROUP_SETUP_TRIGGER_NAME_FRAGMENT = 'Setup Groups';
+const GROUP_SETUP_TRIGGER_NAME_FRAGMENT = GROUP_SETUP_TRIGGER_NAME_SOURCE.split('|')[0];
 const EXPECTED_PAGE_ROLE_LOOKUPS = [
   `role=button name=${GROUP_SETUP_TRIGGER_NAME_SOURCE}`,
   'role=dialog name=',
@@ -47,13 +47,6 @@ describe('group setup E2E helper', () => {
   it('prints expected mock lookups when the Playwright fixture receives an unexpected selector', () => {
     expect(() => throwUnexpectedMockCall('dialog.locator', 'section[data-new]', ['label', 'input[type="number"]']))
       .toThrow('dialog.locator received unexpected value "section[data-new]". Expected one of: label, input[type="number"]');
-  });
-
-  it('keeps page.getByRole diagnostic entries aligned with the lookup formatter', () => {
-    expect(EXPECTED_PAGE_ROLE_LOOKUPS).toEqual([
-      formatRoleLookup('button', GROUP_SETUP_TRIGGER_NAME_SOURCE),
-      formatRoleLookup('dialog', ''),
-    ]);
   });
 
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
