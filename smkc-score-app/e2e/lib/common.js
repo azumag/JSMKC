@@ -155,7 +155,7 @@ function summarizeResponseBody(body) {
 
 async function readResponseSummary(response) {
   const text = await response.text().catch(() => '');
-  if (!text) return {};
+  if (!text) return '';
   try {
     return JSON.parse(text);
   } catch {
@@ -1218,7 +1218,7 @@ async function uiCreatePlayer(page, name, nickname) {
 
     const post = { status: response.status(), body: await readResponseSummary(response) };
     observedPosts.push(post);
-    if (post.status === 201 || post.status === 409 || post.status < 500) break;
+    if (post.status < 500) break;
   }
 
   const finalPost = observedPosts[observedPosts.length - 1] ?? { status: 0, body: {} };
