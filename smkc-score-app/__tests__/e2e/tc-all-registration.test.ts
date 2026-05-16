@@ -28,11 +28,14 @@ describe('tc-all focused suite registration', () => {
   });
 
   it('keeps focused suite failure counts numeric', () => {
-    for (const script of ['tc-archive.js', 'tc-debug-fill.js']) {
-      const scriptSource = fs.readFileSync(path.join(process.cwd(), 'e2e', script), 'utf8');
-      expect(scriptSource).toContain('return { failed: failed.length }');
-      expect(scriptSource).not.toContain('return { failed: failed.length > 0 }');
-    }
+    const archiveSource = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-archive.js'), 'utf8');
+    expect(archiveSource).toContain('const failedCount = countArchiveFailures(results)');
+    expect(archiveSource).toContain('return { failed: failedCount }');
+    expect(archiveSource).not.toContain('return { failed: failedCount > 0 }');
+
+    const debugFillSource = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-debug-fill.js'), 'utf8');
+    expect(debugFillSource).toContain('return { failed: failed.length }');
+    expect(debugFillSource).not.toContain('return { failed: failed.length > 0 }');
   });
 
   it('keeps retired TC-401/TC-402 comments in one language', () => {
