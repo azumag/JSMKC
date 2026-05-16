@@ -24,9 +24,18 @@ import {
   taEntriesFromFetch,
 } from '../../e2e/tc-debug-fill';
 
+function throwUnexpectedMockCall(kind: string, actual: string, expected: string[]): never {
+  throw new Error(`${kind} received unexpected value "${actual}". Expected one of: ${expected.join(', ')}`);
+}
+
 describe('group setup E2E helper', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('prints expected mock lookups when the Playwright fixture receives an unexpected selector', () => {
+    expect(() => throwUnexpectedMockCall('dialog.locator', 'section[data-new]', ['label', 'input[type="number"]']))
+      .toThrow('dialog.locator received unexpected value "section[data-new]". Expected one of: label, input[type="number"]');
   });
 
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
@@ -66,6 +75,7 @@ describe('group setup E2E helper', () => {
       waitFor: jest.fn(async () => undefined),
       getByPlaceholder: jest.fn(() => searchInput),
       locator: jest.fn((selector: string) => {
+        const expectedSelectors = ['label', 'button[id="player-checkbox"]', 'input[type="number"]'];
         if (selector === 'label') {
           return {
             filter: jest.fn(() => ({
@@ -75,15 +85,16 @@ describe('group setup E2E helper', () => {
         }
         if (selector === 'button[id="player-checkbox"]') return checkbox;
         if (selector === 'input[type="number"]') return seedInputs;
-        throw new Error(`Unexpected dialog locator: ${selector}`);
+        return throwUnexpectedMockCall('dialog.locator', selector, expectedSelectors);
       }),
       getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
         const name = options.name?.source ?? '';
+        const expectedNames = ['Remove', '^2$', 'Distribute by Seed', 'Create Groups'];
         if (name.includes('Remove')) return removeButtons;
         if (name === '^2$') return groupCountButton;
         if (name.includes('Distribute by Seed')) return { click: jest.fn(async () => undefined) };
         if (name.includes('Create Groups')) return { click: saveClick };
-        throw new Error(`Unexpected dialog role lookup: ${name}`);
+        return throwUnexpectedMockCall('dialog.getByRole name', name, expectedNames);
       }),
     };
     const page = {
@@ -91,13 +102,14 @@ describe('group setup E2E helper', () => {
       waitForTimeout: jest.fn(async () => undefined),
       getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
         const name = options.name?.source ?? '';
+        const expectedLookups = ['role=button name includes Setup Groups', 'role=dialog'];
         if (name.includes('Setup Groups')) {
           return { first: jest.fn(() => ({ click: jest.fn(async () => undefined) })) };
         }
         if (_role === 'dialog') {
           return { first: jest.fn(() => dialog) };
         }
-        throw new Error(`Unexpected page role lookup: ${name}`);
+        return throwUnexpectedMockCall('page.getByRole lookup', `role=${_role} name=${name}`, expectedLookups);
       }),
       waitForResponse: jest.fn(async () => ({ status: () => 201 })),
     };
