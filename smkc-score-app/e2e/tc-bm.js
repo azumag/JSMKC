@@ -1643,10 +1643,10 @@ async function runTc519(adminPage) {
     /* Wait for the exact losers_r1 cards instead of any bracket card. The page
      * fetches bracket data client-side, and D1 cold starts can render M1-M4
      * before later losers-bracket cards are mounted. */
-    await m8Card.waitFor({ state: 'visible', timeout: 40000 });
-    await m9Card.waitFor({ state: 'visible', timeout: 40000 });
-    const hasM8 = await m8Card.count() > 0;
-    const hasM9 = await m9Card.count() > 0;
+    await Promise.all([
+      m8Card.waitFor({ state: 'visible', timeout: 40000 }),
+      m9Card.waitFor({ state: 'visible', timeout: 40000 }),
+    ]);
     const cardTexts = await adminPage.locator('[data-testid="bracket-match-card"]').evaluateAll(
       (cards) => cards.map((card) => (card.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120)),
     );
@@ -1656,18 +1656,16 @@ async function runTc519(adminPage) {
      * locale (admin preferences), so accept both. */
     let m8Text = '';
     let m9Text = '';
-    if (hasM8) m8Text = await m8Card.innerText();
-    if (hasM9) m9Text = await m9Card.innerText();
+    m8Text = await m8Card.innerText();
+    m9Text = await m9Card.innerText();
 
     const countTbd = (t) =>
       (t.match(/TBD/g)?.length ?? 0) + (t.match(/未定/g)?.length ?? 0);
     const m8Tbd = countTbd(m8Text) >= 2; /* both players TBD */
     const m9Tbd = countTbd(m9Text) >= 2;
 
-    log('TC-519', hasM8 && hasM9 && m8Tbd && m9Tbd ? 'PASS' : 'FAIL',
-      !hasM8 ? `M8 card not found in bracket; cards=${JSON.stringify(cardTexts)}`
-      : !hasM9 ? `M9 card not found in bracket; cards=${JSON.stringify(cardTexts)}`
-      : !m8Tbd ? `M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)})`
+    log('TC-519', m8Tbd && m9Tbd ? 'PASS' : 'FAIL',
+      !m8Tbd ? `M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})`
       : !m9Tbd ? `M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)})`
       : '');
   } catch (err) {
