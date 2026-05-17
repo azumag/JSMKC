@@ -709,6 +709,43 @@
 - **期待結果**: finals match は CDM 2025 テンプレートの native bracket coordinates に配置され、GP の cup/points 補足情報も失われない
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1877A: CDM export — grand_final_reset の正規化で到達不能条件を残さない
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #1877。`grand_final_reset` は native slot table で先に解決されるため、同じ round 文字列を後段の別条件に残すと読み手に誤解を与える。
+- **手順**:
+  1. `cdmFinalsSlotRound` が slot table lookup 後に `bracketPosition.includes("reset")` だけで reset alias を扱うことを確認する
+  2. `round === "grand_final_reset" || bracketPosition.includes("reset")` が残っていないことを確認する
+- **期待結果**: grand_final_reset の正規化条件に到達不能な round 判定が残らない
+- **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-1878A: CDM export — fallback 座標カウンタは unknown round だけで進める
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #1878。既知 round が native slot に配置された後で unknown round が来ても、fallback の最初の空き座標から配置される必要がある。
+- **手順**:
+  1. `winners_qf` と、sort 順で `winners_qf` より後に来る `zz_custom_showmatch` を含む CDM export fixture を作る
+  2. `winners_qf` が native slot `Y7` に配置されることを確認する
+  3. `zz_custom_showmatch` が既知 round 数に影響されず fallback slot `D5` に配置されることを確認する
+- **期待結果**: fallbackIndex は fallback 使用時だけ増え、unknown round の fallback 座標がずれない
+- **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-1879A: CDM export — E2E の座標期待値は route.ts と同期する前提を明記する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #1879。E2E は workbook を実際に読むが、期待セルの座標表は production の slot table と同期していないと誤検知を起こす。
+- **手順**:
+  1. `tc-all.js` の CDM Finals E2E slot table 付近に route.ts の `CDM_FINALS_BRACKET_SLOTS` と同期する旨のコメントがあることを確認する
+  2. TC-816A が XLSM workbook を読み、座標表に基づいて BM/MR/GP のセル値を検証することを確認する
+- **期待結果**: E2E の重複座標表は同期前提が明示され、乖離時のレビュー観点が残る
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-1880A: CDM export — GP cupResults がない環境でも座標検証を false failure にしない
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #1880。GP finals に cupResults がない fixture でも、ブラケット座標自体が正しければ TC-816A は失敗すべきではない。
+- **手順**:
+  1. TC-816A の PASS 条件が `gpCupResultsChecked` を必須にしていないことを確認する
+  2. `gpCupResultsChecked` が false の場合は detail に summary-cell check skipped として記録することを確認する
+- **期待結果**: cupResults 検証は補助チェックになり、BM/MR/GP 座標検証が通れば TC-816A は PASS できる
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-817B: CDM export — CSV では CDM 専用 include を取得しない
 - **URL**: /api/tournaments/[id]/export
 - **背景**: issue #817。CSV 出力は MR/GP qualification seed、TT phase rounds、overall playerScores を使用しないため、CDM 専用 include を無条件に付けると不要な JOIN が増える。

@@ -317,6 +317,61 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(workbook.Sheets["GP Finals"].BA47.v).toBe('losers_final');
     });
 
+    it('should use the first fallback CDM finals slot only for unknown rounds', async () => {
+      const player = (id: string) => ({ id, name: `Name ${id}`, nickname: id.toUpperCase() });
+      const mockTournament = {
+        id: 't1',
+        name: 'CDM Unknown Round Fallback',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [
+          {
+            matchNumber: 9,
+            stage: 'finals',
+            round: 'winners_qf',
+            player1: player('p1'),
+            player2: player('p2'),
+            score1: 2,
+            score2: 1,
+            completed: true,
+          },
+          {
+            matchNumber: 99,
+            stage: 'finals',
+            round: 'zz_custom_showmatch',
+            player1: player('p3'),
+            player2: player('p4'),
+            score1: 1,
+            score2: 0,
+            completed: true,
+          },
+        ],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
+      const sheet = workbook.Sheets["BM Finals"];
+      expect(sheet.Y7.v).toBe('winners_qf');
+      expect(sheet.D5.v).toBe('zz_custom_showmatch');
+    });
+
     it('should return 401 when CDM export is requested without authentication', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
