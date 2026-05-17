@@ -83,15 +83,10 @@ import { canResetFinalsFromQualification } from "@/lib/finals-action-availabilit
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
+import { BRACKET_TABS, type BracketTab } from "@/lib/bracket-tabs";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr-finals' });
-
-const BRACKET_TABS = {
-  finals: "finals",
-  playoff: "playoff",
-} as const;
-type BracketTab = typeof BRACKET_TABS[keyof typeof BRACKET_TABS];
 
 /** MR finals match record */
 interface MRMatch {

@@ -72,6 +72,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { canResetFinalsFromQualification } from "@/lib/finals-action-availability";
 import { parseManualScore } from "@/lib/parse-manual-score";
+import { BRACKET_TABS, type BracketTab } from "@/lib/bracket-tabs";
 
 /**
  * Client-side logger for the finals page.
@@ -82,12 +83,6 @@ import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
 
 const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
-
-const BRACKET_TABS = {
-  finals: "finals",
-  playoff: "playoff",
-} as const;
-type BracketTab = typeof BRACKET_TABS[keyof typeof BRACKET_TABS];
 
 /** BM Match data with player relations */
 interface BMMatch {
