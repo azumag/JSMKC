@@ -1712,6 +1712,10 @@ async function runTc858(adminPage) {
   }
 }
 
+/* END TC-858 */
+/* Keep this dedicated drift-test boundary next to runTc858 so future MR test
+ * additions cannot accidentally widen the TC-858 source slice. */
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
