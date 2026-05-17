@@ -33,23 +33,11 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
-import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
+import { BM_MR_MATCH_LEAN_SELECT, PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/route';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
-
-const EXPECTED_MATCH_UPDATE_SELECT = {
-  id: true,
-  tournamentId: true,
-  player1Id: true,
-  player2Id: true,
-  score1: true,
-  score2: true,
-  rounds: true,
-  completed: true,
-  isBye: true,
-};
 
 const _rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -362,7 +350,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: null, completed: true },
-        select: EXPECTED_MATCH_UPDATE_SELECT,
+        select: BM_MR_MATCH_LEAN_SELECT,
       });
       expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     });
@@ -415,7 +403,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: validRounds, completed: true },
-        select: EXPECTED_MATCH_UPDATE_SELECT,
+        select: BM_MR_MATCH_LEAN_SELECT,
       });
     });
 
