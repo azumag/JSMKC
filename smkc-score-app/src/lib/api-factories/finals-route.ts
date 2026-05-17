@@ -818,7 +818,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
   }
 
   function orderQualificationsForFinalsSeeding<
-    TQualification extends { _rank: number; _rankOverridden?: boolean; rankOverride?: number | null }
+    TQualification extends {
+      _rank: number;
+      _rankOverridden?: boolean;
+      rankOverride?: number | null;
+      rankOverrideAt?: Date | string | null;
+    }
   >(qualifications: TQualification[]): TQualification[] {
     /*
      * Finals seeding is a tournament-wide bracket contract, not a grouped
@@ -828,7 +833,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
      * rank must still win globally for bracket seed order. This mirrors standard
      * seeded-bracket practice: published/manual seed numbers are authoritative,
      * while equal automatic group ranks fall back to the existing stable group
-     * order to avoid reshuffling normal A/B standings.
+     * order to avoid reshuffling normal A/B standings. If two manual overrides
+     * collide on the same seed number, prefer the most recent `rankOverrideAt`
+     * because it represents the director's latest explicit correction.
      */
     return qualifications
       .map((qualification, index) => ({ qualification, index }))
@@ -839,6 +846,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const aOverride = a.qualification.rankOverride != null || a.qualification._rankOverridden === true;
         const bOverride = b.qualification.rankOverride != null || b.qualification._rankOverridden === true;
         if (aOverride !== bOverride) return aOverride ? -1 : 1;
+        if (aOverride && bOverride) {
+          const aOverrideAt = a.qualification.rankOverrideAt
+            ? new Date(a.qualification.rankOverrideAt).getTime()
+            : 0;
+          const bOverrideAt = b.qualification.rankOverrideAt
+            ? new Date(b.qualification.rankOverrideAt).getTime()
+            : 0;
+          if (aOverrideAt !== bOverrideAt) return bOverrideAt - aOverrideAt;
+        }
         return a.index - b.index;
       })
       .map(({ qualification }) => qualification);
