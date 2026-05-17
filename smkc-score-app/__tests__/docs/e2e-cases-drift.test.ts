@@ -212,6 +212,37 @@ describe('E2E case drift coverage', () => {
     expect(exportRoute).toContain('CDM_OVERALL_MAX_ROWS');
   });
 
+  it('documents TC-1871A as TT Qualifications sheet-specific range names', () => {
+    const section = e2eCaseSection('TC-1871A');
+
+    expect(section).toContain('issue #1871');
+    expect(section).toContain('CDM_TT_QUAL_FIRST_ROW');
+    expect(section).toContain('CDM_TT_QUAL_MAX_PLAYERS');
+    expect(section).toContain('Main Hub と同じ行レイアウト');
+    expect(exportRoute).toContain('const CDM_TT_QUAL_FIRST_ROW = CDM_PLAYER_HUB_FIRST_ROW');
+    expect(exportRoute).toContain('const CDM_TT_QUAL_MAX_PLAYERS = CDM_PLAYER_HUB_MAX_PLAYERS');
+    expect(exportRoute).toContain('TT Qualifications uses the same rows as Main Hub');
+    expect(exportRoute).toContain('CDM_TT_QUAL_FIRST_ROW + CDM_TT_QUAL_MAX_PLAYERS');
+    expect(exportRoute).toContain('qualificationEntries.slice(0, CDM_TT_QUAL_MAX_PLAYERS)');
+  });
+
+  it('documents TC-1872A as finals and TT round coordinate constants', () => {
+    const section = e2eCaseSection('TC-1872A');
+
+    expect(section).toContain('issue #1872');
+    expect(section).toContain('CDM_FINALS_*');
+    expect(section).toContain('CDM_TT_ROUND_*');
+    expect(exportRoute).toContain('CDM_FINALS_BLOCK_WIDTH');
+    expect(exportRoute).toContain('CDM_FINALS_LAST_COLUMN');
+    expect(exportRoute).toContain('CDM_FINALS_MATCH_FIRST_ROW');
+    expect(exportRoute).toContain('CDM_TT_ROUND_BLOCK_WIDTH');
+    expect(exportRoute).toContain('CDM_TT_ROUND_LAST_COLUMN');
+    expect(exportRoute).toContain('CDM_TT_ROUND_FIRST_ROW');
+    expect(exportRoute).toContain('CDM_TT_ROUND_LAST_ROW');
+    expect(exportRoute).toContain('Math.min(start + CDM_FINALS_BLOCK_WIDTH, CDM_FINALS_LAST_COLUMN)');
+    expect(exportRoute).toContain('Math.min(start + CDM_TT_ROUND_BLOCK_WIDTH, CDM_TT_ROUND_LAST_COLUMN)');
+  });
+
   it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {
     const section = e2eCaseSection('TC-1010');
     const finalsRouteTest = readRepoFile(

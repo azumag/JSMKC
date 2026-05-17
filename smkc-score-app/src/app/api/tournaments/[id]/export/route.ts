@@ -140,15 +140,26 @@ const CDM_EXPORT_INCLUDE = {
  */
 const CDM_PLAYER_HUB_FIRST_ROW = 2;
 const CDM_PLAYER_HUB_MAX_PLAYERS = 60;
+// TT Qualifications uses the same rows as Main Hub, but keep sheet-specific
+// aliases so the writeTTQualifications range does not look tied to Main Hub.
+const CDM_TT_QUAL_FIRST_ROW = CDM_PLAYER_HUB_FIRST_ROW;
+const CDM_TT_QUAL_MAX_PLAYERS = CDM_PLAYER_HUB_MAX_PLAYERS;
 const CDM_QUALIFICATION_FIRST_ROW = 2;
 const CDM_QUALIFICATION_MAX_ROWS = 767;
 const CDM_FINALS_PLAYER_FIRST_ROW = 3;
 const CDM_FINALS_MAX_PLAYERS = 52;
 const CDM_FINALS_BLOCK_START_COLUMNS = [4, 11, 18, 25, 32, 39, 46, 53, 60, 67, 74, 81, 88, 95, 102];
+const CDM_FINALS_BLOCK_WIDTH = 6;
+const CDM_FINALS_LAST_COLUMN = 107;
+const CDM_FINALS_MATCH_FIRST_ROW = 5;
 const CDM_FINALS_PAIR_ROWS = [5, 13, 21, 29, 37, 45];
 const CDM_TT_FINALIST_FIRST_ROW = 3;
 const CDM_TT_FINALIST_MAX_ROWS = 24;
 const CDM_TT_ROUND_START_COLUMNS = [7, 20, 33, 46, 59, 72, 85, 98];
+const CDM_TT_ROUND_BLOCK_WIDTH = 5;
+const CDM_TT_ROUND_LAST_COLUMN = 524;
+const CDM_TT_ROUND_FIRST_ROW = 1;
+const CDM_TT_ROUND_LAST_ROW = 26;
 const CDM_TT_ROUND_MAX_RESULTS = 24;
 const CDM_OVERALL_FIRST_ROW = 2;
 const CDM_OVERALL_MAX_ROWS = 64;
@@ -267,7 +278,7 @@ function writeTTQualifications(workbook: XLSX.WorkBook, entries: TTEntryExport[]
   const ws = workbook.Sheets["TT Qualifications"];
   if (!ws) return;
 
-  for (let row = CDM_PLAYER_HUB_FIRST_ROW; row < CDM_PLAYER_HUB_FIRST_ROW + CDM_PLAYER_HUB_MAX_PLAYERS; row++) {
+  for (let row = CDM_TT_QUAL_FIRST_ROW; row < CDM_TT_QUAL_FIRST_ROW + CDM_TT_QUAL_MAX_PLAYERS; row++) {
     for (let col = 5; col <= 26; col++) {
       setCell(ws, `${toColumn(col)}${row}`, "");
     }
@@ -277,8 +288,8 @@ function writeTTQualifications(workbook: XLSX.WorkBook, entries: TTEntryExport[]
     .filter((entry) => entry.stage === "qualification")
     .sort((a, b) => (a.seeding ?? Number.MAX_SAFE_INTEGER) - (b.seeding ?? Number.MAX_SAFE_INTEGER));
 
-  qualificationEntries.slice(0, CDM_PLAYER_HUB_MAX_PLAYERS).forEach((entry, index) => {
-    const row = index + CDM_PLAYER_HUB_FIRST_ROW;
+  qualificationEntries.slice(0, CDM_TT_QUAL_MAX_PLAYERS).forEach((entry, index) => {
+    const row = index + CDM_TT_QUAL_FIRST_ROW;
     setCell(ws, `E${row}`, index + 1);
     setCell(ws, `F${row}`, entry.player.nickname);
     const times = normalizeJsonRecord(entry.times);
@@ -418,7 +429,13 @@ function writeMatchFinalsSheet(
   });
 
   CDM_FINALS_BLOCK_START_COLUMNS.forEach((start) =>
-    clearRange(ws, start, Math.min(start + 6, 107), 5, CDM_FINALS_PLAYER_FIRST_ROW + CDM_FINALS_MAX_PLAYERS - 1)
+    clearRange(
+      ws,
+      start,
+      Math.min(start + CDM_FINALS_BLOCK_WIDTH, CDM_FINALS_LAST_COLUMN),
+      CDM_FINALS_MATCH_FIRST_ROW,
+      CDM_FINALS_PLAYER_FIRST_ROW + CDM_FINALS_MAX_PLAYERS - 1
+    )
   );
 
   finalsMatches.slice(0, CDM_FINALS_BLOCK_START_COLUMNS.length * CDM_FINALS_PAIR_ROWS.length).forEach((match, index) => {
@@ -480,7 +497,15 @@ function writeTTFinals(workbook: XLSX.WorkBook, entries: TTEntryExport[], rounds
     setCell(ws, `E${row}`, entry.totalTime ?? "");
   });
 
-  CDM_TT_ROUND_START_COLUMNS.forEach((start) => clearRange(ws, start, Math.min(start + 5, 524), 1, 26));
+  CDM_TT_ROUND_START_COLUMNS.forEach((start) =>
+    clearRange(
+      ws,
+      start,
+      Math.min(start + CDM_TT_ROUND_BLOCK_WIDTH, CDM_TT_ROUND_LAST_COLUMN),
+      CDM_TT_ROUND_FIRST_ROW,
+      CDM_TT_ROUND_LAST_ROW
+    )
+  );
 
   rounds
     .filter((round) => round.phase === "phase1" || round.phase === "phase2" || round.phase === "phase3")
