@@ -69,11 +69,23 @@ describe('useTaSuddenDeath', () => {
     expect(result.current.suddenDeathTimes).toEqual({});
   });
 
+  it('auto-formats a valid time string on blur', () => {
+    const { result } = renderSuddenDeathHook();
+
+    act(() => {
+      result.current.setSuddenDeathTime('player-1', '10000');
+    });
+    act(() => {
+      result.current.handleSuddenDeathTimeBlur('player-1');
+    });
+
+    expect(result.current.suddenDeathTimes['player-1']).toBe('1:00.00');
+  });
+
   it('submits sudden-death results, resets input state, and refreshes data', async () => {
     const fetchData = jest.fn();
     const setSaveError = jest.fn();
-    const fetchMock = jest.fn().mockResolvedValue(mockJsonResponse(true));
-    global.fetch = fetchMock;
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(mockJsonResponse(true));
     const { result } = renderSuddenDeathHook({ fetchData, setSaveError });
 
     act(() => {
@@ -107,7 +119,7 @@ describe('useTaSuddenDeath', () => {
   it('reports submit API errors and does not refresh data', async () => {
     const fetchData = jest.fn();
     const setSaveError = jest.fn();
-    global.fetch = jest.fn().mockResolvedValue(mockJsonResponse(false, { error: 'submit failed' }));
+    jest.spyOn(global, 'fetch').mockResolvedValue(mockJsonResponse(false, { error: 'submit failed' }));
     const { result } = renderSuddenDeathHook({ fetchData, setSaveError });
 
     act(() => {
@@ -127,8 +139,7 @@ describe('useTaSuddenDeath', () => {
   it('changes sudden-death course and refreshes data on success', async () => {
     const fetchData = jest.fn();
     const setSaveError = jest.fn();
-    const fetchMock = jest.fn().mockResolvedValue(mockJsonResponse(true));
-    global.fetch = fetchMock;
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(mockJsonResponse(true));
     const { result } = renderSuddenDeathHook({ fetchData, setSaveError });
 
     await act(async () => {
@@ -153,7 +164,7 @@ describe('useTaSuddenDeath', () => {
   it('reports course-change API errors and does not refresh data', async () => {
     const fetchData = jest.fn();
     const setSaveError = jest.fn();
-    global.fetch = jest.fn().mockResolvedValue(mockJsonResponse(false, { error: 'course failed' }));
+    jest.spyOn(global, 'fetch').mockResolvedValue(mockJsonResponse(false, { error: 'course failed' }));
     const { result } = renderSuddenDeathHook({ fetchData, setSaveError });
 
     await act(async () => {
