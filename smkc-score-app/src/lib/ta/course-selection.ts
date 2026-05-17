@@ -75,7 +75,7 @@ export async function getPlayedCoursesWithSuddenDeath(
   const phases = getCourseHistoryPhases(phase);
   const rounds = await prisma.tTPhaseRound.findMany({
     where: { tournamentId, phase: { in: phases } },
-    orderBy: [{ phase: "asc" }, { roundNumber: "asc" }],
+    orderBy: [{ roundNumber: "asc" }],
     select: {
       id: true,
       phase: true,
