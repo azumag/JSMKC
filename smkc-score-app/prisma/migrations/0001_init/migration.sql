@@ -1,3 +1,6 @@
+-- D1 executes these migrations with SQLite semantics. Prisma's SQLite
+-- generator can emit a non-D1 JSON storage type, so payload columns are stored
+-- as TEXT here to keep fresh database creation compatible with preview/prod D1.
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL PRIMARY KEY,
@@ -123,8 +126,8 @@ CREATE TABLE "BMMatch" (
     "score1" INTEGER NOT NULL DEFAULT 0,
     "score2" INTEGER NOT NULL DEFAULT 0,
     "completed" BOOLEAN NOT NULL DEFAULT false,
-    "assignedCourses" JSONB,
-    "rounds" JSONB,
+    "assignedCourses" TEXT,
+    "rounds" TEXT,
     "bracket" TEXT,
     "bracketPosition" TEXT,
     "losses" INTEGER NOT NULL DEFAULT 0,
@@ -180,18 +183,18 @@ CREATE TABLE "MRMatch" (
     "score1" INTEGER NOT NULL DEFAULT 0,
     "score2" INTEGER NOT NULL DEFAULT 0,
     "completed" BOOLEAN NOT NULL DEFAULT false,
-    "assignedCourses" JSONB,
-    "rounds" JSONB,
+    "assignedCourses" TEXT,
+    "rounds" TEXT,
     "bracket" TEXT,
     "bracketPosition" TEXT,
     "losses" INTEGER NOT NULL DEFAULT 0,
     "isGrandFinal" BOOLEAN NOT NULL DEFAULT false,
     "player1ReportedPoints1" INTEGER,
     "player1ReportedPoints2" INTEGER,
-    "player1ReportedRaces" JSONB,
+    "player1ReportedRaces" TEXT,
     "player2ReportedPoints1" INTEGER,
     "player2ReportedPoints2" INTEGER,
-    "player2ReportedRaces" JSONB,
+    "player2ReportedRaces" TEXT,
     "deletedAt" DATETIME,
     "version" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -238,13 +241,13 @@ CREATE TABLE "GPMatch" (
     "points1" INTEGER NOT NULL DEFAULT 0,
     "points2" INTEGER NOT NULL DEFAULT 0,
     "completed" BOOLEAN NOT NULL DEFAULT false,
-    "races" JSONB,
+    "races" TEXT,
     "player1ReportedPoints1" INTEGER,
     "player1ReportedPoints2" INTEGER,
-    "player1ReportedRaces" JSONB,
+    "player1ReportedRaces" TEXT,
     "player2ReportedPoints1" INTEGER,
     "player2ReportedPoints2" INTEGER,
-    "player2ReportedRaces" JSONB,
+    "player2ReportedRaces" TEXT,
     "deletedAt" DATETIME,
     "version" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -264,7 +267,7 @@ CREATE TABLE "AuditLog" (
     "targetId" TEXT,
     "targetType" TEXT,
     "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "details" JSONB,
+    "details" TEXT,
     CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -275,7 +278,7 @@ CREATE TABLE "ScoreEntryLog" (
     "matchId" TEXT NOT NULL,
     "matchType" TEXT NOT NULL,
     "playerId" TEXT NOT NULL,
-    "reportedData" JSONB NOT NULL,
+    "reportedData" TEXT NOT NULL,
     "ipAddress" TEXT NOT NULL,
     "userAgent" TEXT NOT NULL,
     "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -300,8 +303,8 @@ CREATE TABLE "TTPhaseRound" (
     "phase" TEXT NOT NULL,
     "roundNumber" INTEGER NOT NULL,
     "course" TEXT NOT NULL,
-    "results" JSONB NOT NULL,
-    "eliminatedIds" JSONB,
+    "results" TEXT NOT NULL,
+    "eliminatedIds" TEXT,
     "livesReset" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "TTPhaseRound_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -315,10 +318,10 @@ CREATE TABLE "TTEntry" (
     "stage" TEXT NOT NULL DEFAULT 'qualification',
     "lives" INTEGER NOT NULL DEFAULT 3,
     "eliminated" BOOLEAN NOT NULL DEFAULT false,
-    "times" JSONB,
+    "times" TEXT,
     "totalTime" INTEGER,
     "rank" INTEGER,
-    "courseScores" JSONB,
+    "courseScores" TEXT,
     "qualificationPoints" INTEGER,
     "deletedAt" DATETIME,
     "version" INTEGER NOT NULL DEFAULT 0,
@@ -447,4 +450,3 @@ CREATE INDEX "TournamentPlayerScore_totalPoints_idx" ON "TournamentPlayerScore"(
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TournamentPlayerScore_tournamentId_playerId_key" ON "TournamentPlayerScore"("tournamentId", "playerId");
-

@@ -22,6 +22,7 @@ describe('E2E case drift coverage', () => {
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
   const bmFinalsPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'finals', 'page.tsx');
   const tc1073Lr2Slots = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-1073-16p-lr2-slots.test.ts');
+  const prismaMigrationsTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'prisma-migrations.test.ts');
   const taPhasesRouteTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -810,6 +811,17 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('GPMatch.suddenDeathWinnerId');
     expect(section).toContain('WRANGLER_LOG_PATH');
     expect(section).toContain('wrangler login');
+  });
+
+  it('documents TC-825 as a full Prisma migration JSON type guard for D1', () => {
+    const section = e2eCaseSection('TC-825');
+
+    expect(section).toContain('issue #825/#1838');
+    expect(section).toContain('全 Prisma migration');
+    expect(section).toContain('`prisma/migrations/**/migration.sql`');
+    expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
+    expect(prismaMigrationsTest).toContain('migrationSqlFiles');
+    expect(prismaMigrationsTest).toContain('expect(jsonbMigrations).toEqual([])');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
