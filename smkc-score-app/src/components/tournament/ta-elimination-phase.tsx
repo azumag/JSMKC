@@ -76,6 +76,7 @@ import { createLogger } from "@/lib/client-logger";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
+import { TASuddenDeathPanel, useTaSuddenDeath } from "@/components/tournament/ta-sudden-death-panel";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'ta-elimination-phase' });
@@ -135,7 +136,6 @@ export default function TAEliminationPhase({
   // i18n: 'taElimination' namespace for phase-specific strings,
   // 'common' namespace for shared UI labels (e.g., "Player")
   const tElim = useTranslations('taElimination');
-  const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const tCommon = useTranslations('common');
   // Input is a native element, so this does not skip rendering by reference equality.
   // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
@@ -174,8 +174,6 @@ export default function TAEliminationPhase({
   currentRoundRef.current = currentRound;
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [retryFlags, setRetryFlags] = useState<Record<string, boolean>>({});
-  const [suddenDeathTimes, setSuddenDeathTimes] = useState<Record<string, string>>({});
-  const [changingSuddenDeathCourse, setChangingSuddenDeathCourse] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -475,15 +473,6 @@ export default function TAEliminationPhase({
     }
   };
 
-  const handleSuddenDeathTimeBlur = (playerId: string) => {
-    const raw = suddenDeathTimes[playerId];
-    if (!raw || raw.trim() === "") return;
-    const formatted = autoFormatTime(raw);
-    if (formatted !== null && formatted !== raw) {
-      setSuddenDeathTimes((prev) => ({ ...prev, [playerId]: formatted }));
-    }
-  };
-
   /**
    * Toggle retry penalty for a player.
    * Sets the time to 9:59.990 and marks the isRetry flag.
@@ -580,7 +569,6 @@ export default function TAEliminationPhase({
         setCourseTimes({});
         setRetryFlags({});
         setTvAssignments({});
-        setSuddenDeathTimes({});
         setIsEditing(false);
         fetchData();
         return;
@@ -603,76 +591,25 @@ export default function TAEliminationPhase({
     }
   };
 
-  const pendingSuddenDeath = rounds
-    .flatMap((round) => (round.suddenDeathRounds || []).map((sd) => ({ ...sd, round })))
-    .find((sd) => !sd.resolved);
-
-  const pendingSuddenDeathEntries = pendingSuddenDeath
-    ? entries.filter((entry) => pendingSuddenDeath.targetPlayerIds.includes(entry.playerId))
-    : [];
-
-  const handleSuddenDeathCourseChange = async (course: string) => {
-    if (!pendingSuddenDeath) return;
-    setChangingSuddenDeathCourse(true);
-    setSaveError(null);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "change_sudden_death_course",
-          phase,
-          suddenDeathRoundId: pendingSuddenDeath.id,
-          course,
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to change sudden-death course");
-      }
-      fetchData();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to change sudden-death course");
-    } finally {
-      setChangingSuddenDeathCourse(false);
-    }
-  };
-
-  const handleSubmitSuddenDeath = async () => {
-    if (!pendingSuddenDeath) return;
-    setSubmitting(true);
-    setSaveError(null);
-    try {
-      const results = pendingSuddenDeathEntries.map((entry) => {
-        const timeMs = timeToMs(suddenDeathTimes[entry.playerId] || "");
-        if (timeMs === null) {
-          throw new Error(tElim('invalidTimeFor', { name: entry.player.nickname }));
-        }
-        return { playerId: entry.playerId, timeMs };
-      });
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "submit_sudden_death",
-          phase,
-          suddenDeathRoundId: pendingSuddenDeath.id,
-          results,
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to submit sudden-death results");
-      }
-      setSuddenDeathTimes({});
-      fetchData();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to submit sudden-death results");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
+  const {
+    pendingSuddenDeath,
+    pendingSuddenDeathEntries,
+    suddenDeathTimes,
+    changingSuddenDeathCourse,
+    submittingSuddenDeath,
+    setSuddenDeathTime,
+    handleSuddenDeathTimeBlur,
+    handleSuddenDeathCourseChange,
+    handleSubmitSuddenDeath,
+  } = useTaSuddenDeath({
+    tournamentId,
+    phase,
+    entries,
+    rounds,
+    fetchData,
+    setSaveError,
+    invalidTimeMessage: (name) => tElim('invalidTimeFor', { name }),
+  });
 
   // === Derived State ===
   const activeEntries = entries.filter((e) => !e.eliminated);
@@ -799,68 +736,25 @@ export default function TAEliminationPhase({
        * Transitions in-place between two states:
        * - No active round: stats summary + "Start Round" button
        * - Active round: time entry form for the current course
-       */}
+      */}
       {isAdmin && !isComplete && pendingSuddenDeath && (
-        <Card className="border-amber-500">
-          <CardHeader>
-            <CardTitle>{tTaSuddenDeath('suddenDeathTiebreak')}</CardTitle>
-            <CardDescription>
-              {tTaSuddenDeath('suddenDeathRoundDesc', {
-                round: pendingSuddenDeath.round.roundNumber,
-                sequence: pendingSuddenDeath.sequence,
-              })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {saveError && (
-              <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
-                <p className="text-destructive text-sm">{saveError}</p>
-              </div>
-            )}
-            <div className="mb-4 space-y-1">
-              <Label className="text-sm text-muted-foreground">{tTaSuddenDeath('suddenDeathCourse')}</Label>
-              <Select
-                value={pendingSuddenDeath.course}
-                onValueChange={handleSuddenDeathCourseChange}
-                disabled={changingSuddenDeathCourse || submitting}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[...new Set([pendingSuddenDeath.course, ...availableCourses])].map((abbr) => {
-                    const info = COURSE_INFO.find((c) => c.abbr === abbr);
-                    return <SelectItem key={abbr} value={abbr}>{info?.name || abbr}</SelectItem>;
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-3">
-              <p className={TA_TIME_INPUT_HELP_CLASS}>
-                {tElim('timeInputHelp')}
-              </p>
-              {pendingSuddenDeathEntries.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-2">
-                  <Label className="flex-1 truncate">{entry.player.nickname}</Label>
-                  <Input
-                    type="text"
-                    {...taTimeInputProps}
-                    placeholder={tElim('timePlaceholder')}
-                    value={suddenDeathTimes[entry.playerId] || ""}
-                    onChange={(e) => setSuddenDeathTimes((prev) => ({ ...prev, [entry.playerId]: e.target.value }))}
-                    onBlur={() => handleSuddenDeathTimeBlur(entry.playerId)}
-                    className={TA_FINALS_TIME_INPUT_CLASS}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 flex justify-end">
-              <Button onClick={handleSubmitSuddenDeath} disabled={submitting}>
-                {submitting ? tElim('submitting') : tTaSuddenDeath('submitSuddenDeath')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <TASuddenDeathPanel
+          pendingSuddenDeath={pendingSuddenDeath}
+          entries={pendingSuddenDeathEntries}
+          availableCourses={availableCourses}
+          saveError={saveError}
+          suddenDeathTimes={suddenDeathTimes}
+          changingSuddenDeathCourse={changingSuddenDeathCourse}
+          submitting={submittingSuddenDeath}
+          timeInputProps={taTimeInputProps}
+          timeInputHelp={tElim('timeInputHelp')}
+          timePlaceholder={tElim('timePlaceholder')}
+          submittingLabel={tElim('submitting')}
+          onCourseChange={handleSuddenDeathCourseChange}
+          onTimeChange={setSuddenDeathTime}
+          onTimeBlur={handleSuddenDeathTimeBlur}
+          onSubmit={handleSubmitSuddenDeath}
+        />
       )}
 
       {isAdmin && !isComplete && !pendingSuddenDeath && (
