@@ -373,7 +373,7 @@ model GPMatch {
   points1      Int        @default(0) // Driver points for player 1
   points2      Int        @default(0) // Driver points for player 2
   completed    Boolean    @default(false)
-  suddenDeathWinnerId String? // Tied cup resolved by a one-race sudden-death playoff
+  suddenDeathWinnerId String? // Legacy GP finals tie-break winner; retained for historical bracket display
   races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
   assignedCups Json? // Finals/playoff: planned cup sequence for this matchup
   cupResults   Json? // Finals/playoff: [{cup, races, points1, points2, winner}], one entry per played cup

@@ -63,3 +63,34 @@ describe("PlayoffBracket qualification rank labels", () => {
     expect(round1Match.textContent).not.toContain("[B12]");
   });
 });
+
+describe("PlayoffBracket winner resolver", () => {
+  const player1 = { id: "p1", name: "Alice A", nickname: "Alice" };
+  const player2 = { id: "p2", name: "Bob B", nickname: "Bob" };
+
+  it("uses getWinnerId for completed tied matches instead of score ordering only", () => {
+    render(
+      <PlayoffBracket
+        playoffMatches={[{
+          id: "m1",
+          matchNumber: 1,
+          round: "playoff_r1",
+          stage: "playoff",
+          player1Id: player1.id,
+          player2Id: player2.id,
+          score1: 1,
+          score2: 1,
+          completed: true,
+          player1,
+          player2,
+        }]}
+        playoffStructure={[playoffStructure[0]]}
+        roundNames={{ playoff_r1: "Round 1" }}
+        getWinnerId={() => player2.id}
+      />,
+    );
+
+    expect(screen.getByText("Bob").closest("div")?.className).toContain("bg-primary/10");
+    expect(screen.getByText("Alice").closest("div")?.className).not.toContain("bg-primary/10");
+  });
+});

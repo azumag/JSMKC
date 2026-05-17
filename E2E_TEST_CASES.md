@@ -2171,6 +2171,19 @@
 - **期待結果**: GP決勝APIは21件以上の `cupResults` を拒否し、マッチ状態を更新しない
 - **スクリプト**: tc-gp.js TC-832
 
+## TC-830: GP決勝 — 旧サドンデス勝者つき同点完了行を勝者表示できる
+- **URL**: /tournaments/[temp-id]/gp/finals
+- **authRequired**: true (admin)
+- **背景**: 旧仕様ではGP決勝の同点マッチを `suddenDeathWinnerId` で決着していた。現在の `cupResults` 方式へ移行後も、過去に完了済みの同点行は破壊的なデータ移行なしでブラケット勝者とチャンピオン表示を維持する必要がある。
+- **手順**:
+  1. GP決勝ページの勝者判定が専用ヘルパーを使っていることを確認する
+  2. GP決勝ページがブラケットコンポーネントへ同じ勝者判定を渡すことを確認する
+  3. ヘルパーが `points1 === points2` の完了済み行で `suddenDeathWinnerId` を参照することを確認する
+  4. `suddenDeathWinnerId` が player1/player2 のどちらにも一致しない場合は勝者なしになることを確認する
+  5. 新仕様の通常行では `points1/points2` のカップ勝数で勝者判定されることを確認する
+- **期待結果**: 新仕様のカップ勝数表示を保ちつつ、旧サドンデス決着済みデータでも勝者表示が欠落しない
+- **スクリプト**: tc-gp.js TC-830 / `__tests__/lib/gp-finals-match-winner.test.ts`
+
 ## TC-831: GP決勝 — 上位ブラケットはカップ勝数のシンプル入力で保存できる
 - **URL**: /tournaments/[temp-id]/gp/finals
 - **authRequired**: true (admin)
