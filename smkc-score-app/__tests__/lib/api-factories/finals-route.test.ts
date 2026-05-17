@@ -956,6 +956,43 @@ describe('Finals Route Factory', () => {
       expect(json.data.seededPlayers[0].playerId).toBe('player-15');
     });
 
+    it('prioritizes rankOverride over equal group-local ranks when seeding a 16-player bracket', async () => {
+      const qualifications = Array.from({ length: 16 }, (_, index) => {
+        const group = index < 8 ? 'A' : 'B';
+        const groupIndex = index % 8;
+        return {
+          id: `qual-${index}`,
+          playerId: `player-${index}`,
+          group,
+          score: 8 - groupIndex,
+          points: 8 - groupIndex,
+          rankOverride: index === 15 ? 1 : null,
+          player: { id: `player-${index}`, name: `Player ${index + 1}` },
+        };
+      });
+      (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
+      (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 31 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig({
+        qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
+      });
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 16 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      const json = await response.json();
+      expect(json.data.seededPlayers[0].playerId).toBe('player-15');
+    });
+
     it('does not fetch H2H matches when qualificationOrderBy is empty', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
