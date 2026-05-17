@@ -295,59 +295,41 @@ interface QualificationStatsUpdate {
   score?: number;
 }
 
+function buildRoundDifferentialQualificationStatsSql(table: 'BMQualification' | 'MRQualification'): string {
+  /* The table argument is a closed union controlled by this module. D1 raw SQL
+   * parameters can bind values, not identifiers, so table names must remain
+   * explicit and compiler-checked. */
+  return `
+    WITH stats AS (
+      SELECT
+        json_extract(value, '$.playerId') AS playerId,
+        CAST(json_extract(value, '$.mp') AS INTEGER) AS mp,
+        CAST(json_extract(value, '$.wins') AS INTEGER) AS wins,
+        CAST(json_extract(value, '$.ties') AS INTEGER) AS ties,
+        CAST(json_extract(value, '$.losses') AS INTEGER) AS losses,
+        CAST(json_extract(value, '$.winRounds') AS INTEGER) AS winRounds,
+        CAST(json_extract(value, '$.lossRounds') AS INTEGER) AS lossRounds,
+        CAST(json_extract(value, '$.points') AS INTEGER) AS points,
+        CAST(json_extract(value, '$.score') AS INTEGER) AS score
+      FROM json_each(?)
+    )
+    UPDATE ${table}
+    SET
+      mp = COALESCE((SELECT mp FROM stats WHERE stats.playerId = ${table}.playerId), mp),
+      wins = COALESCE((SELECT wins FROM stats WHERE stats.playerId = ${table}.playerId), wins),
+      ties = COALESCE((SELECT ties FROM stats WHERE stats.playerId = ${table}.playerId), ties),
+      losses = COALESCE((SELECT losses FROM stats WHERE stats.playerId = ${table}.playerId), losses),
+      winRounds = COALESCE((SELECT winRounds FROM stats WHERE stats.playerId = ${table}.playerId), winRounds),
+      lossRounds = COALESCE((SELECT lossRounds FROM stats WHERE stats.playerId = ${table}.playerId), lossRounds),
+      points = COALESCE((SELECT points FROM stats WHERE stats.playerId = ${table}.playerId), points),
+      score = COALESCE((SELECT score FROM stats WHERE stats.playerId = ${table}.playerId), score)
+    WHERE tournamentId = ? AND playerId IN (SELECT playerId FROM stats)
+  `;
+}
+
 const QUALIFICATION_STATS_UPDATE_SQL: Record<string, string> = {
-  bMQualification: `
-    WITH stats AS (
-      SELECT
-        json_extract(value, '$.playerId') AS playerId,
-        CAST(json_extract(value, '$.mp') AS INTEGER) AS mp,
-        CAST(json_extract(value, '$.wins') AS INTEGER) AS wins,
-        CAST(json_extract(value, '$.ties') AS INTEGER) AS ties,
-        CAST(json_extract(value, '$.losses') AS INTEGER) AS losses,
-        CAST(json_extract(value, '$.winRounds') AS INTEGER) AS winRounds,
-        CAST(json_extract(value, '$.lossRounds') AS INTEGER) AS lossRounds,
-        CAST(json_extract(value, '$.points') AS INTEGER) AS points,
-        CAST(json_extract(value, '$.score') AS INTEGER) AS score
-      FROM json_each(?)
-    )
-    UPDATE BMQualification
-    SET
-      mp = COALESCE((SELECT mp FROM stats WHERE stats.playerId = BMQualification.playerId), mp),
-      wins = COALESCE((SELECT wins FROM stats WHERE stats.playerId = BMQualification.playerId), wins),
-      ties = COALESCE((SELECT ties FROM stats WHERE stats.playerId = BMQualification.playerId), ties),
-      losses = COALESCE((SELECT losses FROM stats WHERE stats.playerId = BMQualification.playerId), losses),
-      winRounds = COALESCE((SELECT winRounds FROM stats WHERE stats.playerId = BMQualification.playerId), winRounds),
-      lossRounds = COALESCE((SELECT lossRounds FROM stats WHERE stats.playerId = BMQualification.playerId), lossRounds),
-      points = COALESCE((SELECT points FROM stats WHERE stats.playerId = BMQualification.playerId), points),
-      score = COALESCE((SELECT score FROM stats WHERE stats.playerId = BMQualification.playerId), score)
-    WHERE tournamentId = ? AND playerId IN (SELECT playerId FROM stats)
-  `,
-  mRQualification: `
-    WITH stats AS (
-      SELECT
-        json_extract(value, '$.playerId') AS playerId,
-        CAST(json_extract(value, '$.mp') AS INTEGER) AS mp,
-        CAST(json_extract(value, '$.wins') AS INTEGER) AS wins,
-        CAST(json_extract(value, '$.ties') AS INTEGER) AS ties,
-        CAST(json_extract(value, '$.losses') AS INTEGER) AS losses,
-        CAST(json_extract(value, '$.winRounds') AS INTEGER) AS winRounds,
-        CAST(json_extract(value, '$.lossRounds') AS INTEGER) AS lossRounds,
-        CAST(json_extract(value, '$.points') AS INTEGER) AS points,
-        CAST(json_extract(value, '$.score') AS INTEGER) AS score
-      FROM json_each(?)
-    )
-    UPDATE MRQualification
-    SET
-      mp = COALESCE((SELECT mp FROM stats WHERE stats.playerId = MRQualification.playerId), mp),
-      wins = COALESCE((SELECT wins FROM stats WHERE stats.playerId = MRQualification.playerId), wins),
-      ties = COALESCE((SELECT ties FROM stats WHERE stats.playerId = MRQualification.playerId), ties),
-      losses = COALESCE((SELECT losses FROM stats WHERE stats.playerId = MRQualification.playerId), losses),
-      winRounds = COALESCE((SELECT winRounds FROM stats WHERE stats.playerId = MRQualification.playerId), winRounds),
-      lossRounds = COALESCE((SELECT lossRounds FROM stats WHERE stats.playerId = MRQualification.playerId), lossRounds),
-      points = COALESCE((SELECT points FROM stats WHERE stats.playerId = MRQualification.playerId), points),
-      score = COALESCE((SELECT score FROM stats WHERE stats.playerId = MRQualification.playerId), score)
-    WHERE tournamentId = ? AND playerId IN (SELECT playerId FROM stats)
-  `,
+  bMQualification: buildRoundDifferentialQualificationStatsSql('BMQualification'),
+  mRQualification: buildRoundDifferentialQualificationStatsSql('MRQualification'),
   gPQualification: `
     WITH stats AS (
       SELECT
