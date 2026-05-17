@@ -24,6 +24,7 @@ import {
 } from "@/lib/ta/finals-phase-manager";
 import { createAuditLog } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
+import { Prisma } from "@prisma/client";
 
 // Mock Prisma client
 const mockPrismaClient = {
@@ -688,11 +689,6 @@ describe("TA Finals Phase Manager", () => {
       // Only 1 attempt since non-P2002 errors don't trigger retry
       expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledTimes(1);
     });
-    // NOTE: P2002 retry→success and P2002→exhausted tests require integration
-    // testing because the code uses `instanceof PrismaClientKnownRequestError`
-    // which cannot be reliably mocked in Jest without module-level mocking.
-    // The retry loop logic (continue on P2002, throw on non-P2002 or
-    // exhausted attempts) is verified through code review.
   });
 
   describe("submitRoundResults sudden death", () => {
@@ -758,6 +754,95 @@ describe("TA Finals Phase Manager", () => {
       expect(result.tieBreakRequired).toBe(true);
       expect(result.suddenDeathRound).toEqual(expect.objectContaining({ id: "sd1" }));
       expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+    });
+
+    it("reuses the existing sudden-death round after a sequence unique conflict", async () => {
+      const uniqueConflict = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "5.0.0",
+      });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false },
+        { playerId: "p2", eliminated: false },
+        { playerId: "p3", eliminated: false },
+        { playerId: "p4", eliminated: false },
+        { playerId: "p5", eliminated: false },
+      ]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(0);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockRejectedValueOnce(uniqueConflict);
+      mockPrismaClient.tTPhaseSuddenDeathRound.findFirst.mockResolvedValueOnce({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase1",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "DP1",
+        targetPlayerIds: ["p4", "p5"],
+        resolved: false,
+      });
+
+      const result = await submitRoundResults(mockPrismaClient as any, context, "phase1", 1, [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 81000 },
+        { playerId: "p3", timeMs: 82000 },
+        { playerId: "p4", timeMs: 90000 },
+        { playerId: "p5", timeMs: 90000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      expect(result.suddenDeathRound).toEqual(expect.objectContaining({ id: "sd1", sequence: 1 }));
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.count).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.findFirst).toHaveBeenCalledWith({
+        where: {
+          tournamentId: "t1",
+          phase: "phase1",
+          phaseRoundId: "round1",
+          resolved: false,
+        },
+        orderBy: { sequence: "desc" },
+      });
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data.sequence).toBe(1);
+    });
+
+    it("throws a refreshable conflict when a concurrent sudden-death round has different targets", async () => {
+      const uniqueConflict = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "5.0.0",
+      });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false },
+        { playerId: "p2", eliminated: false },
+        { playerId: "p3", eliminated: false },
+        { playerId: "p4", eliminated: false },
+        { playerId: "p5", eliminated: false },
+      ]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(0);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockRejectedValueOnce(uniqueConflict);
+      mockPrismaClient.tTPhaseSuddenDeathRound.findFirst.mockResolvedValueOnce({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase1",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "DP1",
+        targetPlayerIds: ["p1", "p2"],
+        resolved: false,
+      });
+
+      await expect(
+        submitRoundResults(mockPrismaClient as any, context, "phase1", 1, [
+          { playerId: "p1", timeMs: 80000 },
+          { playerId: "p2", timeMs: 81000 },
+          { playerId: "p3", timeMs: 82000 },
+          { playerId: "p4", timeMs: 90000 },
+          { playerId: "p5", timeMs: 90000 },
+        ])
+      ).rejects.toThrow("Sudden-death round for phase1 changed during submission. Refresh and submit again.");
+
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.count).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.tTPhaseRound.update).not.toHaveBeenCalled();
     });
 
     it("returns a sudden-death request for tied slowest players in phase2", async () => {

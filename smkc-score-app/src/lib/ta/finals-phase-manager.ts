@@ -1041,6 +1041,15 @@ async function ensureNoUnresolvedSuddenDeath(
   }
 }
 
+function hasSameTargetPlayers(existingTargetPlayerIds: unknown, expectedTargetPlayerIds: string[]) {
+  if (!Array.isArray(existingTargetPlayerIds)) return false;
+  if (!existingTargetPlayerIds.every((id): id is string => typeof id === "string")) return false;
+  if (existingTargetPlayerIds.length !== expectedTargetPlayerIds.length) return false;
+
+  const expected = new Set(expectedTargetPlayerIds);
+  return existingTargetPlayerIds.every((id) => expected.has(id));
+}
+
 async function createSuddenDeathRound(
   prisma: PrismaClient,
   tournamentId: string,
@@ -1048,23 +1057,87 @@ async function createSuddenDeathRound(
   phaseRoundId: string,
   targetPlayerIds: string[]
 ) {
-  const count = await prisma.tTPhaseSuddenDeathRound.count({
-    where: { phaseRoundId },
-  });
-  const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
-  const course = selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
-  return prisma.tTPhaseSuddenDeathRound.create({
-    data: {
-      tournamentId,
-      phase,
-      phaseRoundId,
-      sequence: count + 1,
-      course,
-      targetPlayerIds: targetPlayerIds as Prisma.InputJsonValue,
-      results: Prisma.JsonNull,
-      resolved: false,
-    },
-  });
+  const logger = createLogger("ta-phase-manager");
+  const MAX_SUDDEN_DEATH_CREATE_ATTEMPTS = 3;
+
+  for (let attempt = 1; attempt <= MAX_SUDDEN_DEATH_CREATE_ATTEMPTS; attempt++) {
+    /*
+     * The database unique index on (phaseRoundId, sequence) is the concurrency
+     * guard. Two admins can both observe the same count; on P2002 we first
+     * recover the unresolved round created by the winning request. Creating the
+     * next sequence immediately would leave two unresolved sudden-death rounds
+     * for one base round.
+     */
+    const count = await prisma.tTPhaseSuddenDeathRound.count({
+      where: { phaseRoundId },
+    });
+    const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
+    const course = selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
+
+    try {
+      return await prisma.tTPhaseSuddenDeathRound.create({
+        data: {
+          tournamentId,
+          phase,
+          phaseRoundId,
+          sequence: count + 1,
+          course,
+          targetPlayerIds: targetPlayerIds as Prisma.InputJsonValue,
+          results: Prisma.JsonNull,
+          resolved: false,
+        },
+      });
+    } catch (error) {
+      const isUniqueViolation =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+      if (isUniqueViolation) {
+        const existing = await prisma.tTPhaseSuddenDeathRound.findFirst({
+          where: {
+            tournamentId,
+            phase,
+            phaseRoundId,
+            resolved: false,
+          },
+          orderBy: { sequence: "desc" },
+        });
+        if (existing) {
+          if (!hasSameTargetPlayers(existing.targetPlayerIds, targetPlayerIds)) {
+            /*
+             * A different concurrent submission already created the sudden-death
+             * round. Returning it as success would pair this request's stored
+             * base-round results with another request's tiebreak targets, so the
+             * admin must refresh instead of continuing with mixed state.
+             */
+            throw new Error(
+              `Sudden-death round for ${phase} changed during submission. Refresh and submit again.`
+            );
+          }
+          logger.warn("Sudden-death creation race condition detected, reusing existing round", {
+            tournamentId,
+            phase,
+            phaseRoundId,
+            attempt,
+            sequence: count + 1,
+            suddenDeathRoundId: existing.id,
+          });
+          return existing;
+        }
+      }
+      if (isUniqueViolation && attempt < MAX_SUDDEN_DEATH_CREATE_ATTEMPTS) {
+        logger.warn("Sudden-death creation race condition detected without reusable round, retrying", {
+          tournamentId,
+          phase,
+          phaseRoundId,
+          attempt,
+          sequence: count + 1,
+        });
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(`Failed to create sudden-death round for ${phase}`);
 }
 
 /**
@@ -1336,6 +1409,13 @@ export async function submitRoundResults(
 
   const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers);
   if (tieBreak) {
+    const suddenDeathRound = await createSuddenDeathRound(
+      prisma,
+      tournamentId,
+      phase,
+      round.id,
+      tieBreak.targetPlayerIds
+    );
     await prisma.tTPhaseRound.update({
       where: { id: round.id },
       data: {
@@ -1345,13 +1425,6 @@ export async function submitRoundResults(
         submittedAt: null,
       },
     });
-    const suddenDeathRound = await createSuddenDeathRound(
-      prisma,
-      tournamentId,
-      phase,
-      round.id,
-      tieBreak.targetPlayerIds
-    );
     return {
       eliminatedIds: [],
       livesReset: false,
