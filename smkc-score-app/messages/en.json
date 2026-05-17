@@ -782,14 +782,16 @@
     "eliminated": "Eliminated",
     "invalidTimeFor": "Invalid time for {name}. Enter M:SS.mm format.",
     "needAtLeast2Players": "Need at least 2 players to submit results",
-    "suddenDeathTiebreak": "Sudden-death tiebreak",
-    "suddenDeathRoundDesc": "Round {round}, tiebreak #{sequence}",
-    "suddenDeathCourse": "Sudden-death course",
-    "submitSuddenDeath": "Submit sudden death",
     "timeInputTitle": "Example: 123.45 or 1:23.45",
     "timeInputHelp": "Digits are auto-formatted. Example: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "retryPenalty": "Mark as retry (penalty: 9:59.990)"
+  },
+  "taSuddenDeath": {
+    "suddenDeathTiebreak": "Sudden-death tiebreak",
+    "suddenDeathRoundDesc": "Round {round}, tiebreak #{sequence}",
+    "suddenDeathCourse": "Sudden-death course",
+    "submitSuddenDeath": "Submit sudden death"
   },
   "revival": {
     "round1Title": "Loser's Revival Round 1",
@@ -881,10 +883,6 @@
     "noPlayersDesc": "Promote players from the qualification stage first.",
     "invalidTimeFor": "Invalid time for {name}. Enter M:SS.mm format.",
     "needAtLeast2Players": "Need at least 2 players to submit results",
-    "suddenDeathTiebreak": "Sudden-death tiebreak",
-    "suddenDeathRoundDesc": "Round {round}, tiebreak #{sequence}",
-    "suddenDeathCourse": "Sudden-death course",
-    "submitSuddenDeath": "Submit sudden death",
     "timeInputTitle": "Example: 123.45 or 1:23.45",
     "timeInputHelp": "Digits are auto-formatted. Example: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",

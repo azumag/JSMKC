@@ -782,14 +782,16 @@
     "eliminated": "敗退",
     "invalidTimeFor": "{name}のタイムが無効です。M:SS.mm形式で入力してください。",
     "needAtLeast2Players": "結果を提出するには少なくとも2名必要です",
-    "suddenDeathTiebreak": "サドンデスタイブレーク",
-    "suddenDeathRoundDesc": "ラウンド {round}、タイブレーク #{sequence}",
-    "suddenDeathCourse": "サドンデスコース",
-    "submitSuddenDeath": "サドンデス結果を送信",
     "timeInputTitle": "例: 123.45 または 1:23.45",
     "timeInputHelp": "数字だけで入力すると自動整形されます。例: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "retryPenalty": "リトライとしてマーク（ペナルティ: 9:59.990）"
+  },
+  "taSuddenDeath": {
+    "suddenDeathTiebreak": "サドンデスタイブレーク",
+    "suddenDeathRoundDesc": "ラウンド {round}、タイブレーク #{sequence}",
+    "suddenDeathCourse": "サドンデスコース",
+    "submitSuddenDeath": "サドンデス結果を送信"
   },
   "revival": {
     "round1Title": "敗者復活戦 ラウンド1",
@@ -881,10 +883,6 @@
     "noPlayersDesc": "予選ステージからプレイヤーを昇格してください。",
     "invalidTimeFor": "{name}のタイムが無効です。M:SS.mm形式で入力してください。",
     "needAtLeast2Players": "結果を送信するには最低2名のプレイヤーが必要です",
-    "suddenDeathTiebreak": "サドンデスタイブレーク",
-    "suddenDeathRoundDesc": "ラウンド {round}、タイブレーク #{sequence}",
-    "suddenDeathCourse": "サドンデスコース",
-    "submitSuddenDeath": "サドンデス結果を送信",
     "timeInputTitle": "例: 123.45 または 1:23.45",
     "timeInputHelp": "数字だけで入力すると自動整形されます。例: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
