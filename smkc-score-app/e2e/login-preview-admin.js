@@ -1,10 +1,17 @@
 const { launchPersistentChromiumContext, resolveE2EProfileDir } = require('./lib/common');
 const { buildPreviewRuntimeEnv, assertBaseUrlResolvable } = require('./run-preview');
 
+// Playwright 1.59.1 internal interruption messages observed during Discord
+// OAuth redirects. Re-check these patterns when upgrading Playwright because
+// they are message-based fallbacks, not a stable public error-code contract.
+const TRANSIENT_LOGIN_POLLING_ERROR_PATTERNS = [
+  /Execution context was destroyed/i,
+  /Target page, context or browser has been closed/i,
+];
+
 function isTransientLoginPollingError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return /Execution context was destroyed/i.test(message) ||
-    /Target page, context or browser has been closed/i.test(message);
+  return TRANSIENT_LOGIN_POLLING_ERROR_PATTERNS.some((pattern) => pattern.test(message));
 }
 
 async function isAuthenticated(page) {
