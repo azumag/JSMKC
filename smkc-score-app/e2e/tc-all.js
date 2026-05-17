@@ -10,6 +10,7 @@
  */
 const fs = require('fs');
 const https = require('https');
+const XLSX = require('@e965/xlsx');
 const {
   apiActivateTournament,
   apiUpdateTournament,
@@ -35,6 +36,9 @@ const {
   makeTaTimesForRank,
   apiPutAllGpQualScores,
   apiGenerateGpFinals,
+  apiFetchBmFinalsState,
+  apiFetchMrFinalsState,
+  apiFetchGpFinalsState,
   resolveAllTies,
   launchChromium,
   launchPersistentChromiumContext,
@@ -65,6 +69,59 @@ let TID = null;
 const WAIT = 8000;
 const results = [];
 let progressWatchdog = null;
+
+const CDM_FINALS_E2E_SLOTS = {
+  playoff_r1: [5, 13, 21, 29].map((row) => ({ blockStart: 4, row })),
+  playoff_r2: [5, 13, 21, 29].map((row) => ({ blockStart: 11, row })),
+  winners_r1: [5, 9, 13, 17, 21, 25, 29, 33].map((row) => ({ blockStart: 18, row })),
+  winners_qf: [7, 15, 23, 31].map((row) => ({ blockStart: 25, row })),
+  winners_sf: [11, 27].map((row) => ({ blockStart: 32, row })),
+  winners_final: [{ blockStart: 39, row: 19 }],
+  grand_final: [{ blockStart: 46, row: 19 }],
+  grand_final_reset: [{ blockStart: 53, row: 19 }],
+  losers_r1: [41, 45, 49, 53].map((row) => ({ blockStart: 18, row })),
+  losers_r2: [41, 45, 49, 53].map((row) => ({ blockStart: 25, row })),
+  losers_r3: [43, 51].map((row) => ({ blockStart: 32, row })),
+  losers_r4: [43, 51].map((row) => ({ blockStart: 39, row })),
+  losers_sf: [{ blockStart: 46, row: 47 }],
+  losers_final: [{ blockStart: 53, row: 47 }],
+};
+
+function cdmE2eSlotRound(match) {
+  const round = match?.round || '';
+  const bracketPosition = String(match?.bracketPosition || '').toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(CDM_FINALS_E2E_SLOTS, round)) return round;
+  if (round === 'grand_final_reset' || bracketPosition.includes('reset')) return 'grand_final_reset';
+  if (round === 'gf' || bracketPosition === 'gf' || match?.isGrandFinal) return 'grand_final';
+  return null;
+}
+
+function cdmE2eMatchLabel(match) {
+  const slotRound = cdmE2eSlotRound(match);
+  if (slotRound === 'grand_final_reset') return 'GF Reset';
+  if (slotRound === 'grand_final') return 'GF';
+  return match.bracketPosition || match.round || `M${match.matchNumber}`;
+}
+
+function cdmE2eCell(col, row) {
+  return XLSX.utils.encode_cell({ c: col - 1, r: row - 1 });
+}
+
+function cdmE2eFinalsMatches(state) {
+  return [
+    ...(state?.playoffMatches || []),
+    ...(state?.matches || []),
+  ].filter((match) => cdmE2eSlotRound(match));
+}
+
+function cdmE2eGpCupResultsSummary(match) {
+  return (match.cupResults || []).map((result, index) => {
+    const cup = typeof result?.cup === 'string' && result.cup ? result.cup : `Cup ${index + 1}`;
+    const points1 = Number.isFinite(result?.points1) ? result.points1 : '';
+    const points2 = Number.isFinite(result?.points2) ? result.points2 : '';
+    return `${cup}: ${points1}-${points2}`;
+  }).join('; ');
+}
 
 function log(tc, s, d = '') {
   console.log(`${s === 'PASS' ? '✅' : s === 'SKIP' ? '⏭️' : '❌'} [${tc}] ${s}${d ? ' — ' + d : ''}`);
@@ -3195,6 +3252,87 @@ async function main() {
       }
     } else {
       log('TC-358', 'SKIP', 'No tournament ID available');
+    }
+  }
+
+  // TC-816A: CDM export finals coordinate mapping is covered by the automated E2E runner.
+  {
+    const exportTid = sharedFixture?.tournamentId ?? TID;
+    if (exportTid) {
+      try {
+        const [bmState, mrState, gpState, exportResp] = await Promise.all([
+          apiFetchBmFinalsState(page, exportTid),
+          apiFetchMrFinalsState(page, exportTid),
+          apiFetchGpFinalsState(page, exportTid),
+          page.evaluate(async (url) => {
+            const response = await fetch(url, { credentials: 'same-origin' });
+            const buffer = await response.arrayBuffer();
+            return {
+              status: response.status,
+              bytes: Array.from(new Uint8Array(buffer)),
+              contentType: response.headers.get('content-type') || '',
+            };
+          }, `${BASE}/api/tournaments/${exportTid}/export?format=cdm`),
+        ]);
+
+        if (exportResp.status !== 200) {
+          log('TC-816A', 'FAIL', `CDM export HTTP ${exportResp.status}`);
+        } else {
+          const workbook = XLSX.read(Buffer.from(exportResp.bytes), { type: 'buffer' });
+          const modeStates = [
+            { mode: 'BM', sheetName: 'BM Finals', state: bmState },
+            { mode: 'MR', sheetName: 'MR Finals', state: mrState },
+            { mode: 'GP', sheetName: 'GP Finals', state: gpState },
+          ];
+          const failures = [];
+          let checked = 0;
+          let gpCupResultsChecked = false;
+          const checkedByMode = { BM: 0, MR: 0, GP: 0 };
+
+          for (const { mode, sheetName, state } of modeStates) {
+            const sheet = workbook.Sheets[sheetName];
+            const roundIndexes = new Map();
+            for (const match of cdmE2eFinalsMatches(state)) {
+              const slotRound = cdmE2eSlotRound(match);
+              const roundIndex = roundIndexes.get(slotRound) || 0;
+              roundIndexes.set(slotRound, roundIndex + 1);
+              const slot = CDM_FINALS_E2E_SLOTS[slotRound]?.[roundIndex];
+              if (!slot) continue;
+              const labelCell = cdmE2eCell(slot.blockStart, slot.row);
+              const actual = sheet?.[labelCell]?.v;
+              const expected = cdmE2eMatchLabel(match);
+              checked++;
+              checkedByMode[mode]++;
+              if (actual !== expected) {
+                failures.push(`${mode} ${slotRound} ${labelCell}: expected ${expected}, got ${actual ?? '<blank>'}`);
+              }
+              if (mode === 'GP' && Array.isArray(match.cupResults) && match.cupResults.length > 0 && !gpCupResultsChecked) {
+                const summaryCell = cdmE2eCell(slot.blockStart + 5, slot.row);
+                const expectedSummary = cdmE2eGpCupResultsSummary(match);
+                const actualSummary = sheet?.[summaryCell]?.v;
+                gpCupResultsChecked = true;
+                if (actualSummary !== expectedSummary) {
+                  failures.push(`GP cupResults ${summaryCell}: expected ${expectedSummary}, got ${actualSummary ?? '<blank>'}`);
+                }
+              }
+            }
+          }
+          const missingModes = Object.entries(checkedByMode)
+            .filter(([, count]) => count === 0)
+            .map(([mode]) => mode);
+
+          log('TC-816A',
+            checked > 0 && missingModes.length === 0 && gpCupResultsChecked && failures.length === 0 ? 'PASS' : 'FAIL',
+            checked === 0 ? 'No finals matches available for CDM coordinate verification'
+            : missingModes.length > 0 ? `No finals matches checked for modes: ${missingModes.join(', ')}`
+            : !gpCupResultsChecked ? 'No GP finals cupResults available for CDM coordinate verification'
+            : failures.slice(0, 3).join('; '));
+        }
+      } catch (err) {
+        log('TC-816A', 'FAIL', err instanceof Error ? err.message : 'CDM finals coordinate workbook check failed');
+      }
+    } else {
+      log('TC-816A', 'SKIP', 'No tournament ID available');
     }
   }
 

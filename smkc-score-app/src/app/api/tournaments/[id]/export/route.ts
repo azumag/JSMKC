@@ -153,6 +153,25 @@ const CDM_FINALS_BLOCK_END_OFFSET = 6;
 const CDM_FINALS_LAST_COLUMN = 107;
 const CDM_FINALS_MATCH_FIRST_ROW = 5;
 const CDM_FINALS_PAIR_ROWS = [5, 13, 21, 29, 37, 45];
+// CDM Finals sheets are laid out as fixed bracket regions, not as a dense
+// table. Map the app's canonical round ids to the template's native block and
+// top-row coordinates so exports preserve the bracket shape operators expect.
+const CDM_FINALS_BRACKET_SLOTS: Record<string, Array<{ blockStart: number; row: number }>> = {
+  playoff_r1: [5, 13, 21, 29].map((row) => ({ blockStart: 4, row })),
+  playoff_r2: [5, 13, 21, 29].map((row) => ({ blockStart: 11, row })),
+  winners_r1: [5, 9, 13, 17, 21, 25, 29, 33].map((row) => ({ blockStart: 18, row })),
+  winners_qf: [7, 15, 23, 31].map((row) => ({ blockStart: 25, row })),
+  winners_sf: [11, 27].map((row) => ({ blockStart: 32, row })),
+  winners_final: [{ blockStart: 39, row: 19 }],
+  grand_final: [{ blockStart: 46, row: 19 }],
+  grand_final_reset: [{ blockStart: 53, row: 19 }],
+  losers_r1: [41, 45, 49, 53].map((row) => ({ blockStart: 18, row })),
+  losers_r2: [41, 45, 49, 53].map((row) => ({ blockStart: 25, row })),
+  losers_r3: [43, 51].map((row) => ({ blockStart: 32, row })),
+  losers_r4: [43, 51].map((row) => ({ blockStart: 39, row })),
+  losers_sf: [{ blockStart: 46, row: 47 }],
+  losers_final: [{ blockStart: 53, row: 47 }],
+};
 const CDM_TT_FINALIST_FIRST_ROW = 3;
 const CDM_TT_FINALIST_MAX_ROWS = 24;
 const CDM_TT_ROUND_START_COLUMNS = [7, 20, 33, 46, 59, 72, 85, 98];
@@ -163,6 +182,19 @@ const CDM_TT_ROUND_LAST_ROW = 26;
 const CDM_TT_ROUND_MAX_RESULTS = 24;
 const CDM_OVERALL_FIRST_ROW = 2;
 const CDM_OVERALL_MAX_ROWS = 64;
+
+// Older generators and manual fixtures can still store grand finals as
+// round="gf" with bracketPosition="gf"; normalize those aliases before slot
+// lookup so legacy rows land in the same native CDM bracket cell as current
+// round="grand_final" rows.
+function cdmFinalsSlotRound(match: MatchWithPlayers): string | null {
+  const round = match.round ?? "";
+  const bracketPosition = (match.bracketPosition ?? "").toLowerCase();
+  if (round in CDM_FINALS_BRACKET_SLOTS) return round;
+  if (round === "grand_final_reset" || bracketPosition.includes("reset")) return "grand_final_reset";
+  if (round === "gf" || bracketPosition === "gf" || match.isGrandFinal) return "grand_final";
+  return null;
+}
 
 function setCell(ws: XLSX.WorkSheet, address: string, value: unknown) {
   if (value === null || value === undefined) {
@@ -402,6 +434,29 @@ function gpCupResultsSummary(match: MatchWithPlayers): string {
   }).join("; ");
 }
 
+function cdmFinalsSlotForMatch(
+  match: MatchWithPlayers,
+  roundIndex: number,
+  fallbackIndex: number
+): { blockStart: number; row: number } | null {
+  const slotRound = cdmFinalsSlotRound(match);
+  const slots = slotRound ? CDM_FINALS_BRACKET_SLOTS[slotRound] : undefined;
+  if (slots?.[roundIndex]) {
+    return slots[roundIndex];
+  }
+
+  const fallbackBlockStart = CDM_FINALS_BLOCK_START_COLUMNS[Math.floor(fallbackIndex / CDM_FINALS_PAIR_ROWS.length)];
+  const fallbackRow = CDM_FINALS_PAIR_ROWS[fallbackIndex % CDM_FINALS_PAIR_ROWS.length];
+  return fallbackBlockStart && fallbackRow ? { blockStart: fallbackBlockStart, row: fallbackRow } : null;
+}
+
+function cdmFinalsMatchLabel(match: MatchWithPlayers): string {
+  const slotRound = cdmFinalsSlotRound(match);
+  if (slotRound === "grand_final_reset") return "GF Reset";
+  if (slotRound === "grand_final") return "GF";
+  return match.bracketPosition || match.round || `M${match.matchNumber}`;
+}
+
 function writeMatchFinalsSheet(
   workbook: XLSX.WorkBook,
   sheetName: string,
@@ -414,11 +469,14 @@ function writeMatchFinalsSheet(
 
   const finalsMatches = matches
     .filter((match) =>
+      match.stage === "playoff" ||
       match.stage === "finals" ||
-      match.stage === "grand_final" ||
-      (mode === "gp" && match.stage === "playoff")
+      match.stage === "grand_final"
     )
-    .sort((a, b) => a.matchNumber - b.matchNumber);
+    .sort((a, b) =>
+      (a.round ?? "").localeCompare(b.round ?? "") ||
+      a.matchNumber - b.matchNumber
+    );
 
   const qualifiedPlayers = finalsMatches.length > 0
     ? uniquePlayersFromMatches(finalsMatches)
@@ -441,12 +499,20 @@ function writeMatchFinalsSheet(
     )
   );
 
-  finalsMatches.slice(0, CDM_FINALS_BLOCK_START_COLUMNS.length * CDM_FINALS_PAIR_ROWS.length).forEach((match, index) => {
-    const blockStart = CDM_FINALS_BLOCK_START_COLUMNS[Math.floor(index / CDM_FINALS_PAIR_ROWS.length)];
-    const row = CDM_FINALS_PAIR_ROWS[index % CDM_FINALS_PAIR_ROWS.length];
+  const roundIndexes = new Map<string, number>();
+  let fallbackIndex = 0;
+  finalsMatches.forEach((match) => {
+    const roundKey = match.round ?? "";
+    const roundIndex = roundIndexes.get(roundKey) ?? 0;
+    roundIndexes.set(roundKey, roundIndex + 1);
+    const slot = cdmFinalsSlotForMatch(match, roundIndex, fallbackIndex);
+    fallbackIndex++;
+    if (!slot) return;
+
+    const { blockStart, row } = slot;
     const p1Score = mode === "gp" ? match.points1 ?? 0 : match.score1 ?? 0;
     const p2Score = mode === "gp" ? match.points2 ?? 0 : match.score2 ?? 0;
-    const label = match.isGrandFinal ? "GF" : match.bracketPosition || match.round || `M${match.matchNumber}`;
+    const label = cdmFinalsMatchLabel(match);
 
     setCell(ws, `${toColumn(blockStart)}${row}`, label);
     setCell(ws, `${toColumn(blockStart + 1)}${row}`, match.player1.nickname);

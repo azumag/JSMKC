@@ -171,6 +171,34 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).not.toMatch(/\{\s*name:\s*['"]TC-830['"]/);
   });
 
+  it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
+    const section = e2eCaseSection('TC-816A');
+
+    expect(section).toContain('issue #816');
+    expect(section).toContain('CDM_FINALS_BRACKET_SLOTS');
+    expect(section).toContain('native bracket coordinates');
+    expect(exportRoute).toContain('const CDM_FINALS_BRACKET_SLOTS');
+    expect(exportRoute).toContain('playoff_r1');
+    expect(exportRoute).toContain('winners_r1');
+    expect(exportRoute).toContain('losers_final');
+    expect(exportRoute).toContain('cdmFinalsSlotRound');
+    expect(exportRoute).toContain('cdmFinalsSlotForMatch');
+    expect(exportRoute).toContain('cdmFinalsMatchLabel');
+    expect(tcAll).toContain('TC-816A');
+    expect(tcAll).toContain('CDM_FINALS_E2E_SLOTS');
+    expect(tcAll).toContain('XLSX.read(Buffer.from(exportResp.bytes)');
+    expect(tcAll).toContain('cdmE2eGpCupResultsSummary');
+    expect(tcAll).toContain('gpCupResultsChecked');
+    expect(tcAll).toContain('checkedByMode');
+    expect(tcAll).toContain('slot.blockStart + 5');
+    expect(exportRouteTest).toContain('should place CDM finals matches in native bracket coordinates');
+    expect(exportRouteTest).toContain('sheet.Y7.v');
+    expect(exportRouteTest).toContain('sheet.BA47.v');
+    expect(exportRouteTest).toContain('workbook.Sheets["MR Finals"].AT19.v');
+    expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].BA47.v');
+    expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].AR19.v');
+  });
+
   it('documents TC-817B as CSV/CDM export include split coverage', () => {
     const section = e2eCaseSection('TC-817B');
 
