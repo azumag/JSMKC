@@ -73,6 +73,7 @@ const { runSuite } = require('./lib/runner');
 const results = makeResults();
 const log = makeLog(results);
 let sharedFixture = null;
+const BM_MATCH_GUIDANCE_TIMEOUT_MS = 60_000;
 
 function sharedBmPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
@@ -82,6 +83,42 @@ function sharedBmPlayers(count = 28) {
 async function loginSharedPlayer(adminPage, player) {
   await ensurePlayerPassword(adminPage, player);
   return loginPlayerBrowser(player.nickname, player.password);
+}
+
+function bmMatchGuidanceRegex(labels) {
+  return new RegExp(labels.map((label) => escapeRegex(label)).join('|'));
+}
+
+async function compactBodyText(page) {
+  const bodyText = await readBodyText(page);
+  return bodyText.replace(/\s+/g, ' ').slice(0, 360);
+}
+
+async function readBodyText(page) {
+  return page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+}
+
+async function waitForBmMatchGuidance(page, labels, contextLabel) {
+  try {
+    /* Use a locator wait on the rendered body text so Playwright keeps its
+     * normal auto-retry behavior. TC-513 depends on NextAuth session resolution,
+     * and preview D1 cold starts can leave useSession() in "loading" longer than
+     * ordinary UI waits; a single shared timeout keeps all three session branches
+     * consistent while still failing fast enough for the suite. */
+    await page.locator('body')
+      .filter({ hasText: bmMatchGuidanceRegex(labels) })
+      .waitFor({ timeout: BM_MATCH_GUIDANCE_TIMEOUT_MS });
+  } catch (err) {
+    const readyState = await page.evaluate(() => document.readyState).catch(() => 'unknown');
+    const body = await compactBodyText(page);
+    const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
+    throw new Error(
+      `${contextLabel} guidance did not appear within ${BM_MATCH_GUIDANCE_TIMEOUT_MS}ms; ` +
+      `url=${page.url()}; readyState=${readyState}; body="${body}"; cause=${reason}`,
+    );
+  }
+
+  return readBodyText(page);
 }
 
 async function prepareSharedBmPair(adminPage, { dualReport = false } = {}) {
@@ -520,38 +557,37 @@ async function runTc513(adminPage) {
     const matchUrl = `/tournaments/${tournamentId}/bm/match/${match.id}`;
 
     /* 1. Unauthenticated user sees sign-in prompt */
-    const anonBrowser = await launchChromium({ headless: true });
-    const anonContext = await anonBrowser.newContext();
-    const anonPage = await anonContext.newPage();
-    await anonPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
-    /* 35s: NextAuth sessionStatus stays 'loading' until D1 resolves the session lookup;
-     * D1 cold starts can exceed 20s (issue #700). Wait for any CTA variant to confirm
-     * hydration is complete before checking for the specific sign-in prompt. */
-    await anonPage.waitForFunction(
-      () => document.body.innerText.includes('Sign in to report scores') ||
-            document.body.innerText.includes('スコアを報告するにはログインしてください') ||
-            document.body.innerText.includes('Admins can view this shared page') ||
-            document.body.innerText.includes('管理者はこの共有ページを閲覧できます'),
-      null, { timeout: 45000 },
-    ).catch(() => {});
-    const anonText = await anonPage.innerText('body');
-    /* Accept either locale — the persistent admin profile defaults to EN, but a
-     * fresh anon context follows the system Accept-Language and lands on JA on
-     * dev machines. */
+    let anonBrowser = null;
+    let anonContext = null;
+    let anonText = '';
+    try {
+      anonBrowser = await launchChromium({ headless: true });
+      anonContext = await anonBrowser.newContext();
+      const anonPage = await anonContext.newPage();
+      await anonPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
+      /* Accept either locale — the persistent admin profile defaults to EN, but a
+       * fresh anon context follows the system Accept-Language and lands on JA on
+       * dev machines. */
+      anonText = await waitForBmMatchGuidance(
+        anonPage,
+        ['Sign in to report scores', 'スコアを報告するにはログインしてください'],
+        'TC-513 anonymous',
+      );
+    } finally {
+      if (anonContext) await anonContext.close().catch(() => {});
+      if (anonBrowser) await anonBrowser.close().catch(() => {});
+    }
     const anonHasPrompt = anonText.includes('Sign in to report scores')
       || anonText.includes('スコアを報告するにはログインしてください');
-    await anonContext.close();
-    await anonBrowser.close();
 
     /* 2. Authenticated admin (persistent profile) sees admin guidance CTA
      * (commit 05b0625: separate admin branch linking to /bm page). */
     await adminPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
-    await adminPage.waitForFunction(
-      () => document.body.innerText.includes('Admins can view this shared page') ||
-            document.body.innerText.includes('管理者はこの共有ページを閲覧できます'),
-      null, { timeout: 45000 },
-    ).catch(() => {});
-    const adminText = await adminPage.innerText('body');
+    const adminText = await waitForBmMatchGuidance(
+      adminPage,
+      ['Admins can view this shared page', '管理者はこの共有ページを閲覧できます'],
+      'TC-513 admin',
+    );
     const adminHasGuidance =
       adminText.includes('Admins can view this shared page') ||
       adminText.includes('管理者はこの共有ページを閲覧できます');
@@ -564,20 +600,26 @@ async function runTc513(adminPage) {
      *  the page directly rather than calling .contexts() on the returned
      *  object (which is not a Browser handle). */
     await ensurePlayerPassword(adminPage, player1);
-    const { browser: playerBrowser, page: playerPage } =
-      await loginPlayerBrowser(player1.nickname, player1.password);
-    await playerPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
-    await playerPage.waitForFunction(
-      () => document.body.innerText.includes('Score entry is on the participant page') ||
-            document.body.innerText.includes('スコア入力は参加者ページで行えます'),
-      null, { timeout: 45000 },
-    ).catch(() => {});
-    const playerText = await playerPage.innerText('body');
+    let playerBrowser = null;
+    let playerPage = null;
+    let playerText = '';
+    let playerHasButton = false;
+    try {
+      ({ browser: playerBrowser, page: playerPage } =
+        await loginPlayerBrowser(player1.nickname, player1.password));
+      await playerPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
+      playerText = await waitForBmMatchGuidance(
+        playerPage,
+        ['Score entry is on the participant page', 'スコア入力は参加者ページで行えます'],
+        'TC-513 player',
+      );
+      playerHasButton = await playerPage.locator('a').filter({ hasText: /Go to Score Entry|スコア入力へ/ }).count() > 0;
+    } finally {
+      if (playerBrowser) await playerBrowser.close().catch(() => {});
+    }
     const playerHasGuidance =
       playerText.includes('Score entry is on the participant page') ||
       playerText.includes('スコア入力は参加者ページで行えます');
-    const playerHasButton = await playerPage.locator('a').filter({ hasText: /Go to Score Entry|スコア入力へ/ }).count() > 0;
-    await playerBrowser.close();
 
     const ok = anonHasPrompt && adminHasGuidance && adminHasButton && playerHasGuidance && playerHasButton;
     log('TC-513', ok ? 'PASS' : 'FAIL',

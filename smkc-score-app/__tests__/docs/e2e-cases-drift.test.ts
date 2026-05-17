@@ -311,6 +311,28 @@ describe('E2E case drift coverage', () => {
     expect(tcBm).not.toContain('const hasM9 = await m9Card.count() > 0');
   });
 
+  it('keeps TC-513 session-guidance waits diagnostic and unsuppressed', () => {
+    const section = e2eCaseSection('TC-513');
+    const tc513Source = sectionBetween(
+      tcBm,
+      'async function runTc513',
+      '/* ───────── TC-503',
+    );
+
+    expect(section).toContain('未認証/管理者/プレイヤー');
+    expect(tcBm).toContain('BM_MATCH_GUIDANCE_TIMEOUT_MS');
+    expect(tcBm).toContain('async function waitForBmMatchGuidance');
+    expect(tc513Source).toMatch(/waitForBmMatchGuidance\(\s*anonPage/);
+    expect(tc513Source).toMatch(/waitForBmMatchGuidance\(\s*adminPage/);
+    expect(tc513Source).toMatch(/waitForBmMatchGuidance\(\s*playerPage/);
+    expect(tcBm).toContain('guidance did not appear within');
+    expect(tcBm).toContain('readyState=');
+    expect(tc513Source).toContain('if (anonContext) await anonContext.close().catch(() => {})');
+    expect(tc513Source).toContain('if (anonBrowser) await anonBrowser.close().catch(() => {})');
+    expect(tc513Source).toContain('if (playerBrowser) await playerBrowser.close().catch(() => {})');
+    expect(tc513Source).not.toContain('waitForFunction(');
+  });
+
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');
