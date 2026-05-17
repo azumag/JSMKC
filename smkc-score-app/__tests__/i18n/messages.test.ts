@@ -68,12 +68,14 @@ describe('translation messages', () => {
   });
 
   it.each(['suddenDeathTiebreak', 'suddenDeathRoundDesc', 'suddenDeathCourse', 'submitSuddenDeath'] as const)(
-    'defines TA sudden-death message key "%s" for finals and elimination in both locales',
+    'defines shared TA sudden-death message key "%s" in both locales',
     (key) => {
-      expect(enMessages.taFinals[key]).toBeDefined();
-      expect(jaMessages.taFinals[key]).toBeDefined();
-      expect(enMessages.taElimination[key]).toBeDefined();
-      expect(jaMessages.taElimination[key]).toBeDefined();
+      expect(enMessages.taSuddenDeath[key]).toBeDefined();
+      expect(jaMessages.taSuddenDeath[key]).toBeDefined();
+      expect(enMessages.taFinals[key]).toBeUndefined();
+      expect(jaMessages.taFinals[key]).toBeUndefined();
+      expect(enMessages.taElimination[key]).toBeUndefined();
+      expect(jaMessages.taElimination[key]).toBeUndefined();
     }
   );
 });

@@ -163,6 +163,7 @@ export default function TimeAttackFinals({
   const { data: session } = useSession();
   /* i18n translation hooks for TA finals, finals, and common namespaces */
   const tTaFinals = useTranslations('taFinals');
+  const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const tFinals = useTranslations('finals');
   const tCommon = useTranslations('common');
   // Input is a native element, so this does not skip rendering by reference equality.
@@ -869,9 +870,9 @@ export default function TimeAttackFinals({
       {isAdmin && !isComplete && pendingSuddenDeath && (
         <Card className="border-amber-500">
           <CardHeader>
-            <CardTitle>{tTaFinals('suddenDeathTiebreak')}</CardTitle>
+            <CardTitle>{tTaSuddenDeath('suddenDeathTiebreak')}</CardTitle>
             <CardDescription>
-              {tTaFinals('suddenDeathRoundDesc', {
+              {tTaSuddenDeath('suddenDeathRoundDesc', {
                 round: pendingSuddenDeath.round.roundNumber,
                 sequence: pendingSuddenDeath.sequence,
               })}
@@ -884,7 +885,7 @@ export default function TimeAttackFinals({
               </div>
             )}
             <div className="mb-4 space-y-1">
-              <Label className="text-sm text-muted-foreground">{tTaFinals('suddenDeathCourse')}</Label>
+              <Label className="text-sm text-muted-foreground">{tTaSuddenDeath('suddenDeathCourse')}</Label>
               <Select
                 value={pendingSuddenDeath.course}
                 onValueChange={handleSuddenDeathCourseChange}
@@ -922,7 +923,7 @@ export default function TimeAttackFinals({
             </div>
             <div className="mt-6 flex justify-end">
               <Button onClick={handleSubmitSuddenDeath} disabled={submitting}>
-                {submitting ? tCommon('saving') : tTaFinals('submitSuddenDeath')}
+                {submitting ? tCommon('saving') : tTaSuddenDeath('submitSuddenDeath')}
               </Button>
             </div>
           </CardContent>

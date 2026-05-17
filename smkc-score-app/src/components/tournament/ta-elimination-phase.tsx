@@ -135,6 +135,7 @@ export default function TAEliminationPhase({
   // i18n: 'taElimination' namespace for phase-specific strings,
   // 'common' namespace for shared UI labels (e.g., "Player")
   const tElim = useTranslations('taElimination');
+  const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const tCommon = useTranslations('common');
   // Input is a native element, so this does not skip rendering by reference equality.
   // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
@@ -802,9 +803,9 @@ export default function TAEliminationPhase({
       {isAdmin && !isComplete && pendingSuddenDeath && (
         <Card className="border-amber-500">
           <CardHeader>
-            <CardTitle>{tElim('suddenDeathTiebreak')}</CardTitle>
+            <CardTitle>{tTaSuddenDeath('suddenDeathTiebreak')}</CardTitle>
             <CardDescription>
-              {tElim('suddenDeathRoundDesc', {
+              {tTaSuddenDeath('suddenDeathRoundDesc', {
                 round: pendingSuddenDeath.round.roundNumber,
                 sequence: pendingSuddenDeath.sequence,
               })}
@@ -817,7 +818,7 @@ export default function TAEliminationPhase({
               </div>
             )}
             <div className="mb-4 space-y-1">
-              <Label className="text-sm text-muted-foreground">{tElim('suddenDeathCourse')}</Label>
+              <Label className="text-sm text-muted-foreground">{tTaSuddenDeath('suddenDeathCourse')}</Label>
               <Select
                 value={pendingSuddenDeath.course}
                 onValueChange={handleSuddenDeathCourseChange}
@@ -855,7 +856,7 @@ export default function TAEliminationPhase({
             </div>
             <div className="mt-6 flex justify-end">
               <Button onClick={handleSubmitSuddenDeath} disabled={submitting}>
-                {submitting ? tElim('submitting') : tElim('submitSuddenDeath')}
+                {submitting ? tElim('submitting') : tTaSuddenDeath('submitSuddenDeath')}
               </Button>
             </div>
           </CardContent>
