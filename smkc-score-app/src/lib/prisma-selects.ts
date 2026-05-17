@@ -37,3 +37,20 @@ export const PLAYER_AUTH_SELECT = {
   ...PLAYER_PUBLIC_SELECT,
   userId: true,
 } as const;
+
+/**
+ * Shared lean select for BM/MR qualification match score updates.
+ * Both modes persist the same score/round fields, and standings recalculation
+ * only needs these identifiers plus the completed/BYE state.
+ */
+export const BM_MR_MATCH_LEAN_SELECT = {
+  id: true,
+  tournamentId: true,
+  player1Id: true,
+  player2Id: true,
+  score1: true,
+  score2: true,
+  rounds: true,
+  completed: true,
+  isBye: true,
+} as const;

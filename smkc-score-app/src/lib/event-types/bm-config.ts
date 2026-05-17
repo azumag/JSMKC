@@ -8,6 +8,7 @@
 
 import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
+import { BM_MR_MATCH_LEAN_SELECT } from '@/lib/prisma-selects';
 import { validateBattleModeScores } from '@/lib/score-validation';
 
 /**
@@ -88,17 +89,7 @@ export const bmConfig: EventTypeConfig = {
         rounds: data.rounds || null,
         completed: true,
       },
-      select: {
-        id: true,
-        tournamentId: true,
-        player1Id: true,
-        player2Id: true,
-        score1: true,
-        score2: true,
-        rounds: true,
-        completed: true,
-        isBye: true,
-      },
+      select: BM_MR_MATCH_LEAN_SELECT,
     });
     return { match, score1OrPoints1: data.score1!, score2OrPoints2: data.score2! };
   },
