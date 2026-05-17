@@ -968,6 +968,31 @@ describe('E2E case drift coverage', () => {
     expect(taSuddenDeathPanelTest).toContain('suddenDeathTimes).toEqual({})');
   });
 
+  it('documents TC-1867A as restore-safe fetch mocking coverage', () => {
+    const section = e2eCaseSection('TC-1867A');
+
+    expect(section).toContain('issue #1867');
+    expect(section).toContain("jest.spyOn(global, 'fetch')");
+    expect(section).toContain('global.fetch =');
+    expect(section).toContain('jest.restoreAllMocks()');
+    expect(taSuddenDeathPanelTest).toContain("jest.spyOn(global, 'fetch')");
+    expect(taSuddenDeathPanelTest).not.toContain('global.fetch =');
+    expect(taSuddenDeathPanelTest).toContain('jest.restoreAllMocks()');
+  });
+
+  it('documents TC-1868A as shared TA sudden-death blur auto-format coverage', () => {
+    const section = e2eCaseSection('TC-1868A');
+
+    expect(section).toContain('issue #1868');
+    expect(section).toContain('autoFormatTime');
+    expect(section).toContain('1:00.00');
+    expect(section).toContain('ta-sudden-death-panel.test.tsx');
+    expect(taSuddenDeathPanelTest).toContain('auto-formats a valid time string on blur');
+    expect(taSuddenDeathPanelTest).toContain("setSuddenDeathTime('player-1', '10000')");
+    expect(taSuddenDeathPanelTest).toContain("handleSuddenDeathTimeBlur('player-1')");
+    expect(taSuddenDeathPanelTest).toContain("toBe('1:00.00')");
+  });
+
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
     const section = e2eCaseSection('TC-534');
 
