@@ -379,6 +379,9 @@ export async function bulkUpdateQualificationStats(
 ): Promise<void> {
   if (updates.length === 0) return;
 
+  /* Every qualification model that uses score-report stat recalculation must
+   * have an explicit SQL template here; D1 cannot safely infer table names from
+   * dynamic identifiers in raw SQL parameters. */
   const sql = QUALIFICATION_STATS_UPDATE_SQL[qualificationModel];
   if (!sql) {
     throw new Error(`Unsupported qualification stats bulk update model: ${qualificationModel}`);
