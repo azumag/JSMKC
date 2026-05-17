@@ -66,6 +66,13 @@ describe('E2E case drift coverage', () => {
     'tournament',
     'ta-elimination-phase.tsx',
   );
+  const taSuddenDeathPanel = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'components',
+    'tournament',
+    'ta-sudden-death-panel.tsx',
+  );
   const enMessages = readRepoFile('smkc-score-app', 'messages', 'en.json');
   const jaMessages = readRepoFile('smkc-score-app', 'messages', 'ja.json');
 
@@ -888,13 +895,11 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('suddenDeathTiebreak');
     expect(enMessages).toContain('"taSuddenDeath"');
     expect(jaMessages).toContain('"taSuddenDeath"');
-    expect(taFinalsPage).toContain("useTranslations('taSuddenDeath')");
-    expect(taEliminationPhase).toContain("useTranslations('taSuddenDeath')");
+    expect(taSuddenDeathPanel).toContain('useTranslations("taSuddenDeath")');
     for (const key of ['suddenDeathTiebreak', 'suddenDeathRoundDesc', 'suddenDeathCourse', 'submitSuddenDeath']) {
       expect(enMessages).toContain(`"${key}"`);
       expect(jaMessages).toContain(`"${key}"`);
-      expect(taFinalsPage).toContain(`'${key}'`);
-      expect(taEliminationPhase).toContain(`'${key}'`);
+      expect(taSuddenDeathPanel).toContain(`"${key}"`);
     }
     expect(taFinalsPage).toContain("'invalidTimeFor'");
     expect(taEliminationPhase).toContain("'invalidTimeFor'");
@@ -906,6 +911,26 @@ describe('E2E case drift coverage', () => {
     expect(taEliminationPhase).not.toContain('Sudden-death tiebreak');
     expect(taEliminationPhase).not.toContain('Sudden-death course');
     expect(taEliminationPhase).not.toContain('Enter M:SS.mm format.');
+  });
+
+  it('documents TC-821A as shared TA sudden-death UI and logic coverage', () => {
+    const section = e2eCaseSection('TC-821A');
+
+    expect(section).toContain('issue #821');
+    expect(section).toContain('TASuddenDeathPanel');
+    expect(section).toContain('useTaSuddenDeath');
+    expect(taSuddenDeathPanel).toContain('export function useTaSuddenDeath');
+    expect(taSuddenDeathPanel).toContain('export function TASuddenDeathPanel');
+    expect(taSuddenDeathPanel).toContain('change_sudden_death_course');
+    expect(taSuddenDeathPanel).toContain('submit_sudden_death');
+    expect(taFinalsPage).toContain('<TASuddenDeathPanel');
+    expect(taFinalsPage).toContain('useTaSuddenDeath({');
+    expect(taEliminationPhase).toContain('<TASuddenDeathPanel');
+    expect(taEliminationPhase).toContain('useTaSuddenDeath({');
+    expect(taFinalsPage).not.toContain('change_sudden_death_course');
+    expect(taFinalsPage).not.toContain('submit_sudden_death');
+    expect(taEliminationPhase).not.toContain('change_sudden_death_course');
+    expect(taEliminationPhase).not.toContain('submit_sudden_death');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
