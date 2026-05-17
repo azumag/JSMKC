@@ -32,29 +32,6 @@ function getCourseHistoryPhases(phase: string): string[] {
 }
 
 /**
- * Fetch the ordered list of courses already played in the current phase.
- * Queries TTPhaseRound records sorted by roundNumber ascending.
- *
- * @param prisma - Prisma client instance
- * @param tournamentId - Tournament to query
- * @param phase - Phase stage ("phase1", "phase2", "phase3")
- * @returns Array of course abbreviations in play order
- */
-export async function getPlayedCourses(
-  prisma: DbClient,
-  tournamentId: string,
-  phase: string
-): Promise<string[]> {
-  const rounds = await prisma.tTPhaseRound.findMany({
-    where: { tournamentId, phase },
-    orderBy: { roundNumber: "asc" },
-    select: { course: true },
-  });
-
-  return rounds.map((r) => r.course);
-}
-
-/**
  * Fetch played courses including adopted sudden-death courses.
  *
  * Course history is shared across TA finals phases. Asking for phase2 includes
