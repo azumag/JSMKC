@@ -49,6 +49,25 @@ describe('E2E case drift coverage', () => {
     'ta',
     'course-selection.test.ts',
   );
+  const taFinalsPage = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'app',
+    'tournaments',
+    '[id]',
+    'ta',
+    'finals',
+    'page.tsx',
+  );
+  const taEliminationPhase = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'components',
+    'tournament',
+    'ta-elimination-phase.tsx',
+  );
+  const enMessages = readRepoFile('smkc-score-app', 'messages', 'en.json');
+  const jaMessages = readRepoFile('smkc-score-app', 'messages', 'ja.json');
 
   it.each([
     ['TC-352', tcAll],
@@ -860,6 +879,31 @@ describe('E2E case drift coverage', () => {
     expect(taCourseSelection).toContain('do not immediately repeat');
     expect(taCourseSelectionTest).toContain('avoids the immediately previous course');
     expect(taCourseSelectionTest).toContain('only available course');
+  });
+
+  it('documents TC-822A as TA sudden-death UI i18n coverage', () => {
+    const section = e2eCaseSection('TC-822A');
+
+    expect(section).toContain('issue #822');
+    expect(section).toContain('suddenDeathTiebreak');
+    expect(section).toContain('tTaFinals(...)');
+    expect(section).toContain('tElim(...)');
+    for (const key of ['suddenDeathTiebreak', 'suddenDeathRoundDesc', 'suddenDeathCourse', 'submitSuddenDeath']) {
+      expect(enMessages).toContain(`"${key}"`);
+      expect(jaMessages).toContain(`"${key}"`);
+    }
+    expect(taFinalsPage).toContain("tTaFinals('suddenDeathTiebreak')");
+    expect(taFinalsPage).toContain("tTaFinals('submitSuddenDeath')");
+    expect(taEliminationPhase).toContain("tElim('suddenDeathTiebreak')");
+    expect(taEliminationPhase).toContain("tElim('submitSuddenDeath')");
+    expect(taEliminationPhase).toContain("tElim('invalidTimeFor'");
+    expect(taFinalsPage).not.toContain('Submit sudden death');
+    expect(taFinalsPage).not.toContain('Sudden-death tiebreak');
+    expect(taFinalsPage).not.toContain('Sudden-death course');
+    expect(taEliminationPhase).not.toContain('Submit sudden death');
+    expect(taEliminationPhase).not.toContain('Sudden-death tiebreak');
+    expect(taEliminationPhase).not.toContain('Sudden-death course');
+    expect(taEliminationPhase).not.toContain('Enter M:SS.mm format.');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {

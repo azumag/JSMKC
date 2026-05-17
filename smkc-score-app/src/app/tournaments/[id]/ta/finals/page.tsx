@@ -869,9 +869,12 @@ export default function TimeAttackFinals({
       {isAdmin && !isComplete && pendingSuddenDeath && (
         <Card className="border-amber-500">
           <CardHeader>
-            <CardTitle>Sudden-death tiebreak</CardTitle>
+            <CardTitle>{tTaFinals('suddenDeathTiebreak')}</CardTitle>
             <CardDescription>
-              Round {pendingSuddenDeath.round.roundNumber}, tiebreak #{pendingSuddenDeath.sequence}
+              {tTaFinals('suddenDeathRoundDesc', {
+                round: pendingSuddenDeath.round.roundNumber,
+                sequence: pendingSuddenDeath.sequence,
+              })}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -881,7 +884,7 @@ export default function TimeAttackFinals({
               </div>
             )}
             <div className="mb-4 space-y-1">
-              <Label className="text-sm text-muted-foreground">Sudden-death course</Label>
+              <Label className="text-sm text-muted-foreground">{tTaFinals('suddenDeathCourse')}</Label>
               <Select
                 value={pendingSuddenDeath.course}
                 onValueChange={handleSuddenDeathCourseChange}
@@ -919,7 +922,7 @@ export default function TimeAttackFinals({
             </div>
             <div className="mt-6 flex justify-end">
               <Button onClick={handleSubmitSuddenDeath} disabled={submitting}>
-                {submitting ? tCommon('saving') : 'Submit sudden death'}
+                {submitting ? tCommon('saving') : tTaFinals('submitSuddenDeath')}
               </Button>
             </div>
           </CardContent>
