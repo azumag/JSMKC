@@ -728,6 +728,26 @@
 - **期待結果**: CDM テンプレート由来の固定値は、どの workbook 範囲を守るための値か読める
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1871A: CDM export — TT Qualifications の範囲定数を専用名にする
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #1871。TT Qualifications は Main Hub と同じ行レイアウトだが、`CDM_PLAYER_HUB_*` を直接使うと別シートの範囲が Main Hub に依存しているように読める。
+- **手順**:
+  1. `CDM_TT_QUAL_FIRST_ROW` / `CDM_TT_QUAL_MAX_PLAYERS` が存在することを確認する
+  2. `writeTTQualifications` が TT 専用定数を使って clear と slice を行うことを確認する
+  3. TT 専用定数が Main Hub と同じレイアウトである理由コメントを持つことを確認する
+- **期待結果**: TT Qualifications の固定範囲は、Main Hub の実装詳細ではなく TT シートの範囲として読める
+- **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-1872A: CDM export — finals/TT round の残存座標を名前付き定数にする
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #1872。`writeMatchFinalsSheet` / `writeTTFinals` の clearRange に残った `107`, `5`, `524`, `1`, `26` は CDM 2025 テンプレート由来の固定座標であり、数値直書きのままだと根拠が追いにくい。
+- **手順**:
+  1. finals block の幅、最終列、match 開始行が `CDM_FINALS_*` 定数で表現されることを確認する
+  2. TT round block の幅、最終列、開始/終了行が `CDM_TT_ROUND_*` 定数で表現されることを確認する
+  3. `clearRange` がこれらの定数を使い、数値直書きを残していないことを確認する
+- **期待結果**: finals/TT round のテンプレート座標はすべて名前付き定数経由で参照される
+- **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-348: キャラクター統計 API — admin のみアクセス可 (TC-328 と重複なし: 形式チェック)
 - **URL**: /api/players/[id]/character-stats
 - **authRequired**: true (admin) / false → 401
