@@ -1122,16 +1122,17 @@ async function createSuddenDeathRound(
           });
           return existing;
         }
-      }
-      if (isUniqueViolation && attempt < MAX_SUDDEN_DEATH_CREATE_ATTEMPTS) {
-        logger.warn("Sudden-death creation race condition detected without reusable round, retrying", {
-          tournamentId,
-          phase,
-          phaseRoundId,
-          attempt,
-          sequence: count + 1,
-        });
-        continue;
+        if (attempt < MAX_SUDDEN_DEATH_CREATE_ATTEMPTS) {
+          logger.warn("Sudden-death creation race condition detected without reusable round, retrying", {
+            tournamentId,
+            phase,
+            phaseRoundId,
+            attempt,
+            sequence: count + 1,
+          });
+          continue;
+        }
+        break;
       }
       throw error;
     }
