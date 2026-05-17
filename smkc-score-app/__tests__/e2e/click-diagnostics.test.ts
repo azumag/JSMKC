@@ -50,11 +50,12 @@ describe('clickWithDiagnostics', () => {
       click: jest.fn().mockRejectedValue(new Error('locator.click: Timeout 30000ms exceeded')),
       count: jest.fn().mockRejectedValue(new Error('detached')),
       isVisible: jest.fn().mockRejectedValue(new Error('not attached')),
+      isEnabled: jest.fn().mockRejectedValue(new Error('enabled detached')),
       boundingBox: jest.fn().mockResolvedValue(null),
     });
 
     await expect(clickWithDiagnostics(locator, 'TC-604 reader errors')).rejects.toThrow(
-      /count="count_error:detached" visible="visible_error:not attached" enabled=true box=n\/a text="Save"/,
+      /count="count_error:detached" visible="visible_error:not attached" enabled="enabled_error:enabled detached" box=n\/a text="Save"/,
     );
   });
 
