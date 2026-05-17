@@ -199,6 +199,46 @@ describe('E2E case drift coverage', () => {
     expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].AR19.v');
   });
 
+  it('documents TC-1877A as reachable grand-final reset alias coverage', () => {
+    const section = e2eCaseSection('TC-1877A');
+
+    expect(section).toContain('issue #1877');
+    expect(section).toContain('bracketPosition.includes("reset")');
+    expect(exportRoute).toContain('if (bracketPosition.includes("reset")) return "grand_final_reset"');
+    expect(exportRoute).not.toContain('round === "grand_final_reset" || bracketPosition.includes("reset")');
+  });
+
+  it('documents TC-1878A as unknown-round fallback counter coverage', () => {
+    const section = e2eCaseSection('TC-1878A');
+
+    expect(section).toContain('issue #1878');
+    expect(section).toContain('zz_custom_showmatch');
+    expect(exportRoute).toContain('isFallback: true');
+    expect(exportRoute).toContain('if (slot.isFallback) fallbackIndex++');
+    expect(exportRouteTest).toContain('should use the first fallback CDM finals slot only for unknown rounds');
+    expect(exportRouteTest).toContain('zz_custom_showmatch');
+    expect(exportRouteTest).toContain('sheet.D5.v');
+  });
+
+  it('documents TC-1879A as E2E slot table synchronization coverage', () => {
+    const section = e2eCaseSection('TC-1879A');
+
+    expect(section).toContain('issue #1879');
+    expect(section).toContain('CDM_FINALS_BRACKET_SLOTS');
+    expect(tcAll).toContain('Keep this expectation map synchronized with route.ts CDM_FINALS_BRACKET_SLOTS');
+    expect(tcAll).toContain('XLSX.read(Buffer.from(exportResp.bytes)');
+  });
+
+  it('documents TC-1880A as optional GP cupResults E2E coverage', () => {
+    const section = e2eCaseSection('TC-1880A');
+
+    expect(section).toContain('issue #1880');
+    expect(section).toContain('gpCupResultsChecked');
+    expect(tcAll).toContain('GP cupResults not available; skipped summary-cell check');
+    expect(tcAll).toContain('checked > 0 && missingModes.length === 0 && failures.length === 0');
+    expect(tcAll).not.toContain('missingModes.length === 0 && gpCupResultsChecked && failures.length === 0');
+  });
+
   it('documents TC-817B as CSV/CDM export include split coverage', () => {
     const section = e2eCaseSection('TC-817B');
 

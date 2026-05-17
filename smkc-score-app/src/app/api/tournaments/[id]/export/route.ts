@@ -191,7 +191,7 @@ function cdmFinalsSlotRound(match: MatchWithPlayers): string | null {
   const round = match.round ?? "";
   const bracketPosition = (match.bracketPosition ?? "").toLowerCase();
   if (round in CDM_FINALS_BRACKET_SLOTS) return round;
-  if (round === "grand_final_reset" || bracketPosition.includes("reset")) return "grand_final_reset";
+  if (bracketPosition.includes("reset")) return "grand_final_reset";
   if (round === "gf" || bracketPosition === "gf" || match.isGrandFinal) return "grand_final";
   return null;
 }
@@ -438,16 +438,16 @@ function cdmFinalsSlotForMatch(
   match: MatchWithPlayers,
   roundIndex: number,
   fallbackIndex: number
-): { blockStart: number; row: number } | null {
+): { blockStart: number; row: number; isFallback: boolean } | null {
   const slotRound = cdmFinalsSlotRound(match);
   const slots = slotRound ? CDM_FINALS_BRACKET_SLOTS[slotRound] : undefined;
   if (slots?.[roundIndex]) {
-    return slots[roundIndex];
+    return { ...slots[roundIndex], isFallback: false };
   }
 
   const fallbackBlockStart = CDM_FINALS_BLOCK_START_COLUMNS[Math.floor(fallbackIndex / CDM_FINALS_PAIR_ROWS.length)];
   const fallbackRow = CDM_FINALS_PAIR_ROWS[fallbackIndex % CDM_FINALS_PAIR_ROWS.length];
-  return fallbackBlockStart && fallbackRow ? { blockStart: fallbackBlockStart, row: fallbackRow } : null;
+  return fallbackBlockStart && fallbackRow ? { blockStart: fallbackBlockStart, row: fallbackRow, isFallback: true } : null;
 }
 
 function cdmFinalsMatchLabel(match: MatchWithPlayers): string {
@@ -506,8 +506,8 @@ function writeMatchFinalsSheet(
     const roundIndex = roundIndexes.get(roundKey) ?? 0;
     roundIndexes.set(roundKey, roundIndex + 1);
     const slot = cdmFinalsSlotForMatch(match, roundIndex, fallbackIndex);
-    fallbackIndex++;
     if (!slot) return;
+    if (slot.isFallback) fallbackIndex++;
 
     const { blockStart, row } = slot;
     const p1Score = mode === "gp" ? match.points1 ?? 0 : match.score1 ?? 0;
