@@ -80,6 +80,7 @@ describe('E2E case drift coverage', () => {
     'tournament',
     'ta-sudden-death-panel.test.tsx',
   );
+  const qualificationFallback = readRepoFile('smkc-score-app', 'src', 'components', 'ui', 'loading-skeleton.tsx');
   const exportRoute = readRepoFile(
     'smkc-score-app',
     'src',
@@ -105,6 +106,7 @@ describe('E2E case drift coverage', () => {
 
   it.each([
     ['TC-352', tcAll],
+    ['TC-356', tcAll],
     ['TC-357', tcAll],
     ['TC-702', tcGp],
     ['TC-717', tcGp],
@@ -169,6 +171,41 @@ describe('E2E case drift coverage', () => {
     expect(doubleBracketTest).toContain('uses getWinnerId for completed tied matches');
     expect(playoffBracketTest).toContain('uses getWinnerId for completed tied matches');
     expect(tcGp).not.toMatch(/\{\s*name:\s*['"]TC-830['"]/);
+  });
+
+  it('keeps TC-356 scoped to the GP finals dialog and failing on mobile layout regressions', () => {
+    const section = e2eCaseSection('TC-356');
+    const tc356Block = sectionBetween(tcAll, '// TC-356:', '// TC-357:');
+
+    expect(section).toContain('ダイアログ幅内に収まる');
+    expect(tc356Block).toContain("const dialog = document.querySelector('[role=\"dialog\"]')");
+    expect(tc356Block).toContain('dialog.querySelector(\'#gp-finals-simple-score1\')');
+    expect(tc356Block).toContain('dialog.querySelector(\'#gp-finals-simple-score2\')');
+    expect(tc356Block).toContain("log('TC-356', mobileLayoutUsable ? 'PASS' : 'FAIL'");
+    expect(tc356Block).not.toContain("log('TC-356', hasScrollWrapper ? 'PASS' : 'SKIP'");
+    expect(tc356Block).not.toContain('document.querySelector("div.overflow-x-auto")');
+  });
+
+  it('keeps TC-357 checking exact mode-title h1 fallback headings', () => {
+    const section = e2eCaseSection('TC-357');
+    const tc357Block = sectionBetween(tcAll, '// TC-357:', '// TC-104:');
+
+    expect(section).toContain('`h1` を即時確認する');
+    expect(section).toContain('`domcontentloaded` 直後に確認する');
+    expect(section).toContain('`バトルモード` または `Battle Mode`');
+    expect(section).toContain('`マッチレース` または `Match Race`');
+    expect(section).toContain('`グランプリ` または `Grand Prix`');
+    expect(section).toContain('`タイムアタック` または `Time Attack`');
+    expect(qualificationFallback).toContain('{title && <h1');
+    expect(tc357Block).toContain("waitUntil: 'domcontentloaded'");
+    expect(tc357Block).toContain("page.goto(`${BASE}/tournaments/${TID}/${mode}`");
+    expect(tc357Block).not.toContain("await nav(page, `/tournaments/${TID}/${mode}`)");
+    expect(tc357Block).toContain("document.querySelectorAll('h1')");
+    expect(tc357Block).not.toContain("document.querySelectorAll('h1, h2, h3')");
+    expect(tc357Block).toContain("bm: ['バトルモード', 'Battle Mode']");
+    expect(tc357Block).toContain("mr: ['マッチレース', 'Match Race']");
+    expect(tc357Block).toContain("gp: ['グランプリ', 'Grand Prix']");
+    expect(tc357Block).toContain("ta: ['タイムアタック', 'Time Attack']");
   });
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
