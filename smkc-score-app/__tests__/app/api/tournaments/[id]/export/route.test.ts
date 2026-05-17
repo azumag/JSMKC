@@ -235,6 +235,88 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(result.headers['Content-Disposition']).toContain('.xlsm');
     });
 
+    it('should place CDM finals matches in native bracket coordinates', async () => {
+      const player = (id: string) => ({ id, name: `Name ${id}`, nickname: id.toUpperCase() });
+      const match = (round: string, matchNumber: number, p1: string, p2: string, stage = 'finals') => ({
+        matchNumber,
+        stage,
+        round,
+        bracketPosition: round === 'gf' ? 'gf' : round,
+        isGrandFinal: round === 'gf',
+        player1: player(p1),
+        player2: player(p2),
+        score1: 2,
+        score2: 1,
+        points1: 2,
+        points2: 1,
+        completed: true,
+      });
+      const finalsMatches = [
+        match('playoff_r1', 1, 'p1', 'p2', 'playoff'),
+        match('playoff_r2', 5, 'p3', 'p4', 'playoff'),
+        match('winners_r1', 1, 'p5', 'p6'),
+        match('winners_qf', 9, 'p7', 'p8'),
+        match('winners_sf', 13, 'p9', 'p10'),
+        match('winners_final', 15, 'p11', 'p12'),
+        match('losers_r1', 16, 'p13', 'p14'),
+        match('losers_r2', 20, 'p15', 'p16'),
+        match('losers_r3', 24, 'p17', 'p18'),
+        match('losers_r4', 26, 'p19', 'p20'),
+        match('losers_sf', 28, 'p21', 'p22'),
+        match('losers_final', 29, 'p23', 'p24'),
+        match('gf', 30, 'p25', 'p26'),
+        match('grand_final_reset', 31, 'p27', 'p28'),
+      ];
+      const mockTournament = {
+        id: 't1',
+        name: 'CDM Bracket Coordinates',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: finalsMatches,
+        mrMatches: finalsMatches,
+        gpMatches: finalsMatches,
+        ttEntries: [],
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
+      const sheet = workbook.Sheets["BM Finals"];
+      expect(sheet.D5.v).toBe('playoff_r1');
+      expect(sheet.K5.v).toBe('playoff_r2');
+      expect(sheet.R5.v).toBe('winners_r1');
+      expect(sheet.Y7.v).toBe('winners_qf');
+      expect(sheet.AF11.v).toBe('winners_sf');
+      expect(sheet.AM19.v).toBe('winners_final');
+      expect(sheet.AT19.v).toBe('GF');
+      expect(sheet.BA19.v).toBe('GF Reset');
+      expect(sheet.R41.v).toBe('losers_r1');
+      expect(sheet.Y41.v).toBe('losers_r2');
+      expect(sheet.AF43.v).toBe('losers_r3');
+      expect(sheet.AM43.v).toBe('losers_r4');
+      expect(sheet.AT47.v).toBe('losers_sf');
+      expect(sheet.BA47.v).toBe('losers_final');
+      expect(sheet.AC7.v).toBe(2);
+      expect(sheet.AC8.v).toBe(1);
+      expect(workbook.Sheets["MR Finals"].Y7.v).toBe('winners_qf');
+      expect(workbook.Sheets["MR Finals"].AT19.v).toBe('GF');
+      expect(workbook.Sheets["GP Finals"].Y7.v).toBe('winners_qf');
+      expect(workbook.Sheets["GP Finals"].BA47.v).toBe('losers_final');
+    });
+
     it('should return 401 when CDM export is requested without authentication', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
@@ -473,9 +555,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       await GET(request, { params });
 
       const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
-      expect(workbook.Sheets["GP Finals"].H5.v).toBe(2);
-      expect(workbook.Sheets["GP Finals"].H6.v).toBe(1);
-      expect(workbook.Sheets["GP Finals"].I5.v).toBe('Mushroom: 45-30; Flower: 24-45; Star: 48-21');
+      expect(workbook.Sheets["GP Finals"].AQ19.v).toBe(2);
+      expect(workbook.Sheets["GP Finals"].AQ20.v).toBe(1);
+      expect(workbook.Sheets["GP Finals"].AR19.v).toBe('Mushroom: 45-30; Flower: 24-45; Star: 48-21');
     });
 
     it('should export BM qualification data grouped by group', async () => {

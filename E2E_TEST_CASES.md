@@ -699,6 +699,16 @@
 - **期待結果**: 認証済み管理者の CDM エクスポートが `.xlsm` としてダウンロードされる。`download.path()` が取得できない場合は、永続コンテキストの `acceptDownloads` 設定を確認できる診断メッセージで FAIL する。
 - **スクリプト**: tc-all.js TC-358
 
+## TC-816A: CDM export — finals をテンプレートの bracket 座標へ配置する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #816。CDM Finals シートは dense table ではなく固定 bracket レイアウトなので、match を順番に詰めると Barrage / Top 16 / Upper / Lower / GF / Reset の位置がずれる。
+- **手順**:
+  1. playoff、winners、losers、grand final、reset の各 round を含む CDM export fixture を作る
+  2. BM/MR/GP Finals の round が `CDM_FINALS_BRACKET_SLOTS` の block/row 座標へ配置されることを確認する
+  3. GP Finals の cupResults summary が移動先の bracket slot に残ることを確認する
+- **期待結果**: finals match は CDM 2025 テンプレートの native bracket coordinates に配置され、GP の cup/points 補足情報も失われない
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-817B: CDM export — CSV では CDM 専用 include を取得しない
 - **URL**: /api/tournaments/[id]/export
 - **背景**: issue #817。CSV 出力は MR/GP qualification seed、TT phase rounds、overall playerScores を使用しないため、CDM 専用 include を無条件に付けると不要な JOIN が増える。
