@@ -149,14 +149,14 @@ const CDM_QUALIFICATION_MAX_ROWS = 767;
 const CDM_FINALS_PLAYER_FIRST_ROW = 3;
 const CDM_FINALS_MAX_PLAYERS = 52;
 const CDM_FINALS_BLOCK_START_COLUMNS = [4, 11, 18, 25, 32, 39, 46, 53, 60, 67, 74, 81, 88, 95, 102];
-const CDM_FINALS_BLOCK_WIDTH = 6;
+const CDM_FINALS_BLOCK_END_OFFSET = 6;
 const CDM_FINALS_LAST_COLUMN = 107;
 const CDM_FINALS_MATCH_FIRST_ROW = 5;
 const CDM_FINALS_PAIR_ROWS = [5, 13, 21, 29, 37, 45];
 const CDM_TT_FINALIST_FIRST_ROW = 3;
 const CDM_TT_FINALIST_MAX_ROWS = 24;
 const CDM_TT_ROUND_START_COLUMNS = [7, 20, 33, 46, 59, 72, 85, 98];
-const CDM_TT_ROUND_BLOCK_WIDTH = 5;
+const CDM_TT_ROUND_BLOCK_END_OFFSET = 5;
 const CDM_TT_ROUND_LAST_COLUMN = 524;
 const CDM_TT_ROUND_FIRST_ROW = 1;
 const CDM_TT_ROUND_LAST_ROW = 26;
@@ -377,6 +377,9 @@ function uniquePlayersFromMatches(matches: MatchWithPlayers[]): PlayerPublic[] {
   return [...players.values()].sort((a, b) => a.nickname.localeCompare(b.nickname));
 }
 
+// The end column and row are inclusive because XLSX cells are addressed one by
+// one here; callers that derive an end column from a start column must pass an
+// explicit end offset, not a count/width, to avoid off-by-one mistakes.
 function clearRange(ws: XLSX.WorkSheet, startCol: number, endCol: number, startRow: number, endRow: number) {
   for (let row = startRow; row <= endRow; row++) {
     for (let col = startCol; col <= endCol; col++) {
@@ -432,7 +435,7 @@ function writeMatchFinalsSheet(
     clearRange(
       ws,
       start,
-      Math.min(start + CDM_FINALS_BLOCK_WIDTH, CDM_FINALS_LAST_COLUMN),
+      Math.min(start + CDM_FINALS_BLOCK_END_OFFSET, CDM_FINALS_LAST_COLUMN),
       CDM_FINALS_MATCH_FIRST_ROW,
       CDM_FINALS_PLAYER_FIRST_ROW + CDM_FINALS_MAX_PLAYERS - 1
     )
@@ -501,7 +504,7 @@ function writeTTFinals(workbook: XLSX.WorkBook, entries: TTEntryExport[], rounds
     clearRange(
       ws,
       start,
-      Math.min(start + CDM_TT_ROUND_BLOCK_WIDTH, CDM_TT_ROUND_LAST_COLUMN),
+      Math.min(start + CDM_TT_ROUND_BLOCK_END_OFFSET, CDM_TT_ROUND_LAST_COLUMN),
       CDM_TT_ROUND_FIRST_ROW,
       CDM_TT_ROUND_LAST_ROW
     )
