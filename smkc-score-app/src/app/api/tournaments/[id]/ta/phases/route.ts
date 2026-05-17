@@ -521,6 +521,7 @@ export async function GET(
         },
       );
 
+      // End of the D1 read section; the remaining work only normalizes and sorts in memory.
       const normalizedRounds = rounds.map(normalizePhaseRound);
 
       response.entries = sortPhaseEntriesForDisplay(entries, normalizedRounds);
