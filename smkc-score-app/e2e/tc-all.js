@@ -4243,18 +4243,21 @@ async function main() {
     }
   }
 
-  // TC-357: PPR mode page fallback renders a heading immediately (before streaming)
-  // Verifies that the QualificationFallback Suspense skeleton includes an h1
-  // element with the mode title so E2E selectors pass even on slow D1 fetches
+  // TC-357: PPR mode page fallback renders a mode-title h1 immediately (before streaming)
+  // Verifies that the QualificationFallback Suspense skeleton includes the
+  // exact mode title in an h1, not just any heading on the page, so regressions
+  // in the fallback title prop are detected even on slow D1 fetches
   // (issue #809). Tests the static shell by checking HTTP response HTML.
   if (TID) {
     const modes357 = ['bm', 'mr', 'gp', 'ta'];
     const results357 = [];
     for (const mode of modes357) {
       try {
-        // Navigate with a very short timeout to catch the skeleton phase
-        await nav(page, `/tournaments/${TID}/${mode}`);
-        // Check immediately — the h1 should be in the static shell
+        // Use a bare domcontentloaded navigation instead of nav(): nav() waits
+        // for the post-load retry window, which can let the fully rendered page
+        // hide a missing Suspense fallback title regression.
+        await page.goto(`${BASE}/tournaments/${TID}/${mode}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        // Check immediately — the h1 should be in the static shell.
         const expectedTitles = {
           bm: ['バトルモード', 'Battle Mode'],
           mr: ['マッチレース', 'Match Race'],
@@ -4262,7 +4265,7 @@ async function main() {
           ta: ['タイムアタック', 'Time Attack'],
         };
         const hasExpectedTitle = await page.evaluate((titles) => {
-          const headings = Array.from(document.querySelectorAll('h1, h2, h3'));
+          const headings = Array.from(document.querySelectorAll('h1'));
           return headings.some((heading) =>
             titles.some((title) => (heading.textContent || '').includes(title))
           );
