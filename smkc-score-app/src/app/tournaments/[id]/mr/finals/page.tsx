@@ -585,7 +585,6 @@ export default function MatchRaceFinals({
   /* Top-24 Phase 1 can expose a bracket preview before finals matches exist.
    * Keep the playoff tab selected until Phase 2 materializes finals rows, so
    * the admin sees the completed playoff and the required creation action. */
-  // Top-24 Phase 1 only has playoff rows; defaulting to the playoff tab keeps the actionable bracket visible.
   const defaultBracketTab: BracketTab = matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff;
 
   /* Loading skeleton */
