@@ -817,6 +817,33 @@ export function createFinalsHandlers(config: FinalsConfig) {
     );
   }
 
+  function orderQualificationsForFinalsSeeding<
+    TQualification extends { _rank: number; _rankOverridden?: boolean; rankOverride?: number | null }
+  >(qualifications: TQualification[]): TQualification[] {
+    /*
+     * Finals seeding is a tournament-wide bracket contract, not a grouped
+     * standings display contract. `computeQualificationRanks()` intentionally
+     * resets `_rank` inside each qualification group so UI labels can remain
+     * A1/B1/etc.; when a director enters a manual `rankOverride`, that finalized
+     * rank must still win globally for bracket seed order. This mirrors standard
+     * seeded-bracket practice: published/manual seed numbers are authoritative,
+     * while equal automatic group ranks fall back to the existing stable group
+     * order to avoid reshuffling normal A/B standings.
+     */
+    return qualifications
+      .map((qualification, index) => ({ qualification, index }))
+      .sort((a, b) => {
+        if (a.qualification._rank !== b.qualification._rank) {
+          return a.qualification._rank - b.qualification._rank;
+        }
+        const aOverride = a.qualification.rankOverride != null || a.qualification._rankOverridden === true;
+        const bOverride = b.qualification.rankOverride != null || b.qualification._rankOverridden === true;
+        if (aOverride !== bOverride) return aOverride ? -1 : 1;
+        return a.index - b.index;
+      })
+      .map(({ qualification }) => qualification);
+  }
+
   function getRoundAssignmentData(
     round: string,
     mrAssignments?: Map<string, string[]>,
@@ -1376,7 +1403,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
         tournamentId,
         qualifications,
       );
-      const selectedQualifications = rankedQualifications.slice(0, topN);
+      const finalsSeedQualifications = orderQualificationsForFinalsSeeding(rankedQualifications);
+      const selectedQualifications = finalsSeedQualifications.slice(0, topN);
       const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
 
       if (selectedQualifications.length < topN) {
