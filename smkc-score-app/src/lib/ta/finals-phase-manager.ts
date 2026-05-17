@@ -72,7 +72,7 @@ export const PHASE_CONFIG = {
   },
 } as const;
 
-function getNextPhase3ResetThreshold(activeCount: number): number | null {
+export function getNextPhase3ResetThreshold(activeCount: number): number | null {
   const thresholds = [...PHASE_CONFIG.phase3.lifeResetThresholds]
     .filter((threshold) => threshold < activeCount)
     .sort((a, b) => b - a);

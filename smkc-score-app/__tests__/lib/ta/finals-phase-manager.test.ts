@@ -9,6 +9,7 @@
 
 import {
   PHASE_CONFIG,
+  getNextPhase3ResetThreshold,
   processEliminationPhaseResult,
   processPhase3Result,
   getPhaseStatus,
@@ -294,6 +295,16 @@ describe("TA Finals Phase Manager", () => {
       );
 
       expect(result.eliminated).toContain("p2");
+    });
+  });
+
+  describe("getNextPhase3ResetThreshold", () => {
+    it("falls back to one survivor when no configured threshold remains below activeCount", () => {
+      expect(getNextPhase3ResetThreshold(9)).toBe(8);
+      expect(getNextPhase3ResetThreshold(5)).toBe(4);
+      expect(getNextPhase3ResetThreshold(3)).toBe(2);
+      expect(getNextPhase3ResetThreshold(2)).toBe(1);
+      expect(getNextPhase3ResetThreshold(1)).toBeNull();
     });
   });
 
