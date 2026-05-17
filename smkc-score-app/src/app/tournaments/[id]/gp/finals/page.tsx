@@ -157,6 +157,11 @@ interface GPMatch {
   round: string | null;
 }
 
+type GPBracketMatch = GPMatch & {
+  score1: number;
+  score2: number;
+};
+
 /** Abstract bracket position from double-elimination library */
 interface BracketMatch {
   matchNumber: number;
@@ -682,15 +687,15 @@ export default function GrandPrixFinals({
   // DoubleEliminationBracket reads match.score1/score2 for winner highlighting (#759).
   // These must be declared before any early returns to satisfy rules-of-hooks.
   const gpBracketMatches = useMemo(
-    () => matches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
+    (): GPBracketMatch[] => matches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
     [matches],
   );
   const gpPlayoffBracketMatches = useMemo(
-    () => playoffMatches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
+    (): GPBracketMatch[] => playoffMatches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
     [playoffMatches],
   );
   const getBracketWinnerId = useCallback(
-    (match: unknown) => getGpFinalsMatchWinner(match as GPMatch)?.id ?? null,
+    (match: GPBracketMatch) => getGpFinalsMatchWinner(match)?.id ?? null,
     [],
   );
   /* Top-24 Phase 1 can return a preview Upper Bracket before finals rows exist.
@@ -848,7 +853,7 @@ export default function GrandPrixFinals({
               bracketStructure={bracketStructure}
               roundNames={roundNames}
               seededPlayers={seededPlayers}
-              getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
+              getTargetWins={(match) => getTargetWinsForMatch(match)}
               getWinnerId={getBracketWinnerId}
               onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
@@ -860,7 +865,7 @@ export default function GrandPrixFinals({
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
-              getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
+              getTargetWins={(match) => getTargetWinsForMatch(match)}
               getWinnerId={getBracketWinnerId}
               onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
@@ -882,7 +887,7 @@ export default function GrandPrixFinals({
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
-            getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
+            getTargetWins={(match) => getTargetWinsForMatch(match)}
             getWinnerId={getBracketWinnerId}
             onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
@@ -901,7 +906,7 @@ export default function GrandPrixFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
+          getTargetWins={(match) => getTargetWinsForMatch(match)}
           getWinnerId={getBracketWinnerId}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}

@@ -23,9 +23,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { TV_NUMBER_OPTIONS } from "@/lib/constants";
+import { resolveBracketWinnerFlags, type BracketWinnerResolver } from "@/lib/bracket-winner-flags";
 
 import type { Player } from "@/lib/types";
-import type { SeededPlayer } from "@/types/bracket";
+import type { BracketMatch, SeededPlayer } from "@/types/bracket";
 
 /** BM match data from the database including player relations */
 interface BMMatch {
@@ -45,35 +46,24 @@ interface BMMatch {
   player2: Player;
 }
 
-/** Bracket structure definition for a single match position */
-interface BracketMatch {
-  matchNumber: number;
-  round: string;
-  bracket: "winners" | "losers" | "grand_final";
-  player1Seed?: number;
-  player2Seed?: number;
-  /** For playoff_r2 matches: which Upper Bracket seed the winner claims */
-  advancesToUpperSeed?: number;
-}
-
 /** Props for the PlayoffBracket component */
-interface PlayoffBracketProps {
+interface PlayoffBracketProps<TMatch extends BMMatch = BMMatch> {
   /** All playoff matches from the database (stage='playoff') */
-  playoffMatches: BMMatch[];
+  playoffMatches: TMatch[];
   /** Bracket structure defining match positions and connections */
   playoffStructure: BracketMatch[];
   /** Human-readable round names mapping */
   roundNames: Record<string, string>;
   /** Optional callback when a match card is clicked (for score entry) */
-  onMatchClick?: (match: BMMatch) => void;
+  onMatchClick?: (match: TMatch) => void;
   /** Seeded player data for displaying qualification labels */
   seededPlayers?: SeededPlayer[];
   /** Number of wins required to highlight a completed match winner */
-  getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  getTargetWins?: (match: TMatch | undefined, bracketMatch: BracketMatch) => number;
   /** Optional winner resolver for modes whose persisted winner is not score-order only. */
-  getWinnerId?: (match: BMMatch, bracketMatch: BracketMatch) => string | null;
+  getWinnerId?: BracketWinnerResolver<TMatch>;
   /** See `DoubleEliminationBracket.onTvNumberChange` — same select-to-save UX. */
-  onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
+  onTvNumberChange?: (match: TMatch, tvNumber: number | null) => void;
 }
 
 /**
@@ -81,7 +71,7 @@ interface PlayoffBracketProps {
  * Same visual style as DoubleEliminationBracket.MatchCard but includes
  * advancesToUpperSeed label for playoff_r2 completed matches.
  */
-function PlayoffMatchCard({
+function PlayoffMatchCard<TMatch extends BMMatch>({
   match,
   bracketMatch,
   seededPlayers,
@@ -92,15 +82,15 @@ function PlayoffMatchCard({
   getWinnerId,
   onTvNumberChange,
 }: {
-  match?: BMMatch;
+  match?: TMatch;
   bracketMatch: BracketMatch;
   seededPlayers?: SeededPlayer[];
   onClick?: () => void;
   isPlayer1TBD: boolean;
   isPlayer2TBD: boolean;
-  getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
-  getWinnerId?: (match: BMMatch, bracketMatch: BracketMatch) => string | null;
-  onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
+  getTargetWins?: (match: TMatch | undefined, bracketMatch: BracketMatch) => number;
+  getWinnerId?: BracketWinnerResolver<TMatch>;
+  onTvNumberChange?: (match: TMatch, tvNumber: number | null) => void;
 }) {
   const tc = useTranslations("common");
   const tf = useTranslations("finals");
@@ -117,13 +107,7 @@ function PlayoffMatchCard({
   const player2: Player | undefined = match?.player2 || seededEntry2?.player;
 
   const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
-  const customWinnerId = match?.completed && getWinnerId ? getWinnerId(match, bracketMatch) : undefined;
-  const isWinner1 = customWinnerId !== undefined
-    ? customWinnerId === match?.player1Id
-    : !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
-  const isWinner2 = customWinnerId !== undefined
-    ? customWinnerId === match?.player2Id
-    : !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
+  const { isWinner1, isWinner2 } = resolveBracketWinnerFlags(match, bracketMatch, targetWins, getWinnerId);
 
   const isTV1 = match?.tvNumber === 1;
 
@@ -238,7 +222,7 @@ function PlayoffMatchCard({
  * Playoff Bracket component.
  * Renders the 8-match pre-bracket playoff in two columns (R1 | R2).
  */
-export function PlayoffBracket({
+export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
   playoffMatches,
   playoffStructure,
   roundNames,
@@ -247,7 +231,7 @@ export function PlayoffBracket({
   getTargetWins,
   getWinnerId,
   onTvNumberChange,
-}: PlayoffBracketProps) {
+}: PlayoffBracketProps<TMatch>) {
   const tf = useTranslations("finals");
   const getMatch = (matchNumber: number) =>
     playoffMatches.find((m) => m.matchNumber === matchNumber);
