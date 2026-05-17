@@ -261,6 +261,37 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
   });
 });
 
+describe("DoubleEliminationBracket winner resolver", () => {
+  const player1 = { id: "p1", name: "Alice A", nickname: "Alice" };
+  const player2 = { id: "p2", name: "Bob B", nickname: "Bob" };
+
+  it("uses getWinnerId for completed tied matches instead of score ordering only", () => {
+    render(
+      <DoubleEliminationBracket
+        matches={[{
+          id: "m1",
+          matchNumber: 1,
+          round: "winners_qf",
+          stage: "finals",
+          player1Id: player1.id,
+          player2Id: player2.id,
+          score1: 2,
+          score2: 2,
+          completed: true,
+          player1,
+          player2,
+        }]}
+        bracketStructure={[build8PlayerStructure()[0]]}
+        roundNames={{}}
+        getWinnerId={() => player2.id}
+      />,
+    );
+
+    expect(screen.getByText("Bob").closest("div")?.className).toContain("bg-primary/10");
+    expect(screen.getByText("Alice").closest("div")?.className).not.toContain("bg-primary/10");
+  });
+});
+
 describe("DoubleEliminationBracket startingCourseNumber display (issue #731)", () => {
   /* Verify that when matches carry a startingCourseNumber, the round header
    * shows the battle course label below the round name. */

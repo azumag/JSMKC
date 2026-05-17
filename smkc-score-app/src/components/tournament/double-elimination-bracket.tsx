@@ -63,6 +63,8 @@ interface DoubleEliminationBracketProps {
   seededPlayers?: SeededPlayer[];
   /** Number of wins required to highlight a completed match winner. */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  /** Optional winner resolver for modes whose persisted winner is not score-order only. */
+  getWinnerId?: (match: BMMatch, bracketMatch: BracketMatch) => string | null;
   /**
    * Optional callback fired the moment an admin picks a TV# from the
    * inline dropdown on the match card. When provided, the static "TV{n}"
@@ -90,6 +92,7 @@ function MatchCard({
   onClick,
   isTBD,
   getTargetWins,
+  getWinnerId,
   onTvNumberChange,
 }: {
   match?: BMMatch;
@@ -98,6 +101,7 @@ function MatchCard({
   onClick?: () => void;
   isTBD: { player1: boolean; player2: boolean };
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  getWinnerId?: (match: BMMatch, bracketMatch: BracketMatch) => string | null;
   onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }) {
   const tc = useTranslations("common");
@@ -116,8 +120,13 @@ function MatchCard({
   const player2: Player | undefined = match?.player2 || seededEntry2?.player;
 
   const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
-  const isWinner1 = !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
-  const isWinner2 = !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
+  const customWinnerId = match?.completed && getWinnerId ? getWinnerId(match, bracketMatch) : undefined;
+  const isWinner1 = customWinnerId !== undefined
+    ? customWinnerId === match?.player1Id
+    : !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
+  const isWinner2 = customWinnerId !== undefined
+    ? customWinnerId === match?.player2Id
+    : !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
 
   /*
    * Per-slot TBD display. First-round matches (seeded) always show real names.
@@ -308,6 +317,7 @@ export function DoubleEliminationBracket({
   onMatchClick,
   seededPlayers,
   getTargetWins,
+  getWinnerId,
   onTvNumberChange,
 }: DoubleEliminationBracketProps) {
   const tf = useTranslations("finals");
@@ -430,6 +440,7 @@ export function DoubleEliminationBracket({
                     }}
                     isTBD={isTBD(b.matchNumber)}
                     getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                     onTvNumberChange={onTvNumberChange}
                   />
                 ))}
@@ -453,6 +464,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -475,6 +487,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -497,6 +510,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -527,6 +541,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -549,6 +564,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -571,6 +587,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -594,6 +611,7 @@ export function DoubleEliminationBracket({
                     }}
                     isTBD={isTBD(b.matchNumber)}
                     getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                     onTvNumberChange={onTvNumberChange}
                   />
                 ))}
@@ -617,6 +635,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -639,6 +658,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -667,6 +687,7 @@ export function DoubleEliminationBracket({
                 }}
                 isTBD={isTBD(b.matchNumber)}
                 getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                 onTvNumberChange={onTvNumberChange}
               />
             ))}
@@ -691,6 +712,7 @@ export function DoubleEliminationBracket({
                 }}
                 isTBD={isTBD(b.matchNumber)}
                 getTargetWins={getTargetWins}
+                    getWinnerId={getWinnerId}
                 onTvNumberChange={onTvNumberChange}
               />
             ))}

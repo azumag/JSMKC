@@ -23,6 +23,7 @@
  *           before the suite moves into the longer playoff UI flows.
  *   TC-1109 GP finals cup-form lock count uses the max-cups helper directly
  *   TC-719  GP tied cup extends non-grand-final bracket match
+ *   TC-830  GP finals legacy suddenDeathWinnerId keeps winner display
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
  *   TC-724  GP combined standings tab shows rows with point headers and ascending ranks
@@ -939,6 +940,43 @@ async function runTc1109() {
   }
 }
 
+/* ───────── TC-830: GP finals legacy sudden-death winner display ───────── */
+async function runTc830() {
+  try {
+    const pageSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'), 'utf8');
+    const helperSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'gp-finals-match-winner.ts'), 'utf8');
+    const unitTestSource = fs.readFileSync(path.join(__dirname, '..', '__tests__', 'lib', 'gp-finals-match-winner.test.ts'), 'utf8');
+    const doubleBracketSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'tournament', 'double-elimination-bracket.tsx'), 'utf8');
+    const playoffBracketSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'tournament', 'playoff-bracket.tsx'), 'utf8');
+
+    const pageUsesHelper = pageSource.includes('getGpFinalsMatchWinner(match)');
+    const pagePassesWinnerResolver = pageSource.includes('getWinnerId={getBracketWinnerId}');
+    const bracketSupportsWinnerResolver = doubleBracketSource.includes('getWinnerId?:') &&
+      doubleBracketSource.includes('customWinnerId') &&
+      playoffBracketSource.includes('getWinnerId?:') &&
+      playoffBracketSource.includes('customWinnerId');
+    const helperKeepsLegacyPath = helperSource.includes('suddenDeathWinnerId === match.player1.id') &&
+      helperSource.includes('suddenDeathWinnerId === match.player2.id');
+    const helperDocumentsCompatibility = helperSource.includes('Backward compatibility for GP finals rows');
+    const unitCoversLegacyTie = unitTestSource.includes('falls back to suddenDeathWinnerId for completed legacy tied rows');
+    const unitCoversInvalidLegacyWinner = unitTestSource.includes('without a matching legacy winner');
+
+    const ok = pageUsesHelper && pagePassesWinnerResolver && bracketSupportsWinnerResolver &&
+      helperKeepsLegacyPath && helperDocumentsCompatibility && unitCoversLegacyTie && unitCoversInvalidLegacyWinner;
+    log('TC-830', ok ? 'PASS' : 'FAIL',
+      !pageUsesHelper ? 'GP finals page does not delegate winner detection to getGpFinalsMatchWinner'
+      : !pagePassesWinnerResolver ? 'GP finals page does not pass getWinnerId to bracket components'
+      : !bracketSupportsWinnerResolver ? 'bracket components do not use a custom winner resolver'
+      : !helperKeepsLegacyPath ? 'legacy suddenDeathWinnerId fallback is missing'
+      : !helperDocumentsCompatibility ? 'legacy compatibility rationale comment is missing'
+      : !unitCoversLegacyTie ? 'unit test does not cover tied legacy suddenDeathWinnerId rows'
+      : !unitCoversInvalidLegacyWinner ? 'unit test does not cover invalid legacy winner ids'
+      : '');
+  } catch (err) {
+    log('TC-830', 'FAIL', err instanceof Error ? err.message : 'GP 830 failed');
+  }
+}
+
 /* ───────── TC-727: GP finals rejects score-only cup wins above FT target ───────── */
 async function runTc727(adminPage) {
   let setup = null;
@@ -1837,6 +1875,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-712', fn: runTc712 },
       { name: 'TC-719', fn: runTc719 },
       { name: 'TC-720', fn: runTc720 },
+      { name: 'TC-830', fn: runTc830 },
       // TC-831 stays before TC-832 so GP suite logs remain readable in numeric TC order.
       { name: 'TC-831', fn: runTc831 },
       { name: 'TC-832', fn: runTc832 },
@@ -1852,7 +1891,7 @@ module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc1106, runTc727, runTc729, runTc719,
-  runTc720, runTc721, runTc722, runTc724, runTc725, runTc1087, runTc821, runTc831, runTc832,
+  runTc720, runTc721, runTc722, runTc724, runTc725, runTc1087, runTc821, runTc830, runTc831, runTc832,
   gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult, gpFinalsTargetWins,
   getSuite,
   results,

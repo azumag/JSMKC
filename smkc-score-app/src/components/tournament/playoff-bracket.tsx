@@ -70,6 +70,8 @@ interface PlayoffBracketProps {
   seededPlayers?: SeededPlayer[];
   /** Number of wins required to highlight a completed match winner */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  /** Optional winner resolver for modes whose persisted winner is not score-order only. */
+  getWinnerId?: (match: BMMatch, bracketMatch: BracketMatch) => string | null;
   /** See `DoubleEliminationBracket.onTvNumberChange` — same select-to-save UX. */
   onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }
@@ -87,6 +89,7 @@ function PlayoffMatchCard({
   isPlayer1TBD,
   isPlayer2TBD,
   getTargetWins,
+  getWinnerId,
   onTvNumberChange,
 }: {
   match?: BMMatch;
@@ -96,6 +99,7 @@ function PlayoffMatchCard({
   isPlayer1TBD: boolean;
   isPlayer2TBD: boolean;
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  getWinnerId?: (match: BMMatch, bracketMatch: BracketMatch) => string | null;
   onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }) {
   const tc = useTranslations("common");
@@ -113,8 +117,13 @@ function PlayoffMatchCard({
   const player2: Player | undefined = match?.player2 || seededEntry2?.player;
 
   const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
-  const isWinner1 = !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
-  const isWinner2 = !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
+  const customWinnerId = match?.completed && getWinnerId ? getWinnerId(match, bracketMatch) : undefined;
+  const isWinner1 = customWinnerId !== undefined
+    ? customWinnerId === match?.player1Id
+    : !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
+  const isWinner2 = customWinnerId !== undefined
+    ? customWinnerId === match?.player2Id
+    : !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
 
   const isTV1 = match?.tvNumber === 1;
 
@@ -236,6 +245,7 @@ export function PlayoffBracket({
   onMatchClick,
   seededPlayers,
   getTargetWins,
+  getWinnerId,
   onTvNumberChange,
 }: PlayoffBracketProps) {
   const tf = useTranslations("finals");
@@ -323,6 +333,7 @@ export function PlayoffBracket({
                   isPlayer1TBD={isTBD(b.matchNumber, 1)}
                   isPlayer2TBD={isTBD(b.matchNumber, 2)}
                   getTargetWins={getTargetWins}
+                  getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
@@ -349,6 +360,7 @@ export function PlayoffBracket({
                   isPlayer1TBD={isTBD(b.matchNumber, 1)}
                   isPlayer2TBD={isTBD(b.matchNumber, 2)}
                   getTargetWins={getTargetWins}
+                  getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
                 />
               ))}
