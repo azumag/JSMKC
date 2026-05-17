@@ -165,7 +165,8 @@ export default function TimeAttackFinals({
   const tTaFinals = useTranslations('taFinals');
   const tFinals = useTranslations('finals');
   const tCommon = useTranslations('common');
-  // Keep the shared input props object stable across polling-driven re-renders.
+  // Input is a native element, so this does not skip rendering by reference equality.
+  // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(tTaFinals('timeInputTitle')), [tTaFinals]);
 
   /**

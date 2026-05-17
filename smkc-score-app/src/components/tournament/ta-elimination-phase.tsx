@@ -136,7 +136,8 @@ export default function TAEliminationPhase({
   // 'common' namespace for shared UI labels (e.g., "Player")
   const tElim = useTranslations('taElimination');
   const tCommon = useTranslations('common');
-  // Keep the shared input props object stable across polling-driven re-renders.
+  // Input is a native element, so this does not skip rendering by reference equality.
+  // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(tElim('timeInputTitle')), [tElim]);
 
   /**
