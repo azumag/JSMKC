@@ -1666,7 +1666,7 @@ async function runTc519(adminPage) {
 
     log('TC-519', m8Tbd && m9Tbd ? 'PASS' : 'FAIL',
       !m8Tbd ? `M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})`
-      : !m9Tbd ? `M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)})`
+      : !m9Tbd ? `M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})`
       : '');
   } catch (err) {
     log('TC-519', 'FAIL', err instanceof Error ? err.message : 'BM 519 failed');
