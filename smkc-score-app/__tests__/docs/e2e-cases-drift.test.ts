@@ -886,17 +886,10 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('issue #822');
     expect(section).toContain('suddenDeathTiebreak');
-    expect(section).toContain('tTaFinals(...)');
-    expect(section).toContain('tElim(...)');
     for (const key of ['suddenDeathTiebreak', 'suddenDeathRoundDesc', 'suddenDeathCourse', 'submitSuddenDeath']) {
       expect(enMessages).toContain(`"${key}"`);
       expect(jaMessages).toContain(`"${key}"`);
     }
-    expect(taFinalsPage).toContain("tTaFinals('suddenDeathTiebreak')");
-    expect(taFinalsPage).toContain("tTaFinals('submitSuddenDeath')");
-    expect(taEliminationPhase).toContain("tElim('suddenDeathTiebreak')");
-    expect(taEliminationPhase).toContain("tElim('submitSuddenDeath')");
-    expect(taEliminationPhase).toContain("tElim('invalidTimeFor'");
     expect(taFinalsPage).not.toContain('Submit sudden death');
     expect(taFinalsPage).not.toContain('Sudden-death tiebreak');
     expect(taFinalsPage).not.toContain('Sudden-death course');

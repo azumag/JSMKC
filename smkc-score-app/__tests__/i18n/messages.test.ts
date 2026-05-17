@@ -66,4 +66,14 @@ describe('translation messages', () => {
     expect(placeholders(enMessages.taFinals.invalidTimeFor)).toEqual(['name']);
     expect(placeholders(jaMessages.taFinals.invalidTimeFor)).toEqual(['name']);
   });
+
+  it.each(['suddenDeathTiebreak', 'suddenDeathRoundDesc', 'suddenDeathCourse', 'submitSuddenDeath'] as const)(
+    'defines TA sudden-death message key "%s" for finals and elimination in both locales',
+    (key) => {
+      expect(enMessages.taFinals[key]).toBeDefined();
+      expect(jaMessages.taFinals[key]).toBeDefined();
+      expect(enMessages.taElimination[key]).toBeDefined();
+      expect(jaMessages.taElimination[key]).toBeDefined();
+    }
+  );
 });
