@@ -1837,6 +1837,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-712', fn: runTc712 },
       { name: 'TC-719', fn: runTc719 },
       { name: 'TC-720', fn: runTc720 },
+      // TC-831 stays before TC-832 so GP suite logs remain readable in numeric TC order.
       { name: 'TC-831', fn: runTc831 },
       { name: 'TC-832', fn: runTc832 },
       { name: 'TC-721', fn: runTc721 },

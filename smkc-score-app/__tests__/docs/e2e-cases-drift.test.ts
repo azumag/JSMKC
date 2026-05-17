@@ -63,6 +63,18 @@ describe('E2E case drift coverage', () => {
     expect(scriptSource).toContain(`log('${tc}'`);
   });
 
+  it('documents why GP TC-831 stays before TC-832 in the suite order', () => {
+    const tc831Entry = tcGp.indexOf("{ name: 'TC-831', fn: runTc831 }");
+    const tc832Entry = tcGp.indexOf("{ name: 'TC-832', fn: runTc832 }");
+    const orderComment = tcGp.indexOf('TC-831 stays before TC-832');
+
+    expect(tc831Entry).toBeGreaterThanOrEqual(0);
+    expect(tc832Entry).toBeGreaterThanOrEqual(0);
+    expect(orderComment).toBeGreaterThanOrEqual(0);
+    expect(orderComment).toBeLessThan(tc831Entry);
+    expect(tc831Entry).toBeLessThan(tc832Entry);
+  });
+
   it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {
     const section = e2eCaseSection('TC-1010');
     const finalsRouteTest = readRepoFile(
