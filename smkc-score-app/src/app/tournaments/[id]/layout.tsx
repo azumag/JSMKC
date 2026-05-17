@@ -5,11 +5,11 @@
  * Provides:
  * 1. Tournament header: name, status badge, date
  * 2. Admin controls: Start/Complete Tournament, Export
- * 3. Anchor-based tab navigation for game modes (TA, BM, MR, GP, Overall)
+ * 3. Link-based tab navigation for game modes (TA, BM, MR, GP, Overall)
  * 4. "Back to List" navigation
  *
- * The tab navigation uses plain anchors instead of JS-only tabs or Next Link
- * prefetching, enabling direct URL access without speculative production reads.
+ * The tab navigation uses Next Link with prefetch disabled, keeping SPA routing
+ * without speculative production reads.
  *
  * For participant pages (URLs containing "/participant") and match pages,
  * the layout skips the header/tabs and renders only {children}, because
@@ -335,8 +335,8 @@ export default function TournamentLayout({
         </header>
 
         {/*
-         * Tab navigation. Plain anchors avoid speculative prefetch storms
-         * against production Workers/D1 during large tournament operations.
+         * Tab navigation. Next Link keeps SPA navigation; prefetch={false}
+         * avoids speculative production Workers/D1 reads during large operations.
          * The active tab draws a 3px Racing Red bar via `pit-active`.
          */}
         <nav
@@ -357,8 +357,9 @@ export default function TournamentLayout({
 
               return (
                 <li key={tab.href}>
-                  <a
+                  <Link
                     href={`/tournaments/${id}/${tab.href}`}
+                    prefetch={false}
                     aria-current={isActive ? "page" : undefined}
                     className={`inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
                       isActive
@@ -372,7 +373,7 @@ export default function TournamentLayout({
                         {t("hidden")}
                       </Badge>
                     )}
-                  </a>
+                  </Link>
                 </li>
               );
             })}
@@ -381,8 +382,9 @@ export default function TournamentLayout({
                 const isActive = activeTab === tab.href;
                 return (
                   <li key={tab.href}>
-                    <a
+                    <Link
                       href={`/tournaments/${id}/${tab.href}`}
+                      prefetch={false}
                       aria-current={isActive ? "page" : undefined}
                       className={`inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
                         isActive
@@ -391,7 +393,7 @@ export default function TournamentLayout({
                       }`}
                     >
                       {tab.label}
-                    </a>
+                    </Link>
                   </li>
                 );
               })}
