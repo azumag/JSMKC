@@ -840,11 +840,11 @@ export default function BattleModeFinals({
                 <>
                   <span className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1">
                     <span className="shrink-0">Match #{selectedMatch.matchNumber}:</span>
-                    <span className="min-w-0 max-w-[180px] truncate align-bottom sm:max-w-[240px]">
+                    <span className="min-w-0 max-w-[180px] truncate sm:max-w-[240px]">
                       {selectedMatch.player1.nickname}
                     </span>
                     <span className="shrink-0">vs</span>
-                    <span className="min-w-0 max-w-[180px] truncate align-bottom sm:max-w-[240px]">
+                    <span className="min-w-0 max-w-[180px] truncate sm:max-w-[240px]">
                       {selectedMatch.player2.nickname}
                     </span>
                   </span>

@@ -283,13 +283,17 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-521 aligned with BM finals score-dialog long-name truncation', () => {
     const section = e2eCaseSection('TC-521');
+    const classTokenSets = Array.from(bmFinalsPage.matchAll(/className="([^"]+)"/g))
+      .map((match) => new Set(match[1].split(/\s+/).filter(Boolean)));
+    const hasClassSet = (tokens: string[]) =>
+      classTokenSets.some((classSet) => tokens.every((token) => classSet.has(token)));
 
     expect(section).toContain('長いプレイヤー名');
     expect(tcBm).toContain('labelsStayCapped');
-    expect(bmFinalsPage).toContain('className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1"');
-    expect(bmFinalsPage).toContain('className="min-w-0 max-w-[180px] truncate align-bottom sm:max-w-[240px]"');
-    expect(bmFinalsPage).toContain('className="block max-w-[140px] truncate"');
-    expect(bmFinalsPage).toContain('className="min-w-0 text-center"');
+    expect(hasClassSet(['flex', 'min-w-0', 'max-w-full', 'flex-wrap', 'items-center'])).toBe(true);
+    expect(hasClassSet(['min-w-0', 'max-w-[180px]', 'truncate', 'sm:max-w-[240px]'])).toBe(true);
+    expect(hasClassSet(['block', 'max-w-[140px]', 'truncate'])).toBe(true);
+    expect(hasClassSet(['min-w-0', 'text-center'])).toBe(true);
   });
 
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
