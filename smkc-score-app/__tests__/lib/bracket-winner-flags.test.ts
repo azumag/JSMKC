@@ -47,9 +47,23 @@ describe("resolveBracketWinnerFlags", () => {
     });
   });
 
+  it("marks player 2 as winner when the resolver returns player2Id", () => {
+    expect(resolveBracketWinnerFlags(finalsMatch({ score1: 5, score2: 0 }), bracketMatch, 5, (match) => match.player2Id)).toEqual({
+      isWinner1: false,
+      isWinner2: true,
+    });
+  });
+
   it("falls back to score comparison when player 1 reaches target wins", () => {
     expect(resolveBracketWinnerFlags(finalsMatch({ score1: 5, score2: 4 }), bracketMatch, 5)).toEqual({
       isWinner1: true,
+      isWinner2: false,
+    });
+  });
+
+  it("returns no score fallback winner for completed tied scores", () => {
+    expect(resolveBracketWinnerFlags(finalsMatch({ score1: 3, score2: 3 }), bracketMatch, 5)).toEqual({
+      isWinner1: false,
       isWinner2: false,
     });
   });
