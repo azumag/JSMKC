@@ -1629,13 +1629,6 @@ async function runTc519(adminPage) {
      * Both players should show "TBD" because no winners-side matches
      * have completed yet to populate the loser slots. */
 
-    /* 25s: page fetches bracket data client-side; D1 cold start can delay
-     * rendering significantly past the 8s nav wait (issue #678 class-A/C). */
-    await adminPage.waitForFunction(
-      () => document.querySelectorAll('[data-testid="bracket-match-card"]').length > 0,
-      null, { timeout: 25000 },
-    ).catch(() => {});
-
     /* Locate cards via the dedicated `data-testid="bracket-match-card"` (added
      * in commit bcf769d for TC-523), then filter by the card title. In the
      * compact bracket UI the title can be adjacent to TV metadata ("M8TV#"),
@@ -1647,6 +1640,11 @@ async function runTc519(adminPage) {
       .filter({ hasText: matchCardTitle(8) }).first();
     const m9Card = adminPage.locator('[data-testid="bracket-match-card"]')
       .filter({ hasText: matchCardTitle(9) }).first();
+    /* Wait for the exact losers_r1 cards instead of any bracket card. The page
+     * fetches bracket data client-side, and D1 cold starts can render M1-M4
+     * before later losers-bracket cards are mounted. */
+    await m8Card.waitFor({ state: 'visible', timeout: 40000 });
+    await m9Card.waitFor({ state: 'visible', timeout: 40000 });
     const hasM8 = await m8Card.count() > 0;
     const hasM9 = await m9Card.count() > 0;
     const cardTexts = await adminPage.locator('[data-testid="bracket-match-card"]').evaluateAll(
