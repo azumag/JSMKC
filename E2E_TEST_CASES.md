@@ -699,6 +699,35 @@
 - **期待結果**: 認証済み管理者の CDM エクスポートが `.xlsm` としてダウンロードされる。`download.path()` が取得できない場合は、永続コンテキストの `acceptDownloads` 設定を確認できる診断メッセージで FAIL する。
 - **スクリプト**: tc-all.js TC-358
 
+## TC-817B: CDM export — CSV では CDM 専用 include を取得しない
+- **URL**: /api/tournaments/[id]/export
+- **背景**: issue #817。CSV 出力は MR/GP qualification seed、TT phase rounds、overall playerScores を使用しないため、CDM 専用 include を無条件に付けると不要な JOIN が増える。
+- **手順**:
+  1. `GET /api/tournaments/:id/export` を呼ぶ
+  2. Prisma `findUnique` の include に `mrQualifications` / `gpQualifications` / `ttPhaseRounds` / `playerScores` が含まれないことを確認する
+  3. `GET /api/tournaments/:id/export?format=cdm` では上記 CDM 専用 include が含まれることを確認する
+- **期待結果**: CSV は軽量 include、CDM は workbook に必要な include を使い分ける
+- **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-818A: CDM export — timeValueForCDM の冗長 wrapper を削除する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #818。`timeValueForCDM` は `parseTimeMs` と等価な wrapper で、CDM 時刻書き込みの意図を増やさず間接参照だけを増やしている。
+- **手順**:
+  1. export route に `timeValueForCDM` 関数が残っていないことを確認する
+  2. TT qualification の CDM コース時刻書き込みが `parseTimeMs(times[course])` を直接使うことを確認する
+- **期待結果**: CDM export の時刻変換は単一 helper `parseTimeMs` に集約される
+- **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-819A: CDM export — テンプレート座標の固定値に根拠コメントを付ける
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #819。CDM 2025 テンプレートの行数・列ブロックは workbook 側の固定座標であり、コメントなしの数値にすると通常の大会上限と誤読されやすい。
+- **手順**:
+  1. export route に CDM 2025 workbook template coordinates のコメントがあることを確認する
+  2. Main Hub、qualification、finals block、`CDM_TT_ROUND_START_COLUMNS`、overall ranking の固定範囲が名前付き定数で表現されることを確認する
+  3. 書き込み処理がそれらの定数を使うことを確認する
+- **期待結果**: CDM テンプレート由来の固定値は、どの workbook 範囲を守るための値か読める
+- **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-348: キャラクター統計 API — admin のみアクセス可 (TC-328 と重複なし: 形式チェック)
 - **URL**: /api/players/[id]/character-stats
 - **authRequired**: true (admin) / false → 401

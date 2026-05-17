@@ -80,6 +80,26 @@ describe('E2E case drift coverage', () => {
     'tournament',
     'ta-sudden-death-panel.test.tsx',
   );
+  const exportRoute = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'app',
+    'api',
+    'tournaments',
+    '[id]',
+    'export',
+    'route.ts',
+  );
+  const exportRouteTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'app',
+    'api',
+    'tournaments',
+    '[id]',
+    'export',
+    'route.test.ts',
+  );
   const enMessages = readRepoFile('smkc-score-app', 'messages', 'en.json');
   const jaMessages = readRepoFile('smkc-score-app', 'messages', 'ja.json');
 
@@ -149,6 +169,47 @@ describe('E2E case drift coverage', () => {
     expect(doubleBracketTest).toContain('uses getWinnerId for completed tied matches');
     expect(playoffBracketTest).toContain('uses getWinnerId for completed tied matches');
     expect(tcGp).not.toMatch(/\{\s*name:\s*['"]TC-830['"]/);
+  });
+
+  it('documents TC-817B as CSV/CDM export include split coverage', () => {
+    const section = e2eCaseSection('TC-817B');
+
+    expect(section).toContain('issue #817');
+    expect(section).toContain('mrQualifications');
+    expect(section).toContain('playerScores');
+    expect(section).toContain('route.test.ts');
+    expect(exportRoute).toContain('BASE_EXPORT_INCLUDE');
+    expect(exportRoute).toContain('CDM_EXPORT_INCLUDE');
+    expect(exportRoute).toContain('include: CDM_EXPORT_INCLUDE');
+    expect(exportRoute).toContain('include: BASE_EXPORT_INCLUDE');
+    expect(exportRouteTest).toContain('should export tournament data with summary section');
+    expect(exportRouteTest).toContain('should export a populated CDM macro workbook when requested');
+    expect(exportRouteTest).toContain('ttPhaseRounds: true');
+    expect(exportRouteTest).toContain('playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } }');
+  });
+
+  it('documents TC-818A as direct CDM time parser usage coverage', () => {
+    const section = e2eCaseSection('TC-818A');
+
+    expect(section).toContain('issue #818');
+    expect(section).toContain('timeValueForCDM');
+    expect(section).toContain('parseTimeMs(times[course])');
+    expect(exportRoute).not.toContain('function timeValueForCDM');
+    expect(exportRoute).toContain('parseTimeMs(times[course])');
+  });
+
+  it('documents TC-819A as CDM template coordinate comment coverage', () => {
+    const section = e2eCaseSection('TC-819A');
+
+    expect(section).toContain('issue #819');
+    expect(section).toContain('CDM 2025 workbook template coordinates');
+    expect(section).toContain('CDM_TT_ROUND_START_COLUMNS');
+    expect(exportRoute).toContain('CDM 2025 workbook template coordinates');
+    expect(exportRoute).toContain('CDM_PLAYER_HUB_MAX_PLAYERS');
+    expect(exportRoute).toContain('CDM_QUALIFICATION_MAX_ROWS');
+    expect(exportRoute).toContain('CDM_FINALS_BLOCK_START_COLUMNS');
+    expect(exportRoute).toContain('CDM_TT_ROUND_START_COLUMNS');
+    expect(exportRoute).toContain('CDM_OVERALL_MAX_ROWS');
   });
 
   it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {
