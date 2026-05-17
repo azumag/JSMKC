@@ -73,6 +73,13 @@ describe('E2E case drift coverage', () => {
     'tournament',
     'ta-sudden-death-panel.tsx',
   );
+  const taSuddenDeathPanelTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'components',
+    'tournament',
+    'ta-sudden-death-panel.test.tsx',
+  );
   const enMessages = readRepoFile('smkc-score-app', 'messages', 'en.json');
   const jaMessages = readRepoFile('smkc-score-app', 'messages', 'ja.json');
 
@@ -931,6 +938,34 @@ describe('E2E case drift coverage', () => {
     expect(taFinalsPage).not.toContain('submit_sudden_death');
     expect(taEliminationPhase).not.toContain('change_sudden_death_course');
     expect(taEliminationPhase).not.toContain('submit_sudden_death');
+  });
+
+  it('documents TC-1864A as shared TA sudden-death hook fetch coverage', () => {
+    const section = e2eCaseSection('TC-1864A');
+
+    expect(section).toContain('issue #1864');
+    expect(section).toContain('handleSubmitSuddenDeath');
+    expect(section).toContain('handleSuddenDeathCourseChange');
+    expect(section).toContain('ta-sudden-death-panel.test.tsx');
+    expect(taSuddenDeathPanelTest).toContain('submits sudden-death results');
+    expect(taSuddenDeathPanelTest).toContain('reports submit API errors');
+    expect(taSuddenDeathPanelTest).toContain('changes sudden-death course');
+    expect(taSuddenDeathPanelTest).toContain('reports course-change API errors');
+    expect(taSuddenDeathPanelTest).toContain('submit_sudden_death');
+    expect(taSuddenDeathPanelTest).toContain('change_sudden_death_course');
+  });
+
+  it('documents TC-1865A as shared TA sudden-death empty-blur coverage', () => {
+    const section = e2eCaseSection('TC-1865A');
+
+    expect(section).toContain('issue #1865');
+    expect(section).toContain('空入力');
+    expect(section).toContain('if (!raw || raw.trim() === "") return;');
+    expect(section).toContain('ta-sudden-death-panel.test.tsx');
+    expect(taSuddenDeathPanel).toContain('if (!raw || raw.trim() === "") return;');
+    expect(taSuddenDeathPanelTest).toContain('keeps empty blur as a no-op');
+    expect(taSuddenDeathPanelTest).toContain('handleSuddenDeathTimeBlur');
+    expect(taSuddenDeathPanelTest).toContain('suddenDeathTimes).toEqual({})');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
