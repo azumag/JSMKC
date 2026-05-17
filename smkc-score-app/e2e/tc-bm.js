@@ -85,20 +85,13 @@ async function loginSharedPlayer(adminPage, player) {
   return loginPlayerBrowser(player.nickname, player.password);
 }
 
-function bmMatchGuidanceRegex(labels) {
-  return new RegExp(labels.map((label) => escapeRegex(label)).join('|'));
-}
-
-async function compactBodyText(page) {
-  const bodyText = await readBodyText(page);
-  return bodyText.replace(/\s+/g, ' ').slice(0, 360);
-}
-
 async function readBodyText(page) {
   return page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
 }
 
 async function waitForBmMatchGuidance(page, labels, contextLabel) {
+  const guidanceTextPattern = new RegExp(labels.map((label) => escapeRegex(label)).join('|'));
+
   try {
     /* Use a locator wait on the rendered body text so Playwright keeps its
      * normal auto-retry behavior. TC-513 depends on NextAuth session resolution,
@@ -106,11 +99,11 @@ async function waitForBmMatchGuidance(page, labels, contextLabel) {
      * ordinary UI waits; a single shared timeout keeps all three session branches
      * consistent while still failing fast enough for the suite. */
     await page.locator('body')
-      .filter({ hasText: bmMatchGuidanceRegex(labels) })
+      .filter({ hasText: guidanceTextPattern })
       .waitFor({ timeout: BM_MATCH_GUIDANCE_TIMEOUT_MS });
   } catch (err) {
     const readyState = await page.evaluate(() => document.readyState).catch(() => 'unknown');
-    const body = await compactBodyText(page);
+    const body = (await readBodyText(page)).replace(/\s+/g, ' ').slice(0, 360);
     const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
     throw new Error(
       `${contextLabel} guidance did not appear within ${BM_MATCH_GUIDANCE_TIMEOUT_MS}ms; ` +

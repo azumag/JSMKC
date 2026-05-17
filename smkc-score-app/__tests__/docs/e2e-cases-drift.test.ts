@@ -322,6 +322,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('未認証/管理者/プレイヤー');
     expect(tcBm).toContain('BM_MATCH_GUIDANCE_TIMEOUT_MS');
     expect(tcBm).toContain('async function waitForBmMatchGuidance');
+    expect(tcBm).not.toContain('function bmMatchGuidanceRegex');
+    expect(tcBm).not.toContain('function compactBodyText');
     expect(tc513Source).toMatch(/waitForBmMatchGuidance\(\s*anonPage/);
     expect(tc513Source).toMatch(/waitForBmMatchGuidance\(\s*adminPage/);
     expect(tc513Source).toMatch(/waitForBmMatchGuidance\(\s*playerPage/);
