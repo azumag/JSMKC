@@ -7,7 +7,7 @@ function readRootDoc(relativePath: string): string {
 }
 
 function extractFinalsFormatSection(manual: string): string {
-  const sectionMatch = manual.match(/### 7\.3 決勝の試合形式[\s\S]*?(?=\n---|\n## 8\.)/);
+  const sectionMatch = manual.match(/### .*決勝の試合形式[\s\S]*?(?=\n---|\n## )/);
   expect(sectionMatch).not.toBeNull();
   return sectionMatch![0];
 }
