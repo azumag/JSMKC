@@ -20,7 +20,7 @@
  * - Auto-refresh every 3 seconds for live tournament tracking
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -136,7 +136,8 @@ export default function TAEliminationPhase({
   // 'common' namespace for shared UI labels (e.g., "Player")
   const tElim = useTranslations('taElimination');
   const tCommon = useTranslations('common');
-  const taTimeInputProps = getTaTimeInputProps(tElim('timeInputTitle'));
+  // Keep the shared input props object stable across polling-driven re-renders.
+  const taTimeInputProps = useMemo(() => getTaTimeInputProps(tElim('timeInputTitle')), [tElim]);
 
   /**
    * Admin role check: only admin users can start rounds, enter times,
