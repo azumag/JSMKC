@@ -7,7 +7,6 @@ describe('TC-939 tournament tab navigation', () => {
     expect(layoutSource).toContain('import Link from "next/link";');
     expect(layoutSource).toContain('href={`/tournaments/${id}/${tab.href}`}');
     expect(layoutSource).toContain('prefetch={false}');
-    expect(layoutSource).not.toContain('<a\n                    href={`/tournaments/${id}/${tab.href}`}');
-    expect(layoutSource).not.toContain('<a\n                      href={`/tournaments/${id}/${tab.href}`}');
+    expect(layoutSource).not.toMatch(/<a\s+href=\{`\/tournaments\/\$\{id\}\/\$\{tab\.href\}`\}/);
   });
 });
