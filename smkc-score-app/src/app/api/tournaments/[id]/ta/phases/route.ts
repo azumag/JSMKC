@@ -463,6 +463,14 @@ export async function GET(
     if (phase?.success) {
       const phaseValue = phase.data;
 
+      /*
+       * Keep these phase-detail reads sequential even though Promise.all would
+       * reduce happy-path latency. Preview D1 has repeatedly produced
+       * request-hung failures under D1 concurrent fan-out from this endpoint, so
+       * the extra latency trade-off is intentional: each read gets its own
+       * retryDbRead boundary and avoids piling multiple D1 reads onto the same
+       * request at once.
+       */
       const entries = await retryDbRead(
         () => prisma.tTEntry.findMany({
           where: { tournamentId, stage: phaseValue },
