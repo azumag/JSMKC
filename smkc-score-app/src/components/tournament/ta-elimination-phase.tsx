@@ -535,7 +535,7 @@ export default function TAEliminationPhase({
           const timeMs = timeToMs(timeStr);
           if (timeMs === null) {
             setSaveError(
-              `Invalid time for ${entry.player.nickname}. Enter M:SS.mm format.`
+              tElim('invalidTimeFor', { name: entry.player.nickname })
             );
             setSubmitting(false);
             return;
@@ -645,7 +645,7 @@ export default function TAEliminationPhase({
       const results = pendingSuddenDeathEntries.map((entry) => {
         const timeMs = timeToMs(suddenDeathTimes[entry.playerId] || "");
         if (timeMs === null) {
-          throw new Error(`Invalid time for ${entry.player.nickname}. Enter M:SS.mm format.`);
+          throw new Error(tElim('invalidTimeFor', { name: entry.player.nickname }));
         }
         return { playerId: entry.playerId, timeMs };
       });
@@ -802,9 +802,12 @@ export default function TAEliminationPhase({
       {isAdmin && !isComplete && pendingSuddenDeath && (
         <Card className="border-amber-500">
           <CardHeader>
-            <CardTitle>Sudden-death tiebreak</CardTitle>
+            <CardTitle>{tElim('suddenDeathTiebreak')}</CardTitle>
             <CardDescription>
-              Round {pendingSuddenDeath.round.roundNumber}, tiebreak #{pendingSuddenDeath.sequence}
+              {tElim('suddenDeathRoundDesc', {
+                round: pendingSuddenDeath.round.roundNumber,
+                sequence: pendingSuddenDeath.sequence,
+              })}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -814,7 +817,7 @@ export default function TAEliminationPhase({
               </div>
             )}
             <div className="mb-4 space-y-1">
-              <Label className="text-sm text-muted-foreground">Sudden-death course</Label>
+              <Label className="text-sm text-muted-foreground">{tElim('suddenDeathCourse')}</Label>
               <Select
                 value={pendingSuddenDeath.course}
                 onValueChange={handleSuddenDeathCourseChange}
@@ -852,7 +855,7 @@ export default function TAEliminationPhase({
             </div>
             <div className="mt-6 flex justify-end">
               <Button onClick={handleSubmitSuddenDeath} disabled={submitting}>
-                {submitting ? tElim('submitting') : 'Submit sudden death'}
+                {submitting ? tElim('submitting') : tElim('submitSuddenDeath')}
               </Button>
             </div>
           </CardContent>
