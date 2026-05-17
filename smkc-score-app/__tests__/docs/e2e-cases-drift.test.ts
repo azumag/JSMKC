@@ -232,15 +232,30 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1872');
     expect(section).toContain('CDM_FINALS_*');
     expect(section).toContain('CDM_TT_ROUND_*');
-    expect(exportRoute).toContain('CDM_FINALS_BLOCK_WIDTH');
+    expect(exportRoute).toContain('CDM_FINALS_BLOCK_END_OFFSET');
     expect(exportRoute).toContain('CDM_FINALS_LAST_COLUMN');
     expect(exportRoute).toContain('CDM_FINALS_MATCH_FIRST_ROW');
-    expect(exportRoute).toContain('CDM_TT_ROUND_BLOCK_WIDTH');
+    expect(exportRoute).toContain('CDM_TT_ROUND_BLOCK_END_OFFSET');
     expect(exportRoute).toContain('CDM_TT_ROUND_LAST_COLUMN');
     expect(exportRoute).toContain('CDM_TT_ROUND_FIRST_ROW');
     expect(exportRoute).toContain('CDM_TT_ROUND_LAST_ROW');
-    expect(exportRoute).toContain('Math.min(start + CDM_FINALS_BLOCK_WIDTH, CDM_FINALS_LAST_COLUMN)');
-    expect(exportRoute).toContain('Math.min(start + CDM_TT_ROUND_BLOCK_WIDTH, CDM_TT_ROUND_LAST_COLUMN)');
+    expect(exportRoute).toContain('Math.min(start + CDM_FINALS_BLOCK_END_OFFSET, CDM_FINALS_LAST_COLUMN)');
+    expect(exportRoute).toContain('Math.min(start + CDM_TT_ROUND_BLOCK_END_OFFSET, CDM_TT_ROUND_LAST_COLUMN)');
+  });
+
+  it('documents TC-1874A as inclusive clearRange end-offset naming', () => {
+    const section = e2eCaseSection('TC-1874A');
+
+    expect(section).toContain('issue #1874');
+    expect(section).toContain('end column は inclusive');
+    expect(section).toContain('*_BLOCK_END_OFFSET');
+    expect(exportRoute).toContain('The end column and row are inclusive');
+    expect(exportRoute).toContain('const CDM_FINALS_BLOCK_END_OFFSET = 6');
+    expect(exportRoute).toContain('const CDM_TT_ROUND_BLOCK_END_OFFSET = 5');
+    expect(exportRoute).toContain('Math.min(start + CDM_FINALS_BLOCK_END_OFFSET, CDM_FINALS_LAST_COLUMN)');
+    expect(exportRoute).toContain('Math.min(start + CDM_TT_ROUND_BLOCK_END_OFFSET, CDM_TT_ROUND_LAST_COLUMN)');
+    expect(exportRoute).not.toContain('CDM_FINALS_BLOCK_WIDTH');
+    expect(exportRoute).not.toContain('CDM_TT_ROUND_BLOCK_WIDTH');
   });
 
   it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {

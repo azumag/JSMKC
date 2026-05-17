@@ -748,6 +748,16 @@
 - **期待結果**: finals/TT round のテンプレート座標はすべて名前付き定数経由で参照される
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-1874A: CDM export — clearRange の inclusive end を offset 命名で表現する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #1874。`clearRange` の end column は inclusive なので、`start + 6` / `start + 5` を幅として命名すると実際のクリア列数とずれて読める。
+- **手順**:
+  1. `clearRange` が end column / row を inclusive に扱うことをコメントで確認する
+  2. finals block と TT round block の派生 end column が `*_BLOCK_END_OFFSET` 定数で表現されることを確認する
+  3. `CDM_FINALS_BLOCK_WIDTH` / `CDM_TT_ROUND_BLOCK_WIDTH` が残っていないことを確認する
+- **期待結果**: CDM テンプレートのブロック終端は「幅」ではなく inclusive end offset として読める
+- **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-348: キャラクター統計 API — admin のみアクセス可 (TC-328 と重複なし: 形式チェック)
 - **URL**: /api/players/[id]/character-stats
 - **authRequired**: true (admin) / false → 401
