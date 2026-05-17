@@ -1013,7 +1013,8 @@ export function getSuddenDeathContinuationTargets(
   const safeSuddenTime = suddenByPlayer.get(safeBoundary.playerId);
   const unsafeSuddenTime = suddenByPlayer.get(unsafeBoundary.playerId);
   if (safeSuddenTime === undefined || unsafeSuddenTime === undefined || safeSuddenTime !== unsafeSuddenTime) {
-    // Phase 3 sudden death is only repeated when the life-loss boundary is still unresolved.
+    // Phase 1 and 2 returned above, so this branch handles the Phase 3 life-loss boundary.
+    // Phase 3 sudden death is only repeated when that boundary is still unresolved.
     // If the boundary was resolved, there can still be a separate tie among the slowest
     // sudden-death players; those players must race again so one life-loss target can be chosen.
     const slowestSuddenTime = Math.max(...suddenDeathResults.map((result) => result.timeMs));
