@@ -349,6 +349,28 @@ describe('E2E case drift coverage', () => {
     expect(tc531Source).not.toMatch(/\.goto\(\s*`?\/tournaments/);
   });
 
+  it('keeps TC-858 MR Top-24 generation protected by an explicit reset cycle', () => {
+    const section = e2eCaseSection('TC-858');
+    const tc858Source = sectionBetween(
+      tcMr,
+      'async function runTc858',
+      '/* See tc-bm.js::getSuite',
+    );
+    const unlockIdx = tc858Source.indexOf('apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false })');
+    const resetIdx = tc858Source.indexOf('body: JSON.stringify({ reset: true })');
+    const reconfirmIdx = tc858Source.indexOf('apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true })');
+    const generateIdx = tc858Source.indexOf('generateMrFinalsBracket(adminPage, tournamentId, 24)');
+
+    expect(section).toContain('issue #888');
+    expect(section).toContain('409');
+    expect(section).toContain('reset');
+    expect(section).toContain('mrQualificationConfirmed');
+    expect(unlockIdx).toBeGreaterThanOrEqual(0);
+    expect(resetIdx).toBeGreaterThan(unlockIdx);
+    expect(reconfirmIdx).toBeGreaterThan(resetIdx);
+    expect(generateIdx).toBeGreaterThan(reconfirmIdx);
+  });
+
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');
