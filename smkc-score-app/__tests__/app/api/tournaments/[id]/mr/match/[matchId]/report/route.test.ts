@@ -127,9 +127,6 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
     (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
     (prisma.matchCharacterUsage.create as jest.Mock).mockResolvedValue({});
     (prisma.mRMatch.update as jest.Mock).mockResolvedValue({});
-    /* Mocks for recalculatePlayersStats (called after auto-confirm) */
-    (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
   });
 
   describe('POST - Report match score', () => {
