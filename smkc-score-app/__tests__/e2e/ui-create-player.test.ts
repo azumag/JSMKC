@@ -1,4 +1,5 @@
 import {
+  clickWithDiagnostics,
   readResponseSummary,
   summarizeResponseBody,
   uiCreatePlayer,
@@ -128,5 +129,31 @@ describe('ui player-create response helpers', () => {
 
   it('keeps failure-body summaries bounded for E2E logs', () => {
     expect(summarizeResponseBody({ error: 'x'.repeat(1000) }).length).toBeLessThanOrEqual(500);
+  });
+});
+
+describe('clickWithDiagnostics', () => {
+  it('adds locator state and covering element details when a click fails', async () => {
+    const locator = {
+      click: jest.fn().mockRejectedValue(new Error('locator.click: Timeout 30000ms exceeded')),
+      count: jest.fn().mockResolvedValue(1),
+      isVisible: jest.fn().mockResolvedValue(true),
+      isEnabled: jest.fn().mockResolvedValue(false),
+      boundingBox: jest.fn().mockResolvedValue({ x: 10, y: 20, width: 100, height: 40 }),
+      textContent: jest.fn().mockResolvedValue('Save'),
+      evaluate: jest.fn().mockResolvedValue({
+        targetTag: 'BUTTON',
+        targetText: 'Save',
+        topTag: 'DIV',
+        topText: 'Loading',
+        topPointerEvents: 'auto',
+        targetPointerEvents: 'auto',
+        activeTag: 'BODY',
+      }),
+    };
+
+    await expect(clickWithDiagnostics(locator, 'TC-604 save finals score')).rejects.toThrow(
+      /TC-604 save finals score click failed: locator\.click: Timeout 30000ms exceeded; count=1 visible=true enabled=false box=10,20,100,40 text="Save" top=DIV "Loading" topPointerEvents=auto target=BUTTON "Save" targetPointerEvents=auto active=BODY/,
+    );
   });
 });

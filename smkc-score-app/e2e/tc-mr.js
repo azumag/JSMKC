@@ -41,6 +41,7 @@
 const {
   makeResults, makeLog, nav, escapeRegex,
   matchUpdateUsesLeanPayload,
+  clickWithDiagnostics,
   uiCreatePlayer: createPlayer,
   uiCreateTournament: createTournament,
   apiDeletePlayer: deletePlayer,
@@ -441,10 +442,10 @@ async function runTc604(adminPage) {
     const generateButton = adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i });
     await generateButton.waitFor({ state: 'visible', timeout: 40000 });
     await generateButton.scrollIntoViewIfNeeded();
-    await generateButton.click({ timeout: 40000 });
+    await clickWithDiagnostics(generateButton, 'TC-604 generate finals bracket', { timeout: 40000 });
     const confirmButton = adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ });
     await confirmButton.waitFor({ state: 'visible', timeout: 40000 });
-    await confirmButton.click({ timeout: 40000 });
+    await clickWithDiagnostics(confirmButton, 'TC-604 confirm finals bracket generation', { timeout: 40000 });
     /* Wait for the bracket to render. The MR finals page only displays an
      * "X / Y matches" counter for the playoff stage (line 683 in
      * mr/finals/page.tsx); the regular winners/losers bracket has no such
@@ -469,7 +470,7 @@ async function runTc604(adminPage) {
     // Valid MR finals: first-to-3 via UI dialog (tests race entry workflow)
     const matchOneCard = adminPage.locator(`[aria-label^="Match 1:"]`).first();
     await matchOneCard.scrollIntoViewIfNeeded();
-    await matchOneCard.click({ timeout: 40000 });
+    await clickWithDiagnostics(matchOneCard, 'TC-604 open Match 1 score dialog', { timeout: 40000 });
     await adminPage.waitForTimeout(500);
 
     // MR finals dialog: max race rows are pre-rendered with course select + P1/P2 winner buttons.
@@ -483,11 +484,11 @@ async function runTc604(adminPage) {
       // Select course if combobox present
       const combobox = row.locator('button[role="combobox"]');
       if (await combobox.count() > 0) {
-        await combobox.first().click();
+        await clickWithDiagnostics(combobox.first(), `TC-604 row ${i + 1} course selector`);
         await adminPage.waitForTimeout(200);
         const option = adminPage.locator('[role="option"]').nth(i);
         if (await option.count() > 0) {
-          await option.click();
+          await clickWithDiagnostics(option, `TC-604 row ${i + 1} course option`);
           await adminPage.waitForTimeout(200);
         }
       }
@@ -496,7 +497,7 @@ async function runTc604(adminPage) {
 
       const winnerBtns = row.locator('button.w-10');
       if (await winnerBtns.count() >= 2) {
-        await winnerBtns.first().click();
+        await clickWithDiagnostics(winnerBtns.first(), `TC-604 row ${i + 1} player1 winner button`);
         await adminPage.waitForTimeout(200);
       }
     }
@@ -505,7 +506,7 @@ async function runTc604(adminPage) {
     const saveButton = adminPage.getByRole('button', { name: /^(Save|結果保存)$/ });
     await saveButton.waitFor({ state: 'visible', timeout: 40000 });
     await saveButton.scrollIntoViewIfNeeded();
-    await saveButton.click({ timeout: 40000 });
+    await clickWithDiagnostics(saveButton, 'TC-604 save finals score', { timeout: 40000 });
     await adminPage.waitForTimeout(3000);
 
     // Poll for bracket update
