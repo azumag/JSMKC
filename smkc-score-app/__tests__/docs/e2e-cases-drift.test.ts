@@ -574,6 +574,13 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).toContain('for (const { label, mod, run } of suites)');
   });
 
+  it('keeps PR template Jest coverage out of the E2E case catalog', () => {
+    const e2eCases = readRepoFile('E2E_TEST_CASES.md');
+
+    expect(e2eCases).not.toContain('TC-943');
+    expect(e2eCases).not.toContain('__tests__/docs/pr-template.test.ts');
+  });
+
   it.each([
     ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
     ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
@@ -590,7 +597,6 @@ describe('E2E case drift coverage', () => {
     ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
     ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
-    ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
   ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
     const section = e2eCaseSection(tc);
 
