@@ -27,7 +27,7 @@
  * - 3-second auto-refresh for live tracking
  */
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, use, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -165,7 +165,8 @@ export default function TimeAttackFinals({
   const tTaFinals = useTranslations('taFinals');
   const tFinals = useTranslations('finals');
   const tCommon = useTranslations('common');
-  const taTimeInputProps = getTaTimeInputProps(tTaFinals('timeInputTitle'));
+  // Keep the shared input props object stable across polling-driven re-renders.
+  const taTimeInputProps = useMemo(() => getTaTimeInputProps(tTaFinals('timeInputTitle')), [tTaFinals]);
 
   /**
    * Admin role check: only admin users can start rounds, enter times,

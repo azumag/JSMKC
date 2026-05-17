@@ -25,7 +25,7 @@
  * - Namespaces: participant, ta, common
  */
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, use, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
@@ -106,7 +106,8 @@ export default function TimeAttackParticipantPage({
   const tPart = useTranslations('participant');
   const tTa = useTranslations('ta');
   const tCommon = useTranslations('common');
-  const taTimeInputProps = getTaTimeInputProps(tTa('timeInputTitle'));
+  // Keep the shared input props object stable across polling-driven re-renders.
+  const taTimeInputProps = useMemo(() => getTaTimeInputProps(tTa('timeInputTitle')), [tTa]);
 
   const { data: session, status: sessionStatus } = useSession();
 
