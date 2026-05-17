@@ -51,6 +51,7 @@ describe('E2E case drift coverage', () => {
     ['TC-817', tcTa],
     ['TC-1032', tcTa],
     ['TC-1033', tcTa],
+    ['TC-939', tcAll],
     ['TC-1010', tcBm],
     ['TC-TA-FLOW-24', tcTaFlow],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
