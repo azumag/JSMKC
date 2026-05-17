@@ -1883,13 +1883,15 @@
 - **期待結果**: MR の合算順位タブが全グループの参加者を表示し、順位列が昇順で描画される
 - **スクリプト**: tc-mr.js TC-623
 
-## TC-858: MR Top-24 決勝 Winners R1 敗者の Losers R1 反映 (issue #858)
-- **背景**: Top-24 から生成される16人決勝では Winners R1 の敗者が Losers R1 に落ちる。偶数側の Winners R1 敗者は Losers R1 の player2 スロットに入る必要がある
+## TC-858: MR Top-24 決勝 Winners R1 敗者の Losers R1 反映 (issue #858/#888)
+- **背景**: Top-24 から生成される16人決勝では Winners R1 の敗者が Losers R1 に落ちる。偶数側の Winners R1 敗者は Losers R1 の player2 スロットに入る必要がある。issue #888 の 409 conflict 再発を防ぐため、Top-24 playoff 生成前に `mrQualificationConfirmed` を解除し、MR finals を `reset` してから再確定する。
 - **手順**:
-  1. 28名予選完了済みフィクスチャで MR Top-24 playoff を生成する
-  2. playoff_r1/playoff_r2 を完了し、16人決勝ブラケットを生成する
-  3. Winners R1 M2 を player1 勝利で完了する
-  4. Losers R1 M16 の `player2Id` が Winners R1 M2 の敗者になっていることを確認
+  1. 28名予選完了済みフィクスチャで `mrQualificationConfirmed` を false に戻す
+  2. MR finals API に `{ reset: true }` を送信し、既存の playoff/finals 状態を空にする
+  3. `mrQualificationConfirmed` を true に戻し、MR Top-24 playoff を生成する
+  4. playoff_r1/playoff_r2 を完了し、16人決勝ブラケットを生成する
+  5. Winners R1 M2 を player1 勝利で完了する
+  6. Losers R1 M16 の `player2Id` が Winners R1 M2 の敗者になっていることを確認
 - **期待結果**: Winners R1 M2 の敗者が M16 `player2Id` に反映され、`player1Id` を上書きしない
 - **スクリプト**: tc-mr.js TC-858
 
