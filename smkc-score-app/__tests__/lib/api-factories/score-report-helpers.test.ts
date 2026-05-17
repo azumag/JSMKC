@@ -363,7 +363,7 @@ describe('Score Report Helpers', () => {
     });
 
     function expectBulkUpdateWith(
-      modelTable: 'BMQualification' | 'GPQualification',
+      modelTable: 'BMQualification' | 'MRQualification' | 'GPQualification',
       expectedUpdates: Array<Record<string, unknown>>,
     ) {
       expect(mockExecuteRawUnsafe).toHaveBeenCalledTimes(1);
@@ -551,6 +551,32 @@ describe('Score Report Helpers', () => {
       ).rejects.toThrow('Unsupported qualification stats bulk update model: unknownModel');
 
       expect(mockExecuteRawUnsafe).not.toHaveBeenCalled();
+    });
+
+    it('should use the MR qualification table for round-differential stats', async () => {
+      mockFindMany.mockResolvedValue([
+        createMockMatch('p1', 'p2', { score1: 3, score2: 1 }),
+      ]);
+
+      await recalculatePlayerStats(
+        { ...differentialConfig, qualificationModel: 'mRQualification' },
+        'tourney-1',
+        'p1',
+      );
+
+      expectBulkUpdateWith('MRQualification', [
+        {
+          playerId: 'p1',
+          mp: 1,
+          wins: 1,
+          ties: 0,
+          losses: 0,
+          winRounds: 3,
+          lossRounds: 1,
+          points: 2,
+          score: 2,
+        },
+      ]);
     });
   });
 });
