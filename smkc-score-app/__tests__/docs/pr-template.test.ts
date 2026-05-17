@@ -2,8 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 describe('pull request template', () => {
-  const templatePath = path.join(process.cwd(), '..', '.github', 'pull_request_template.md');
-  const template = fs.readFileSync(templatePath, 'utf8');
+  const templatePath = path.resolve(__dirname, '..', '..', '..', '.github', 'pull_request_template.md');
+  let template: string;
+
+  beforeAll(() => {
+    template = fs.readFileSync(templatePath, 'utf8');
+  });
 
   it('keeps the required automation sections', () => {
     expect(template).toContain('## Summary');
