@@ -15,6 +15,10 @@ function flattenKeys(value: JsonValue, prefix = ''): string[] {
   });
 }
 
+function placeholders(message: string): string[] {
+  return Array.from(message.matchAll(/\{([A-Za-z0-9_]+)\}/g), ([, name]) => name).sort();
+}
+
 describe('translation messages', () => {
   it('keeps the common namespace aligned between English and Japanese', () => {
     const enKeys = new Set(flattenKeys(enMessages.common as JsonObject));
@@ -45,4 +49,15 @@ describe('translation messages', () => {
       expect(jaMessages.common[modeKey]).toBeDefined();
     }
   );
+
+  /**
+   * TA elimination error rendering passes the player nickname as `{player}`.
+   * Keep this placeholder contract explicit because next-intl leaves unmatched
+   * placeholders unresolved in the rendered message instead of failing at build
+   * time, which would turn a validation error into user-visible `{player}` text.
+   */
+  it('keeps TA elimination invalid-time placeholders aligned with the UI contract', () => {
+    expect(placeholders(enMessages.taElimination.invalidTimeFor)).toEqual(['player']);
+    expect(placeholders(jaMessages.taElimination.invalidTimeFor)).toEqual(['player']);
+  });
 });
