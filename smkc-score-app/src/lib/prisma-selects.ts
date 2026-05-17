@@ -38,10 +38,24 @@ export const PLAYER_AUTH_SELECT = {
   userId: true,
 } as const;
 
+type BmMrMatchLeanSelectRequiredField =
+  | 'id'
+  | 'tournamentId'
+  | 'player1Id'
+  | 'player2Id'
+  | 'score1'
+  | 'score2'
+  | 'rounds'
+  | 'completed'
+  | 'isBye';
+
 /**
  * Shared lean select for BM/MR qualification match score updates.
- * Both modes persist the same score/round fields, and standings recalculation
- * only needs these identifiers plus the completed/BYE state.
+ *
+ * The `satisfies` contract is intentionally the regression guard for this
+ * field set. Route tests verify BM/MR both pass this shared object into Prisma;
+ * this type contract prevents accidental removal of fields that the shared PUT
+ * response and qualification recalculation path read immediately after update.
  */
 export const BM_MR_MATCH_LEAN_SELECT = {
   id: true,
@@ -53,4 +67,4 @@ export const BM_MR_MATCH_LEAN_SELECT = {
   rounds: true,
   completed: true,
   isBye: true,
-} as const;
+} as const satisfies Record<BmMrMatchLeanSelectRequiredField, true> & Record<string, true>;
