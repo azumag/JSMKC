@@ -100,6 +100,7 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
 
   const handleTimeBlur = (playerId: string) => {
     const raw = times[playerId];
+    if (!raw || raw.trim() === "") return;
     const formatted = autoFormatTime(raw);
     if (formatted !== null && formatted !== raw) {
       setTime(playerId, formatted);
