@@ -60,4 +60,14 @@ describe('translation messages', () => {
     expect(placeholders(enMessages.taElimination.invalidTimeFor)).toEqual(['name']);
     expect(placeholders(jaMessages.taElimination.invalidTimeFor)).toEqual(['name']);
   });
+
+  /**
+   * TA finals uses the same `{name}` nickname parameter as TA elimination.
+   * Guarding both namespaces prevents one finals page from regressing to the
+   * old `{player}` parameter while the other phase still renders correctly.
+   */
+  it('keeps TA finals invalid-time placeholders aligned with the UI contract', () => {
+    expect(placeholders(enMessages.taFinals.invalidTimeFor)).toEqual(['name']);
+    expect(placeholders(jaMessages.taFinals.invalidTimeFor)).toEqual(['name']);
+  });
 });

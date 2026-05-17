@@ -900,6 +900,7 @@ describe('E2E case drift coverage', () => {
     expect(taFinalsPage).not.toContain('Submit sudden death');
     expect(taFinalsPage).not.toContain('Sudden-death tiebreak');
     expect(taFinalsPage).not.toContain('Sudden-death course');
+    expect(taFinalsPage).not.toContain('Enter M:SS.mm format.');
     expect(taEliminationPhase).not.toContain('Submit sudden death');
     expect(taEliminationPhase).not.toContain('Sudden-death tiebreak');
     expect(taEliminationPhase).not.toContain('Sudden-death course');
