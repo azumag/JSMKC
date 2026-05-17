@@ -117,6 +117,42 @@ const CDM_COURSES = [
   "KB1", "CI2", "VL1", "BC3", "MC4", "DP3", "KB2", "GV3", "VL2", "RR",
 ] as const;
 
+const BASE_EXPORT_INCLUDE = {
+  bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+  bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+  mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+  gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+  ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+};
+
+const CDM_EXPORT_INCLUDE = {
+  ...BASE_EXPORT_INCLUDE,
+  mrQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+  gpQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+  ttPhaseRounds: true,
+  playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+};
+
+/*
+ * CDM 2025 workbook template coordinates. These constants are fixed template
+ * ranges, not business limits; writing past them risks overwriting formula
+ * regions and hidden helper cells in the macro workbook.
+ */
+const CDM_PLAYER_HUB_FIRST_ROW = 2;
+const CDM_PLAYER_HUB_MAX_PLAYERS = 60;
+const CDM_QUALIFICATION_FIRST_ROW = 2;
+const CDM_QUALIFICATION_MAX_ROWS = 767;
+const CDM_FINALS_PLAYER_FIRST_ROW = 3;
+const CDM_FINALS_MAX_PLAYERS = 52;
+const CDM_FINALS_BLOCK_START_COLUMNS = [4, 11, 18, 25, 32, 39, 46, 53, 60, 67, 74, 81, 88, 95, 102];
+const CDM_FINALS_PAIR_ROWS = [5, 13, 21, 29, 37, 45];
+const CDM_TT_FINALIST_FIRST_ROW = 3;
+const CDM_TT_FINALIST_MAX_ROWS = 24;
+const CDM_TT_ROUND_START_COLUMNS = [7, 20, 33, 46, 59, 72, 85, 98];
+const CDM_TT_ROUND_MAX_RESULTS = 24;
+const CDM_OVERALL_FIRST_ROW = 2;
+const CDM_OVERALL_MAX_ROWS = 64;
+
 function setCell(ws: XLSX.WorkSheet, address: string, value: unknown) {
   if (value === null || value === undefined) {
     delete ws[address];
@@ -150,11 +186,6 @@ function parseTimeMs(value: unknown): number | null {
   const seconds = Number(match[2]);
   const ms = Number((match[3] ?? "0").padEnd(3, "0").slice(0, 3));
   return minutes * 60_000 + seconds * 1_000 + ms;
-}
-
-function timeValueForCDM(value: unknown): number | null {
-  const ms = parseTimeMs(value);
-  return ms === null ? null : ms;
 }
 
 function normalizeJsonRecord(value: unknown): Record<string, unknown> {
@@ -210,14 +241,14 @@ function writePlayerHub(
   const ws = workbook.Sheets["Main Hub"];
   if (!ws) return;
 
-  for (let row = 2; row <= 61; row++) {
+  for (let row = CDM_PLAYER_HUB_FIRST_ROW; row < CDM_PLAYER_HUB_FIRST_ROW + CDM_PLAYER_HUB_MAX_PLAYERS; row++) {
     for (const col of ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]) {
       setCell(ws, `${col}${row}`, "");
     }
   }
 
-  players.slice(0, 60).forEach((player, index) => {
-    const row = index + 2;
+  players.slice(0, CDM_PLAYER_HUB_MAX_PLAYERS).forEach((player, index) => {
+    const row = index + CDM_PLAYER_HUB_FIRST_ROW;
     setCell(ws, `B${row}`, player.name);
     setCell(ws, `C${row}`, player.nickname);
     setCell(ws, `D${row}`, player.country ?? "");
@@ -236,7 +267,7 @@ function writeTTQualifications(workbook: XLSX.WorkBook, entries: TTEntryExport[]
   const ws = workbook.Sheets["TT Qualifications"];
   if (!ws) return;
 
-  for (let row = 2; row <= 61; row++) {
+  for (let row = CDM_PLAYER_HUB_FIRST_ROW; row < CDM_PLAYER_HUB_FIRST_ROW + CDM_PLAYER_HUB_MAX_PLAYERS; row++) {
     for (let col = 5; col <= 26; col++) {
       setCell(ws, `${toColumn(col)}${row}`, "");
     }
@@ -246,13 +277,13 @@ function writeTTQualifications(workbook: XLSX.WorkBook, entries: TTEntryExport[]
     .filter((entry) => entry.stage === "qualification")
     .sort((a, b) => (a.seeding ?? Number.MAX_SAFE_INTEGER) - (b.seeding ?? Number.MAX_SAFE_INTEGER));
 
-  qualificationEntries.slice(0, 60).forEach((entry, index) => {
-    const row = index + 2;
+  qualificationEntries.slice(0, CDM_PLAYER_HUB_MAX_PLAYERS).forEach((entry, index) => {
+    const row = index + CDM_PLAYER_HUB_FIRST_ROW;
     setCell(ws, `E${row}`, index + 1);
     setCell(ws, `F${row}`, entry.player.nickname);
     const times = normalizeJsonRecord(entry.times);
     CDM_COURSES.forEach((course, courseIndex) => {
-      setCell(ws, `${toColumn(7 + courseIndex)}${row}`, timeValueForCDM(times[course]));
+      setCell(ws, `${toColumn(7 + courseIndex)}${row}`, parseTimeMs(times[course]));
     });
   });
 }
@@ -267,7 +298,7 @@ function writeQualificationSheet(
   const ws = workbook.Sheets[sheetName];
   if (!ws) return;
 
-  for (let row = 2; row <= 768; row++) {
+  for (let row = CDM_QUALIFICATION_FIRST_ROW; row < CDM_QUALIFICATION_FIRST_ROW + CDM_QUALIFICATION_MAX_ROWS; row++) {
     for (const col of ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]) {
       setCell(ws, `${col}${row}`, "");
     }
@@ -276,8 +307,8 @@ function writeQualificationSheet(
     }
   }
 
-  sortQualifications(qualifications).slice(0, 767).forEach((qualification, index) => {
-    const row = index + 2;
+  sortQualifications(qualifications).slice(0, CDM_QUALIFICATION_MAX_ROWS).forEach((qualification, index) => {
+    const row = index + CDM_QUALIFICATION_FIRST_ROW;
     setCell(ws, `E${row}`, qualification.group);
     setCell(ws, `F${row}`, qualification.seeding ?? "");
     setCell(ws, `G${row}`, qualification.player.nickname);
@@ -302,9 +333,9 @@ function writeQualificationSheet(
   matches
     .filter((match) => match.stage === "qualification")
     .sort((a, b) => (a.roundNumber ?? 0) - (b.roundNumber ?? 0) || a.matchNumber - b.matchNumber)
-    .slice(0, 767)
+    .slice(0, CDM_QUALIFICATION_MAX_ROWS)
     .forEach((match, index) => {
-      const row = index + 2;
+      const row = index + CDM_QUALIFICATION_FIRST_ROW;
       setCell(ws, `S${row}`, match.matchNumber);
       setCell(ws, `T${row}`, match.tvNumber ?? "");
       setCell(ws, `U${row}`, match.player1Side ?? 1);
@@ -379,20 +410,20 @@ function writeMatchFinalsSheet(
     ? uniquePlayersFromMatches(finalsMatches)
     : sortQualifications(qualifications).slice(0, 24).map((qualification) => qualification.player);
 
-  clearRange(ws, 1, 2, 3, 54);
-  qualifiedPlayers.slice(0, 52).forEach((player, index) => {
-    const row = index + 3;
+  clearRange(ws, 1, 2, CDM_FINALS_PLAYER_FIRST_ROW, CDM_FINALS_PLAYER_FIRST_ROW + CDM_FINALS_MAX_PLAYERS - 1);
+  qualifiedPlayers.slice(0, CDM_FINALS_MAX_PLAYERS).forEach((player, index) => {
+    const row = index + CDM_FINALS_PLAYER_FIRST_ROW;
     setCell(ws, `A${row}`, index + 1);
     setCell(ws, `B${row}`, player.nickname);
   });
 
-  const blockStarts = [4, 11, 18, 25, 32, 39, 46, 53, 60, 67, 74, 81, 88, 95, 102];
-  const pairRows = [5, 13, 21, 29, 37, 45];
-  blockStarts.forEach((start) => clearRange(ws, start, Math.min(start + 6, 107), 5, 54));
+  CDM_FINALS_BLOCK_START_COLUMNS.forEach((start) =>
+    clearRange(ws, start, Math.min(start + 6, 107), 5, CDM_FINALS_PLAYER_FIRST_ROW + CDM_FINALS_MAX_PLAYERS - 1)
+  );
 
-  finalsMatches.slice(0, blockStarts.length * pairRows.length).forEach((match, index) => {
-    const blockStart = blockStarts[Math.floor(index / pairRows.length)];
-    const row = pairRows[index % pairRows.length];
+  finalsMatches.slice(0, CDM_FINALS_BLOCK_START_COLUMNS.length * CDM_FINALS_PAIR_ROWS.length).forEach((match, index) => {
+    const blockStart = CDM_FINALS_BLOCK_START_COLUMNS[Math.floor(index / CDM_FINALS_PAIR_ROWS.length)];
+    const row = CDM_FINALS_PAIR_ROWS[index % CDM_FINALS_PAIR_ROWS.length];
     const p1Score = mode === "gp" ? match.points1 ?? 0 : match.score1 ?? 0;
     const p2Score = mode === "gp" ? match.points2 ?? 0 : match.score2 ?? 0;
     const label = match.isGrandFinal ? "GF" : match.bracketPosition || match.round || `M${match.matchNumber}`;
@@ -439,9 +470,9 @@ function writeTTFinals(workbook: XLSX.WorkBook, entries: TTEntryExport[], rounds
       (a.totalTime ?? Number.MAX_SAFE_INTEGER) - (b.totalTime ?? Number.MAX_SAFE_INTEGER)
     );
 
-  clearRange(ws, 1, 5, 3, 26);
-  allFinalists.slice(0, 24).forEach((entry, index) => {
-    const row = index + 3;
+  clearRange(ws, 1, 5, CDM_TT_FINALIST_FIRST_ROW, CDM_TT_FINALIST_FIRST_ROW + CDM_TT_FINALIST_MAX_ROWS - 1);
+  allFinalists.slice(0, CDM_TT_FINALIST_MAX_ROWS).forEach((entry, index) => {
+    const row = index + CDM_TT_FINALIST_FIRST_ROW;
     setCell(ws, `A${row}`, index + 1);
     setCell(ws, `B${row}`, entry.player.nickname);
     setCell(ws, `C${row}`, entry.eliminated ? 0 : 1);
@@ -449,15 +480,14 @@ function writeTTFinals(workbook: XLSX.WorkBook, entries: TTEntryExport[], rounds
     setCell(ws, `E${row}`, entry.totalTime ?? "");
   });
 
-  const roundStarts = [7, 20, 33, 46, 59, 72, 85, 98];
-  roundStarts.forEach((start) => clearRange(ws, start, Math.min(start + 5, 524), 1, 26));
+  CDM_TT_ROUND_START_COLUMNS.forEach((start) => clearRange(ws, start, Math.min(start + 5, 524), 1, 26));
 
   rounds
     .filter((round) => round.phase === "phase1" || round.phase === "phase2" || round.phase === "phase3")
     .sort((a, b) => a.phase.localeCompare(b.phase) || a.roundNumber - b.roundNumber)
-    .slice(0, roundStarts.length)
+    .slice(0, CDM_TT_ROUND_START_COLUMNS.length)
     .forEach((round, index) => {
-      const start = roundStarts[index];
+      const start = CDM_TT_ROUND_START_COLUMNS[index];
       const results = Array.isArray(round.results) ? round.results as Array<{ playerId?: string; timeMs?: number; isRetry?: boolean }> : [];
       const entriesById = new Map(entries.map((entry) => [entry.playerId, entry]));
 
@@ -468,8 +498,8 @@ function writeTTFinals(workbook: XLSX.WorkBook, entries: TTEntryExport[], rounds
       setCell(ws, `${toColumn(start + 4)}2`, "Lost");
       setCell(ws, `${toColumn(start + 5)}2`, "Left");
 
-      results.slice(0, 24).forEach((result, resultIndex) => {
-        const row = resultIndex + 3;
+      results.slice(0, CDM_TT_ROUND_MAX_RESULTS).forEach((result, resultIndex) => {
+        const row = resultIndex + CDM_TT_FINALIST_FIRST_ROW;
         const entry = result.playerId ? entriesById.get(result.playerId) : null;
         setCell(ws, `${toColumn(start)}${row}`, resultIndex + 1);
         setCell(ws, `${toColumn(start + 1)}${row}`, entry?.player.nickname ?? result.playerId ?? "");
@@ -484,13 +514,13 @@ function writeOverallRanking(workbook: XLSX.WorkBook, scores: TournamentPlayerSc
   const ws = workbook.Sheets["Overall Ranking"];
   if (!ws) return;
 
-  clearRange(ws, 1, 24, 2, 65);
+  clearRange(ws, 1, 24, CDM_OVERALL_FIRST_ROW, CDM_OVERALL_FIRST_ROW + CDM_OVERALL_MAX_ROWS - 1);
   scores
     .slice()
     .sort((a, b) => (a.overallRank ?? Number.MAX_SAFE_INTEGER) - (b.overallRank ?? Number.MAX_SAFE_INTEGER) || b.totalPoints - a.totalPoints)
-    .slice(0, 64)
+    .slice(0, CDM_OVERALL_MAX_ROWS)
     .forEach((score, index) => {
-      const row = index + 2;
+      const row = index + CDM_OVERALL_FIRST_ROW;
       const rank = score.overallRank ?? index + 1;
       setCell(ws, `A${row}`, rank);
       setCell(ws, `B${row}`, score.player.nickname);
@@ -589,31 +619,16 @@ export async function GET(
       if (session.user.role !== "admin") {
         return handleAuthzError("Admin access required");
       }
-    }
 
-    // Fetch tournament with ALL related data across all match types.
-    // This is a heavy query but is acceptable for an export operation
-    // that is called infrequently (typically once after a tournament ends).
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      include: {
-        bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-        mrQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-        gpQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-        bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
-        mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
-        gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
-        ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-        ttPhaseRounds: true,
-        playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-      },
-    });
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        include: CDM_EXPORT_INCLUDE,
+      });
 
-    if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
-    }
+      if (!tournament) {
+        return createErrorResponse("Tournament not found", 404);
+      }
 
-    if (exportFormat === "cdm") {
       const template = await loadCDMTemplate(request);
       if (!template.ok) {
         logger.error("Failed to load CDM export template", {
@@ -634,6 +649,18 @@ export async function GET(
           "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}; filename="${filename}"`,
         },
       });
+    }
+
+    // CSV does not read CDM-only qualification/phase/overall tables, so keep
+    // its include narrow. The CDM workbook path above opts into the heavier
+    // include set only when those workbook sheets need the extra data.
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: BASE_EXPORT_INCLUDE,
+    });
+
+    if (!tournament) {
+      return createErrorResponse("Tournament not found", 404);
     }
 
     // UTF-8 BOM (Byte Order Mark) ensures Excel correctly interprets

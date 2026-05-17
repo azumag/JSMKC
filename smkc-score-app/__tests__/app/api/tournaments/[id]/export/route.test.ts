@@ -132,14 +132,10 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         where: { id: 't1' },
         include: {
           bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-          mrQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-          gpQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
           bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
           mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
           gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
           ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-          ttPhaseRounds: true,
-          playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
         },
       });
     });
@@ -219,6 +215,20 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const result = await GET(request, { params });
 
       expect(assetFetch).toHaveBeenCalledWith(new URL('/templates/cdm-2025-template.xlsm', 'https://assets.local'));
+      expect(prisma.tournament.findUnique).toHaveBeenCalledWith({
+        where: { id: 't1' },
+        include: {
+          bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+          bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+          mrQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+          gpQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+          ttPhaseRounds: true,
+          playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+        },
+      });
       expect(global.fetch).toBeUndefined();
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(result.headers['Content-Type']).toBe('application/vnd.ms-excel.sheet.macroEnabled.12');
