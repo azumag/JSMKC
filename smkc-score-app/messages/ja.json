@@ -879,7 +879,7 @@
     "startRound": "ラウンド {number} 開始",
     "noPlayersTitle": "プレイヤーなし",
     "noPlayersDesc": "予選ステージからプレイヤーを昇格してください。",
-    "invalidTimeFor": "{player}のタイムが無効です。M:SS.mm形式で入力してください。",
+    "invalidTimeFor": "{name}のタイムが無効です。M:SS.mm形式で入力してください。",
     "needAtLeast2Players": "結果を送信するには最低2名のプレイヤーが必要です",
     "suddenDeathTiebreak": "サドンデスタイブレーク",
     "suddenDeathRoundDesc": "ラウンド {round}、タイブレーク #{sequence}",

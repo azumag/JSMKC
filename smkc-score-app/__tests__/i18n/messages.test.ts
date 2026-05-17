@@ -51,13 +51,13 @@ describe('translation messages', () => {
   );
 
   /**
-   * TA elimination error rendering passes the player nickname as `{player}`.
+   * TA elimination error rendering passes the player nickname as `{name}`.
    * Keep this placeholder contract explicit because next-intl leaves unmatched
    * placeholders unresolved in the rendered message instead of failing at build
-   * time, which would turn a validation error into user-visible `{player}` text.
+   * time, which would turn a validation error into user-visible `{name}` text.
    */
   it('keeps TA elimination invalid-time placeholders aligned with the UI contract', () => {
-    expect(placeholders(enMessages.taElimination.invalidTimeFor)).toEqual(['player']);
-    expect(placeholders(jaMessages.taElimination.invalidTimeFor)).toEqual(['player']);
+    expect(placeholders(enMessages.taElimination.invalidTimeFor)).toEqual(['name']);
+    expect(placeholders(jaMessages.taElimination.invalidTimeFor)).toEqual(['name']);
   });
 });

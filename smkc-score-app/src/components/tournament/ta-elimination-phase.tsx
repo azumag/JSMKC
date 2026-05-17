@@ -535,7 +535,7 @@ export default function TAEliminationPhase({
           const timeMs = timeToMs(timeStr);
           if (timeMs === null) {
             setSaveError(
-              tElim('invalidTimeFor', { player: entry.player.nickname })
+              tElim('invalidTimeFor', { name: entry.player.nickname })
             );
             setSubmitting(false);
             return;
@@ -645,7 +645,7 @@ export default function TAEliminationPhase({
       const results = pendingSuddenDeathEntries.map((entry) => {
         const timeMs = timeToMs(suddenDeathTimes[entry.playerId] || "");
         if (timeMs === null) {
-          throw new Error(tElim('invalidTimeFor', { player: entry.player.nickname }));
+          throw new Error(tElim('invalidTimeFor', { name: entry.player.nickname }));
         }
         return { playerId: entry.playerId, timeMs };
       });
