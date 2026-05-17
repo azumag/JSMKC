@@ -843,8 +843,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
         if (a.qualification._rank !== b.qualification._rank) {
           return a.qualification._rank - b.qualification._rank;
         }
-        const aOverride = a.qualification.rankOverride != null || a.qualification._rankOverridden === true;
-        const bOverride = b.qualification.rankOverride != null || b.qualification._rankOverridden === true;
+        /*
+         * `computeQualificationRanks()` sets `_rankOverridden` from
+         * `rankOverride != null`, so the persisted override value is the source
+         * of truth here. Depending on `_rankOverridden` as a second source would
+         * hide inconsistent inputs instead of letting the stable fallback expose
+         * them during tests or review.
+         */
+        const aOverride = a.qualification.rankOverride != null;
+        const bOverride = b.qualification.rankOverride != null;
         if (aOverride !== bOverride) return aOverride ? -1 : 1;
         // After the inequality guard above, `aOverride` and `bOverride` are equal.
         // Checking only `aOverride` keeps the collision rule readable while still
