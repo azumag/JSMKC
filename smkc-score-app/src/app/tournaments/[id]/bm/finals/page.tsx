@@ -572,7 +572,6 @@ export default function BattleModeFinals({
    * finals rows are created. If the tabs default to "finals" in that state,
    * admins land on an empty/non-actionable preview while the required Phase-2
    * "Create Upper Bracket" control is hidden under the playoff tab. */
-  // Top-24 Phase 1 only has playoff rows; defaulting to the playoff tab keeps the actionable bracket visible.
   const defaultBracketTab: BracketTab = matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff;
 
   /* Loading skeleton for initial page load */
