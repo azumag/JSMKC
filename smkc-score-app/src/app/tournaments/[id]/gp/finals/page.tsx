@@ -88,15 +88,10 @@ import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/g
 import { getAssignedCupLabelsForMatch } from "@/lib/gp-finals-assigned-cups";
 import { isValidGpFinalsSimpleScore } from "@/lib/gp-finals-simple-score";
 import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from "@/lib/gp-driver-points-input";
+import { BRACKET_TABS, type BracketTab } from "@/lib/bracket-tabs";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
-
-const BRACKET_TABS = {
-  finals: "finals",
-  playoff: "playoff",
-} as const;
-type BracketTab = typeof BRACKET_TABS[keyof typeof BRACKET_TABS];
 
 /** Individual race entry in the finals score form */
 interface Race {
