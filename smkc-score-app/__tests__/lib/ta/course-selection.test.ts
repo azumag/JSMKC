@@ -139,6 +139,7 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
     expect(prisma.tTPhaseRound.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { tournamentId: "t1", phase: { in: ["phase1", "phase2"] } },
+        orderBy: [{ roundNumber: "asc" }],
       })
     );
     expect(played).toEqual(["KB1", "DP1"]);
