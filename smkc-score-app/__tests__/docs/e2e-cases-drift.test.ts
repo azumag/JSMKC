@@ -41,6 +41,14 @@ describe('E2E case drift coverage', () => {
     'ta',
     'finals-phase-manager.test.ts',
   );
+  const taCourseSelection = readRepoFile('smkc-score-app', 'src', 'lib', 'ta', 'course-selection.ts');
+  const taCourseSelectionTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'lib',
+    'ta',
+    'course-selection.test.ts',
+  );
 
   it.each([
     ['TC-352', tcAll],
@@ -840,6 +848,18 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/lib/ta/finals-phase-manager.test.ts');
     expect(taFinalsPhaseManagerTest).toContain('uses resolved sudden-death order');
     expect(taFinalsPhaseManagerTest).toContain('resolvedOrder');
+  });
+
+  it('documents TC-823 as intentional immediate-repeat avoidance for TA course selection', () => {
+    const section = e2eCaseSection('TC-823A');
+
+    expect(section).toContain('issue #823');
+    expect(section).toContain('back-to-back repeat');
+    expect(section).toContain('selectRandomAvailableCourse');
+    expect(section).toContain('__tests__/lib/ta/course-selection.test.ts');
+    expect(taCourseSelection).toContain('do not immediately repeat');
+    expect(taCourseSelectionTest).toContain('avoids the immediately previous course');
+    expect(taCourseSelectionTest).toContain('only available course');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
