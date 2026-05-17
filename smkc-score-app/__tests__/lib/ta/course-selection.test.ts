@@ -129,6 +129,8 @@ describe("selectRandomAvailableCourse", () => {
     const course = selectRandomAvailableCourse(["MC1"], "DP1");
 
     expect(course).not.toBe("DP1");
+    // Math.random=0 picks index 0; after MC1 is played and DP1 is excluded as
+    // the immediately previous course, GV1 is the first remaining candidate.
     expect(course).toBe("GV1");
   });
 
