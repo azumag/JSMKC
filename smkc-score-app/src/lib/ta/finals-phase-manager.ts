@@ -119,6 +119,13 @@ export interface CourseResult {
 
 type Phase3ResolvedOrder = ReadonlyMap<string, number>;
 
+/*
+ * resolvedOrder is intentionally treated as authoritative only when both
+ * compared players are present. The current sudden-death path builds it from
+ * the same full result list passed to processPhase3Result, so partial matches
+ * should not occur there. If a future caller supplies a partial map, falling
+ * back to time keeps normal Phase3 ordering rather than mixing two rank systems.
+ */
 function comparePhase3CourseResults(
   a: CourseResult,
   b: CourseResult,
