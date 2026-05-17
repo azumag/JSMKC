@@ -296,6 +296,16 @@ describe('E2E case drift coverage', () => {
     expect(hasClassSet(['min-w-0', 'text-center'])).toBe(true);
   });
 
+  it('keeps TC-519 waiting for the specific BM losers_r1 TBD cards', () => {
+    const section = e2eCaseSection('TC-519');
+
+    expect(section).toContain('TBD');
+    expect(tcBm).toContain('matchCardTitle(8)');
+    expect(tcBm).toContain('matchCardTitle(9)');
+    expect(tcBm).toContain("m8Card.waitFor({ state: 'visible', timeout: 40000 })");
+    expect(tcBm).toContain("m9Card.waitFor({ state: 'visible', timeout: 40000 })");
+  });
+
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');
