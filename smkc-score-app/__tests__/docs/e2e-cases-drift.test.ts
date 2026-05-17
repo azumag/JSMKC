@@ -354,7 +354,7 @@ describe('E2E case drift coverage', () => {
     const tc858Source = sectionBetween(
       tcMr,
       'async function runTc858',
-      '/* See tc-bm.js::getSuite',
+      '/* END TC-858 */',
     );
     const unlockIdx = tc858Source.indexOf('apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false })');
     const resetIdx = tc858Source.indexOf('body: JSON.stringify({ reset: true })');
@@ -365,6 +365,10 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('409');
     expect(section).toContain('reset');
     expect(section).toContain('mrQualificationConfirmed');
+    expect(section).toContain('tc-all.js');
+    expect(tcAll).toContain("const mrModule = require('./tc-mr')");
+    expect(tcAll).toContain("{ label: 'MR Tests', mod: mrModule }");
+    expect(tcMr).toContain("{ name: 'TC-858', fn: runTc858 }");
     expect(unlockIdx).toBeGreaterThanOrEqual(0);
     expect(resetIdx).toBeGreaterThan(unlockIdx);
     expect(reconfirmIdx).toBeGreaterThan(resetIdx);
