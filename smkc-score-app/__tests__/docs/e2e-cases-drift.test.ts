@@ -305,6 +305,8 @@ describe('E2E case drift coverage', () => {
     expect(tcBm).toContain('await Promise.all([');
     expect(tcBm).toContain("m8Card.waitFor({ state: 'visible', timeout: 40000 })");
     expect(tcBm).toContain("m9Card.waitFor({ state: 'visible', timeout: 40000 })");
+    expect(tcBm).toContain('M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})');
+    expect(tcBm).toContain('M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})');
     expect(tcBm).not.toContain('const hasM8 = await m8Card.count() > 0');
     expect(tcBm).not.toContain('const hasM9 = await m9Card.count() > 0');
   });
