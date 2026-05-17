@@ -990,7 +990,7 @@ function applySuddenDeathOrder(
   });
 }
 
-function getSuddenDeathContinuationTargets(
+export function getSuddenDeathContinuationTargets(
   phase: "phase1" | "phase2" | "phase3",
   baseResults: CourseResult[],
   suddenDeathResults: CourseResult[]
@@ -1013,6 +1013,9 @@ function getSuddenDeathContinuationTargets(
   const safeSuddenTime = suddenByPlayer.get(safeBoundary.playerId);
   const unsafeSuddenTime = suddenByPlayer.get(unsafeBoundary.playerId);
   if (safeSuddenTime === undefined || unsafeSuddenTime === undefined || safeSuddenTime !== unsafeSuddenTime) {
+    // Phase 3 sudden death is only repeated when the life-loss boundary is still unresolved.
+    // If the boundary was resolved, there can still be a separate tie among the slowest
+    // sudden-death players; those players must race again so one life-loss target can be chosen.
     const slowestSuddenTime = Math.max(...suddenDeathResults.map((result) => result.timeMs));
     const stillTiedForElimination = suddenDeathResults.filter((result) => result.timeMs === slowestSuddenTime);
     return stillTiedForElimination.length > 1 ? stillTiedForElimination.map((result) => result.playerId) : [];

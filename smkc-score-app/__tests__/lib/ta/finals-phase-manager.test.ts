@@ -9,6 +9,7 @@
 
 import {
   PHASE_CONFIG,
+  getSuddenDeathContinuationTargets,
   getNextPhase3ResetThreshold,
   processEliminationPhaseResult,
   processPhase3Result,
@@ -108,6 +109,44 @@ describe("TA Finals Phase Manager", () => {
         initialLives: 3,
         lifeResetThresholds: [8, 4, 2],
       });
+    });
+  });
+
+  describe("getSuddenDeathContinuationTargets", () => {
+    const phase3BoundaryResults = [
+      { playerId: "p1", timeMs: 80000 },
+      { playerId: "p2", timeMs: 90000 },
+      { playerId: "p3", timeMs: 90000 },
+      { playerId: "p4", timeMs: 90000 },
+    ];
+
+    it("does not continue phase3 sudden death after the life-loss boundary is resolved without a new slowest tie", () => {
+      const targets = getSuddenDeathContinuationTargets("phase3", phase3BoundaryResults, [
+        { playerId: "p2", timeMs: 87000 },
+        { playerId: "p3", timeMs: 88000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      expect(targets).toEqual([]);
+    });
+
+    it("continues phase3 sudden death with all players still tied for the slowest sudden-death time", () => {
+      const targets = getSuddenDeathContinuationTargets("phase3", phase3BoundaryResults, [
+        { playerId: "p2", timeMs: 87000 },
+        { playerId: "p3", timeMs: 91000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      expect(targets).toEqual(["p3", "p4"]);
+    });
+
+    it("falls back to the slowest sudden-death tie when a phase3 boundary player did not race in the sudden-death round", () => {
+      const targets = getSuddenDeathContinuationTargets("phase3", phase3BoundaryResults, [
+        { playerId: "p3", timeMs: 91000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      expect(targets).toEqual(["p3", "p4"]);
     });
   });
 
