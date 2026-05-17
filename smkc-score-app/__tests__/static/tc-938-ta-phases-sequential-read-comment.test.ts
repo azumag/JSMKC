@@ -6,7 +6,7 @@ describe('TC-938 TA phases sequential read comment', () => {
   it('documents why phase detail reads stay sequential', () => {
     const commentStart = source.indexOf('Keep these phase-detail reads sequential');
     const commentEnd = source.indexOf('*/', commentStart);
-    const blockEnd = source.indexOf('const normalizedRounds = rounds.map(normalizePhaseRound);', commentEnd);
+    const blockEnd = source.indexOf('End of the D1 read section', commentEnd);
     const phaseDetailReadBlock = source.slice(commentEnd, blockEnd);
 
     expect(commentStart).toBeGreaterThanOrEqual(0);
