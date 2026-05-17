@@ -433,6 +433,100 @@ async function loginPlayerBrowser(nickname, password) {
   return { browser, context, page };
 }
 
+function truncateDiagnosticText(value, max = 80) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function formatClickDiagnosticValue(value) {
+  if (value === null || value === undefined) return 'n/a';
+  if (typeof value === 'string') return value.length > 0 ? `"${value}"` : '""';
+  return String(value);
+}
+
+async function collectClickDiagnostics(locator) {
+  const read = async (label, fn) => {
+    try {
+      return await fn();
+    } catch (err) {
+      return `${label}_error:${err instanceof Error ? err.message : String(err)}`;
+    }
+  };
+
+  const [count, visible, enabled, box, text] = await Promise.all([
+    typeof locator.count === 'function' ? read('count', () => locator.count()) : Promise.resolve('n/a'),
+    typeof locator.isVisible === 'function' ? read('visible', () => locator.isVisible()) : Promise.resolve('n/a'),
+    typeof locator.isEnabled === 'function' ? read('enabled', () => locator.isEnabled()) : Promise.resolve('n/a'),
+    typeof locator.boundingBox === 'function' ? read('box', () => locator.boundingBox()) : Promise.resolve(null),
+    typeof locator.textContent === 'function' ? read('text', () => locator.textContent()) : Promise.resolve('n/a'),
+  ]);
+
+  let elementState = null;
+  if (box && typeof box === 'object' && typeof locator.evaluate === 'function') {
+    elementState = await read('element', () => locator.evaluate((element, rect) => {
+      const centerX = rect.x + rect.width / 2;
+      const centerY = rect.y + rect.height / 2;
+      const topElement = document.elementFromPoint(centerX, centerY);
+      const targetStyle = window.getComputedStyle(element);
+      const topStyle = topElement ? window.getComputedStyle(topElement) : null;
+      const describe = (node) => node ? {
+        tag: node.tagName,
+        text: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      } : { tag: 'null', text: '' };
+
+      const target = describe(element);
+      const top = describe(topElement);
+      return {
+        targetTag: target.tag,
+        targetText: target.text,
+        topTag: top.tag,
+        topText: top.text,
+        topPointerEvents: topStyle?.pointerEvents ?? 'n/a',
+        targetPointerEvents: targetStyle.pointerEvents,
+        activeTag: document.activeElement?.tagName ?? 'null',
+      };
+    }, box));
+  }
+
+  const boxText = box && typeof box === 'object'
+    ? `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)},${Math.round(box.height)}`
+    : formatClickDiagnosticValue(box);
+  const parts = [
+    `count=${formatClickDiagnosticValue(count)}`,
+    `visible=${formatClickDiagnosticValue(visible)}`,
+    `enabled=${formatClickDiagnosticValue(enabled)}`,
+    `box=${boxText}`,
+    `text=${formatClickDiagnosticValue(truncateDiagnosticText(text))}`,
+  ];
+
+  if (elementState && typeof elementState === 'object') {
+    parts.push(
+      `top=${elementState.topTag ?? 'n/a'} ${formatClickDiagnosticValue(elementState.topText)}`,
+      `topPointerEvents=${elementState.topPointerEvents ?? 'n/a'}`,
+      `target=${elementState.targetTag ?? 'n/a'} ${formatClickDiagnosticValue(elementState.targetText)}`,
+      `targetPointerEvents=${elementState.targetPointerEvents ?? 'n/a'}`,
+      `active=${elementState.activeTag ?? 'n/a'}`,
+    );
+  } else if (elementState) {
+    parts.push(`element=${formatClickDiagnosticValue(elementState)}`);
+  }
+
+  return parts.join(' ');
+}
+
+async function clickWithDiagnostics(locator, label, options = {}) {
+  try {
+    await locator.click(options);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const diagnostics = await collectClickDiagnostics(locator);
+    /* Playwright's raw timeout only names "locator.click"; TC-604 has several
+     * click targets and long setup, so preserving element state here is the
+     * fastest way to distinguish disabled controls, overlays, and bad selectors
+     * without rerunning the full 28-player MR fixture blindly. */
+    throw new Error(`${label} click failed: ${message}; ${diagnostics}`);
+  }
+}
+
 /* ───────── Retry wrapper for transient API failures ─────────
  * D1 occasionally returns 5xx under burst load. Retry idempotent operations
  * (PUT score input is safe to retry — it sets a final state, not an increment).
@@ -2750,6 +2844,7 @@ module.exports = {
   apiDeletePlayer,
   apiDeleteTournament,
   /* UI helpers */
+  clickWithDiagnostics,
   uiCreatePlayer,
   summarizeResponseBody,
   readResponseSummary,
