@@ -265,6 +265,34 @@ describe('TA Rank Calculation', () => {
       expect(compareQualificationRankOrder(entries[1], entries[0])).toBeLessThan(0);
     });
 
+    it('should use id as the tiebreaker when both totalTime values are null', () => {
+      const entries = [
+        {
+          id: 'z',
+          totalTime: null,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 0,
+        },
+        {
+          id: 'a',
+          totalTime: null,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 0,
+        },
+      ];
+
+      const sorted = sortByStage(entries, 'qualification');
+
+      expect(sorted.map((entry) => entry.id)).toEqual(['a', 'z']);
+      expect(compareQualificationRankOrder(entries[0], entries[1])).toBeGreaterThan(0);
+    });
+
     it('keeps the delete-rerank SQL order aligned with the qualification comparator', () => {
       expect(QUALIFICATION_RANK_ORDER_SQL.strings.join('')).toContain(
         'COALESCE(qualificationPoints, 0) DESC'
