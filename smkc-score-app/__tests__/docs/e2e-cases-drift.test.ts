@@ -335,6 +335,20 @@ describe('E2E case drift coverage', () => {
     expect(tc513Source).not.toContain('waitForFunction(');
   });
 
+  it('keeps TC-531 BM finals navigation routed through the BASE-aware nav helper', () => {
+    const section = e2eCaseSection('TC-531');
+    const tc531Source = sectionBetween(
+      tcBm,
+      'async function runTc531',
+      '/**\n * Builds the BM suite spec',
+    );
+
+    expect(section).toContain('issue #889');
+    expect(section).toContain('`nav`');
+    expect(tc531Source).toContain('await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`)');
+    expect(tc531Source).not.toMatch(/\.goto\(\s*`?\/tournaments/);
+  });
+
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');

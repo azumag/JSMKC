@@ -1414,7 +1414,7 @@
 ## TC-531: BM 決勝ブラケット — ラウンド名の下に startingCourseNumber が表示される (issue #731)
 - **URL**: /tournaments/[id]/bm/finals (UI)
 - **authRequired**: true (admin)
-- **背景**: issue #731 の要求に基づき、BM 決勝・プレイオフブラケットの各ラウンドヘッダー下に「バトルコース {n}」を表示するようになった。ブラケット生成後に UI ページを開き、コース番号が正しく表示されているかを確認する。
+- **背景**: issue #731 の要求に基づき、BM 決勝・プレイオフブラケットの各ラウンドヘッダー下に「バトルコース {n}」を表示するようになった。ブラケット生成後に UI ページを開き、コース番号が正しく表示されているかを確認する。issue #889 の回帰防止として、Playwright の相対 URL `goto` ではなく、preview/base URL を付与する `nav` ヘルパー経由で `/bm/finals` を開く。
 - **手順**:
   1. 8名 BM 決勝ブラケットを生成（TC-524 と同じ手順）
   2. /tournaments/[id]/bm/finals を開く
