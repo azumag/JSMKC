@@ -98,9 +98,8 @@ jest.mock('@/lib/ta/freeze-check', () => ({
   checkStageFrozen: jest.fn(),
 }));
 
-// Mock course-selection: getPlayedCourses and getAvailableCourses used by GET handler
+// Mock course-selection helpers used by GET handler
 jest.mock('@/lib/ta/course-selection', () => ({
-  getPlayedCourses: jest.fn(),
   getPlayedCoursesWithSuddenDeath: jest.fn(),
   getAvailableCourses: jest.fn(),
 }));
