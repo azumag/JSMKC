@@ -48,7 +48,6 @@ describe('E2E case drift coverage', () => {
     ['TC-1087', tcGp],
     ['TC-1083', tcMr],
     ['TC-729', tcGp],
-    ['TC-830', tcGp],
     ['TC-926', tcOverlay],
     ['TC-817', tcTa],
     ['TC-1032', tcTa],
@@ -70,6 +69,37 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toMatch(
       /\/\/\s*TC-831 stays before TC-832[^\n]*\n\s*\{\s*name:\s*['"]TC-831['"]\s*,\s*fn:\s*runTc831\s*\}\s*,\s*\n\s*\{\s*name:\s*['"]TC-832['"]\s*,\s*fn:\s*runTc832\s*\}/,
     );
+  });
+
+  it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
+    const section = e2eCaseSection('TC-830');
+    const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
+    const winnerHelperTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'gp-finals-match-winner.test.ts');
+    const doubleBracketTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'components',
+      'tournament',
+      'double-elimination-bracket.test.tsx',
+    );
+    const playoffBracketTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'components',
+      'tournament',
+      'playoff-bracket.test.tsx',
+    );
+
+    expect(section).toContain('issue #830');
+    expect(section).toContain('gp-finals-page-wiring.test.tsx');
+    expect(section).toContain('gp-finals-match-winner.test.ts');
+    expect(section).toContain('double-elimination-bracket.test.tsx');
+    expect(section).toContain('playoff-bracket.test.tsx');
+    expect(pageWiringTest).toContain('passes the GP legacy winner resolver into the finals bracket');
+    expect(winnerHelperTest).toContain('falls back to suddenDeathWinnerId for completed legacy tied rows');
+    expect(doubleBracketTest).toContain('uses getWinnerId for completed tied matches');
+    expect(playoffBracketTest).toContain('uses getWinnerId for completed tied matches');
+    expect(tcGp).not.toMatch(/\{\s*name:\s*['"]TC-830['"]/);
   });
 
   it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {
