@@ -336,6 +336,60 @@ describe("TA Finals Phase Manager", () => {
 
       expect(result.eliminated).toContain("p2");
     });
+
+    it("uses resolved sudden-death order instead of millisecond offsets when Phase3 elimination is capped", async () => {
+      const activeEntries = [
+        { id: "e1", playerId: "p1", eliminated: false, lives: 1 },
+        { id: "e2", playerId: "p2", eliminated: false, lives: 1 },
+        { id: "e3", playerId: "p3", eliminated: false, lives: 1 },
+        { id: "e4", playerId: "p4", eliminated: false, lives: 1 },
+        { id: "e5", playerId: "p5", eliminated: false, lives: 1 },
+      ];
+
+      mockPrismaClient.tTEntry.findMany
+        .mockResolvedValueOnce(activeEntries)
+        .mockResolvedValueOnce(activeEntries.filter((entry) => entry.playerId !== "p5"));
+
+      mockPrismaClient.tTEntry.findUnique.mockImplementation(({ where }) => {
+        const entry = activeEntries.find(
+          (e: any) => e.playerId === where.tournamentId_playerId_stage.playerId
+        );
+        return Promise.resolve(entry);
+      });
+
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({});
+
+      const courseResults = [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 81000 },
+        { playerId: "p4", timeMs: 90000 },
+        { playerId: "p3", timeMs: 90001 },
+        { playerId: "p5", timeMs: 90001 },
+      ];
+      const resolvedOrder = new Map([
+        ["p1", 0],
+        ["p2", 1],
+        ["p4", 2],
+        ["p3", 3],
+        ["p5", 4],
+      ]);
+
+      const result = await processPhase3Result(
+        mockPrismaClient as any,
+        context,
+        courseResults,
+        resolvedOrder
+      );
+
+      expect(result.eliminated).toEqual(["p5"]);
+      expect(mockPrismaClient.tTEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "e5" },
+          data: expect.objectContaining({ eliminated: true }),
+        })
+      );
+    });
   });
 
   describe("getNextPhase3ResetThreshold", () => {

@@ -34,6 +34,13 @@ describe('E2E case drift coverage', () => {
     'phases',
     'route.test.ts',
   );
+  const taFinalsPhaseManagerTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'lib',
+    'ta',
+    'finals-phase-manager.test.ts',
+  );
 
   it.each([
     ['TC-352', tcAll],
@@ -822,6 +829,17 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
     expect(prismaMigrationsTest).toContain('migrationSqlFiles');
     expect(prismaMigrationsTest).toContain('expect(jsonbMigrations).toEqual([])');
+  });
+
+  it('documents TC-824 as Phase3 sudden-death explicit order coverage', () => {
+    const section = e2eCaseSection('TC-824');
+
+    expect(section).toContain('issue #824');
+    expect(section).toContain('rank offset');
+    expect(section).toContain('明示順序 map');
+    expect(section).toContain('__tests__/lib/ta/finals-phase-manager.test.ts');
+    expect(taFinalsPhaseManagerTest).toContain('uses resolved sudden-death order');
+    expect(taFinalsPhaseManagerTest).toContain('resolvedOrder');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {

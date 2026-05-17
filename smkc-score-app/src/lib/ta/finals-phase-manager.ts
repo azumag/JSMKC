@@ -117,6 +117,21 @@ export interface CourseResult {
   timeMs: number;
 }
 
+type Phase3ResolvedOrder = ReadonlyMap<string, number>;
+
+function comparePhase3CourseResults(
+  a: CourseResult,
+  b: CourseResult,
+  resolvedOrder?: Phase3ResolvedOrder
+) {
+  const aOrder = resolvedOrder?.get(a.playerId);
+  const bOrder = resolvedOrder?.get(b.playerId);
+  if (aOrder !== undefined && bOrder !== undefined && aOrder !== bOrder) {
+    return aOrder - bOrder;
+  }
+  return a.timeMs - b.timeMs;
+}
+
 /**
  * Get players from qualification by rank range.
  * Used internally to fetch specific rank bands for phase promotions.
@@ -646,7 +661,8 @@ export async function processEliminationPhaseResult(
 export async function processPhase3Result(
   prisma: PrismaClient,
   context: PhaseContext,
-  courseResults: CourseResult[]
+  courseResults: CourseResult[],
+  resolvedOrder?: Phase3ResolvedOrder
 ): Promise<{ eliminated: string[]; livesReset: boolean }> {
   // Logger created inside function for proper test mocking
   const logger = createLogger("ta-phase-manager");
@@ -665,8 +681,15 @@ export async function processPhase3Result(
     return { eliminated: [], livesReset: false };
   }
 
-  // Sort results by time ascending (fastest first)
-  const sortedResults = [...courseResults].sort((a, b) => a.timeMs - b.timeMs);
+  /*
+   * Normal Phase3 rounds rank by course time. A resolved sudden-death round
+   * supplies an explicit full ordering instead: encoding that order by adding
+   * +1/+2ms to the tied players can collide with a non-sudden-death player's
+   * real time and pick the wrong capped elimination target.
+   */
+  const sortedResults = [...courseResults].sort((a, b) =>
+    comparePhase3CourseResults(a, b, resolvedOrder)
+  );
 
   // Bottom half loses a life (players with slower times)
   // If odd number of players, the extra player is in the "safe" top half
@@ -678,7 +701,7 @@ export async function processPhase3Result(
   const selectedEliminationIds = new Set(
     bottomHalf
       .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? 0) - 1 <= 0)
-      .sort((a, b) => b.timeMs - a.timeMs)
+      .sort((a, b) => comparePhase3CourseResults(b, a, resolvedOrder))
       .slice(0, eliminationLimit)
       .map((result) => result.playerId)
   );
@@ -1624,16 +1647,8 @@ export async function submitSuddenDeathResults(
     });
     eliminatedIds = [slowest.playerId];
   } else {
-    const suddenRank = new Map(
-      [...processedResults]
-        .sort((a, b) => a.timeMs - b.timeMs)
-        .map((result, index) => [result.playerId, index])
-    );
-    const adjustedResults = orderedResults.map((result) => ({
-      ...result,
-      timeMs: result.timeMs + (suddenRank.get(result.playerId) ?? 0),
-    }));
-    const phase3Result = await processPhase3Result(prisma, context, adjustedResults);
+    const resolvedOrder = new Map(orderedResults.map((result, index) => [result.playerId, index]));
+    const phase3Result = await processPhase3Result(prisma, context, orderedResults, resolvedOrder);
     eliminatedIds = phase3Result.eliminated;
     livesReset = phase3Result.livesReset;
   }
