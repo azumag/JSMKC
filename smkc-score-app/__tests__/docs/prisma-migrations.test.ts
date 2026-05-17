@@ -24,7 +24,7 @@ describe("Prisma migration compatibility", () => {
     // accepts SQLite-compatible storage classes. A global guard prevents future
     // generated migrations from reintroducing the unsupported type silently.
     const jsonbMigrations = migrationSqlFiles(migrationsDir)
-      .filter((file) => readMigration(path.relative(migrationsDir, file)).includes("JSONB"))
+      .filter((file) => fs.readFileSync(file, "utf8").includes("JSONB"))
       .map((file) => path.relative(migrationsDir, file));
 
     expect(jsonbMigrations).toEqual([]);
