@@ -26,6 +26,7 @@ import {
   createCharacterUsageLog,
   recalculatePlayerStats,
   recalculatePlayersStats,
+  bulkUpdateQualificationStats,
 } from '@/lib/api-factories/score-report-helpers';
 
 import { NextRequest } from 'next/server';
@@ -542,6 +543,14 @@ describe('Score Report Helpers', () => {
           score: 1,
         },
       ]);
+    });
+
+    it('should throw for an unknown qualificationModel before issuing bulk SQL', async () => {
+      await expect(
+        bulkUpdateQualificationStats('unknownModel' as any, 'tourney-1', [{ playerId: 'p1' }]),
+      ).rejects.toThrow('Unsupported qualification stats bulk update model: unknownModel');
+
+      expect(mockExecuteRawUnsafe).not.toHaveBeenCalled();
     });
   });
 });
