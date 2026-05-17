@@ -28,6 +28,8 @@ describe('TA time input props memoization', () => {
 
     expect(source).toMatch(/import\s*\{[^}]*\buseMemo\b[^}]*\}\s*from ['"]react['"]/s);
     expect(source).toMatch(memoizedDeclaration);
+    expect(source).toContain('Input is a native element, so this does not skip rendering by reference equality.');
+    expect(source).toContain('avoids rebuilding identical spread props during polling refreshes.');
   });
 });
 

@@ -106,7 +106,8 @@ export default function TimeAttackParticipantPage({
   const tPart = useTranslations('participant');
   const tTa = useTranslations('ta');
   const tCommon = useTranslations('common');
-  // Keep the shared input props object stable across polling-driven re-renders.
+  // Input is a native element, so this does not skip rendering by reference equality.
+  // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(tTa('timeInputTitle')), [tTa]);
 
   const { data: session, status: sessionStatus } = useSession();
