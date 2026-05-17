@@ -20,6 +20,7 @@ describe('E2E case drift coverage', () => {
   const tcTaFlow = readE2eScript('tc-ta-flow.js');
   const taFlowRankAssertionsTypes = readE2eLib('ta-flow-rank-assertions.d.ts');
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
+  const bmFinalsPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'finals', 'page.tsx');
   const tc1073Lr2Slots = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-1073-16p-lr2-slots.test.ts');
   const taPhasesRouteTest = readRepoFile(
     'smkc-score-app',
@@ -278,6 +279,17 @@ describe('E2E case drift coverage', () => {
     expect(helper).toContain("require('../../messages/ja.json').common");
     expect(helper).toContain("require('../../messages/en.json').common");
     expect(helper).toContain('qualification points header missing tooltip title');
+  });
+
+  it('keeps TC-521 aligned with BM finals score-dialog long-name truncation', () => {
+    const section = e2eCaseSection('TC-521');
+
+    expect(section).toContain('長いプレイヤー名');
+    expect(tcBm).toContain('labelsStayCapped');
+    expect(bmFinalsPage).toContain('className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1"');
+    expect(bmFinalsPage).toContain('className="min-w-0 max-w-[180px] truncate align-bottom sm:max-w-[240px]"');
+    expect(bmFinalsPage).toContain('className="block max-w-[140px] truncate"');
+    expect(bmFinalsPage).toContain('className="min-w-0 text-center"');
   });
 
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {

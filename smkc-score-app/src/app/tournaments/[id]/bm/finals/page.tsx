@@ -838,9 +838,16 @@ export default function BattleModeFinals({
             <DialogDescription>
               {selectedMatch && (
                 <>
-                  Match #{selectedMatch.matchNumber}:{" "}
-                  {selectedMatch.player1.nickname} vs{" "}
-                  {selectedMatch.player2.nickname}
+                  <span className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1">
+                    <span className="shrink-0">Match #{selectedMatch.matchNumber}:</span>
+                    <span className="min-w-0 max-w-[180px] truncate align-bottom sm:max-w-[240px]">
+                      {selectedMatch.player1.nickname}
+                    </span>
+                    <span className="shrink-0">vs</span>
+                    <span className="min-w-0 max-w-[180px] truncate align-bottom sm:max-w-[240px]">
+                      {selectedMatch.player2.nickname}
+                    </span>
+                  </span>
                   {/* Show the round name if available */}
                   {selectedMatch.round && (
                     <span className="block text-xs mt-1">
@@ -855,8 +862,8 @@ export default function BattleModeFinals({
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-center gap-4">
                {/* Player 1 score input with accessible label */}
-               <div className="text-center">
-                 <Label htmlFor={`score1-${selectedMatch?.id}`}>
+               <div className="min-w-0 text-center">
+                 <Label htmlFor={`score1-${selectedMatch?.id}`} className="block max-w-[140px] truncate">
                    {selectedMatch?.player1.nickname}
                  </Label>
                  <Input
@@ -879,8 +886,8 @@ export default function BattleModeFinals({
                </div>
                <span className="text-2xl" aria-hidden="true">-</span>
                {/* Player 2 score input with accessible label */}
-               <div className="text-center">
-                 <Label htmlFor={`score2-${selectedMatch?.id}`}>
+               <div className="min-w-0 text-center">
+                 <Label htmlFor={`score2-${selectedMatch?.id}`} className="block max-w-[140px] truncate">
                    {selectedMatch?.player2.nickname}
                  </Label>
                  <Input
