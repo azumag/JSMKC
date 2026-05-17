@@ -118,6 +118,12 @@ export function selectRandomAvailableCourse(
   if (available.length === 0) {
     throw new Error("No available courses");
   }
+  /*
+   * Intentional for both normal and sudden-death rounds: when the current
+   * 20-course cycle still has alternatives, do not immediately repeat the
+   * previously played course. If the cycle leaves only that course, it remains
+   * selectable so the "use all 20 before reset" rule is never blocked.
+   */
   const candidates =
     previousCourse && available.length > 1
       ? available.filter((course) => course !== previousCourse)
@@ -141,7 +147,9 @@ export function isValidCourseAbbr(value: string): value is CourseAbbr {
  * Select a random course for the next round in a phase.
  *
  * Combines cumulative played-course history + getAvailableCourses to select a random
- * unplayed course from the current 20-course cycle.
+ * unplayed course from the current 20-course cycle. Normal rounds use the same
+ * immediate-repeat avoidance as sudden-death rounds; this preserves the shared
+ * course-cycle order while avoiding back-to-back repeats when another course exists.
  *
  * @param prisma - Prisma client instance
  * @param tournamentId - Tournament ID

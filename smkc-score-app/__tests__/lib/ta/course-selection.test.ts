@@ -8,7 +8,12 @@
  * - getAvailableCourses is a pure function for easy testing
  */
 
-import { getAvailableCourses, getPlayedCoursesWithSuddenDeath, isValidCourseAbbr } from "@/lib/ta/course-selection";
+import {
+  getAvailableCourses,
+  getPlayedCoursesWithSuddenDeath,
+  isValidCourseAbbr,
+  selectRandomAvailableCourse,
+} from "@/lib/ta/course-selection";
 import { COURSES } from "@/lib/constants";
 
 describe("getAvailableCourses", () => {
@@ -108,6 +113,32 @@ describe("isValidCourseAbbr", () => {
   it("returns false for a lowercase version of a valid abbreviation", () => {
     // Course abbreviations are case-sensitive; "mc1" is not in the list
     expect(isValidCourseAbbr("mc1")).toBe(false);
+  });
+});
+
+describe("selectRandomAvailableCourse", () => {
+  const originalRandom = Math.random;
+
+  afterEach(() => {
+    Math.random = originalRandom;
+  });
+
+  it("avoids the immediately previous course when more than one course is available", () => {
+    Math.random = jest.fn().mockReturnValue(0);
+
+    const course = selectRandomAvailableCourse(["MC1"], "DP1");
+
+    expect(course).not.toBe("DP1");
+    expect(course).toBe("GV1");
+  });
+
+  it("allows the previous course when it is the only available course in the cycle", () => {
+    Math.random = jest.fn().mockReturnValue(0);
+
+    const lastCourse = COURSES[COURSES.length - 1];
+    const course = selectRandomAvailableCourse(COURSES.slice(0, -1), lastCourse);
+
+    expect(course).toBe(lastCourse);
   });
 });
 
