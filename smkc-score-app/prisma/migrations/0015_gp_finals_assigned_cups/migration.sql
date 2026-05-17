@@ -1,1 +1,1 @@
-ALTER TABLE "GPMatch" ADD COLUMN "assignedCups" JSONB;
+ALTER TABLE "GPMatch" ADD COLUMN "assignedCups" TEXT;
