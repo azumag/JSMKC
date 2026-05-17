@@ -122,6 +122,8 @@ export default function TimeAttackPageClient({
   const { data: session } = useSession();
   const t = useTranslations('ta');
   const tc = useTranslations('common');
+  // Input is a native element, so this does not skip rendering by reference equality.
+  // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(t('timeInputTitle')), [t]);
 
   /**

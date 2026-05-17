@@ -2,6 +2,11 @@ import { readRepoFile } from '../helpers/e2e-cases';
 
 const targets = [
   {
+    label: 'TA admin qualification page',
+    path: ['src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx'],
+    translationCall: "t('timeInputTitle')",
+  },
+  {
     label: 'TA participant page',
     path: ['src', 'app', 'tournaments', '[id]', 'ta', 'participant', 'page.tsx'],
     translationCall: "tTa('timeInputTitle')",
