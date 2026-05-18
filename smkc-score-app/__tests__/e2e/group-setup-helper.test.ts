@@ -50,6 +50,18 @@ describe('group setup E2E helper', () => {
       .toThrow('dialog.locator received unexpected value "section[data-new]". Expected one of: label, input[type="number"]');
   });
 
+  it('prints expected page role lookups when the Playwright fixture receives an unexpected role selector', () => {
+    expect(() =>
+      throwUnexpectedMockCall(
+        'page.getByRole lookup',
+        formatRoleLookup('button', 'Unexpected'),
+        EXPECTED_PAGE_ROLE_LOOKUPS,
+      ),
+    ).toThrow(
+      'page.getByRole lookup received unexpected value "role=button name=Unexpected". Expected one of: role=button name=Setup Groups|Edit Groups|グループ設定|グループ編集, role=dialog name=',
+    );
+  });
+
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
     const groupCountClick = jest.fn(async () => undefined);
     const saveClick = jest.fn(async () => undefined);
