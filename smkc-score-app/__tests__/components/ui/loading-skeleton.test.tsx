@@ -1,0 +1,21 @@
+/**
+ * @jest-environment jsdom
+ */
+
+import { render, screen } from '@testing-library/react';
+
+import { QualificationFallback } from '@/components/ui/loading-skeleton';
+
+describe('QualificationFallback', () => {
+  it('renders the supplied mode title as a level-one heading', () => {
+    render(<QualificationFallback title="グランプリ" />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'グランプリ' })).toBeInTheDocument();
+  });
+
+  it('omits the heading when no title is supplied', () => {
+    render(<QualificationFallback />);
+
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+});
