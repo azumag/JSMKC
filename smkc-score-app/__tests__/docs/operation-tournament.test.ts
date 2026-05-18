@@ -16,7 +16,7 @@ describe('tournament operation manual', () => {
     expect(section).toContain('UPDATE "Tournament"');
     expect(section).toContain('json_insert');
     expect(section).toContain("WHERE value IN ('ta', 'bm', 'mr', 'gp')");
-    expect(section).toContain("`Tournament.status` は現在 `draft`, `active`, `completed`");
+    expect(section).toContain("`draft` は準備中で本番公開対象外のため、一括更新では `draft` 以外を対象にします");
     expect(section).toContain('/api/tournaments/[id]/overall-ranking');
   });
 
