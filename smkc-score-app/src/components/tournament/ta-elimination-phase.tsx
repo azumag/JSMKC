@@ -867,7 +867,7 @@ export default function TAEliminationPhase({
                     note so operators know the button won't affect those
                     players (issue #808). */}
                 {hasUnbroadcastedTvAssignment && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-amber-600" role="status" aria-live="polite">
                     {tCommon('broadcastTv12Only')}
                   </p>
                 )}
