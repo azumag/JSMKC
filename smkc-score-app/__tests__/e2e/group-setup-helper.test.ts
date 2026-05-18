@@ -27,14 +27,6 @@ import {
 
 const GROUP_SETUP_TRIGGER_NAME_SOURCE = 'Setup Groups|Edit Groups|グループ設定|グループ編集';
 const GROUP_SETUP_TRIGGER_NAME_FRAGMENT = GROUP_SETUP_TRIGGER_NAME_SOURCE.split('|')[0];
-const EXPECTED_PAGE_ROLE_LOOKUPS = [
-  `role=button name=${GROUP_SETUP_TRIGGER_NAME_SOURCE}`,
-  'role=dialog name=',
-];
-
-function formatRoleLookup(role: string, name: string): string {
-  return `role=${role} name=${name}`;
-}
 
 function throwUnexpectedMockCall(kind: string, actual: string, expected: string[]): never {
   throw new Error(`${kind} received unexpected value "${actual}". Expected one of: ${expected.join(', ')}`);
@@ -48,18 +40,6 @@ describe('group setup E2E helper', () => {
   it('prints expected mock lookups when the Playwright fixture receives an unexpected selector', () => {
     expect(() => throwUnexpectedMockCall('dialog.locator', 'section[data-new]', ['label', 'input[type="number"]']))
       .toThrow('dialog.locator received unexpected value "section[data-new]". Expected one of: label, input[type="number"]');
-  });
-
-  it('prints expected page role lookups when the Playwright fixture receives an unexpected role selector', () => {
-    expect(() =>
-      throwUnexpectedMockCall(
-        'page.getByRole lookup',
-        formatRoleLookup('button', 'Unexpected'),
-        EXPECTED_PAGE_ROLE_LOOKUPS,
-      ),
-    ).toThrow(
-      'page.getByRole lookup received unexpected value "role=button name=Unexpected". Expected one of: role=button name=Setup Groups|Edit Groups|グループ設定|グループ編集, role=dialog name=',
-    );
   });
 
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
@@ -121,7 +101,7 @@ describe('group setup E2E helper', () => {
         return throwUnexpectedMockCall('dialog.getByRole name', name, expectedNames);
       }),
     };
-    const page = {
+  const page = {
       goto: jest.fn(async () => undefined),
       waitForTimeout: jest.fn(async () => undefined),
       getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
@@ -132,10 +112,14 @@ describe('group setup E2E helper', () => {
         if (_role === 'dialog') {
           return { first: jest.fn(() => dialog) };
         }
+        const expectedPageRoleLookups = [
+          `role=button name=${GROUP_SETUP_TRIGGER_NAME_SOURCE}`,
+          'role=dialog name=',
+        ];
         return throwUnexpectedMockCall(
           'page.getByRole lookup',
-          formatRoleLookup(_role, name),
-          EXPECTED_PAGE_ROLE_LOOKUPS,
+          `role=${_role} name=${name}`,
+          expectedPageRoleLookups,
         );
       }),
       waitForResponse: jest.fn(async () => ({ status: () => 201 })),
