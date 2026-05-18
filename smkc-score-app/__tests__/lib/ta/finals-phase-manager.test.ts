@@ -399,8 +399,11 @@ describe("TA Finals Phase Manager", () => {
       expect(getNextPhase3ResetThreshold(3)).toBe(2);
     });
 
-    it("falls back to one survivor when no configured threshold remains below activeCount", () => {
+    it("falls back to activeCount-1 when no configured threshold remains", () => {
       expect(getNextPhase3ResetThreshold(2)).toBe(1);
+    });
+
+    it("returns null when activeCount is already at one survivor", () => {
       expect(getNextPhase3ResetThreshold(1)).toBeNull();
     });
   });
