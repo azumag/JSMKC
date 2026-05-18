@@ -174,7 +174,7 @@ type TaFinalsTimeEntryRowProps = {
   onRetryToggle: (playerId: string) => void;
 };
 
-const TaFinalsTimeEntryRow = memo(function TaFinalsTimeEntryRow({
+export const TaFinalsTimeEntryRow = memo(function TaFinalsTimeEntryRow({
   playerId,
   playerName,
   livesLabel,

@@ -90,6 +90,7 @@ export interface TAEliminationPhaseProps {
   targetSurvivors: number;
 }
 
+
 type TAEliminationPhaseRowProps = {
   playerId: string;
   playerName: string;
@@ -108,7 +109,7 @@ type TAEliminationPhaseRowProps = {
   onRetryToggle: (playerId: string) => void;
 };
 
-const TAEliminationPhaseRow = memo(function TAEliminationPhaseRow({
+export const TAEliminationPhaseRow = memo(function TAEliminationPhaseRow({
   playerId,
   playerName,
   tvNumber,
