@@ -615,12 +615,9 @@ async function runTc808A(adminPage) {
       await adminPage.unroute(broadcastApiPattern).catch(() => {});
     }
 
-    const broadcastNameFields = {
-      player1Name: payload.player1Name,
-      player2Name: payload.player2Name,
-      player3Name: payload.player3Name,
-      player4Name: payload.player4Name,
-    };
+    const broadcastNameFields = Object.fromEntries(
+      Object.entries(payload).filter(([key]) => /^player\d+Name$/.test(key)),
+    );
     const reflectedOnlyTv12 =
       payload.player1Name === tv1Player.nickname
       && payload.player2Name === tv2Player.nickname
