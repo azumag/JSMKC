@@ -19,7 +19,7 @@ describe('operation finals target win manuals', () => {
     expect(section).toContain('| 段階 | システム上の必要勝利数 |');
     expect(section).toContain(`| バラッジ | 先に ${getBmFinalsTargetWins({ stage: 'playoff', round: 'playoff_r1' })} 勝、後半は先に ${getBmFinalsTargetWins({ stage: 'playoff', round: 'playoff_r2' })} 勝 |`);
     expect(section).toContain(`| 決勝序盤 | 先に ${getBmFinalsTargetWins({ round: 'winners_r1' })} 勝 |`);
-    expect(section).toContain(`| 準決勝以降 | 先に ${getBmFinalsTargetWins({ round: 'winners_sf' })} 勝 |`);
+    expect(section).toContain(`| 準決勝・決勝・Grand Final | 先に ${getBmFinalsTargetWins({ round: 'winners_sf' })} 勝 |`);
   });
 
   it('keeps the MR finals manual aligned with round-aware score validation', () => {
