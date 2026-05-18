@@ -146,7 +146,8 @@ const CDM_PLAYER_HUB_MAX_PLAYERS = 60;
 // writeTTQualifications keeps sheet-level readability.
 const CDM_TT_QUAL_FIRST_ROW = CDM_PLAYER_HUB_FIRST_ROW;
 const CDM_TT_QUAL_MAX_PLAYERS = CDM_PLAYER_HUB_MAX_PLAYERS;
-// Qualification sheets reserve rows 2-768 (767 data rows + header at row 1).
+// Qualification sheets reserve CDM_QUALIFICATION_MAX_ROWS rows starting at
+// CDM_QUALIFICATION_FIRST_ROW (header row is above the data block).
 const CDM_QUALIFICATION_FIRST_ROW = 2;
 const CDM_QUALIFICATION_MAX_ROWS = 767;
 // Finals players list occupies fixed rows for A1-style standings blocks in each finals sheet.
@@ -185,8 +186,9 @@ const CDM_TT_ROUND_BLOCK_END_OFFSET = 5;
 const CDM_TT_ROUND_LAST_COLUMN = 524;
 const CDM_TT_ROUND_FIRST_ROW = 1;
 const CDM_TT_ROUND_LAST_ROW = 26;
-// TT rounds keep at most 24 rows per block (rows 1-26 with 2 header rows + 24
-// result rows), so values beyond this cap are intentionally dropped.
+// TT rounds keep at most CDM_TT_ROUND_MAX_RESULTS rows per block within
+// rows CDM_TT_ROUND_FIRST_ROW-1..CDM_TT_ROUND_LAST_ROW (with 2 header rows),
+// so values beyond this cap are intentionally dropped.
 const CDM_TT_ROUND_MAX_RESULTS = 24;
 const CDM_OVERALL_FIRST_ROW = 2;
 const CDM_OVERALL_MAX_ROWS = 64;
