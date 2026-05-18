@@ -274,7 +274,9 @@ describe('E2E case drift coverage', () => {
     expect(tcTa).toContain('request.postDataJSON()');
     expect(tcTa).toContain('broadcastNameFields');
     expect(tcTa).toContain('Object.entries(payload).filter(([key]) => /^player\\d+Name$/.test(key))');
-    expect(tcTa).toContain('Object.values(broadcastNameFields).every((name) => name !== tv3Player.nickname)');
+    expect(tcTa).toContain('Object.values(broadcastNameFields).every((name) =>');
+    expect(tcTa).toContain('name !== tv3Player.nickname');
+    expect(tcTa).toContain('name !== tv4Player.nickname');
     expect(jaMessages).toContain('TV3/TV4 のプレイヤーは配信に反映されません');
     expect(enMessages).toContain('TV3/TV4 players are not reflected in the broadcast');
     for (const source of [taPageClient, taFinalsPage, taEliminationPhase]) {

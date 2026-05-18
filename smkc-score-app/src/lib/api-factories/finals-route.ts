@@ -853,10 +853,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const aOverride = a.qualification.rankOverride != null;
         const bOverride = b.qualification.rankOverride != null;
         if (aOverride !== bOverride) return aOverride ? -1 : 1;
-        // After the inequality guard above, `aOverride` and `bOverride` are equal.
-        // Checking only `aOverride` keeps the collision rule readable while still
-        // limiting timestamp comparison to the "both manually overridden" case.
         if (aOverride) {
+          const aRankOverride = a.qualification.rankOverride ?? Number.POSITIVE_INFINITY;
+          const bRankOverride = b.qualification.rankOverride ?? Number.POSITIVE_INFINITY;
+          if (aRankOverride !== bRankOverride) return aRankOverride - bRankOverride;
+
+          // When manual overrides collide on the same rank value, prefer the
+          // latest manual correction timestamp.
           const aOverrideAt = a.qualification.rankOverrideAt
             ? new Date(a.qualification.rankOverrideAt).getTime()
             : 0;
