@@ -25,7 +25,7 @@
  * - Namespaces: participant, ta, common
  */
 
-import { useState, useEffect, useCallback, use, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, use, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
@@ -77,6 +77,46 @@ interface TAApiData {
   qualificationEditingLockedForPlayers?: boolean;
   taPlayerSelfEdit?: boolean;
 }
+
+type TaParticipantTimeInputRowProps = {
+  courseAbbr: string;
+  value: string;
+  placeholder: string;
+  disabled: boolean;
+  inputClassName: string;
+  timeInputProps: Record<string, unknown>;
+  onChange: (course: string, value: string) => void;
+  onBlur: (course: string) => void;
+};
+
+const TaParticipantTimeInputRow = memo(function TaParticipantTimeInputRow({
+  courseAbbr,
+  value,
+  placeholder,
+  disabled,
+  inputClassName,
+  timeInputProps,
+  onChange,
+  onBlur,
+}: TaParticipantTimeInputRowProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <Label className="w-12 text-xs font-mono">{courseAbbr}</Label>
+      <Input
+        type="text"
+        {...timeInputProps}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(courseAbbr, e.target.value)}
+        onBlur={() => onBlur(courseAbbr)}
+        disabled={disabled}
+        className={inputClassName}
+      />
+    </div>
+  );
+});
+
+TaParticipantTimeInputRow.displayName = 'TaParticipantTimeInputRow';
 
 /**
  * Convert display time string to milliseconds for preview calculation.
@@ -249,34 +289,40 @@ export default function TimeAttackParticipantPage({
   }, [playerId, entries]);
 
   /** Handle individual course time input change */
-  const handleTimeChange = (course: string, value: string) => {
+  const handleTimeChange = useCallback((course: string, value: string) => {
     setTimeInputs(prev => ({ ...prev, [course]: value }));
-  };
+  }, []);
 
   /** Auto-format time on blur — normalizes input to M:SS.mm */
-  const handleTimeBlur = (course: string) => {
-    const raw = timeInputs[course];
-    if (!raw || raw.trim() === "") return;
-    const formatted = autoFormatTime(raw);
-    if (formatted !== null && formatted !== raw) {
-      setTimeInputs(prev => ({ ...prev, [course]: formatted }));
-    }
-  };
+  const handleTimeBlur = useCallback((course: string) => {
+    setTimeInputs((prev) => {
+      const raw = prev[course];
+      if (!raw || raw.trim() === "") return prev;
+      const formatted = autoFormatTime(raw);
+      if (formatted !== null && formatted !== raw) {
+        return { ...prev, [course]: formatted };
+      }
+      return prev;
+    });
+  }, []);
 
   /** Handle partner course time input change */
-  const handlePartnerTimeChange = (course: string, value: string) => {
+  const handlePartnerTimeChange = useCallback((course: string, value: string) => {
     setPartnerTimeInputs(prev => ({ ...prev, [course]: value }));
-  };
+  }, []);
 
   /** Auto-format partner time on blur */
-  const handlePartnerTimeBlur = (course: string) => {
-    const raw = partnerTimeInputs[course];
-    if (!raw || raw.trim() === "") return;
-    const formatted = autoFormatTime(raw);
-    if (formatted !== null && formatted !== raw) {
-      setPartnerTimeInputs(prev => ({ ...prev, [course]: formatted }));
-    }
-  };
+  const handlePartnerTimeBlur = useCallback((course: string) => {
+    setPartnerTimeInputs((prev) => {
+      const raw = prev[course];
+      if (!raw || raw.trim() === "") return prev;
+      const formatted = autoFormatTime(raw);
+      if (formatted !== null && formatted !== raw) {
+        return { ...prev, [course]: formatted };
+      }
+      return prev;
+    });
+  }, []);
 
   /** Submit all entered times to the server */
   const handleSubmitTimes = async () => {
@@ -580,19 +626,17 @@ export default function TimeAttackParticipantPage({
                             </CardHeader>
                             <CardContent className="space-y-3">
                               {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
-                                <div key={course.abbr} className="flex items-center gap-2">
-                                  <Label className="w-12 text-xs font-mono">{course.abbr}</Label>
-                                  <Input
-                                    type="text"
-                                    {...taTimeInputProps}
-                                    placeholder={tTa('timePlaceholder')}
-                                    value={partnerTimeInputs[course.abbr] || ''}
-                                    onChange={(e) => handlePartnerTimeChange(course.abbr, e.target.value)}
-                                    onBlur={() => handlePartnerTimeBlur(course.abbr)}
-                                    disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
-                                    className="font-mono text-sm"
-                                  />
-                                </div>
+                                <TaParticipantTimeInputRow
+                                  key={course.abbr}
+                                  courseAbbr={course.abbr}
+                                  value={partnerTimeInputs[course.abbr] || ''}
+                                  placeholder={tTa('timePlaceholder')}
+                                  onChange={handlePartnerTimeChange}
+                                  onBlur={handlePartnerTimeBlur}
+                                  disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
+                                  inputClassName="font-mono text-sm"
+                                  timeInputProps={taTimeInputProps}
+                                />
                               ))}
                             </CardContent>
                           </Card>
@@ -677,19 +721,17 @@ export default function TimeAttackParticipantPage({
                             </CardHeader>
                             <CardContent className="space-y-3">
                               {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
-                                <div key={course.abbr} className="flex items-center gap-2">
-                                  <Label className="w-12 text-xs font-mono">{course.abbr}</Label>
-                                  <Input
-                                    type="text"
-                                    {...taTimeInputProps}
-                                    placeholder={tTa('timePlaceholder')}
-                                    value={timeInputs[course.abbr] || ''}
-                                    onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
-                                    onBlur={() => handleTimeBlur(course.abbr)}
-                                    disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
-                                    className="font-mono text-sm"
-                                  />
-                                </div>
+                                <TaParticipantTimeInputRow
+                                  key={course.abbr}
+                                  courseAbbr={course.abbr}
+                                  value={timeInputs[course.abbr] || ''}
+                                  placeholder={tTa('timePlaceholder')}
+                                  onChange={handleTimeChange}
+                                  onBlur={handleTimeBlur}
+                                  disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
+                                  inputClassName="font-mono text-sm"
+                                  timeInputProps={taTimeInputProps}
+                                />
                               ))}
                             </CardContent>
                           </Card>

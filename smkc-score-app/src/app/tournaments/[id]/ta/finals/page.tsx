@@ -27,7 +27,7 @@
  * - 3-second auto-refresh for live tracking
  */
 
-import { useState, useEffect, useCallback, use, useMemo } from "react";
+import { memo, useState, useEffect, useCallback, use, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -154,6 +154,102 @@ function renderLives(lives: number, eliminated: boolean, eliminatedLabel: string
   }
   return <span>{hearts}</span>;
 }
+
+type TaFinalsTimeEntryRowProps = {
+  playerId: string;
+  playerName: string;
+  livesLabel: React.ReactNode;
+  tvNumber: number | null;
+  tvLabel: string;
+  timeValue: string;
+  timePlaceholder: string;
+  isRetry: boolean;
+  isEditingDisabled: boolean;
+  retryLabel: string;
+  retryTitle: string;
+  timeInputProps: Record<string, unknown>;
+  onTvChange: (playerId: string, value: number | null) => void;
+  onTimeChange: (playerId: string, value: string) => void;
+  onTimeBlur: (playerId: string) => void;
+  onRetryToggle: (playerId: string) => void;
+};
+
+const TaFinalsTimeEntryRow = memo(function TaFinalsTimeEntryRow({
+  playerId,
+  playerName,
+  livesLabel,
+  tvNumber,
+  tvLabel,
+  timeValue,
+  timePlaceholder,
+  isRetry,
+  isEditingDisabled,
+  retryLabel,
+  retryTitle,
+  timeInputProps,
+  onTvChange,
+  onTimeChange,
+  onTimeBlur,
+  onRetryToggle,
+}: TaFinalsTimeEntryRowProps) {
+  return (
+    <div
+      className={TA_FINALS_ROUND_ENTRY_ROW_CLASS}
+      data-testid="ta-finals-round-entry-row"
+    >
+      <div className={TA_FINALS_ROUND_PLAYER_LABEL_CLASS}>
+        <Label
+          className={TA_FINALS_ROUND_PLAYER_NAME_CLASS}
+          data-testid="ta-finals-round-player-name"
+        >
+          {playerName}
+        </Label>
+        <div className="text-xs text-muted-foreground">
+          {livesLabel}
+        </div>
+      </div>
+      <div
+        className={TA_FINALS_ROUND_CONTROLS_CLASS}
+        data-testid="ta-finals-round-controls"
+      >
+        <select
+          className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
+          value={tvNumber ?? ""}
+          onChange={(e) =>
+            onTvChange(playerId, e.target.value ? parseInt(e.target.value) : null)
+          }
+          aria-label={tvLabel}
+        >
+          <option value="">-</option>
+          {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>TV{n}</option>)}
+        </select>
+        <Input
+          type="text"
+          {...timeInputProps}
+          placeholder={timePlaceholder}
+          value={timeValue}
+          onChange={(e) =>
+            onTimeChange(playerId, e.target.value)
+          }
+          onBlur={() => onTimeBlur(playerId)}
+          disabled={isRetry}
+          className={TA_FINALS_TIME_INPUT_CLASS}
+        />
+        <Button
+          variant={isRetry ? "destructive" : "outline"}
+          size="sm"
+          onClick={() => onRetryToggle(playerId)}
+          title={retryTitle}
+          disabled={isEditingDisabled}
+        >
+          {retryLabel}
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+TaFinalsTimeEntryRow.displayName = 'TaFinalsTimeEntryRow';
 
 export default function TimeAttackFinals({
   params,
@@ -481,36 +577,41 @@ export default function TimeAttackFinals({
   };
 
   /** Handle time input change for a specific player */
-  const handleTimeChange = (playerId: string, value: string) => {
+  const handleTimeChange = useCallback((playerId: string, value: string) => {
     setIsEditing(true);
     setCourseTimes((prev) => ({ ...prev, [playerId]: value }));
-    if (retryFlags[playerId]) {
-      setRetryFlags((prev) => ({ ...prev, [playerId]: false }));
-    }
-  };
+    setRetryFlags((prev) => (prev[playerId] ? { ...prev, [playerId]: false } : prev));
+  }, []);
 
-  const handleTimeBlur = (playerId: string) => {
-    const raw = courseTimes[playerId];
-    if (!raw || raw.trim() === "") return;
-    const formatted = autoFormatTime(raw);
-    if (formatted !== null && formatted !== raw) {
-      setCourseTimes((prev) => ({ ...prev, [playerId]: formatted }));
-    }
-  };
+  const handleTimeBlur = useCallback((playerId: string) => {
+    setCourseTimes((prev) => {
+      const raw = prev[playerId];
+      if (!raw || raw.trim() === "") return prev;
+      const formatted = autoFormatTime(raw);
+      if (formatted !== null && formatted !== raw) {
+        return { ...prev, [playerId]: formatted };
+      }
+      return prev;
+    });
+  }, []);
 
   /** Toggle retry penalty: sets time to 9:59.990 and marks isRetry flag */
-  const handleRetryToggle = (playerId: string) => {
-    const isCurrentlyRetry = retryFlags[playerId];
-    setRetryFlags((prev) => ({ ...prev, [playerId]: !isCurrentlyRetry }));
-    if (!isCurrentlyRetry) {
-      setCourseTimes((prev) => ({
-        ...prev,
-        [playerId]: RETRY_PENALTY_DISPLAY,
+  const handleRetryToggle = useCallback((playerId: string) => {
+    setRetryFlags((prev) => {
+      const isCurrentlyRetry = prev[playerId];
+      setIsEditing(true);
+      setCourseTimes((prevTimes) => ({
+        ...prevTimes,
+        [playerId]: isCurrentlyRetry ? "" : RETRY_PENALTY_DISPLAY,
       }));
-    } else {
-      setCourseTimes((prev) => ({ ...prev, [playerId]: "" }));
-    }
-  };
+      return { ...prev, [playerId]: !isCurrentlyRetry };
+    });
+  }, []);
+
+  const handleTvChange = useCallback((playerId: string, value: number | null) => {
+    setTvAssignments((prev) => ({ ...prev, [playerId]: value }));
+    resetBroadcastStatus();
+  }, [resetBroadcastStatus]);
 
   /**
    * Submit round results: sends player times to the API.
@@ -850,68 +951,25 @@ export default function TimeAttackFinals({
                   {tTaFinals('timeInputHelp')}
                 </p>
                 {activeEntries.map((entry) => (
-                  <div
+                  <TaFinalsTimeEntryRow
                     key={entry.id}
-                    className={TA_FINALS_ROUND_ENTRY_ROW_CLASS}
-                    data-testid="ta-finals-round-entry-row"
-                  >
-                    <div className={TA_FINALS_ROUND_PLAYER_LABEL_CLASS}>
-                      <Label
-                        className={TA_FINALS_ROUND_PLAYER_NAME_CLASS}
-                        data-testid="ta-finals-round-player-name"
-                      >
-                        {entry.player.nickname}
-                      </Label>
-                      <div className="text-xs text-muted-foreground">
-                        {renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
-                      </div>
-                    </div>
-                    <div
-                      className={TA_FINALS_ROUND_CONTROLS_CLASS}
-                      data-testid="ta-finals-round-controls"
-                    >
-                    {/* Per-player TV number selector: assign which screen this player uses */}
-                    <select
-                      className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
-                      value={tvAssignments[entry.playerId] ?? ""}
-                      onChange={(e) => {
-                        setTvAssignments((prev) => ({
-                          ...prev,
-                          [entry.playerId]: e.target.value ? parseInt(e.target.value) : null,
-                        }));
-                        resetBroadcastStatus();
-                      }}
-                      aria-label={`${tCommon('tvNumber')} ${entry.player.nickname}`}
-                    >
-                      <option value="">-</option>
-                      {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>TV{n}</option>)}
-                    </select>
-                    <Input
-                      type="text"
-                      {...taTimeInputProps}
-                      placeholder={tTaFinals('timePlaceholder')}
-                      value={courseTimes[entry.playerId] || ""}
-                      onChange={(e) =>
-                        handleTimeChange(entry.playerId, e.target.value)
-                      }
-                      onBlur={() => handleTimeBlur(entry.playerId)}
-                      disabled={retryFlags[entry.playerId]}
-                      className={TA_FINALS_TIME_INPUT_CLASS}
-                    />
-                    <Button
-                      variant={
-                        retryFlags[entry.playerId]
-                          ? "destructive"
-                          : "outline"
-                      }
-                      size="sm"
-                      onClick={() => handleRetryToggle(entry.playerId)}
-                      title={tTaFinals('retryPenalty')}
-                    >
-                      {tCommon('retry')}
-                    </Button>
-                    </div>
-                  </div>
+                    playerId={entry.playerId}
+                    playerName={entry.player.nickname}
+                    livesLabel={renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
+                    tvNumber={tvAssignments[entry.playerId] ?? null}
+                    tvLabel={`${tCommon('tvNumber')} ${entry.player.nickname}`}
+                    timeValue={courseTimes[entry.playerId] || ""}
+                    timePlaceholder={tTaFinals('timePlaceholder')}
+                    isRetry={retryFlags[entry.playerId]}
+                    isEditingDisabled={false}
+                    retryLabel={tCommon('retry')}
+                    retryTitle={tTaFinals('retryPenalty')}
+                    timeInputProps={taTimeInputProps}
+                    onTvChange={handleTvChange}
+                    onTimeChange={handleTimeChange}
+                    onTimeBlur={handleTimeBlur}
+                    onRetryToggle={handleRetryToggle}
+                  />
                 ))}
               </div>
               {/* 配信に反映: push TV1→player1Name, TV2→player2Name to broadcast overlay */}
