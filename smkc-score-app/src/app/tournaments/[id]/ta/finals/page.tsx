@@ -192,6 +192,7 @@ const TaFinalsTimeEntryRow = memo(function TaFinalsTimeEntryRow({
   onTimeBlur,
   onRetryToggle,
 }: TaFinalsTimeEntryRowProps) {
+  // Keep the memoized row output stable while remaining responsive to submission state.
   return (
     <div
       className={TA_FINALS_ROUND_ENTRY_ROW_CLASS}
