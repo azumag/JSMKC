@@ -27,7 +27,7 @@
  * - 3-second auto-refresh for live tracking
  */
 
-import { memo, useState, useEffect, useCallback, use, useMemo } from "react";
+import { memo, useState, useEffect, useCallback, use, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -296,6 +296,7 @@ export default function TimeAttackFinals({
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [retryFlags, setRetryFlags] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const retryFlagsRef = useRef<Record<string, boolean>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [startingRound, setStartingRound] = useState(false);
   const [cancellingRound, setCancellingRound] = useState(false);
@@ -399,6 +400,10 @@ export default function TimeAttackFinals({
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    retryFlagsRef.current = retryFlags;
+  }, [retryFlags]);
 
   // Auto-refresh every 3 seconds, but pause when user is editing to prevent
   // resetting their input. This ensures a smooth data entry experience.
@@ -597,15 +602,14 @@ export default function TimeAttackFinals({
 
   /** Toggle retry penalty: sets time to 9:59.990 and marks isRetry flag */
   const handleRetryToggle = useCallback((playerId: string) => {
-    setRetryFlags((prev) => {
-      const isCurrentlyRetry = prev[playerId];
-      setIsEditing(true);
-      setCourseTimes((prevTimes) => ({
-        ...prevTimes,
-        [playerId]: isCurrentlyRetry ? "" : RETRY_PENALTY_DISPLAY,
-      }));
-      return { ...prev, [playerId]: !isCurrentlyRetry };
-    });
+    setIsEditing(true);
+    const isCurrentlyRetry = retryFlagsRef.current[playerId];
+    const nextIsRetry = !isCurrentlyRetry;
+    setRetryFlags((prev) => ({ ...prev, [playerId]: nextIsRetry }));
+    setCourseTimes((prevTimes) => ({
+      ...prevTimes,
+      [playerId]: nextIsRetry ? RETRY_PENALTY_DISPLAY : "",
+    }));
   }, []);
 
   const handleTvChange = useCallback((playerId: string, value: number | null) => {
@@ -961,7 +965,7 @@ export default function TimeAttackFinals({
                     timeValue={courseTimes[entry.playerId] || ""}
                     timePlaceholder={tTaFinals('timePlaceholder')}
                     isRetry={retryFlags[entry.playerId]}
-                    isEditingDisabled={false}
+                    isEditingDisabled={submitting}
                     retryLabel={tCommon('retry')}
                     retryTitle={tTaFinals('retryPenalty')}
                     timeInputProps={taTimeInputProps}
