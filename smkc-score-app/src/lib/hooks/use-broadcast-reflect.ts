@@ -15,7 +15,7 @@
  * in ta-elimination-phase.tsx and ta/finals/page.tsx (issue #807).
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface BroadcastEntry {
   playerId: string;
@@ -32,6 +32,32 @@ export function useBroadcastReflect(
 ) {
   const [broadcastStatus, setBroadcastStatus] =
     useState<BroadcastStatus>("idle");
+  // The status reset is delayed for operator feedback, so keep the timer handle
+  // to prevent stale setState work after unmount or after a newer reflect action.
+  const idleResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  const clearIdleResetTimer = useCallback(() => {
+    if (idleResetTimerRef.current === null) return;
+    clearTimeout(idleResetTimerRef.current);
+    idleResetTimerRef.current = null;
+  }, []);
+
+  const scheduleIdleReset = useCallback(() => {
+    clearIdleResetTimer();
+    idleResetTimerRef.current = setTimeout(() => {
+      idleResetTimerRef.current = null;
+      setBroadcastStatus("idle");
+    }, 3000);
+  }, [clearIdleResetTimer]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      clearIdleResetTimer();
+    };
+  }, [clearIdleResetTimer]);
 
   /** Push TV1→player1Name / TV2→player2Name to the broadcast overlay. */
   const handleBroadcastReflect = async () => {
@@ -49,16 +75,21 @@ export function useBroadcastReflect(
           player2NoCamera: tv2Player?.player.noCamera === true,
         }),
       });
+      if (!isMountedRef.current) return;
       setBroadcastStatus(res.ok ? "success" : "error");
-      setTimeout(() => setBroadcastStatus("idle"), 3000);
+      scheduleIdleReset();
     } catch {
+      if (!isMountedRef.current) return;
       setBroadcastStatus("error");
-      setTimeout(() => setBroadcastStatus("idle"), 3000);
+      scheduleIdleReset();
     }
   };
 
   /** Reset the status indicator (call when starting/cancelling/undoing rounds). */
-  const resetBroadcastStatus = () => setBroadcastStatus("idle");
+  const resetBroadcastStatus = () => {
+    clearIdleResetTimer();
+    setBroadcastStatus("idle");
+  };
 
   /**
    * True when any active player is assigned TV3 or TV4, which will NOT be

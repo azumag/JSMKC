@@ -88,6 +88,59 @@ describe('useBroadcastReflect', () => {
       expect(result.current.broadcastStatus).toBe('idle');
     });
 
+    it('clears the pending idle reset timer on unmount', async () => {
+      mockFetchOk();
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const { result, unmount } = renderHook(() =>
+        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      );
+
+      await act(async () => {
+        await result.current.handleBroadcastReflect();
+      });
+
+      unmount();
+
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('replaces the previous idle reset timer when reflecting again', async () => {
+      mockFetchOk();
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const { result } = renderHook(() =>
+        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      );
+
+      await act(async () => {
+        await result.current.handleBroadcastReflect();
+      });
+      await act(async () => {
+        await result.current.handleBroadcastReflect();
+      });
+
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not schedule an idle reset when unmounted before the request settles', async () => {
+      let resolveFetch!: (response: Response) => void;
+      global.fetch = jest.fn(() => new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }));
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      const { result, unmount } = renderHook(() =>
+        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      );
+
+      const reflectPromise = result.current.handleBroadcastReflect();
+      unmount();
+      await act(async () => {
+        resolveFetch({ ok: true } as Response);
+        await reflectPromise;
+      });
+
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+    });
+
     it('transitions to error on non-ok response', async () => {
       mockFetchError();
       const { result } = renderHook(() =>
