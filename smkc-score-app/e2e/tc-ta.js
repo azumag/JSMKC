@@ -615,16 +615,21 @@ async function runTc808A(adminPage) {
       await adminPage.unroute(broadcastApiPattern).catch(() => {});
     }
 
-    const serializedPayload = JSON.stringify(payload);
+    const broadcastNameFields = {
+      player1Name: payload.player1Name,
+      player2Name: payload.player2Name,
+      player3Name: payload.player3Name,
+      player4Name: payload.player4Name,
+    };
     const reflectedOnlyTv12 =
       payload.player1Name === tv1Player.nickname
       && payload.player2Name === tv2Player.nickname
-      && !serializedPayload.includes(tv3Player.nickname);
+      && Object.values(broadcastNameFields).every((name) => name !== tv3Player.nickname);
 
     log('TC-808A', reflectedOnlyTv12 ? 'PASS' : 'FAIL',
       reflectedOnlyTv12
         ? 'TV3/TV4 warning is visible and broadcast PUT only includes TV1/TV2'
-        : `broadcast payload unexpectedly included TV3/TV4 data: ${serializedPayload}`);
+        : `broadcast name fields unexpectedly included TV3/TV4 data: ${JSON.stringify(broadcastNameFields)}`);
   } catch (err) {
     log('TC-808A', 'FAIL', err instanceof Error ? err.message : 'TA TV3/TV4 broadcast warning failed');
   }

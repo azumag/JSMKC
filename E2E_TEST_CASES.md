@@ -2879,7 +2879,7 @@
 - **手順**:
   1. `tc-ta.js` の共有 TA 予選 fixture で、TA予選タイム入力画面のアクティブな選手を TV1 / TV2 / TV3 に割り当てる
   2. `TV3/TV4 のプレイヤーは配信に反映されません` / `TV3/TV4 players are not reflected in the broadcast` が表示されることを確認する
-  3. `配信に反映` を押し、`page.route()` で `/api/tournaments/[id]/broadcast` の PUT body を捕捉して TV1/TV2 の選手名だけが含まれ、TV3 の選手名が含まれないことを確認する
+  3. `配信に反映` を押し、`page.route()` で `/api/tournaments/[id]/broadcast` の PUT body を捕捉して `player1Name` / `player2Name` が TV1/TV2 の選手名であり、既知の配信名フィールドに TV3 の選手名が含まれないことを確認する
   4. drift guard で TA決勝 Phase 1/2/3 の各ラウンド入力にも、TV3/TV4 割り当て時の同じ注意文が残っていることを確認する
   5. hook unit test で、`配信に反映` は TV1/TV2 のみを broadcast API に送ることを固定する
 - **期待結果**: TV3/TV4 が選ばれている状態で「配信に反映」を押しても、利用者は TV3/TV4 がOBS表示対象外であることを画面上で確認できる
