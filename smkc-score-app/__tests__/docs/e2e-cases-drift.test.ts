@@ -9,6 +9,14 @@ function readE2eLib(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', 'lib', script);
 }
 
+function expectHeadingRoleOptions(source: string, method: 'getByRole' | 'queryByRole', assertions: RegExp[]) {
+  const match = source.match(new RegExp(`${method}\\(\\s*["']heading["']\\s*,\\s*\\{([^}]*)\\}`));
+  expect(match?.[1] ?? '').toEqual(expect.stringContaining('level: 1'));
+  for (const assertion of assertions) {
+    expect(match?.[1] ?? '').toMatch(assertion);
+  }
+}
+
 describe('E2E case drift coverage', () => {
   const tcAll = readE2eScript('tc-all.js');
   const tcBm = readE2eScript('tc-bm.js');
@@ -203,8 +211,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`グランプリ` または `Grand Prix`');
     expect(section).toContain('`タイムアタック` または `Time Attack`');
     expect(qualificationFallbackTest).toContain('QualificationFallback');
-    expect(qualificationFallbackTest).toMatch(/getByRole\(\s*["']heading["']\s*,\s*\{[^}]*level:\s*1[^}]*name:\s*["']グランプリ["'][^}]*\}/);
-    expect(qualificationFallbackTest).toMatch(/queryByRole\(\s*["']heading["']\s*,\s*\{[^}]*level:\s*1[^}]*\}/);
+    expectHeadingRoleOptions(qualificationFallbackTest, 'getByRole', [/name:\s*["']グランプリ["']/]);
+    expectHeadingRoleOptions(qualificationFallbackTest, 'queryByRole', []);
     expect(qualificationFallbackTest).toContain('title=""');
     expect(tc357Block).toContain("waitUntil: 'domcontentloaded'");
     expect(tc357Block).toContain("page.goto(`${BASE}/tournaments/${TID}/${mode}`");
