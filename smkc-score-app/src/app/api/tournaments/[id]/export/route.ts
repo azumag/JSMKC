@@ -138,14 +138,18 @@ const CDM_EXPORT_INCLUDE = {
  * ranges, not business limits; writing past them risks overwriting formula
  * regions and hidden helper cells in the macro workbook.
  */
+// Main Hub: player roster starts row 2 and supports up to 60 entries (rows 2-61)
+// in the template's top table.
 const CDM_PLAYER_HUB_FIRST_ROW = 2;
 const CDM_PLAYER_HUB_MAX_PLAYERS = 60;
-// TT Qualifications uses the same rows as Main Hub, but keep sheet-specific
-// aliases so the writeTTQualifications range does not look tied to Main Hub.
+// TT Qualifications uses the same rows as Main Hub, but keep aliases so
+// writeTTQualifications keeps sheet-level readability.
 const CDM_TT_QUAL_FIRST_ROW = CDM_PLAYER_HUB_FIRST_ROW;
 const CDM_TT_QUAL_MAX_PLAYERS = CDM_PLAYER_HUB_MAX_PLAYERS;
+// Qualification sheets reserve rows 2-768 (767 data rows + header at row 1).
 const CDM_QUALIFICATION_FIRST_ROW = 2;
 const CDM_QUALIFICATION_MAX_ROWS = 767;
+// Finals players list occupies fixed rows for A1-style standings blocks in each finals sheet.
 const CDM_FINALS_PLAYER_FIRST_ROW = 3;
 const CDM_FINALS_MAX_PLAYERS = 52;
 const CDM_FINALS_BLOCK_START_COLUMNS = [4, 11, 18, 25, 32, 39, 46, 53, 60, 67, 74, 81, 88, 95, 102];
@@ -174,11 +178,15 @@ const CDM_FINALS_BRACKET_SLOTS: Record<string, Array<{ blockStart: number; row: 
 };
 const CDM_TT_FINALIST_FIRST_ROW = 3;
 const CDM_TT_FINALIST_MAX_ROWS = 24;
+// TT rounds are rendered into 8 fixed block starts; each block maps to one
+// logical section in the template (columns 7,20,33,46,59,72,85,98).
 const CDM_TT_ROUND_START_COLUMNS = [7, 20, 33, 46, 59, 72, 85, 98];
 const CDM_TT_ROUND_BLOCK_END_OFFSET = 5;
 const CDM_TT_ROUND_LAST_COLUMN = 524;
 const CDM_TT_ROUND_FIRST_ROW = 1;
 const CDM_TT_ROUND_LAST_ROW = 26;
+// TT rounds keep at most 24 rows per block (rows 1-26 with 2 header rows + 24
+// result rows), so values beyond this cap are intentionally dropped.
 const CDM_TT_ROUND_MAX_RESULTS = 24;
 const CDM_OVERALL_FIRST_ROW = 2;
 const CDM_OVERALL_MAX_ROWS = 64;
