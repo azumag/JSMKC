@@ -22,6 +22,7 @@
  *   TC-839  TA qualification time-entry dialog stacks cup cards on mobile.
  *   TC-840  TA partner can edit the paired player's times from the TA list UI.
  *   TC-878  TA qualification TV assignment reflects TV1/TV2 to broadcast.
+ *   TC-808A TA qualification TV3/TV4 warning is visible and not sent to broadcast.
  *   TC-896  TA finals mobile admin input rows keep player names visible.
  *   TC-897  TA time inputs request the mobile numeric keyboard.
  *   TC-913  TA time input hint/title/placeholder are localized.
@@ -567,7 +568,7 @@ async function runTc808A(adminPage) {
   try {
     const tournamentId = sharedTaTournamentId;
     if (!tournamentId) throw new Error('Shared TA tournament not initialized');
-    const [tv1Player, tv2Player, tv3Player] = sharedTaPlayers(3);
+    const [tv1Player, tv2Player, tv3Player, tv4Player] = sharedTaPlayers(4);
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
     await adminPage.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
@@ -621,7 +622,9 @@ async function runTc808A(adminPage) {
     const reflectedOnlyTv12 =
       payload.player1Name === tv1Player.nickname
       && payload.player2Name === tv2Player.nickname
-      && Object.values(broadcastNameFields).every((name) => name !== tv3Player.nickname);
+      && Object.values(broadcastNameFields).every((name) =>
+        name !== tv3Player.nickname && name !== tv4Player.nickname
+      );
 
     log('TC-808A', reflectedOnlyTv12 ? 'PASS' : 'FAIL',
       reflectedOnlyTv12
