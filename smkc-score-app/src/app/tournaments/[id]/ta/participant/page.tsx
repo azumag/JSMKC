@@ -89,7 +89,7 @@ type TaParticipantTimeInputRowProps = {
   onBlur: (course: string) => void;
 };
 
-const TaParticipantTimeInputRow = memo(function TaParticipantTimeInputRow({
+export const TaParticipantTimeInputRow = memo(function TaParticipantTimeInputRow({
   courseAbbr,
   value,
   placeholder,
