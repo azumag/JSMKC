@@ -11,7 +11,7 @@ function readE2eLib(script: string) {
 
 function expectHeadingRoleOptions(source: string, method: 'getByRole' | 'queryByRole', assertions: RegExp[]) {
   const match = source.match(new RegExp(`${method}\\(\\s*["']heading["']\\s*,\\s*\\{([^}]*)\\}`));
-  expect(match?.[1] ?? '').toEqual(expect.stringContaining('level: 1'));
+  expect(match?.[1] ?? '').toMatch(/level:\s*1\b/);
   for (const assertion of assertions) {
     expect(match?.[1] ?? '').toMatch(assertion);
   }
