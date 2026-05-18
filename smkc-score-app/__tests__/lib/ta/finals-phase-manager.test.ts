@@ -403,8 +403,9 @@ describe("TA Finals Phase Manager", () => {
       expect(getNextPhase3ResetThreshold(2)).toBe(1);
     });
 
-    it("returns null when activeCount is already at one survivor", () => {
+    it("returns null when the active player count is one or fewer", () => {
       expect(getNextPhase3ResetThreshold(1)).toBeNull();
+      expect(getNextPhase3ResetThreshold(0)).toBeNull();
     });
   });
 
