@@ -67,6 +67,15 @@ describe('E2E case drift coverage', () => {
     'finals',
     'page.tsx',
   );
+  const taPageClient = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'app',
+    'tournaments',
+    '[id]',
+    'ta',
+    'page-client.tsx',
+  );
   const taEliminationPhase = readRepoFile(
     'smkc-score-app',
     'src',
@@ -137,6 +146,7 @@ describe('E2E case drift coverage', () => {
     ['TC-817', tcTa],
     ['TC-1032', tcTa],
     ['TC-1033', tcTa],
+    ['TC-808A', tcTa],
     ['TC-939', tcAll],
     ['TC-1010', tcBm],
     ['TC-TA-FLOW-24', tcTaFlow],
@@ -251,6 +261,21 @@ describe('E2E case drift coverage', () => {
     expect(exportRouteTest).toContain('workbook.Sheets["MR Finals"].AT19.v');
     expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].BA47.v');
     expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].AR19.v');
+  });
+
+  it('documents TC-808A as TA TV3/TV4 broadcast warning coverage', () => {
+    const section = e2eCaseSection('TC-808A');
+
+    expect(section).toContain('issue #808');
+    expect(section).toContain('TV3/TV4');
+    expect(tcTa).toContain('runTc808A');
+    expect(tcTa).toContain('ta-tv-select-${player.id}');
+    expect(jaMessages).toContain('TV3/TV4 のプレイヤーは配信に反映されません');
+    expect(enMessages).toContain('TV3/TV4 players are not reflected in the broadcast');
+    for (const source of [taPageClient, taFinalsPage, taEliminationPhase]) {
+      expect(source).toContain('hasUnbroadcastedTvAssignment');
+      expect(source).toContain('broadcastTv12Only');
+    }
   });
 
   it('documents TC-1877A as reachable grand-final reset alias coverage', () => {
