@@ -2872,6 +2872,18 @@
   4. `/api/tournaments/[id]/broadcast` の player1Name / player2Name が選択した2名に更新されることを確認する
 - **期待結果**: TA予選中でもTV番号選択から配信オーバーレイへプレイヤー名を反映できる
 
+## TC-808A: TA配信反映 — TV3/TV4 は配信に反映されないことを明示する
+- **URL**: /tournaments/[temp-id]/ta, /tournaments/[temp-id]/ta/finals
+- **authRequired**: true (admin)
+- **背景**: issue #808。TA の TV3/TV4 は進行上の割り当てとして保存されるが、broadcast API が反映するのは TV1/TV2 の選手名だけである。オペレーターが「配信に反映」成功表示を TV3/TV4 まで反映されたと誤解しないよう、対象外であることを画面上に明示する。
+- **手順**:
+  1. `tc-ta.js` の共有 TA 予選 fixture で、TA予選タイム入力画面のアクティブな選手を TV3 に割り当てる
+  2. `TV3/TV4 のプレイヤーは配信に反映されません` / `TV3/TV4 players are not reflected in the broadcast` が表示されることを確認する
+  3. drift guard で TA決勝 Phase 1/2/3 の各ラウンド入力にも、TV3/TV4 割り当て時の同じ注意文が残っていることを確認する
+  4. hook unit test で、`配信に反映` は TV1/TV2 のみを broadcast API に送ることを固定する
+- **期待結果**: TV3/TV4 が選ばれている状態で「配信に反映」を押しても、利用者は TV3/TV4 がOBS表示対象外であることを画面上で確認できる
+- **スクリプト**: tc-ta.js TC-808A / e2e-cases-drift.test.ts / use-broadcast-reflect.test.ts
+
 ## TC-897: TAタイム入力欄フォーカス時にスマホ数字キーボードを出す
 - **URL**: /auth/signin -> /tournaments/[temp-id]/ta
 - **authRequired**: true (player)

@@ -562,6 +562,26 @@ async function runTc878(adminPage) {
   }
 }
 
+/* ───────── TC-808A: TA qualification warns that TV3/TV4 are not broadcast ───────── */
+async function runTc808A(adminPage) {
+  try {
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+    const [player] = sharedTaPlayers(1);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta`);
+    await adminPage.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+    await adminPage.locator(`[data-testid="ta-tv-select-${player.id}"]`).selectOption('3');
+
+    const warning = adminPage.getByText(/TV3\/TV4.*(配信に反映されません|not reflected in the broadcast)/).first();
+    await warning.waitFor({ state: 'visible', timeout: 10000 });
+
+    log('TC-808A', 'PASS', 'TV3/TV4 broadcast exclusion warning is visible on TA qualification');
+  } catch (err) {
+    log('TC-808A', 'FAIL', err instanceof Error ? err.message : 'TA TV3/TV4 broadcast warning failed');
+  }
+}
+
 /* ───────── TC-897: TA time inputs request mobile numeric keyboard ───────── */
 async function runTc897(adminPage) {
   let playerBrowser = null;
@@ -1864,7 +1884,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
       const selected = new Set(selectedTestNames());
       const needsSharedTaSeed = selected.size === 0 || [
-        'TC-801', 'TC-802', 'TC-837', 'TC-839', 'TC-840', 'TC-878', 'TC-897', 'TC-913',
+        'TC-801', 'TC-802', 'TC-837', 'TC-839', 'TC-840', 'TC-878', 'TC-808A', 'TC-897', 'TC-913',
         'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808', 'TC-816',
       ].some((name) => selected.has(name));
 
@@ -1899,6 +1919,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-839', fn: runTc839 },
       { name: 'TC-840', fn: runTc840 },
       { name: 'TC-878', fn: runTc878 },
+      { name: 'TC-808A', fn: runTc808A },
       { name: 'TC-897', fn: runTc897 },
       { name: 'TC-913', fn: runTc913 },
       { name: 'TC-896', fn: runTc896 },
@@ -1924,7 +1945,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
+  runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005,
   getSuite,
