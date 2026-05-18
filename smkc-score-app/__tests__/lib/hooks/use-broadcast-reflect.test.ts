@@ -51,6 +51,34 @@ afterEach(() => {
 });
 
 describe('useBroadcastReflect', () => {
+  describe('returned callbacks', () => {
+    it('keeps public callback references stable when inputs do not change', () => {
+      const tvAssignments = { p1: 1, p2: 2 };
+      const { result, rerender } = renderHook(
+        ({ tournamentId, assignments, hookEntries }) =>
+          useBroadcastReflect(tournamentId, assignments, hookEntries),
+        {
+          initialProps: {
+            tournamentId: TOURNAMENT_ID,
+            assignments: tvAssignments,
+            hookEntries: entries,
+          },
+        }
+      );
+      const initialHandle = result.current.handleBroadcastReflect;
+      const initialReset = result.current.resetBroadcastStatus;
+
+      rerender({
+        tournamentId: TOURNAMENT_ID,
+        assignments: tvAssignments,
+        hookEntries: entries,
+      });
+
+      expect(result.current.handleBroadcastReflect).toBe(initialHandle);
+      expect(result.current.resetBroadcastStatus).toBe(initialReset);
+    });
+  });
+
   describe('broadcastStatus', () => {
     it('starts as idle', () => {
       const { result } = renderHook(() =>

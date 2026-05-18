@@ -60,7 +60,7 @@ export function useBroadcastReflect(
   }, [clearIdleResetTimer]);
 
   /** Push TV1→player1Name / TV2→player2Name to the broadcast overlay. */
-  const handleBroadcastReflect = async () => {
+  const handleBroadcastReflect = useCallback(async () => {
     const activeEntries = entries.filter((e) => !e.eliminated);
     const tv1Player = activeEntries.find((e) => tvAssignments[e.playerId] === 1);
     const tv2Player = activeEntries.find((e) => tvAssignments[e.playerId] === 2);
@@ -83,13 +83,13 @@ export function useBroadcastReflect(
       setBroadcastStatus("error");
       scheduleIdleReset();
     }
-  };
+  }, [entries, scheduleIdleReset, tournamentId, tvAssignments]);
 
   /** Reset the status indicator (call when starting/cancelling/undoing rounds). */
-  const resetBroadcastStatus = () => {
+  const resetBroadcastStatus = useCallback(() => {
     clearIdleResetTimer();
     setBroadcastStatus("idle");
-  };
+  }, [clearIdleResetTimer]);
 
   /**
    * True when any active player is assigned TV3 or TV4, which will NOT be
