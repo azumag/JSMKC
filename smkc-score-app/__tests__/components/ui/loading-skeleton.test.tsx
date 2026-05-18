@@ -18,4 +18,10 @@ describe('QualificationFallback', () => {
 
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
   });
+
+  it('omits the heading when title is an empty string', () => {
+    render(<QualificationFallback title="" />);
+
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
 });

@@ -203,8 +203,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`グランプリ` または `Grand Prix`');
     expect(section).toContain('`タイムアタック` または `Time Attack`');
     expect(qualificationFallbackTest).toContain('QualificationFallback');
-    expect(qualificationFallbackTest).toMatch(/getByRole\(\s*["']heading["'][\s\S]*level:\s*1[\s\S]*name:\s*["']グランプリ["']/);
-    expect(qualificationFallbackTest).toMatch(/queryByRole\(\s*["']heading["'][\s\S]*level:\s*1/);
+    expect(qualificationFallbackTest).toMatch(/getByRole\(\s*["']heading["']\s*,\s*\{[^}]*level:\s*1[^}]*name:\s*["']グランプリ["'][^}]*\}/);
+    expect(qualificationFallbackTest).toMatch(/queryByRole\(\s*["']heading["']\s*,\s*\{[^}]*level:\s*1[^}]*\}/);
+    expect(qualificationFallbackTest).toContain('title=""');
     expect(tc357Block).toContain("waitUntil: 'domcontentloaded'");
     expect(tc357Block).toContain("page.goto(`${BASE}/tournaments/${TID}/${mode}`");
     expect(tc357Block).not.toContain("await nav(page, `/tournaments/${TID}/${mode}`)");
@@ -214,16 +215,6 @@ describe('E2E case drift coverage', () => {
     expect(tc357Block).toContain("mr: ['マッチレース', 'Match Race']");
     expect(tc357Block).toContain("gp: ['グランプリ', 'Grand Prix']");
     expect(tc357Block).toContain("ta: ['タイムアタック', 'Time Attack']");
-  });
-
-  it('documents TC-1883A as semantic QualificationFallback heading coverage', () => {
-    const section = e2eCaseSection('TC-1883A');
-
-    expect(section).toContain('issue #1883');
-    expect(section).toContain('render output');
-    expect(section).toContain('loading-skeleton.test.tsx');
-    expect(qualificationFallbackTest).toMatch(/getByRole\(\s*["']heading["'][\s\S]*level:\s*1[\s\S]*name:\s*["']グランプリ["']/);
-    expect(qualificationFallbackTest).not.toContain('{title && <h1');
   });
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
