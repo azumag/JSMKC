@@ -567,16 +567,64 @@ async function runTc808A(adminPage) {
   try {
     const tournamentId = sharedTaTournamentId;
     if (!tournamentId) throw new Error('Shared TA tournament not initialized');
-    const [player] = sharedTaPlayers(1);
+    const [tv1Player, tv2Player, tv3Player] = sharedTaPlayers(3);
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
     await adminPage.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
-    await adminPage.locator(`[data-testid="ta-tv-select-${player.id}"]`).selectOption('3');
+    await adminPage.locator(`[data-testid="ta-tv-select-${tv1Player.id}"]`).selectOption('1');
+    await adminPage.locator(`[data-testid="ta-tv-select-${tv2Player.id}"]`).selectOption('2');
+    await adminPage.locator(`[data-testid="ta-tv-select-${tv3Player.id}"]`).selectOption('3');
 
     const warning = adminPage.getByText(/TV3\/TV4.*(配信に反映されません|not reflected in the broadcast)/).first();
     await warning.waitFor({ state: 'visible', timeout: 10000 });
 
-    log('TC-808A', 'PASS', 'TV3/TV4 broadcast exclusion warning is visible on TA qualification');
+    const broadcastApiPattern = `**/api/tournaments/${tournamentId}/broadcast`;
+    let resolvePayload;
+    let rejectPayload;
+    const broadcastPayload = new Promise((resolve, reject) => {
+      resolvePayload = resolve;
+      rejectPayload = reject;
+    });
+    const payloadTimeout = setTimeout(() => {
+      rejectPayload(new Error('Broadcast API PUT was not captured'));
+    }, 10000);
+
+    // Keep this at the browser boundary: issue #1897 asks for UI-to-API proof
+    // that TV3/TV4 are omitted from the actual payload, not only hook-level
+    // unit coverage of the same mapping.
+    await adminPage.route(broadcastApiPattern, async (route) => {
+      const request = route.request();
+      if (request.method() !== 'PUT') {
+        await route.continue();
+        return;
+      }
+      try {
+        resolvePayload(request.postDataJSON());
+      } catch (err) {
+        rejectPayload(err);
+      }
+      await route.continue();
+    });
+
+    let payload;
+    try {
+      await adminPage.getByRole('button', { name: /^(Broadcast|配信に反映)$/ }).click();
+      payload = await broadcastPayload;
+    } finally {
+      clearTimeout(payloadTimeout);
+      await adminPage.unroute(broadcastApiPattern).catch(() => {});
+    }
+
+    const serializedPayload = JSON.stringify(payload);
+    const reflectedOnlyTv12 =
+      payload.player1Name === tv1Player.nickname
+      && payload.player2Name === tv2Player.nickname
+      && !serializedPayload.includes(tv3Player.nickname);
+
+    log('TC-808A', reflectedOnlyTv12 ? 'PASS' : 'FAIL',
+      reflectedOnlyTv12
+        ? 'TV3/TV4 warning is visible and broadcast PUT only includes TV1/TV2'
+        : `broadcast payload unexpectedly included TV3/TV4 data: ${serializedPayload}`);
   } catch (err) {
     log('TC-808A', 'FAIL', err instanceof Error ? err.message : 'TA TV3/TV4 broadcast warning failed');
   }
