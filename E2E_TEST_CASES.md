@@ -930,6 +930,18 @@
 - **期待結果**: 4モードすべてで fallback 期間中もモード名見出しが存在し、遅いデータ取得でも見出しセレクタが安定する
 - **スクリプト**: tc-all.js TC-357
 
+## TC-1883A: QualificationFallback — drift guard は JSX 構文ではなく render output を検証する
+- **authRequired**: false
+- **背景**: issue #1883。TC-357 の drift guard が `{title && <h1` のような JSX 構文文字列に依存すると、同じ render output を保つリファクタリングでもテストが壊れる。
+- **手順**:
+  1. `loading-skeleton.test.tsx` で `QualificationFallback title="グランプリ"` を描画する
+  2. `role=heading`, `level=1`, `name=グランプリ` の見出しが存在することを確認する
+  3. title なしでは level 1 heading が描画されないことを確認する
+- **期待結果**:
+  - テストは JSX の書き方ではなく、利用者に見える render output を固定する
+  - TC-357 の drift guard は `loading-skeleton.test.tsx` の意味的カバレッジを参照する
+- **スクリプト**: loading-skeleton.test.tsx / e2e-cases-drift.test.ts
+
 ## TC-401: 全モードトーナメント — TA/BM/MR/GP の予選データが正しく存在する
 - **authRequired**: true (admin)
 - **背景**: `setupAllModes28PlayerQualification` で28名 × 4モードの予選を完了させた後、各モード API が有効なデータを返すことを確認する統合テスト。
