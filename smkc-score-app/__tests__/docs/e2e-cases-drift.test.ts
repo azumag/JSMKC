@@ -267,9 +267,12 @@ describe('E2E case drift coverage', () => {
     const section = e2eCaseSection('TC-808A');
 
     expect(section).toContain('issue #808');
+    expect(section).toContain('#1897');
     expect(section).toContain('TV3/TV4');
     expect(tcTa).toContain('runTc808A');
-    expect(tcTa).toContain('ta-tv-select-${player.id}');
+    expect(tcTa).toContain('ta-tv-select-${tv3Player.id}');
+    expect(tcTa).toContain('request.postDataJSON()');
+    expect(tcTa).toContain('!serializedPayload.includes(tv3Player.nickname)');
     expect(jaMessages).toContain('TV3/TV4 のプレイヤーは配信に反映されません');
     expect(enMessages).toContain('TV3/TV4 players are not reflected in the broadcast');
     for (const source of [taPageClient, taFinalsPage, taEliminationPhase]) {
