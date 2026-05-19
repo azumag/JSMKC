@@ -393,6 +393,19 @@ describe("TA Finals Phase Manager", () => {
   });
 
   describe("getNextPhase3ResetThreshold", () => {
+    it("uses the nearest configured lower threshold and falls back safely", () => {
+      expect(getNextPhase3ResetThreshold(16)).toBe(8);
+      expect(getNextPhase3ResetThreshold(15)).toBe(8);
+      expect(getNextPhase3ResetThreshold(11)).toBe(8);
+      expect(getNextPhase3ResetThreshold(8)).toBe(4);
+      expect(getNextPhase3ResetThreshold(7)).toBe(4);
+      expect(getNextPhase3ResetThreshold(4)).toBe(2);
+      expect(getNextPhase3ResetThreshold(3)).toBe(2);
+      expect(getNextPhase3ResetThreshold(2)).toBe(1);
+      expect(getNextPhase3ResetThreshold(1)).toBeNull();
+      expect(getNextPhase3ResetThreshold(0)).toBeNull();
+    });
+
     it("returns the highest configured reset threshold below activeCount", () => {
       expect(getNextPhase3ResetThreshold(9)).toBe(8);
       expect(getNextPhase3ResetThreshold(5)).toBe(4);
