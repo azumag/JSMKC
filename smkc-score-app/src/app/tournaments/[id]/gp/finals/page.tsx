@@ -847,7 +847,7 @@ export default function GrandPrixFinals({
             <TabsTrigger value={BRACKET_TABS.finals}>{tFinals('upperBracket')}</TabsTrigger>
             <TabsTrigger value={BRACKET_TABS.playoff}>{tFinals('playoffBracket')}</TabsTrigger>
           </TabsList>
-          <TabsContent value="finals">
+          <TabsContent value={BRACKET_TABS.finals}>
             <DoubleEliminationBracket
               matches={gpBracketMatches}
               bracketStructure={bracketStructure}
@@ -859,7 +859,7 @@ export default function GrandPrixFinals({
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
           </TabsContent>
-          <TabsContent value="playoff">
+          <TabsContent value={BRACKET_TABS.playoff}>
             <PlayoffBracket
               playoffMatches={gpPlayoffBracketMatches}
               playoffStructure={playoffStructure}
