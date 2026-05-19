@@ -138,8 +138,9 @@ const CDM_EXPORT_INCLUDE = {
  * ranges, not business limits; writing past them risks overwriting formula
  * regions and hidden helper cells in the macro workbook.
  */
-// Main Hub: player roster starts at row CDM_PLAYER_HUB_FIRST_ROW and supports
-// up to CDM_PLAYER_HUB_MAX_PLAYERS entries in the template's top table.
+// Main Hub: player roster starts at row CDM_PLAYER_HUB_FIRST_ROW.
+// Maximum player rows are capped by CDM_PLAYER_HUB_MAX_PLAYERS in the template's
+// top table layout.
 const CDM_PLAYER_HUB_FIRST_ROW = 2;
 const CDM_PLAYER_HUB_MAX_PLAYERS = 60;
 // TT Qualifications uses the same rows as Main Hub, but keep aliases so
@@ -179,7 +180,7 @@ const CDM_FINALS_BRACKET_SLOTS: Record<string, Array<{ blockStart: number; row: 
 };
 const CDM_TT_FINALIST_FIRST_ROW = 3;
 const CDM_TT_FINALIST_MAX_ROWS = 24;
-// TT rounds are rendered into 8 fixed block starts; each block maps to one
+// TT rounds are rendered into fixed block starts; each block maps to one
 // logical section defined by CDM_TT_ROUND_START_COLUMNS.
 const CDM_TT_ROUND_START_COLUMNS = [7, 20, 33, 46, 59, 72, 85, 98];
 const CDM_TT_ROUND_BLOCK_END_OFFSET = 5;
