@@ -159,11 +159,12 @@ function NavLink({
   messageKey: string;
 }) {
   return (
-    <a
+    <Link
       href={href}
+      prefetch={false}
       className="inline-flex items-center px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
     >
       <NavLabelClient messageKey={messageKey} />
-    </a>
+    </Link>
   );
 }
