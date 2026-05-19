@@ -23,7 +23,7 @@ export function CourseCycleStatusPanel({
   status,
   availableCoursesCount,
 }: CourseCycleStatusPanelProps) {
-  // availableCoursesCount comes from the server-backed course pool, not the cycle-status helper.
+  // availableCoursesCount is a separate prop because it comes from the server-backed course pool, not the cycle-status helper.
   return (
     <div className="border border-foreground/15 bg-muted/30 p-3 text-sm space-y-2">
       <div className="flex justify-between gap-3">
