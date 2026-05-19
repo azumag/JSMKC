@@ -261,6 +261,7 @@ export default function TimeAttackFinals({
   const { data: session } = useSession();
   /* i18n translation hooks for TA finals, finals, and common namespaces */
   const tTaFinals = useTranslations('taFinals');
+  const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const tFinals = useTranslations('finals');
   const tCommon = useTranslations('common');
   // Input is a native element, so this does not skip rendering by reference equality.
@@ -1370,7 +1371,7 @@ export default function TimeAttackFinals({
                             {(round.suddenDeathRounds || []).map((sd) => (
                               <div key={sd.id} className="text-sm">
                                 <div className="flex justify-between">
-                                  <span className="font-medium">Sudden death #{sd.sequence}</span>
+                                  <span className="font-medium">{tTaSuddenDeath("suddenDeathRoundLabel", { sequence: sd.sequence })}</span>
                                   <Badge variant="outline" className="font-mono text-xs">{sd.course}</Badge>
                                 </div>
                                 {(sd.results || []).map((result) => (
