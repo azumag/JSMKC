@@ -5,6 +5,7 @@ import {
   TA_TIME_INPUT_BASE_PROPS,
   TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
+  parseTvNumberInput,
 } from "@/lib/ta/time-entry-layout";
 
 describe("TA time entry layout", () => {
@@ -45,5 +46,11 @@ describe("TA time entry layout", () => {
     expect(TA_FINALS_ROUND_PLAYER_NAME_CLASS.split(" ")).toEqual(
       expect.arrayContaining(["block", "truncate", "text-base", "sm:text-sm"]),
     );
+  });
+
+  it("parses TV number input with explicit radix", () => {
+    expect(parseTvNumberInput("3")).toBe(3);
+    expect(parseTvNumberInput("09")).toBe(9);
+    expect(parseTvNumberInput("")).toBeNull();
   });
 });
