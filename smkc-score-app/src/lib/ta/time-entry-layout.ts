@@ -17,6 +17,7 @@ export const TA_TIME_INPUT_HELP_CLASS =
   "rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium leading-relaxed text-foreground";
 
 export function parseTvNumberInput(value: string): number | null {
+  // Keep radix explicit for predictable decimal parsing of values like "09".
   return value ? parseInt(value, 10) : null;
 }
 
