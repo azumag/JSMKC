@@ -791,7 +791,8 @@
     "suddenDeathTiebreak": "Sudden-death tiebreak",
     "suddenDeathRoundDesc": "Round {round}, tiebreak #{sequence}",
     "suddenDeathCourse": "Sudden-death course",
-    "submitSuddenDeath": "Submit sudden death"
+    "submitSuddenDeath": "Submit sudden death",
+    "suddenDeathRoundLabel": "Sudden death #{sequence}"
   },
   "revival": {
     "round1Title": "Loser's Revival Round 1",

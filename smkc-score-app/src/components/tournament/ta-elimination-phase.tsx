@@ -229,6 +229,7 @@ export default function TAEliminationPhase({
   // i18n: 'taElimination' namespace for phase-specific strings,
   // 'common' namespace for shared UI labels (e.g., "Player")
   const tElim = useTranslations('taElimination');
+  const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const tCommon = useTranslations('common');
   // Input is a native element, so this does not skip rendering by reference equality.
   // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
@@ -646,7 +647,7 @@ export default function TAEliminationPhase({
       }
 
       if (results.length < 2) {
-        setSaveError("Need at least 2 players to submit results");
+        setSaveError(tElim("needAtLeast2Players"));
         setSubmitting(false);
         return;
       }
@@ -1256,7 +1257,7 @@ export default function TAEliminationPhase({
                             {(round.suddenDeathRounds || []).map((sd) => (
                               <div key={sd.id} className="text-sm">
                                 <div className="flex justify-between">
-                                  <span className="font-medium">Sudden death #{sd.sequence}</span>
+                                  <span className="font-medium">{tTaSuddenDeath("suddenDeathRoundLabel", { sequence: sd.sequence })}</span>
                                   <Badge variant="outline" className="font-mono text-xs">{sd.course}</Badge>
                                 </div>
                                 {(sd.results || []).map((result) => (

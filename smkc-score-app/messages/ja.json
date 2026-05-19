@@ -791,7 +791,8 @@
     "suddenDeathTiebreak": "サドンデスタイブレーク",
     "suddenDeathRoundDesc": "ラウンド {round}、タイブレーク #{sequence}",
     "suddenDeathCourse": "サドンデスコース",
-    "submitSuddenDeath": "サドンデス結果を送信"
+    "submitSuddenDeath": "サドンデス結果を送信",
+    "suddenDeathRoundLabel": "サドンデス #{sequence}"
   },
   "revival": {
     "round1Title": "敗者復活戦 ラウンド1",
