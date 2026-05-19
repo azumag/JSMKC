@@ -27,6 +27,16 @@ import {
 
 const GROUP_SETUP_TRIGGER_NAME_SOURCE = 'Setup Groups|Edit Groups|グループ設定|グループ編集';
 const GROUP_SETUP_TRIGGER_NAME_FRAGMENT = GROUP_SETUP_TRIGGER_NAME_SOURCE.split('|')[0];
+const ROLE_LOOKUP_PREFIX = 'role=';
+
+function roleLookup(role: string, name: string) {
+  return `${ROLE_LOOKUP_PREFIX}${role} name=${name}`;
+}
+
+const EXPECTED_PAGE_ROLE_LOOKUPS = [
+  roleLookup('button', GROUP_SETUP_TRIGGER_NAME_SOURCE),
+  roleLookup('dialog', ''),
+];
 
 function throwUnexpectedMockCall(kind: string, actual: string, expected: string[]): never {
   const quotedExpected = expected.map((value) => `'${value}'`).join(', ');
@@ -41,6 +51,9 @@ describe('group setup E2E helper', () => {
   it('prints expected mock lookups when the Playwright fixture receives an unexpected selector', () => {
     expect(() => throwUnexpectedMockCall('dialog.locator', 'section[data-new]', ['label', 'input[type="number"]']))
       .toThrow(`dialog.locator received unexpected value "section[data-new]". Allowed values: ['label', 'input[type=\"number\"]']`);
+
+    expect(() => throwUnexpectedMockCall('page.getByRole', roleLookup('link', 'Unknown'), EXPECTED_PAGE_ROLE_LOOKUPS))
+      .toThrow(`page.getByRole received unexpected value "role=link name=Unknown". Allowed values: ['role=button name=Setup Groups|Edit Groups|グループ設定|グループ編集', 'role=dialog name=']`);
   });
 
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
@@ -113,11 +126,8 @@ describe('group setup E2E helper', () => {
         if (_role === 'dialog') {
           return { first: jest.fn(() => dialog) };
         }
-  const expectedPageRoleLookups = [
-          `role=button name=${GROUP_SETUP_TRIGGER_NAME_SOURCE}`,
-          'role=dialog name=',
-        ];
-        const actualPageRoleLookup = `role=${_role} name=${name}`;
+        const expectedPageRoleLookups = EXPECTED_PAGE_ROLE_LOOKUPS;
+        const actualPageRoleLookup = roleLookup(_role, name);
         return throwUnexpectedMockCall(
           'page.getByRole',
           actualPageRoleLookup,
