@@ -29,7 +29,8 @@ const GROUP_SETUP_TRIGGER_NAME_SOURCE = 'Setup Groups|Edit Groups|グループ�
 const GROUP_SETUP_TRIGGER_NAME_FRAGMENT = GROUP_SETUP_TRIGGER_NAME_SOURCE.split('|')[0];
 
 function throwUnexpectedMockCall(kind: string, actual: string, expected: string[]): never {
-  throw new Error(`${kind} received unexpected value "${actual}". Expected one of: ${expected.join(', ')}`);
+  const quotedExpected = expected.map((value) => `'${value}'`).join(', ');
+  throw new Error(`${kind} received unexpected value "${actual}". Allowed values: [${quotedExpected}]`);
 }
 
 describe('group setup E2E helper', () => {
@@ -39,7 +40,7 @@ describe('group setup E2E helper', () => {
 
   it('prints expected mock lookups when the Playwright fixture receives an unexpected selector', () => {
     expect(() => throwUnexpectedMockCall('dialog.locator', 'section[data-new]', ['label', 'input[type="number"]']))
-      .toThrow('dialog.locator received unexpected value "section[data-new]". Expected one of: label, input[type="number"]');
+      .toThrow(`dialog.locator received unexpected value "section[data-new]". Allowed values: ['label', 'input[type=\"number\"]']`);
   });
 
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
