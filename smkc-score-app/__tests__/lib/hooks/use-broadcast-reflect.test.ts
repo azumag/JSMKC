@@ -149,6 +149,27 @@ describe('useBroadcastReflect', () => {
       expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
     });
 
+    it('cancels a pending idle reset when resetBroadcastStatus is called', async () => {
+      mockFetchOk();
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      const { result } = renderHook(() =>
+        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      );
+
+      await act(async () => {
+        await result.current.handleBroadcastReflect();
+      });
+
+      act(() => {
+        result.current.resetBroadcastStatus();
+      });
+
+      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+      expect(result.current.broadcastStatus).toBe('idle');
+    });
+
     it('does not schedule an idle reset when unmounted before the request settles', async () => {
       let resolveFetch!: (response: Response) => void;
       global.fetch = jest.fn(() => new Promise<Response>((resolve) => {
