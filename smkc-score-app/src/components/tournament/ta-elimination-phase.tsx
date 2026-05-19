@@ -147,7 +147,7 @@ export const TAEliminationPhaseRow = memo(function TAEliminationPhaseRow({
           className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
           value={tvNumber ?? ""}
           onChange={(e) =>
-            onTvChange(playerId, e.target.value ? parseInt(e.target.value) : null)
+            onTvChange(playerId, e.target.value ? parseInt(e.target.value, 10) : null)
           }
           aria-label={tvLabel}
         >
