@@ -102,7 +102,7 @@ describe('group setup E2E helper', () => {
         return throwUnexpectedMockCall('dialog.getByRole name', name, expectedNames);
       }),
     };
-  const page = {
+    const page = {
       goto: jest.fn(async () => undefined),
       waitForTimeout: jest.fn(async () => undefined),
       getByRole: jest.fn((_role: string, options: { name?: RegExp } = {}) => {
