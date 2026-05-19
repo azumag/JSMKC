@@ -6,7 +6,7 @@ describe('tournament operation manual', () => {
   const manual = fs.readFileSync(manualPath, 'utf8');
 
   it('documents the overall publicModes backfill procedure for existing tournaments', () => {
-    const sectionMatch = manual.match(/### 3\.4 既存大会で総合ランキングを公開する移行手順[\s\S]*?(?=\n---|\n## 4\.)/);
+    const sectionMatch = manual.match(/### .*既存大会で総合ランキングを公開する移行手順[\s\S]*?(?=\n---|\n## )/);
     expect(sectionMatch).not.toBeNull();
     const section = sectionMatch![0];
 
