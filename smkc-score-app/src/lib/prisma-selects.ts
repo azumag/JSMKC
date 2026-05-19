@@ -56,9 +56,10 @@ type BmMrMatchLeanSelectRequiredField =
  * field set. Route tests verify BM/MR both pass this shared object into Prisma;
  * this type contract prevents accidental removal of fields that the shared PUT
  * response and qualification recalculation path read immediately after update.
- * The broad `Record<string, true>` half keeps future entries in this shared
- * constant as plain all-true scalar selects, rather than `false` or nested
- * select objects that would change its lean payload contract.
+ * The broad `Record<string, true>` half keeps future additions in this shared
+ * object constrained to plain `true` scalar selects; it prevents accidental
+ * `field: false` or nested-object selects from bypassing the intent of this
+ * lean payload contract.
  */
 export const BM_MR_MATCH_LEAN_SELECT = {
   id: true,
