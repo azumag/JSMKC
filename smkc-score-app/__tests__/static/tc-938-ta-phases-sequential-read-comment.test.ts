@@ -6,11 +6,15 @@ describe('TC-938 TA phases sequential read comment', () => {
   it('documents why phase detail reads stay sequential', () => {
     const commentStart = source.indexOf('Keep these phase-detail reads sequential');
     const commentEnd = source.indexOf('*/', commentStart);
-    const blockEnd = source.indexOf('End of the D1 read section', commentEnd);
+    const blockEndMarker = 'End of the D1 read section';
+    const blockEnd = source.indexOf(blockEndMarker, commentEnd);
     const phaseDetailReadBlock = source.slice(commentEnd, blockEnd);
 
     expect(commentStart).toBeGreaterThanOrEqual(0);
     expect(commentEnd).toBeGreaterThan(commentStart);
+    if (blockEnd === -1) {
+      throw new Error(`expected marker \"${blockEndMarker}\" to exist for D1 section boundary`);
+    }
     expect(blockEnd).toBeGreaterThan(commentEnd);
     expect(source).toContain('D1 concurrent fan-out');
     expect(source).toContain('request-hung');
