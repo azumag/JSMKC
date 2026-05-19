@@ -1,6 +1,8 @@
 const { launchPersistentChromiumContext, resolveE2EProfileDir } = require('./lib/common');
 const { buildPreviewRuntimeEnv, assertBaseUrlResolvable } = require('./run-preview');
 
+const PLAYWRIGHT_VERSION = '1.59.1';
+
 // Playwright 1.59.1 internal interruption messages observed during Discord
 // OAuth redirects. Re-check these patterns when upgrading Playwright because
 // they are message-based fallbacks, not a stable public error-code contract.
@@ -39,6 +41,8 @@ async function isAuthenticated(page) {
     if (!isTransientLoginPollingError(error)) {
       throw error;
     }
+
+    console.debug(`[preview-login] ignoring transient Playwright ${PLAYWRIGHT_VERSION} login polling error`);
     // Discord OAuth redirects can destroy the current page execution context
     // while the helper is polling. Treat those transient Playwright errors the
     // same as "not authenticated yet" so the manual login window remains open.
