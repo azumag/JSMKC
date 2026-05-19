@@ -1,9 +1,8 @@
+const { version: PLAYWRIGHT_VERSION } = require('playwright/package.json');
 const { launchPersistentChromiumContext, resolveE2EProfileDir } = require('./lib/common');
 const { buildPreviewRuntimeEnv, assertBaseUrlResolvable } = require('./run-preview');
 
-const PLAYWRIGHT_VERSION = '1.59.1';
-
-// Playwright 1.59.1 internal interruption messages observed during Discord
+// Observed Playwright internal interruption messages during Discord
 // OAuth redirects. Re-check these patterns when upgrading Playwright because
 // they are message-based fallbacks, not a stable public error-code contract.
 const TRANSIENT_LOGIN_POLLING_ERROR_PATTERNS = [
