@@ -112,13 +112,14 @@ describe('group setup E2E helper', () => {
         if (_role === 'dialog') {
           return { first: jest.fn(() => dialog) };
         }
-        const expectedPageRoleLookups = [
+  const expectedPageRoleLookups = [
           `role=button name=${GROUP_SETUP_TRIGGER_NAME_SOURCE}`,
           'role=dialog name=',
         ];
+        const actualPageRoleLookup = `role=${_role} name=${name}`;
         return throwUnexpectedMockCall(
-          'page.getByRole lookup',
-          `role=${_role} name=${name}`,
+          'page.getByRole',
+          actualPageRoleLookup,
           expectedPageRoleLookups,
         );
       }),
