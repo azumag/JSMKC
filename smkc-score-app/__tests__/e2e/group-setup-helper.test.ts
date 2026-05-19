@@ -43,6 +43,13 @@ describe('group setup E2E helper', () => {
       .toThrow(`dialog.locator received unexpected value "section[data-new]". Allowed values: ['label', 'input[type=\"number\"]']`);
   });
 
+  it('prints expected page.getByRole lookups when the fixture receives an unexpected selector', () => {
+    expect(() => throwUnexpectedMockCall('page.getByRole', 'role=img name=', [
+      `role=button name=${GROUP_SETUP_TRIGGER_NAME_SOURCE}`,
+      'role=dialog name=',
+    ])).toThrow(`page.getByRole received unexpected value "role=img name=". Allowed values: ['role=button name=Setup Groups|Edit Groups|グループ設定|グループ編集', 'role=dialog name=']`);
+  });
+
   it('skips clicking an already-selected disabled group-count button while saving seeded groups', async () => {
     const groupCountClick = jest.fn(async () => undefined);
     const saveClick = jest.fn(async () => undefined);
