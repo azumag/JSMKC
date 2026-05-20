@@ -11,6 +11,9 @@ const {
 const {
   assertPreviewD1Schema,
 } = require('./lib/preview-schema-preflight');
+const {
+  createPlaywrightBrowserInstallEnv,
+} = require('./lib/browser-env');
 
 function buildPreviewRuntimeEnv(env = process.env) {
   const runtimeEnv = {
@@ -19,7 +22,7 @@ function buildPreviewRuntimeEnv(env = process.env) {
     E2E_PROFILE_DIR: resolveE2EProfileDir(env),
   };
 
-  return runtimeEnv;
+  return createPlaywrightBrowserInstallEnv(runtimeEnv);
 }
 
 async function assertBaseUrlResolvable(baseUrl) {

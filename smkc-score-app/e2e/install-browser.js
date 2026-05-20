@@ -4,7 +4,7 @@ const { spawnSync } = require('child_process');
 const {
   createPlaywrightBrowserInstallEnv,
   resolvePlaywrightBrowsersPath,
-} = require('./lib/common');
+} = require('./lib/browser-env');
 
 function printUsage() {
   console.log([
