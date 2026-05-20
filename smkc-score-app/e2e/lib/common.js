@@ -12,8 +12,13 @@
  *   internally if setup throws partway through, so partial state never leaks.
  */
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const {
+  createPlaywrightBrowserInstallEnv,
+  initializePlaywrightBrowserRuntimeEnv,
+  resolveE2EBrowserHome,
+  resolvePlaywrightBrowsersPath,
+} = require('./browser-env');
 const {
   DEFAULT_E2E_BASE_URL,
   DEFAULT_E2E_PROFILE_DIR,
@@ -23,7 +28,6 @@ const {
 } = require('./env');
 const { assertGpCombinedStandingsHeaders } = require('./standings-assertions');
 
-const DEFAULT_E2E_BROWSER_HOME = path.join(os.tmpdir(), 'playwright-e2e-home');
 const LOCALE_COMMON_MESSAGES = [
   { locale: 'ja', messages: require('../../messages/ja.json').common },
   { locale: 'en', messages: require('../../messages/en.json').common },
@@ -42,6 +46,7 @@ const QUALIFICATION_POINTS_HEADER_LABELS = LOCALE_COMMON_MESSAGES
 const QUALIFICATION_POINTS_TOOLTIP_TITLES = LOCALE_COMMON_MESSAGES
   .map((entry) => getRequiredCommonMessage(entry, 'qualificationPointsTooltip'));
 
+initializePlaywrightBrowserRuntimeEnv();
 const { chromium } = require('playwright');
 
 const BASE = resolveE2EBaseUrl();
@@ -301,35 +306,6 @@ function getChromiumArgs() {
   }
 
   return args;
-}
-
-function resolveE2EBrowserHome() {
-  return process.env.E2E_BROWSER_HOME || DEFAULT_E2E_BROWSER_HOME;
-}
-
-function resolvePlaywrightBrowsersPath() {
-  return process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(resolveE2EBrowserHome(), 'ms-playwright');
-}
-
-function createPlaywrightBrowserInstallEnv() {
-  const browserHome = resolveE2EBrowserHome();
-  const browsersPath = resolvePlaywrightBrowsersPath();
-  fs.mkdirSync(browserHome, { recursive: true });
-  fs.mkdirSync(browsersPath, { recursive: true });
-  return {
-    ...process.env,
-    PLAYWRIGHT_BROWSERS_PATH: browsersPath,
-    /* Prevent Playwright from garbage-collecting the shared cache between
-     * separate automation runs that all rely on the same temp location. */
-    PLAYWRIGHT_SKIP_BROWSER_GC: process.env.PLAYWRIGHT_SKIP_BROWSER_GC || '1',
-  };
-}
-
-function initializePlaywrightBrowserRuntimeEnv() {
-  const env = createPlaywrightBrowserInstallEnv();
-  process.env.PLAYWRIGHT_BROWSERS_PATH = env.PLAYWRIGHT_BROWSERS_PATH;
-  process.env.PLAYWRIGHT_SKIP_BROWSER_GC = env.PLAYWRIGHT_SKIP_BROWSER_GC;
-  return env;
 }
 
 /* ───────── Browser launch environment setup ───────── */

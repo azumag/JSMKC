@@ -1045,6 +1045,7 @@ describe('E2E case drift coverage', () => {
 
   it.each([
     ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
+    ['TC-109', 'PLAYWRIGHT_BROWSERS_PATH', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts'],
     ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
     ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
     ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],

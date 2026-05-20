@@ -38,6 +38,9 @@ describe('preview E2E runner', () => {
     delete process.env.E2E_PROFILE_DIR;
     delete process.env.E2E_BROWSER_CHANNEL;
     delete process.env.E2E_EXECUTABLE_PATH;
+    delete process.env.E2E_BROWSER_HOME;
+    delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    delete process.env.PLAYWRIGHT_SKIP_BROWSER_GC;
     lookupMock.mockReset();
     spawnSyncMock.mockReset();
     spawnSyncMock.mockReturnValue({ status: 1, stdout: '', stderr: '' });
@@ -53,6 +56,24 @@ describe('preview E2E runner', () => {
 
     expect(env.E2E_BASE_URL).toBe('https://preview.smkc.bluemoon.works');
     expect(env.E2E_PROFILE_DIR).toBe('/tmp/playwright-smkc-preview-profile');
+  });
+
+  it('passes the managed Playwright browser cache to the preview child process before import time', () => {
+    const env = runner.buildPreviewRuntimeEnv({
+      E2E_BROWSER_HOME: '/tmp/jsmkc-preview-browser-home',
+    });
+
+    expect(env.PLAYWRIGHT_BROWSERS_PATH).toBe('/tmp/jsmkc-preview-browser-home/ms-playwright');
+    expect(env.PLAYWRIGHT_SKIP_BROWSER_GC).toBe('1');
+  });
+
+  it('preserves a caller-provided Playwright browser cache for preview runs', () => {
+    const env = runner.buildPreviewRuntimeEnv({
+      E2E_BROWSER_HOME: '/tmp/jsmkc-preview-browser-home',
+      PLAYWRIGHT_BROWSERS_PATH: '/tmp/jsmkc-explicit-preview-browsers',
+    });
+
+    expect(env.PLAYWRIGHT_BROWSERS_PATH).toBe('/tmp/jsmkc-explicit-preview-browsers');
   });
 
   it('exposes npm run e2e:preview as the official all-suite preview alias', () => {
