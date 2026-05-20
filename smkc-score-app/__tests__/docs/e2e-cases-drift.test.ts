@@ -97,6 +97,20 @@ describe('E2E case drift coverage', () => {
     'tournament',
     'ta-sudden-death-panel.test.tsx',
   );
+  const taTimeEntryLayoutTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'lib',
+    'ta',
+    'time-entry-layout.test.ts',
+  );
+  const taTimeEntryRowsTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'components',
+    'tournament',
+    'ta-time-entry-rows.test.tsx',
+  );
   const qualificationFallbackTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -1256,6 +1270,19 @@ describe('E2E case drift coverage', () => {
     expect(taSuddenDeathPanelTest).toContain("setSuddenDeathTime('player-1', '10000')");
     expect(taSuddenDeathPanelTest).toContain("handleSuddenDeathTimeBlur('player-1')");
     expect(taSuddenDeathPanelTest).toContain("toBe('1:00.00')");
+  });
+
+  it('documents TC-1987 as TA TV number helper non-numeric normalization coverage', () => {
+    const section = e2eCaseSection('TC-1987');
+
+    expect(section).toContain('issue #1987');
+    expect(section).toContain("parseTvNumberInput('abc')");
+    expect(section).toContain('time-entry-layout.test.ts');
+    expect(section).toContain('ta-time-entry-rows.test.tsx');
+    expect(tcTa).toContain("log('TC-1987'");
+    expect(tcTa).toContain("parseTvNumberInput('abc') === null");
+    expect(taTimeEntryLayoutTest).toContain('expect(parseTvNumberInput("abc")).toBeNull();');
+    expect(taTimeEntryRowsTest).not.toContain('parseTvNumberInput');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {

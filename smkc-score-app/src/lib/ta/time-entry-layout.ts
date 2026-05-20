@@ -18,7 +18,9 @@ export const TA_TIME_INPUT_HELP_CLASS =
 
 export function parseTvNumberInput(value: string): number | null {
   // Keep radix explicit for predictable decimal parsing of values like "09".
-  return value ? parseInt(value, 10) : null;
+  if (!value) return null;
+  const tvNumber = parseInt(value, 10);
+  return Number.isNaN(tvNumber) ? null : tvNumber;
 }
 
 export const TA_FINALS_ROUND_ENTRY_ROW_CLASS =
