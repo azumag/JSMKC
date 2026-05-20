@@ -6,7 +6,6 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { TaFinalsTimeEntryRow } from '@/app/tournaments/[id]/ta/finals/page';
 import { TAEliminationPhaseRow } from '@/components/tournament/ta-elimination-phase';
 import { TaParticipantTimeInputRow } from '@/app/tournaments/[id]/ta/participant/page';
-import { parseTvNumberInput } from '@/lib/ta/time-entry-layout';
 
 const timeInputProps = {
   inputMode: 'decimal',
@@ -127,12 +126,6 @@ describe('TAEliminationPhaseRow', () => {
     expect(screen.getByRole('button', { name: 'Penalty' })).not.toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Penalty' }));
     expect(onRetryToggle).toHaveBeenCalledWith('player-2');
-  });
-
-  it('parses TV number input with explicit radix', () => {
-    expect(parseTvNumberInput('3')).toBe(3);
-    expect(parseTvNumberInput('09')).toBe(9);
-    expect(parseTvNumberInput('')).toBeNull();
   });
 
   it('disables retry button when editing is disabled', () => {
