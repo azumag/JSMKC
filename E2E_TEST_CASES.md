@@ -214,10 +214,10 @@
   6. public DNS fallback は `dig +short` の説明行や不正な IPv4/IPv6 風文字列を host resolver rules に採用しないことを確認する
   7. macOS で `/Applications/Google Chrome.app` が存在しても、runner が自動で `E2E_BROWSER_CHANNEL=chrome` を設定しないことを確認する
   8. `E2E_BROWSER_CHANNEL=chrome` または `E2E_EXECUTABLE_PATH=...` を明示した場合だけ、その指定が子プロセスへ渡ることを確認する
-  9. `npm run e2e:install-browser` と preview runner が同じ `PLAYWRIGHT_BROWSERS_PATH` を使い、`playwright` import 前に子プロセスへ渡ることを確認する
+  9. `npm run e2e:install-browser` と preview runner が同じ `PLAYWRIGHT_BROWSERS_PATH` を使い、`playwright` import 前に子プロセスへ渡ることを補助検証で確認する
 - **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / Crashpad permission failure で停止しない
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
-- **補助検証**: `smkc-score-app/__tests__/e2e/run-preview.test.ts`, `smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts`
+- **補助検証**: `smkc-score-app/__tests__/e2e/run-preview.test.ts`, `smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts`（どちらも runner command 扱いで、URL 欄には環境変数名を入れない）
 
 ## TC-111: Preview D1 schema preflight
 - **URL**: n/a (runner command)
