@@ -52,5 +52,6 @@ describe("TA time entry layout", () => {
     expect(parseTvNumberInput("3")).toBe(3);
     expect(parseTvNumberInput("09")).toBe(9);
     expect(parseTvNumberInput("")).toBeNull();
+    expect(parseTvNumberInput("abc")).toBeNull();
   });
 });

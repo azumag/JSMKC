@@ -2905,6 +2905,17 @@
   3. `placeholder` が翻訳キー由来の `M:SS.mm` であることを確認する
 - **期待結果**: TAタイム入力欄の入力例ヒントとplaceholderは各画面のi18n文字列から描画される
 
+## TC-1987: TA TV番号入力 helper は非数値を null に正規化する
+- **URL**: n/a (helper contract)
+- **authRequired**: false
+- **背景**: issue #1987。`parseTvNumberInput` が `abc` のような非数値文字列を `NaN` として返すと、TA決勝・撃墜フェーズのTV番号更新で想定外の値が残る可能性がある。
+- **手順**:
+  1. `tc-ta.js` の helper contract ケースで `parseTvNumberInput('3')` と `parseTvNumberInput('09')` が10進数として解釈されることを確認する
+  2. `parseTvNumberInput('')` と `parseTvNumberInput('abc')` が `null` になることを確認する
+  3. 単体テストでも同じ境界値を固定し、TA行コンポーネント側は helper の重複単体テストを持たないことを確認する
+- **期待結果**: TAのTV番号 helper は空入力・非数値入力を保存可能な数値として扱わず、`null` に正規化する
+- **スクリプト**: tc-ta.js TC-1987 / time-entry-layout.test.ts / ta-time-entry-rows.test.tsx
+
 ## TC-896: TA決勝フェーズのモバイル管理画面でプレイヤー名が見える
 - **URL**: /tournaments/[temp-id]/ta/finals
 - **authRequired**: true (admin)

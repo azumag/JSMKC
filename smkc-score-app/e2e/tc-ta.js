@@ -26,6 +26,7 @@
  *   TC-896  TA finals mobile admin input rows keep player names visible.
  *   TC-897  TA time inputs request the mobile numeric keyboard.
  *   TC-913  TA time input hint/title/placeholder are localized.
+ *   TC-1987 TA TV number helper normalizes non-numeric input to null.
  *   TC-816  Started TA phase page does not flash a Start Phase button while
  *           phase status is still loading.
  *   TC-1032 Phase 3 revival race targets every zero-life candidate when a
@@ -68,6 +69,7 @@ const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword }
 const { assertStackedCardBoxes } = require('./lib/layout-assertions');
 const { runSuite } = require('./lib/runner');
 const { orderTaEntriesForDeterministicResultSlots } = require('./lib/deterministic-order');
+const { parseTvNumberInput } = require('../src/lib/ta/time-entry-layout');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -775,6 +777,22 @@ async function runTc896(adminPage) {
   } finally {
     await adminPage.setViewportSize({ width: 1280, height: 720 }).catch(() => {});
     if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
+/* ───────── TC-1987: TA TV helper rejects non-numeric values ───────── */
+async function runTc1987() {
+  try {
+    const decimal = parseTvNumberInput('3') === 3;
+    const leadingZero = parseTvNumberInput('09') === 9;
+    const empty = parseTvNumberInput('') === null;
+    const nonNumeric = parseTvNumberInput('abc') === null;
+    const ok = decimal && leadingZero && empty && nonNumeric;
+
+    log('TC-1987', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `decimal=${decimal} leadingZero=${leadingZero} empty=${empty} nonNumeric=${nonNumeric}`);
+  } catch (err) {
+    log('TC-1987', 'FAIL', err instanceof Error ? err.message : 'TA TV helper contract failed');
   }
 }
 
@@ -1975,6 +1993,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-808A', fn: runTc808A },
       { name: 'TC-897', fn: runTc897 },
       { name: 'TC-913', fn: runTc913 },
+      { name: 'TC-1987', fn: runTc1987 },
       { name: 'TC-896', fn: runTc896 },
       { name: 'TC-805', fn: runTc805 },
       { name: 'TC-809', fn: runTc809 },
@@ -1999,7 +2018,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
-  runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
+  runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005,
   getSuite,
   results,
