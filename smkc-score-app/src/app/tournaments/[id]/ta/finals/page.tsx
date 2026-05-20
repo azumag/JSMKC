@@ -84,6 +84,7 @@ import {
   TA_FINALS_TIME_INPUT_CLASS,
   TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
+  parseTvNumberInput,
 } from "@/lib/ta/time-entry-layout";
 import { getCourseCycleStatus } from "@/lib/ta/course-cycle-status";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -217,7 +218,7 @@ export const TaFinalsTimeEntryRow = memo(function TaFinalsTimeEntryRow({
           className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
           value={tvNumber ?? ""}
           onChange={(e) =>
-            onTvChange(playerId, e.target.value ? parseInt(e.target.value, 10) : null)
+            onTvChange(playerId, parseTvNumberInput(e.target.value))
           }
           aria-label={tvLabel}
         >
