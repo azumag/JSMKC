@@ -6,6 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { TaFinalsTimeEntryRow } from '@/app/tournaments/[id]/ta/finals/page';
 import { TAEliminationPhaseRow } from '@/components/tournament/ta-elimination-phase';
 import { TaParticipantTimeInputRow } from '@/app/tournaments/[id]/ta/participant/page';
+import { parseTvNumberInput } from '@/lib/ta/time-entry-layout';
 
 const timeInputProps = {
   inputMode: 'decimal',
@@ -42,7 +43,9 @@ describe('TaFinalsTimeEntryRow', () => {
 
     const tvSelect = screen.getByLabelText('TV number');
     fireEvent.change(tvSelect, { target: { value: '3' } });
-    expect(onTvChange).toHaveBeenCalledWith('player-1', 3);
+    fireEvent.change(tvSelect, { target: { value: '' } });
+    expect(onTvChange).toHaveBeenNthCalledWith(1, 'player-1', 3);
+    expect(onTvChange).toHaveBeenNthCalledWith(2, 'player-1', null);
 
     const timeInput = screen.getByPlaceholderText('Time');
     fireEvent.change(timeInput, { target: { value: '1:10.00' } });
@@ -112,7 +115,9 @@ describe('TAEliminationPhaseRow', () => {
 
     const tvSelect = screen.getByLabelText('TV number for phase');
     fireEvent.change(tvSelect, { target: { value: '4' } });
-    expect(onTvChange).toHaveBeenCalledWith('player-2', 4);
+    fireEvent.change(tvSelect, { target: { value: '' } });
+    expect(onTvChange).toHaveBeenNthCalledWith(1, 'player-2', 4);
+    expect(onTvChange).toHaveBeenNthCalledWith(2, 'player-2', null);
 
     const timeInput = screen.getByPlaceholderText('Time');
     fireEvent.change(timeInput, { target: { value: '0:58.12' } });
@@ -122,6 +127,12 @@ describe('TAEliminationPhaseRow', () => {
     expect(screen.getByRole('button', { name: 'Penalty' })).not.toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Penalty' }));
     expect(onRetryToggle).toHaveBeenCalledWith('player-2');
+  });
+
+  it('parses TV number input with explicit radix', () => {
+    expect(parseTvNumberInput('3')).toBe(3);
+    expect(parseTvNumberInput('09')).toBe(9);
+    expect(parseTvNumberInput('')).toBeNull();
   });
 
   it('disables retry button when editing is disabled', () => {
