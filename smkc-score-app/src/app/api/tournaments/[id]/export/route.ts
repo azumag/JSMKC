@@ -188,7 +188,7 @@ const CDM_TT_ROUND_LAST_COLUMN = 524;
 const CDM_TT_ROUND_FIRST_ROW = 1;
 const CDM_TT_ROUND_LAST_ROW = 26;
 // TT rounds keep at most CDM_TT_ROUND_MAX_RESULTS rows per block within
-// rows CDM_TT_ROUND_FIRST_ROW-1..CDM_TT_ROUND_LAST_ROW (with 2 header rows),
+// rows CDM_TT_ROUND_FIRST_ROW..CDM_TT_ROUND_LAST_ROW (with 2 header rows),
 // so values beyond this cap are intentionally dropped.
 const CDM_TT_ROUND_MAX_RESULTS = 24;
 const CDM_OVERALL_FIRST_ROW = 2;
