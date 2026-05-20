@@ -1046,7 +1046,7 @@ describe('E2E case drift coverage', () => {
 
   it.each([
     ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
-    ['TC-109', 'PLAYWRIGHT_BROWSERS_PATH', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts'],
+    ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts'],
     ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
     ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
     ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
@@ -1066,6 +1066,23 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain(marker);
     expect(section).toContain(coverage);
+  });
+
+  it('keeps TC-109 helper coverage classified without environment variable names in the URL slot', () => {
+    const source = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
+    const classificationTable = sectionBetween(
+      source,
+      "it.each([\n    ['TC-109'",
+      '])(',
+    );
+    const tc109Rows = classificationTable.match(/\['TC-109',\s*'([^']+)',\s*'([^']+)'\]/g) ?? [];
+
+    expect(tc109Rows).toHaveLength(2);
+    expect(tc109Rows).toEqual([
+      "['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts']",
+      "['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts']",
+    ]);
+    expect(tc109Rows.join('\n')).not.toContain('PLAYWRIGHT_BROWSERS_PATH');
   });
 
   it('keeps late static-only TC classifications ordered within their local block', () => {
