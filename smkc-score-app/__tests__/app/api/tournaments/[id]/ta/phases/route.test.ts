@@ -1221,7 +1221,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: [] } });
   });
 
-  it('should accept cleared phase3 result tvNumber values', async () => {
+  it('should accept phase3 results with null or absent tvNumber', async () => {
     (submitRoundResults as jest.Mock).mockResolvedValue({ eliminated: [] });
     const body = {
       action: 'submit_results',
