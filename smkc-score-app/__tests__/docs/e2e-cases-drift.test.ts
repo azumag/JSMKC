@@ -1299,7 +1299,7 @@ describe('E2E case drift coverage', () => {
     expect(tcTa).toContain("log('TC-1996'");
     expect(tcTa).toContain("selectOption('3')");
     expect(tcTa).toContain("capturedSubmitPayload");
-    expect(taPhasesRouteTest).toContain('should accept cleared phase3 result tvNumber values');
+    expect(taPhasesRouteTest).toContain('should accept phase3 results with null or absent tvNumber');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
