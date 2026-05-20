@@ -1221,6 +1221,31 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: [] } });
   });
 
+  it('should accept cleared phase3 result tvNumber values', async () => {
+    (submitRoundResults as jest.Mock).mockResolvedValue({ eliminated: [] });
+    const body = {
+      action: 'submit_results',
+      phase: 'phase3',
+      roundNumber: 1,
+      results: [
+        { playerId: 'claaaaaaaaaaaaaaaaaaaaaaaaaa', timeMs: 63000, tvNumber: 3 },
+        { playerId: 'clbbbbbbbbbbbbbbbbbbbbbbbbbb', timeMs: 65000, tvNumber: null },
+        { playerId: 'clcccccccccccccccccccccccccc', timeMs: 70000 },
+      ],
+    };
+
+    await phasesRoute.POST(createPostRequest(body), { params: mockParams });
+
+    expect(submitRoundResults).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase3',
+      1,
+      body.results
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: [] } });
+  });
+
   it('should reject submit_results with invalid tvNumber (out of range)', async () => {
     const body = {
       action: 'submit_results',

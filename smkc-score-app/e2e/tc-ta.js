@@ -27,6 +27,7 @@
  *   TC-897  TA time inputs request the mobile numeric keyboard.
  *   TC-913  TA time input hint/title/placeholder are localized.
  *   TC-1987 TA TV number helper normalizes non-numeric input to null.
+ *   TC-1996 TA finals row TV number persists from UI submit payload to history.
  *   TC-816  Started TA phase page does not flash a Start Phase button while
  *           phase status is still loading.
  *   TC-1032 Phase 3 revival race targets every zero-life candidate when a
@@ -793,6 +794,77 @@ async function runTc1987() {
       ok ? '' : `decimal=${decimal} leadingZero=${leadingZero} empty=${empty} nonNumeric=${nonNumeric}`);
   } catch (err) {
     log('TC-1987', 'FAIL', err instanceof Error ? err.message : 'TA TV helper contract failed');
+  }
+}
+
+/* ───────── TC-1996: TA finals row TV number persists through submit ───────── */
+async function runTc1996(adminPage) {
+  let setup = null;
+  let capturedSubmitPayload = null;
+  let routePattern = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Finals TV Number Payload', sharedTaPlayers(2), { seedTimes: false });
+    const { tournamentId } = setup;
+    const seeded = await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
+    const roundNumber = await uiPhaseStartRound(adminPage, tournamentId, 'phase3');
+    const activeEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase3')).b?.data?.entries ?? [];
+    const [tvEntry, clearEntry] = activeEntries.filter((e) => !e.eliminated);
+    if (!tvEntry || !clearEntry) {
+      throw new Error(`expected two active phase3 entries, got ${activeEntries.length}`);
+    }
+
+    const tvRow = adminPage.locator('[data-testid="ta-finals-round-entry-row"]')
+      .filter({ hasText: tvEntry.player.nickname })
+      .first();
+    await tvRow.locator('select').selectOption('3');
+
+    routePattern = `**/api/tournaments/${tournamentId}/ta/phases`;
+    await adminPage.route(routePattern, async (route) => {
+      const request = route.request();
+      if (request.method() === 'POST') {
+        const body = request.postDataJSON();
+        if (body?.action === 'submit_results' && body?.phase === 'phase3') {
+          capturedSubmitPayload = body;
+        }
+      }
+      await route.continue();
+    });
+
+    const seededByPlayer = new Map(seeded.map((entry) => [entry.playerId, entry]));
+    await uiPhaseSubmitResults(adminPage, tournamentId, 'phase3', [
+      { playerId: tvEntry.playerId, nickname: tvEntry.player.nickname, timeMs: seededByPlayer.get(tvEntry.playerId)?.totalMs ?? 63000 },
+      { playerId: clearEntry.playerId, nickname: clearEntry.player.nickname, timeMs: seededByPlayer.get(clearEntry.playerId)?.totalMs ?? 65000 },
+    ]);
+    await adminPage.unroute(routePattern).catch(() => {});
+    routePattern = null;
+
+    const payloadResults = capturedSubmitPayload?.results ?? [];
+    const tvPayload = payloadResults.find((r) => r.playerId === tvEntry.playerId);
+    const clearPayload = payloadResults.find((r) => r.playerId === clearEntry.playerId);
+
+    const phaseAfterSubmit = (await apiFetchTaPhase(adminPage, tournamentId, 'phase3')).b?.data ?? {};
+    const submittedRound = (phaseAfterSubmit.rounds ?? []).find((round) => round.roundNumber === roundNumber);
+    const storedResults = submittedRound?.results ?? [];
+    const storedTv = storedResults.find((r) => r.playerId === tvEntry.playerId);
+    const storedClear = storedResults.find((r) => r.playerId === clearEntry.playerId);
+
+    const payloadOk = tvPayload?.tvNumber === 3 &&
+      clearPayload &&
+      !Object.prototype.hasOwnProperty.call(clearPayload, 'tvNumber') &&
+      !payloadResults.some((r) => Number.isNaN(r.tvNumber));
+    const storedOk = storedTv?.tvNumber === 3 && storedClear?.tvNumber === null;
+
+    log('TC-1996', payloadOk && storedOk ? 'PASS' : 'FAIL',
+      payloadOk && storedOk ? '' : `payload=${JSON.stringify(payloadResults)} stored=${JSON.stringify(storedResults)}`);
+  } catch (err) {
+    log('TC-1996', 'FAIL', err instanceof Error ? err.message : 'TA finals TV number persistence failed');
+  } finally {
+    if (routePattern) await adminPage.unroute(routePattern).catch(() => {});
+    if (setup) await setup.cleanup().catch(() => {});
   }
 }
 
@@ -1994,6 +2066,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-897', fn: runTc897 },
       { name: 'TC-913', fn: runTc913 },
       { name: 'TC-1987', fn: runTc1987 },
+      { name: 'TC-1996', fn: runTc1996 },
       { name: 'TC-896', fn: runTc896 },
       { name: 'TC-805', fn: runTc805 },
       { name: 'TC-809', fn: runTc809 },

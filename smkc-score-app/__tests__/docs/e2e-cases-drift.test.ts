@@ -161,6 +161,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1032', tcTa],
     ['TC-1033', tcTa],
     ['TC-808A', tcTa],
+    ['TC-1996', tcTa],
     ['TC-939', tcAll],
     ['TC-1010', tcBm],
     ['TC-TA-FLOW-24', tcTaFlow],
@@ -1284,6 +1285,21 @@ describe('E2E case drift coverage', () => {
     expect(tcTa).toContain("parseTvNumberInput('abc') === null");
     expect(taTimeEntryLayoutTest).toContain('expect(parseTvNumberInput("abc")).toBeNull();');
     expect(taTimeEntryRowsTest).not.toContain('parseTvNumberInput');
+  });
+
+  it('documents TC-1996 as TA finals row TV payload and persistence coverage', () => {
+    const section = e2eCaseSection('TC-1996');
+
+    expect(section).toContain('issue #1996');
+    expect(section).toContain('/ta/finals');
+    expect(section).toContain('submit payload');
+    expect(section).toContain('tvNumber: 3');
+    expect(section).toContain('tvNumber: null');
+    expect(section).toContain('ta/phases route.test.ts');
+    expect(tcTa).toContain("log('TC-1996'");
+    expect(tcTa).toContain("selectOption('3')");
+    expect(tcTa).toContain("capturedSubmitPayload");
+    expect(taPhasesRouteTest).toContain('should accept cleared phase3 result tvNumber values');
   });
 
   it('documents TC-534 as BM Top-24 unresolved winner warning coverage', () => {
