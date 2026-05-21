@@ -136,4 +136,15 @@ describe('E2E browser launch helpers', () => {
 
     expect(config.args).toContain('--host-resolver-rules=MAP preview.smkc.bluemoon.works 104.21.41.48');
   });
+
+  it('disables Crashpad for automated preview launches and keeps dumps in browser home', () => {
+    process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-browser-home';
+    common = loadCommon();
+
+    const config = common.getChromiumLaunchConfig();
+
+    expect(config.args).toContain('--disable-crashpad-for-testing');
+    expect(config.args).toContain('--disable-breakpad');
+    expect(config.args).toContain('--crash-dumps-dir=/tmp/jsmkc-browser-home/Crashpad');
+  });
 });
