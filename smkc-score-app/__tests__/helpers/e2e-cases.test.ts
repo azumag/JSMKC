@@ -1,6 +1,45 @@
-import { callExpressionWithArguments, sectionAfterBlockComment } from './e2e-cases';
+import {
+  callExpressionWithArguments,
+  sectionAfterBlockComment,
+  sectionBetween,
+} from './e2e-cases';
 
 describe('E2E case helpers', () => {
+  it('extracts sections using explicit comment anchors', () => {
+    const source = `
+      // [TC-2041-TC109-DRIFT-GUARD-START]
+      it('can be renamed safely', () => {
+        expect(true).toBe(true);
+      });
+      // [TC-2041-TC109-DRIFT-GUARD-END]
+      it('neighboring test can move', () => {});
+    `;
+
+    const section = sectionBetween(
+      source,
+      '// [TC-2041-TC109-DRIFT-GUARD-START]',
+      '// [TC-2041-TC109-DRIFT-GUARD-END]',
+    );
+
+    expect(section).toContain("it('can be renamed safely'");
+    expect(section).not.toContain('neighboring test can move');
+  });
+
+  it('fails when an explicit comment anchor end marker is missing', () => {
+    const source = `
+      // [TC-2041-TC109-DRIFT-GUARD-START]
+      it('can be renamed safely', () => {});
+    `;
+
+    expect(() => sectionBetween(
+      source,
+      '// [TC-2041-TC109-DRIFT-GUARD-START]',
+      '// [TC-2041-TC109-DRIFT-GUARD-END]',
+    )).toThrow(
+      'section end marker not found after "// [TC-2041-TC109-DRIFT-GUARD-START]": "// [TC-2041-TC109-DRIFT-GUARD-END]"',
+    );
+  });
+
   it('finds required arguments on the same call expression', () => {
     const source = `
       throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS);

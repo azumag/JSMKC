@@ -166,6 +166,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-2006-2007', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/prisma-selects.test.ts'],
     ['TC-2034', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
+    ['TC-2041', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
     ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
     ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
@@ -1140,6 +1141,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain(coverage);
   });
 
+  // [TC-2041-TC109-DRIFT-GUARD-START]
   it('keeps TC-109 helper coverage classified without environment variable names in the URL slot', () => {
     const tc109Rows = tc109ClassifiedRows.filter(([tc]) => tc === 'TC-109');
     const section = e2eCaseSection('TC-109');
@@ -1153,14 +1155,15 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('fs.mkdirSync');
     expect(section).toContain('実際の `/tmp` 配下へテスト副作用を残さない');
   });
+  // [TC-2041-TC109-DRIFT-GUARD-END]
 
   it('keeps TC-109 drift guard focused on docs instead of helper implementation strings', () => {
     const section = e2eCaseSection('TC-2034');
     const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
     const tc109DriftBlock = sectionBetween(
       driftTestSource,
-      "it('keeps TC-109 helper coverage classified without environment variable names in the URL slot'",
-      "it('keeps TC-109 drift guard focused on docs instead of helper implementation strings'",
+      '// [TC-2041-TC109-DRIFT-GUARD-START]',
+      '// [TC-2041-TC109-DRIFT-GUARD-END]',
     );
 
     expect(section).toContain('TC-109');
@@ -1168,6 +1171,23 @@ describe('E2E case drift coverage', () => {
     expect(tc109DriftBlock).toContain("e2eCaseSection('TC-109')");
     expect(tc109DriftBlock).not.toContain("readRepoFile('smkc-score-app', '__tests__', 'e2e', 'run-preview.test.ts')");
     expect(tc109DriftBlock).not.toContain('toHaveBeenCalledWith');
+  });
+
+  it('keeps TC-2041 aligned with explicit TC-109 drift guard anchors', () => {
+    const section = e2eCaseSection('TC-2041');
+    const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
+    const anchoredBlock = sectionBetween(
+      driftTestSource,
+      '// [TC-2041-TC109-DRIFT-GUARD-START]',
+      '// [TC-2041-TC109-DRIFT-GUARD-END]',
+    );
+
+    expect(section).toContain('issue #2041/#2039');
+    expect(section).toContain('TC-2041-TC109-DRIFT-GUARD-START/END');
+    expect(section).toContain('__tests__/helpers/e2e-cases.test.ts');
+    expect(anchoredBlock).toContain("e2eCaseSection('TC-109')");
+    expect(anchoredBlock).toContain('fs.mkdirSync');
+    expect(anchoredBlock).not.toContain("it('keeps TC-109 drift guard focused on docs instead of helper implementation strings'");
   });
 
   it('keeps late static-only TC classifications ordered within their local block', () => {
