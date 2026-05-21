@@ -317,6 +317,132 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(workbook.Sheets["GP Finals"].BA47.v).toBe('losers_final');
     });
 
+    it('should write the Main Hub player rows for exactly 60 players', async () => {
+      const makePlayer = (index: number) => {
+        const n = String(index + 1).padStart(2, "0");
+        return {
+          playerId: `p${index + 1}`,
+          player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
+          stage: 'qualification',
+          seeding: index + 1,
+          lives: 3,
+          eliminated: false,
+          totalTime: 12000 + index,
+        };
+      };
+
+      const mockTournament = {
+        id: 't1',
+        name: 'CDM Player Hub Cap',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: Array.from({ length: 60 }, (_value, index) => makePlayer(index)),
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
+      expect(workbook.Sheets["Main Hub"].B2.v).toBe('Name 01');
+      expect(workbook.Sheets["Main Hub"].B61.v).toBe('Name 60');
+      expect(workbook.Sheets["Main Hub"].C61.v).toBe('Player 60');
+    });
+
+    it('should cap Main Hub player rows at 60 when more players are provided', async () => {
+      const staleWorkbook = {
+        Sheets: {
+          "Main Hub": {
+            B62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            C62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            D62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            E62: { v: 'KEEP-OUT-BOUNDS' },
+            F62: { v: 'KEEP-OUT-BOUNDS' },
+            G62: { v: 'KEEP-OUT-BOUNDS' },
+            H62: { v: 'KEEP-OUT-BOUNDS' },
+            I62: { v: 'KEEP-OUT-BOUNDS' },
+            J62: { v: 'KEEP-OUT-BOUNDS' },
+            K62: { v: 'KEEP-OUT-BOUNDS' },
+            L62: { v: 'KEEP-OUT-BOUNDS' },
+          },
+          "TT Qualifications": {},
+          "BM Qualifications": {},
+          "MR Qualifications": {},
+          "GP Qualifications": {},
+          "BM Finals": {},
+          "MR Finals": {},
+          "GP Finals": {},
+          "TT Finals": {},
+          "Overall Ranking": {},
+        },
+        Workbook: {},
+      };
+      (XLSX.read as jest.Mock).mockImplementationOnce(() => staleWorkbook as any);
+
+      const makePlayer = (index: number) => {
+        const n = String(index + 1).padStart(2, "0");
+        return {
+          playerId: `p${index + 1}`,
+          player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
+          stage: 'qualification',
+          seeding: index + 1,
+          lives: 3,
+          eliminated: false,
+          totalTime: 12000 + index,
+        };
+      };
+
+      const mockTournament = {
+        id: 't1',
+        name: 'CDM Player Hub Cap',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: Array.from({ length: 61 }, (_value, index) => makePlayer(index)),
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
+      expect(workbook.Sheets["Main Hub"].B2.v).toBe('Name 01');
+      expect(workbook.Sheets["Main Hub"].B61.v).toBe('Name 60');
+      expect(workbook.Sheets["Main Hub"].B62).toEqual({
+        v: 'KEEP-OUT-OF-BOUNDS',
+      });
+      expect(workbook.Sheets["Main Hub"].C62).toEqual({
+        v: 'KEEP-OUT-OF-BOUNDS',
+      });
+    });
+
     it('should use the first fallback CDM finals slot only for unknown rounds', async () => {
       const player = (id: string) => ({ id, name: `Name ${id}`, nickname: id.toUpperCase() });
       const mockTournament = {
