@@ -104,17 +104,17 @@ describe('E2E case helpers', () => {
   });
 
   it('fails when an allowed terminal section has only tab content', () => {
-    const source = '// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-START]\n\t\n\t';
+    const source = '// [TAB-WHITESPACE-TERMINAL-SECTION-START]\n\t\n\t';
 
     expect(() =>
       sectionBetween(
         source,
-        '// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-START]',
-        '// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-END]',
+        '// [TAB-WHITESPACE-TERMINAL-SECTION-START]',
+        '// [TAB-WHITESPACE-TERMINAL-SECTION-END]',
         { allowTerminal: true },
       ),
     ).toThrow(
-      'terminal section for marker "// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-START]" has no content',
+      'terminal section for marker "// [TAB-WHITESPACE-TERMINAL-SECTION-START]" has no content',
     );
   });
 
