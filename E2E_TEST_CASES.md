@@ -994,6 +994,17 @@
 - **期待結果**: helper の module-level cache は読みやすい宣言順で初期化され、既存の E2E case section 取得挙動は変わらない
 - **スクリプト**: n/a (static/doc coverage) — `smkc-score-app/__tests__/helpers/e2e-cases.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2006-2007: BM/MR match lean select — strict field contract
+- **URL**: n/a
+- **authRequired**: false
+- **背景**: issue #2006/#2007。`BM_MR_MATCH_LEAN_SELECT` は BM/MR 予選 match payload の共有 select 契約であり、余分なフィールド追加を `arrayContaining` や件数の下限だけで許容してはいけない。
+- **手順**:
+  1. `prisma-selects.test.ts` が期待 field list と `Object.keys(BM_MR_MATCH_LEAN_SELECT)` を exact match で比較することを確認する
+  2. 全 selected values が `true` であることを確認する
+  3. drift test が本 TC と unit coverage の対応を検証する
+- **期待結果**: BM/MR 共有 match payload は期待 field だけを select し、余分なフィールド追加時は unit/static coverage が失敗する
+- **スクリプト**: n/a (unit/static coverage) — `smkc-score-app/__tests__/lib/prisma-selects.test.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)

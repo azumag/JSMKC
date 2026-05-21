@@ -17,7 +17,6 @@ describe('prisma selects', () => {
     const selectedFields = Object.entries(BM_MR_MATCH_LEAN_SELECT);
 
     expect(selectedFields.every(([, value]) => value === true)).toBe(true);
-    expect(Object.keys(BM_MR_MATCH_LEAN_SELECT)).toEqual(expect.arrayContaining(expectedFields));
-    expect(Object.keys(BM_MR_MATCH_LEAN_SELECT).length).toBeGreaterThanOrEqual(expectedFields.length);
+    expect(Object.keys(BM_MR_MATCH_LEAN_SELECT)).toEqual(expectedFields);
   });
 });
