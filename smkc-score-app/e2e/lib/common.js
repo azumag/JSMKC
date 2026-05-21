@@ -280,9 +280,12 @@ function snakeDraft28(playerIds) {
  * call so the behaviour is uniform across tc-all, individual mode suites,
  * player-login browsers, and cleanup.
  */
+function resolveCrashDumpsDir(baseHome = resolveE2EBrowserHome()) {
+  return path.join(baseHome, 'Crashpad');
+}
+
 function getChromiumArgs() {
-  const crashDumpsDir = path.join(resolveE2EBrowserHome(), 'Crashpad');
-  fs.mkdirSync(crashDumpsDir, { recursive: true });
+  const crashDumpsDir = resolveCrashDumpsDir();
   const args = [
     '--disable-crash-reporter',
     '--disable-crashpad',
@@ -323,7 +326,8 @@ function createBrowserLaunchEnv() {
   const baseHome = resolveE2EBrowserHome();
   const configHome = path.join(baseHome, '.config');
   const cacheHome = path.join(baseHome, '.cache');
-  for (const dir of [baseHome, configHome, cacheHome]) {
+  const crashDumpsDir = resolveCrashDumpsDir(baseHome);
+  for (const dir of [baseHome, configHome, cacheHome, crashDumpsDir]) {
     fs.mkdirSync(dir, { recursive: true });
   }
   return {
