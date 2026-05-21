@@ -142,8 +142,9 @@ const CDM_EXPORT_INCLUDE = {
 // capacity. Keep both anchor and capacity in constants so range updates stay
 // synchronized in code.
 const CDM_PLAYER_HUB_FIRST_ROW = 2;
-const CDM_PLAYER_HUB_MAX_PLAYERS = 60;
-const CDM_PLAYER_HUB_LAST_ROW = CDM_PLAYER_HUB_FIRST_ROW + CDM_PLAYER_HUB_MAX_PLAYERS - 1;
+const CDM_PLAYER_HUB_ROW_SPAN = 60;
+const CDM_PLAYER_HUB_LAST_ROW = CDM_PLAYER_HUB_FIRST_ROW + CDM_PLAYER_HUB_ROW_SPAN - 1;
+const CDM_PLAYER_HUB_MAX_PLAYERS = CDM_PLAYER_HUB_ROW_SPAN;
 // TT Qualifications uses the same rows as Main Hub, but keep aliases so
 // writeTTQualifications keeps sheet-level readability.
 const CDM_TT_QUAL_FIRST_ROW = CDM_PLAYER_HUB_FIRST_ROW;
