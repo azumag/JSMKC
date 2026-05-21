@@ -44,4 +44,15 @@ describe('tc-all focused suite registration', () => {
     expect(source).toContain('// TC-401/402 は上の共有4モード大会と総合ランキング検証に再利用。');
     expect(source).not.toContain('Legacy lightweight full-workflow and GP dialog UI checks were retired.');
   });
+
+  it('registers auth error and web vitals preview checks for TC-2070', () => {
+    expect(source).toContain("log('TC-2070A'");
+    expect(source).toContain('/auth/error?error=');
+    expect(source).toContain('CredentialsSignin');
+    expect(source).toContain('NotWhitelisted');
+
+    expect(source).toContain("log('TC-2070B'");
+    expect(source).toContain('/api/internal/vitals');
+    expect(source).toContain('vitalsStatus === 204');
+  });
 });

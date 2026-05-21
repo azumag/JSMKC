@@ -384,6 +384,36 @@ async function main() {
   const hasPlayerTab = t.includes('Player') || t.includes('プレイヤー');
   log('TC-007', hasPlayerTab ? 'PASS' : 'FAIL');
 
+  // TC-2070A: auth error page renders safe copy and recovery links
+  let tc2070A = true;
+  for (const { code, expected } of [
+    { code: 'CredentialsSignin', expected: ['Invalid nickname or password', 'ニックネームまたはパスワード'] },
+    { code: 'NotWhitelisted', expected: ['not registered as an administrator', '管理者として登録されていません'] },
+  ]) {
+    await nav(page, `/auth/error?error=${code}`);
+    t = await vis(page);
+    const hasSafeCopy = expected.some((text) => t.includes(text));
+    const hasRecoveryLinks =
+      await page.locator('a[href="/auth/signin"]').count() > 0 &&
+      await page.locator('a[href="/"]').count() > 0;
+    if (!hasSafeCopy || !hasRecoveryLinks) tc2070A = false;
+  }
+  log('TC-2070A', tc2070A ? 'PASS' : 'FAIL');
+
+  // TC-2070B: web vitals endpoint is preview-safe with PERF_LOG disabled
+  const vitalsStatus = await page.evaluate(async () => {
+    const response = await fetch('/api/internal/vitals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'tc-2070', name: 'LCP', value: 1, rating: 'good', path: '/' }),
+    });
+    return response.status;
+  }).catch(() => 0);
+  await nav(page, '/');
+  t = await vis(page);
+  log('TC-2070B', vitalsStatus === 204 && t.includes('SMKC') ? 'PASS' : 'FAIL',
+    vitalsStatus === 204 ? '' : `vitals status=${vitalsStatus}`);
+
   // TC-008
   await nav(page, `/tournaments/${TID}/overall-ranking`);
   t = await vis(page);
