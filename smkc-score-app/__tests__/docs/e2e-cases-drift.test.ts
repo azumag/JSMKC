@@ -1125,19 +1125,19 @@ describe('E2E case drift coverage', () => {
     expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
   });
 
-  it('keeps TC-2006-2007 aligned with exact BM/MR lean select field coverage', () => {
+  it('keeps TC-2006-2007 aligned with shallow BM/MR lean select payload coverage', () => {
     const section = e2eCaseSection('TC-2006-2007');
     const prismaSelectsTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'prisma-selects.test.ts');
 
     expect(section).toContain('issue #2006/#2007');
     expect(section).toContain('BM_MR_MATCH_LEAN_SELECT');
-    expect(section).toContain('exact match');
+    expect(section).toContain('shallow');
     expect(section).toContain('smkc-score-app/__tests__/lib/prisma-selects.test.ts');
-    expect(prismaSelectsTest).toMatch(
-      /Object\.keys\s*\(\s*BM_MR_MATCH_LEAN_SELECT\s*\)\)\s*\.toEqual\s*\(\s*expectedFields\s*\)/,
-    );
-    expect(prismaSelectsTest).not.toContain('expect.arrayContaining(expectedFields)');
-    expect(prismaSelectsTest).not.toContain('toBeGreaterThanOrEqual(expectedFields.length)');
+    expect(prismaSelectsTest).toContain('Object.entries(BM_MR_MATCH_LEAN_SELECT)');
+    expect(prismaSelectsTest).toContain('selectedFields.length');
+    expect(prismaSelectsTest).toContain('key.length > 0 && value === true');
+    expect(prismaSelectsTest).not.toContain('const expectedFields');
+    expect(prismaSelectsTest).not.toContain('Object.keys(BM_MR_MATCH_LEAN_SELECT)');
   });
 
   it('keeps TC-1090-1091 aligned with overall-ranking static and unit coverage', () => {
