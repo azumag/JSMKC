@@ -7,18 +7,18 @@ import {
 describe('E2E case helpers', () => {
   it('extracts sections using explicit comment anchors', () => {
     const source = `
-      // [TC-2041-TC109-DRIFT-GUARD-START]
+      // [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]
       it('can be renamed safely', () => {
         expect(true).toBe(true);
       });
-      // [TC-2041-TC109-DRIFT-GUARD-END]
+      // [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]
       it('neighboring test can move', () => {});
     `;
 
     const section = sectionBetween(
       source,
-      '// [TC-2041-TC109-DRIFT-GUARD-START]',
-      '// [TC-2041-TC109-DRIFT-GUARD-END]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]',
     );
 
     expect(section).toContain("it('can be renamed safely'");
@@ -27,16 +27,16 @@ describe('E2E case helpers', () => {
 
   it('fails when an explicit comment anchor end marker is missing', () => {
     const source = `
-      // [TC-2041-TC109-DRIFT-GUARD-START]
+      // [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]
       it('can be renamed safely', () => {});
     `;
 
     expect(() => sectionBetween(
       source,
-      '// [TC-2041-TC109-DRIFT-GUARD-START]',
-      '// [TC-2041-TC109-DRIFT-GUARD-END]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]',
     )).toThrow(
-      'section end marker not found after "// [TC-2041-TC109-DRIFT-GUARD-START]": "// [TC-2041-TC109-DRIFT-GUARD-END]"',
+      'section end marker not found after "// [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]": "// [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]"',
     );
   });
 
