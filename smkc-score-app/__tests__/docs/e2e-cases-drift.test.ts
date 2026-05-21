@@ -165,6 +165,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-2006-2007', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/prisma-selects.test.ts'],
+    ['TC-2034', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
     ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
     ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
@@ -1102,7 +1103,6 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-109 helper coverage classified without environment variable names in the URL slot', () => {
     const tc109Rows = tc109ClassifiedRows.filter(([tc]) => tc === 'TC-109');
     const section = e2eCaseSection('TC-109');
-    const runPreviewTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'run-preview.test.ts');
 
     expect(tc109Rows).toHaveLength(2);
     expect(tc109Rows).toEqual([
@@ -1112,8 +1112,22 @@ describe('E2E case drift coverage', () => {
     expect(tc109Rows.map((entry) => entry.join(',')).join('\n')).not.toContain('PLAYWRIGHT_BROWSERS_PATH');
     expect(section).toContain('fs.mkdirSync');
     expect(section).toContain('実際の `/tmp` 配下へテスト副作用を残さない');
-    expect(runPreviewTest).toContain("jest.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined)");
-    expect(runPreviewTest).toContain('expect(mkdirSyncSpy).toHaveBeenCalledWith');
+  });
+
+  it('keeps TC-109 drift guard focused on docs instead of helper implementation strings', () => {
+    const section = e2eCaseSection('TC-2034');
+    const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
+    const tc109DriftBlock = sectionBetween(
+      driftTestSource,
+      "it('keeps TC-109 helper coverage classified without environment variable names in the URL slot'",
+      "it('keeps TC-109 drift guard focused on docs instead of helper implementation strings'",
+    );
+
+    expect(section).toContain('TC-109');
+    expect(section).toContain('具体的な変数名・アサーション文字列を直接検査していない');
+    expect(tc109DriftBlock).toContain("e2eCaseSection('TC-109')");
+    expect(tc109DriftBlock).not.toContain("readRepoFile('smkc-score-app', '__tests__', 'e2e', 'run-preview.test.ts')");
+    expect(tc109DriftBlock).not.toContain('toHaveBeenCalledWith');
   });
 
   it('keeps late static-only TC classifications ordered within their local block', () => {
@@ -1124,7 +1138,16 @@ describe('E2E case drift coverage', () => {
       "['TC-803', 'TC-318 でカバー済み'",
     );
 
-    const orderedTcs = ['TC-1451-1452', 'TC-1454-1455', 'TC-1457', 'TC-2006-2007', 'TC-1528', 'TC-1669', 'TC-1671'];
+    const orderedTcs = [
+      'TC-1451-1452',
+      'TC-1454-1455',
+      'TC-1457',
+      'TC-2006-2007',
+      'TC-2034',
+      'TC-1528',
+      'TC-1669',
+      'TC-1671',
+    ];
     const indexes = orderedTcs.map((tc) => block.indexOf(`['${tc}'`));
 
     expect(indexes.every((index) => index >= 0)).toBe(true);

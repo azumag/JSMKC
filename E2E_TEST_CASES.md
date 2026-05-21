@@ -237,6 +237,17 @@
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
 - **補助検証**: `smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2034: TC-109 drift guard は補助テストの実装文字列を固定しない
+- **URL**: n/a (static/doc coverage)
+- **authRequired**: false
+- **背景**: issue #2034。TC-109 の run-preview Crashpad 補助テストは `fs.mkdirSync` の副作用を防ぐ挙動を `run-preview.test.ts` 側で直接検証している。`e2e-cases-drift.test.ts` は E2E シナリオ文書と補助テスト分類の対応を守るためのもので、補助テスト内の変数名や `toHaveBeenCalledWith` の具体的な書き方を重複検査すると、挙動を変えないリファクタリングで誤検出する。
+- **手順**:
+  1. TC-109 のシナリオに `fs.mkdirSync` モックと `/tmp` 副作用防止の要件が残っていることを確認する
+  2. TC-109 の補助検証分類が `run-preview.test.ts` と `e2e-browser-launch.test.ts` を runner command 扱いで参照していることを確認する
+  3. drift guard が `run-preview.test.ts` の具体的な変数名・アサーション文字列を直接検査していないことを確認する
+- **期待結果**: TC-109 の文書連携は維持され、補助テスト内の安全なリネームや整形では drift guard が壊れない
+- **スクリプト**: `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-110: Preview 管理者ログイン補助スクリプトの要素待機
 - **URL**: /auth/signin
 - **authRequired**: false (ログイン準備)
