@@ -917,6 +917,20 @@ describe('E2E case drift coverage', () => {
     expect(helper).toContain('fails clearly when the post-comment section boundary is missing');
   });
 
+  it('keeps TC-2049 aligned with the sectionAfterBlockComment first-match contract', () => {
+    const section = e2eCaseSection('TC-2049');
+    const helper = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.ts');
+    const helperTest = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.test.ts');
+
+    expect(section).toContain('issue #2049');
+    expect(section).toContain('first block comment contract');
+    expect(section).toContain('同じ `commentStartMarker`');
+    expect(helper).toContain('first block comment');
+    expect(helper).toContain('that contains `commentStartMarker`');
+    expect(helperTest).toContain('uses the first matching block comment when markers repeat');
+    expect(helperTest).toContain('secondEntries');
+  });
+
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
     const section = e2eCaseSection('TC-717');
 
