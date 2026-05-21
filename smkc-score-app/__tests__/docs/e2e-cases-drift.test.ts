@@ -931,6 +931,21 @@ describe('E2E case drift coverage', () => {
     expect(helperTest).toContain('secondEntries');
   });
 
+  it('keeps TC-2055 aligned with the sectionBetween allowTerminal contract', () => {
+    const section = e2eCaseSection('TC-2055');
+    const helper = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.ts');
+    const helperTest = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.test.ts');
+
+    expect(section).toContain('issue #2055');
+    expect(section).toContain('allowTerminal: true');
+    expect(section).toContain('terminal section for marker');
+    expect(section).toContain('end marker 欠落時の正常系と空本文エラー系');
+    expect(helper).toContain('allowTerminal = false');
+    expect(helper).toContain('terminal section for marker');
+    expect(helperTest).toContain('allows terminal sections when an end marker is intentionally absent');
+    expect(helperTest).toContain('fails when an allowed terminal section has no content');
+  });
+
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
     const section = e2eCaseSection('TC-717');
 

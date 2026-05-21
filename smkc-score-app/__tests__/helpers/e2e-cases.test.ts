@@ -55,6 +55,39 @@ describe('E2E case helpers', () => {
     ).toThrow('section start marker not found: "// [TC-2041-TC109-DRIFT-GUARD-START]"');
   });
 
+  it('allows terminal sections when an end marker is intentionally absent', () => {
+    const source = `
+      expect(previousSection).toContain('unrelated previous section');
+      // [TC-2055-TERMINAL-SECTION-START]
+      expect(section).toContain('terminal guard body');
+    `;
+
+    const section = sectionBetween(
+      source,
+      '// [TC-2055-TERMINAL-SECTION-START]',
+      '// [TC-2055-TERMINAL-SECTION-END]',
+      { allowTerminal: true },
+    );
+
+    expect(section).toContain("expect(section).toContain('terminal guard body')");
+    expect(section).not.toContain('unrelated previous section');
+  });
+
+  it('fails when an allowed terminal section has no content after the start marker', () => {
+    const source = '// [TC-2055-EMPTY-TERMINAL-SECTION-START]';
+
+    expect(() =>
+      sectionBetween(
+        source,
+        '// [TC-2055-EMPTY-TERMINAL-SECTION-START]',
+        '// [TC-2055-EMPTY-TERMINAL-SECTION-END]',
+        { allowTerminal: true },
+      ),
+    ).toThrow(
+      'terminal section for marker "// [TC-2055-EMPTY-TERMINAL-SECTION-START]" has no content',
+    );
+  });
+
   it('finds required arguments on the same call expression', () => {
     const source = `
       throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS);
