@@ -88,6 +88,23 @@ describe('E2E case helpers', () => {
     );
   });
 
+  it('treats whitespace-only terminal sections as empty', () => {
+    const source = `// [TC-2058-WHITESPACE-TERMINAL-START]
+   
+`;
+
+    expect(() =>
+      sectionBetween(
+        source,
+        '// [TC-2058-WHITESPACE-TERMINAL-START]',
+        '// [TC-2058-WHITESPACE-TERMINAL-END]',
+        { allowTerminal: true },
+      ),
+    ).toThrow(
+      'terminal section for marker "// [TC-2058-WHITESPACE-TERMINAL-START]" has no content',
+    );
+  });
+
   it('finds required arguments on the same call expression', () => {
     const source = `
       throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS);
