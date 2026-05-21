@@ -126,16 +126,17 @@ describe('group setup E2E helper', () => {
         if (_role === 'dialog') {
           return { first: jest.fn(() => dialog) };
         }
-        const expectedPageRoleLookups = EXPECTED_PAGE_ROLE_LOOKUPS;
-        const actualPageRoleLookup = roleLookup(_role, name);
         return throwUnexpectedMockCall(
           'page.getByRole',
-          actualPageRoleLookup,
-          expectedPageRoleLookups,
+          roleLookup(_role, name),
+          EXPECTED_PAGE_ROLE_LOOKUPS,
         );
       }),
       waitForResponse: jest.fn(async () => ({ status: () => 201 })),
     };
+
+    expect(() => page.getByRole('link', { name: /Unknown/ }))
+      .toThrow(`page.getByRole received unexpected value "role=link name=Unknown". Allowed values: ['role=button name=Setup Groups|Edit Groups|グループ設定|グループ編集', 'role=dialog name=']`);
 
     await setupModePlayersViaUi(page, 'bm', 'tournament-1', [
       { name: 'Player 1', nickname: 'P1' },

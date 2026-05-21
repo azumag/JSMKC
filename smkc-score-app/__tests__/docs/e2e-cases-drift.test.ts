@@ -118,6 +118,12 @@ describe('E2E case drift coverage', () => {
     'ui',
     'loading-skeleton.test.tsx',
   );
+  const groupSetupHelperTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'e2e',
+    'group-setup-helper.test.ts',
+  );
   const exportRoute = readRepoFile(
     'smkc-score-app',
     'src',
@@ -482,6 +488,7 @@ describe('E2E case drift coverage', () => {
     const followupSection = e2eCaseSection('TC-1678');
     const disabledButtonSection = e2eCaseSection('TC-1680');
     const outlineButtonSection = e2eCaseSection('TC-1682');
+    const helperAliasSection = e2eCaseSection('TC-1980-1982');
     const guard = readRepoFile(
       'smkc-score-app',
       '__tests__',
@@ -498,6 +505,13 @@ describe('E2E case drift coverage', () => {
     expect(disabledButtonSection).toContain('disabled');
     expect(outlineButtonSection).toContain('issue #1682');
     expect(outlineButtonSection).toContain('variant="outline"');
+    expect(helperAliasSection).toContain('issue #1980 / #1982');
+    expect(helperAliasSection).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
+    expect(groupSetupHelperTest).not.toContain('const expectedPageRoleLookups');
+    expect(groupSetupHelperTest).not.toContain('const actualPageRoleLookup');
+    expect(groupSetupHelperTest).toMatch(
+      /throwUnexpectedMockCall\(\s*'page\.getByRole',\s*roleLookup\(_role,\s*name\),\s*EXPECTED_PAGE_ROLE_LOOKUPS,\s*\)/,
+    );
     expect(guard).toContain("e2eCaseSection('TC-1007')");
     expect(guard).toContain("e2eCaseSection('TC-1678')");
     expect(guard).toContain("not.toContain('groupCount={groupCount}')");

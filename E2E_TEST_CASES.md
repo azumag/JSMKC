@@ -2495,6 +2495,20 @@
   - 将来 selectable UI に戻す場合は guard 更新が必要になる
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`
 
+## TC-1980-1982: BM/MR/GP グループ設定 — page.getByRole モックの期待値エイリアスを持たない
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #1980 / #1982。`group-setup-helper.test.ts` の `page.getByRole` モックで `EXPECTED_PAGE_ROLE_LOOKUPS` をローカル変数へ再代入すると、期待値の所在が増えてレビュー時にインデント崩れや不要な中間変数の指摘が再発する。
+- **手順**:
+  1. `group-setup-helper.test.ts` の `page.getByRole` unexpected branch を確認する
+  2. `throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS)` の形で直接渡していることを確認する
+  3. `const expectedPageRoleLookups` / `const actualPageRoleLookup` のローカルエイリアスが残っていないことを確認する
+- **期待結果**:
+  - `EXPECTED_PAGE_ROLE_LOOKUPS` が単一の期待値定義として使われる
+  - unexpected selector のエラーメッセージは既存の許可リストを維持する
+  - インデントだけを直す follow-up が再発しない
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/group-setup-helper.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
