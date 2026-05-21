@@ -153,3 +153,27 @@ export function QualificationFallback({ title }: { title?: string } = {}) {
     </div>
   );
 }
+
+/** Client-side first-load skeleton for BM/MR/GP/TA qualification pages.
+ * Keeps the mode h1 mounted after the RSC fallback resolves but before polling
+ * data hydrates, so immediate E2E heading checks do not race the client shell. */
+export function QualificationClientLoadingState({
+  title,
+  titleSkeletonClassName = "w-32",
+}: {
+  title: string;
+  titleSkeletonClassName?: string;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+        <div className="space-y-3">
+          <h1 className="text-2xl font-semibold">{title}</h1>
+          <Skeleton className={cn("h-5", titleSkeletonClassName)} />
+        </div>
+        <Skeleton className="h-10 w-24" />
+      </div>
+      <CardSkeleton />
+    </div>
+  );
+}

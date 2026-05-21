@@ -973,12 +973,12 @@
 
 ## TC-357: Suspense fallback — 4モード予選ページの見出しが即時描画される
 - **authRequired**: true (admin)
-- **背景**: RSC streaming / PPR の待機中でも E2E セレクタと利用者の初期表示が安定するよう、BM/MR/GP/TA の qualification fallback はモード名見出しを先に描画する必要がある。
+- **背景**: RSC streaming / PPR の待機中、および RSC fallback 解決後に client polling data が hydrate されるまでの間も E2E セレクタと利用者の初期表示が安定するよう、BM/MR/GP/TA の qualification fallback/client loading state はモード名見出しを先に描画する必要がある。
 - **手順**:
   1. 共有トーナメント ID を使って BM/MR/GP/TA の各予選ページへ順に遷移し、`domcontentloaded` 直後に確認する
   2. 各ページで `h1` を即時確認する
-  3. BM は `バトルモード` または `Battle Mode`、MR は `マッチレース` または `Match Race`、GP は `グランプリ` または `Grand Prix`、TA は `タイムアタック` または `Time Attack` を含む見出しがあることを確認する
-- **期待結果**: 4モードすべてで fallback 期間中もモード名見出しが存在し、遅いデータ取得でも見出しセレクタが安定する
+  3. BM は `バトルモード` または `Battle Mode`、MR は `マッチレース` または `Match Race`、GP は `グランプリ` または `Grand Prix`、TA は `タイムアタック` / `Time Attack` / `Time Trial` のいずれかを含む見出しがあることを確認する
+- **期待結果**: 4モードすべてで fallback/client loading 期間中もモード名見出しが存在し、遅いデータ取得でも見出しセレクタが安定する
 - **スクリプト**: tc-all.js TC-357
 
 ## TC-401: 全モードトーナメント — TA/BM/MR/GP の予選データが正しく存在する

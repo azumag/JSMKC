@@ -263,7 +263,7 @@ describe('E2E case drift coverage', () => {
     expect(tc356Block).not.toContain('document.querySelector("div.overflow-x-auto")');
   });
 
-  it('keeps TC-357 checking exact mode-title h1 fallback headings', () => {
+  it('keeps TC-357 checking exact mode-title h1 fallback and client loading headings', () => {
     const section = e2eCaseSection('TC-357');
     const tc357Block = sectionBetween(tcAll, '// TC-357:', '// TC-104:');
 
@@ -272,9 +272,11 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`バトルモード` または `Battle Mode`');
     expect(section).toContain('`マッチレース` または `Match Race`');
     expect(section).toContain('`グランプリ` または `Grand Prix`');
-    expect(section).toContain('`タイムアタック` または `Time Attack`');
+    expect(section).toContain('`タイムアタック` / `Time Attack` / `Time Trial`');
     expect(qualificationFallbackTest).toContain('QualificationFallback');
+    expect(qualificationFallbackTest).toContain('QualificationClientLoadingState');
     expectHeadingRoleOptions(qualificationFallbackTest, 'getByRole', [/name:\s*["']グランプリ["']/]);
+    expect(qualificationFallbackTest).toContain("name: 'バトルモード'");
     expectHeadingRoleOptions(qualificationFallbackTest, 'queryByRole', []);
     expect(qualificationFallbackTest).toContain('title=""');
     expect(tc357Block).toContain("waitUntil: 'domcontentloaded'");
@@ -285,7 +287,7 @@ describe('E2E case drift coverage', () => {
     expect(tc357Block).toContain("bm: ['バトルモード', 'Battle Mode']");
     expect(tc357Block).toContain("mr: ['マッチレース', 'Match Race']");
     expect(tc357Block).toContain("gp: ['グランプリ', 'Grand Prix']");
-    expect(tc357Block).toContain("ta: ['タイムアタック', 'Time Attack']");
+    expect(tc357Block).toContain("ta: ['タイムアタック', 'Time Attack', 'Time Trial']");
   });
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
