@@ -2509,6 +2509,20 @@
   - インデントだけを直す follow-up が再発しない
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/group-setup-helper.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2012: BM/MR/GP グループ設定 — TC-1980-1982 guard を空白依存にしない
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2012。TC-1980-1982 の静的 guard が `throwUnexpectedMockCall(...)` 呼び出し全体を正規表現で読むと、正当な改行・フォーマット変更だけで false positive になる。
+- **手順**:
+  1. TC-1980-1982 のドリフト guard を確認する
+  2. `throwUnexpectedMockCall(` / `roleLookup(_role, name)` / `EXPECTED_PAGE_ROLE_LOOKUPS` の存在チェックで意図を確認する
+  3. 呼び出し全体の空白配置を固定する `toMatch` 正規表現が残っていないことを確認する
+- **期待結果**:
+  - ローカルエイリアス禁止の意図は維持される
+  - 正当なフォーマット変更では guard が落ちない
+  - TC-1980-1982 の回帰検知は `toContain` ベースで十分に保たれる
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
