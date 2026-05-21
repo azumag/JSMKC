@@ -281,9 +281,14 @@ function snakeDraft28(playerIds) {
  * player-login browsers, and cleanup.
  */
 function getChromiumArgs() {
+  const crashDumpsDir = path.join(resolveE2EBrowserHome(), 'Crashpad');
+  fs.mkdirSync(crashDumpsDir, { recursive: true });
   const args = [
     '--disable-crash-reporter',
     '--disable-crashpad',
+    '--disable-crashpad-for-testing',
+    '--disable-breakpad',
+    `--crash-dumps-dir=${crashDumpsDir}`,
     '--disable-dev-shm-usage',
     '--disable-gpu',
     '--disable-background-timer-throttling',

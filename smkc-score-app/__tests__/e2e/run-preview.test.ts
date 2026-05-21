@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import fs from 'fs';
+import path from 'path';
 import packageJson from '../../package.json';
 
 const lookupMock = jest.fn();
@@ -118,6 +120,15 @@ describe('preview E2E runner', () => {
     if (platform) {
       Object.defineProperty(process, 'platform', platform);
     }
+  });
+
+  it('documents Crashpad launch isolation as part of TC-109 startup coverage', () => {
+    const e2eCases = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'E2E_TEST_CASES.md'), 'utf8');
+    const section = e2eCases.split('## TC-109:')[1]?.split('\n## ')[0] ?? '';
+
+    expect(section).toContain('Crashpad');
+    expect(section).toContain('crash dump path');
+    expect(section).toContain('writable');
   });
 
   it('preserves caller-provided browser channel override', () => {
