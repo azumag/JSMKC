@@ -103,6 +103,7 @@
     "typescript": "^5"
   },
   "overrides": {
-    "postcss": "^8.5.14"
+    "postcss": "^8.5.14",
+    "ws": "^8.20.1"
   }
 }
