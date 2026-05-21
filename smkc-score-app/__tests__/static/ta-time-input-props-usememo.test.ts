@@ -23,6 +23,24 @@ const targets = [
   },
 ] as const;
 
+const memoizedRowTargets = [
+  {
+    label: 'TA participant row component',
+    path: ['src', 'app', 'tournaments', '[id]', 'ta', 'participant', 'page.tsx'],
+    componentName: 'TaParticipantTimeInputRow',
+  },
+  {
+    label: 'TA elimination phase row component',
+    path: ['src', 'components', 'tournament', 'ta-elimination-phase.tsx'],
+    componentName: 'TAEliminationPhaseRow',
+  },
+  {
+    label: 'TA finals row component',
+    path: ['src', 'app', 'tournaments', '[id]', 'ta', 'finals', 'page.tsx'],
+    componentName: 'TaFinalsTimeEntryRow',
+  },
+] as const;
+
 describe('TA time input props memoization', () => {
   it.each(targets)('memoizes getTaTimeInputProps in $label', ({ path, translationCall }) => {
     const source = readRepoFile('smkc-score-app', ...path);
@@ -36,6 +54,19 @@ describe('TA time input props memoization', () => {
     expect(source).toContain('Input is a native element, so this does not skip rendering by reference equality.');
     expect(source).toContain('avoids rebuilding identical spread props during polling refreshes.');
   });
+
+  it.each(memoizedRowTargets)(
+    'memoizes row component props in $label',
+    ({ path, componentName }) => {
+      const source = readRepoFile('smkc-score-app', ...path);
+      const memoDeclaration = new RegExp(
+        `export\\s+const\\s+${componentName}\\s*=\\s*memo\\(\\s*function\\s+${componentName}\\b`,
+        's',
+      );
+
+      expect(source).toMatch(memoDeclaration);
+    },
+  );
 });
 
 function escapeRegExp(value: string) {
