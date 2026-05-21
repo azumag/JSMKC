@@ -42,6 +42,10 @@ export function sectionBetween(
   return source.slice(sectionStart, sectionEndCandidate);
 }
 
+/**
+ * Extract the source section immediately following the first block comment
+ * that contains `commentStartMarker`, up to but not including `endMarker`.
+ */
 export function sectionAfterBlockComment(
   source: string,
   commentStartMarker: string,

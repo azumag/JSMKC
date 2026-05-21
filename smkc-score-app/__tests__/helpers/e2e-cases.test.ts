@@ -105,6 +105,33 @@ describe('E2E case helpers', () => {
     expect(block).not.toContain('const normalizedRounds =');
   });
 
+  it('uses the first matching block comment when markers repeat', () => {
+    const source = `
+      /**
+       * Keep these reads sequential.
+       */
+      const firstEntries = await retryDbRead(readEntries);
+      const firstRounds = await retryDbRead(readRounds);
+      const firstBoundary = firstRounds.map(normalizePhaseRound);
+
+      /**
+       * Keep these reads sequential.
+       */
+      const secondEntries = await retryDbRead(readEntries);
+      const secondBoundary = secondEntries.map(normalizePhaseRound);
+    `;
+
+    const block = sectionAfterBlockComment(
+      source,
+      'Keep these reads sequential',
+      'const firstBoundary =',
+    );
+
+    expect(block).toContain('const firstEntries = await retryDbRead(readEntries)');
+    expect(block).toContain('const firstRounds = await retryDbRead(readRounds)');
+    expect(block).not.toContain('const secondEntries = await retryDbRead(readEntries)');
+  });
+
   it('fails clearly when the post-comment section boundary is missing', () => {
     const source = `
       /**
