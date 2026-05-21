@@ -31,9 +31,23 @@ describe('TA E2E phase round submission helper', () => {
     };
 
     expect(Object.keys(__testHooks).sort()).toEqual([
+      'makeTaPhaseRoundTimeMs',
       'submitTaPhaseRoundByApi',
       'submitTaPhaseRoundWithCourseByApi',
     ]);
+  });
+
+  it('builds per-round TA phase times instead of qualification totals', async () => {
+    const { __testHooks } = await import('../../e2e/tc-ta.js') as {
+      __testHooks: {
+        makeTaPhaseRoundTimeMs: (entry: { rank?: number } | null, fallbackRank?: number) => number;
+      };
+    };
+
+    expect(__testHooks.makeTaPhaseRoundTimeMs({ rank: 1 })).toBe(60200);
+    expect(__testHooks.makeTaPhaseRoundTimeMs({ rank: 12 })).toBe(62400);
+    expect(__testHooks.makeTaPhaseRoundTimeMs({})).toBe(64000);
+    expect(__testHooks.makeTaPhaseRoundTimeMs(null, 3)).toBe(60600);
   });
 
   it('keeps automatic-course phase submissions on the shared start/submit helper', async () => {
