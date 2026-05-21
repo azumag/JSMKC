@@ -58,7 +58,7 @@ describe('TA time input props memoization', () => {
 
 describe('TA row component memo wrapping', () => {
   it.each(memoizedRowTargets)(
-    'memoizes row component props in $label',
+    'wraps row component with React.memo in $label',
     ({ path, componentName }) => {
       const source = readRepoFile('smkc-score-app', ...path);
       const memoDeclaration = new RegExp(
