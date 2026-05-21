@@ -118,6 +118,21 @@ describe('E2E case helpers', () => {
     );
   });
 
+  it('fails when an allowed terminal section has only mixed space and tab content', () => {
+    const source = '// [TC-2063-MIXED-WHITESPACE-TERMINAL-SECTION-START]\n \t \t';
+
+    expect(() =>
+      sectionBetween(
+        source,
+        '// [TC-2063-MIXED-WHITESPACE-TERMINAL-SECTION-START]',
+        '// [TC-2063-MIXED-WHITESPACE-TERMINAL-SECTION-END]',
+        { allowTerminal: true },
+      ),
+    ).toThrow(
+      'terminal section for marker "// [TC-2063-MIXED-WHITESPACE-TERMINAL-SECTION-START]" has no content',
+    );
+  });
+
   it('finds required arguments on the same call expression', () => {
     const source = `
       throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS);
