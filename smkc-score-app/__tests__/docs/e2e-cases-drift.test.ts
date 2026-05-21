@@ -946,6 +946,19 @@ describe('E2E case drift coverage', () => {
     expect(helperTest).toContain('fails when an allowed terminal section has no content');
   });
 
+  it('keeps TC-2058 aligned with the sectionBetween whitespace-only terminal contract', () => {
+    const section = e2eCaseSection('TC-2058');
+    const helper = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.ts');
+    const helperTest = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.test.ts');
+
+    expect(section).toContain('issue #2058');
+    expect(section).toContain('空白のみ');
+    expect(section).toContain('terminal section for marker');
+    expect(helper).toContain('terminalContent.trim()');
+    expect(helperTest).toContain('fails when an allowed terminal section has only whitespace content');
+    expect(helperTest).toContain('TC-2058-WHITESPACE-TERMINAL-SECTION-START');
+  });
+
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
     const section = e2eCaseSection('TC-717');
 

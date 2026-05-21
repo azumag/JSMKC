@@ -30,10 +30,12 @@ export function sectionBetween(
   }
 
   if (sectionEndCandidate === -1) {
-    if (source.length <= sectionStart + startMarker.length) {
+    const terminalSection = source.slice(sectionStart);
+    const terminalContent = terminalSection.slice(startMarker.length);
+    if (terminalContent.trim().length === 0) {
       throw new Error(`terminal section for marker "${startMarker}" has no content`);
     }
-    return source.slice(sectionStart);
+    return terminalSection;
   }
 
   if (sectionEndCandidate <= sectionStart) {
