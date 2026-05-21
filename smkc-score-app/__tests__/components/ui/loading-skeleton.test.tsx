@@ -4,7 +4,10 @@
 
 import { render, screen } from '@testing-library/react';
 
-import { QualificationFallback } from '@/components/ui/loading-skeleton';
+import {
+  QualificationClientLoadingState,
+  QualificationFallback,
+} from '@/components/ui/loading-skeleton';
 
 describe('QualificationFallback', () => {
   it('renders the supplied mode title as a level-one heading', () => {
@@ -23,5 +26,13 @@ describe('QualificationFallback', () => {
     render(<QualificationFallback title="" />);
 
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+});
+
+describe('QualificationClientLoadingState', () => {
+  it('keeps the supplied mode title as a level-one heading during client loading', () => {
+    render(<QualificationClientLoadingState title="バトルモード" />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'バトルモード' })).toBeInTheDocument();
   });
 });

@@ -73,7 +73,7 @@ import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } f
 import { usePolling } from "@/lib/hooks/usePolling";
 import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 import type { TaInitialData } from "@/lib/ta/initial-data";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { QualificationClientLoadingState } from "@/components/ui/loading-skeleton";
 import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/client-logger";
@@ -681,17 +681,7 @@ export default function TimeAttackPageClient({
 
   // === Loading State (only on first visit with no cached data) ===
   if (!pollData) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div className="space-y-3">
-            <div className="h-9 w-24 bg-muted animate-pulse rounded" />
-            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
-          </div>
-        </div>
-        <CardSkeleton />
-      </div>
-    );
+    return <QualificationClientLoadingState title={t('title')} titleSkeletonClassName="w-48" />;
   }
 
   // === Error State ===

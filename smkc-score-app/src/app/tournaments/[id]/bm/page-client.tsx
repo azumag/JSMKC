@@ -77,7 +77,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { QualificationClientLoadingState } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import {
@@ -434,18 +434,7 @@ export default function BattleModePageClient({
 
   /* Loading skeleton shown only on first visit (no cached data yet) */
   if (!pollData) {
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-          <div className="space-y-3">
-            <div className="h-9 w-32 bg-muted animate-pulse rounded" />
-            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
-          </div>
-          <div className="h-10 w-24 bg-muted animate-pulse rounded" />
-        </div>
-        <CardSkeleton />
-      </div>
-    );
+    return <QualificationClientLoadingState title={t('title')} titleSkeletonClassName="w-48" />;
   }
 
   return (

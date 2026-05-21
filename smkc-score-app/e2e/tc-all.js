@@ -4273,11 +4273,11 @@ async function main() {
     }
   }
 
-  // TC-357: PPR mode page fallback renders a mode-title h1 immediately (before streaming)
-  // Verifies that the QualificationFallback Suspense skeleton includes the
-  // exact mode title in an h1, not just any heading on the page, so regressions
-  // in the fallback title prop are detected even on slow D1 fetches
-  // (issue #809). Tests the static shell by checking HTTP response HTML.
+  // TC-357: PPR mode page fallback/client loading renders a mode-title h1 immediately.
+  // Verifies that both the QualificationFallback Suspense skeleton and the
+  // client-side first-load skeleton keep the mode title in an h1, not just any
+  // heading on the page, so regressions in the initial shell are detected even
+  // on slow D1 fetches (issue #2075).
   if (TID) {
     const modes357 = ['bm', 'mr', 'gp', 'ta'];
     const results357 = [];
@@ -4292,7 +4292,7 @@ async function main() {
           bm: ['バトルモード', 'Battle Mode'],
           mr: ['マッチレース', 'Match Race'],
           gp: ['グランプリ', 'Grand Prix'],
-          ta: ['タイムアタック', 'Time Attack'],
+          ta: ['タイムアタック', 'Time Attack', 'Time Trial'],
         };
         const hasExpectedTitle = await page.evaluate((titles) => {
           const headings = Array.from(document.querySelectorAll('h1'));
