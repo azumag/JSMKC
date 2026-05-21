@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import fs from 'fs';
 import packageJson from '../../package.json';
 
 const lookupMock = jest.fn();
@@ -60,6 +61,7 @@ describe('preview E2E runner', () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    jest.restoreAllMocks();
   });
 
   it('builds preview runtime env with default preview target', () => {
@@ -133,6 +135,7 @@ describe('preview E2E runner', () => {
 
   it('keeps Crashpad launch isolation in the executable launch helper contract', () => {
     process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-preview-browser-home';
+    const mkdirSyncSpy = jest.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined);
 
     const config = loadCommon().getChromiumLaunchConfig();
 
@@ -142,6 +145,10 @@ describe('preview E2E runner', () => {
     expect(config.args).toContain('--disable-crashpad-for-testing');
     expect(config.args).toContain('--disable-breakpad');
     expect(config.args).toContain('--crash-dumps-dir=/tmp/jsmkc-preview-browser-home/Crashpad');
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-preview-browser-home', { recursive: true });
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-preview-browser-home/.config', { recursive: true });
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-preview-browser-home/.cache', { recursive: true });
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-preview-browser-home/Crashpad', { recursive: true });
   });
 
   it('preserves caller-provided browser channel override', () => {
