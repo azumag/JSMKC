@@ -465,10 +465,9 @@ export async function GET(
 
       /*
        * Keep these phase-detail reads sequential even though Promise.all would
-       * reduce happy-path latency. In preview/production D1, concurrent fan-out
-       * can trigger request-hung failures for this endpoint. Keep this
-       * D1 concurrent fan-out behavior note and the intentional latency trade-off
-       * in favor of stability.
+       * reduce happy-path latency. Preview/production D1 concurrent fan-out
+       * has repeatedly produced request-hung failures for this endpoint, so the
+       * latency trade-off is intentional in favor of stability.
        *
        * Each read uses its own retryDbRead boundary and avoids piling multiple
        * reads into the same request cycle, which reduces the risk of hung
