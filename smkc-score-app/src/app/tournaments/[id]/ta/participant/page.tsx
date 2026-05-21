@@ -25,7 +25,7 @@
  * - Namespaces: participant, ta, common
  */
 
-import { memo, useState, useEffect, useCallback, use, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, use, useMemo, ComponentPropsWithoutRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
@@ -84,7 +84,7 @@ type TaParticipantTimeInputRowProps = {
   placeholder: string;
   disabled: boolean;
   inputClassName: string;
-  timeInputProps: Record<string, unknown>;
+  timeInputProps: Partial<ComponentPropsWithoutRef<typeof Input>>;
   onChange: (course: string, value: string) => void;
   onBlur: (course: string) => void;
 };
