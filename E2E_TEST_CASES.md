@@ -76,6 +76,30 @@
   4. フォーム要素が正しく存在するか
 - **期待結果**: サインインページが正常に表示される
 
+## TC-2070A: 認証エラーページの安全な表示と復帰導線
+- **URL**: /auth/error?error=CredentialsSignin, /auth/error?error=NotWhitelisted
+- **authRequired**: false
+- **背景**: issue #2070。NextAuth のエラー遷移先 `/auth/error` は、認証失敗理由を安全な文言で表示し、再ログインとトップページへの復帰導線を提供する必要がある。`/auth/signin` だけではこの実ページを確認できない。
+- **手順**:
+  1. `/auth/error?error=CredentialsSignin` にアクセスする
+  2. 認証エラー見出し、資格情報エラーの文言、`/auth/signin` と `/` へのリンクを確認する
+  3. `/auth/error?error=NotWhitelisted` にアクセスする
+  4. 管理者未登録の安全な説明文と復帰導線を確認する
+- **期待結果**: エラー詳細はユーザー向けの安全な文言で表示され、再ログインとトップページへのリンクが常に存在する
+- **スクリプト**: tc-all.js TC-2070A
+
+## TC-2070B: Web Vitals ingestion は通常設定で 204 を返しページ表示を壊さない
+- **URL**: /api/internal/vitals, /
+- **authRequired**: false
+- **背景**: issue #2070。`WebVitalsReporter` は root layout に常時マウントされるが、通常環境では `PERF_LOG !== '1'` のため `/api/internal/vitals` が副作用なしに 204 を返すことを preview で確認する。`PERF_LOG=1` のログ内容は環境依存なので単体テストで補助する。
+- **手順**:
+  1. ブラウザコンテキストから `/api/internal/vitals` に最小 payload を POST する
+  2. 通常 preview 設定で 204 が返ることを確認する
+  3. トップページに遷移し、Web Vitals reporter のマウントでページロードが壊れないことを確認する
+- **期待結果**: 通常設定では vitals endpoint は 204 を返し、トップページは JS エラーなしに表示される
+- **スクリプト**: tc-all.js TC-2070B
+- **補助検証**: `smkc-score-app/__tests__/app/api/internal/vitals/route.test.ts`
+
 ## TC-008: Overall Ranking ページの表示
 - **URL**: /tournaments/[id]/overall-ranking
 - **authRequired**: false
