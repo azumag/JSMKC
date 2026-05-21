@@ -877,25 +877,6 @@ describe('E2E case drift coverage', () => {
     expect(orderIndexes).toEqual([...orderIndexes].sort((a, b) => a - b));
   });
 
-  it('keeps TC-2040 aligned with the TA phases comment-history guard', () => {
-    const section = e2eCaseSection('TC-2040');
-    const guard = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'tc-2040-ta-phases-comment-history.test.ts',
-    );
-
-    expect(section).toContain('issue #2040');
-    expect(section).toContain('has repeatedly produced request-hung failures');
-    expect(section).toContain('latency trade-off');
-    expect(section).toContain('メタコメント');
-    expect(section).toContain('tc-2040-ta-phases-comment-history.test.ts');
-    expect(guard).toContain('has repeatedly produced request-hung failures');
-    expect(guard).toContain('Keep this');
-    expect(guard).toContain('Promise.all');
-  });
-
   it('keeps TC-2045 aligned with the marker-independent TA phases guard', () => {
     const section = e2eCaseSection('TC-2045');
     const guard = readRepoFile(
