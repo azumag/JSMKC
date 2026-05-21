@@ -1141,7 +1141,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain(coverage);
   });
 
-  // [TC-2041-TC109-DRIFT-GUARD-START]
+  // [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]
   it('keeps TC-109 helper coverage classified without environment variable names in the URL slot', () => {
     const tc109Rows = tc109ClassifiedRows.filter(([tc]) => tc === 'TC-109');
     const section = e2eCaseSection('TC-109');
@@ -1155,15 +1155,15 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('fs.mkdirSync');
     expect(section).toContain('実際の `/tmp` 配下へテスト副作用を残さない');
   });
-  // [TC-2041-TC109-DRIFT-GUARD-END]
+  // [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]
 
   it('keeps TC-109 drift guard focused on docs instead of helper implementation strings', () => {
     const section = e2eCaseSection('TC-2034');
     const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
     const tc109DriftBlock = sectionBetween(
       driftTestSource,
-      '// [TC-2041-TC109-DRIFT-GUARD-START]',
-      '// [TC-2041-TC109-DRIFT-GUARD-END]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]',
     );
 
     expect(section).toContain('TC-109');
@@ -1178,12 +1178,12 @@ describe('E2E case drift coverage', () => {
     const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
     const anchoredBlock = sectionBetween(
       driftTestSource,
-      '// [TC-2041-TC109-DRIFT-GUARD-START]',
-      '// [TC-2041-TC109-DRIFT-GUARD-END]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]',
+      '// [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]',
     );
 
     expect(section).toContain('issue #2041/#2039');
-    expect(section).toContain('TC-2041-TC109-DRIFT-GUARD-START/END');
+    expect(section).toContain('TC109-HELPER-COVERAGE-DRIFT-GUARD-START/END');
     expect(section).toContain('__tests__/helpers/e2e-cases.test.ts');
     expect(anchoredBlock).toContain("e2eCaseSection('TC-109')");
     expect(anchoredBlock).toContain('fs.mkdirSync');

@@ -253,7 +253,7 @@
 - **authRequired**: false
 - **背景**: issue #2041/#2039。TC-2034 の drift guard は `e2e-cases-drift.test.ts` 自身の一部を検査するが、`it(...)` 名を `sectionBetween()` の境界に使うと、テスト名リネームや並び替えで不要に壊れやすい。
 - **手順**:
-  1. TC-109 helper coverage の検査ブロックが `TC-2041-TC109-DRIFT-GUARD-START/END` の専用コメントアンカーで囲まれていることを確認する
+  1. TC-109 helper coverage の検査ブロックが `TC109-HELPER-COVERAGE-DRIFT-GUARD-START/END` の専用コメントアンカーで囲まれていることを確認する
   2. TC-2034 drift guard が `sectionBetween()` の境界に `it(...)` 名ではなく専用コメントアンカーを使うことを確認する
   3. `sectionBetween()` helper が専用アンカー間の本文を返し、欠落した end marker では失敗することを補助検証で確認する
 - **期待結果**: TC-109 の drift guard はテスト名の安全なリネームや近接テストの並び替えに依存しない
