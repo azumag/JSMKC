@@ -54,7 +54,9 @@ describe('TA time input props memoization', () => {
     expect(source).toContain('Input is a native element, so this does not skip rendering by reference equality.');
     expect(source).toContain('avoids rebuilding identical spread props during polling refreshes.');
   });
+});
 
+describe('TA row component memo wrapping', () => {
   it.each(memoizedRowTargets)(
     'memoizes row component props in $label',
     ({ path, componentName }) => {
