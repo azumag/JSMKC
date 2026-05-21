@@ -75,6 +75,7 @@ const { parseTvNumberInput } = require('../src/lib/ta/time-entry-layout');
 const results = makeResults();
 const log = makeLog(results);
 let sharedFixture = null;
+const TA_PHASE_ROUND_BASE_TIME_MS = 60000;
 /* Shared TA qualification state. Populated once in beforeAll via
  * setupTaEntriesFromShared so TC-801/802/804/805 do not each re-clear and
  * re-seed 28 players × 20 courses (≈140s per call). Subsequent phase-promoting
@@ -185,10 +186,15 @@ async function apiUpdateTaLives(adminPage, tournamentId, entryId, livesDelta) {
   }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_lives', livesDelta }]);
 }
 
+function makeTaPhaseRoundTimeMs(entry, fallbackRank = 20) {
+  const rank = Number.isFinite(entry?.rank) ? entry.rank : fallbackRank;
+  return TA_PHASE_ROUND_BASE_TIME_MS + rank * 200;
+}
+
 async function submitTaPhaseRoundByApi(adminPage, tournamentId, phase, activeEntries) {
   const results = activeEntries.map((e) => ({
     playerId: e.playerId,
-    timeMs: 60000 + (e.rank || 20) * 200,
+    timeMs: makeTaPhaseRoundTimeMs(e),
   }));
   const submission = await submitTaPhaseRound(adminPage, tournamentId, phase, undefined, results);
   return submission.data;
@@ -805,7 +811,7 @@ async function runTc1996(adminPage) {
   try {
     setup = await createIsolatedTaQualification(adminPage, 'Finals TV Number Payload', sharedTaPlayers(2), { seedTimes: false });
     const { tournamentId } = setup;
-    const seeded = await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
     const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
     if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
 
@@ -834,10 +840,9 @@ async function runTc1996(adminPage) {
       await route.continue();
     });
 
-    const seededByPlayer = new Map(seeded.map((entry) => [entry.playerId, entry]));
     await uiPhaseSubmitResults(adminPage, tournamentId, 'phase3', [
-      { playerId: tvEntry.playerId, nickname: tvEntry.player.nickname, timeMs: seededByPlayer.get(tvEntry.playerId)?.totalMs ?? 63000 },
-      { playerId: clearEntry.playerId, nickname: clearEntry.player.nickname, timeMs: seededByPlayer.get(clearEntry.playerId)?.totalMs ?? 65000 },
+      { playerId: tvEntry.playerId, nickname: tvEntry.player.nickname, timeMs: makeTaPhaseRoundTimeMs(tvEntry) },
+      { playerId: clearEntry.playerId, nickname: clearEntry.player.nickname, timeMs: makeTaPhaseRoundTimeMs(clearEntry) },
     ]);
     await adminPage.unroute(routePattern).catch(() => {});
     routePattern = null;
@@ -2096,6 +2101,7 @@ module.exports = {
   getSuite,
   results,
   __testHooks: {
+    makeTaPhaseRoundTimeMs,
     submitTaPhaseRoundByApi,
     submitTaPhaseRoundWithCourseByApi,
   },

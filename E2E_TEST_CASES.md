@@ -3027,7 +3027,7 @@
 - **手順**:
   1. 管理者で一時 TA fixture を作成し、Phase 3 へ昇格して `/ta/finals` でラウンドを開始する
   2. 1人目の決勝 row で TV3 を選択し、もう1人は TV番号を未選択のままにする
-  3. ラウンド結果を送信し、`/api/tournaments/[id]/ta/phases` の submit payload で1人目の `tvNumber` が数値 `3`、2人目に `NaN` や不要な `tvNumber` が含まれないことを確認する
+  3. 資格合計ではなく Phase 3 用の単走ラウンドタイムでラウンド結果を送信し、`/api/tournaments/[id]/ta/phases` の submit payload で1人目の `tvNumber` が数値 `3`、2人目に `NaN` や不要な `tvNumber` が含まれないことを確認する
   4. `GET /api/tournaments/[id]/ta/phases?phase=phase3` で保存済み round の results に `tvNumber: 3` と `tvNumber: null` が残ることを確認する
 - **期待結果**: TA決勝のTV番号選択は UI row から API payload へ数値として渡り、未選択行は不正値ではなく `null` として履歴に残る
 - **スクリプト**: tc-ta.js TC-1996 / e2e-cases-drift.test.ts / ta/phases route.test.ts

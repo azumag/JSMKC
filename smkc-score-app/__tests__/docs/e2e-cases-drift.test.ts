@@ -1477,12 +1477,15 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1996');
     expect(section).toContain('/ta/finals');
     expect(section).toContain('submit payload');
+    expect(section).toContain('単走ラウンドタイム');
     expect(section).toContain('tvNumber: 3');
     expect(section).toContain('tvNumber: null');
     expect(section).toContain('ta/phases route.test.ts');
     expect(tcTa).toContain("log('TC-1996'");
     expect(tcTa).toContain("selectOption('3')");
     expect(tcTa).toContain("capturedSubmitPayload");
+    expect(tcTa).toContain('makeTaPhaseRoundTimeMs(tvEntry)');
+    expect(tcTa).not.toContain('seededByPlayer.get(tvEntry.playerId)?.totalMs');
     expect(taPhasesRouteTest).toContain('should accept phase3 results with null or absent tvNumber');
   });
 
