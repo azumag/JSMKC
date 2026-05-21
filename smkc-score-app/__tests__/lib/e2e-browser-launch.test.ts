@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
@@ -31,6 +32,7 @@ describe('E2E browser launch helpers', () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    jest.restoreAllMocks();
     jest.dontMock('playwright');
   });
 
@@ -146,5 +148,29 @@ describe('E2E browser launch helpers', () => {
     expect(config.args).toContain('--disable-crashpad-for-testing');
     expect(config.args).toContain('--disable-breakpad');
     expect(config.args).toContain('--crash-dumps-dir=/tmp/jsmkc-browser-home/Crashpad');
+  });
+
+  it('keeps Chromium argument generation free of filesystem side effects', () => {
+    process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-browser-home';
+    common = loadCommon();
+    const mkdirSyncSpy = jest.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined);
+
+    const args = common.getChromiumArgs();
+
+    expect(args).toContain('--crash-dumps-dir=/tmp/jsmkc-browser-home/Crashpad');
+    expect(mkdirSyncSpy).not.toHaveBeenCalled();
+  });
+
+  it('prepares Crashpad under the browser home when creating the launch config', () => {
+    process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-browser-home';
+    common = loadCommon();
+    const mkdirSyncSpy = jest.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined);
+
+    common.getChromiumLaunchConfig();
+
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-browser-home', { recursive: true });
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-browser-home/.config', { recursive: true });
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-browser-home/.cache', { recursive: true });
+    expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-browser-home/Crashpad', { recursive: true });
   });
 });

@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import fs from 'fs';
-import path from 'path';
 import packageJson from '../../package.json';
 
 const lookupMock = jest.fn();
@@ -18,6 +16,7 @@ jest.mock('child_process', () => ({
 }));
 
 type PreviewRunner = typeof import('../../e2e/run-preview');
+type E2ECommon = typeof import('../../e2e/lib/common');
 
 function loadRunner() {
   let loaded: PreviewRunner | undefined;
@@ -26,6 +25,16 @@ function loadRunner() {
     loaded = require('../../e2e/run-preview') as PreviewRunner;
   });
   if (!loaded) throw new Error('Failed to load preview runner');
+  return loaded;
+}
+
+function loadCommon() {
+  let loaded: E2ECommon | undefined;
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    loaded = require('../../e2e/lib/common') as E2ECommon;
+  });
+  if (!loaded) throw new Error('Failed to load e2e common helpers');
   return loaded;
 }
 
@@ -122,13 +131,17 @@ describe('preview E2E runner', () => {
     }
   });
 
-  it('documents Crashpad launch isolation as part of TC-109 startup coverage', () => {
-    const e2eCases = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'E2E_TEST_CASES.md'), 'utf8');
-    const section = e2eCases.split('## TC-109:')[1]?.split('\n## ')[0] ?? '';
+  it('keeps Crashpad launch isolation in the executable launch helper contract', () => {
+    process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-preview-browser-home';
 
-    expect(section).toContain('Crashpad');
-    expect(section).toContain('crash dump path');
-    expect(section).toContain('writable');
+    const config = loadCommon().getChromiumLaunchConfig();
+
+    expect(config.env.HOME).toBe('/tmp/jsmkc-preview-browser-home');
+    expect(config.env.XDG_CONFIG_HOME).toBe('/tmp/jsmkc-preview-browser-home/.config');
+    expect(config.env.XDG_CACHE_HOME).toBe('/tmp/jsmkc-preview-browser-home/.cache');
+    expect(config.args).toContain('--disable-crashpad-for-testing');
+    expect(config.args).toContain('--disable-breakpad');
+    expect(config.args).toContain('--crash-dumps-dir=/tmp/jsmkc-preview-browser-home/Crashpad');
   });
 
   it('preserves caller-provided browser channel override', () => {
