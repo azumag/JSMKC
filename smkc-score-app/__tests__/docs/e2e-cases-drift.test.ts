@@ -140,6 +140,24 @@ describe('E2E case drift coverage', () => {
   );
   const enMessages = readRepoFile('smkc-score-app', 'messages', 'en.json');
   const jaMessages = readRepoFile('smkc-score-app', 'messages', 'ja.json');
+  const tc109ClassifiedRows: Array<[string, string, string]> = [
+    ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
+    ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts'],
+    ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
+    ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
+    ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
+    ['TC-1009', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
+    ['TC-1080', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts'],
+    ['TC-1088', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts'],
+    ['TC-1090-1091', 'n/a (static/unit coverage)', 'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts'],
+    ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
+    ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
+    ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
+    ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
+    ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
+    ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
+    ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
+  ];
 
   it.each([
     ['TC-352', tcAll],
@@ -1044,24 +1062,9 @@ describe('E2E case drift coverage', () => {
     expect(e2eCases).not.toContain('__tests__/docs/pr-template.test.ts');
   });
 
-  it.each([
-    ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
-    ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts'],
-    ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
-    ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
-    ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
-    ['TC-1009', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
-    ['TC-1080', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts'],
-    ['TC-1088', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts'],
-    ['TC-1090-1091', 'n/a (static/unit coverage)', 'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts'],
-    ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
-    ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
-    ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
-    ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
-    ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
-    ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
-    ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
-  ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
+  it.each(tc109ClassifiedRows)(
+    'keeps %s explicitly classified outside standalone browser runner registration',
+    (tc, marker, coverage) => {
     const section = e2eCaseSection(tc);
 
     expect(section).toContain(marker);
@@ -1069,20 +1072,14 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps TC-109 helper coverage classified without environment variable names in the URL slot', () => {
-    const source = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
-    const classificationTable = sectionBetween(
-      source,
-      "it.each([\n    ['TC-109'",
-      '])(',
-    );
-    const tc109Rows = classificationTable.match(/\['TC-109',\s*'([^']+)',\s*'([^']+)'\]/g) ?? [];
+    const tc109Rows = tc109ClassifiedRows.filter(([tc]) => tc === 'TC-109');
 
     expect(tc109Rows).toHaveLength(2);
     expect(tc109Rows).toEqual([
-      "['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts']",
-      "['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts']",
+      ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
+      ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts'],
     ]);
-    expect(tc109Rows.join('\n')).not.toContain('PLAYWRIGHT_BROWSERS_PATH');
+    expect(tc109Rows.map((entry) => entry.join(',')).join('\n')).not.toContain('PLAYWRIGHT_BROWSERS_PATH');
   });
 
   it('keeps late static-only TC classifications ordered within their local block', () => {
