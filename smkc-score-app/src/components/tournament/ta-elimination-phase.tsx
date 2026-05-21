@@ -20,7 +20,7 @@
  * - Auto-refresh every 3 seconds for live tournament tracking
  */
 
-import { memo, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { memo, useState, useEffect, useCallback, useMemo, useRef, ComponentPropsWithoutRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ type TAEliminationPhaseRowProps = {
   isEditingDisabled: boolean;
   retryLabel: string;
   retryTitle: string;
-  timeInputProps: Record<string, unknown>;
+  timeInputProps: Partial<ComponentPropsWithoutRef<typeof Input>>;
   onTvChange: (playerId: string, value: number | null) => void;
   onTimeChange: (playerId: string, value: string) => void;
   onTimeBlur: (playerId: string) => void;

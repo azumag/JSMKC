@@ -27,7 +27,7 @@
  * - 3-second auto-refresh for live tracking
  */
 
-import { memo, useState, useEffect, useCallback, use, useMemo, useRef } from "react";
+import { ComponentPropsWithoutRef, memo, useState, useEffect, useCallback, use, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -156,6 +156,8 @@ function renderLives(lives: number, eliminated: boolean, eliminatedLabel: string
   return <span>{hearts}</span>;
 }
 
+type TaTimeInputProps = Partial<ComponentPropsWithoutRef<typeof Input>>;
+
 type TaFinalsTimeEntryRowProps = {
   playerId: string;
   playerName: string;
@@ -168,7 +170,7 @@ type TaFinalsTimeEntryRowProps = {
   isEditingDisabled: boolean;
   retryLabel: string;
   retryTitle: string;
-  timeInputProps: Record<string, unknown>;
+  timeInputProps: TaTimeInputProps;
   onTvChange: (playerId: string, value: number | null) => void;
   onTimeChange: (playerId: string, value: string) => void;
   onTimeBlur: (playerId: string) => void;
