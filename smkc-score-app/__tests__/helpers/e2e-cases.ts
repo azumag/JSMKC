@@ -42,6 +42,30 @@ export function sectionBetween(
   return source.slice(sectionStart, sectionEndCandidate);
 }
 
+export function sectionAfterBlockComment(
+  source: string,
+  commentStartMarker: string,
+  endMarker: string,
+) {
+  const commentStart = source.indexOf(commentStartMarker);
+  if (commentStart === -1) {
+    throw new Error(`comment start marker not found: "${commentStartMarker}"`);
+  }
+
+  const commentEnd = source.indexOf('*/', commentStart);
+  if (commentEnd === -1) {
+    throw new Error(`block comment end not found after "${commentStartMarker}"`);
+  }
+
+  const sectionStart = commentEnd + '*/'.length;
+  const sectionEnd = source.indexOf(endMarker, sectionStart);
+  if (sectionEnd === -1) {
+    throw new Error(`section end marker not found after "${commentStartMarker}": "${endMarker}"`);
+  }
+
+  return source.slice(sectionStart, sectionEnd);
+}
+
 export function e2eCaseSection(tc: string, source = e2eCases) {
   const heading = new RegExp(`^#{2,3} ${tc}:`, 'm');
   const match = heading.exec(source);

@@ -895,6 +895,27 @@ describe('E2E case drift coverage', () => {
     expect(guard).toContain('Promise.all');
   });
 
+  it('keeps TC-2045 aligned with the marker-independent TA phases guard', () => {
+    const section = e2eCaseSection('TC-2045');
+    const guard = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-2040-ta-phases-comment-history.test.ts',
+    );
+    const helper = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.test.ts');
+
+    expect(section).toContain('issue #2045');
+    expect(section).toContain('sectionAfterBlockComment');
+    expect(section).toContain('End of the D1 read section');
+    expect(section).toContain('const normalizedRounds =');
+    expect(guard).toContain('sectionAfterBlockComment');
+    expect(guard).toContain('const normalizedRounds = rounds.map');
+    expect(guard).not.toContain("blockEndMarker = 'End of the D1 read section'");
+    expect(helper).toContain('extracts code after a block comment');
+    expect(helper).toContain('fails clearly when the post-comment section boundary is missing');
+  });
+
   it('keeps TC-717 aligned with the assignedCups scenario', () => {
     const section = e2eCaseSection('TC-717');
 
