@@ -103,6 +103,21 @@ describe('E2E case helpers', () => {
     );
   });
 
+  it('fails when an allowed terminal section has only tab content', () => {
+    const source = '// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-START]\n\t\n\t';
+
+    expect(() =>
+      sectionBetween(
+        source,
+        '// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-START]',
+        '// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-END]',
+        { allowTerminal: true },
+      ),
+    ).toThrow(
+      'terminal section for marker "// [TC-2058-TAB-WHITESPACE-TERMINAL-SECTION-START]" has no content',
+    );
+  });
+
   it('finds required arguments on the same call expression', () => {
     const source = `
       throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS);
