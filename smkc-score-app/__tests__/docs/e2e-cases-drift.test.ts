@@ -1101,6 +1101,8 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-109 helper coverage classified without environment variable names in the URL slot', () => {
     const tc109Rows = tc109ClassifiedRows.filter(([tc]) => tc === 'TC-109');
+    const section = e2eCaseSection('TC-109');
+    const runPreviewTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'run-preview.test.ts');
 
     expect(tc109Rows).toHaveLength(2);
     expect(tc109Rows).toEqual([
@@ -1108,6 +1110,10 @@ describe('E2E case drift coverage', () => {
       ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts'],
     ]);
     expect(tc109Rows.map((entry) => entry.join(',')).join('\n')).not.toContain('PLAYWRIGHT_BROWSERS_PATH');
+    expect(section).toContain('fs.mkdirSync');
+    expect(section).toContain('実際の `/tmp` 配下へテスト副作用を残さない');
+    expect(runPreviewTest).toContain("jest.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined)");
+    expect(runPreviewTest).toContain('expect(mkdirSyncSpy).toHaveBeenCalledWith');
   });
 
   it('keeps late static-only TC classifications ordered within their local block', () => {
