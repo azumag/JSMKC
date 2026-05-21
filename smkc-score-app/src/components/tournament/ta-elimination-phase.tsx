@@ -267,12 +267,10 @@ export default function TAEliminationPhase({
   // This ensures the auto-recovery check always reads the latest value.
   const currentRoundRef = useRef(currentRound);
   currentRoundRef.current = currentRound;
-  useEffect(() => {
-    retryFlagsRef.current = retryFlags;
-  }, [retryFlags]);
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [retryFlags, setRetryFlags] = useState<Record<string, boolean>>({});
   const retryFlagsRef = useRef<Record<string, boolean>>({});
+  retryFlagsRef.current = retryFlags;
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
