@@ -1,5 +1,10 @@
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
-import { e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
+import {
+  callExpressionWithArguments,
+  e2eCaseSection,
+  readRepoFile,
+  sectionBetween,
+} from '../helpers/e2e-cases';
 
 function readE2eScript(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', script);
@@ -490,6 +495,7 @@ describe('E2E case drift coverage', () => {
     const outlineButtonSection = e2eCaseSection('TC-1682');
     const helperAliasSection = e2eCaseSection('TC-1980-1982');
     const helperAliasGuardSection = e2eCaseSection('TC-2012');
+    const helperAliasCallGuardSection = e2eCaseSection('TC-2014');
     const guard = readRepoFile(
       'smkc-score-app',
       '__tests__',
@@ -509,12 +515,16 @@ describe('E2E case drift coverage', () => {
     expect(helperAliasSection).toContain('issue #1980 / #1982');
     expect(helperAliasSection).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
     expect(helperAliasGuardSection).toContain('issue #2012');
-    expect(helperAliasGuardSection).toContain('toContain');
+    expect(helperAliasGuardSection).toContain('空白依存');
+    expect(helperAliasCallGuardSection).toContain('issue #2014');
+    expect(helperAliasCallGuardSection).toContain('同一の `throwUnexpectedMockCall(...)` 呼び出し');
     expect(groupSetupHelperTest).not.toContain('const expectedPageRoleLookups');
     expect(groupSetupHelperTest).not.toContain('const actualPageRoleLookup');
-    expect(groupSetupHelperTest).toContain('throwUnexpectedMockCall(');
-    expect(groupSetupHelperTest).toContain('roleLookup(_role, name)');
-    expect(groupSetupHelperTest).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
+    expect(callExpressionWithArguments(groupSetupHelperTest, 'throwUnexpectedMockCall', [
+      "'page.getByRole'",
+      'roleLookup(_role, name)',
+      'EXPECTED_PAGE_ROLE_LOOKUPS',
+    ])).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
     expect(guard).toContain("e2eCaseSection('TC-1007')");
     expect(guard).toContain("e2eCaseSection('TC-1678')");
     expect(guard).toContain("not.toContain('groupCount={groupCount}')");

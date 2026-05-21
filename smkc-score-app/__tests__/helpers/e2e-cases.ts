@@ -53,6 +53,52 @@ export function e2eCaseSection(tc: string, source = e2eCases) {
   return source.slice(start, end);
 }
 
+export function callExpressionWithArguments(
+  source: string,
+  functionName: string,
+  requiredArgumentTexts: string[],
+) {
+  const sourceFile = ts.createSourceFile(
+    'source.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+
+  let matchedCall: ts.CallExpression | null = null;
+
+  function isTargetCall(node: ts.CallExpression) {
+    if (!ts.isIdentifier(node.expression) || node.expression.text !== functionName) {
+      return false;
+    }
+
+    const argumentTexts = node.arguments.map((argument) => argument.getText(sourceFile));
+    return requiredArgumentTexts.every((requiredText) => argumentTexts.includes(requiredText));
+  }
+
+  function visit(node: ts.Node) {
+    if (matchedCall) return;
+
+    if (ts.isCallExpression(node) && isTargetCall(node)) {
+      matchedCall = node;
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+
+  if (!matchedCall) {
+    throw new Error(
+      `call expression not found: ${functionName}(${requiredArgumentTexts.join(', ')})`,
+    );
+  }
+
+  return matchedCall.getText(sourceFile);
+}
+
 export function functionReturnObjectLiteral(source: string, functionName: string) {
   const sourceFile = ts.createSourceFile(
     'source.tsx',

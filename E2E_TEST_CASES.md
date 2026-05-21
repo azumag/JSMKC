@@ -2520,8 +2520,22 @@
 - **期待結果**:
   - ローカルエイリアス禁止の意図は維持される
   - 正当なフォーマット変更では guard が落ちない
-  - TC-1980-1982 の回帰検知は `toContain` ベースで十分に保たれる
+  - TC-1980-1982 の回帰検知は AST helper で同一呼び出しを確認する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-2014: BM/MR/GP グループ設定 — unexpected branch guard の引数共出現を保証する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2014。TC-2012 で guard を `toContain` に分割した結果、`throwUnexpectedMockCall(` / `roleLookup(_role, name)` / `EXPECTED_PAGE_ROLE_LOOKUPS` が別々の箇所に散在してもテストが通る可能性が残った。
+- **手順**:
+  1. TC-1980-1982 の `page.getByRole` unexpected branch guard を確認する
+  2. TypeScript AST helper で `throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS)` が同一の `throwUnexpectedMockCall(...)` 呼び出しに揃っていることを確認する
+  3. helper 自体が、必要な引数が別呼び出しに分散した fixture を拒否することを確認する
+- **期待結果**:
+  - `page.getByRole` unexpected branch は `EXPECTED_PAGE_ROLE_LOOKUPS` を直接渡す
+  - 同一呼び出し内の共出現が崩れた場合は drift guard が落ちる
+  - 正当な改行・インデント変更では guard が落ちない
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts __tests__/helpers/e2e-cases.test.ts`
 
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
