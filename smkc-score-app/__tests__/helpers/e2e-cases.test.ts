@@ -40,6 +40,21 @@ describe('E2E case helpers', () => {
     );
   });
 
+  it('fails when an explicit comment anchor start marker is missing', () => {
+    const source = `
+      it('orphan test', () => {});
+      // [TC-2041-TC109-DRIFT-GUARD-END]
+    `;
+
+    expect(() =>
+      sectionBetween(
+        source,
+        '// [TC-2041-TC109-DRIFT-GUARD-START]',
+        '// [TC-2041-TC109-DRIFT-GUARD-END]',
+      ),
+    ).toThrow('section start marker not found: "// [TC-2041-TC109-DRIFT-GUARD-START]"');
+  });
+
   it('finds required arguments on the same call expression', () => {
     const source = `
       throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS);
