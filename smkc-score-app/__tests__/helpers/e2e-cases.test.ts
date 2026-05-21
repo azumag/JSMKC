@@ -68,7 +68,7 @@ describe('E2E case helpers', () => {
     );
   });
 
-  it('extracts code after a block comment without requiring a comment boundary marker', () => {
+  it('extracts code after a block comment using a code boundary instead of a comment end-marker', () => {
     const source = `
       /**
        * Keep these reads sequential.
