@@ -138,11 +138,13 @@ const CDM_EXPORT_INCLUDE = {
  * ranges, not business limits; writing past them risks overwriting formula
  * regions and hidden helper cells in the macro workbook.
  */
-// Main Hub: player roster starts at row CDM_PLAYER_HUB_FIRST_ROW.
-// Maximum player rows are capped by CDM_PLAYER_HUB_MAX_PLAYERS in the template's
-// top table layout.
+// Main Hub player table is bounded by explicit template anchors and a fixed
+// capacity. Keep both anchor and capacity in constants so range updates stay
+// synchronized in code.
 const CDM_PLAYER_HUB_FIRST_ROW = 2;
-const CDM_PLAYER_HUB_MAX_PLAYERS = 60;
+const CDM_PLAYER_HUB_ROW_SPAN = 60;
+const CDM_PLAYER_HUB_LAST_ROW = CDM_PLAYER_HUB_FIRST_ROW + CDM_PLAYER_HUB_ROW_SPAN - 1;
+const CDM_PLAYER_HUB_MAX_PLAYERS = CDM_PLAYER_HUB_ROW_SPAN;
 // TT Qualifications uses the same rows as Main Hub, but keep aliases so
 // writeTTQualifications keeps sheet-level readability.
 const CDM_TT_QUAL_FIRST_ROW = CDM_PLAYER_HUB_FIRST_ROW;
@@ -295,7 +297,7 @@ function writePlayerHub(
   const ws = workbook.Sheets["Main Hub"];
   if (!ws) return;
 
-  for (let row = CDM_PLAYER_HUB_FIRST_ROW; row < CDM_PLAYER_HUB_FIRST_ROW + CDM_PLAYER_HUB_MAX_PLAYERS; row++) {
+  for (let row = CDM_PLAYER_HUB_FIRST_ROW; row <= CDM_PLAYER_HUB_LAST_ROW; row++) {
     for (const col of ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]) {
       setCell(ws, `${col}${row}`, "");
     }
