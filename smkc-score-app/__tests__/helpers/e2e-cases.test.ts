@@ -1,4 +1,4 @@
-import { callExpressionWithArguments } from './e2e-cases';
+import { callExpressionWithArguments, sectionAfterBlockComment } from './e2e-cases';
 
 describe('E2E case helpers', () => {
   it('finds required arguments on the same call expression', () => {
@@ -26,6 +26,43 @@ describe('E2E case helpers', () => {
       'EXPECTED_PAGE_ROLE_LOOKUPS',
     ])).toThrow(
       "call expression not found: throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS)",
+    );
+  });
+
+  it('extracts code after a block comment without requiring a comment boundary marker', () => {
+    const source = `
+      /**
+       * Keep these reads sequential.
+       */
+      const entries = await retryDbRead(readEntries);
+      const rounds = await retryDbRead(readRounds);
+      const normalizedRounds = rounds.map(normalizePhaseRound);
+    `;
+
+    const block = sectionAfterBlockComment(
+      source,
+      'Keep these reads sequential',
+      'const normalizedRounds =',
+    );
+
+    expect(block).toContain('const entries = await retryDbRead(readEntries)');
+    expect(block).toContain('const rounds = await retryDbRead(readRounds)');
+    expect(block).not.toContain('Keep these reads sequential');
+    expect(block).not.toContain('const normalizedRounds =');
+  });
+
+  it('fails clearly when the post-comment section boundary is missing', () => {
+    const source = `
+      /**
+       * Keep these reads sequential.
+       */
+      const entries = await retryDbRead(readEntries);
+    `;
+
+    expect(() =>
+      sectionAfterBlockComment(source, 'Keep these reads sequential', 'const normalizedRounds ='),
+    ).toThrow(
+      'section end marker not found after "Keep these reads sequential": "const normalizedRounds ="',
     );
   });
 });

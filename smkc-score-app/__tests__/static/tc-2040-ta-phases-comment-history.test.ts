@@ -1,4 +1,4 @@
-import { readRepoFile } from '../helpers/e2e-cases';
+import { readRepoFile, sectionAfterBlockComment } from '../helpers/e2e-cases';
 
 describe('TC-2040 TA phases sequential read comment history', () => {
   const source = readRepoFile('smkc-score-app', 'src', 'app', 'api', 'tournaments', '[id]', 'ta', 'phases', 'route.ts');
@@ -31,16 +31,12 @@ describe('TC-2040 TA phases sequential read comment history', () => {
   });
 
   it('keeps the guarded D1 read block sequential', () => {
-    const comment = sequentialReadComment();
-    const commentEnd = source.indexOf('*/', source.indexOf(comment));
-    const blockEndMarker = 'End of the D1 read section';
-    const blockEnd = source.indexOf(blockEndMarker, commentEnd);
+    const phaseDetailReadBlock = sectionAfterBlockComment(
+      source,
+      'Keep these phase-detail reads sequential',
+      'const normalizedRounds = rounds.map',
+    );
 
-    if (blockEnd === -1) {
-      throw new Error(`expected marker "${blockEndMarker}" to exist for D1 section boundary`);
-    }
-
-    const phaseDetailReadBlock = source.slice(commentEnd, blockEnd);
     expect(phaseDetailReadBlock).toContain('retryDbRead');
     expect(phaseDetailReadBlock).not.toContain('Promise.all');
   });
