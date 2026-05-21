@@ -1106,7 +1106,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('BM_MR_MATCH_LEAN_SELECT');
     expect(section).toContain('exact match');
     expect(section).toContain('smkc-score-app/__tests__/lib/prisma-selects.test.ts');
-    expect(prismaSelectsTest).toContain('Object.keys(BM_MR_MATCH_LEAN_SELECT)).toEqual(expectedFields)');
+    expect(prismaSelectsTest).toMatch(
+      /Object\.keys\s*\(\s*BM_MR_MATCH_LEAN_SELECT\s*\)\)\s*\.toEqual\s*\(\s*expectedFields\s*\)/,
+    );
     expect(prismaSelectsTest).not.toContain('expect.arrayContaining(expectedFields)');
     expect(prismaSelectsTest).not.toContain('toBeGreaterThanOrEqual(expectedFields.length)');
   });
