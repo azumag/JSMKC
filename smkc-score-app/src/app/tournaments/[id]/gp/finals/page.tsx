@@ -426,12 +426,8 @@ export default function GrandPrixFinals({
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
   };
 
-  const nextCupName = (index: number, preferred?: string, assignedCups?: string[]) => {
-    return getCupForFormIndex(index, assignedCups, CUPS, preferred);
-  };
-
   const makeBlankCupForm = (index: number, preferred?: string, assignedCups?: string[]): CupScoreForm => {
-    const cup = nextCupName(index, preferred, assignedCups);
+    const cup = getCupForFormIndex(index, assignedCups, CUPS, preferred);
     return {
       cup,
       races: getCupCourses(cup).map((course) => ({ course, position1: null, position2: null })),
@@ -532,7 +528,7 @@ export default function GrandPrixFinals({
     }
     const savedForms = match.cupResults && match.cupResults.length > 0
       ? match.cupResults.map((result, index) => {
-          const resultCup = result.cup || nextCupName(index, cup, match.assignedCups);
+          const resultCup = result.cup || getCupForFormIndex(index, match.assignedCups, CUPS, cup);
           return {
             cup: resultCup,
             races: result.races && result.races.length === TOTAL_GP_RACES
