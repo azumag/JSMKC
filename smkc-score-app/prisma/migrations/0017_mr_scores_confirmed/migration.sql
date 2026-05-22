@@ -1,0 +1,1 @@
+ALTER TABLE "MRMatch" ADD COLUMN "scoresConfirmed" BOOLEAN NOT NULL DEFAULT false;

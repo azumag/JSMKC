@@ -18,7 +18,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { PLAYER_PUBLIC_SELECT, PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
+import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
@@ -108,6 +108,10 @@ export async function POST(
 
     if (!match) {
       return handleValidationError("Match not found", "matchId");
+    }
+
+    if (match.scoresConfirmed) {
+      return handleValidationError("Scores have already been confirmed for this match", "scoresConfirmed");
     }
 
     /* Validate required fields before auth to fail fast on malformed requests */

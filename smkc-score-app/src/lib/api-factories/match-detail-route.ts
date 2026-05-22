@@ -59,6 +59,7 @@ export interface MatchDetailConfig {
     completed: boolean,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     detail?: any,
+    body?: Record<string, unknown>,
   ) => Promise<{ version: number }>;
   sanitizeBody?: boolean;
   /** Whether PUT endpoint requires admin authentication */
@@ -259,7 +260,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
       }
 
       const result = await config.updateMatchScore(
-        prisma, matchId, version, val1, val2, completed, detail,
+        prisma, matchId, version, val1, val2, completed, detail, body,
       );
 
       /* Re-fetch the updated match with player relations for the response */

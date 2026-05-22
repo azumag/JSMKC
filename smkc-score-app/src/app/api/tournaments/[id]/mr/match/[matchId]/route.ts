@@ -45,8 +45,12 @@ const { GET, PUT } = createMatchDetailHandlers({
   loggerName: 'mr-match-api',
   scoreFields: { field1: 'score1', field2: 'score2' },
   detailField: 'rounds',
-  updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
-    updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail),
+  updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail, body) => {
+    if (body?.scoresConfirmed === true) {
+      return updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail, true);
+    }
+    return updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail);
+  },
   validateScores: validateMatchRaceScores,
   validateFinalsScoresWithMatch: validateRoundAwareMrFinalsScores,
   sanitizeBody: true,
