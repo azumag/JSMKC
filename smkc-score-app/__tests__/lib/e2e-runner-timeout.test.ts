@@ -27,4 +27,13 @@ describe('E2E runner suite timeout resolution', () => {
 
     expect(runner.resolveSuiteTimeoutMs(75 * 60 * 1000)).toBe(42 * 60 * 1000);
   });
+
+  it('preserves explicit zero instead of falling back to the default timeout', async () => {
+    delete process.env.E2E_SUITE_TIMEOUT_MS;
+    const runner = await import('../../e2e/lib/runner.js') as {
+      resolveSuiteTimeoutMs: (explicitTimeoutMs?: number | null) => number;
+    };
+
+    expect(runner.resolveSuiteTimeoutMs(0)).toBe(0);
+  });
 });

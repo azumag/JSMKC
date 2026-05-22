@@ -1023,6 +1023,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('29ケース');
     expect(section).toContain('TC-1005');
     expect(section).toContain('E2E_SUITE_TIMEOUT_MS');
+    expect(section).toContain('issue #2111');
+    expect(section).toContain('nullish fallback');
     expect(section).toContain('__tests__/e2e/ta-suite-timeout.test.ts');
     expect(section).toContain('__tests__/lib/e2e-runner-timeout.test.ts');
     expect(tcTaTimeoutTest).toContain('TA_SUITE_TIMEOUT_MS');
@@ -1030,6 +1032,7 @@ describe('E2E case drift coverage', () => {
     expect(tcTaTimeoutTest).toContain('TC-1005');
     expect(runnerTimeoutTest).toContain('resolveSuiteTimeoutMs');
     expect(runnerTimeoutTest).toContain('E2E_SUITE_TIMEOUT_MS');
+    expect(runnerTimeoutTest).toContain('preserves explicit zero');
   });
 
   it('keeps TC-2055 aligned with the sectionBetween allowTerminal contract', () => {

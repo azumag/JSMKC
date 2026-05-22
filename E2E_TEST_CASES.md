@@ -109,7 +109,8 @@
   2. TA suite が 29ケースを維持していることを確認する
   3. TA suite 固有の timeout が 35分より長く、`TC-1005` まで実行対象に残ることを確認する
   4. runner の `E2E_SUITE_TIMEOUT_MS` override が TA 固有 timeout より優先されることを確認する
-- **期待結果**: TA preview suite は通常設定で 75分上限を使い、phase-chain/isolated fixture coverage を削らずに `TC-1005` まで実行できる
+  5. runner の明示 timeout fallback は `null` / `undefined` のときだけ既定値を使い、`0` を `DEFAULT_SUITE_TIMEOUT_MS` に置き換えないことを確認する
+- **期待結果**: TA preview suite は通常設定で 75分上限を使い、phase-chain/isolated fixture coverage を削らずに `TC-1005` まで実行できる。issue #2111 の nullish fallback 契約により、将来の明示的な falsy timeout 値も OR fallback で失われない
 - **スクリプト**: `npm run e2e:preview:ta` / `npm test -- --runTestsByPath __tests__/e2e/ta-suite-timeout.test.ts __tests__/lib/e2e-runner-timeout.test.ts`
 
 ## TC-008: Overall Ranking ページの表示
