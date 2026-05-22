@@ -76,6 +76,7 @@ const results = makeResults();
 const log = makeLog(results);
 let sharedFixture = null;
 const TA_PHASE_ROUND_BASE_TIME_MS = 60000;
+const TA_SUITE_TIMEOUT_MS = 75 * 60 * 1000;
 /* Shared TA qualification state. Populated once in beforeAll via
  * setupTaEntriesFromShared so TC-801/802/804/805 do not each re-clear and
  * re-seed 28 players × 20 courses (≈140s per call). Subsequent phase-promoting
@@ -2026,6 +2027,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
   return {
     suiteName: 'TA',
+    suiteTimeoutMs: TA_SUITE_TIMEOUT_MS,
     results,
     log,
     beforeAll: async (adminPage) => {
@@ -2098,6 +2100,7 @@ module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005,
+  TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,
   __testHooks: {
