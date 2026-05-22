@@ -4440,4 +4440,5 @@ module.exports = {
   cdmE2eFinalsMatches,
   cdmE2eFinalsReadinessDetails,
   cdmE2eFinalsReadinessSummary,
+  ensureCdmE2eFinalsFixture,
 };
