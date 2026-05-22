@@ -90,18 +90,6 @@ describe('Finals Route Factory', () => {
     ...overrides,
   });
 
-  const _createMockQualification = (overrides = {}) => ({
-    id: 'qual-1',
-    playerId: 'player-1',
-    group: 'A',
-    score: 3,
-    wins: 2,
-    losses: 0,
-    points: 6,
-    player: { id: 'player-1', name: 'Player 1' },
-    ...overrides,
-  });
-
   const expectNoBmMatchWrites = () => {
     const matchModel = prisma.bMMatch as any;
     for (const method of ['create', 'createMany', 'deleteMany', 'update', 'updateMany']) {
