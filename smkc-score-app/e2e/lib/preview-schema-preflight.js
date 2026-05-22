@@ -9,6 +9,7 @@ const REQUIRED_PREVIEW_COLUMNS = [
 ];
 const WRANGLER_TIMEOUT_MS = 30_000;
 const DEFAULT_WRANGLER_LOG_PATH = path.join(os.tmpdir(), 'jsmkc-wrangler-preflight.log');
+const WRANGLER_TRANSIENT_STATUS_RETRIES = 1;
 
 function buildPreviewSchemaCheckSql(columns = REQUIRED_PREVIEW_COLUMNS) {
   return columns
@@ -80,8 +81,46 @@ function isWranglerAuthOrLogFailure(stderr) {
   ].some((pattern) => pattern.test(stderr));
 }
 
+function isWranglerSchemaFailure(stderr) {
+  return [
+    /no such (table|column)/i,
+    /SQLITE_ERROR/i,
+    /migration/i,
+    /schema/i,
+  ].some((pattern) => pattern.test(stderr));
+}
+
+function boundedOutput(value, maxLength = 800) {
+  const text = String(value || '').trim();
+  if (!text) return '(empty)';
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+
 function formatPreflightError(lines) {
   return lines.filter(Boolean).join('\n');
+}
+
+function runWranglerSchemaCheck(sql, wranglerEnv) {
+  const args = ['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json', '--command', sql];
+  let result;
+
+  for (let attempt = 0; attempt <= WRANGLER_TRANSIENT_STATUS_RETRIES; attempt += 1) {
+    result = spawnSync('wrangler', args, {
+      encoding: 'utf8',
+      cwd: process.cwd(),
+      env: wranglerEnv,
+      timeout: WRANGLER_TIMEOUT_MS,
+    });
+
+    const stderr = String(result.stderr || '').trim();
+    const stdout = String(result.stdout || '').trim();
+    if (result.status === 0 || result.error || stderr || stdout || attempt === WRANGLER_TRANSIENT_STATUS_RETRIES) {
+      return { result, args };
+    }
+  }
+
+  return { result, args };
 }
 
 function assertPreviewD1Schema(env = process.env) {
@@ -89,11 +128,7 @@ function assertPreviewD1Schema(env = process.env) {
 
   const sql = buildPreviewSchemaCheckSql();
   const wranglerEnv = buildWranglerEnv(env);
-  const result = spawnSync(
-    'wrangler',
-    ['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json', '--command', sql],
-    { encoding: 'utf8', cwd: process.cwd(), env: wranglerEnv, timeout: WRANGLER_TIMEOUT_MS },
-  );
+  const { result, args } = runWranglerSchemaCheck(sql, wranglerEnv);
 
   if (result.error?.code === 'ETIMEDOUT') {
     throw new Error(
@@ -130,10 +165,14 @@ function assertPreviewD1Schema(env = process.env) {
 
     throw new Error(
       formatPreflightError([
-        'Preview D1 schema preflight failed before launching the browser.',
+        'Wrangler exited non-zero before preview D1 schema could be verified.',
         `Command exited ${result.status}.`,
-        stderr ? `stderr: ${stderr}` : '',
-        'Run npm run db:migrations:apply:preview, then retry npm run e2e:preview.',
+        `Command: wrangler ${args.join(' ')}`,
+        `stderr: ${boundedOutput(result.stderr)}`,
+        `stdout: ${boundedOutput(result.stdout)}`,
+        isWranglerSchemaFailure(stderr)
+          ? 'Run npm run db:migrations:apply:preview, then retry npm run e2e:preview.'
+          : 'Wrangler returned a generic nonzero status; check the command output above, then retry npm run e2e:preview.',
       ]),
     );
   }
@@ -159,7 +198,9 @@ module.exports = {
   buildWranglerEnv,
   buildPreviewSchemaCheckSql,
   DEFAULT_WRANGLER_LOG_PATH,
+  isWranglerSchemaFailure,
   isWranglerAuthOrLogFailure,
   parsePresentColumns,
+  WRANGLER_TRANSIENT_STATUS_RETRIES,
   WRANGLER_TIMEOUT_MS,
 };
