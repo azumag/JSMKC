@@ -2602,6 +2602,20 @@
   - 正当な改行・インデント変更では guard が落ちない
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts __tests__/helpers/e2e-cases.test.ts`
 
+## TC-2136: finals-route.test.ts — 未使用 qualification helper を残さない
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2136。`__tests__/lib/api-factories/finals-route.test.ts` の `_createMockQualification` は PR #2134 後に参照元がなくなった dead helper で、将来使うかもしれない前提で残すと実際の fixture contract とずれたテスト補助コードが残る。
+- **手順**:
+  1. `finals-route.test.ts` の共有 helper 群を確認する
+  2. 実際に使われる `createMockMatch` と各 describe 内の `createMockQualifications` は残す
+  3. 未使用の `_createMockQualification` が存在しないことを静的ガードで確認する
+- **期待結果**:
+  - finals route factory のテストから未使用 helper が削除されている
+  - 使われている match/qualification fixture helper は維持される
+  - `_createMockQualification` が戻った場合は TC-2136 guard が失敗する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-2136-finals-route-dead-helper.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2139: GP E2E drift guard — TC-831/TC-832 負 fixture をコメント文面固定にしない
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
