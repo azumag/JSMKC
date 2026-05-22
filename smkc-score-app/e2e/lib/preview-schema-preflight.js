@@ -134,8 +134,6 @@ function runWranglerSchemaCheck(sql, wranglerEnv) {
       return { result, args };
     }
   }
-
-  return { result, args };
 }
 
 function assertPreviewD1Schema(env = process.env) {

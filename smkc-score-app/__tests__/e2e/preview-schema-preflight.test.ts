@@ -265,6 +265,26 @@ describe('preview schema preflight', () => {
     expect(section).toContain('private helper');
   });
 
+  it('keeps TC-2104 documented as unreachable retry fallback coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-2104');
+    expect(section).toContain('unreachable fallback return');
+    expect(section).toContain('WRANGLER_TRANSIENT_STATUS_RETRIES + 1');
+  });
+
+  it('keeps runWranglerSchemaCheck free of a loop-after fallback return', () => {
+    const source = readFileSync(path.join(process.cwd(), 'e2e/lib/preview-schema-preflight.js'), 'utf8');
+    const functionStart = source.indexOf('function runWranglerSchemaCheck');
+    const assertStart = source.indexOf('function assertPreviewD1Schema', functionStart);
+    const section = source.slice(functionStart, assertStart);
+
+    expect(functionStart).toBeGreaterThanOrEqual(0);
+    expect(assertStart).toBeGreaterThan(functionStart);
+    expect(section).toContain('attempt === WRANGLER_TRANSIENT_STATUS_RETRIES');
+    expect(section).not.toMatch(/}\s*return \{ result, args \};\s*}$/);
+  });
+
   it('fails with timeout guidance when wrangler hangs', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({

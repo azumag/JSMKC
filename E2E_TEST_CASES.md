@@ -125,6 +125,17 @@
 - **期待結果**: 認証/ログ初期化だけの失敗は通常 preview E2E を本体開始前に止めず、schema missing / SQLite error / timeout / strict preflight は従来どおり診断つきで失敗する。TC-2161 の E2E scenario 文字列確認は `preview-schema-preflight.test.ts` 側に集約し、drift test は preview preflight 実装と補助テストの対応だけを監視する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2104: Preview D1 schema preflight の Wrangler retry loop は unreachable fallback return を持たない
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
+- **背景**: issue #2104。`runWranglerSchemaCheck` は `WRANGLER_TRANSIENT_STATUS_RETRIES` まで retry し、最終 attempt では loop 内で必ず `{ result, args }` を返す。loop 後に同じ return を残すと unreachable dead code になり、retry 終了条件の意図が読み取りにくくなる。
+- **手順**:
+  1. Wrangler が空の status 1 を返し続ける preflight を模擬する
+  2. `runWranglerSchemaCheck` が `WRANGLER_TRANSIENT_STATUS_RETRIES + 1` 回だけ実行して最終 attempt の結果を返すことを確認する
+  3. `preview-schema-preflight.js` の `runWranglerSchemaCheck` 節に loop 後の `return { result, args };` が残っていないことを補助テストで確認する
+- **期待結果**: retry loop の最終 attempt が唯一の fallback return となり、到達不能な loop 後 return を持たずに preview preflight の診断挙動を維持する
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
+
 ## TC-008: Overall Ranking ページの表示
 - **URL**: /tournaments/[id]/overall-ranking
 - **authRequired**: false
