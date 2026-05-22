@@ -2645,6 +2645,20 @@
   - E2E scenario と guard test が同じ対象ファイルを指す
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-2145-qualification-route-mock-match-name.test.ts __tests__/docs/e2e-cases-drift.test.ts __tests__/lib/api-factories/qualification-route.test.ts`
 
+## TC-2143: tc-2136 static guard — it() 説明文を肯定形で保つ
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2143。TC-2136 の `it()` 説明文が "does not keep ..." という否定形で、実際の期待結果である `_createMockQualification` の削除済み状態が読み取りにくかった。
+- **手順**:
+  1. `tc-2136-finals-route-dead-helper.test.ts` の `it()` 説明文を確認する
+  2. 説明文が `_createMockQualification` helper の削除済み状態を肯定形で表していることを確認する
+  3. 同じ static guard が `finals-route.test.ts` の使用中 helper と dead helper 不在を引き続き検証する
+- **期待結果**:
+  - TC-2136 guard の説明文は `has removed the unused _createMockQualification helper from finals-route.test.ts` と読める
+  - 旧い否定形の `does not keep ...` 説明文が戻った場合は guard が失敗する
+  - `_createMockQualification` が戻った場合は TC-2136 guard が引き続き失敗する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-2136-finals-route-dead-helper.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
