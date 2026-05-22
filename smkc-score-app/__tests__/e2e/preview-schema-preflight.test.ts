@@ -141,15 +141,61 @@ describe('preview schema preflight', () => {
     );
   });
 
-  it('fails with migration guidance when wrangler cannot run the check', () => {
+  it('fails with migration guidance when wrangler reports a clear schema error', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
       status: 1,
       stdout: '',
-      stderr: 'No migrations to apply',
+      stderr: 'SQLITE_ERROR: no such column: suddenDeathWinnerId',
     });
 
     expect(() => preflight.assertPreviewD1Schema({})).toThrow(/db:migrations:apply:preview/);
+  });
+
+  it('retries empty Wrangler status 1 once and keeps migration guidance out of transient diagnostics', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: '',
+    });
+
+    let message = '';
+    try {
+      preflight.assertPreviewD1Schema({});
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(spawnSyncMock).toHaveBeenCalledTimes(2);
+    expect(message).toMatch(/Wrangler exited non-zero before preview D1 schema could be verified/);
+    expect(message).toMatch(/Command: wrangler d1 execute DB --remote --env preview --json --command/);
+    expect(message).toMatch(/Command exited 1/);
+    expect(message).toMatch(/stderr: \(empty\)/);
+    expect(message).toMatch(/stdout: \(empty\)/);
+    expect(message).not.toMatch(/db:migrations:apply:preview/);
+  });
+
+  it('preserves non-schema Wrangler stderr without classifying it as migration drift', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: 'Checking preview database...',
+      stderr: 'Network connection reset by peer',
+    });
+
+    let message = '';
+    try {
+      preflight.assertPreviewD1Schema({});
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+    expect(message).toMatch(/Wrangler exited non-zero before preview D1 schema could be verified/);
+    expect(message).toMatch(/stderr: Network connection reset by peer/);
+    expect(message).toMatch(/stdout: Checking preview database/);
+    expect(message).not.toMatch(/db:migrations:apply:preview/);
   });
 
   it('does not classify generic wrangler login help text as an auth failure', () => {
