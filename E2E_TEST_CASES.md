@@ -113,6 +113,17 @@
 - **期待結果**: TA preview suite は通常設定で 75分上限を使い、phase-chain/isolated fixture coverage を削らずに `TC-1005` まで実行できる。issue #2111 の nullish fallback 契約により、将来の明示的な falsy timeout 値も OR fallback で失われない
 - **スクリプト**: `npm run e2e:preview:ta` / `npm test -- --runTestsByPath __tests__/e2e/ta-suite-timeout.test.ts __tests__/lib/e2e-runner-timeout.test.ts`
 
+## TC-2161: Preview D1 schema preflight は Wrangler 認証失敗だけで E2E 本体を止めない
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
+- **背景**: issue #2161。Preview D1 schema preflight は schema drift を早期検出するために `wrangler d1 execute --remote --env preview --json` を実行するが、automation 環境で Wrangler refresh token が 401 になった場合は remote schema drift が確認できていない。認証/ログ初期化だけの失敗は E2E ブラウザ起動を妨げず、strict 確認が必要な環境だけ `E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1` で hard fail に戻せる必要がある。
+- **手順**:
+  1. Wrangler が `Failed to fetch auth token: 401 Unauthorized` を返す preflight を模擬する
+  2. 通常の `npm run e2e:preview:all` 相当では警告を出して preflight を通過することを確認する
+  3. `E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1` 指定時は同じ auth/log failure がブラウザ起動前に失敗することを確認する
+- **期待結果**: 認証/ログ初期化だけの失敗は通常 preview E2E を本体開始前に止めず、schema missing / SQLite error / timeout / strict preflight は従来どおり診断つきで失敗する
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
+
 ## TC-008: Overall Ranking ページの表示
 - **URL**: /tournaments/[id]/overall-ranking
 - **authRequired**: false

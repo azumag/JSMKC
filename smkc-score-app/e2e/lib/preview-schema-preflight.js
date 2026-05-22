@@ -101,6 +101,21 @@ function formatPreflightError(lines) {
   return lines.filter(Boolean).join('\n');
 }
 
+function shouldFailOnWranglerAuthOrLogFailure(env = process.env) {
+  return env.E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT === '1';
+}
+
+function buildWranglerAuthOrLogFailureMessage(status, stderr, wranglerEnv) {
+  return formatPreflightError([
+    'Preview D1 schema preflight could not verify the remote database because Wrangler auth/log setup failed.',
+    `Command exited ${status}.`,
+    stderr ? `stderr: ${stderr}` : '',
+    `WRANGLER_LOG_PATH=${wranglerEnv.WRANGLER_LOG_PATH}`,
+    'The preview E2E run will continue because this is an environment credential/setup problem, not confirmed schema drift.',
+    'Set CLOUDFLARE_API_TOKEN with D1 read access or refresh wrangler login, then rerun with E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1 to make this failure block browser launch.',
+  ]);
+}
+
 function runWranglerSchemaCheck(sql, wranglerEnv) {
   const args = ['d1', 'execute', 'DB', '--remote', '--env', 'preview', '--json', '--command', sql];
   let result;
@@ -152,15 +167,13 @@ function assertPreviewD1Schema(env = process.env) {
   if (result.status !== 0) {
     const stderr = String(result.stderr || '').trim();
     if (isWranglerAuthOrLogFailure(stderr)) {
-      throw new Error(
-        formatPreflightError([
-          'Preview D1 schema preflight failed before launching the browser because Wrangler auth/log setup failed.',
-          `Command exited ${result.status}.`,
-          stderr ? `stderr: ${stderr}` : '',
-          `WRANGLER_LOG_PATH=${wranglerEnv.WRANGLER_LOG_PATH}`,
-          'Refresh Wrangler auth with wrangler login or CLOUDFLARE_API_TOKEN, ensure WRANGLER_LOG_PATH is writable, then retry npm run e2e:preview.',
-        ]),
-      );
+      const message = buildWranglerAuthOrLogFailureMessage(result.status, stderr, wranglerEnv);
+      if (shouldFailOnWranglerAuthOrLogFailure(env)) {
+        throw new Error(message);
+      }
+
+      console.warn(message);
+      return;
     }
 
     throw new Error(
@@ -198,9 +211,11 @@ module.exports = {
   buildWranglerEnv,
   buildPreviewSchemaCheckSql,
   DEFAULT_WRANGLER_LOG_PATH,
+  buildWranglerAuthOrLogFailureMessage,
   isWranglerSchemaFailure,
   isWranglerAuthOrLogFailure,
   parsePresentColumns,
+  shouldFailOnWranglerAuthOrLogFailure,
   WRANGLER_TRANSIENT_STATUS_RETRIES,
   WRANGLER_TIMEOUT_MS,
 };

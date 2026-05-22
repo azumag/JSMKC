@@ -326,6 +326,19 @@ describe('E2E case drift coverage', () => {
     expect(guardTest).not.toContain('wording changes\n    // are not stability guarantees');
   });
 
+  it('keeps TC-2161 documented with non-blocking Wrangler auth preflight coverage', () => {
+    const section = e2eCaseSection('TC-2161');
+    const preflight = readE2eLib('preview-schema-preflight.js');
+    const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
+
+    expect(section).toContain('issue #2161');
+    expect(section).toContain('E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1');
+    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
+    expect(preflight).toContain('shouldFailOnWranglerAuthOrLogFailure');
+    expect(preflight).toContain('console.warn(message)');
+    expect(preflightTest).toContain('continues preview startup on Wrangler auth and log setup failures by default');
+  });
+
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
     const section = e2eCaseSection('TC-830');
     const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
