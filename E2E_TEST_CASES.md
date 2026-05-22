@@ -2672,6 +2672,20 @@
   - `_createMockQualification` が戻った場合は TC-2136 guard が引き続き失敗する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-2136-finals-route-dead-helper.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2127: tc-all TC-939 registration guard — helper 呼び出しを実挙動で保護する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2127。`tc-all-registration.test.ts` の TC-939 guard が `require('./lib/tc939-reporting')` や旧 ternary 実装の改行込み文字列に依存すると、実動作を変えない import 整理やインデント変更で壊れやすい。
+- **手順**:
+  1. `tc-all-registration.test.ts` が `tc939-reporting` helper を実際に読み込み、reload と className failure の両方が同じ detail に出ることを確認する
+  2. `tc-all.js` の TC-939 ブロックが `describeTc939TabNavigation({ spaMarker, cleanClasses })` 経由で結果を作ることを確認する
+  3. 旧 inline ternary 実装の復活検知は改行・インデントに依存しない正規表現で確認する
+- **期待結果**:
+  - require パス文字列そのものではなく helper の実 import と出力 contract が検証される
+  - TC-939 の複数 failure 理由は引き続き同じログ detail に残る
+  - 旧 inline 実装が戻った場合は、整形差分に左右されず guard が失敗する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
