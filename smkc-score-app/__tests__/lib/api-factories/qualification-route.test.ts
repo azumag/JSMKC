@@ -41,7 +41,6 @@ import {
 } from '@/lib/api-factories/qualification-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
-import { EventTypeConfig } from '@/lib/event-types/types';
 import { COURSES, CUPS } from '@/lib/constants';
 
 // Mock dependencies
@@ -223,7 +222,7 @@ describe('Qualification Route Factory', () => {
         method: 'POST',
         body: JSON.stringify({ players: createMockPlayers() }),
       });
-      const response = await POST(request, {
+      const _response = await POST(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1417,7 +1416,7 @@ describe('Qualification Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1463,9 +1462,9 @@ describe('Qualification Route Factory', () => {
 
     it('should aggregate player stats via config.aggregatePlayerStats', async () => {
       const requestBody = createMockRequestBody();
-      const mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
-      const mockPlayer1Matches = [mockMatch];
-      const mockPlayer2Matches = [mockMatch];
+      const _mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
+      const mockPlayer1Matches = [_mockMatch];
+      const mockPlayer2Matches = [_mockMatch];
 
       (prisma.bMMatch as any).findMany
         .mockResolvedValueOnce(mockPlayer1Matches)
@@ -1483,7 +1482,7 @@ describe('Qualification Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 

@@ -17,7 +17,6 @@ import {
   TOTAL_MR_RACES,
   TOTAL_GP_RACES,
   TOTAL_COURSES,
-  getDriverPoints,
 } from '@/lib/constants';
 import { timeToMs } from '@/lib/ta/time-utils';
 

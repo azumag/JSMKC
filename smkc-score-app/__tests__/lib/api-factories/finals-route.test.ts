@@ -2032,7 +2032,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -2151,7 +2151,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -2183,7 +2183,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
