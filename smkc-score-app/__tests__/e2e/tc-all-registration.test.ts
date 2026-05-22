@@ -1,7 +1,11 @@
 import fs from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
 
+import { e2eCaseSection } from '../helpers/e2e-cases';
+
 describe('tc-all focused suite registration', () => {
+  const requireFromApp = createRequire(path.join(process.cwd(), 'package.json'));
   const sourcePath = path.join(process.cwd(), 'e2e', 'tc-all.js');
   const source = fs.readFileSync(sourcePath, 'utf8');
   const debugFillPath = path.join(process.cwd(), 'e2e', 'tc-debug-fill.js');
@@ -57,11 +61,29 @@ describe('tc-all focused suite registration', () => {
   });
 
   it('reports all TC-939 tab navigation failure reasons', () => {
-    expect(source).toContain("require('./lib/tc939-reporting')");
+    const { describeTc939TabNavigation } = requireFromApp('./e2e/lib/tc939-reporting');
+
+    expect(describeTc939TabNavigation({
+      spaMarker: null,
+      cleanClasses: false,
+    })).toEqual({
+      status: 'FAIL',
+      detail: 'Tab click caused a full document reload / Hydrated tab className contains extra whitespace',
+    });
+
     expect(source).toContain('describeTc939TabNavigation({');
     expect(source).toContain('spaMarker: tc939Marker');
     expect(source).toContain('cleanClasses: tc939CleanClasses');
     expect(source).toContain("log('TC-939', tc939Result.status, tc939Result.detail)");
-    expect(source).not.toContain("tc939Marker !== 'alive'\n      ? 'Tab click caused a full document reload'");
+    expect(source).not.toMatch(/tc939Marker\s*!==\s*['"]alive['"][\s\S]{0,160}Tab click caused a full document reload/);
+  });
+
+  it('keeps TC-2127 documented as a stable TC-939 registration guard', () => {
+    const section = e2eCaseSection('TC-2127');
+
+    expect(section).toContain('issue #2127');
+    expect(section).toContain('tc-all-registration.test.ts');
+    expect(section).toContain('tc939-reporting');
+    expect(section).toContain('改行・インデント');
   });
 });
