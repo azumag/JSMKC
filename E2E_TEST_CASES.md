@@ -2631,6 +2631,20 @@
   - fixture 注入が空振りした場合は専用アサーションで原因が分かる
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts __tests__/e2e/group-setup-helper.test.ts`
 
+## TC-2145: qualification-route.test.ts — 参照される mock match に未使用変数風の名前を使わない
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2145。`__tests__/lib/api-factories/qualification-route.test.ts` の `should aggregate player stats` で参照される fixture が `_mockMatch` と命名され、未使用変数の慣習と衝突してレビュー時に誤読されやすい。
+- **手順**:
+  1. `qualification-route.test.ts` の player stats aggregation fixture を確認する
+  2. `mockPlayer1Matches` / `mockPlayer2Matches` が `mockMatch` を参照していることを確認する
+  3. `_mockMatch` が qualification route factory テストに残っていないことを静的ガードで確認する
+- **期待結果**:
+  - 参照される match fixture は `mockMatch` として読める
+  - 未使用変数を示す `_mockMatch` が戻った場合は TC-2145 guard が失敗する
+  - E2E scenario と guard test が同じ対象ファイルを指す
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-2145-qualification-route-mock-match-name.test.ts __tests__/docs/e2e-cases-drift.test.ts __tests__/lib/api-factories/qualification-route.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false

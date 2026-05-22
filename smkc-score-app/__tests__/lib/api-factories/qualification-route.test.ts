@@ -562,6 +562,7 @@ describe('Qualification Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
+      expect(response.status).toBe(201);
       expect(mockCreateAuditLog).toHaveBeenCalledWith({
         userId: 'user-1',
         ipAddress: '192.168.1.1',
@@ -1462,9 +1463,9 @@ describe('Qualification Route Factory', () => {
 
     it('should aggregate player stats via config.aggregatePlayerStats', async () => {
       const requestBody = createMockRequestBody();
-      const _mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
-      const mockPlayer1Matches = [_mockMatch];
-      const mockPlayer2Matches = [_mockMatch];
+      const mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
+      const mockPlayer1Matches = [mockMatch];
+      const mockPlayer2Matches = [mockMatch];
 
       (prisma.bMMatch as any).findMany
         .mockResolvedValueOnce(mockPlayer1Matches)
@@ -1486,6 +1487,7 @@ describe('Qualification Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
+      expect(response.status).toBe(200);
       expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(2);
       expect(config.aggregatePlayerStats).toHaveBeenCalledWith(mockPlayer1Matches, 'player-1', config.calculateMatchResult);
       expect(config.aggregatePlayerStats).toHaveBeenCalledWith(mockPlayer2Matches, 'player-2', config.calculateMatchResult);
@@ -1493,7 +1495,6 @@ describe('Qualification Route Factory', () => {
 
     it('should update both players qualification records', async () => {
       const requestBody = createMockRequestBody();
-      const _mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
 
       (prisma.bMMatch as any).findMany.mockResolvedValue([]);
       (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
@@ -1513,6 +1514,7 @@ describe('Qualification Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
+      expect(response.status).toBe(200);
       expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
       const [, payload, tournamentId] = (prisma as any).$executeRawUnsafe.mock.calls[0];
       expect(tournamentId).toBe('tournament-123');
