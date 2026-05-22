@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/tournament/export-button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { createLogger } from "@/lib/client-logger";
+import { cn } from "@/lib/utils";
 
 const logger = createLogger({ serviceName: "tournaments-layout" });
 
@@ -369,11 +370,13 @@ export default function TournamentLayout({
                     aria-disabled={!tabsHydrated}
                     tabIndex={tabsHydrated ? undefined : -1}
                     aria-current={isActive ? "page" : undefined}
-                    className={`inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+                    className={cn(
+                      "inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                       isActive
                         ? "pit-active text-foreground font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    } ${tabsHydrated ? "" : "pointer-events-none opacity-70"}`}
+                        : "text-muted-foreground hover:text-foreground",
+                      !tabsHydrated && "pointer-events-none opacity-70"
+                    )}
                   >
                     {t(tab.labelKey)}
                     {adminHidden && (
@@ -396,11 +399,13 @@ export default function TournamentLayout({
                       aria-disabled={!tabsHydrated}
                       tabIndex={tabsHydrated ? undefined : -1}
                       aria-current={isActive ? "page" : undefined}
-                      className={`inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+                      className={cn(
+                        "inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                         isActive
                           ? "pit-active text-foreground font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      } ${tabsHydrated ? "" : "pointer-events-none opacity-70"}`}
+                          : "text-muted-foreground hover:text-foreground",
+                        !tabsHydrated && "pointer-events-none opacity-70"
+                      )}
                     >
                       {tab.label}
                     </Link>

@@ -20,4 +20,10 @@ describe('TC-939 tournament tab navigation', () => {
     expect(layoutSource).toContain('tabIndex={tabsHydrated ? undefined : -1}');
     expect(layoutSource).toContain('pointer-events-none opacity-70');
   });
+
+  it('uses conditional class merging so hydrated tabs do not keep whitespace-only guard classes', () => {
+    expect(layoutSource).toContain('import { cn } from "@/lib/utils";');
+    expect(layoutSource).toContain('!tabsHydrated && "pointer-events-none opacity-70"');
+    expect(layoutSource).not.toContain('${tabsHydrated ? "" : "pointer-events-none opacity-70"}');
+  });
 });

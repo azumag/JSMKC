@@ -403,11 +403,19 @@ async function main() {
   await nav(page, `/tournaments/${TID}/ta`);
   await page.evaluate(() => { window.__tc939SpaMarker = 'alive'; });
   await page.locator('nav[aria-label="Tournament sections"][data-tournament-tabs-hydrated="true"]').waitFor({ timeout: 30000 });
+  const tc939TabClasses = await page
+    .locator('nav[aria-label="Tournament sections"] a[href*="/tournaments/"]')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('class') || ''));
   await page.locator(`a[href="/tournaments/${TID}/bm"]`).first().click();
   await page.waitForURL(`**/tournaments/${TID}/bm`, { timeout: 30000 });
   const tc939Marker = await page.evaluate(() => window.__tc939SpaMarker).catch(() => null);
-  log('TC-939', tc939Marker === 'alive' ? 'PASS' : 'FAIL',
-    tc939Marker === 'alive' ? '' : 'Tab click caused a full document reload');
+  const tc939CleanClasses = tc939TabClasses.every((className) => className.trim() === className && !/\s{2,}/.test(className));
+  log('TC-939', tc939Marker === 'alive' && tc939CleanClasses ? 'PASS' : 'FAIL',
+    tc939Marker !== 'alive'
+      ? 'Tab click caused a full document reload'
+      : tc939CleanClasses
+        ? ''
+        : 'Hydrated tab className contains extra whitespace');
 
   // TC-006
   await nav(page, '/');
