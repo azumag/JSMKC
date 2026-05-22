@@ -249,12 +249,20 @@ describe('preview schema preflight', () => {
     expect(console.warn).not.toHaveBeenCalled();
   });
 
+  it('keeps Wrangler auth/log message helpers private to the preflight runner', () => {
+    const preflight = loadPreflight();
+
+    expect(preflight).not.toHaveProperty('buildWranglerAuthOrLogFailureMessage');
+    expect(preflight).not.toHaveProperty('shouldFailOnWranglerAuthOrLogFailure');
+  });
+
   it('keeps TC-2161 documented as non-blocking auth preflight coverage', () => {
     const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
 
     expect(section).toContain('TC-2161');
     expect(section).toContain('E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1');
     expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
+    expect(section).toContain('private helper');
   });
 
   it('fails with timeout guidance when wrangler hangs', () => {
