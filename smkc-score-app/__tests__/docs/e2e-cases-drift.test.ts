@@ -62,6 +62,45 @@ describe('E2E case drift coverage', () => {
     'ta',
     'course-selection.test.ts',
   );
+  const prismaSchema = readRepoFile('smkc-score-app', 'prisma', 'schema.prisma');
+  const mrMatchRoute = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'app',
+    'api',
+    'tournaments',
+    '[id]',
+    'mr',
+    'match',
+    '[matchId]',
+    'route.ts',
+  );
+  const mrReportRoute = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'app',
+    'api',
+    'tournaments',
+    '[id]',
+    'mr',
+    'match',
+    '[matchId]',
+    'report',
+    'route.ts',
+  );
+  const mrReportRouteTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'app',
+    'api',
+    'tournaments',
+    '[id]',
+    'mr',
+    'match',
+    '[matchId]',
+    'report',
+    'route.test.ts',
+  );
   const taFinalsPage = readRepoFile(
     'smkc-score-app',
     'src',
@@ -1391,6 +1430,21 @@ describe('E2E case drift coverage', () => {
     expect(taEliminationPhase).not.toContain('Sudden-death tiebreak');
     expect(taEliminationPhase).not.toContain('Sudden-death course');
     expect(taEliminationPhase).not.toContain('Enter M:SS.mm format.');
+  });
+
+  it('documents TC-822 as active MR scoresConfirmed coverage', () => {
+    const section = e2eCaseSection('TC-822');
+
+    expect(section).toContain('Issue**: #2076');
+    expect(section).toContain('MRMatch.scoresConfirmed=true');
+    expect(section).toContain('400');
+    expect(tcMr).toContain("log('TC-822', mismatch && confirmRes.s === 200 && storedConfirmed && reportBlocked ? 'PASS' : 'FAIL'");
+    expect(tcMr).toContain('scoresConfirmed: true');
+    expect(tcMr).not.toContain("log('TC-822', 'SKIP'");
+    expect(prismaSchema).toContain('scoresConfirmed Boolean @default(false)');
+    expect(mrMatchRoute).toContain('body?.scoresConfirmed === true');
+    expect(mrReportRoute).toContain('Scores have already been confirmed for this match');
+    expect(mrReportRouteTest).toContain('should reject participant reports after admin scoresConfirmed');
   });
 
   it('documents TC-821A as shared TA sudden-death UI and logic coverage', () => {

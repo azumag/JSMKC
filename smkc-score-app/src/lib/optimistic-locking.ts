@@ -370,13 +370,15 @@ export async function updateMRMatchScore(
   score1: number,
   score2: number,
   completed: boolean = false,
-  rounds?: MRRound[]
+  rounds?: MRRound[],
+  scoresConfirmed?: boolean,
 ): Promise<{ version: number }> {
   return _updateMRMatchScore(prisma, matchId, expectedVersion, {
     score1,
     score2,
     completed,
-    rounds
+    rounds,
+    ...(typeof scoresConfirmed === 'boolean' ? { scoresConfirmed } : {}),
   });
 }
 

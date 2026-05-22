@@ -23,7 +23,7 @@
  *          tournament: mutates tournament-level `qualificationConfirmed` flag)
  *  TC-612  GP race position validation (no-tie + double-game-over)
  *  TC-820  MR match/[matchId] page view-only
- *  TC-822  SKIP — feature not implemented
+ *  TC-822  MR scoresConfirmed blocks later participant reports
  *  TC-1079 MR qualification course assignment rejects invalid roundNumber before fallback
  *  TC-617  MR finals same-courses-per-round enforcement (PR #585 normalizer)
  *  TC-618  MR finals admin manual total-score override (PR #585 manual form)
@@ -1480,14 +1480,78 @@ async function runTc616(adminPage) {
   }
 }
 
-/* ───────── TC-822: MR scoresConfirmed → subsequent PUT blocked ─────────
- * SKIPPED — feature not implemented. MRMatch has no `scoresConfirmed` column
- * and qualification-route.ts only blocks edits when the whole qualification
- * stage is confirmed, not per match. See E2E_TEST_CASES.md TC-822 entry. */
+/* ───────── TC-822: MR scoresConfirmed → subsequent report blocked ─────────
+ * Dual-report mismatch can be finalized by an admin. Once the admin marks the
+ * match scoresConfirmed, participant report POSTs must be rejected. */
 async function runTc822(adminPage) {
-  // eslint-disable-next-line no-unused-vars
-  const _ = adminPage;
-  log('TC-822', 'SKIP', 'feature not implemented (no scoresConfirmed column on MRMatch)');
+  try {
+    const { tournamentId, match } = await prepareSharedMrPair(adminPage, { dualReport: true });
+    const reportUrl = `/api/tournaments/${tournamentId}/mr/match/${match.id}/report`;
+
+    const p1Report = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [reportUrl, { reportingPlayer: 1, score1: 3, score2: 1 }]);
+
+    const p2Report = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [reportUrl, { reportingPlayer: 2, score1: 1, score2: 3 }]);
+
+    const mismatch = p1Report.s === 200
+      && p2Report.s === 200
+      && (p2Report.b?.data?.mismatch === true || p2Report.b?.mismatch === true);
+
+    const afterMismatch = await apiFetchMr(adminPage, tournamentId);
+    const pendingMatch = (afterMismatch.matches || []).find((m) => m.id === match.id);
+    if (!pendingMatch) throw new Error('TC-822 match missing after mismatch');
+
+    const confirmRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}`, {
+      score1: 3,
+      score2: 1,
+      completed: true,
+      scoresConfirmed: true,
+      version: pendingMatch.version,
+    }]);
+
+    const rejectedReport = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [reportUrl, { reportingPlayer: 1, score1: 2, score2: 2 }]);
+
+    const afterConfirm = await apiFetchMr(adminPage, tournamentId);
+    const confirmedMatch = (afterConfirm.matches || []).find((m) => m.id === match.id);
+    const storedConfirmed = confirmedMatch?.scoresConfirmed === true;
+    const reportBlocked = rejectedReport.s === 400;
+
+    log('TC-822', mismatch && confirmRes.s === 200 && storedConfirmed && reportBlocked ? 'PASS' : 'FAIL',
+      !mismatch ? `Mismatch not established (p1=${p1Report.s}, p2=${p2Report.s})`
+      : confirmRes.s !== 200 ? `Admin confirmation failed (${confirmRes.s})`
+      : !storedConfirmed ? 'scoresConfirmed was not persisted'
+      : !reportBlocked ? `Post-confirm report not blocked (${rejectedReport.s})`
+      : '');
+  } catch (err) {
+    log('TC-822', 'FAIL', err instanceof Error ? err.message : 'MR TC-822 scoresConfirmed failed');
+  }
 }
 
 /* ───────── TC-620: MR qualification tie resolution ─────────

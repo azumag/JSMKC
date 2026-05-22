@@ -62,7 +62,6 @@ jest.mock('@/lib/request-utils', () => ({
 import prisma from '@/lib/prisma';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { updateMRMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/mr/match/[matchId]/route';
@@ -231,6 +230,66 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       expect(createSuccessResponse).toHaveBeenCalledWith({ match: mockUpdatedMatch, version: 2 });
       expect(updateMRMatchScore).toHaveBeenCalledWith(
         prisma, 'm1', 1, 3, 1, true, [1, 2, 3, 4]
+      );
+    });
+
+    it('should persist scoresConfirmed when admin confirms a dual-report mismatch', async () => {
+      const mockUpdatedMatch = {
+        id: 'm1',
+        score1: 3,
+        score2: 1,
+        completed: true,
+        scoresConfirmed: true,
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        completed: true,
+        scoresConfirmed: true,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(updateMRMatchScore).toHaveBeenCalledWith(
+        prisma, 'm1', 1, 3, 1, true, undefined, true,
+      );
+    });
+
+    it('should ignore scoresConfirmed false so admin PUT cannot un-confirm a match', async () => {
+      const mockUpdatedMatch = {
+        id: 'm1',
+        score1: 3,
+        score2: 1,
+        completed: true,
+        scoresConfirmed: true,
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        completed: true,
+        scoresConfirmed: false,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(updateMRMatchScore).toHaveBeenCalledWith(
+        prisma, 'm1', 1, 3, 1, true, undefined,
       );
     });
 

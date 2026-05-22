@@ -171,6 +171,45 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       );
     });
 
+    it('should reject participant reports after admin scoresConfirmed', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        version: 3,
+        completed: true,
+        scoresConfirmed: true,
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1ReportedPoints1: 3,
+        player1ReportedPoints2: 1,
+        player2ReportedPoints1: 1,
+        player2ReportedPoints2: 3,
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', {
+        reportingPlayer: 1,
+        score1: 2,
+        score2: 2,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Scores have already been confirmed for this match', field: 'scoresConfirmed' },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith(
+        'Scores have already been confirmed for this match',
+        'scoresConfirmed',
+      );
+      expect(checkScoreReportAuth).not.toHaveBeenCalled();
+      expect(prisma.mRMatch.update).not.toHaveBeenCalled();
+    });
+
     // Success case - Both players' scores match → auto-confirm
     it('should report score successfully for authenticated player', async () => {
       const mockMatch = {

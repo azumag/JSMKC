@@ -300,7 +300,8 @@ describe('Match Detail Route Factory', () => {
         3,
         1,
         true,
-        []
+        [],
+        mockRequestBody,
       );
     });
 
