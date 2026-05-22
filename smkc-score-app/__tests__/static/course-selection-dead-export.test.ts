@@ -8,3 +8,4 @@ describe('TA course-selection public API', () => {
     expect(helper).not.toMatch(/\bexport\s+async\s+function\s+getPlayedCourses\s*\(/);
   });
 });
+
