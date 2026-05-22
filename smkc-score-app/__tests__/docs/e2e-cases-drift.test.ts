@@ -247,15 +247,30 @@ describe('E2E case drift coverage', () => {
     expect(scriptSource).toContain(`log('${tc}'`);
   });
 
+  const gpTc831Tc832OrderRationale =
+    /\/\/\s*TC-831 stays before TC-832[^\n]*(?:\n\s*\/\/[^\n]*)*\n\s*\{\s*name:\s*['"]TC-831['"]\s*,\s*fn:\s*runTc831\s*\}\s*,\s*\n\s*\{\s*name:\s*['"]TC-832['"]\s*,\s*fn:\s*runTc832\s*\}/;
+
   it('documents why GP TC-831 stays before TC-832 in the suite order', () => {
     // Regex intent:
-    // - [\\s\\S]*? allows the rationale comment to wrap across lines.
+    // - [^\\n]* matches the first rationale comment line only.
+    // - (?:\\n\\s*//[^\\n]*)* allows wrapped rationale lines while rejecting code between comment and entry.
     // - \\s* allows formatting drift in spaces and newlines between the comment and array entries.
     // - ['"] accepts either quote style around TC labels in the runner list.
     // Allow multiline comment formatting drift while requiring comment -> TC-831 -> TC-832 adjacency.
-    expect(tcGp).toMatch(
-      /\/\/\s*TC-831 stays before TC-832[\s\S]*?\n\s*\{\s*name:\s*['"]TC-831['"]\s*,\s*fn:\s*runTc831\s*\}\s*,\s*\n\s*\{\s*name:\s*['"]TC-832['"]\s*,\s*fn:\s*runTc832\s*\}/,
+    expect(tcGp).toMatch(gpTc831Tc832OrderRationale);
+  });
+
+  it('rejects non-comment code between the GP TC-831 rationale and suite entry', () => {
+    const weakenedFixture = tcGp.replace(
+      /\/\/ TC-831 stays before TC-832 so GP suite logs show numeric progression, keeping the\n\s*\/\/ CI review order easy to scan when one of them fails.\n/,
+      [
+        '// TC-831 stays before TC-832 so GP suite logs show numeric progression, keeping the',
+        '// CI review order easy to scan when one of them fails.',
+        "      { name: 'TC-999', fn: runTc999 },",
+      ].join('\n') + '\n',
     );
+
+    expect(weakenedFixture).not.toMatch(gpTc831Tc832OrderRationale);
   });
 
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
