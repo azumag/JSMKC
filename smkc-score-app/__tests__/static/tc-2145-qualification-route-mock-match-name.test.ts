@@ -11,8 +11,8 @@ describe('TC-2145 qualification route mock match naming', () => {
 
   it('does not use unused-variable-style names for referenced mock matches', () => {
     expect(source).toContain('const mockMatch =');
-    expect(source).toContain('const mockPlayer1Matches = [mockMatch];');
-    expect(source).toContain('const mockPlayer2Matches = [mockMatch];');
+    expect(source).toMatch(/const\s+mockPlayer1Matches\s*=\s*\[mockMatch\]/);
+    expect(source).toMatch(/const\s+mockPlayer2Matches\s*=\s*\[mockMatch\]/);
     expect(source).not.toContain('_mockMatch');
   });
 });
