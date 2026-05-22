@@ -211,11 +211,9 @@ module.exports = {
   buildWranglerEnv,
   buildPreviewSchemaCheckSql,
   DEFAULT_WRANGLER_LOG_PATH,
-  buildWranglerAuthOrLogFailureMessage,
   isWranglerSchemaFailure,
   isWranglerAuthOrLogFailure,
   parsePresentColumns,
-  shouldFailOnWranglerAuthOrLogFailure,
   WRANGLER_TRANSIENT_STATUS_RETRIES,
   WRANGLER_TIMEOUT_MS,
 };

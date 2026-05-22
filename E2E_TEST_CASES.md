@@ -121,7 +121,8 @@
   1. Wrangler が `Failed to fetch auth token: 401 Unauthorized` を返す preflight を模擬する
   2. 通常の `npm run e2e:preview:all` 相当では警告を出して preflight を通過することを確認する
   3. `E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1` 指定時は同じ auth/log failure がブラウザ起動前に失敗することを確認する
-- **期待結果**: 認証/ログ初期化だけの失敗は通常 preview E2E を本体開始前に止めず、schema missing / SQLite error / timeout / strict preflight は従来どおり診断つきで失敗する
+  4. auth/log failure の message/strict 判定 helper は public export せず、private helper のまま runner 経由で検証することを確認する
+- **期待結果**: 認証/ログ初期化だけの失敗は通常 preview E2E を本体開始前に止めず、schema missing / SQLite error / timeout / strict preflight は従来どおり診断つきで失敗する。TC-2161 の E2E scenario 文字列確認は `preview-schema-preflight.test.ts` 側に集約し、drift test は preview preflight 実装と補助テストの対応だけを監視する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
 ## TC-008: Overall Ranking ページの表示

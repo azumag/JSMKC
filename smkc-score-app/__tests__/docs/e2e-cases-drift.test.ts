@@ -310,17 +310,16 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/static/tc-2136-finals-route-dead-helper.test.ts');
   });
 
-  it('keeps TC-2161 documented with non-blocking Wrangler auth preflight coverage', () => {
-    const section = e2eCaseSection('TC-2161');
+  it('keeps TC-2161 aligned with preview preflight implementation coverage', () => {
     const preflight = readE2eLib('preview-schema-preflight.js');
     const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
 
-    expect(section).toContain('issue #2161');
-    expect(section).toContain('E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1');
-    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
     expect(preflight).toContain('shouldFailOnWranglerAuthOrLogFailure');
+    expect(preflight).toContain('buildWranglerAuthOrLogFailureMessage');
     expect(preflight).toContain('console.warn(message)');
     expect(preflightTest).toContain('continues preview startup on Wrangler auth and log setup failures by default');
+    expect(preflightTest).toContain('keeps TC-2161 documented as non-blocking auth preflight coverage');
+    expect(preflightTest).toContain('keeps Wrangler auth/log message helpers private to the preflight runner');
   });
 
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
