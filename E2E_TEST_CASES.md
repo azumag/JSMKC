@@ -2660,6 +2660,20 @@
   - `_createMockQualification` が戻った場合は TC-2136 guard が引き続き失敗する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-2136-finals-route-dead-helper.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2156: tc-2136 static guard — 構造チェックコメントを1行に保つ
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2156。TC-2136 の static guard では、コメントが2行に分かれて CLAUDE.md の短い1行コメント方針から外れていた。コメントの意図は「文言ではなく構造を固定する」だけなので、1行に圧縮しても guard の読みやすさを保てる。
+- **手順**:
+  1. `tc-2136-finals-route-dead-helper.test.ts` の `_createMockQualification` guard を確認する
+  2. guard 直前のコメントが構造チェックの意図を1行で説明していることを確認する
+  3. 同じ static guard が `createMockMatch` / `createMockQualifications` の維持と `_createMockQualification` 不在を引き続き検証する
+- **期待結果**:
+  - TC-2136 guard の補足コメントは `Keep static checks structural` を含む1行で読める
+  - コメント変更後も dead helper の再導入を検知する static guard は維持される
+  - E2E scenario と drift guard が issue #2156 のコメント方針を追跡する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/static/tc-2136-finals-route-dead-helper.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
