@@ -55,4 +55,13 @@ describe('tc-all focused suite registration', () => {
     expect(source).toContain('/api/internal/vitals');
     expect(source).toContain('vitalsStatus === 204');
   });
+
+  it('reports all TC-939 tab navigation failure reasons', () => {
+    expect(source).toContain("require('./lib/tc939-reporting')");
+    expect(source).toContain('describeTc939TabNavigation({');
+    expect(source).toContain('spaMarker: tc939Marker');
+    expect(source).toContain('cleanClasses: tc939CleanClasses');
+    expect(source).toContain("log('TC-939', tc939Result.status, tc939Result.detail)");
+    expect(source).not.toContain("tc939Marker !== 'alive'\n      ? 'Tab click caused a full document reload'");
+  });
 });
