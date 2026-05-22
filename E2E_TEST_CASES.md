@@ -2602,6 +2602,21 @@
   - 正当な改行・インデント変更では guard が落ちない
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts __tests__/helpers/e2e-cases.test.ts`
 
+## TC-2139: GP E2E drift guard — TC-831/TC-832 負 fixture をコメント文面固定にしない
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2139。TC-831/TC-832 の順序 rationale を守る負テストで、fixture 注入がコメント全文の完全一致に依存すると、コメントの typo 修正だけで注入が空振りし、原因の分かりにくい失敗になる。
+- **手順**:
+  1. `e2e-cases-drift.test.ts` の TC-831/TC-832 rationale guard を確認する
+  2. 負 fixture 生成が rationale の完全一致文字列ではなく、既存の adjacency 正規表現を使っていることを確認する
+  3. fixture 注入後に `weakenedFixture !== tcGp` を確認し、注入空振りを早期に検出する
+  4. `group-setup-helper.test.ts` が suite spec 経由で TC-831 と TC-832 の隣接順を検証する
+- **期待結果**:
+  - コメント文面だけの安全な変更では負 fixture 注入が壊れない
+  - rationale と TC-831/TC-832 の間に non-comment code が入ると drift guard が落ちる
+  - fixture 注入が空振りした場合は専用アサーションで原因が分かる
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts __tests__/e2e/group-setup-helper.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false

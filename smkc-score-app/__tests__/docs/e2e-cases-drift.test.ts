@@ -262,15 +262,26 @@ describe('E2E case drift coverage', () => {
 
   it('rejects non-comment code between the GP TC-831 rationale and suite entry', () => {
     const weakenedFixture = tcGp.replace(
-      /\/\/ TC-831 stays before TC-832 so GP suite logs show numeric progression, keeping the\n\s*\/\/ CI review order easy to scan when one of them fails.\n/,
+      gpTc831Tc832OrderRationale,
       [
         '// TC-831 stays before TC-832 so GP suite logs show numeric progression, keeping the',
         '// CI review order easy to scan when one of them fails.',
         "      { name: 'TC-999', fn: runTc999 },",
+        "      { name: 'TC-831', fn: runTc831 },",
+        "      { name: 'TC-832', fn: runTc832 },",
       ].join('\n') + '\n',
     );
 
+    expect(weakenedFixture).not.toBe(tcGp);
     expect(weakenedFixture).not.toMatch(gpTc831Tc832OrderRationale);
+  });
+
+  it('keeps TC-2139 documented with the TC-831 fixture-injection guard', () => {
+    const section = e2eCaseSection('TC-2139');
+
+    expect(section).toContain('fixture 注入が空振りした場合');
+    expect(section).toContain('group-setup-helper.test.ts');
+    expect(section).toContain('__tests__/docs/e2e-cases-drift.test.ts');
   });
 
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {

@@ -172,6 +172,13 @@ describe('group setup E2E helper', () => {
     expect(tc831Index).toBeLessThan(tc832Index);
   });
 
+  it('keeps GP TC-831 and TC-832 adjacent through suite specs', () => {
+    const gpTestNames = getGpSuite().tests.map((testCase: { name: string }) => testCase.name);
+    const tc831Index = gpTestNames.indexOf('TC-831');
+
+    expect(gpTestNames.slice(tc831Index, tc831Index + 2)).toEqual(['TC-831', 'TC-832']);
+  });
+
   it('checks finals target-win helpers by behavior', () => {
     expect(bmFinalsTargetWinsForMatch({ round: 'winners_r1' })).toBe(5);
     expect(bmFinalsTargetWinsForMatch({ round: 'losers_r3' })).toBe(7);
