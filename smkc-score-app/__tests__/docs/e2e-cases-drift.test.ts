@@ -294,6 +294,14 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/static/tc-2136-finals-route-dead-helper.test.ts');
   });
 
+  it('keeps TC-2145 documented with the qualification-route mock-match naming guard', () => {
+    const section = e2eCaseSection('TC-2145');
+
+    expect(section).toContain('_mockMatch');
+    expect(section).toContain('qualification-route.test.ts');
+    expect(section).toContain('__tests__/static/tc-2145-qualification-route-mock-match-name.test.ts');
+  });
+
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
     const section = e2eCaseSection('TC-830');
     const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
