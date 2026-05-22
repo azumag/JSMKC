@@ -961,6 +961,25 @@ describe('E2E case drift coverage', () => {
     expect(helperTest).toContain('secondEntries');
   });
 
+  it('keeps TC-2078 aligned with TA suite timeout coverage', () => {
+    const section = e2eCaseSection('TC-2078');
+    const tcTaTimeoutTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'ta-suite-timeout.test.ts');
+    const runnerTimeoutTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'e2e-runner-timeout.test.ts');
+
+    expect(section).toContain('issue #2078');
+    expect(section).toContain('75分上限');
+    expect(section).toContain('29ケース');
+    expect(section).toContain('TC-1005');
+    expect(section).toContain('E2E_SUITE_TIMEOUT_MS');
+    expect(section).toContain('__tests__/e2e/ta-suite-timeout.test.ts');
+    expect(section).toContain('__tests__/lib/e2e-runner-timeout.test.ts');
+    expect(tcTaTimeoutTest).toContain('TA_SUITE_TIMEOUT_MS');
+    expect(tcTaTimeoutTest).toContain('75 * 60 * 1000');
+    expect(tcTaTimeoutTest).toContain('TC-1005');
+    expect(runnerTimeoutTest).toContain('resolveSuiteTimeoutMs');
+    expect(runnerTimeoutTest).toContain('E2E_SUITE_TIMEOUT_MS');
+  });
+
   it('keeps TC-2055 aligned with the sectionBetween allowTerminal contract', () => {
     const section = e2eCaseSection('TC-2055');
     const helper = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.ts');

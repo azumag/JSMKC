@@ -19,6 +19,10 @@ function envMs(name, fallback) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+function resolveSuiteTimeoutMs(explicitTimeoutMs = null) {
+  return envMs('E2E_SUITE_TIMEOUT_MS', explicitTimeoutMs || DEFAULT_SUITE_TIMEOUT_MS);
+}
+
 function formatDuration(ms) {
   if (ms < 1000) return `${ms}ms`;
   const seconds = Math.round(ms / 1000);
@@ -154,11 +158,12 @@ async function runSuiteInBrowser({
   results,
   log,
   tests,
+  suiteTimeoutMs: explicitSuiteTimeoutMs = null,
   beforeAll = null,
   afterAll = null,
 }) {
   if (!page) throw new Error('runSuiteInBrowser requires an open page');
-  const suiteTimeoutMs = envMs('E2E_SUITE_TIMEOUT_MS', DEFAULT_SUITE_TIMEOUT_MS);
+  const suiteTimeoutMs = resolveSuiteTimeoutMs(explicitSuiteTimeoutMs);
   /* In-process composition: a single 28-player finals "first" test (e.g.
    * TC-604, TC-503, TC-703) consumes ~40 min just to UI-seed 182 matches
    * before any assertion runs. The standalone runSuite path inherited the
@@ -231,8 +236,16 @@ async function runSuiteInBrowser({
   return { failed: forcedFailure || summary.failed > 0, summary };
 }
 
-async function runSuite({ suiteName, results, log, tests, beforeAll = null, afterAll = null }) {
-  const suiteTimeoutMs = envMs('E2E_SUITE_TIMEOUT_MS', DEFAULT_SUITE_TIMEOUT_MS);
+async function runSuite({
+  suiteName,
+  results,
+  log,
+  tests,
+  suiteTimeoutMs: explicitSuiteTimeoutMs = null,
+  beforeAll = null,
+  afterAll = null,
+}) {
+  const suiteTimeoutMs = resolveSuiteTimeoutMs(explicitSuiteTimeoutMs);
   let browser = null;
   let page = null;
 
@@ -284,6 +297,7 @@ module.exports = {
   envMs,
   exitAfterCleanup,
   formatDuration,
+  resolveSuiteTimeoutMs,
   runSuite,
   runSuiteInBrowser,
   summarizeResults,

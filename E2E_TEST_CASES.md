@@ -100,6 +100,18 @@
 - **スクリプト**: tc-all.js TC-2070B
 - **補助検証**: `smkc-score-app/__tests__/app/api/internal/vitals/route.test.ts`
 
+## TC-2078: TA preview suite は 35分 soft timeout で中断しない
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (admin profile for full preview run)
+- **背景**: issue #2078。TA suite は 29ケースを持ち、共有28人fixture、isolated tournament、phase-chain coverage を維持するため preview では 35分上限を超えることがある。通常の `npm run e2e:preview:all` / `npm run e2e:preview:ta` で `[TA] suite timed out after 35m` を出して残りケースを soft abort しないよう、TA suite は明示的な実行時間上限を持つ。
+- **手順**:
+  1. `tc-ta.js` の suite 設定を読み込む
+  2. TA suite が 29ケースを維持していることを確認する
+  3. TA suite 固有の timeout が 35分より長く、`TC-1005` まで実行対象に残ることを確認する
+  4. runner の `E2E_SUITE_TIMEOUT_MS` override が TA 固有 timeout より優先されることを確認する
+- **期待結果**: TA preview suite は通常設定で 75分上限を使い、phase-chain/isolated fixture coverage を削らずに `TC-1005` まで実行できる
+- **スクリプト**: `npm run e2e:preview:ta` / `npm test -- --runTestsByPath __tests__/e2e/ta-suite-timeout.test.ts __tests__/lib/e2e-runner-timeout.test.ts`
+
 ## TC-008: Overall Ranking ページの表示
 - **URL**: /tournaments/[id]/overall-ranking
 - **authRequired**: false
