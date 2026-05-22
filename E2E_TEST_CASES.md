@@ -754,11 +754,12 @@
 - **URL**: /api/tournaments/[id]/export?format=cdm
 - **背景**: issue #816。CDM Finals シートは dense table ではなく固定 bracket レイアウトなので、match を順番に詰めると Barrage / Top 16 / Upper / Lower / GF / Reset の位置がずれる。
 - **手順**:
-  1. playoff、winners、losers、grand final、reset の各 round を含む CDM export fixture を作る
-  2. BM/MR/GP Finals の round が `CDM_FINALS_BRACKET_SLOTS` の block/row 座標へ配置されることを確認する
-  3. GP Finals の cupResults summary が移動先の bracket slot に残ることを確認する
+  1. 共有大会の BM/MR/GP finals state を確認し、slot-mappable finals match がない mode は top 24 の finals を生成して CDM export fixture を準備する
+  2. 生成後も finals match がない mode は、mode 別 match count と round 一覧を診断ログに出して失敗する
+  3. BM/MR/GP Finals の round が `CDM_FINALS_BRACKET_SLOTS` の block/row 座標へ配置されることを確認する
+  4. GP Finals の cupResults summary が移動先の bracket slot に残ることを確認する
 - **期待結果**: finals match は CDM 2025 テンプレートの native bracket coordinates に配置され、GP の cup/points 補足情報も失われない
-- **スクリプト**: `tc-all.js TC-816A`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-1877A: CDM export — grand_final_reset の正規化で到達不能条件を残さない
 - **URL**: /api/tournaments/[id]/export?format=cdm
