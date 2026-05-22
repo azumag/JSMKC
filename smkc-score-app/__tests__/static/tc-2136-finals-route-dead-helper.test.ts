@@ -9,8 +9,7 @@ describe('TC-2136 finals route test helper cleanup', () => {
     'finals-route.test.ts',
   );
   it('has removed the unused _createMockQualification helper from finals-route.test.ts', () => {
-    // Keep static checks focused on structural behavior; wording changes
-    // are not stability guarantees for regression prevention.
+    // Keep static checks structural; wording changes are not stability guarantees.
     expect(source).toContain('const createMockMatch =');
     expect(source).toContain('const createMockQualifications =');
     expect(source).not.toContain('_createMockQualification');
