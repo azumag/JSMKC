@@ -309,7 +309,13 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).toContain('cdmE2eGpCupResultsSummary');
     expect(tcAll).toContain('gpCupResultsChecked');
     expect(tcAll).toContain('checkedByMode');
+    expect(tcAll).toContain('ensureCdmE2eFinalsFixture');
+    expect(tcAll).toContain('apiGenerateBmFinals(page, tournamentId, 24)');
+    expect(tcAll).toContain('apiGenerateMrFinals(page, tournamentId, 24)');
+    expect(tcAll).toContain('cdmE2eFinalsReadinessSummary');
     expect(tcAll).toContain('slot.blockStart + 5');
+    expect(section).toContain('mode 別 match count と round 一覧');
+    expect(section).toContain('__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts');
     expect(exportRouteTest).toContain('should place CDM finals matches in native bracket coordinates');
     expect(exportRouteTest).toContain('sheet.Y7.v');
     expect(exportRouteTest).toContain('sheet.BA47.v');

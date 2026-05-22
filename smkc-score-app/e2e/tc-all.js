@@ -35,6 +35,8 @@ const {
   setupModePlayersViaUi,
   makeTaTimesForRank,
   apiPutAllGpQualScores,
+  apiGenerateBmFinals,
+  apiGenerateMrFinals,
   apiGenerateGpFinals,
   apiFetchBmFinalsState,
   apiFetchMrFinalsState,
@@ -115,6 +117,44 @@ function cdmE2eFinalsMatches(state) {
     ...(state?.playoffMatches || []),
     ...(state?.matches || []),
   ].filter((match) => cdmE2eSlotRound(match));
+}
+
+function cdmE2eFinalsReadinessDetails(modeStates) {
+  return modeStates.map(({ mode, state }) => {
+    const matches = cdmE2eFinalsMatches(state);
+    const rounds = [...new Set(matches.map((match) => cdmE2eSlotRound(match)).filter(Boolean))];
+    return { mode, count: matches.length, rounds };
+  });
+}
+
+function cdmE2eFinalsReadinessSummary(readinessDetails) {
+  return readinessDetails
+    .map(({ mode, count, rounds }) => `${mode}=${count} rounds=${rounds.length > 0 ? rounds.join('/') : '<none>'}`)
+    .join('; ');
+}
+
+async function ensureCdmE2eFinalsFixture(page, tournamentId) {
+  const fetchModeStates = async () => ([
+    { mode: 'BM', sheetName: 'BM Finals', state: await apiFetchBmFinalsState(page, tournamentId) },
+    { mode: 'MR', sheetName: 'MR Finals', state: await apiFetchMrFinalsState(page, tournamentId) },
+    { mode: 'GP', sheetName: 'GP Finals', state: await apiFetchGpFinalsState(page, tournamentId) },
+  ]);
+
+  let modeStates = await fetchModeStates();
+  let readinessDetails = cdmE2eFinalsReadinessDetails(modeStates);
+  const missingModes = new Set(readinessDetails.filter(({ count }) => count === 0).map(({ mode }) => mode));
+
+  if (missingModes.size > 0) {
+    const generators = [];
+    if (missingModes.has('BM')) generators.push(apiGenerateBmFinals(page, tournamentId, 24));
+    if (missingModes.has('MR')) generators.push(apiGenerateMrFinals(page, tournamentId, 24));
+    if (missingModes.has('GP')) generators.push(apiGenerateGpFinals(page, tournamentId, 24));
+    await Promise.all(generators);
+    modeStates = await fetchModeStates();
+    readinessDetails = cdmE2eFinalsReadinessDetails(modeStates);
+  }
+
+  return { modeStates, readinessDetails };
 }
 
 function cdmE2eGpCupResultsSummary(match) {
@@ -3293,30 +3333,22 @@ async function main() {
     const exportTid = sharedFixture?.tournamentId ?? TID;
     if (exportTid) {
       try {
-        const [bmState, mrState, gpState, exportResp] = await Promise.all([
-          apiFetchBmFinalsState(page, exportTid),
-          apiFetchMrFinalsState(page, exportTid),
-          apiFetchGpFinalsState(page, exportTid),
-          page.evaluate(async (url) => {
-            const response = await fetch(url, { credentials: 'same-origin' });
-            const buffer = await response.arrayBuffer();
-            return {
-              status: response.status,
-              bytes: Array.from(new Uint8Array(buffer)),
-              contentType: response.headers.get('content-type') || '',
-            };
-          }, `${BASE}/api/tournaments/${exportTid}/export?format=cdm`),
-        ]);
+        const { modeStates, readinessDetails } = await ensureCdmE2eFinalsFixture(page, exportTid);
+        const readinessSummary = cdmE2eFinalsReadinessSummary(readinessDetails);
+        const exportResp = await page.evaluate(async (url) => {
+          const response = await fetch(url, { credentials: 'same-origin' });
+          const buffer = await response.arrayBuffer();
+          return {
+            status: response.status,
+            bytes: Array.from(new Uint8Array(buffer)),
+            contentType: response.headers.get('content-type') || '',
+          };
+        }, `${BASE}/api/tournaments/${exportTid}/export?format=cdm`);
 
         if (exportResp.status !== 200) {
           log('TC-816A', 'FAIL', `CDM export HTTP ${exportResp.status}`);
         } else {
           const workbook = XLSX.read(Buffer.from(exportResp.bytes), { type: 'buffer' });
-          const modeStates = [
-            { mode: 'BM', sheetName: 'BM Finals', state: bmState },
-            { mode: 'MR', sheetName: 'MR Finals', state: mrState },
-            { mode: 'GP', sheetName: 'GP Finals', state: gpState },
-          ];
           const failures = [];
           let checked = 0;
           let gpCupResultsChecked = false;
@@ -3356,8 +3388,8 @@ async function main() {
 
           log('TC-816A',
             checked > 0 && missingModes.length === 0 && failures.length === 0 ? 'PASS' : 'FAIL',
-            checked === 0 ? 'No finals matches available for CDM coordinate verification'
-            : missingModes.length > 0 ? `No finals matches checked for modes: ${missingModes.join(', ')}`
+            checked === 0 ? `No finals matches available for CDM coordinate verification (${readinessSummary})`
+            : missingModes.length > 0 ? `No finals matches checked for modes: ${missingModes.join(', ')} (${readinessSummary})`
             : failures.length > 0 ? failures.slice(0, 3).join('; ')
             : !gpCupResultsChecked ? 'GP cupResults not available; skipped summary-cell check'
             : '');
@@ -4405,4 +4437,7 @@ if (require.main === module) {
 
 module.exports = {
   pageFetchJson,
+  cdmE2eFinalsMatches,
+  cdmE2eFinalsReadinessDetails,
+  cdmE2eFinalsReadinessSummary,
 };
