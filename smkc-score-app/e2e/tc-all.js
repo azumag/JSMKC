@@ -56,6 +56,7 @@ const {
   formatDuration,
   runSuiteInBrowser,
 } = require('./lib/runner');
+const { describeTc939TabNavigation } = require('./lib/tc939-reporting');
 const bmModule = require('./tc-bm');
 const mrModule = require('./tc-mr');
 const gpModule = require('./tc-gp');
@@ -410,12 +411,11 @@ async function main() {
   await page.waitForURL(`**/tournaments/${TID}/bm`, { timeout: 30000 });
   const tc939Marker = await page.evaluate(() => window.__tc939SpaMarker).catch(() => null);
   const tc939CleanClasses = tc939TabClasses.every((className) => className.trim() === className && !/\s{2,}/.test(className));
-  log('TC-939', tc939Marker === 'alive' && tc939CleanClasses ? 'PASS' : 'FAIL',
-    tc939Marker !== 'alive'
-      ? 'Tab click caused a full document reload'
-      : tc939CleanClasses
-        ? ''
-        : 'Hydrated tab className contains extra whitespace');
+  const tc939Result = describeTc939TabNavigation({
+    spaMarker: tc939Marker,
+    cleanClasses: tc939CleanClasses,
+  });
+  log('TC-939', tc939Result.status, tc939Result.detail);
 
   // TC-006
   await nav(page, '/');
