@@ -19,7 +19,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { PLAYER_PUBLIC_SELECT, PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
+import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 
 import {
   createErrorResponse,

@@ -13,7 +13,7 @@
  *   - Initial win counts (both zero), BM and MR match types
  *   - Large player counts (32 players) and minimal (2 players)
  */
-import { generateDoubleEliminationBracket, type MatchNode, type BracketPlayer } from '@/lib/tournament/double-elimination';
+import { generateDoubleEliminationBracket, type BracketPlayer } from '@/lib/tournament/double-elimination';
 
 describe('Double Elimination Bracket Functions', () => {
   describe('generateDoubleEliminationBracket', () => {

@@ -247,7 +247,7 @@ describe('E2E case drift coverage', () => {
     expect(scriptSource).toContain(`log('${tc}'`);
   });
 
-  const gpSuiteDefinition = sectionBetween(tcGp, '    tests: [', '    ],\n};\n');
+  const gpSuiteDefinition = sectionBetween(tcGp, '    tests: [', '    ],');
 
   const gpTc831Tc832OrderRationale =
     /\/\/\s*TC-831 stays before TC-832[^\n]*(?:\n\s*\/\/[^\n]*)*\n\s*\{\s*name:\s*['"]TC-831['"]\s*,\s*fn:\s*runTc831\s*\}\s*,\s*\n\s*\{\s*name:\s*['"]TC-832['"]\s*,\s*fn:\s*runTc832\s*\}/;

@@ -222,7 +222,7 @@ describe('Qualification Route Factory', () => {
         method: 'POST',
         body: JSON.stringify({ players: createMockPlayers() }),
       });
-      const _response = await POST(request, {
+      const response = await POST(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1416,7 +1416,7 @@ describe('Qualification Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const _response = await PUT(request, {
+      const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1482,7 +1482,7 @@ describe('Qualification Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const _response = await PUT(request, {
+      const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1493,7 +1493,7 @@ describe('Qualification Route Factory', () => {
 
     it('should update both players qualification records', async () => {
       const requestBody = createMockRequestBody();
-      const mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
+      const _mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
 
       (prisma.bMMatch as any).findMany.mockResolvedValue([]);
       (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
