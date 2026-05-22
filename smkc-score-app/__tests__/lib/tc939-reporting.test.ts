@@ -33,6 +33,23 @@ describe('describeTc939TabNavigation', () => {
     });
   });
 
+  it('reports reload-only failure without className issues', async () => {
+    const { describeTc939TabNavigation } = await import('../../e2e/lib/tc939-reporting.js') as {
+      describeTc939TabNavigation: (input: {
+        spaMarker: unknown;
+        cleanClasses: boolean;
+      }) => { status: 'PASS' | 'FAIL'; detail: string };
+    };
+
+    expect(describeTc939TabNavigation({
+      spaMarker: 'reload-only',
+      cleanClasses: true,
+    })).toEqual({
+      status: 'FAIL',
+      detail: 'Tab click caused a full document reload',
+    });
+  });
+
   it('reports a className-only failure without a reload message', async () => {
     const { describeTc939TabNavigation } = await import('../../e2e/lib/tc939-reporting.js') as {
       describeTc939TabNavigation: (input: {
