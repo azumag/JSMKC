@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach } from '@jest/globals';
+import { afterEach, describe, expect, it, jest, beforeEach } from '@jest/globals';
 import { readFileSync } from 'fs';
 import path from 'path';
 
@@ -23,6 +23,11 @@ function loadPreflight() {
 describe('preview schema preflight', () => {
   beforeEach(() => {
     spawnSyncMock.mockReset();
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('checks the columns that previously drifted on preview D1', () => {
@@ -205,7 +210,7 @@ describe('preview schema preflight', () => {
     expect(preflight.isWranglerAuthOrLogFailure('Failed to fetch auth token: 400 Bad Request')).toBe(true);
   });
 
-  it('separates Wrangler auth and log setup failures from schema migration guidance', () => {
+  it('continues preview startup on Wrangler auth and log setup failures by default', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
       status: 1,
@@ -216,20 +221,40 @@ describe('preview schema preflight', () => {
       ].join('\n'),
     });
 
-    let message = '';
-    try {
-      preflight.assertPreviewD1Schema({});
-    } catch (error) {
-      message = error instanceof Error ? error.message : String(error);
-    }
+    expect(() => preflight.assertPreviewD1Schema({})).not.toThrow();
 
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    const message = String((console.warn as jest.Mock).mock.calls[0]?.[0] ?? '');
     expect(message).toMatch(/Wrangler auth\/log setup failed/);
+    expect(message).toMatch(/E2E run will continue/);
     expect(message).toMatch(/WRANGLER_LOG_PATH/);
     expect(message).not.toMatch(/db:migrations:apply:preview/);
     expect(message.split('\n')).toEqual(expect.arrayContaining([
       expect.stringMatching(/Command exited 1/),
       expect.stringMatching(/WRANGLER_LOG_PATH=/),
     ]));
+  });
+
+  it('can require Wrangler auth and log failures to block preview startup', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: 'Failed to fetch auth token: 401 Unauthorized',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({ E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT: '1' })).toThrow(
+      /Wrangler auth\/log setup failed/,
+    );
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps TC-2161 documented as non-blocking auth preflight coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-2161');
+    expect(section).toContain('E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1');
+    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
   });
 
   it('fails with timeout guidance when wrangler hangs', () => {
