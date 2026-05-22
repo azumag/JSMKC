@@ -20,7 +20,7 @@ function envMs(name, fallback) {
 }
 
 function resolveSuiteTimeoutMs(explicitTimeoutMs = null) {
-  return envMs('E2E_SUITE_TIMEOUT_MS', explicitTimeoutMs || DEFAULT_SUITE_TIMEOUT_MS);
+  return envMs('E2E_SUITE_TIMEOUT_MS', explicitTimeoutMs ?? DEFAULT_SUITE_TIMEOUT_MS);
 }
 
 function formatDuration(ms) {

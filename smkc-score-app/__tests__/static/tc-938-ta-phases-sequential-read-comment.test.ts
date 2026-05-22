@@ -21,5 +21,13 @@ describe('TC-938 TA phases sequential read comment', () => {
     expect(source).toContain('latency trade-off');
     expect(phaseDetailReadBlock).toContain('retryDbRead');
     expect(phaseDetailReadBlock).not.toContain('Promise.all');
+
+    const firstReadIndex = phaseDetailReadBlock.indexOf('retryDbRead');
+    const secondReadIndex = phaseDetailReadBlock.indexOf('retryDbRead', firstReadIndex + 1);
+    const thirdReadIndex = phaseDetailReadBlock.indexOf('retryDbRead', secondReadIndex + 1);
+
+    expect(firstReadIndex).toBeGreaterThanOrEqual(0);
+    expect(secondReadIndex).toBeGreaterThan(firstReadIndex);
+    expect(thirdReadIndex).toBeGreaterThan(secondReadIndex);
   });
 });
