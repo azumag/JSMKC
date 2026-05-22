@@ -173,5 +173,9 @@ export async function selectRandomCourse(
     );
   }
 
+  // Keep regular rounds aligned with the previous-change behavior: avoid repeating
+  // the immediate previous course when alternatives exist, so selection stays
+  // predictable and avoids accidental back-to-back repeats under normal play as well
+  // as in sudden-death sequences.
   return selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
 }
