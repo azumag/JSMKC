@@ -1867,11 +1867,11 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const _response = await PUT(request, {
+      const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      const json = await _response.json();
+      const json = await response.json();
       expect(json.data.winnerId).toBe('player-1');
       expect(json.data.loserId).toBe('player-2');
     });
@@ -1899,11 +1899,11 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const _response = await PUT(request, {
+      const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      const json = await _response.json();
+      const json = await response.json();
       expect(json.data.winnerId).toBe('player-2');
       expect(json.data.loserId).toBe('player-1');
     });
@@ -1928,7 +1928,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const _response = await PUT(request, {
+      const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1961,7 +1961,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const _response = await PUT(request, {
+      const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1995,11 +1995,11 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify({ matchId: 'match-1', score1: 3, score2: 1 }),
       });
-      const _response = await PUT(request, {
+      const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      expect(_response.status).toBe(200);
+      expect(response.status).toBe(200);
       expect((prisma.bMMatch as any).count).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals' },
       });

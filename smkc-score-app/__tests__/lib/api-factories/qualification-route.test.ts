@@ -41,7 +41,6 @@ import {
 } from '@/lib/api-factories/qualification-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
-import { EventTypeConfig } from '@/lib/event-types/types';
 import { COURSES, CUPS } from '@/lib/constants';
 
 // Mock dependencies
@@ -1463,9 +1462,9 @@ describe('Qualification Route Factory', () => {
 
     it('should aggregate player stats via config.aggregatePlayerStats', async () => {
       const requestBody = createMockRequestBody();
-      const mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
-      const mockPlayer1Matches = [mockMatch];
-      const mockPlayer2Matches = [mockMatch];
+      const _mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
+      const mockPlayer1Matches = [_mockMatch];
+      const mockPlayer2Matches = [_mockMatch];
 
       (prisma.bMMatch as any).findMany
         .mockResolvedValueOnce(mockPlayer1Matches)
@@ -1494,7 +1493,7 @@ describe('Qualification Route Factory', () => {
 
     it('should update both players qualification records', async () => {
       const requestBody = createMockRequestBody();
-      const mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
+      const _mockMatch = { id: 'match-123', player1Id: 'player-1', player2Id: 'player-2' };
 
       (prisma.bMMatch as any).findMany.mockResolvedValue([]);
       (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
