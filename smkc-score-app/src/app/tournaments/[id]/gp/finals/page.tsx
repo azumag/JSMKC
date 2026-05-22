@@ -701,7 +701,6 @@ export default function GrandPrixFinals({
   /* Top-24 Phase 1 can return a preview Upper Bracket before finals rows exist.
    * In that state the actionable control lives under the playoff tab, so keep
    * that tab open until Phase 2 has actually created finals matches. */
-  // Top-24 Phase 1 only has playoff rows; defaulting to the playoff tab keeps the actionable bracket visible.
   const defaultBracketTab: BracketTab = matches.length > 0 ? BRACKET_TABS.finals : BRACKET_TABS.playoff;
 
   if (loading) {
