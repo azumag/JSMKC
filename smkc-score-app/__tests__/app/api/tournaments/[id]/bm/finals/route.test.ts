@@ -53,7 +53,7 @@ const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIde
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
-const jsonMock = NextResponseMock.NextResponse.json;
+const _jsonMock = NextResponseMock.NextResponse.json;
 
 // Mock NextRequest class
 class MockNextRequest {

@@ -49,7 +49,7 @@ describe("PlayoffBracket qualification rank labels", () => {
         playoffMatches={[]}
         playoffStructure={[playoffStructure[0]]}
         roundNames={{ playoff_r1: "Round 1", playoff_r2: "Round 2" }}
-        seededPlayers={seededPlayers.map(({ qualificationRankLabel, ...entry }) => entry)}
+        seededPlayers={seededPlayers.map(({ qualificationRankLabel: _qualificationRankLabel, ...entry }) => entry)}
       />,
     );
 

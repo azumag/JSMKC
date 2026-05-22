@@ -90,7 +90,7 @@ describe('Finals Route Factory', () => {
     ...overrides,
   });
 
-  const createMockQualification = (overrides = {}) => ({
+  const _createMockQualification = (overrides = {}) => ({
     id: 'qual-1',
     playerId: 'player-1',
     group: 'A',
@@ -1879,7 +1879,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1911,7 +1911,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1940,7 +1940,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -1973,7 +1973,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(requestBody),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
@@ -2007,7 +2007,7 @@ describe('Finals Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify({ matchId: 'match-1', score1: 3, score2: 1 }),
       });
-      const response = await PUT(request, {
+      const _response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 

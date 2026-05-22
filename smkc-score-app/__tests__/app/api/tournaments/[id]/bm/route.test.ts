@@ -47,7 +47,6 @@ import { configureNextResponseMock } from '../../../../../helpers/next-response-
 const requestUtilsMock = jest.requireMock('@/lib/request-utils') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class - headers.get uses optional chaining to handle initialization order
 class MockNextRequest {

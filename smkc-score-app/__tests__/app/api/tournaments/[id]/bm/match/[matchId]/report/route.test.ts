@@ -75,7 +75,7 @@ const {
   createErrorResponse,
   handleValidationError,
   handleAuthError,
-  handleRateLimitError,
+  handleRateLimitError: _handleRateLimitError,
   handleDatabaseError
 } = jest.requireMock('@/lib/error-handling');
 
