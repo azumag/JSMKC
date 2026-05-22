@@ -2,9 +2,10 @@ const { version: PLAYWRIGHT_VERSION } = require('playwright/package.json');
 const { launchPersistentChromiumContext, resolveE2EProfileDir } = require('./lib/common');
 const { buildPreviewRuntimeEnv, assertBaseUrlResolvable } = require('./run-preview');
 
-// Observed Playwright internal interruption messages during Discord
-// OAuth redirects. Re-check these patterns when upgrading Playwright because
-// they are message-based fallbacks, not a stable public error-code contract.
+// Observed Playwright internal interruption messages during Discord OAuth
+// redirects in the currently declared version (`npm ls playwright`). Re-check
+// these patterns when Playwright is upgraded because they are message-based
+// fallbacks, not a stable public error-code contract.
 const TRANSIENT_LOGIN_POLLING_ERROR_PATTERNS = [
   /Execution context was destroyed/i,
   /Target page, context or browser has been closed/i,
