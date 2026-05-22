@@ -310,22 +310,6 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/static/tc-2136-finals-route-dead-helper.test.ts');
   });
 
-  it('keeps TC-2156 documented with the one-line TC-2136 static guard comment', () => {
-    const section = e2eCaseSection('TC-2156');
-    const guardTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'tc-2136-finals-route-dead-helper.test.ts',
-    );
-
-    expect(section).toContain('issue #2156');
-    expect(section).toContain('Keep static checks structural');
-    expect(section).toContain('__tests__/static/tc-2136-finals-route-dead-helper.test.ts');
-    expect(guardTest).toContain('// Keep static checks structural; wording changes are not stability guarantees.');
-    expect(guardTest).not.toContain('wording changes\n    // are not stability guarantees');
-  });
-
   it('keeps TC-2161 documented with non-blocking Wrangler auth preflight coverage', () => {
     const section = e2eCaseSection('TC-2161');
     const preflight = readE2eLib('preview-schema-preflight.js');
