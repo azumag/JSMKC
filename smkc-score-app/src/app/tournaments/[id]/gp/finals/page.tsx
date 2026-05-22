@@ -528,7 +528,7 @@ export default function GrandPrixFinals({
     }
     const savedForms = match.cupResults && match.cupResults.length > 0
       ? match.cupResults.map((result, index) => {
-          const resultCup = result.cup || nextCupName(index, cup, match.assignedCups);
+          const resultCup = result.cup || getCupForFormIndex(index, match.assignedCups, CUPS, cup);
           return {
             cup: resultCup,
             races: result.races && result.races.length === TOTAL_GP_RACES
