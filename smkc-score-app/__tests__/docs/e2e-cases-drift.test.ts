@@ -249,12 +249,12 @@ describe('E2E case drift coverage', () => {
 
   it('documents why GP TC-831 stays before TC-832 in the suite order', () => {
     // Regex intent:
-    // - [^\\n]* matches the comment body on the same line, stopping before the next line.
+    // - (?:\\n\\s*//[^\\n]*)* allows the rationale comment to wrap across lines.
     // - \\s* allows formatting drift in spaces and newlines between the comment and array entries.
     // - ['"] accepts either quote style around TC labels in the runner list.
     // Allow whitespace/quote formatting drift while requiring comment -> TC-831 -> TC-832 adjacency.
     expect(tcGp).toMatch(
-      /\/\/\s*TC-831 stays before TC-832[^\n]*\n\s*\{\s*name:\s*['"]TC-831['"]\s*,\s*fn:\s*runTc831\s*\}\s*,\s*\n\s*\{\s*name:\s*['"]TC-832['"]\s*,\s*fn:\s*runTc832\s*\}/,
+      /\/\/\s*TC-831 stays before TC-832[^\n]*(?:\n\s*\/\/[^\n]*)*\n\s*\{\s*name:\s*['"]TC-831['"]\s*,\s*fn:\s*runTc831\s*\}\s*,\s*\n\s*\{\s*name:\s*['"]TC-832['"]\s*,\s*fn:\s*runTc832\s*\}/,
     );
   });
 
