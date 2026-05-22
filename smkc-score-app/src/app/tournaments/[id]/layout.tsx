@@ -132,6 +132,7 @@ export default function TournamentLayout({
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tabsHydrated, setTabsHydrated] = useState(false);
 
   /**
    * Fetches tournament details from the API.
@@ -178,6 +179,10 @@ export default function TournamentLayout({
   useEffect(() => {
     fetchTournament();
   }, [fetchTournament]);
+
+  useEffect(() => {
+    setTabsHydrated(true);
+  }, []);
 
   // Re-fetch when a mode's publish state changes so tab badges update immediately (issue #621)
   useEffect(() => {
@@ -341,6 +346,7 @@ export default function TournamentLayout({
          */}
         <nav
           aria-label="Tournament sections"
+          data-tournament-tabs-hydrated={tabsHydrated ? "true" : "false"}
           className="overflow-x-auto -mx-5 sm:-mx-6 px-5 sm:px-6 border-b border-foreground/15"
         >
           <ul className="flex items-stretch gap-0 min-w-max">
@@ -360,12 +366,14 @@ export default function TournamentLayout({
                   <Link
                     href={`/tournaments/${id}/${tab.href}`}
                     prefetch={false}
+                    aria-disabled={!tabsHydrated}
+                    tabIndex={tabsHydrated ? undefined : -1}
                     aria-current={isActive ? "page" : undefined}
                     className={`inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
                       isActive
                         ? "pit-active text-foreground font-semibold"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
+                    } ${tabsHydrated ? "" : "pointer-events-none opacity-70"}`}
                   >
                     {t(tab.labelKey)}
                     {adminHidden && (
@@ -385,12 +393,14 @@ export default function TournamentLayout({
                     <Link
                       href={`/tournaments/${id}/${tab.href}`}
                       prefetch={false}
+                      aria-disabled={!tabsHydrated}
+                      tabIndex={tabsHydrated ? undefined : -1}
                       aria-current={isActive ? "page" : undefined}
                       className={`inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
                         isActive
                           ? "pit-active text-foreground font-semibold"
                           : "text-muted-foreground hover:text-foreground"
-                      }`}
+                      } ${tabsHydrated ? "" : "pointer-events-none opacity-70"}`}
                     >
                       {tab.label}
                     </Link>

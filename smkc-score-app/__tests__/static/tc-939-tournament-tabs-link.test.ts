@@ -11,4 +11,13 @@ describe('TC-939 tournament tab navigation', () => {
       /<a[\s\S]*href=\{`\/tournaments\/\$\{id\}\/\$\{tab\.href\}`\}/
     );
   });
+
+  it('exposes a hydration signal and disables tab clicks before hydration', () => {
+    expect(layoutSource).toContain('const [tabsHydrated, setTabsHydrated] = useState(false);');
+    expect(layoutSource).toContain('setTabsHydrated(true);');
+    expect(layoutSource).toContain('data-tournament-tabs-hydrated={tabsHydrated ? "true" : "false"}');
+    expect(layoutSource).toContain('aria-disabled={!tabsHydrated}');
+    expect(layoutSource).toContain('tabIndex={tabsHydrated ? undefined : -1}');
+    expect(layoutSource).toContain('pointer-events-none opacity-70');
+  });
 });
