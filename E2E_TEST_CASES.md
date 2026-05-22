@@ -2684,7 +2684,7 @@
   - require パス文字列そのものではなく helper の実 import と出力 contract が検証される
   - TC-939 の複数 failure 理由は引き続き同じログ detail に残る
   - 旧 inline 実装が戻った場合は、整形差分に左右されず guard が失敗する
-- **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts`
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
