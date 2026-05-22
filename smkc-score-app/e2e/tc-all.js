@@ -402,6 +402,7 @@ async function main() {
   // TC-939: tournament tabs must keep SPA navigation while disabling prefetch
   await nav(page, `/tournaments/${TID}/ta`);
   await page.evaluate(() => { window.__tc939SpaMarker = 'alive'; });
+  await page.locator('nav[aria-label="Tournament sections"][data-tournament-tabs-hydrated="true"]').waitFor({ timeout: 30000 });
   await page.locator(`a[href="/tournaments/${TID}/bm"]`).first().click();
   await page.waitForURL(`**/tournaments/${TID}/bm`, { timeout: 30000 });
   const tc939Marker = await page.evaluate(() => window.__tc939SpaMarker).catch(() => null);
