@@ -10,7 +10,7 @@ type Tc939ReportingModule = {
 describe('describeTc939TabNavigation', () => {
   let describeTc939TabNavigation: Tc939TabNavigationReporter;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     ({ describeTc939TabNavigation } = (await import('../../e2e/lib/tc939-reporting.js')) as Tc939ReportingModule);
   });
 
