@@ -1533,6 +1533,24 @@ describe('E2E case drift coverage', () => {
     expect(mrReportRouteTest).toContain('should reject participant reports after admin scoresConfirmed');
   });
 
+  it('documents TC-2108 as MR report auth-before-scoresConfirmed coverage', () => {
+    const section = e2eCaseSection('TC-2108');
+    const tc2108 = sectionBetween(tcMr, 'async function runTc2108', '/* ───────── TC-620');
+    const authCheckIndex = mrReportRoute.indexOf('checkScoreReportAuth(request, tournamentId, reportingPlayer, match)');
+    const scoresConfirmedIndex = mrReportRoute.indexOf('match.scoresConfirmed');
+
+    expect(section).toContain('issue #2108');
+    expect(section).toContain('Cookie を送らない fetch');
+    expect(section).toContain('401/403');
+    expect(section).toContain('tc-mr.js TC-2108');
+    expect(tc2108).toContain("log('TC-2108'");
+    expect(tc2108).toContain("credentials: 'omit'");
+    expect(tc2108).toContain('leakedConfirmedState');
+    expect(authCheckIndex).toBeGreaterThanOrEqual(0);
+    expect(scoresConfirmedIndex).toBeGreaterThan(authCheckIndex);
+    expect(mrReportRouteTest).toContain('should return auth failure before scoresConfirmed for unauthorized users');
+  });
+
   it('documents TC-821A as shared TA sudden-death UI and logic coverage', () => {
     const section = e2eCaseSection('TC-821A');
 

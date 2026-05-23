@@ -206,7 +206,48 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
         'Scores have already been confirmed for this match',
         'scoresConfirmed',
       );
-      expect(checkScoreReportAuth).not.toHaveBeenCalled();
+      expect(checkScoreReportAuth).toHaveBeenCalledWith(
+        request,
+        't1',
+        1,
+        mockMatch,
+      );
+      expect(prisma.mRMatch.update).not.toHaveBeenCalled();
+    });
+
+    it('should return auth failure before scoresConfirmed for unauthorized users', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        version: 3,
+        completed: true,
+        scoresConfirmed: true,
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+
+      (checkScoreReportAuth as jest.Mock).mockResolvedValue(false);
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', {
+        reportingPlayer: 1,
+        score1: 2,
+        score2: 2,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Unauthorized: Not authorized for this match' },
+        status: 401,
+      });
+      expect(handleAuthError).toHaveBeenCalledWith('Unauthorized: Not authorized for this match');
+      expect(handleValidationError).not.toHaveBeenCalledWith(
+        'Scores have already been confirmed for this match',
+        'scoresConfirmed',
+      );
       expect(prisma.mRMatch.update).not.toHaveBeenCalled();
     });
 
