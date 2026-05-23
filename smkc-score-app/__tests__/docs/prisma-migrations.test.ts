@@ -16,7 +16,7 @@ function readMigration(...segments: string[]) {
   return fs.readFileSync(path.join(__dirname, "../../prisma/migrations", ...segments), "utf8");
 }
 
-function readD1Migration(file: string) {
+function readWranglerMigration(file: string) {
   return fs.readFileSync(path.join(__dirname, "../../migrations", file), "utf8");
 }
 
@@ -64,7 +64,7 @@ describe("Prisma migration compatibility", () => {
   });
 
   it("adds overall to existing tournament publicModes with SQLite JSON semantics", () => {
-    const d1Migration = readD1Migration("0037_add_overall_to_existing_tournaments.sql");
+    const d1Migration = readWranglerMigration("0037_add_overall_to_existing_tournaments.sql");
     const prismaMigration = readMigration("0018_add_overall_to_existing_tournaments", "migration.sql");
 
     expect(d1Migration).toContain("COALESCE(publicModes, '[]')");
@@ -101,5 +101,15 @@ describe("Prisma migration compatibility", () => {
     } finally {
       db.close();
     }
+  });
+
+  it("keeps MR scoresConfirmed type declarations aligned between Prisma and Wrangler migrations", () => {
+    const prismaMigration = readMigration("0017_mr_scores_confirmed", "migration.sql");
+    const wranglerMigration = readWranglerMigration("0036_add_mr_scores_confirmed.sql");
+    const expectedColumn = '"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false';
+
+    expect(prismaMigration).toContain(expectedColumn);
+    expect(wranglerMigration).toContain(expectedColumn);
+    expect(wranglerMigration).not.toContain('"scoresConfirmed" INTEGER NOT NULL DEFAULT 0');
   });
 });

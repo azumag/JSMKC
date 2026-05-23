@@ -332,4 +332,16 @@ describe('preview schema preflight', () => {
       'ALTER TABLE GPMatch ADD COLUMN assignedCups TEXT',
     );
   });
+
+  it('keeps the MR scoresConfirmed column type aligned in Wrangler migrations', () => {
+    const migrationPath = path.join(
+      process.cwd(),
+      'migrations',
+      '0036_add_mr_scores_confirmed.sql',
+    );
+
+    const migration = readFileSync(migrationPath, 'utf8');
+    expect(migration).toContain('"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false');
+    expect(migration).not.toContain('"scoresConfirmed" INTEGER NOT NULL DEFAULT 0');
+  });
 });
