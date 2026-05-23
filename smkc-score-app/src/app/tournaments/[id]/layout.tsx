@@ -106,6 +106,14 @@ function getActiveTab(pathname: string): string {
   return "";
 }
 
+function getTabHydrationGuardProps(tabsHydrated: boolean) {
+  return {
+    "aria-disabled": !tabsHydrated,
+    tabIndex: tabsHydrated ? undefined : -1,
+    guardClassName: !tabsHydrated && "pointer-events-none opacity-70",
+  } as const;
+}
+
 export default function TournamentLayout({
   children,
   params,
@@ -272,6 +280,7 @@ export default function TournamentLayout({
   }
 
   const activeTab = getActiveTab(pathname);
+  const { guardClassName, ...tabHydrationGuardProps } = getTabHydrationGuardProps(tabsHydrated);
 
   return (
     <ErrorBoundary>
@@ -367,15 +376,14 @@ export default function TournamentLayout({
                   <Link
                     href={`/tournaments/${id}/${tab.href}`}
                     prefetch={false}
-                    aria-disabled={!tabsHydrated}
-                    tabIndex={tabsHydrated ? undefined : -1}
+                    {...tabHydrationGuardProps}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                       "inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                       isActive
                         ? "pit-active text-foreground font-semibold"
                         : "text-muted-foreground hover:text-foreground",
-                      !tabsHydrated && "pointer-events-none opacity-70"
+                      guardClassName
                     )}
                   >
                     {t(tab.labelKey)}
@@ -396,15 +404,14 @@ export default function TournamentLayout({
                     <Link
                       href={`/tournaments/${id}/${tab.href}`}
                       prefetch={false}
-                      aria-disabled={!tabsHydrated}
-                      tabIndex={tabsHydrated ? undefined : -1}
+                      {...tabHydrationGuardProps}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
                         "inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                         isActive
                           ? "pit-active text-foreground font-semibold"
                           : "text-muted-foreground hover:text-foreground",
-                        !tabsHydrated && "pointer-events-none opacity-70"
+                        guardClassName
                       )}
                     >
                       {tab.label}
