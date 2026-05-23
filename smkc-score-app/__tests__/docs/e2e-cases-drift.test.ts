@@ -35,6 +35,12 @@ describe('E2E case drift coverage', () => {
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
   const bmFinalsPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'finals', 'page.tsx');
   const tc1073Lr2Slots = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-1073-16p-lr2-slots.test.ts');
+  const cdmFinalsFixtureTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'e2e',
+    'tc-816a-cdm-finals-fixture.test.ts',
+  );
   const prismaMigrationsTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'prisma-migrations.test.ts');
   const taPhasesRouteTest = readRepoFile(
     'smkc-score-app',
@@ -413,8 +419,8 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).toContain('gpCupResultsChecked');
     expect(tcAll).toContain('checkedByMode');
     expect(tcAll).toContain('ensureCdmE2eFinalsFixture');
-    expect(tcAll).toContain('apiGenerateBmFinals(page, tournamentId, 24)');
-    expect(tcAll).toContain('apiGenerateMrFinals(page, tournamentId, 24)');
+    expect(tcAll).toContain("if (missingModes.has('BM')) generators.push({ mode: 'BM'");
+    expect(tcAll).toContain("if (missingModes.has('MR')) generators.push({ mode: 'MR'");
     expect(tcAll).toContain('cdmE2eFinalsReadinessSummary');
     expect(tcAll).toContain('slot.blockStart + 5');
     expect(section).toContain('mode 別 match count と round 一覧');
@@ -487,6 +493,30 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).toContain('GP cupResults not available; skipped summary-cell check');
     expect(tcAll).toContain('checked > 0 && missingModes.length === 0 && failures.length === 0');
     expect(tcAll).not.toContain('missingModes.length === 0 && gpCupResultsChecked && failures.length === 0');
+  });
+
+  it('documents CDM E2E finals readiness parallel fetch and generator diagnostics', () => {
+    const parallelSection = e2eCaseSection('TC-2098A');
+    const roundSection = e2eCaseSection('TC-2099A');
+    const generatorSection = e2eCaseSection('TC-2182A');
+
+    expect(parallelSection).toContain('issue #2098');
+    expect(parallelSection).toContain('Promise.all');
+    expect(parallelSection).toContain('BM の fetch promise を保留しても MR/GP fetch が即時開始');
+    expect(roundSection).toContain('issue #2099/#2100');
+    expect(roundSection).toContain('.filter(Boolean)');
+    expect(generatorSection).toContain('issue #2182');
+    expect(generatorSection).toContain('CDM finals fixture generation failed');
+    expect(tcAll).toContain('async function fetchCdmE2eModeStates');
+    expect(tcAll).toContain('const [bmState, mrState, gpState] = await Promise.all([');
+    expect(tcAll).not.toContain("state: await apiFetchBmFinalsState(page, tournamentId)");
+    expect(tcAll).toContain('function cdmE2eFinalsSlotMatches');
+    expect(tcAll).toContain('slotMatches.map(({ slotRound }) => slotRound)');
+    expect(tcAll).not.toContain('matches.map((match) => cdmE2eSlotRound(match)).filter(Boolean)');
+    expect(tcAll).toContain('function assertCdmE2eGeneratorResults');
+    expect(tcAll).toContain('CDM finals fixture generation failed');
+    expect(cdmFinalsFixtureTest).toContain('fetches mode readiness states in parallel');
+    expect(cdmFinalsFixtureTest).toContain('reports failed finals generator status');
   });
 
   it('documents TC-817B as CSV/CDM export include split coverage', () => {
