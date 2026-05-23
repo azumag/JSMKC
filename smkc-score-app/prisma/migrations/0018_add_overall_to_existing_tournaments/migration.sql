@@ -2,7 +2,7 @@ UPDATE "Tournament"
 SET "publicModes" = json_insert(
   "publicModes",
   '$[#]',
-  '"overall"'
+  'overall'
 )
 WHERE
   "status" IN ('active', 'completed')
