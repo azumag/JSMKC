@@ -853,6 +853,16 @@
 - **期待結果**: fixture 生成APIの失敗は、workbook検証前に mode 別の具体的な HTTP status として報告される
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2187A: CDM export — TC-816A fixture helper の公開 API を最小化する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2187。`fetchCdmE2eModeStates` と `generateCdmE2eMissingFinals` は `ensureCdmE2eFinalsFixture` の内部処理であり、直接 import するテストがない状態で `tc-all.js` の公開 API に出すと不要な依存先になる。
+- **手順**:
+  1. TC-816A が `ensureCdmE2eFinalsFixture` 経由で readiness fetch と不足 finals generation を検証することを確認する
+  2. unit test で `tc-all.js` の module exports に `fetchCdmE2eModeStates` / `generateCdmE2eMissingFinals` が含まれないことを確認する
+  3. `ensureCdmE2eFinalsFixture` は引き続き公開され、TC-816A の fixture 検証から利用できることを確認する
+- **期待結果**: E2E helper の公開面は実際に外部テストが使う API に限定され、内部 helper への不要な直接依存を防げる
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-817B: CDM export — CSV では CDM 専用 include を取得しない
 - **URL**: /api/tournaments/[id]/export
 - **背景**: issue #817。CSV 出力は MR/GP qualification seed、TT phase rounds、overall playerScores を使用しないため、CDM 専用 include を無条件に付けると不要な JOIN が増える。

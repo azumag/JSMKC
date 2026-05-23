@@ -499,6 +499,7 @@ describe('E2E case drift coverage', () => {
     const parallelSection = e2eCaseSection('TC-2098A');
     const roundSection = e2eCaseSection('TC-2099A');
     const generatorSection = e2eCaseSection('TC-2182A');
+    const publicApiSection = e2eCaseSection('TC-2187A');
 
     expect(parallelSection).toContain('issue #2098');
     expect(parallelSection).toContain('Promise.all');
@@ -507,6 +508,8 @@ describe('E2E case drift coverage', () => {
     expect(roundSection).toContain('.filter(Boolean)');
     expect(generatorSection).toContain('issue #2182');
     expect(generatorSection).toContain('CDM finals fixture generation failed');
+    expect(publicApiSection).toContain('issue #2187');
+    expect(publicApiSection).toContain('公開 API を最小化');
     expect(tcAll).toContain('async function fetchCdmE2eModeStates');
     expect(tcAll).toContain('const [bmState, mrState, gpState] = await Promise.all([');
     expect(tcAll).not.toContain("state: await apiFetchBmFinalsState(page, tournamentId)");
@@ -515,8 +518,13 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).not.toContain('matches.map((match) => cdmE2eSlotRound(match)).filter(Boolean)');
     expect(tcAll).toContain('function assertCdmE2eGeneratorResults');
     expect(tcAll).toContain('CDM finals fixture generation failed');
+    const tcAllExports = sectionBetween(tcAll, 'module.exports = {', '};');
+    expect(tcAllExports).not.toContain('fetchCdmE2eModeStates');
+    expect(tcAllExports).not.toContain('generateCdmE2eMissingFinals');
+    expect(tcAllExports).toContain('ensureCdmE2eFinalsFixture');
     expect(cdmFinalsFixtureTest).toContain('fetches mode readiness states in parallel');
     expect(cdmFinalsFixtureTest).toContain('reports failed finals generator status');
+    expect(cdmFinalsFixtureTest).toContain('keeps internal fixture helpers out of the tc-all public test API');
   });
 
   it('documents TC-817B as CSV/CDM export include split coverage', () => {
