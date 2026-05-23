@@ -4,6 +4,7 @@ import {
   cdmE2eFinalsReadinessSummary,
   ensureCdmE2eFinalsFixture,
 } from '../../e2e/tc-all';
+import * as tcAllExports from '../../e2e/tc-all';
 
 describe('TC-816A CDM finals fixture readiness', () => {
   it('counts slot-mappable playoff and finals matches by mode', () => {
@@ -107,5 +108,11 @@ describe('TC-816A CDM finals fixture readiness', () => {
     await expect(ensureCdmE2eFinalsFixture({} as never, 't1', api)).rejects.toThrow(
       'CDM finals fixture generation failed: BM HTTP 500: BM exploded',
     );
+  });
+
+  it('keeps internal fixture helpers out of the tc-all public test API', () => {
+    expect(tcAllExports).not.toHaveProperty('fetchCdmE2eModeStates');
+    expect(tcAllExports).not.toHaveProperty('generateCdmE2eMissingFinals');
+    expect(tcAllExports).toHaveProperty('ensureCdmE2eFinalsFixture');
   });
 });

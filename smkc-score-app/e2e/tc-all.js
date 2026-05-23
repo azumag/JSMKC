@@ -4499,7 +4499,5 @@ module.exports = {
   cdmE2eFinalsMatches,
   cdmE2eFinalsReadinessDetails,
   cdmE2eFinalsReadinessSummary,
-  fetchCdmE2eModeStates,
-  generateCdmE2eMissingFinals,
   ensureCdmE2eFinalsFixture,
 };
