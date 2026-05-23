@@ -113,18 +113,33 @@ function cdmE2eCell(col, row) {
   return XLSX.utils.encode_cell({ c: col - 1, r: row - 1 });
 }
 
-function cdmE2eFinalsMatches(state) {
+const cdmE2eFinalsApi = {
+  fetchBmFinalsState: apiFetchBmFinalsState,
+  fetchMrFinalsState: apiFetchMrFinalsState,
+  fetchGpFinalsState: apiFetchGpFinalsState,
+  generateBmFinals: apiGenerateBmFinals,
+  generateMrFinals: apiGenerateMrFinals,
+  generateGpFinals: apiGenerateGpFinals,
+};
+
+function cdmE2eFinalsSlotMatches(state) {
   return [
     ...(state?.playoffMatches || []),
     ...(state?.matches || []),
-  ].filter((match) => cdmE2eSlotRound(match));
+  ]
+    .map((match) => ({ match, slotRound: cdmE2eSlotRound(match) }))
+    .filter(({ slotRound }) => slotRound);
+}
+
+function cdmE2eFinalsMatches(state) {
+  return cdmE2eFinalsSlotMatches(state).map(({ match }) => match);
 }
 
 function cdmE2eFinalsReadinessDetails(modeStates) {
   return modeStates.map(({ mode, state }) => {
-    const matches = cdmE2eFinalsMatches(state);
-    const rounds = [...new Set(matches.map((match) => cdmE2eSlotRound(match)).filter(Boolean))];
-    return { mode, count: matches.length, rounds };
+    const slotMatches = cdmE2eFinalsSlotMatches(state);
+    const rounds = [...new Set(slotMatches.map(({ slotRound }) => slotRound))];
+    return { mode, count: slotMatches.length, rounds };
   });
 }
 
@@ -134,24 +149,59 @@ function cdmE2eFinalsReadinessSummary(readinessDetails) {
     .join('; ');
 }
 
-async function ensureCdmE2eFinalsFixture(page, tournamentId) {
-  const fetchModeStates = async () => ([
-    { mode: 'BM', sheetName: 'BM Finals', state: await apiFetchBmFinalsState(page, tournamentId) },
-    { mode: 'MR', sheetName: 'MR Finals', state: await apiFetchMrFinalsState(page, tournamentId) },
-    { mode: 'GP', sheetName: 'GP Finals', state: await apiFetchGpFinalsState(page, tournamentId) },
+async function fetchCdmE2eModeStates(page, tournamentId, api = cdmE2eFinalsApi) {
+  const [bmState, mrState, gpState] = await Promise.all([
+    api.fetchBmFinalsState(page, tournamentId),
+    api.fetchMrFinalsState(page, tournamentId),
+    api.fetchGpFinalsState(page, tournamentId),
   ]);
 
-  let modeStates = await fetchModeStates();
+  return [
+    { mode: 'BM', sheetName: 'BM Finals', state: bmState },
+    { mode: 'MR', sheetName: 'MR Finals', state: mrState },
+    { mode: 'GP', sheetName: 'GP Finals', state: gpState },
+  ];
+}
+
+function cdmE2eGenerationResultDetail(result) {
+  const status = result?.s ?? 'unknown';
+  const body = result?.b;
+  const message = typeof body?.error === 'string' ? body.error
+    : typeof body?.message === 'string' ? body.message
+    : JSON.stringify(body ?? {});
+  return `HTTP ${status}${message && message !== '{}' ? `: ${message}` : ''}`;
+}
+
+function assertCdmE2eGeneratorResults(results) {
+  const failures = results.filter(({ result }) => ![200, 201].includes(result?.s));
+  if (failures.length === 0) return;
+
+  throw new Error(`CDM finals fixture generation failed: ${
+    failures.map(({ mode, result }) => `${mode} ${cdmE2eGenerationResultDetail(result)}`).join('; ')
+  }`);
+}
+
+async function generateCdmE2eMissingFinals(page, tournamentId, missingModes, api = cdmE2eFinalsApi) {
+  const generators = [];
+  if (missingModes.has('BM')) generators.push({ mode: 'BM', promise: api.generateBmFinals(page, tournamentId, 24) });
+  if (missingModes.has('MR')) generators.push({ mode: 'MR', promise: api.generateMrFinals(page, tournamentId, 24) });
+  if (missingModes.has('GP')) generators.push({ mode: 'GP', promise: api.generateGpFinals(page, tournamentId, 24) });
+
+  const results = await Promise.all(
+    generators.map(async ({ mode, promise }) => ({ mode, result: await promise })),
+  );
+  assertCdmE2eGeneratorResults(results);
+  return results;
+}
+
+async function ensureCdmE2eFinalsFixture(page, tournamentId, api = cdmE2eFinalsApi) {
+  let modeStates = await fetchCdmE2eModeStates(page, tournamentId, api);
   let readinessDetails = cdmE2eFinalsReadinessDetails(modeStates);
   const missingModes = new Set(readinessDetails.filter(({ count }) => count === 0).map(({ mode }) => mode));
 
   if (missingModes.size > 0) {
-    const generators = [];
-    if (missingModes.has('BM')) generators.push(apiGenerateBmFinals(page, tournamentId, 24));
-    if (missingModes.has('MR')) generators.push(apiGenerateMrFinals(page, tournamentId, 24));
-    if (missingModes.has('GP')) generators.push(apiGenerateGpFinals(page, tournamentId, 24));
-    await Promise.all(generators);
-    modeStates = await fetchModeStates();
+    await generateCdmE2eMissingFinals(page, tournamentId, missingModes, api);
+    modeStates = await fetchCdmE2eModeStates(page, tournamentId, api);
     readinessDetails = cdmE2eFinalsReadinessDetails(modeStates);
   }
 
@@ -4449,5 +4499,7 @@ module.exports = {
   cdmE2eFinalsMatches,
   cdmE2eFinalsReadinessDetails,
   cdmE2eFinalsReadinessSummary,
+  fetchCdmE2eModeStates,
+  generateCdmE2eMissingFinals,
   ensureCdmE2eFinalsFixture,
 };

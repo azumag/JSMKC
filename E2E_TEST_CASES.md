@@ -825,6 +825,34 @@
 - **期待結果**: cupResults 検証は補助チェックになり、BM/MR/GP 座標検証が通れば TC-816A は PASS できる
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2098A: CDM export — finals readiness state を並列取得する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2098。TC-816A の fixture readiness は BM/MR/GP finals state をすべて必要とするため、逐次 `await` にすると D1/API 待ちがモード数ぶん積み上がる。
+- **手順**:
+  1. `ensureCdmE2eFinalsFixture` が BM/MR/GP finals state を `Promise.all` で取得することを確認する
+  2. unit test で BM の fetch promise を保留しても MR/GP fetch が即時開始されることを確認する
+- **期待結果**: readiness state の初回取得・再取得はモード間で並列に開始される
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-2099A: CDM export — finals readiness round 計算で slotRound を再計算しない
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2099/#2100。`cdmE2eFinalsMatches` が slot-mappable match だけを扱う前提で、readiness details が `cdmE2eSlotRound` を再呼び出ししてから `.filter(Boolean)` するのは冗長で意図が読みにくい。
+- **手順**:
+  1. slot-mappable match と `slotRound` を共有する helper があることを確認する
+  2. `cdmE2eFinalsReadinessDetails` が共有済み `slotRound` から rounds を作り、`.filter(Boolean)` を使わないことを確認する
+- **期待結果**: readiness details は slot 判定を一度だけ行い、rounds は truthy な `slotRound` だけから組み立てられる
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-2182A: CDM export — finals fixture 生成失敗を mode 別 status で報告する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2182。TC-816A が不足モードの finals を自動生成するとき、POST の HTTP status/body を無視すると、後続の「match がない」診断だけでは失敗原因が追いにくい。
+- **手順**:
+  1. 不足モードの BM/MR/GP finals generation 結果を mode 名つきで検査する
+  2. 200/201 以外の status では `CDM finals fixture generation failed` と mode/status/body を含むエラーを出す
+  3. unit test で BM generation が 500 を返す場合の診断を確認する
+- **期待結果**: fixture 生成APIの失敗は、workbook検証前に mode 別の具体的な HTTP status として報告される
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-817B: CDM export — CSV では CDM 専用 include を取得しない
 - **URL**: /api/tournaments/[id]/export
 - **背景**: issue #817。CSV 出力は MR/GP qualification seed、TT phase rounds、overall playerScores を使用しないため、CDM 専用 include を無条件に付けると不要な JOIN が増える。
