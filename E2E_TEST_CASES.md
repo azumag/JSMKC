@@ -799,6 +799,26 @@
 - **期待結果**: 60人ちょうどでは Main Hub の有効範囲だけが書き込まれ、61行目相当の `B62` は生成されない
 - **スクリプト**: `__tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`
 
+## TC-2089A: CDM export — Main Hub の 60行上限で row 62 を保護する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2089/#2092/#2093。CDM Main Hub は 60人分の固定テンプレート領域だけを書き換えるため、61人以上のデータが来ても row 62 の既存セルを上書きしてはならない。
+- **手順**:
+  1. `Main Hub` の B62〜L62 に stale sentinel 値を持つ CDM workbook fixture を用意する
+  2. 61件の TT entries を持つ tournament を CDM export する
+  3. B61/C61 には60人目が出力され、B62〜L62 の sentinel がすべて残ることを確認する
+- **期待結果**: Main Hub は 60人目までを書き込み、row 62 以降のテンプレートセルを保持する
+- **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
+## TC-2180A: CDM export — TT Qualifications の 60行上限で row 62 を保護する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2180。TT Qualifications も Main Hub と同じ 60行固定テンプレート領域を使うため、61件目の qualification entry で row 62 のテンプレートセルを上書きしてはならない。
+- **手順**:
+  1. `TT Qualifications` の E62〜Z62 に stale sentinel 値を持つ CDM workbook fixture を用意する
+  2. 61件の TT qualification entries を持つ tournament を CDM export する
+  3. E61/F61 には60人目が出力され、E62〜Z62 の sentinel がすべて残ることを確認する
+- **期待結果**: TT Qualifications は 60件目までを書き込み、row 62 以降のテンプレートセルを保持する
+- **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1877A: CDM export — grand_final_reset の正規化で到達不能条件を残さない
 - **URL**: /api/tournaments/[id]/export?format=cdm
 - **背景**: issue #1877。`grand_final_reset` は native slot table で先に解決されるため、同じ round 文字列を後段の別条件に残すと読み手に誤解を与える。

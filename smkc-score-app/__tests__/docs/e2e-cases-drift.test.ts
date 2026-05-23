@@ -433,6 +433,28 @@ describe('E2E case drift coverage', () => {
     expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].AR19.v');
   });
 
+  it('documents CDM export row-cap coverage for Main Hub and TT Qualifications', () => {
+    const mainHubSection = e2eCaseSection('TC-2089A');
+    const ttQualificationsSection = e2eCaseSection('TC-2180A');
+
+    expect(mainHubSection).toContain('issue #2089/#2092/#2093');
+    expect(mainHubSection).toContain('B62〜L62');
+    expect(mainHubSection).toContain('B61/C61');
+    expect(mainHubSection).toContain('__tests__/app/api/tournaments/[id]/export/route.test.ts');
+    expect(ttQualificationsSection).toContain('issue #2180');
+    expect(ttQualificationsSection).toContain('E62〜Z62');
+    expect(ttQualificationsSection).toContain('E61/F61');
+    expect(ttQualificationsSection).toContain('__tests__/app/api/tournaments/[id]/export/route.test.ts');
+    expect(exportRoute).toContain('const CDM_PLAYER_HUB_ROW_SPAN = 60');
+    expect(exportRoute).toContain('const CDM_TT_QUAL_MAX_PLAYERS = CDM_PLAYER_HUB_MAX_PLAYERS');
+    expect(exportRouteTest).toContain('should cap Main Hub player rows at 60 when more players are provided');
+    expect(exportRouteTest).toContain('should cap TT Qualifications rows at 60 when more entries are provided');
+    expect(exportRouteTest).toContain('KEEP-OUT-OF-BOUNDS');
+    expect(exportRouteTest).not.toContain('KEEP-OUT-BOUNDS');
+    expect(exportRouteTest).toContain('ttBoundaryColumns');
+    expect(exportRouteTest).toContain('KEEP-TT-${col}62');
+  });
+
   it('documents TC-808A as TA TV3/TV4 broadcast warning coverage', () => {
     const section = e2eCaseSection('TC-808A');
 

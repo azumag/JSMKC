@@ -371,14 +371,14 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
             B62: { v: 'KEEP-OUT-OF-BOUNDS' },
             C62: { v: 'KEEP-OUT-OF-BOUNDS' },
             D62: { v: 'KEEP-OUT-OF-BOUNDS' },
-            E62: { v: 'KEEP-OUT-BOUNDS' },
-            F62: { v: 'KEEP-OUT-BOUNDS' },
-            G62: { v: 'KEEP-OUT-BOUNDS' },
-            H62: { v: 'KEEP-OUT-BOUNDS' },
-            I62: { v: 'KEEP-OUT-BOUNDS' },
-            J62: { v: 'KEEP-OUT-BOUNDS' },
-            K62: { v: 'KEEP-OUT-BOUNDS' },
-            L62: { v: 'KEEP-OUT-BOUNDS' },
+            E62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            F62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            G62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            H62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            I62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            J62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            K62: { v: 'KEEP-OUT-OF-BOUNDS' },
+            L62: { v: 'KEEP-OUT-OF-BOUNDS' },
           },
           "TT Qualifications": {},
           "BM Qualifications": {},
@@ -436,12 +436,87 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
       expect(workbook.Sheets["Main Hub"].B2.v).toBe('Name 01');
       expect(workbook.Sheets["Main Hub"].B61.v).toBe('Name 60');
-      expect(workbook.Sheets["Main Hub"].B62).toEqual({
-        v: 'KEEP-OUT-OF-BOUNDS',
+      for (const col of ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]) {
+        expect(workbook.Sheets["Main Hub"][`${col}62`]).toEqual({
+          v: 'KEEP-OUT-OF-BOUNDS',
+        });
+      }
+    });
+
+    it('should cap TT Qualifications rows at 60 when more entries are provided', async () => {
+      const ttBoundaryColumns = [
+        "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+        "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+      ];
+      const staleWorkbook = {
+        Sheets: {
+          "Main Hub": {},
+          "TT Qualifications": Object.fromEntries(
+            ttBoundaryColumns.map((col) => [`${col}62`, { v: `KEEP-TT-${col}62` }]),
+          ),
+          "BM Qualifications": {},
+          "MR Qualifications": {},
+          "GP Qualifications": {},
+          "BM Finals": {},
+          "MR Finals": {},
+          "GP Finals": {},
+          "TT Finals": {},
+          "Overall Ranking": {},
+        },
+        Workbook: {},
+      };
+      (XLSX.read as jest.Mock).mockImplementationOnce(() => staleWorkbook as any);
+
+      const makePlayer = (index: number) => {
+        const n = String(index + 1).padStart(2, "0");
+        return {
+          playerId: `p${index + 1}`,
+          player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
+          stage: 'qualification',
+          seeding: index + 1,
+          lives: 3,
+          eliminated: false,
+          times: {},
+          totalTime: 12000 + index,
+        };
+      };
+
+      const mockTournament = {
+        id: 't1',
+        name: 'CDM TT Qualification Cap',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: Array.from({ length: 61 }, (_value, index) => makePlayer(index)),
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
       });
-      expect(workbook.Sheets["Main Hub"].C62).toEqual({
-        v: 'KEEP-OUT-OF-BOUNDS',
-      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
+      expect(workbook.Sheets["TT Qualifications"].E2.v).toBe(1);
+      expect(workbook.Sheets["TT Qualifications"].F2.v).toBe('Player 01');
+      expect(workbook.Sheets["TT Qualifications"].E61.v).toBe(60);
+      expect(workbook.Sheets["TT Qualifications"].F61.v).toBe('Player 60');
+      for (const col of ttBoundaryColumns) {
+        expect(workbook.Sheets["TT Qualifications"][`${col}62`]).toEqual({
+          v: `KEEP-TT-${col}62`,
+        });
+      }
     });
 
     it('should use the first fallback CDM finals slot only for unknown rounds', async () => {
