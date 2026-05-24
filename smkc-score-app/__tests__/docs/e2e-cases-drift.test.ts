@@ -418,6 +418,19 @@ describe('E2E case drift coverage', () => {
     expect(staticTest).toContain('layoutSource.match(/\\{\\.\\.\\.tabHydrationGuardProps\\}/g) ?? []');
   });
 
+  it('keeps TC-2205 aligned with tournament-tab guard class typing', () => {
+    const section = e2eCaseSection('TC-2205');
+    const layoutSource = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'layout.tsx');
+    const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
+
+    expect(section).toContain('issue #2205');
+    expect(section).toContain('string|undefined');
+    expect(section).toContain('false|string');
+    expect(section).toContain('__tests__/static/tc-939-tournament-tabs-link.test.ts');
+    expect(layoutSource).toContain('guardClassName: !tabsHydrated ? "pointer-events-none opacity-70" : undefined');
+    expect(staticTest).toContain('keeps the hydration guard class value as string or undefined');
+  });
+
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
     const section = e2eCaseSection('TC-830');
     const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
