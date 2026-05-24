@@ -1279,7 +1279,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('getMrFinalsTargetWins');
     expect(section).toContain('overlay-events route');
     expect(section).toContain('tc-2196-overlay-phase-format.test.ts');
-    expect(overlayPhase).toContain('latestFinalsStage?: string | null');
+    expect(overlayPhase).toContain('latestFinalsStage: string | null');
     expect(overlayPhase).toContain('stage: latestFinalsStage');
     expect(overlayEventsRoute).toContain('stage: { in: ["playoff", "finals"] }');
     expect(overlayEventsRoute).toContain('select: { stage: true, round: true, createdAt: true }');
@@ -1287,6 +1287,26 @@ describe('E2E case drift coverage', () => {
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsStage: 'playoff'");
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r1'");
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r2'");
+  });
+
+  it('keeps TC-2200 aligned with required nullable overlay finals stage input', () => {
+    const section = e2eCaseSection('TC-2200');
+    const tc2200OverlayPhaseInputTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'e2e',
+      'tc-2200-overlay-phase-input.test.ts',
+    );
+
+    expect(section).toContain('issue #2200');
+    expect(section).toContain('latestFinalsStage: string | null');
+    expect(section).toContain('required nullable');
+    expect(section).toContain('tc-2200-overlay-phase-input.test.ts');
+    expect(overlayPhase).toContain('latestFinalsStage: string | null');
+    expect(overlayPhase).not.toContain('latestFinalsStage?: string | null');
+    expect(overlayPhaseTest).toContain('latestFinalsStage: null');
+    expect(tc2200OverlayPhaseInputTest).toContain('type LatestFinalsStageIsRequired');
+    expect(tc2200OverlayPhaseInputTest).toContain('latestFinalsStage: null');
   });
 
   it('keeps TC-1087 aligned with finite positive round-number guards', () => {
