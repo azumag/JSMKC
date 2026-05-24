@@ -59,6 +59,11 @@ describe('E2E case drift coverage', () => {
     'tc-816a-cdm-finals-fixture.test.ts',
   );
   const prismaMigrationsTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'prisma-migrations.test.ts');
+  const mrScoresConfirmedWranglerMigration = readRepoFile(
+    'smkc-score-app',
+    'migrations',
+    '0036_add_mr_scores_confirmed.sql',
+  );
   const taPhasesRouteTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -1597,6 +1602,19 @@ describe('E2E case drift coverage', () => {
     expect(prismaMigrationsTest).toContain("COALESCE(publicModes, '[]')");
     expect(prismaMigrationsTest).toContain("COALESCE(\\\"publicModes\\\", '[]')");
     expect(prismaMigrationsTest).toContain("db.exec(d1Migration)");
+  });
+
+  it('documents TC-2107 as MR scoresConfirmed migration type alignment coverage', () => {
+    const section = e2eCaseSection('TC-2107');
+
+    expect(section).toContain('issue #2107');
+    expect(section).toContain('`BOOLEAN NOT NULL DEFAULT false`');
+    expect(section).toContain('`migrations/0036_add_mr_scores_confirmed.sql`');
+    expect(section).toContain('`prisma/migrations/0017_mr_scores_confirmed/migration.sql`');
+    expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
+    expect(prismaMigrationsTest).toContain('keeps MR scoresConfirmed type declarations aligned');
+    expect(mrScoresConfirmedWranglerMigration).toContain('"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false');
+    expect(mrScoresConfirmedWranglerMigration).not.toContain('"scoresConfirmed" INTEGER NOT NULL DEFAULT 0');
   });
 
   it('documents TC-824 as Phase3 sudden-death explicit order coverage', () => {
