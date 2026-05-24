@@ -309,6 +309,13 @@ describe('preview schema preflight', () => {
     expect(section).toContain('WRANGLER_TRANSIENT_STATUS_RETRIES + 1');
   });
 
+  it('documents TC-2104 as structural preview startup coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('Unit/Structural Tests');
+    expect(section).toContain('preview E2E startup guard');
+  });
+
   it('keeps runWranglerSchemaCheck free of a loop-after fallback return', () => {
     const source = readFileSync(path.join(process.cwd(), 'e2e/lib/preview-schema-preflight.js'), 'utf8');
     const functionStart = source.indexOf('function runWranglerSchemaCheck');
