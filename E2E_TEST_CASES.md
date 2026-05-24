@@ -140,6 +140,7 @@
 ## TC-2104: Preview D1 schema preflight の Wrangler retry loop は unreachable fallback return を持たない
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
+- **分類**: Unit/Structural Tests (preview E2E startup guard)
 - **背景**: issue #2104。`runWranglerSchemaCheck` は `WRANGLER_TRANSIENT_STATUS_RETRIES` まで retry し、最終 attempt では loop 内で必ず `{ result, args }` を返す。loop 後に同じ return を残すと unreachable dead code になり、retry 終了条件の意図が読み取りにくくなる。
 - **手順**:
   1. Wrangler が空の status 1 を返し続ける preflight を模擬する
