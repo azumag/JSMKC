@@ -149,6 +149,17 @@
 - **期待結果**: retry loop の最終 attempt が唯一の fallback return となり、到達不能な loop 後 return を持たずに preview preflight の診断挙動を維持する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2214: TC-2104 の structural classification assertion は docs drift test に集約する
+- **URL**: n/a (test ownership / docs drift guard)
+- **authRequired**: false
+- **背景**: issue #2214。TC-2104 の `Unit/Structural Tests (preview E2E startup guard)` 分類アサーションが `e2e-cases-drift.test.ts` と `preview-schema-preflight.test.ts` に重複すると、分類文言の変更時に複数箇所を同期する必要がある。
+- **手順**:
+  1. `e2e-cases-drift.test.ts` が TC-2104 の分類文言と preview startup guard 目的を検証することを確認する
+  2. `preview-schema-preflight.test.ts` は Wrangler retry / unreachable fallback の実装寄り coverage だけを持つことを確認する
+  3. preflight test 側に TC-2104 分類文言の重複アサーションが残っていないことを確認する
+- **期待結果**: TC-2104 の分類文言 ownership は docs drift test に一本化され、preview preflight test は runner behavior と structural source guard に集中する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts __tests__/e2e/preview-schema-preflight.test.ts`
+
 ## TC-008: Overall Ranking ページの表示
 - **URL**: /tournaments/[id]/overall-ranking
 - **authRequired**: false

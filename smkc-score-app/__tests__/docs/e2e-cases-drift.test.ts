@@ -394,9 +394,21 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('unreachable fallback return');
     expect(section).toContain('WRANGLER_TRANSIENT_STATUS_RETRIES + 1');
     expect(preflight).toContain('attempt === WRANGLER_TRANSIENT_STATUS_RETRIES');
-    expect(preflightTest).toContain('documents TC-2104 as structural preview startup coverage');
     expect(preflightTest).toContain('keeps runWranglerSchemaCheck free of a loop-after fallback return');
     expect(preflightTest).toContain('keeps TC-2104 documented as unreachable retry fallback coverage');
+    expect(preflightTest).not.toContain('documents TC-2104 as structural preview startup coverage');
+  });
+
+  it('keeps TC-2214 aligned with TC-2104 classification assertion ownership', () => {
+    const section = e2eCaseSection('TC-2214');
+    const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
+
+    expect(section).toContain('issue #2214');
+    expect(section).toContain('e2e-cases-drift.test.ts');
+    expect(section).toContain('preview-schema-preflight.test.ts');
+    expect(section).toContain('TC-2104');
+    expect(preflightTest).not.toContain('Unit/Structural Tests');
+    expect(preflightTest).not.toContain('preview E2E startup guard');
   });
 
   it('keeps TC-2118 documented with the shared tournament-tab hydration guard', () => {
