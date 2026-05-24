@@ -16,14 +16,22 @@ describe('TC-939 tournament tab navigation', () => {
     expect(layoutSource).toContain('const [tabsHydrated, setTabsHydrated] = useState(false);');
     expect(layoutSource).toContain('setTabsHydrated(true);');
     expect(layoutSource).toContain('data-tournament-tabs-hydrated={tabsHydrated ? "true" : "false"}');
-    expect(layoutSource).toContain('aria-disabled={!tabsHydrated}');
-    expect(layoutSource).toContain('tabIndex={tabsHydrated ? undefined : -1}');
+    expect(layoutSource).toContain('"aria-disabled": !tabsHydrated');
+    expect(layoutSource).toContain('tabIndex: tabsHydrated ? undefined : -1');
     expect(layoutSource).toContain('pointer-events-none opacity-70');
   });
 
   it('uses conditional class merging so hydrated tabs do not keep whitespace-only guard classes', () => {
     expect(layoutSource).toContain('import { cn } from "@/lib/utils";');
-    expect(layoutSource).toContain('!tabsHydrated && "pointer-events-none opacity-70"');
+    expect(layoutSource).toContain('guardClassName: !tabsHydrated && "pointer-events-none opacity-70"');
     expect(layoutSource).not.toContain('${tabsHydrated ? "" : "pointer-events-none opacity-70"}');
+  });
+
+  it('centralizes hydration guard props for normal and admin tab links', () => {
+    expect(layoutSource).toContain('function getTabHydrationGuardProps(tabsHydrated: boolean)');
+    expect(layoutSource).toContain('const { guardClassName, ...tabHydrationGuardProps } = getTabHydrationGuardProps(tabsHydrated);');
+    expect(layoutSource.match(/\{\.\.\.tabHydrationGuardProps\}/g)).toHaveLength(2);
+    expect(layoutSource.match(/aria-disabled=\{!tabsHydrated\}/g) ?? []).toHaveLength(0);
+    expect(layoutSource.match(/tabIndex=\{tabsHydrated \? undefined : -1\}/g) ?? []).toHaveLength(0);
   });
 });
