@@ -372,6 +372,19 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).toContain("suddenDeathWinnerId column not found");
   });
 
+  it('keeps TC-2202 aligned with preview preflight source-structure coverage', () => {
+    const section = e2eCaseSection('TC-2202');
+    const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
+
+    expect(section).toContain('issue #2202');
+    expect(section).toContain('marker 欠落');
+    expect(section).toContain('multiline fallback return');
+    expect(preflightTest).toContain('runWranglerSchemaCheckSection');
+    expect(preflightTest).toContain('loopAfterFallbackReturnPattern');
+    expect(preflightTest).toContain('fails the runWranglerSchemaCheck section guard before slicing when markers drift');
+    expect(preflightTest).toContain('detects multiline loop-after fallback returns in the preflight source section');
+  });
+
   it('keeps TC-2195 aligned with the MR grand-final phase format test wording', () => {
     const section = e2eCaseSection('TC-2195');
 
