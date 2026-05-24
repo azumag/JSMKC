@@ -1303,6 +1303,7 @@ describe('E2E case drift coverage', () => {
     for (const stageFilter of overlayFinalsStageFilters) {
       expect(stageFilter).toEqual(['playoff', 'finals']);
     }
+    expect(overlayFinalsSelects.length).toBeGreaterThanOrEqual(3);
     for (const selectProperties of overlayFinalsSelects) {
       expect(selectProperties).toEqual(expect.arrayContaining(['stage', 'round', 'createdAt']));
     }
@@ -1350,6 +1351,36 @@ describe('E2E case drift coverage', () => {
     expect(tc2196DriftGuard).toContain('callObjectPropertyNames');
     expect(tc2196DriftGuard).not.toContain('stage: { in: ["playoff", "finals"] }');
     expect(tc2196DriftGuard).not.toContain('select: { stage: true, round: true, createdAt: true }');
+  });
+
+  it('keeps TC-2224 aligned with overlay finals select count guard coverage', () => {
+    const section = e2eCaseSection('TC-2224');
+    const tc2196DriftGuard = sectionBetween(
+      readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts'),
+      "it('keeps TC-2196 aligned with overlay phase target-wins stage context'",
+      "it('keeps TC-2200 aligned with required nullable overlay finals stage input'",
+    );
+
+    expect(section).toContain('issue #2224');
+    expect(section).toContain('overlayFinalsSelects.length');
+    expect(section).toContain('3');
+    expect(section).toContain('stage');
+    expect(section).toContain('round');
+    expect(section).toContain('createdAt');
+    expect(tc2196DriftGuard).toContain('expect(overlayFinalsSelects.length).toBeGreaterThanOrEqual(3)');
+  });
+
+  it('keeps TC-2225 aligned with missing-callee helper coverage', () => {
+    const section = e2eCaseSection('TC-2225');
+    const helperTests = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.test.ts');
+
+    expect(section).toContain('issue #2225');
+    expect(section).toContain('callee が見つからない');
+    expect(section).toContain('空配列');
+    expect(section).toContain('callObjectArrayLiteralTexts');
+    expect(section).toContain('callObjectPropertyNames');
+    expect(helperTests).toContain("it('returns empty arrays when the requested callee is absent'");
+    expect(helperTests).toContain('prisma.NONEXISTENT.findFirst');
   });
 
   it('keeps TC-1087 aligned with finite positive round-number guards', () => {
