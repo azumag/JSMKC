@@ -30,7 +30,7 @@ describe('TC-939 tournament tab navigation', () => {
   it('centralizes hydration guard props for normal and admin tab links', () => {
     expect(layoutSource).toContain('function getTabHydrationGuardProps(tabsHydrated: boolean)');
     expect(layoutSource).toContain('const { guardClassName, ...tabHydrationGuardProps } = getTabHydrationGuardProps(tabsHydrated);');
-    expect(layoutSource.match(/\{\.\.\.tabHydrationGuardProps\}/g)).toHaveLength(2);
+    expect(layoutSource.match(/\{\.\.\.tabHydrationGuardProps\}/g) ?? []).toHaveLength(2);
     expect(layoutSource.match(/aria-disabled=\{!tabsHydrated\}/g) ?? []).toHaveLength(0);
     expect(layoutSource.match(/tabIndex=\{tabsHydrated \? undefined : -1\}/g) ?? []).toHaveLength(0);
   });
