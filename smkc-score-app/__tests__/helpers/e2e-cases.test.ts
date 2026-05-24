@@ -1,4 +1,6 @@
 import {
+  callObjectArrayLiteralTexts,
+  callObjectPropertyNames,
   callExpressionWithArguments,
   sectionAfterBlockComment,
   sectionBetween,
@@ -159,6 +161,61 @@ describe('E2E case helpers', () => {
     ])).toThrow(
       "call expression not found: throwUnexpectedMockCall('page.getByRole', roleLookup(_role, name), EXPECTED_PAGE_ROLE_LOOKUPS)",
     );
+  });
+
+  it('reads nested array literal values from matching call expressions', () => {
+    const source = `
+      prisma.bMMatch.findFirst({
+        where: {
+          tournamentId,
+          stage: {
+            in: [
+              'playoff',
+              "finals",
+            ],
+          },
+        },
+      });
+      prisma.mRMatch.findFirst({
+        where: { tournamentId, stage: { in: ['finals'] } },
+      });
+    `;
+
+    expect(callObjectArrayLiteralTexts(source, 'prisma.bMMatch.findFirst', [
+      'where',
+      'stage',
+      'in',
+    ])).toEqual([['playoff', 'finals']]);
+  });
+
+  it('reads object property names from matching call expressions', () => {
+    const source = `
+      prisma.bMMatch.findFirst({
+        select: {
+          stage: true,
+          'round': true,
+          createdAt,
+        },
+      });
+    `;
+
+    expect(callObjectPropertyNames(source, 'prisma.bMMatch.findFirst', [
+      'select',
+    ])).toEqual([['stage', 'round', 'createdAt']]);
+  });
+
+  it('fails clearly when a nested array literal is missing', () => {
+    const source = `
+      prisma.bMMatch.findFirst({
+        where: { tournamentId, stage: { equals: 'playoff' } },
+      });
+    `;
+
+    expect(() => callObjectArrayLiteralTexts(source, 'prisma.bMMatch.findFirst', [
+      'where',
+      'stage',
+      'in',
+    ])).toThrow('prisma.bMMatch.findFirst missing array literal at where.stage.in');
   });
 
   it('extracts code after a block comment using a code boundary instead of a comment end-marker', () => {

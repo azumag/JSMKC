@@ -129,6 +129,125 @@ export function callExpressionWithArguments(
   return matchedCall.getText(sourceFile);
 }
 
+function propertyNameText(name: ts.PropertyName) {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+    return name.text;
+  }
+  return name.getText();
+}
+
+function objectPropertyInitializer(
+  objectLiteral: ts.ObjectLiteralExpression,
+  propertyName: string,
+) {
+  for (const property of objectLiteral.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    if (propertyNameText(property.name) === propertyName) {
+      return property.initializer;
+    }
+  }
+  return null;
+}
+
+function nestedObjectPropertyInitializer(
+  objectLiteral: ts.ObjectLiteralExpression,
+  propertyPath: string[],
+) {
+  let current: ts.Expression | null = objectLiteral;
+
+  for (const propertyName of propertyPath) {
+    if (!current || !ts.isObjectLiteralExpression(current)) {
+      return null;
+    }
+    current = objectPropertyInitializer(current, propertyName);
+  }
+
+  return current;
+}
+
+function firstArgumentObject(call: ts.CallExpression) {
+  const [firstArgument] = call.arguments;
+  return firstArgument && ts.isObjectLiteralExpression(firstArgument) ? firstArgument : null;
+}
+
+function callExpressionMatchesText(
+  sourceFile: ts.SourceFile,
+  call: ts.CallExpression,
+  calleeText: string,
+) {
+  return call.expression.getText(sourceFile) === calleeText;
+}
+
+function collectMatchingCalls(source: string, calleeText: string) {
+  const sourceFile = ts.createSourceFile(
+    'source.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const calls: ts.CallExpression[] = [];
+
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && callExpressionMatchesText(sourceFile, node, calleeText)) {
+      calls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return { sourceFile, calls };
+}
+
+export function callObjectArrayLiteralTexts(
+  source: string,
+  calleeText: string,
+  propertyPath: string[],
+) {
+  const { sourceFile, calls } = collectMatchingCalls(source, calleeText);
+  return calls.map((call) => {
+    const objectLiteral = firstArgumentObject(call);
+    const initializer = objectLiteral
+      ? nestedObjectPropertyInitializer(objectLiteral, propertyPath)
+      : null;
+
+    if (!initializer || !ts.isArrayLiteralExpression(initializer)) {
+      throw new Error(`${calleeText} missing array literal at ${propertyPath.join('.')}`);
+    }
+
+    return initializer.elements.map((element) => {
+      if (ts.isStringLiteral(element) || ts.isNoSubstitutionTemplateLiteral(element)) {
+        return element.text;
+      }
+      return element.getText(sourceFile);
+    });
+  });
+}
+
+export function callObjectPropertyNames(
+  source: string,
+  calleeText: string,
+  propertyPath: string[],
+) {
+  const { calls } = collectMatchingCalls(source, calleeText);
+  return calls.map((call) => {
+    const objectLiteral = firstArgumentObject(call);
+    const initializer = objectLiteral
+      ? nestedObjectPropertyInitializer(objectLiteral, propertyPath)
+      : null;
+
+    if (!initializer || !ts.isObjectLiteralExpression(initializer)) {
+      throw new Error(`${calleeText} missing object literal at ${propertyPath.join('.')}`);
+    }
+
+    return initializer.properties
+      .filter((property): property is ts.PropertyAssignment | ts.ShorthandPropertyAssignment =>
+        ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property),
+      )
+      .map((property) => propertyNameText(property.name));
+  });
+}
+
 export function functionReturnObjectLiteral(source: string, functionName: string) {
   const sourceFile = ts.createSourceFile(
     'source.tsx',
