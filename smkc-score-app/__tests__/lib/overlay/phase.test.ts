@@ -15,6 +15,7 @@ import {
   computeCurrentPhase,
   computeCurrentPhaseFormat,
 } from "@/lib/overlay/phase";
+import { getBmFinalsTargetWins, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
 
 function input(overrides: Partial<Parameters<typeof computeCurrentPhase>[0]> = {}) {
   return {
@@ -154,7 +155,7 @@ describe("computeCurrentPhaseFormat", () => {
           latestFinalsMode: "bm",
         }),
       ),
-    ).toBe("First to 5");
+    ).toBe(`First to ${getBmFinalsTargetWins({ round: "winners_qf" })}`);
   });
 
   it("returns First to 5 for MR bracket finals", () => {
@@ -166,7 +167,7 @@ describe("computeCurrentPhaseFormat", () => {
           latestFinalsMode: "mr",
         }),
       ),
-    ).toBe("First to 5");
+    ).toBe(`First to ${getMrFinalsTargetWins({ round: "grand_final" })}`);
   });
 
   it("returns null for GP finals (point-total, no first-to threshold)", () => {

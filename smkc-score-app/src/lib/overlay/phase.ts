@@ -12,6 +12,7 @@
  */
 
 import type { OverlayMode } from "./types";
+import { getBmFinalsTargetWins, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
 
 /** Decision-tree input. All fields come from a handful of cheap DB lookups. */
 export interface ComputeCurrentPhaseInput {
@@ -153,10 +154,15 @@ export function computeCurrentPhaseFormat(
 ): string | null {
   const { latestFinalsRound, latestFinalsMode } = input;
 
-  // BM / MR finals are double-elimination best-of-9 (first to 5) per §4. GP
-  // finals are point-totals over races and have no "first to N" notion.
   if (latestFinalsRound && latestFinalsMode) {
-    if (latestFinalsMode === "bm" || latestFinalsMode === "mr") return "First to 5";
+    if (latestFinalsMode === "bm") {
+      const targetWins = getBmFinalsTargetWins({ round: latestFinalsRound });
+      return `First to ${targetWins}`;
+    }
+    if (latestFinalsMode === "mr") {
+      const targetWins = getMrFinalsTargetWins({ round: latestFinalsRound });
+      return `First to ${targetWins}`;
+    }
     return null;
   }
 
