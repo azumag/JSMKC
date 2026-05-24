@@ -1571,12 +1571,18 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-111 aligned with the preview D1 columns that fail GP finals before browser launch', () => {
     const section = e2eCaseSection('TC-111');
+    const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
 
     expect(section).toContain('Tournament.publicModes');
     expect(section).toContain('GPMatch.assignedCups');
     expect(section).toContain('GPMatch.suddenDeathWinnerId');
     expect(section).toContain('WRANGLER_LOG_PATH');
     expect(section).toContain('wrangler login');
+    expect(section).toContain('汎用的な schema/migration 文言だけでは');
+    expect(section).toContain('Network error when connecting to schema registry');
+    expect(section).toContain('Unexpected schema');
+    expect(preflightTest).toContain('classifies only concrete Wrangler schema drift stderr as migration guidance');
+    expect(preflightTest).toContain('keeps generic schema or migration stderr out of migration guidance');
   });
 
   it('documents TC-825 as a full Prisma migration JSON type guard for D1', () => {

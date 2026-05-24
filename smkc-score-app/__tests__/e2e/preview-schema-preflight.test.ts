@@ -157,6 +157,37 @@ describe('preview schema preflight', () => {
     expect(() => preflight.assertPreviewD1Schema({})).toThrow(/db:migrations:apply:preview/);
   });
 
+  it('classifies only concrete Wrangler schema drift stderr as migration guidance', () => {
+    const preflight = loadPreflight();
+
+    expect(preflight.isWranglerSchemaFailure('SQLITE_ERROR: no such table: GPMatch')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('SQLITE_ERROR: no such column: suddenDeathWinnerId')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('Preview D1 schema drift detected for Tournament.publicModes')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('pending D1 migration detected on preview')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('Network error when connecting to schema registry')).toBe(false);
+    expect(preflight.isWranglerSchemaFailure('Unexpected schema returned by registry')).toBe(false);
+    expect(preflight.isWranglerSchemaFailure('applying migration 0035_gp_finals_assigned_cups')).toBe(false);
+  });
+
+  it('keeps generic schema or migration stderr out of migration guidance', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: 'Checking preview database...',
+      stderr: 'Network error when connecting to schema registry while applying migration metadata',
+    });
+
+    let message = '';
+    try {
+      preflight.assertPreviewD1Schema({});
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toMatch(/Wrangler returned a generic nonzero status/);
+    expect(message).not.toMatch(/db:migrations:apply:preview/);
+  });
+
   it('retries empty Wrangler status 1 once and keeps migration guidance out of transient diagnostics', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
@@ -283,6 +314,15 @@ describe('preview schema preflight', () => {
     expect(assertStart).toBeGreaterThan(functionStart);
     expect(section).toContain('attempt === WRANGLER_TRANSIENT_STATUS_RETRIES');
     expect(section).not.toMatch(/}\s*return \{ result, args \};\s*}$/);
+  });
+
+  it('keeps TC-111 documented as narrow schema drift classification coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-111');
+    expect(section).toContain('汎用的な schema/migration 文言だけでは');
+    expect(section).toContain('Network error when connecting to schema registry');
+    expect(section).toContain('Unexpected schema');
   });
 
   it('fails with timeout guidance when wrangler hangs', () => {

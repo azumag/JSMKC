@@ -84,9 +84,12 @@ function isWranglerAuthOrLogFailure(stderr) {
 function isWranglerSchemaFailure(stderr) {
   return [
     /no such (table|column)/i,
-    /SQLITE_ERROR/i,
-    /migration/i,
-    /schema/i,
+    /SQLITE_ERROR:.*(?:no such (?:table|column)|missing (?:table|column)|unknown (?:table|column))/i,
+    /schema\s+drift/i,
+    /pending\s+(?:d1\s+)?migration/i,
+    /missing\s+(?:d1\s+)?migration/i,
+    /table .* not found/i,
+    /column .* not found/i,
   ].some((pattern) => pattern.test(stderr));
 }
 
