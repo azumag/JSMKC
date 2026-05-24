@@ -1563,6 +1563,20 @@ describe('E2E case drift coverage', () => {
     expect(prismaMigrationsTest).toContain('expect(jsonbMigrations).toEqual([])');
   });
 
+  it('documents TC-2190-2191 as publicModes overall migration SQL behavior coverage', () => {
+    const section = e2eCaseSection('TC-2190-2191');
+
+    expect(section).toContain('issue #2190/#2191');
+    expect(section).toContain('NULL publicModes');
+    expect(section).toContain('COALESCE(publicModes,');
+    expect(section).toContain('idempotency');
+    expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
+    expect(prismaMigrationsTest).toContain('adds overall to existing tournament publicModes with SQLite JSON semantics');
+    expect(prismaMigrationsTest).toContain("COALESCE(publicModes, '[]')");
+    expect(prismaMigrationsTest).toContain("COALESCE(\\\"publicModes\\\", '[]')");
+    expect(prismaMigrationsTest).toContain("db.exec(d1Migration)");
+  });
+
   it('documents TC-824 as Phase3 sudden-death explicit order coverage', () => {
     const section = e2eCaseSection('TC-824');
 

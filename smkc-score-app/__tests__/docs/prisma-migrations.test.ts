@@ -1,8 +1,23 @@
 import fs from "fs";
 import path from "path";
 
+const { DatabaseSync } = jest.requireActual("node:sqlite") as {
+  DatabaseSync: new (path: string) => {
+    close: () => void;
+    exec: (sql: string) => void;
+    prepare: (sql: string) => {
+      all: () => Array<Record<string, unknown>>;
+      get: () => Record<string, unknown> | undefined;
+    };
+  };
+};
+
 function readMigration(...segments: string[]) {
   return fs.readFileSync(path.join(__dirname, "../../prisma/migrations", ...segments), "utf8");
+}
+
+function readD1Migration(file: string) {
+  return fs.readFileSync(path.join(__dirname, "../../migrations", file), "utf8");
 }
 
 function migrationSqlFiles(dir: string): string[] {
@@ -46,5 +61,45 @@ describe("Prisma migration compatibility", () => {
     expect(cupResults).toContain('"cupResults" TEXT');
     expect(assignedCups).not.toContain("JSONB");
     expect(assignedCups).toContain('"assignedCups" TEXT');
+  });
+
+  it("adds overall to existing tournament publicModes with SQLite JSON semantics", () => {
+    const d1Migration = readD1Migration("0037_add_overall_to_existing_tournaments.sql");
+    const prismaMigration = readMigration("0018_add_overall_to_existing_tournaments", "migration.sql");
+
+    expect(d1Migration).toContain("COALESCE(publicModes, '[]')");
+    expect(prismaMigration).toContain("COALESCE(\"publicModes\", '[]')");
+
+    const db = new DatabaseSync(":memory:");
+    try {
+      db.exec(`
+        CREATE TABLE Tournament (
+          id TEXT PRIMARY KEY,
+          status TEXT NOT NULL,
+          deletedAt TEXT,
+          publicModes TEXT
+        );
+        INSERT INTO Tournament (id, status, deletedAt, publicModes) VALUES
+          ('active-null', 'active', NULL, NULL),
+          ('completed-ta', 'completed', NULL, '["ta"]'),
+          ('active-overall', 'active', NULL, '["overall"]'),
+          ('draft-null', 'draft', NULL, NULL),
+          ('deleted-null', 'active', '2026-05-24T00:00:00.000Z', NULL);
+      `);
+
+      db.exec(d1Migration);
+      db.exec(d1Migration);
+
+      const rows = db.prepare("SELECT id, publicModes FROM Tournament ORDER BY id").all();
+      expect(rows).toEqual([
+        { id: "active-null", publicModes: '["overall"]' },
+        { id: "active-overall", publicModes: '["overall"]' },
+        { id: "completed-ta", publicModes: '["ta","overall"]' },
+        { id: "deleted-null", publicModes: null },
+        { id: "draft-null", publicModes: null },
+      ]);
+    } finally {
+      db.close();
+    }
   });
 });
