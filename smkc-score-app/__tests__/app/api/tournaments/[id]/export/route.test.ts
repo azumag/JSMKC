@@ -361,6 +361,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(workbook.Sheets["Main Hub"].B2.v).toBe('Name 01');
       expect(workbook.Sheets["Main Hub"].B61.v).toBe('Name 60');
       expect(workbook.Sheets["Main Hub"].C61.v).toBe('Player 60');
+      expect(workbook.Sheets["Main Hub"].B62).toBeUndefined();
     });
 
     it('should cap Main Hub player rows at 60 when more players are provided', async () => {

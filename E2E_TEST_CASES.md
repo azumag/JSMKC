@@ -788,6 +788,17 @@
 - **期待結果**: finals match は CDM 2025 テンプレートの native bracket coordinates に配置され、GP の cup/points 補足情報も失われない
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2088: CDM export — Main Hub は60人ちょうどで B62 を空のままにする
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2088。Main Hub の player rows は B2 から B61 までの60行に限定される。60人ちょうどの境界テストでは、最終行 B61 への書き込みだけでなく、範囲外の B62 が作成されないことも明示的に確認する必要がある。
+- **手順**:
+  1. CDM export fixture に TT entries を60人だけ用意する
+  2. `GET /api/tournaments/:id/export?format=cdm` を実行する
+  3. Main Hub の `B2` が1人目、`B61`/`C61` が60人目の name/nickname で埋まることを確認する
+  4. Main Hub の `B62` が `undefined` のままであることを確認する
+- **期待結果**: 60人ちょうどでは Main Hub の有効範囲だけが書き込まれ、61行目相当の `B62` は生成されない
+- **スクリプト**: `__tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`
+
 ## TC-1877A: CDM export — grand_final_reset の正規化で到達不能条件を残さない
 - **URL**: /api/tournaments/[id]/export?format=cdm
 - **背景**: issue #1877。`grand_final_reset` は native slot table で先に解決されるため、同じ round 文字列を後段の別条件に残すと読み手に誤解を与える。
