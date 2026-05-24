@@ -28,6 +28,23 @@ describe('E2E case drift coverage', () => {
   const tcMr = readE2eScript('tc-mr.js');
   const tcGp = readE2eScript('tc-gp.js');
   const tcOverlay = readE2eScript('tc-overlay.js');
+  const overlayPhase = readRepoFile('smkc-score-app', 'src', 'lib', 'overlay', 'phase.ts');
+  const overlayEventsRoute = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'app',
+    'api',
+    'tournaments',
+    '[id]',
+    'overlay-events',
+    'route.ts',
+  );
+  const tc2196OverlayPhaseFormatTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'e2e',
+    'tc-2196-overlay-phase-format.test.ts',
+  );
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
   const tcTa = readE2eScript('tc-ta.js');
   const tcTaFlow = readE2eScript('tc-ta-flow.js');
@@ -1166,6 +1183,25 @@ describe('E2E case drift coverage', () => {
       isGpFinalsFt3Round: expect.any(Function),
       validateGpFinalsAssignedCupSequences: expect.any(Function),
     }));
+  });
+
+  it('keeps TC-2196 aligned with overlay phase target-wins stage context', () => {
+    const section = e2eCaseSection('TC-2196');
+
+    expect(section).toContain('issue #2196');
+    expect(section).toContain('latestFinalsStage: "playoff"');
+    expect(section).toContain('getBmFinalsTargetWins');
+    expect(section).toContain('getMrFinalsTargetWins');
+    expect(section).toContain('overlay-events route');
+    expect(section).toContain('tc-2196-overlay-phase-format.test.ts');
+    expect(overlayPhase).toContain('latestFinalsStage?: string | null');
+    expect(overlayPhase).toContain('stage: latestFinalsStage');
+    expect(overlayEventsRoute).toContain('stage: { in: ["playoff", "finals"] }');
+    expect(overlayEventsRoute).toContain('select: { stage: true, round: true, createdAt: true }');
+    expect(overlayEventsRoute).toContain('latestFinalsStage: latestFinals?.stage ?? null');
+    expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsStage: 'playoff'");
+    expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r1'");
+    expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r2'");
   });
 
   it('keeps TC-1087 aligned with finite positive round-number guards', () => {
