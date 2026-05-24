@@ -162,8 +162,13 @@ describe('preview schema preflight', () => {
 
     expect(preflight.isWranglerSchemaFailure('SQLITE_ERROR: no such table: GPMatch')).toBe(true);
     expect(preflight.isWranglerSchemaFailure('SQLITE_ERROR: no such column: suddenDeathWinnerId')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('SQLITE_ERROR: missing table: GPMatch')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('SQLITE_ERROR: unknown column: suddenDeathWinnerId')).toBe(true);
     expect(preflight.isWranglerSchemaFailure('Preview D1 schema drift detected for Tournament.publicModes')).toBe(true);
     expect(preflight.isWranglerSchemaFailure('pending D1 migration detected on preview')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('missing D1 migration detected on preview')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('GPMatch table not found')).toBe(true);
+    expect(preflight.isWranglerSchemaFailure('suddenDeathWinnerId column not found')).toBe(true);
     expect(preflight.isWranglerSchemaFailure('Network error when connecting to schema registry')).toBe(false);
     expect(preflight.isWranglerSchemaFailure('Unexpected schema returned by registry')).toBe(false);
     expect(preflight.isWranglerSchemaFailure('applying migration 0035_gp_finals_assigned_cups')).toBe(false);
