@@ -694,6 +694,23 @@ export function createFinalsHandlers(config: FinalsConfig) {
   ): { winnerId: string; winnerPlayer: PublicFinalsPlayer } | null {
     const score1 = Number(match[config.putScoreFields.dbField1]);
     const score2 = Number(match[config.putScoreFields.dbField2]);
+    if (score1 === score2 && typeof match.suddenDeathWinnerId === 'string') {
+      const suddenDeathWinnerId = match.suddenDeathWinnerId;
+      if (suddenDeathWinnerId.length === 0) {
+        return null;
+      }
+
+      const suddenDeathWinnerPlayer = match.player1Id === suddenDeathWinnerId ? match.player1 : match.player2;
+      if (!isPublicFinalsPlayer(suddenDeathWinnerPlayer)) {
+        return null;
+      }
+
+      return {
+        winnerId: suddenDeathWinnerId,
+        winnerPlayer: suddenDeathWinnerPlayer,
+      };
+    }
+
     if (!Number.isFinite(score1) || !Number.isFinite(score2) || score1 === score2) {
       return null;
     }
