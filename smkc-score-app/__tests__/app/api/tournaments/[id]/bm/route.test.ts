@@ -38,11 +38,12 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
-import { BM_MR_MATCH_LEAN_SELECT, PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/route';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
+import { EXPECTED_MATCH_UPDATE_SELECT } from '../../../../../helpers/expected-match-update-select';
 
 const requestUtilsMock = jest.requireMock('@/lib/request-utils') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -426,7 +427,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: null, completed: true },
-        select: BM_MR_MATCH_LEAN_SELECT,
+        select: EXPECTED_MATCH_UPDATE_SELECT,
       });
       expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     });
@@ -456,7 +457,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 2, score2: 2, rounds: null, completed: true },
-        select: BM_MR_MATCH_LEAN_SELECT,
+        select: EXPECTED_MATCH_UPDATE_SELECT,
       });
     });
 
@@ -493,7 +494,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: [1, 2, 3, 4], completed: true },
-        select: BM_MR_MATCH_LEAN_SELECT,
+        select: EXPECTED_MATCH_UPDATE_SELECT,
       });
     });
 
