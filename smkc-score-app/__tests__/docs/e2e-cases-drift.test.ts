@@ -59,11 +59,6 @@ describe('E2E case drift coverage', () => {
     'tc-816a-cdm-finals-fixture.test.ts',
   );
   const prismaMigrationsTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'prisma-migrations.test.ts');
-  const mrScoresConfirmedWranglerMigration = readRepoFile(
-    'smkc-score-app',
-    'migrations',
-    '0036_add_mr_scores_confirmed.sql',
-  );
   const taPhasesRouteTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -1646,8 +1641,26 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`prisma/migrations/0017_mr_scores_confirmed/migration.sql`');
     expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
     expect(prismaMigrationsTest).toContain('keeps MR scoresConfirmed type declarations aligned');
-    expect(mrScoresConfirmedWranglerMigration).toContain('"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false');
-    expect(mrScoresConfirmedWranglerMigration).not.toContain('"scoresConfirmed" INTEGER NOT NULL DEFAULT 0');
+    expect(prismaMigrationsTest).toContain('readWranglerMigration("0036_add_mr_scores_confirmed.sql")');
+    expect(prismaMigrationsTest).toContain('const expectedColumn = \'"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false\'');
+  });
+
+  it('documents TC-2206 as MR scoresConfirmed migration drift guard deduplication', () => {
+    const section = e2eCaseSection('TC-2206');
+    const previewSchemaPreflightTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'e2e',
+      'preview-schema-preflight.test.ts',
+    );
+
+    expect(section).toContain('issue #2206');
+    expect(section).toContain('`__tests__/docs/prisma-migrations.test.ts` が migration SQL の実体チェックを所有');
+    expect(section).toContain('TC-2107/TC-2206 の文書化と coverage owner');
+    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
+    expect(prismaMigrationsTest).toContain('readWranglerMigration("0036_add_mr_scores_confirmed.sql")');
+    expect(previewSchemaPreflightTest).toContain('keeps TC-2206 documented as migration drift deduplication coverage');
+    expect(previewSchemaPreflightTest).not.toContain('0036_add_mr_scores_confirmed.sql');
   });
 
   it('documents TC-824 as Phase3 sudden-death explicit order coverage', () => {

@@ -330,6 +330,15 @@ describe('preview schema preflight', () => {
     expect(section).toContain('Unexpected schema');
   });
 
+  it('keeps TC-2206 documented as migration drift deduplication coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-2206');
+    expect(section).toContain('issue #2206');
+    expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
+    expect(section).toContain('TC-2107/TC-2206 の文書化と coverage owner');
+  });
+
   it('fails with timeout guidance when wrangler hangs', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
@@ -378,15 +387,4 @@ describe('preview schema preflight', () => {
     );
   });
 
-  it('keeps the MR scoresConfirmed column type aligned in Wrangler migrations', () => {
-    const migrationPath = path.join(
-      process.cwd(),
-      'migrations',
-      '0036_add_mr_scores_confirmed.sql',
-    );
-
-    const migration = readFileSync(migrationPath, 'utf8');
-    expect(migration).toContain('"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false');
-    expect(migration).not.toContain('"scoresConfirmed" INTEGER NOT NULL DEFAULT 0');
-  });
 });
