@@ -1,5 +1,7 @@
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
 import {
+  callObjectArrayLiteralTexts,
+  callObjectPropertyNames,
   callExpressionWithArguments,
   e2eCaseSection,
   readRepoFile,
@@ -1267,6 +1269,27 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-2196 aligned with overlay phase target-wins stage context', () => {
     const section = e2eCaseSection('TC-2196');
+    const readCurrentPhaseInputSource = sectionBetween(
+      overlayEventsRoute,
+      'async function readCurrentPhaseInput',
+      'function parseSince',
+    );
+    const overlayFinalsStageFilters = [
+      'prisma.bMMatch.findFirst',
+      'prisma.mRMatch.findFirst',
+      'prisma.gPMatch.findFirst',
+    ].flatMap((callee) => callObjectArrayLiteralTexts(readCurrentPhaseInputSource, callee, [
+      'where',
+      'stage',
+      'in',
+    ]));
+    const overlayFinalsSelects = [
+      'prisma.bMMatch.findFirst',
+      'prisma.mRMatch.findFirst',
+      'prisma.gPMatch.findFirst',
+    ].flatMap((callee) => callObjectPropertyNames(readCurrentPhaseInputSource, callee, [
+      'select',
+    ]));
 
     expect(section).toContain('issue #2196');
     expect(section).toContain('latestFinalsStage: "playoff"');
@@ -1276,8 +1299,13 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('tc-2196-overlay-phase-format.test.ts');
     expect(overlayPhase).toContain('latestFinalsStage: string | null');
     expect(overlayPhase).toContain('stage: latestFinalsStage');
-    expect(overlayEventsRoute).toContain('stage: { in: ["playoff", "finals"] }');
-    expect(overlayEventsRoute).toContain('select: { stage: true, round: true, createdAt: true }');
+    expect(overlayFinalsStageFilters.length).toBeGreaterThanOrEqual(3);
+    for (const stageFilter of overlayFinalsStageFilters) {
+      expect(stageFilter).toEqual(['playoff', 'finals']);
+    }
+    for (const selectProperties of overlayFinalsSelects) {
+      expect(selectProperties).toEqual(expect.arrayContaining(['stage', 'round', 'createdAt']));
+    }
     expect(overlayEventsRoute).toContain('latestFinalsStage: latestFinals?.stage ?? null');
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsStage: 'playoff'");
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r1'");
@@ -1302,6 +1330,26 @@ describe('E2E case drift coverage', () => {
     expect(overlayPhaseTest).toContain('latestFinalsStage: null');
     expect(tc2200OverlayPhaseInputTest).toContain('type LatestFinalsStageIsRequired');
     expect(tc2200OverlayPhaseInputTest).toContain('latestFinalsStage: null');
+  });
+
+  it('keeps TC-2201 aligned with AST-backed overlay-events stage guard coverage', () => {
+    const section = e2eCaseSection('TC-2201');
+    const tc2196DriftGuard = sectionBetween(
+      readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts'),
+      "it('keeps TC-2196 aligned with overlay phase target-wins stage context'",
+      "it('keeps TC-2201 aligned with AST-backed overlay-events stage guard coverage'",
+    );
+
+    expect(section).toContain('issue #2201');
+    expect(section).toContain('AST');
+    expect(section).toContain('where.stage.in');
+    expect(section).toContain('stage');
+    expect(section).toContain('round');
+    expect(section).toContain('createdAt');
+    expect(tc2196DriftGuard).toContain('callObjectArrayLiteralTexts');
+    expect(tc2196DriftGuard).toContain('callObjectPropertyNames');
+    expect(tc2196DriftGuard).not.toContain('stage: { in: ["playoff", "finals"] }');
+    expect(tc2196DriftGuard).not.toContain('select: { stage: true, round: true, createdAt: true }');
   });
 
   it('keeps TC-1087 aligned with finite positive round-number guards', () => {
