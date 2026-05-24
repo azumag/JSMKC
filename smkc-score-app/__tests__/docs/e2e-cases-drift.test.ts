@@ -406,6 +406,18 @@ describe('E2E case drift coverage', () => {
     expect(staticTest).toContain('centralizes hydration guard props for normal and admin tab links');
   });
 
+  it('keeps TC-2204 aligned with tournament-tab positive match fallback coverage', () => {
+    const section = e2eCaseSection('TC-2204');
+    const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
+
+    expect(section).toContain('issue #2204');
+    expect(section).toContain('layoutSource.match(/\\{\\.\\.\\.tabHydrationGuardProps\\}/g)');
+    expect(section).toContain('`?? []`');
+    expect(section).toContain('TypeError ではなく件数差分');
+    expect(section).toContain('__tests__/static/tc-939-tournament-tabs-link.test.ts');
+    expect(staticTest).toContain('layoutSource.match(/\\{\\.\\.\\.tabHydrationGuardProps\\}/g) ?? []');
+  });
+
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
     const section = e2eCaseSection('TC-830');
     const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
