@@ -9,8 +9,12 @@ type ExpectTrue<T extends true> = T;
 type LatestFinalsStageIsRequired = ExpectTrue<
   IsRequired<ComputeCurrentPhaseInput, 'latestFinalsStage'>
 >;
+type LatestFinalsModeIsRequired = ExpectTrue<
+  IsRequired<ComputeCurrentPhaseInput, 'latestFinalsMode'>
+>;
 
 void (null as unknown as LatestFinalsStageIsRequired);
+void (null as unknown as LatestFinalsModeIsRequired);
 
 describe('TC-2200 overlay phase input shape', () => {
   it('requires callers to pass null when no latest finals stage exists', () => {
