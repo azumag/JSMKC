@@ -158,7 +158,7 @@ describe("computeCurrentPhaseFormat", () => {
     ).toBe(`First to ${getBmFinalsTargetWins({ round: "winners_qf" })}`);
   });
 
-  it("returns First to 5 for MR bracket finals", () => {
+  it("returns First to 9 for MR bracket grand finals", () => {
     expect(
       computeCurrentPhaseFormat(
         input({
