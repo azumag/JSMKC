@@ -147,18 +147,18 @@ async function readCurrentPhaseInput(
     taPhase3LatestRound,
   ] = await Promise.all([
     prisma.bMMatch.findFirst({
-      where: { tournamentId, stage: "finals", round: { not: null } },
-      select: { round: true, createdAt: true },
+      where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+      select: { stage: true, round: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.mRMatch.findFirst({
-      where: { tournamentId, stage: "finals", round: { not: null } },
-      select: { round: true, createdAt: true },
+      where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+      select: { stage: true, round: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.gPMatch.findFirst({
-      where: { tournamentId, stage: "finals", round: { not: null } },
-      select: { round: true, createdAt: true },
+      where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+      select: { stage: true, round: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.tTEntry.findFirst({
@@ -195,9 +195,9 @@ async function readCurrentPhaseInput(
       bmLatestFinals && { ...bmLatestFinals, mode: "bm" as OverlayMode },
       mrLatestFinals && { ...mrLatestFinals, mode: "mr" as OverlayMode },
       gpLatestFinals && { ...gpLatestFinals, mode: "gp" as OverlayMode },
-    ] as Array<{ round: string | null; createdAt: Date; mode: OverlayMode } | null>
+    ] as Array<{ stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } | null>
   )
-    .filter((m): m is { round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
+    .filter((m): m is { stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
   let taCurrentPhase: "qualification" | "phase1" | "phase2" | "phase3" =
@@ -219,6 +219,7 @@ async function readCurrentPhaseInput(
     taCurrentPhase,
     taLatestPhaseRoundNumber,
     latestFinalsRound: latestFinals?.round ?? null,
+    latestFinalsStage: latestFinals?.stage ?? null,
     latestFinalsMode: latestFinals?.mode ?? null,
   };
 }
@@ -507,18 +508,18 @@ async function handleGET(
          number per phase. None of these depend on `since` — they describe
          the current tournament state, not a delta. */
       prisma.bMMatch.findFirst({
-        where: { tournamentId, stage: "finals", round: { not: null } },
-        select: { round: true, createdAt: true },
+        where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+        select: { stage: true, round: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
       prisma.mRMatch.findFirst({
-        where: { tournamentId, stage: "finals", round: { not: null } },
-        select: { round: true, createdAt: true },
+        where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+        select: { stage: true, round: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
       prisma.gPMatch.findFirst({
-        where: { tournamentId, stage: "finals", round: { not: null } },
-        select: { round: true, createdAt: true },
+        where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+        select: { stage: true, round: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
       prisma.tTEntry.findFirst({
@@ -683,9 +684,9 @@ async function handleGET(
         bmLatestFinals && { ...bmLatestFinals, mode: "bm" as OverlayMode },
         mrLatestFinals && { ...mrLatestFinals, mode: "mr" as OverlayMode },
         gpLatestFinals && { ...gpLatestFinals, mode: "gp" as OverlayMode },
-      ] as Array<{ round: string | null; createdAt: Date; mode: OverlayMode } | null>
+      ] as Array<{ stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } | null>
     )
-      .filter((m): m is { round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
+      .filter((m): m is { stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
     /* Resolve TA phase from the existence checks. We descend from phase3
@@ -711,6 +712,7 @@ async function handleGET(
       taCurrentPhase,
       taLatestPhaseRoundNumber,
       latestFinalsRound: latestFinals?.round ?? null,
+      latestFinalsStage: latestFinals?.stage ?? null,
       latestFinalsMode: latestFinals?.mode ?? null,
     };
     const currentPhase = computeCurrentPhase(phaseInput);

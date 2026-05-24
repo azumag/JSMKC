@@ -158,6 +158,30 @@ describe("computeCurrentPhaseFormat", () => {
     ).toBe(`First to ${getBmFinalsTargetWins({ round: "winners_qf" })}`);
   });
 
+  it("uses the stage context for BM playoff first-to values", () => {
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          latestFinalsStage: "playoff",
+          latestFinalsRound: "playoff_r1",
+          latestFinalsMode: "bm",
+        }),
+      ),
+    ).toBe(`First to ${getBmFinalsTargetWins({ stage: "playoff", round: "playoff_r1" })}`);
+
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          latestFinalsStage: "playoff",
+          latestFinalsRound: "playoff_r2",
+          latestFinalsMode: "bm",
+        }),
+      ),
+    ).toBe(`First to ${getBmFinalsTargetWins({ stage: "playoff", round: "playoff_r2" })}`);
+  });
+
   it("returns First to 9 for MR bracket grand finals", () => {
     expect(
       computeCurrentPhaseFormat(
@@ -168,6 +192,30 @@ describe("computeCurrentPhaseFormat", () => {
         }),
       ),
     ).toBe(`First to ${getMrFinalsTargetWins({ round: "grand_final" })}`);
+  });
+
+  it("uses the stage context for MR playoff first-to values", () => {
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          latestFinalsStage: "playoff",
+          latestFinalsRound: "playoff_r1",
+          latestFinalsMode: "mr",
+        }),
+      ),
+    ).toBe(`First to ${getMrFinalsTargetWins({ stage: "playoff", round: "playoff_r1" })}`);
+
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          latestFinalsStage: "playoff",
+          latestFinalsRound: "playoff_r2",
+          latestFinalsMode: "mr",
+        }),
+      ),
+    ).toBe(`First to ${getMrFinalsTargetWins({ stage: "playoff", round: "playoff_r2" })}`);
   });
 
   it("returns null for GP finals (point-total, no first-to threshold)", () => {

@@ -31,10 +31,15 @@ export interface ComputeCurrentPhaseInput {
    */
   taLatestPhaseRoundNumber: number | null;
   /**
-   * The `round` column of the most recently created BM/MR/GP `stage='finals'`
-   * match, across all three modes. Null when no finals match exists yet.
+   * The `round` column of the most recently created BM/MR/GP playoff/finals
+   * match, across all three modes. Null when no playoff/finals match exists yet.
    */
   latestFinalsRound: string | null;
+  /**
+   * The `stage` column for `latestFinalsRound`. Playoff rounds have different
+   * target-wins values from bracket finals, so format resolution needs both.
+   */
+  latestFinalsStage?: string | null;
   /**
    * Which 2P mode (BM/MR/GP) the `latestFinalsRound` belongs to. Used to look
    * up the matching format ("First to 5" etc.) in `computeCurrentPhaseFormat`.
@@ -51,6 +56,8 @@ export interface ComputeCurrentPhaseInput {
  */
 const FINALS_ROUND_LABEL: Record<string, string> = {
   qf: "Quarter Final",
+  playoff_r1: "Playoff Round 1",
+  playoff_r2: "Playoff Round 2",
   winners_qf: "Winners Quarter Final",
   sf: "Semi Final",
   winners_sf: "Winners Semi Final",
@@ -86,7 +93,6 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
     taCurrentPhase,
     taLatestPhaseRoundNumber,
     latestFinalsRound,
-    latestFinalsMode,
   } = input;
 
   if (latestFinalsRound) {
@@ -152,15 +158,21 @@ export function buildMatchLabel(
 export function computeCurrentPhaseFormat(
   input: ComputeCurrentPhaseInput,
 ): string | null {
-  const { latestFinalsRound, latestFinalsMode } = input;
+  const { latestFinalsRound, latestFinalsStage, latestFinalsMode } = input;
 
   if (latestFinalsRound && latestFinalsMode) {
     if (latestFinalsMode === "bm") {
-      const targetWins = getBmFinalsTargetWins({ round: latestFinalsRound });
+      const targetWins = getBmFinalsTargetWins({
+        round: latestFinalsRound,
+        stage: latestFinalsStage,
+      });
       return `First to ${targetWins}`;
     }
     if (latestFinalsMode === "mr") {
-      const targetWins = getMrFinalsTargetWins({ round: latestFinalsRound });
+      const targetWins = getMrFinalsTargetWins({
+        round: latestFinalsRound,
+        stage: latestFinalsStage,
+      });
       return `First to ${targetWins}`;
     }
     return null;
