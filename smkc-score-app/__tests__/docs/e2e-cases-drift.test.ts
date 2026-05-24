@@ -53,6 +53,13 @@ describe('E2E case drift coverage', () => {
     'phases',
     'route.test.ts',
   );
+  const overlayPhaseTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'lib',
+    'overlay',
+    'phase.test.ts',
+  );
   const taFinalsPhaseManagerTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -326,6 +333,18 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).toContain('continues preview startup on Wrangler auth and log setup failures by default');
     expect(preflightTest).toContain('keeps TC-2161 documented as non-blocking auth preflight coverage');
     expect(preflightTest).toContain('keeps Wrangler auth/log message helpers private to the preflight runner');
+  });
+
+  it('keeps TC-2195 aligned with the MR grand-final phase format test wording', () => {
+    const section = e2eCaseSection('TC-2195');
+
+    expect(section).toContain('issue #2195');
+    expect(section).toContain('First to 9');
+    expect(section).toContain('phase.test.ts');
+    expect(overlayPhaseTest).toContain('returns First to 9 for MR bracket grand finals');
+    expect(overlayPhaseTest).toContain('latestFinalsRound: "grand_final"');
+    expect(overlayPhaseTest).toContain('getMrFinalsTargetWins({ round: "grand_final" })');
+    expect(overlayPhaseTest).not.toContain('returns First to 5 for MR bracket finals');
   });
 
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
