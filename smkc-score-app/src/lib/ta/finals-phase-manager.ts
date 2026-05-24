@@ -1045,8 +1045,9 @@ export function getSuddenDeathContinuationTargets(
   const unsafeSuddenTime = suddenByPlayer.get(unsafeBoundary.playerId);
   if (safeSuddenTime === undefined || unsafeSuddenTime === undefined || safeSuddenTime !== unsafeSuddenTime) {
     // Sudden death is only repeated when the life-loss boundary is still unresolved.
-    // If the boundary was resolved, there can still be a separate tie among the slowest
-    // sudden-death players; those players must race again so one life-loss target can be chosen.
+    // If the boundary was already resolved, there can still be a separate tie among the
+    // slowest sudden-death players; those players must race again so one life-loss
+    // target can be selected.
     const slowestSuddenTime = Math.max(...suddenDeathResults.map((result) => result.timeMs));
     const stillTiedForElimination = suddenDeathResults.filter((result) => result.timeMs === slowestSuddenTime);
     return stillTiedForElimination.length > 1 ? stillTiedForElimination.map((result) => result.playerId) : [];
