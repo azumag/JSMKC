@@ -88,8 +88,8 @@ function isWranglerSchemaFailure(stderr) {
     /schema\s+drift/i,
     /pending\s+(?:d1\s+)?migration/i,
     /missing\s+(?:d1\s+)?migration/i,
-    /table .* not found/i,
-    /column .* not found/i,
+    /(?:table .+|[\w.]+ table) not found/i,
+    /(?:column .+|[\w.]+ column) not found/i,
   ].some((pattern) => pattern.test(stderr));
 }
 

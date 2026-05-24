@@ -125,6 +125,18 @@
 - **期待結果**: 認証/ログ初期化だけの失敗は通常 preview E2E を本体開始前に止めず、schema missing / SQLite error / timeout / strict preflight は従来どおり診断つきで失敗する。TC-2161 の E2E scenario 文字列確認は `preview-schema-preflight.test.ts` 側に集約し、drift test は preview preflight 実装と補助テストの対応だけを監視する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2207: Preview D1 schema preflight は Wrangler schema drift 表記の追加パターンを migration guidance に分類する
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
+- **背景**: issue #2207。`isWranglerSchemaFailure` は Wrangler/D1 が返す SQLite missing/unknown table-column、missing D1 migration、`table not found`、`column not found` 表記を schema drift として migration guidance に流すが、代表 stderr の positive coverage が不足していた。
+- **手順**:
+  1. `SQLITE_ERROR: missing table: GPMatch` を schema drift と判定することを確認する
+  2. `missing D1 migration detected on preview` を schema drift と判定することを確認する
+  3. `GPMatch table not found` と `suddenDeathWinnerId column not found` を schema drift と判定することを確認する
+  4. network / generic schema registry / migration apply progress の stderr は migration guidance に分類しないことを確認する
+- **期待結果**: preview E2E は実際の D1 schema drift 表記を migration guidance として早期失敗させる一方、接続や進行ログを schema drift と誤分類しない
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
+
 ## TC-2104: Preview D1 schema preflight の Wrangler retry loop は unreachable fallback return を持たない
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)

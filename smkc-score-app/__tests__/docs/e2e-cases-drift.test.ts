@@ -357,6 +357,21 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).toContain('keeps Wrangler auth/log message helpers private to the preflight runner');
   });
 
+  it('keeps TC-2207 aligned with preview schema failure pattern coverage', () => {
+    const section = e2eCaseSection('TC-2207');
+    const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
+
+    expect(section).toContain('issue #2207');
+    expect(section).toContain('SQLITE_ERROR: missing table: GPMatch');
+    expect(section).toContain('missing D1 migration detected on preview');
+    expect(section).toContain('GPMatch table not found');
+    expect(section).toContain('suddenDeathWinnerId column not found');
+    expect(preflightTest).toContain("SQLITE_ERROR: missing table: GPMatch");
+    expect(preflightTest).toContain("missing D1 migration detected on preview");
+    expect(preflightTest).toContain("GPMatch table not found");
+    expect(preflightTest).toContain("suddenDeathWinnerId column not found");
+  });
+
   it('keeps TC-2195 aligned with the MR grand-final phase format test wording', () => {
     const section = e2eCaseSection('TC-2195');
 
