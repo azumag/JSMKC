@@ -23,6 +23,7 @@ function input(overrides: Partial<Parameters<typeof computeCurrentPhase>[0]> = {
     taCurrentPhase: "qualification" as const,
     taLatestPhaseRoundNumber: null,
     latestFinalsRound: null,
+    latestFinalsStage: null,
     latestFinalsMode: null,
     ...overrides,
   };
@@ -146,6 +147,10 @@ describe("computeCurrentPhase", () => {
 });
 
 describe("computeCurrentPhaseFormat", () => {
+  it("keeps latestFinalsStage explicit even when no finals stage is active", () => {
+    expect(input()).toEqual(expect.objectContaining({ latestFinalsStage: null }));
+  });
+
   it("returns First to 5 for BM bracket finals", () => {
     expect(
       computeCurrentPhaseFormat(

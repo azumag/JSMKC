@@ -39,7 +39,7 @@ export interface ComputeCurrentPhaseInput {
    * The `stage` column for `latestFinalsRound`. Playoff rounds have different
    * target-wins values from bracket finals, so format resolution needs both.
    */
-  latestFinalsStage?: string | null;
+  latestFinalsStage: string | null;
   /**
    * Which 2P mode (BM/MR/GP) the `latestFinalsRound` belongs to. Used to look
    * up the matching format ("First to 5" etc.) in `computeCurrentPhaseFormat`.
