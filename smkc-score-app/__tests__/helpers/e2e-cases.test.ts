@@ -204,6 +204,24 @@ describe('E2E case helpers', () => {
     ])).toEqual([['stage', 'round', 'createdAt']]);
   });
 
+  it('returns empty arrays when the requested callee is absent', () => {
+    const source = `
+      prisma.bMMatch.findFirst({
+        where: { tournamentId, stage: { in: ['finals'] } },
+        select: { stage: true, round: true },
+      });
+    `;
+
+    expect(callObjectArrayLiteralTexts(source, 'prisma.NONEXISTENT.findFirst', [
+      'where',
+      'stage',
+      'in',
+    ])).toEqual([]);
+    expect(callObjectPropertyNames(source, 'prisma.NONEXISTENT.findFirst', [
+      'select',
+    ])).toEqual([]);
+  });
+
   it('fails clearly when a nested array literal is missing', () => {
     const source = `
       prisma.bMMatch.findFirst({
