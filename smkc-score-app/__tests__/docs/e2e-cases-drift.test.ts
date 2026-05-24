@@ -364,6 +364,18 @@ describe('E2E case drift coverage', () => {
     expect(overlayPhaseTest).not.toContain('returns First to 5 for MR bracket finals');
   });
 
+  it('keeps TC-2104 aligned with preview preflight retry-loop coverage', () => {
+    const section = e2eCaseSection('TC-2104');
+    const preflight = readE2eLib('preview-schema-preflight.js');
+    const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
+
+    expect(section).toContain('unreachable fallback return');
+    expect(section).toContain('WRANGLER_TRANSIENT_STATUS_RETRIES + 1');
+    expect(preflight).toContain('attempt === WRANGLER_TRANSIENT_STATUS_RETRIES');
+    expect(preflightTest).toContain('keeps runWranglerSchemaCheck free of a loop-after fallback return');
+    expect(preflightTest).toContain('keeps TC-2104 documented as unreachable retry fallback coverage');
+  });
+
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
     const section = e2eCaseSection('TC-830');
     const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
