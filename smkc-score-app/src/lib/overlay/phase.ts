@@ -45,7 +45,7 @@ export interface ComputeCurrentPhaseInput {
    * up the matching format ("First to 5" etc.) in `computeCurrentPhaseFormat`.
    * Null when there is no finals match yet, or when the latest match has no mode.
    */
-  latestFinalsMode?: OverlayMode | null;
+  latestFinalsMode: OverlayMode | null;
 }
 
 /**
