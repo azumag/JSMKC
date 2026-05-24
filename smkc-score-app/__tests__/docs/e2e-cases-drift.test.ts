@@ -411,6 +411,22 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).not.toContain('preview E2E startup guard');
   });
 
+  it('keeps TC-2218 aligned with the old TC-816 deletion note wording', () => {
+    const section = e2eCaseSection('TC-2218');
+    const e2eCases = readRepoFile('E2E_TEST_CASES.md');
+    const renameHistory = sectionBetween(e2eCases, '**欠番 / リネーム履歴**:', '### ページ中身の確認ルール');
+    const currentTc816 = e2eCaseSection('TC-816');
+
+    expect(section).toContain('issue #2218');
+    expect(section).toContain('旧 TC-816 シナリオ');
+    expect(section).toContain('現行 TC-816');
+    expect(section).toContain('__tests__/docs/e2e-cases-drift.test.ts');
+    expect(renameHistory).toContain('旧 TC-816 シナリオは E2E テスト対象外');
+    expect(renameHistory).not.toContain('TC-816 は E2E テスト対象外');
+    expect(currentTc816).toContain('TA 決勝フェーズ開始済みページの初期表示で開始ボタンがちらつかない');
+    expect(currentTc816).toContain('tc-ta.js TC-816');
+  });
+
   it('keeps TC-2118 documented with the shared tournament-tab hydration guard', () => {
     const section = e2eCaseSection('TC-2118');
     const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');

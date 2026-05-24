@@ -160,6 +160,17 @@
 - **期待結果**: TC-2104 の分類文言 ownership は docs drift test に一本化され、preview preflight test は runner behavior と structural source guard に集中する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2218: 旧 TC-816 削除注釈は現行 TC-816 と混同しない
+- **URL**: n/a (E2E scenario ledger / docs drift guard)
+- **authRequired**: false
+- **背景**: issue #2218。欠番 / リネーム履歴の TC-816 削除注釈が `TC-816 は E2E テスト対象外` と書くと、現行 TC-816（TA 決勝フェーズ開始済みページのちらつきチェック）まで E2E 対象外に見える。
+- **手順**:
+  1. 欠番 / リネーム履歴の注釈が `旧 TC-816 シナリオ` を対象にしていることを確認する
+  2. 現行 TC-816 が `tc-ta.js TC-816` のスクリプト付きシナリオとして残っていることを確認する
+  3. docs drift test が削除注釈の曖昧な `TC-816 は E2E テスト対象外` 表現を拒否することを確認する
+- **期待結果**: 削除済みの旧 TC-816 だけが E2E 対象外として説明され、現行 TC-816 のスクリプト付き coverage と矛盾しない
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-008: Overall Ranking ページの表示
 - **URL**: /tournaments/[id]/overall-ranking
 - **authRequired**: false
@@ -3870,7 +3881,7 @@
 - 旧 TC-816（TA/TT 決勝フェーズ — フェーズ間コース履歴引き継ぎ）は
   E2E スクリプト再整理に伴い文書上で削除。代替の回帰担保は TC-817 で実施し、
   TC-816 は別シナリオ（開始済みページのちらつきチェック）に再割当。
-  （issue #940 対応。TC-816 は E2E テスト対象外のため、
+  （issue #940 対応。旧 TC-816 シナリオは E2E テスト対象外のため、
   回帰担保を TC-817 と TC-816A の関連シナリオへ委譲）
 
 ### ページ中身の確認ルール（重要）
