@@ -700,7 +700,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return null;
       }
 
-      const suddenDeathWinnerPlayer = match.player1Id === suddenDeathWinnerId ? match.player1 : match.player2;
+      const suddenDeathWinnerPlayer =
+        match.player1Id === suddenDeathWinnerId
+          ? match.player1
+          : match.player2Id === suddenDeathWinnerId
+            ? match.player2
+            : null;
       if (!isPublicFinalsPlayer(suddenDeathWinnerPlayer)) {
         return null;
       }
