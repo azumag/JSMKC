@@ -1419,7 +1419,7 @@ describe("TA Finals Phase Manager", () => {
       );
     });
 
-    it("keeps non-sudden players from changing sudden-death ordering in phase3", async () => {
+    it("keeps non-sudden players from becoming an unintended elimination target in phase3", async () => {
       mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
         id: "sd1",
         tournamentId: "t1",
@@ -1471,11 +1471,11 @@ describe("TA Finals Phase Manager", () => {
         { playerId: "p4", timeMs: 91000 },
       ]);
 
-      expect(result.eliminatedIds).toEqual(["p4"]);
+      expect(result.eliminatedIds).toEqual(["p5"]);
       expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            eliminatedIds: ["p4"],
+            eliminatedIds: ["p5"],
             livesReset: false,
           }),
         })
