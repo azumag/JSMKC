@@ -4391,8 +4391,11 @@ async function main() {
         };
         const hasExpectedTitle = await page.evaluate((titles) => {
           const headings = Array.from(document.querySelectorAll('h1'));
-          return headings.some((heading) =>
-            titles.some((title) => (heading.textContent || '').includes(title))
+          const normalizedHeadings = headings
+            .map((heading) => (heading.textContent || '').trim())
+            .filter(Boolean);
+          return normalizedHeadings.some((headingText) =>
+            titles.some((title) => headingText.includes(title))
           );
         }, expectedTitles[mode]);
         results357.push({ mode, hasH1: hasExpectedTitle });
