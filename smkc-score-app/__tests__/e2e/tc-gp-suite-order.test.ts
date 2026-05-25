@@ -26,6 +26,7 @@ describe('tc-gp suite ordering', () => {
     const names = suite.tests.map((entry: TcTestCase) => entry.name);
 
     const tc831Index = names.indexOf('TC-831');
+    expect(tc831Index).toBeGreaterThanOrEqual(0);
     expect(names.slice(tc831Index, tc831Index + 2)).toEqual(['TC-831', 'TC-832']);
   });
 });
