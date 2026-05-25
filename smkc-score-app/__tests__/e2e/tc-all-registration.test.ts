@@ -51,11 +51,32 @@ describe('tc-all focused suite registration', () => {
 
   it('keeps archive qualification fetch isolation behavior contract', () => {
     const archiveSource = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-archive.js'), 'utf8');
+    if (archiveSource.includes('function assertQualificationFetchesStartInParallel(')) {
+      const targetPage = {
+        bringToFront: jest.fn(async () => undefined),
+        goto: jest.fn(async () => undefined),
+        waitForFunction: jest.fn(async () => undefined),
+        close: jest.fn(async () => undefined),
+      };
+      const newPage = jest.fn(async () => targetPage);
+      const rootPage = {
+        context: jest.fn(() => ({ newPage })),
+        goto: jest.fn(async () => undefined),
+      };
 
-    expect(archiveSource).toContain('const targetPage = await page.context().newPage();');
-    expect(archiveSource).toContain('await targetPage.bringToFront();');
-    expect(archiveSource).toContain('await targetPage.close().catch(() => {});');
-    expect(archiveSource).toContain('result.status === \'FAIL\'');
+      const { assertQualificationFetchesStartInParallel } = requireFromApp('./e2e/tc-archive');
+      expect(typeof assertQualificationFetchesStartInParallel).toBe('function');
+
+      expect(rootPage.context).not.toHaveBeenCalled();
+      await expect(assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta'))
+        .resolves.toBe(0);
+      expect(rootPage.context).toHaveBeenCalled();
+      expect(newPage).toHaveBeenCalled();
+      expect(targetPage.bringToFront).toHaveBeenCalled();
+      expect(targetPage.close).toHaveBeenCalled();
+    } else {
+      throw new Error('assertQualificationFetchesStartInParallel must be exported from tc-archive.js');
+    }
   });
 
   it('registers auth error and web vitals preview checks for TC-2070', () => {
