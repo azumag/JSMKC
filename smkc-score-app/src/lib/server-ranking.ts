@@ -134,16 +134,18 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
   }
 
   const withOverrides = ranked.map((entry, index) => {
+    const resolvedRank = entry.rankOverride ?? entry._rank ?? Number.MAX_SAFE_INTEGER;
     const overrideRank = entry.rankOverride != null;
     return overrideRank
       ? {
         ...entry,
-        _rank: entry.rankOverride,
+        _rank: resolvedRank,
         _rankOverridden: true,
         _rankingOrder: index,
       }
       : {
         ...entry,
+        _rank: resolvedRank,
         _rankingOrder: index,
       };
   });
@@ -161,7 +163,7 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
     return (a._rankingOrder ?? 0) - (b._rankingOrder ?? 0);
   });
 
-  return withOverrides.map(({ _rankingOrder, ...entry }) => entry);
+  return withOverrides.map(({ _rankingOrder, ...entry }) => entry as RankedQualification<TQualification>);
 }
 
 /**
