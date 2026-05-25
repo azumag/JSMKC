@@ -1140,7 +1140,9 @@ async function createSuddenDeathRound(
              * admin must refresh instead of continuing with mixed state.
              */
             throw new Error(
-              `Sudden-death round for ${phase} changed during submission. Refresh and submit again.`
+              `Sudden-death round for ${phase} changed during submission. Refresh and submit again. ` +
+                `Computed targets (this request): ${JSON.stringify(targetPlayerIds)}, ` +
+                `Stored targets (concurrent request): ${JSON.stringify(existing.targetPlayerIds)}`
             );
           }
           logger.warn("Sudden-death creation race condition detected, reusing existing round", {
