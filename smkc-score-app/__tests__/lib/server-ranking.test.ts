@@ -95,6 +95,32 @@ describe("computeQualificationRanks", () => {
     expect(result[1].playerId).toBe("b");
   });
 
+  it("does not use existing _rankOverridden when rankOverride is missing", () => {
+    const quals = [
+      { playerId: "a", score: 10, points: 3, _rankOverridden: false } as {
+        playerId: string;
+        score: number;
+        points: number;
+        _rankOverridden: boolean;
+      },
+      { playerId: "b", score: 10, points: 3, _rankOverridden: true } as {
+        playerId: string;
+        score: number;
+        points: number;
+        _rankOverridden: boolean;
+      },
+      { playerId: "c", score: 9, points: 2 },
+    ];
+
+    const result = computeQualificationRanks(quals, [{ score: "desc" }, { points: "desc" }], []);
+
+    // `computeQualificationRanks` uses `rankOverride` as the sole override source,
+    // so `rankOverride`-less entries keep initial order when `_rank` and base
+    // ranking keys are tied.
+    expect(result[0].playerId).toBe("a");
+    expect(result[1].playerId).toBe("b");
+  });
+
   it("restarts ranks when group is the leading sort field", () => {
     const quals = [
       { playerId: "a1", group: "A", score: 10, points: 3, rankOverride: null },

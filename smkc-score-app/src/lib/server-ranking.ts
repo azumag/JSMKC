@@ -133,23 +133,35 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
     ranked.splice(0, ranked.length, ...resolved);
   }
 
-  const withOverrides = ranked.map((entry) =>
-    entry.rankOverride != null
-      ? { ...entry, _rank: entry.rankOverride, _rankOverridden: true }
-      : entry,
-  );
+  const withOverrides = ranked.map((entry, index) => {
+    const overrideRank = entry.rankOverride != null;
+    return overrideRank
+      ? {
+        ...entry,
+        _rank: entry.rankOverride,
+        _rankOverridden: true,
+        _rankingOrder: index,
+      }
+      : {
+        ...entry,
+        _rankingOrder: index,
+      };
+  });
 
-  withOverrides.sort(
-    (
-      a: { _rank: number; _rankOverridden?: boolean },
-      b: { _rank: number; _rankOverridden?: boolean },
-    ) => {
-      if (a._rank !== b._rank) return a._rank - b._rank;
-      return (b._rankOverridden ? 1 : 0) - (a._rankOverridden ? 1 : 0);
-    },
-  );
+  withOverrides.sort((
+    a: { _rank: number; rankOverride?: number | null; _rankingOrder?: number },
+    b: { _rank: number; rankOverride?: number | null; _rankingOrder?: number },
+  ) => {
+    if (a._rank !== b._rank) return a._rank - b._rank;
 
-  return withOverrides;
+    const aOverride = a.rankOverride != null;
+    const bOverride = b.rankOverride != null;
+    if (aOverride !== bOverride) return aOverride ? -1 : 1;
+
+    return (a._rankingOrder ?? 0) - (b._rankingOrder ?? 0);
+  });
+
+  return withOverrides.map(({ _rankingOrder, ...entry }) => entry);
 }
 
 /**
