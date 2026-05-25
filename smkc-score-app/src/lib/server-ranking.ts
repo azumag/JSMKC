@@ -148,11 +148,11 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
       };
   });
 
-  withOverrides.sort((
-    a: { _rank: number; rankOverride?: number | null; _rankingOrder?: number },
-    b: { _rank: number; rankOverride?: number | null; _rankingOrder?: number },
-  ) => {
-    if (a._rank !== b._rank) return a._rank - b._rank;
+  withOverrides.sort((a, b) => {
+    const aRank = a.rankOverride ?? a._rank;
+    const bRank = b.rankOverride ?? b._rank;
+
+    if (aRank !== bRank) return (aRank ?? Number.MAX_SAFE_INTEGER) - (bRank ?? Number.MAX_SAFE_INTEGER);
 
     const aOverride = a.rankOverride != null;
     const bOverride = b.rankOverride != null;
