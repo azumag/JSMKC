@@ -1132,17 +1132,19 @@ async function createSuddenDeathRound(
           orderBy: { sequence: "desc" },
         });
         if (existing) {
-          if (!hasSameTargetPlayers(existing.targetPlayerIds, targetPlayerIds)) {
-            /*
-             * A different concurrent submission already created the sudden-death
-             * round. Returning it as success would pair this request's stored
-             * base-round results with another request's tiebreak targets, so the
-             * admin must refresh instead of continuing with mixed state.
-             */
-            throw new Error(
-              `Sudden-death round for ${phase} changed during submission. Refresh and submit again.`
-            );
-          }
+        if (!hasSameTargetPlayers(existing.targetPlayerIds, targetPlayerIds)) {
+          /*
+           * A different concurrent submission already created the sudden-death
+           * round. Returning it as success would pair this request's stored
+           * base-round results with another request's tiebreak targets, so the
+           * admin must refresh instead of continuing with mixed state.
+           */
+          throw new Error(
+              `Sudden-death round for ${phase} changed during submission. Refresh and submit again. ` +
+                `Current targets: ${JSON.stringify(targetPlayerIds)}, ` +
+                `submitted targets: ${JSON.stringify(existing.targetPlayerIds)}`
+          );
+        }
           logger.warn("Sudden-death creation race condition detected, reusing existing round", {
             tournamentId,
             phase,

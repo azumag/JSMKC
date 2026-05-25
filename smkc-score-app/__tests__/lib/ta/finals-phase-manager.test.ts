@@ -931,7 +931,9 @@ describe("TA Finals Phase Manager", () => {
           { playerId: "p4", timeMs: 90000 },
           { playerId: "p5", timeMs: 90000 },
         ])
-      ).rejects.toThrow("Sudden-death round for phase1 changed during submission. Refresh and submit again.");
+      ).rejects.toThrow(
+        "Sudden-death round for phase1 changed during submission. Refresh and submit again. Current targets: [\"p4\", \"p5\"], submitted targets: [\"p1\", \"p2\"]"
+      );
 
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledTimes(1);
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.count).toHaveBeenCalledTimes(1);
