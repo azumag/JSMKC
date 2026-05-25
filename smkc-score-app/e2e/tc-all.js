@@ -4338,14 +4338,18 @@ async function main() {
         const dialog = document.querySelector('[role="dialog"]');
         if (!(dialog instanceof HTMLElement)) return false;
         /* GP finals moved to cup-win score-only inputs. The mobile regression is
-         * now that both numeric fields stay inside the dialog viewport without
-         * requiring horizontal scroll. */
+         * now that both numeric fields stay inside the dialog score table and
+         * do not rely on page-level overflow handling. */
         const scoreInputs = [
           dialog.querySelector('#gp-finals-simple-score1'),
           dialog.querySelector('#gp-finals-simple-score2'),
         ].filter((node) => node instanceof HTMLElement);
         if (scoreInputs.length !== 2) return false;
-        const rect = dialog.getBoundingClientRect();
+        const scoreDialogTable = dialog.querySelector('table');
+        if (!(scoreDialogTable instanceof HTMLElement)) return false;
+        const scoreDialogOverflow = scoreDialogTable.closest('div.overflow-x-auto');
+        if (!(scoreDialogOverflow instanceof HTMLElement)) return false;
+        const rect = scoreDialogOverflow.getBoundingClientRect();
         const viewportWidth = document.documentElement.clientWidth;
         return rect.left >= 0 &&
           rect.right <= viewportWidth &&
