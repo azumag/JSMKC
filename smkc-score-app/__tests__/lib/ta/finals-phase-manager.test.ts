@@ -932,7 +932,7 @@ describe("TA Finals Phase Manager", () => {
           { playerId: "p5", timeMs: 90000 },
         ])
       ).rejects.toThrow(
-        /Current targets: \["p4","p5"\], submitted targets: \["p1","p2"\]/
+        /Computed targets \(this request\): \["p4","p5"\], Stored targets \(concurrent request\): \["p1","p2"\]/
       );
 
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledTimes(1);
