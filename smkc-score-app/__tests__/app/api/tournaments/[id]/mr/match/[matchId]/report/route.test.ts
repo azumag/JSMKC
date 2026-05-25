@@ -342,6 +342,8 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
         message: 'Scores confirmed and match completed',
         status: 200,
       });
+      expect(recalculatePlayersStats).toHaveBeenCalledWith(expect.any(Object), 't1', ['p1', 'p2']);
+      expect(prisma.mRQualification.updateMany).not.toHaveBeenCalled();
     });
 
     it('should save a participant correction for a completed MR match', async () => {
@@ -390,6 +392,7 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
         }),
       }));
       expect(recalculatePlayersStats).toHaveBeenCalledWith(expect.any(Object), 't1', ['p1', 'p2']);
+      expect(prisma.mRQualification.updateMany).not.toHaveBeenCalled();
       expect(result).toEqual({
         data: { match: correctedMatch, corrected: true },
         message: 'Score correction saved',
