@@ -1418,6 +1418,69 @@ describe("TA Finals Phase Manager", () => {
         })
       );
     });
+
+    it("keeps non-sudden players from becoming an unintended elimination target in phase3", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        targetPlayerIds: ["p4", "p5"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 10000 },
+            { playerId: "p2", timeMs: 11000 },
+            { playerId: "p3", timeMs: 13001 },
+            { playerId: "p4", timeMs: 13000 },
+            { playerId: "p5", timeMs: 13005 },
+          ],
+        },
+      });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false, lives: 3 },
+        { playerId: "p2", eliminated: false, lives: 3 },
+        { playerId: "p3", eliminated: false, lives: 3 },
+        { playerId: "p4", eliminated: false, lives: 1 },
+        { playerId: "p5", eliminated: false, lives: 1 },
+      ]);
+      mockPrismaClient.tTEntry.findUnique.mockImplementation(({ where }) => {
+        const playerId = where?.tournamentId_playerId_stage?.playerId;
+        const livesByPlayer = new Map([
+          ["p1", 3],
+          ["p2", 3],
+          ["p3", 3],
+          ["p4", 1],
+          ["p5", 1],
+        ]);
+        if (!playerId) return Promise.resolve(null);
+        return Promise.resolve({
+          id: `entry-${playerId}`,
+          lives: livesByPlayer.get(playerId) ?? 3,
+          eliminated: false,
+        });
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd1", [
+        { playerId: "p5", timeMs: 92000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      expect(result.eliminatedIds).toEqual(["p5"]);
+      expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            eliminatedIds: ["p5"],
+            livesReset: false,
+          }),
+        })
+      );
+    });
   });
 
   // === AUDIT LOG .catch() ERROR PATH (#779) ===
