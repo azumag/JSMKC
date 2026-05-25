@@ -49,6 +49,15 @@ describe('tc-all focused suite registration', () => {
     expect(source).not.toContain('Legacy lightweight full-workflow and GP dialog UI checks were retired.');
   });
 
+  it('keeps archive qualification fetch isolation behavior contract', () => {
+    const archiveSource = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-archive.js'), 'utf8');
+
+    expect(archiveSource).toContain('const targetPage = await page.context().newPage();');
+    expect(archiveSource).toContain('await targetPage.bringToFront();');
+    expect(archiveSource).toContain('await targetPage.close().catch(() => {});');
+    expect(archiveSource).toContain('result.status === \'FAIL\'');
+  });
+
   it('registers auth error and web vitals preview checks for TC-2070', () => {
     expect(source).toContain("log('TC-2070A'");
     expect(source).toContain('/auth/error?error=');
