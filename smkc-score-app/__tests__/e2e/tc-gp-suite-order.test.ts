@@ -5,7 +5,7 @@ type TcTestCase = {
   name: string;
 };
 
-const requireFromApp = createRequire(path.join(process.cwd(), 'package.json'));
+const requireFromApp = createRequire(path.resolve(__dirname, '../../package.json'));
 
 describe('tc-gp suite ordering', () => {
   it('keeps TC-831 before TC-832', () => {
