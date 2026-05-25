@@ -1,10 +1,11 @@
-import {
+import * as tcAllExports from '../../e2e/tc-all';
+
+const {
   cdmE2eFinalsMatches,
   cdmE2eFinalsReadinessDetails,
   cdmE2eFinalsReadinessSummary,
   ensureCdmE2eFinalsFixture,
-} from '../../e2e/tc-all';
-import * as tcAllExports from '../../e2e/tc-all';
+} = tcAllExports;
 
 describe('TC-816A CDM finals fixture readiness', () => {
   it('counts slot-mappable playoff and finals matches by mode', () => {
