@@ -49,7 +49,7 @@ describe('tc-all focused suite registration', () => {
     expect(source).not.toContain('Legacy lightweight full-workflow and GP dialog UI checks were retired.');
   });
 
-  it('keeps archive qualification fetch isolation behavior contract', () => {
+  it('keeps archive qualification fetch isolation behavior contract', async () => {
     const archiveSource = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-archive.js'), 'utf8');
     if (archiveSource.includes('function assertQualificationFetchesStartInParallel(')) {
       const targetPage = {
