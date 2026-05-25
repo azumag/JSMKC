@@ -16,7 +16,7 @@ describe('tc-gp suite ordering', () => {
     const tc831Index = names.indexOf('TC-831');
     const tc832Index = names.indexOf('TC-832');
 
-    expect(tc831Index).toBeGreaterThanOrEqual(0);
+    expect(tc831Index).toBeGreaterThanOrEqual(0); // TC-831 must exist before relying on slice()
     expect(tc832Index).toBeGreaterThan(tc831Index);
   });
 
