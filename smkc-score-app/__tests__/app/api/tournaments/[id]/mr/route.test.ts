@@ -33,11 +33,12 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
-import { BM_MR_MATCH_LEAN_SELECT, PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/route';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
+import { BM_MR_MATCH_LEAN_SELECT } from '@/lib/prisma-selects';
 
 const _rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
