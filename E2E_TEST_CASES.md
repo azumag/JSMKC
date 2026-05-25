@@ -5,6 +5,10 @@
 ## Framework: Next.js 16 (App Router) + React 19
 ## i18n: next-intl (en/ja)
 
+## Scope note: このドキュメントは Playwright ベースの実行E2Eシナリオのみを管理
+- この一覧は、`smkc-score-app/tc-all.js` 系で実行される実際のE2Eシナリオを列挙するものです。
+- Jest 単体テスト（例: PR テンプレート検証など）はこのE2E台帳のケースとして扱わず、`--runInBand` など専用のテスト実行経路で管理します。
+
 ---
 
 ## TC-001: トップページの表示と基本要素の確認
