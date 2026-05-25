@@ -286,10 +286,11 @@ describe('E2E case drift coverage', () => {
 
   it('documents why GP TC-831 stays before TC-832 in the suite order', () => {
     // Regex intent:
-    // - [^\\n]* matches the first rationale comment line only.
-    // - (?:\\n\\s*//[^\\n]*)* allows wrapped rationale lines while rejecting code between comment and entry.
-    // - \\s* allows formatting drift in spaces and newlines between the comment and array entries.
+    // - [^\\n]* matches the first rationale comment line.
+    // - (?:\\n\\s*//[^\\n]*)* allows wrapped rationale comments while rejecting code.
+    // - \\s* tolerates formatting drift in whitespace between comment and suite entry.
     // - ['"] accepts either quote style around TC labels in the runner list.
+    // - TC-831 and TC-832 should remain adjacent and ordered for log readability.
     // Allow multiline comment formatting drift while requiring comment -> TC-831 -> TC-832 adjacency.
     expect(tcGp).toMatch(gpTc831Tc832OrderRationale);
   });
