@@ -548,7 +548,9 @@ describe('Score Report Helpers', () => {
     it('should throw for an unknown qualificationModel before issuing bulk SQL', async () => {
       await expect(
         bulkUpdateQualificationStats('unknownModel' as any, 'tourney-1', [{ playerId: 'p1' }]),
-      ).rejects.toThrow('Unsupported qualification stats bulk update model: unknownModel');
+      ).rejects.toThrow(
+        'Unsupported qualification stats bulk update model: unknownModel. Supported: bMQualification, gPQualification, mRQualification'
+      );
 
       expect(mockExecuteRawUnsafe).not.toHaveBeenCalled();
     });

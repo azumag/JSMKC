@@ -366,7 +366,8 @@ export async function bulkUpdateQualificationStats(
    * dynamic identifiers in raw SQL parameters. */
   const sql = QUALIFICATION_STATS_UPDATE_SQL[qualificationModel];
   if (!sql) {
-    throw new Error(`Unsupported qualification stats bulk update model: ${qualificationModel}`);
+    const supportedModels = Object.keys(QUALIFICATION_STATS_UPDATE_SQL).sort().join(", ");
+    throw new Error(`Unsupported qualification stats bulk update model: ${qualificationModel}. Supported: ${supportedModels}`);
   }
 
   await prisma.$executeRawUnsafe(sql, JSON.stringify(updates), tournamentId);
