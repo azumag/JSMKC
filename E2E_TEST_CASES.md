@@ -3135,6 +3135,20 @@
   8. クリーンアップ
 - **期待結果**: GP Top-24 バラッジの UI フローが全段階で正常動作する
 
+## TC-2234: GP Top-24 Phase 2 preview — suddenDeathWinnerId 付き同点 playoff winner
+- **URL**: /tournaments/[temp-id]/gp/finals
+- **authRequired**: true (admin)
+- **背景**: issue #2234。Top-24 playoff の Phase 2 preview は `playoff_r2` が同点で完了していても、旧データ互換の `suddenDeathWinnerId` があれば winner を確定できる。TC-534 の未解決 warning とは別に、解決済み同点 winner が Upper Bracket seed に入る正方向を runnable E2E で固定する。
+- **手順**:
+  1. 28名予選完了状態の GP トーナメントで既存ブラケットをリセットし、`POST /api/tournaments/[id]/gp/finals { topN: 24 }` で Top-24 playoff を作成する
+  2. `playoff_r1` M1〜M4 を API 入力し、`playoff_r2` の対戦者を確定する
+  3. `playoff_r2` M5 を `points1 === points2` かつ `suddenDeathWinnerId` が player2 の completed 状態として保存し、M6〜M8 は通常勝者で完了する
+  4. Phase 2 作成前に `GET /api/tournaments/[id]/gp/finals` で preview を取得する
+  5. `playoffStructure` の M5 `advancesToUpperSeed` に対応する `seededPlayers` が `suddenDeathWinnerId` の player を指すことを確認する
+  6. `playoffComplete=true` のまま phase は `playoff` で、Upper Bracket 作成前 preview にとどまることを確認する
+- **期待結果**: GP Top-24 Phase 2 preview は同点 playoff_r2 の `suddenDeathWinnerId` を winner として採用し、該当 Upper Bracket seed を欠落させない
+- **スクリプト**: tc-gp.js TC-2234
+
 ## TC-716: GP 予選ページの決勝ブラケット存在状態 + リセット
 - **URL**: /tournaments/[temp-id]/gp
 - **authRequired**: true (admin)

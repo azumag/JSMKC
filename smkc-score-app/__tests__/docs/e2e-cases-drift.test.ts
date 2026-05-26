@@ -269,6 +269,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1109', tcGp],
     ['TC-1098', tcGp],
     ['TC-1106', tcGp],
+    ['TC-2234', tcGp],
     ['TC-725', tcGp],
     ['TC-1087', tcGp],
     ['TC-1083', tcMr],
@@ -2316,6 +2317,19 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('advancesToUpperSeed');
     expect(section).toContain('finals-route.test.ts');
     expect(section).toContain('server-side warning');
+  });
+
+  it('keeps TC-2234 aligned with the runnable GP Top-24 sudden-death preview coverage', () => {
+    const section = e2eCaseSection('TC-2234');
+
+    expect(section).toContain('issue #2234');
+    expect(section).toContain('suddenDeathWinnerId');
+    expect(section).toContain('playoff_r2');
+    expect(section).toContain('advancesToUpperSeed');
+    expect(section).toContain('tc-gp.js TC-2234');
+    expect(tcGp).toContain("log('TC-2234'");
+    expect(tcGp).toContain('apiSetGpFinalsScore(adminPage, tournamentId, match.id, 1, 1, suddenDeathWinnerId)');
+    expect(tcGp).toContain('seededWinner?.playerId === suddenDeathWinnerId');
   });
 
   it('documents TC-535 as BM Top-24 qualification label coverage', () => {
