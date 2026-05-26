@@ -2009,7 +2009,8 @@
   3. 試合確定後、過去報告と `Correct Score` ボタンが表示されることを確認する
   4. `Correct Score` を開き、3-1 から 2-2 に修正して `Submit Correction` を送信する
   5. 管理者APIで対象マッチが completed のまま score1=2, score2=2 に更新されていることを確認する
-- **期待結果**: MR participant で過去報告を確認でき、確定済みスコアを参加者自身が修正できる
+  6. `/api/tournaments/[temp-id]/mr/standings` を再取得し、両プレイヤーの `matchesPlayed=1`, `ties=1`, `points=0`, `score=1` が修正後スコアを反映していることを確認する
+- **期待結果**: MR participant で過去報告を確認でき、確定済みスコアを参加者自身が修正でき、standings は 2-2 引き分けとして再計算される
 - **スクリプト**: `tc-mr.js TC-1083`
 
 ## TC-2108: MR report route は scoresConfirmed より先に認可する
@@ -2118,8 +2119,9 @@
   6. 別の一時ブラウザでP2としてログインし /mr/participant でスコア3-1を送信
   7. レスポンスに `autoConfirmed: true` が含まれることを確認
   8. 管理者APIでマッチが completed=true, score1=3, score2=1 であることを確認
-  9. クリーンアップ
-- **期待結果**: 双方が同じスコアを報告するとマッチが自動確定される
+  9. `/api/tournaments/[temp-id]/mr/standings` を再取得し、P1 は `matchesPlayed=1`, `wins=1`, `points=2`, `score=2`、P2 は `matchesPlayed=1`, `losses=1`, `points=-2`, `score=0` になっていることを確認する
+  10. クリーンアップ
+- **期待結果**: 双方が同じスコアを報告するとマッチが自動確定され、standings は 3-1 勝敗と round differential を即時反映する
 
 ## TC-609: MR二重報告 — 不一致でmismatch検出
 - **URL**: /tournaments/[temp-id]/mr/participant

@@ -135,6 +135,12 @@ describe('E2E case drift coverage', () => {
     'report',
     'route.test.ts',
   );
+  const mrStandingsAssertionsTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'e2e',
+    'mr-standings-assertions.test.ts',
+  );
   const taFinalsPage = readRepoFile(
     'smkc-score-app',
     'src',
@@ -1687,9 +1693,16 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('Submit Correction');
     expect(section).toContain('player1ReportedPoints');
     expect(section).toContain('MrScoreEditor');
+    expect(section).toContain('/api/tournaments/[temp-id]/mr/standings');
+    expect(section).toContain('ties=1');
+    expect(section).toContain('score=1');
     expect(tc1083).toContain("log('TC-1083'");
     expect(tc1083).toContain('Previous Reports');
     expect(tc1083).toContain('apiFetchMr');
+    expect(tc1083).toContain('apiFetchMrStandings');
+    expect(tc1083).toContain('assertMrStandingStats');
+    expect(mrReportRouteTest).toContain('useRoundDifferential: true');
+    expect(mrStandingsAssertionsTest).toContain('MR standings ties for p2');
     expect(tc1083).not.toContain('waitForTimeout(3000)');
   });
 

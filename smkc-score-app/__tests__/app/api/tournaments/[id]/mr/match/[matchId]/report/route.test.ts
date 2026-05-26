@@ -427,7 +427,12 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
         message: 'Scores confirmed and match completed',
         status: 200,
       });
-      expect(recalculatePlayersStats).toHaveBeenCalledWith(expect.any(Object), 't1', ['p1', 'p2']);
+      expect(recalculatePlayersStats).toHaveBeenCalledWith(expect.objectContaining({
+        matchModel: 'mRMatch',
+        qualificationModel: 'mRQualification',
+        scoreFields: { p1: 'score1', p2: 'score2' },
+        useRoundDifferential: true,
+      }), 't1', ['p1', 'p2']);
       expect(prisma.mRQualification.updateMany).not.toHaveBeenCalled();
     });
 
@@ -476,7 +481,12 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
           player1ReportedPoints2: 2,
         }),
       }));
-      expect(recalculatePlayersStats).toHaveBeenCalledWith(expect.any(Object), 't1', ['p1', 'p2']);
+      expect(recalculatePlayersStats).toHaveBeenCalledWith(expect.objectContaining({
+        matchModel: 'mRMatch',
+        qualificationModel: 'mRQualification',
+        scoreFields: { p1: 'score1', p2: 'score2' },
+        useRoundDifferential: true,
+      }), 't1', ['p1', 'p2']);
       expect(prisma.mRQualification.updateMany).not.toHaveBeenCalled();
       expect(result).toEqual({
         data: { match: correctedMatch, corrected: true },

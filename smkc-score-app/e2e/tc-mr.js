@@ -63,6 +63,7 @@ const {
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
+const { assertMrStandingStats } = require('./lib/mr-standings-assertions');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -135,6 +136,14 @@ async function prepareSharedMrPair(adminPage, { dualReport = false } = {}) {
     p2: players[1],
     match,
   };
+}
+
+async function apiFetchMrStandings(page, tournamentId) {
+  return page.evaluate(async (url) => {
+    const r = await fetch(url, { headers: { 'If-None-Match': '*' } });
+    const j = await r.json().catch(() => ({}));
+    return j.data || j;
+  }, `/api/tournaments/${tournamentId}/mr/standings`);
 }
 
 /* Primed-once flag so every finals test reuses the shared normal
@@ -379,6 +388,23 @@ async function runTc1083(adminPage) {
 
     const correctedMr = await apiFetchMr(adminPage, tournamentId);
     const correctedMatch = (correctedMr.matches || []).find((m) => m.id === match.id);
+    const correctedStandings = await apiFetchMrStandings(adminPage, tournamentId);
+    assertMrStandingStats(correctedStandings, p1.id, {
+      matchesPlayed: 1,
+      wins: 0,
+      ties: 1,
+      losses: 0,
+      points: 0,
+      score: 1,
+    });
+    assertMrStandingStats(correctedStandings, match.player2Id, {
+      matchesPlayed: 1,
+      wins: 0,
+      ties: 1,
+      losses: 0,
+      points: 0,
+      score: 1,
+    });
     const ok =
       correctedMatch?.completed === true &&
       correctedMatch.score1 === 2 &&
@@ -749,6 +775,23 @@ async function runTc608(adminPage) {
     const finalCheck = await apiFetchMr(adminPage, tournamentId);
     const finalMatch = (finalCheck.matches || []).find((m) => m.id === match.id);
     const isComplete = finalMatch?.completed === true && finalMatch.score1 === 3 && finalMatch.score2 === 1;
+    const finalStandings = await apiFetchMrStandings(adminPage, tournamentId);
+    assertMrStandingStats(finalStandings, match.player1Id, {
+      matchesPlayed: 1,
+      wins: 1,
+      ties: 0,
+      losses: 0,
+      points: 2,
+      score: 2,
+    });
+    assertMrStandingStats(finalStandings, match.player2Id, {
+      matchesPlayed: 1,
+      wins: 0,
+      ties: 0,
+      losses: 1,
+      points: -2,
+      score: 0,
+    });
 
     log('TC-608',
       p1Waiting && stillPending && autoConfirmed && isComplete ? 'PASS' : 'FAIL',
