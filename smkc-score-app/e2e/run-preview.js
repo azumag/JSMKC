@@ -71,6 +71,93 @@ function resolveHostViaPublicDns(hostname) {
   return null;
 }
 
+async function launchPreviewAdminSessionBrowser(env) {
+  const { launchPersistentChromiumContext } = require('./lib/common');
+  const previousEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    previousEnv[key] = process.env[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  try {
+    return await launchPersistentChromiumContext(env.E2E_PROFILE_DIR, {
+      headless: env.E2E_HEADLESS === '1',
+      viewport: { width: 1280, height: 720 },
+    });
+  } finally {
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
+async function queryPreviewAdminSession(page) {
+  return await page.evaluate(async () => {
+    try {
+      const response = await fetch('/api/auth/session-status', { credentials: 'same-origin' });
+      const body = await response.json().catch(() => null);
+      return {
+        status: response.status,
+        authenticated: body?.data?.authenticated === true,
+        body,
+      };
+    } catch (error) {
+      return {
+        status: 0,
+        authenticated: false,
+        body: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+}
+
+function previewAdminSessionError(env, session) {
+  const detail = session?.error
+    ? session.error
+    : session?.body?.error
+      ? session.body.error
+      : JSON.stringify(session?.body ?? {});
+  return new Error([
+    'Preview E2E admin session preflight failed before shared fixture setup.',
+    `/api/auth/session-status returned HTTP ${session?.status ?? 'unknown'} and did not confirm an authenticated admin session.`,
+    `Detail: ${detail || '<empty response>'}.`,
+    `Restore the persistent preview admin profile with: E2E_PROFILE_DIR=${env.E2E_PROFILE_DIR} npm run e2e:preview:login`,
+    'Wrangler/D1 preflight warnings are separate; this browser admin session absence is blocking.',
+  ].join(' '));
+}
+
+async function assertPreviewAdminSession(env, launchBrowser = launchPreviewAdminSessionBrowser) {
+  if (env.E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT === '1') {
+    return { skipped: true };
+  }
+
+  const browser = await launchBrowser(env);
+  try {
+    const page = browser.pages()[0] || await browser.newPage();
+    await page.goto(`${env.E2E_BASE_URL}/tournaments`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
+    const session = await queryPreviewAdminSession(page);
+    if (!session.authenticated) {
+      throw previewAdminSessionError(env, session);
+    }
+    console.log(`[preview] admin session preflight passed for ${env.E2E_BASE_URL}`);
+    return session;
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 async function runTargetScript(targetScript, env = buildPreviewRuntimeEnv()) {
   if (!targetScript) throw new Error('Missing preview E2E target script name.');
   const { hostname } = new URL(env.E2E_BASE_URL);
@@ -82,6 +169,7 @@ async function runTargetScript(targetScript, env = buildPreviewRuntimeEnv()) {
     childEnv.E2E_HOST_RESOLVER_RULES = `MAP ${hostname} ${fallbackAddress}`;
   }
   assertPreviewD1Schema(childEnv);
+  await assertPreviewAdminSession(childEnv);
 
   const targetPath = path.join(__dirname, targetScript);
   return await new Promise((resolve, reject) => {
@@ -118,6 +206,7 @@ if (require.main === module) {
 
 module.exports = {
   assertBaseUrlResolvable,
+  assertPreviewAdminSession,
   buildPreviewRuntimeEnv,
   resolveHostViaPublicDns,
   runTargetScript,
