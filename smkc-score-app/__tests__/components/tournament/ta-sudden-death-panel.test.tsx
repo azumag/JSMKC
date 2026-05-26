@@ -211,6 +211,11 @@ describe('TASuddenDeathSection', () => {
       />,
     );
 
+    expect(screen.getByTestId('ta-sudden-death-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('ta-sudden-death-course-select')).toBeInTheDocument();
+    expect(screen.getByTestId('ta-sudden-death-time-player-1')).toBeInTheDocument();
+    expect(screen.getByTestId('ta-sudden-death-time-player-2')).toBeInTheDocument();
+    expect(screen.getByTestId('ta-sudden-death-submit')).toBeInTheDocument();
     expect(screen.getByDisplayValue('1:00.00')).toBeInTheDocument();
     expect(screen.getByDisplayValue('1:01.00')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Saving...' })).toBeDisabled();

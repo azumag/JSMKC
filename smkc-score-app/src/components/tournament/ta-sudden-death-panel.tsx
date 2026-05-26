@@ -246,7 +246,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
   const tTaSuddenDeath = useTranslations("taSuddenDeath");
 
   return (
-    <Card className="border-amber-500">
+    <Card className="border-amber-500" data-testid="ta-sudden-death-panel">
       <CardHeader>
         <CardTitle>{tTaSuddenDeath("suddenDeathTiebreak")}</CardTitle>
         <CardDescription>
@@ -269,7 +269,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
             onValueChange={onCourseChange}
             disabled={changingSuddenDeathCourse || submittingSuddenDeath}
           >
-            <SelectTrigger>
+            <SelectTrigger data-testid="ta-sudden-death-course-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -292,6 +292,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
               <Input
                 type="text"
                 {...timeInputProps}
+                data-testid={`ta-sudden-death-time-${entry.playerId}`}
                 placeholder={timePlaceholder}
                 value={suddenDeathTimes[entry.playerId] || ""}
                 onChange={(event) => onTimeChange(entry.playerId, event.target.value)}
@@ -302,7 +303,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
           ))}
         </div>
         <div className="mt-6 flex justify-end">
-          <Button onClick={onSubmit} disabled={submittingSuddenDeath}>
+          <Button onClick={onSubmit} disabled={submittingSuddenDeath} data-testid="ta-sudden-death-submit">
             {submittingSuddenDeath ? submittingLabel : tTaSuddenDeath("submitSuddenDeath")}
           </Button>
         </div>
