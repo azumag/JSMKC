@@ -865,7 +865,6 @@ export default function TAEliminationPhase({
         onTimeChange={setSuddenDeathTime}
         onTimeBlur={handleSuddenDeathTimeBlur}
         onSubmit={handleSubmitSuddenDeath}
-        renderRoundSection={() => null}
       />
 
       {isAdmin && !isComplete && !pendingSuddenDeath && (

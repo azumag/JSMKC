@@ -911,11 +911,10 @@ export default function TimeAttackFinals({
         </Card>
       )}
 
-      {/* === Round Control / Time Entry Section ===
-       * Admin-only: non-admin users see read-only standings and history.
-       * Transitions in-place between two states without tab switching (issue #168):
-       * - No active round: stats summary + "Start Round" button
-       * - Active round: time entry form for the current course
+      {/* === Sudden-Death Panel (admin-only) ===
+       * Shown only when a pending sudden-death round exists; hidden otherwise.
+       * The regular round control section below handles "no active round" and
+       * "active round" states independently.
       */}
       <TASuddenDeathSection
         isAdmin={isAdmin}
@@ -935,7 +934,6 @@ export default function TimeAttackFinals({
         onTimeChange={setSuddenDeathTime}
         onTimeBlur={handleSuddenDeathTimeBlur}
         onSubmit={handleSubmitSuddenDeath}
-        renderRoundSection={() => null}
       />
 
       {isAdmin && !isComplete && !pendingSuddenDeath && (

@@ -5,7 +5,6 @@ import {
   useState,
   type Dispatch,
   type InputHTMLAttributes,
-  type ReactNode,
   type SetStateAction,
 } from "react";
 import { useTranslations } from "next-intl";
@@ -225,7 +224,6 @@ export interface TASuddenDeathSectionProps<Entry extends TASuddenDeathEntry> {
   onTimeChange: (playerId: string, value: string) => void;
   onTimeBlur: (playerId: string) => void;
   onSubmit: () => void;
-  renderRoundSection: () => ReactNode;
 }
 
 export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
@@ -331,31 +329,26 @@ export function TASuddenDeathSection<Entry extends TASuddenDeathEntry>({
   onTimeChange,
   onTimeBlur,
   onSubmit,
-  renderRoundSection,
 }: TASuddenDeathSectionProps<Entry>) {
-  if (!isAdmin || isComplete) return null;
+  if (!isAdmin || isComplete || !pendingSuddenDeath) return null;
 
-  if (pendingSuddenDeath) {
-    return (
-      <TASuddenDeathPanel<Entry>
-        pendingSuddenDeath={pendingSuddenDeath}
-        entries={pendingSuddenDeathEntries}
-        availableCourses={availableCourses}
-        saveError={saveError}
-        suddenDeathTimes={suddenDeathTimes}
-        changingSuddenDeathCourse={changingSuddenDeathCourse}
-        submitting={submittingSuddenDeath}
-        timeInputProps={timeInputProps}
-        timeInputHelp={timeInputHelp}
-        timePlaceholder={timePlaceholder}
-        submittingLabel={submittingLabel}
-        onCourseChange={onCourseChange}
-        onTimeChange={onTimeChange}
-        onTimeBlur={onTimeBlur}
-        onSubmit={onSubmit}
-      />
-    );
-  }
-
-  return <>{renderRoundSection()}</>;
+  return (
+    <TASuddenDeathPanel<Entry>
+      pendingSuddenDeath={pendingSuddenDeath}
+      entries={pendingSuddenDeathEntries}
+      availableCourses={availableCourses}
+      saveError={saveError}
+      suddenDeathTimes={suddenDeathTimes}
+      changingSuddenDeathCourse={changingSuddenDeathCourse}
+      submitting={submittingSuddenDeath}
+      timeInputProps={timeInputProps}
+      timeInputHelp={timeInputHelp}
+      timePlaceholder={timePlaceholder}
+      submittingLabel={submittingLabel}
+      onCourseChange={onCourseChange}
+      onTimeChange={onTimeChange}
+      onTimeBlur={onTimeBlur}
+      onSubmit={onSubmit}
+    />
+  );
 }
