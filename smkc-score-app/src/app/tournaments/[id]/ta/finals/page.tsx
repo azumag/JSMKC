@@ -911,11 +911,7 @@ export default function TimeAttackFinals({
         </Card>
       )}
 
-<<<<<<< HEAD
       {/* Sudden-death panel (admin-only) */}
-=======
-      {/* Sudden-death panel (admin-only) */}
->>>>>>> ab07782b (refactor: remove dead renderRoundSection prop)
       <TASuddenDeathSection
         isAdmin={isAdmin}
         isComplete={isComplete}
