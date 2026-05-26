@@ -841,12 +841,7 @@ export default function TAEliminationPhase({
         </Card>
       )}
 
-      {/* === Round Control / Time Entry Section ===
-       * Admin-only: non-admin users see read-only standings and history.
-       * Transitions in-place between two states:
-       * - No active round: stats summary + "Start Round" button
-       * - Active round: time entry form for the current course
-      */}
+      {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
         isAdmin={isAdmin}
         isComplete={isComplete}

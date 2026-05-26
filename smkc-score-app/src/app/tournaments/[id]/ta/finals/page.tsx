@@ -911,11 +911,11 @@ export default function TimeAttackFinals({
         </Card>
       )}
 
-      {/* === Sudden-Death Panel (admin-only) ===
-       * Shown only when a pending sudden-death round exists; hidden otherwise.
-       * The regular round control section below handles "no active round" and
-       * "active round" states independently.
-      */}
+<<<<<<< HEAD
+      {/* Sudden-death panel (admin-only) */}
+=======
+      {/* Sudden-death panel (admin-only) */}
+>>>>>>> ab07782b (refactor: remove dead renderRoundSection prop)
       <TASuddenDeathSection
         isAdmin={isAdmin}
         isComplete={isComplete}
