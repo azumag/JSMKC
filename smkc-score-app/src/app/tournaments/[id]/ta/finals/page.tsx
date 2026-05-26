@@ -94,7 +94,10 @@ import type { Player } from "@/lib/types";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
-import { TASuddenDeathPanel, useTaSuddenDeath } from "@/components/tournament/ta-sudden-death-panel";
+import {
+  TASuddenDeathSection,
+  useTaSuddenDeath,
+} from "@/components/tournament/ta-sudden-death-panel";
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
 
@@ -908,31 +911,26 @@ export default function TimeAttackFinals({
         </Card>
       )}
 
-      {/* === Round Control / Time Entry Section ===
-       * Admin-only: non-admin users see read-only standings and history.
-       * Transitions in-place between two states without tab switching (issue #168):
-       * - No active round: stats summary + "Start Round" button
-       * - Active round: time entry form for the current course
-      */}
-      {isAdmin && !isComplete && pendingSuddenDeath && (
-        <TASuddenDeathPanel
-          pendingSuddenDeath={pendingSuddenDeath}
-          entries={pendingSuddenDeathEntries}
-          availableCourses={availableCourses}
-          saveError={saveError}
-          suddenDeathTimes={suddenDeathTimes}
-          changingSuddenDeathCourse={changingSuddenDeathCourse}
-          submitting={submittingSuddenDeath}
-          timeInputProps={taTimeInputProps}
-          timeInputHelp={tTaFinals('timeInputHelp')}
-          timePlaceholder={tTaFinals('timePlaceholder')}
-          submittingLabel={tCommon('saving')}
-          onCourseChange={handleSuddenDeathCourseChange}
-          onTimeChange={setSuddenDeathTime}
-          onTimeBlur={handleSuddenDeathTimeBlur}
-          onSubmit={handleSubmitSuddenDeath}
-        />
-      )}
+      {/* Sudden-death panel (admin-only) */}
+      <TASuddenDeathSection
+        isAdmin={isAdmin}
+        isComplete={isComplete}
+        pendingSuddenDeath={pendingSuddenDeath}
+        pendingSuddenDeathEntries={pendingSuddenDeathEntries}
+        availableCourses={availableCourses}
+        saveError={saveError}
+        suddenDeathTimes={suddenDeathTimes}
+        changingSuddenDeathCourse={changingSuddenDeathCourse}
+        submittingSuddenDeath={submittingSuddenDeath}
+        timeInputProps={taTimeInputProps}
+        timeInputHelp={tTaFinals('timeInputHelp')}
+        timePlaceholder={tTaFinals('timePlaceholder')}
+        submittingLabel={tCommon('saving')}
+        onCourseChange={handleSuddenDeathCourseChange}
+        onTimeChange={setSuddenDeathTime}
+        onTimeBlur={handleSuddenDeathTimeBlur}
+        onSubmit={handleSubmitSuddenDeath}
+      />
 
       {isAdmin && !isComplete && !pendingSuddenDeath && (
         currentRound ? (
