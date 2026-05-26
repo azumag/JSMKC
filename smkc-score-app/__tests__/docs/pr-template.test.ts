@@ -9,6 +9,11 @@ describe('pull request template', () => {
     template = fs.readFileSync(templatePath, 'utf8');
   });
 
+  it('resolves the template path from this test file location', () => {
+    expect(path.isAbsolute(templatePath)).toBe(true);
+    expect(templatePath.endsWith(path.join('.github', 'pull_request_template.md'))).toBe(true);
+  });
+
   it('keeps the required automation sections', () => {
     expect(template).toContain('## Summary');
     expect(template).toContain('## Issues');
