@@ -77,7 +77,10 @@ import { createLogger } from "@/lib/client-logger";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
-import { TASuddenDeathPanel, useTaSuddenDeath } from "@/components/tournament/ta-sudden-death-panel";
+import {
+  TASuddenDeathSection,
+  useTaSuddenDeath,
+} from "@/components/tournament/ta-sudden-death-panel";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'ta-elimination-phase' });
@@ -844,25 +847,26 @@ export default function TAEliminationPhase({
        * - No active round: stats summary + "Start Round" button
        * - Active round: time entry form for the current course
       */}
-      {isAdmin && !isComplete && pendingSuddenDeath && (
-        <TASuddenDeathPanel
-          pendingSuddenDeath={pendingSuddenDeath}
-          entries={pendingSuddenDeathEntries}
-          availableCourses={availableCourses}
-          saveError={saveError}
-          suddenDeathTimes={suddenDeathTimes}
-          changingSuddenDeathCourse={changingSuddenDeathCourse}
-          submitting={submittingSuddenDeath}
-          timeInputProps={taTimeInputProps}
-          timeInputHelp={tElim('timeInputHelp')}
-          timePlaceholder={tElim('timePlaceholder')}
-          submittingLabel={tElim('submitting')}
-          onCourseChange={handleSuddenDeathCourseChange}
-          onTimeChange={setSuddenDeathTime}
-          onTimeBlur={handleSuddenDeathTimeBlur}
-          onSubmit={handleSubmitSuddenDeath}
-        />
-      )}
+      <TASuddenDeathSection
+        isAdmin={isAdmin}
+        isComplete={isComplete}
+        pendingSuddenDeath={pendingSuddenDeath}
+        pendingSuddenDeathEntries={pendingSuddenDeathEntries}
+        availableCourses={availableCourses}
+        saveError={saveError}
+        suddenDeathTimes={suddenDeathTimes}
+        changingSuddenDeathCourse={changingSuddenDeathCourse}
+        submittingSuddenDeath={submittingSuddenDeath}
+        timeInputProps={taTimeInputProps}
+        timeInputHelp={tElim('timeInputHelp')}
+        timePlaceholder={tElim('timePlaceholder')}
+        submittingLabel={tElim('submitting')}
+        onCourseChange={handleSuddenDeathCourseChange}
+        onTimeChange={setSuddenDeathTime}
+        onTimeBlur={handleSuddenDeathTimeBlur}
+        onSubmit={handleSubmitSuddenDeath}
+        renderRoundSection={() => null}
+      />
 
       {isAdmin && !isComplete && !pendingSuddenDeath && (
         currentRound ? (

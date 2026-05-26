@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState, type Dispatch, type InputHTMLAttributes, type SetStateAction } from "react";
+import {
+  useMemo,
+  useState,
+  type Dispatch,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -200,6 +207,27 @@ interface TASuddenDeathPanelProps<Entry extends TASuddenDeathEntry> {
   onSubmit: () => void;
 }
 
+export interface TASuddenDeathSectionProps<Entry extends TASuddenDeathEntry> {
+  isAdmin: boolean;
+  isComplete: boolean;
+  pendingSuddenDeath: PendingSuddenDeath | null | undefined;
+  pendingSuddenDeathEntries: Entry[];
+  availableCourses: string[];
+  saveError: string | null;
+  suddenDeathTimes: Record<string, string>;
+  changingSuddenDeathCourse: boolean;
+  submittingSuddenDeath: boolean;
+  timeInputProps: InputHTMLAttributes<HTMLInputElement>;
+  timeInputHelp: string;
+  timePlaceholder: string;
+  submittingLabel: string;
+  onCourseChange: (course: string) => void;
+  onTimeChange: (playerId: string, value: string) => void;
+  onTimeBlur: (playerId: string) => void;
+  onSubmit: () => void;
+  renderRoundSection: () => ReactNode;
+}
+
 export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
   pendingSuddenDeath,
   entries,
@@ -283,4 +311,51 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
       </CardContent>
     </Card>
   );
+}
+
+export function TASuddenDeathSection<Entry extends TASuddenDeathEntry>({
+  isAdmin,
+  isComplete,
+  pendingSuddenDeath,
+  pendingSuddenDeathEntries,
+  availableCourses,
+  saveError,
+  suddenDeathTimes,
+  changingSuddenDeathCourse,
+  submittingSuddenDeath,
+  timeInputProps,
+  timeInputHelp,
+  timePlaceholder,
+  submittingLabel,
+  onCourseChange,
+  onTimeChange,
+  onTimeBlur,
+  onSubmit,
+  renderRoundSection,
+}: TASuddenDeathSectionProps<Entry>) {
+  if (!isAdmin || isComplete) return null;
+
+  if (pendingSuddenDeath) {
+    return (
+      <TASuddenDeathPanel<Entry>
+        pendingSuddenDeath={pendingSuddenDeath}
+        entries={pendingSuddenDeathEntries}
+        availableCourses={availableCourses}
+        saveError={saveError}
+        suddenDeathTimes={suddenDeathTimes}
+        changingSuddenDeathCourse={changingSuddenDeathCourse}
+        submitting={submittingSuddenDeath}
+        timeInputProps={timeInputProps}
+        timeInputHelp={timeInputHelp}
+        timePlaceholder={timePlaceholder}
+        submittingLabel={submittingLabel}
+        onCourseChange={onCourseChange}
+        onTimeChange={onTimeChange}
+        onTimeBlur={onTimeBlur}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+
+  return <>{renderRoundSection()}</>;
 }
