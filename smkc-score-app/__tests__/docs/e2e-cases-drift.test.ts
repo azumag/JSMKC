@@ -1867,9 +1867,9 @@ describe('E2E case drift coverage', () => {
     expect(taSuddenDeathPanel).toContain('export function TASuddenDeathPanel');
     expect(taSuddenDeathPanel).toContain('change_sudden_death_course');
     expect(taSuddenDeathPanel).toContain('submit_sudden_death');
-    expect(taFinalsPage).toContain('<TASuddenDeathPanel');
+    expect(taFinalsPage).toContain('<TASuddenDeathSection');
     expect(taFinalsPage).toContain('useTaSuddenDeath({');
-    expect(taEliminationPhase).toContain('<TASuddenDeathPanel');
+    expect(taEliminationPhase).toContain('<TASuddenDeathSection');
     expect(taEliminationPhase).toContain('useTaSuddenDeath({');
     expect(taFinalsPage).not.toContain('change_sudden_death_course');
     expect(taFinalsPage).not.toContain('submit_sudden_death');
