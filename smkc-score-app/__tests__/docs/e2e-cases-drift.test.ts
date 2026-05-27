@@ -760,6 +760,23 @@ describe('E2E case drift coverage', () => {
     expect(overallRankingTest).toContain('maps 16-player finals and Top24 playoff losses to standard point bands');
   });
 
+  it('keeps TC-2265 aligned with the server-ranking override flag naming guard', () => {
+    const section = e2eCaseSection('TC-2265');
+    const serverRanking = readRepoFile('smkc-score-app', 'src', 'lib', 'server-ranking.ts');
+    const staticGuard = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'tc-2265-server-ranking-rank-override-name.test.ts',
+    );
+
+    expect(section).toContain('issue #2265');
+    expect(section).toContain('hasRankOverride');
+    expect(section).toContain('overrideRank');
+    expect(serverRanking).toContain('const hasRankOverride = rankOverride != null;');
+    expect(staticGuard).toContain('const overrideRank = entry.rankOverride != null;');
+  });
+
   it('keeps TC-1007 aligned with the GroupSetupDialog static guard', () => {
     const section = e2eCaseSection('TC-1007');
     const followupSection = e2eCaseSection('TC-1678');
