@@ -30,6 +30,7 @@ import { ExportButton } from "@/components/tournament/export-button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { createLogger } from "@/lib/client-logger";
 import { cn } from "@/lib/utils";
+import { getTabHydrationGuardProps } from "@/lib/tournament-tab-hydration";
 
 const logger = createLogger({ serviceName: "tournaments-layout" });
 
@@ -104,14 +105,6 @@ function getActiveTab(pathname: string): string {
     }
   }
   return "";
-}
-
-function getTabHydrationGuardProps(tabsHydrated: boolean) {
-  return {
-    "aria-disabled": !tabsHydrated,
-    tabIndex: tabsHydrated ? undefined : -1,
-    guardClassName: !tabsHydrated ? "pointer-events-none opacity-70" : undefined,
-  } as const;
 }
 
 export default function TournamentLayout({

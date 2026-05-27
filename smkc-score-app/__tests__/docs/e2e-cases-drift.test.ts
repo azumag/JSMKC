@@ -498,6 +498,21 @@ describe('E2E case drift coverage', () => {
     expect(staticTest).toContain('centralizes hydration guard props for normal and admin tab links');
   });
 
+  it('keeps TC-2122 aligned with behavior-based tournament-tab hydration guard coverage', () => {
+    const section = e2eCaseSection('TC-2122');
+    const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
+    const helper = readRepoFile('smkc-score-app', 'src', 'lib', 'tournament-tab-hydration.ts');
+
+    expect(section).toContain('issue #2122');
+    expect(section).toContain('getTabHydrationGuardProps(false)');
+    expect(section).toContain('cn()');
+    expect(section).toContain('source 文字列ではなく helper 挙動');
+    expect(section).toContain('src/lib/tournament-tab-hydration.ts');
+    expect(staticTest).toContain('uses the hydration guard helper output to disable tabs before hydration');
+    expect(staticTest).toContain('uses class merging behavior so hydrated tabs do not keep whitespace-only guard classes');
+    expect(helper).toContain('guardClassName: !tabsHydrated ? "pointer-events-none opacity-70" : undefined');
+  });
+
   it('keeps TC-2204 aligned with tournament-tab positive match fallback coverage', () => {
     const section = e2eCaseSection('TC-2204');
     const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
@@ -512,14 +527,14 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-2205 aligned with tournament-tab guard class typing', () => {
     const section = e2eCaseSection('TC-2205');
-    const layoutSource = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'layout.tsx');
+    const helper = readRepoFile('smkc-score-app', 'src', 'lib', 'tournament-tab-hydration.ts');
     const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
 
     expect(section).toContain('issue #2205');
     expect(section).toContain('string|undefined');
     expect(section).toContain('false|string');
     expect(section).toContain('__tests__/static/tc-939-tournament-tabs-link.test.ts');
-    expect(layoutSource).toContain('guardClassName: !tabsHydrated ? "pointer-events-none opacity-70" : undefined');
+    expect(helper).toContain('guardClassName: !tabsHydrated ? "pointer-events-none opacity-70" : undefined');
     expect(staticTest).toContain('keeps the hydration guard class value as string or undefined');
   });
 
