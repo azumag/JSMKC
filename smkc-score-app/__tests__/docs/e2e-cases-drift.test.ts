@@ -51,6 +51,7 @@ describe('E2E case drift coverage', () => {
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
   const tcTa = readE2eScript('tc-ta.js');
   const tcTaFlow = readE2eScript('tc-ta-flow.js');
+  const tc939ReportingTypes = readE2eLib('tc939-reporting.d.ts');
   const taFlowRankAssertionsTypes = readE2eLib('ta-flow-rank-assertions.d.ts');
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
   const bmFinalsPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'finals', 'page.tsx');
@@ -355,6 +356,18 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('_createMockQualification');
     expect(section).toContain('finals-route.test.ts');
     expect(section).toContain('__tests__/static/tc-2136-finals-route-dead-helper.test.ts');
+  });
+
+  it('keeps TC-2125 documented with the shared TC-939 reporter declaration', () => {
+    const section = e2eCaseSection('TC-2125');
+
+    expect(section).toContain('issue #2125');
+    expect(section).toContain('tc939-reporting.d.ts');
+    expect(section).toContain('Tc939TabNavigationReporter');
+    expect(section).toContain('__tests__/lib/tc939-reporting.test.ts');
+    expect(section).toContain('__tests__/e2e/tc-all-registration.test.ts');
+    expect(tc939ReportingTypes).toContain('export type Tc939TabNavigationReporter');
+    expect(tc939ReportingTypes).toContain('export const describeTc939TabNavigation');
   });
 
   it('keeps TC-2145 documented with the qualification-route mock-match naming guard', () => {

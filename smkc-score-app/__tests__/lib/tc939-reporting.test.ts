@@ -1,11 +1,8 @@
-type Tc939TabNavigationReporter = (input: {
-  spaMarker: unknown;
-  cleanClasses: boolean;
-}) => { status: 'PASS' | 'FAIL'; detail: string };
+import type {
+  Tc939TabNavigationReporter,
+} from '../../e2e/lib/tc939-reporting';
 
-type Tc939ReportingModule = {
-  describeTc939TabNavigation: Tc939TabNavigationReporter;
-};
+type Tc939ReportingModule = typeof import('../../e2e/lib/tc939-reporting');
 
 describe('describeTc939TabNavigation', () => {
   let describeTc939TabNavigation: Tc939TabNavigationReporter;
@@ -52,5 +49,15 @@ describe('describeTc939TabNavigation', () => {
       status: 'FAIL',
       detail: 'Hydrated tab className contains extra whitespace',
     });
+  });
+
+  it('uses the shared TC-939 reporter declaration without local input/result casts', async () => {
+    const pass = describeTc939TabNavigation({
+      spaMarker: 'alive',
+      cleanClasses: true,
+    });
+
+    expect(pass.status).toBe('PASS');
+    expect(pass.detail).toBe('');
   });
 });

@@ -115,4 +115,13 @@ describe('tc-all focused suite registration', () => {
     expect(section).toContain('tc939-reporting');
     expect(section).toContain('改行・インデント');
   });
+
+  it('keeps TC-2125 documented as the shared TC-939 reporter type guard', () => {
+    const section = e2eCaseSection('TC-2125');
+
+    expect(section).toContain('issue #2125');
+    expect(section).toContain('tc939-reporting.d.ts');
+    expect(section).toContain('Tc939TabNavigationReporter');
+    expect(section).toContain('inline 型キャスト');
+  });
 });
