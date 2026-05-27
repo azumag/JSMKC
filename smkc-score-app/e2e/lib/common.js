@@ -308,12 +308,21 @@ function getChromiumArgs() {
     '--js-flags=--max-old-space-size=4096',
   ];
 
+  if (shouldUseMacSingleProcessLaunch()) {
+    args.push('--single-process', '--no-zygote');
+  }
+
   const hostResolverRules = process.env.E2E_HOST_RESOLVER_RULES?.trim();
   if (hostResolverRules) {
     args.push(`--host-resolver-rules=${hostResolverRules}`);
   }
 
   return args;
+}
+
+function shouldUseMacSingleProcessLaunch() {
+  if (process.env.E2E_MAC_SINGLE_PROCESS === '0') return false;
+  return process.platform === 'darwin';
 }
 
 /* ───────── Browser launch environment setup ───────── */
@@ -2881,6 +2890,8 @@ module.exports = {
   getChromiumLaunchConfig,
   addChromiumLaunchHelp,
   formatE2EErrorForLog,
+  getChromiumArgs,
+  shouldUseMacSingleProcessLaunch,
   launchChromium,
   launchPersistentChromiumContext,
   /* retry */
@@ -2945,5 +2956,4 @@ module.exports = {
   makeTaTimesForRank,
   setupTa28PlayerQual,
   setupAllModes28PlayerQualification,
-  getChromiumArgs,
 };

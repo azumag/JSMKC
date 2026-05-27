@@ -124,6 +124,17 @@ describe('preview E2E runner', () => {
     expect(packageJson.scripts['e2e:preview:archive']).toBe('node e2e/run-preview.js tc-archive.js');
   });
 
+  it('exposes a focused browser launch smoke script for preview startup failures', () => {
+    expect(packageJson.scripts['e2e:launch-smoke']).toBe('node e2e/browser-launch-smoke.js');
+    expect(packageJson.scripts['e2e:preview:launch-smoke']).toBe('node e2e/run-preview.js browser-launch-smoke.js');
+  });
+
+  it('defaults preview E2E runs to headless browser launch', () => {
+    const env = runner.buildPreviewRuntimeEnv({});
+
+    expect(env.E2E_HEADLESS).toBe('1');
+  });
+
   it('does not auto-select installed Chrome on macOS preview runs', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform');
     Object.defineProperty(process, 'platform', { value: 'darwin' });
@@ -161,6 +172,14 @@ describe('preview E2E runner', () => {
     });
 
     expect(env.E2E_BROWSER_CHANNEL).toBe('chrome');
+  });
+
+  it('preserves caller-provided headless override', () => {
+    const env = runner.buildPreviewRuntimeEnv({
+      E2E_HEADLESS: '0',
+    });
+
+    expect(env.E2E_HEADLESS).toBe('0');
   });
 
   it('preserves caller-provided executable path override', () => {

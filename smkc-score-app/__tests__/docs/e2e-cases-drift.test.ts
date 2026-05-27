@@ -1981,6 +1981,8 @@ describe('E2E case drift coverage', () => {
     expect(tc109Rows.map((entry) => entry.join(',')).join('\n')).not.toContain('PLAYWRIGHT_BROWSERS_PATH');
     expect(section).toContain('fs.mkdirSync');
     expect(section).toContain('実際の `/tmp` 配下へテスト副作用を残さない');
+    expect(section).toContain('macOS single-process guard');
+    expect(section).toContain('npm run e2e:preview:launch-smoke');
   });
   // [TC109-HELPER-COVERAGE-DRIFT-GUARD-END]
 

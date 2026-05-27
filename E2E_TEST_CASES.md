@@ -338,7 +338,7 @@
 ## TC-109: Preview E2E 公式 alias と起動前 preflight
 - **URL**: n/a (runner command)
 - **authRequired**: true (admin profile)
-- **背景**: preview 環境移行後、自動化手順は `npm run e2e:preview` を公式入口として扱う。runner は preview URL/profile を設定し、Chromium 起動前に host 解決を行う。macOS の installed Chrome は Crashpad がユーザーホーム配下を参照して abort することがあるため、自動 fallback ではなく明示指定時のみ使用する。
+- **背景**: preview 環境移行後、自動化手順は `npm run e2e:preview` を公式入口として扱う。runner は preview URL/profile を設定し、Chromium 起動前に host 解決を行う。macOS の installed Chrome / Chrome for Testing は Crashpad や Mach port 初期化で abort することがあるため、自動 fallback ではなく明示指定時のみ使用し、preview 自動化は headless + macOS single-process guard で起動する。
 - **手順**:
   1. `smkc-score-app/` で `npm run e2e:preview` を実行する
   2. 互換 alias の `npm run e2e:preview:all` は同じ runner コマンドを重複定義せず、`npm run e2e:preview --` に委譲していることを確認する
@@ -353,8 +353,11 @@
   11. `npm run e2e:install-browser` と preview runner が同じ `PLAYWRIGHT_BROWSERS_PATH` を使い、`playwright` import 前に子プロセスへ渡ることを補助検証で確認する
   12. managed browser cache が空で Playwright が `Executable doesn't exist` を返す場合、fatal log に汎用 `npx playwright install` だけでなく `npm run e2e:install-browser` と同じ `PLAYWRIGHT_BROWSERS_PATH` が表示されることを確認する
   13. run-preview 側の Crashpad launch helper 補助テストは `fs.mkdirSync` をモックし、実際の `/tmp` 配下へテスト副作用を残さないことを確認する
-- **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / empty managed browser cache / Crashpad permission failure で停止しても project-specific bootstrap guidance が表示される
-- **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
+  14. macOS では sandboxed automation の Mach/Crashpad launch abort を避けるため `--single-process` / `--no-zygote` を付与し、`E2E_MAC_SINGLE_PROCESS=0` で明示的に無効化できることを確認する
+  15. preview runner は `E2E_HEADLESS` 未指定時に `1` を補完し、明示指定は保持することを確認する
+  16. `npm run e2e:preview:launch-smoke` が TC 本体に入る前の browser launch だけを検証する入口として存在することを確認する
+- **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / empty managed browser cache / Crashpad permission failure で停止しても project-specific bootstrap guidance が表示され、macOS sandboxed automation では launch-smoke で起動だけを検証できる
+- **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`, `npm run e2e:preview:launch-smoke`
 - **補助検証**: `smkc-score-app/__tests__/e2e/run-preview.test.ts`, `smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts`（どちらも runner command 扱いで、URL 欄には環境変数名を入れない）
 
 ## TC-111: Preview D1 schema preflight
