@@ -776,6 +776,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('mode 別 match count と round 一覧');
     expect(section).toContain('__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts');
     // The unit test now decodes the real .xlsm and checks typed seed + score cells.
+    expect(cdmFinalsFixtureTest).toContain("} from '../../e2e/tc-all';");
+    expect(cdmFinalsFixtureTest).not.toContain("import * as tcAllExports from '../../e2e/tc-all';");
     expect(exportRouteTest).toContain('should place CDM finals seeds and scores in native bracket coordinates');
     expect(exportRouteTest).toContain("workbook.Sheets['BM Finals']");
     expect(exportRouteTest).toContain('sheet.S5.v');
