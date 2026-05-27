@@ -272,6 +272,7 @@ function cdmE2eGenerationResultDetail(result) {
   const body = result?.b;
   const message = typeof body?.error === 'string' ? body.error
     : typeof body?.message === 'string' ? body.message
+    : typeof body === 'string' ? body
     : JSON.stringify(body ?? {});
   return `HTTP ${status}${message && message !== '{}' ? `: ${message}` : ''}`;
 }

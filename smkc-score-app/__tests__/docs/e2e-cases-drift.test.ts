@@ -838,6 +838,7 @@ describe('E2E case drift coverage', () => {
     const parallelSection = e2eCaseSection('TC-2098A');
     const roundSection = e2eCaseSection('TC-2099A');
     const generatorSection = e2eCaseSection('TC-2182A');
+    const generatorStringSection = e2eCaseSection('TC-2186A');
     const publicApiSection = e2eCaseSection('TC-2187A');
 
     expect(parallelSection).toContain('issue #2098');
@@ -847,6 +848,8 @@ describe('E2E case drift coverage', () => {
     expect(roundSection).toContain('.filter(Boolean)');
     expect(generatorSection).toContain('issue #2182');
     expect(generatorSection).toContain('CDM finals fixture generation failed');
+    expect(generatorStringSection).toContain('issue #2186');
+    expect(generatorStringSection).toContain('HTTP 500: Internal Server Error');
     expect(publicApiSection).toContain('issue #2187');
     expect(publicApiSection).toContain('公開 API を最小化');
     expect(tcAll).toContain('async function fetchCdmE2eModeStates');
@@ -863,6 +866,7 @@ describe('E2E case drift coverage', () => {
     expect(tcAllExports).toContain('ensureCdmE2eFinalsFixture');
     expect(cdmFinalsFixtureTest).toContain('fetches mode readiness states in parallel');
     expect(cdmFinalsFixtureTest).toContain('reports failed finals generator status');
+    expect(cdmFinalsFixtureTest).toContain('reports primitive string finals generator bodies without JSON quotes');
     expect(cdmFinalsFixtureTest).toContain('keeps internal fixture helpers out of the tc-all public test API');
   });
 
