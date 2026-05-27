@@ -529,7 +529,6 @@ describe('E2E case drift coverage', () => {
     expect(currentTc816).toContain('tc-ta.js TC-816');
   });
 
-<<<<<<< HEAD
   it('keeps TC-2036 aligned with the TC ID reuse policy', () => {
     const section = e2eCaseSection('TC-2036');
     const e2eCases = readRepoFile('E2E_TEST_CASES.md');
@@ -548,7 +547,8 @@ describe('E2E case drift coverage', () => {
     expect(renameHistory).toContain('旧 TC-816');
     expect(renameHistory).toContain('TC-816 は別シナリオ');
     expect(currentTc816).toContain('tc-ta.js TC-816');
-=======
+  });
+
   it('keeps TC-2242 aligned with PR title/diff authoring guidance', () => {
     const section = e2eCaseSection('TC-2242');
     const prTemplate = readRepoFile('.github', 'pull_request_template.md');
@@ -566,7 +566,6 @@ describe('E2E case drift coverage', () => {
     expect(prTemplate).toContain('PR title and Conventional Commit type match the actual diff.');
     expect(prTemplate).toContain('Use `docs:` only when this PR changes documentation.');
     expect(prTemplateTest).toContain('align the PR title type with the actual diff');
->>>>>>> a6dbf321 (docs: align PR title type guidance)
   });
 
   it('keeps TC-2118 documented with the shared tournament-tab hydration guard', () => {
