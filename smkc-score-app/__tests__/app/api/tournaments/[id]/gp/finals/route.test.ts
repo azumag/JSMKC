@@ -1319,7 +1319,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(400);
     });
 
-    it('should ignore sudden-death winner on tied GP finals scores when sudden-death winner is unmatched', async () => {
+    it('should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when unmatched', async () => {
       const mockMatch = {
         id: 'm1',
         tournamentId: 't1',
@@ -1376,7 +1376,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       );
     });
 
-    it('should ignore sudden-death winner on tied GP finals scores when player1 is sudden-death winner', async () => {
+    it('should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when player1 is named', async () => {
       const mockMatch = {
         id: 'm1',
         tournamentId: 't1',
@@ -1432,7 +1432,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       );
     });
 
-    it('should ignore sudden-death winner on tied GP finals scores when player2 is sudden-death winner', async () => {
+    it('should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when player2 is named', async () => {
       const mockMatch = {
         id: 'm1',
         tournamentId: 't1',

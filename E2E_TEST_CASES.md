@@ -2596,6 +2596,18 @@
 - **期待結果**: 新仕様のカップ勝数表示を保ちつつ、旧サドンデス決着済みデータでも勝者表示が欠落しない
 - **スクリプト**: `__tests__/app/tournaments/gp-finals-page-wiring.test.tsx` / `__tests__/lib/gp-finals-match-winner.test.ts` / `__tests__/components/tournament/double-elimination-bracket.test.tsx` / `__tests__/components/tournament/playoff-bracket.test.tsx`
 
+## TC-2252: GP決勝 — 未完了の同点保存ではサドンデス勝者名に依存しない
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: issue #2252。GP決勝の新しい `cupResults` 方式では、2-2 など目標カップ数に届いていない同点状態を保存する場合、リクエストに古い `suddenDeathWinnerId` が含まれていても試合は未完了のまま残す。テスト名が「player1 が sudden-death winner」とだけ読めると、完了済み旧データの勝者判定と混同しやすい。
+- **手順**:
+  1. GP決勝 M1 を `points1=2, points2=2, completed=false` の状態で用意する
+  2. `suddenDeathWinnerId` が unmatched/player1/player2 の各ケースで PUT されることを確認する
+  3. いずれも `winnerId=null`、`loserId=null`、`isComplete=false`、`champion=null` で返ることを確認する
+  4. 保存時に `suddenDeathWinnerId` が `null` にクリアされることを確認する
+- **期待結果**: 未完了の同点保存ではプレイヤーIDの一致可否に依存せず、旧サドンデス勝者を無視する意図がテスト名と期待値から読める
+- **スクリプト**: `__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-831: GP決勝 — 上位ブラケットはカップ勝数のシンプル入力で保存できる
 - **URL**: /tournaments/[temp-id]/gp/finals
 - **authRequired**: true (admin)
