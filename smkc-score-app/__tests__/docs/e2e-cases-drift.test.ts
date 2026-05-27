@@ -2087,6 +2087,24 @@ describe('E2E case drift coverage', () => {
     expect(taFinalsPhaseManagerTest).toContain('resolvedOrder');
   });
 
+  it('documents TC-2249 as Phase2 sudden-death absent-player naming coverage', () => {
+    const section = e2eCaseSection('TC-2249');
+
+    expect(section).toContain('issue #2249');
+    expect(section).toContain('p3');
+    expect(section).toContain('サドンデス不参加');
+    expect(section).toContain('__tests__/lib/ta/finals-phase-manager.test.ts');
+    expect(taFinalsPhaseManagerTest).toContain(
+      'returns no targets when one tied player is absent from phase2 sudden death results',
+    );
+    expect(taFinalsPhaseManagerTest).toContain(
+      'p3 tied at the phase2 boundary but did not submit a sudden-death time',
+    );
+    expect(taFinalsPhaseManagerTest).not.toContain(
+      'returns no targets when phase2 sudden death has a unique slowest result',
+    );
+  });
+
   it('documents TC-823 as intentional immediate-repeat avoidance for TA course selection', () => {
     const section = e2eCaseSection('TC-823A');
 

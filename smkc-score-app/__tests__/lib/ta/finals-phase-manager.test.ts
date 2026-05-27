@@ -167,13 +167,14 @@ describe("TA Finals Phase Manager", () => {
       expect(targets).toEqual(["p2", "p3"]);
     });
 
-    it("returns no targets when phase2 sudden death has a unique slowest result", () => {
+    it("returns no targets when one tied player is absent from phase2 sudden death results", () => {
       const phase2BoundaryResults = [
         { playerId: "p1", timeMs: 70000 },
         { playerId: "p2", timeMs: 80000 },
         { playerId: "p3", timeMs: 80000 },
       ];
 
+      // p3 tied at the phase2 boundary but did not submit a sudden-death time.
       const targets = getSuddenDeathContinuationTargets("phase2", phase2BoundaryResults, [
         { playerId: "p1", timeMs: 76000 },
         { playerId: "p2", timeMs: 95000 },
