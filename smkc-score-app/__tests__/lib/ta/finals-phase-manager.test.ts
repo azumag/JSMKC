@@ -1474,6 +1474,9 @@ describe("TA Finals Phase Manager", () => {
       ]);
 
       expect(result.eliminatedIds).toEqual(["p5"]);
+      for (const protectedPlayerId of ["p1", "p2", "p3"]) {
+        expect(result.eliminatedIds).not.toContain(protectedPlayerId);
+      }
       expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
