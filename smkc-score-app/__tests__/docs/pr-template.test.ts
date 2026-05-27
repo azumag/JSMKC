@@ -27,4 +27,10 @@ describe('pull request template', () => {
     expect(template).toContain('planned or follow-up work');
     expect(template).toContain('current-main fixes are mentioned only when they are visible in this PR diff.');
   });
+
+  it('requires authors to align the PR title type with the actual diff', () => {
+    expect(template).toContain('PR title and Conventional Commit type match the actual diff.');
+    expect(template).toContain('Use `docs:` only when this PR changes documentation.');
+    expect(template).toContain('Use `test:` or `refactor:` for test-only refactors.');
+  });
 });

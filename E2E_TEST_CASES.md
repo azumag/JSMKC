@@ -210,6 +210,17 @@
 - **期待結果**: 削除済みの旧 TC-816 だけが E2E 対象外として説明され、現行 TC-816 のスクリプト付き coverage と矛盾しない
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2242: PR タイトル種別は実際の diff と一致させる
+- **URL**: n/a (pull request authoring guard / docs drift guard)
+- **authRequired**: false
+- **背景**: issue #2242。PR タイトルや Summary が `docs:` を名乗っていても、実際の diff がテストリファクタリングや実装変更だけならレビュー時の判断材料がずれる。PR テンプレートは Summary と diff の一致だけでなく、Conventional Commits の type も変更内容に合わせるよう明示する必要がある。
+- **手順**:
+  1. PR テンプレートの diff check に、PR title / Conventional Commit type が実際の diff に一致することを確認する項目がある
+  2. 同じ案内が `docs:` はドキュメント変更に限り、テストリファクタリングだけなら `test:` または `refactor:` を使うことを明示している
+  3. docs drift test が TC-2242 と PR テンプレート単体テストの対応を検証する
+- **期待結果**: PR 作成者は diff と矛盾する `docs:` タイトルを避け、レビュー時にタイトル・本文・変更種別が一致した状態で確認できる
+- **スクリプト**: n/a (unit/docs drift coverage) — PR template unit test / docs drift test
+
 ## TC-008: Overall Ranking ページの表示
 - **URL**: /tournaments/[id]/overall-ranking
 - **authRequired**: false
