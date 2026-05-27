@@ -1335,7 +1335,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         player2: { id: 'p2', name: 'Player 2' },
       };
 
-      const updatedMatch = { ...mockMatch, points1: 2, points2: 2, completed: false, suddenDeathWinnerId: null };
+      const updatedMatch = { ...mockMatch, suddenDeathWinnerId: null };
       const mockBracket = [
         { matchNumber: 1, round: 'winners_qf', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1 },
       ];
@@ -1392,7 +1392,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         player2: { id: 'p2', name: 'Player 2' },
       };
 
-      const updatedMatch = { ...mockMatch, points1: 2, points2: 2, completed: false, suddenDeathWinnerId: null };
+      const updatedMatch = { ...mockMatch, suddenDeathWinnerId: null };
 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
@@ -1448,7 +1448,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         player2: { id: 'p2', name: 'Player 2' },
       };
 
-      const updatedMatch = { ...mockMatch, points1: 2, points2: 2, completed: false, suddenDeathWinnerId: null };
+      const updatedMatch = { ...mockMatch, suddenDeathWinnerId: null };
 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);

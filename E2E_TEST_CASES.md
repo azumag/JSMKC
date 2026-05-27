@@ -2633,6 +2633,17 @@
 - **期待結果**: GP Winners Semi Final はFT2として完了し、Winners Final / Losers Semi Final / Losers Final / Grand Final はFT3として動作する
 - **スクリプト**: tc-gp.js TC-722
 
+## TC-2247: GP 決勝 — tied sudden-death unit fixture keeps only the changed field
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2247。GP finals の tied sudden-death unit tests では `mockMatch` が既に `points1=2`、`points2=2`、`completed=false` を持つ。`updatedMatch` が同じ値を再指定すると、PUT後に変わる値が `suddenDeathWinnerId: null` だけである意図が読み取りにくくなる。
+- **手順**:
+  1. `gp/finals/route.test.ts` の tied sudden-death winner 無視ケースを確認する
+  2. `updatedMatch` が `mockMatch` をスプレッドし、追加で `suddenDeathWinnerId: null` だけを指定していることを確認する
+  3. `points1`、`points2`、`completed` の保存アサーションは `prisma.gPMatch.update` の `data` 検証側に残っていることを確認する
+- **期待結果**: テスト fixture は差分の意図だけを表し、API 更新内容の検証は既存の update data assertion で維持される
+- **スクリプト**: smkc-score-app/__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts
+
 ## TC-723: GP 予選順位表 — 0-1000 予選点列の表示
 - **URL**: /tournaments/[temp-id]/gp
 - **authRequired**: true (admin)
