@@ -454,6 +454,20 @@ describe('E2E case drift coverage', () => {
     expect(overlayPhaseTest).not.toContain('returns First to 5 for MR bracket finals');
   });
 
+  it('keeps TC-2237 aligned with separated phase3 threshold fallback and null coverage', () => {
+    const section = e2eCaseSection('TC-2237');
+
+    expect(section).toContain('issue #2237');
+    expect(section).toContain('activeCount=2');
+    expect(section).toContain('activeCount=1/0');
+    expect(section).toContain('finals-phase-manager.test.ts');
+    expect(taFinalsPhaseManagerTest).toContain('falls back to activeCount-1 for activeCount=2');
+    expect(taFinalsPhaseManagerTest).toContain('returns null for activeCount <= 1');
+    expect(taFinalsPhaseManagerTest).not.toContain(
+      'falls back to activeCount-1 when no configured threshold remains',
+    );
+  });
+
   it('keeps TC-2104 aligned with preview preflight retry-loop coverage', () => {
     const section = e2eCaseSection('TC-2104');
     const preflight = readE2eLib('preview-schema-preflight.js');
