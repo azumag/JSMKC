@@ -1709,7 +1709,8 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('issue #2224');
     expect(section).toContain('overlayFinalsSelects.length');
-    expect(section).toContain('3');
+    expect(section).toContain('toBeGreaterThanOrEqual(3)');
+    expect(section).toContain('3 件以上');
     expect(section).toContain('stage');
     expect(section).toContain('round');
     expect(section).toContain('createdAt');
@@ -2407,8 +2408,10 @@ describe('E2E case drift coverage', () => {
     expect(taSuddenDeathPanel).toContain('submit_sudden_death');
     expect(taFinalsPage).toContain('<TASuddenDeathSection');
     expect(taFinalsPage).toContain('useTaSuddenDeath({');
+    expect(taFinalsPage).toContain("const isAdmin = session?.user?.role === 'admin'");
     expect(taEliminationPhase).toContain('<TASuddenDeathSection');
     expect(taEliminationPhase).toContain('useTaSuddenDeath({');
+    expect(taEliminationPhase).toContain("const isAdmin = session?.user?.role === 'admin'");
     expect(taFinalsPage).not.toContain('change_sudden_death_course');
     expect(taFinalsPage).not.toContain('submit_sudden_death');
     expect(taEliminationPhase).not.toContain('change_sudden_death_course');
