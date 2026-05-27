@@ -133,12 +133,15 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
     ranked.splice(0, ranked.length, ...resolved);
   }
 
-  const withOverrides = ranked.map((entry, index) => {
-    const overrideRank = entry.rankOverride != null;
-    return overrideRank
+  type RankedWithOrder = RankedQualification<TQualification> & { _rankingOrder: number };
+
+  const withOverrides: RankedWithOrder[] = ranked.map((entry, index) => {
+    const rankOverride = entry.rankOverride;
+    const hasRankOverride = rankOverride != null;
+    return hasRankOverride
       ? {
         ...entry,
-        _rank: entry.rankOverride,
+        _rank: rankOverride,
         _rankOverridden: true,
         _rankingOrder: index,
       }
@@ -161,7 +164,7 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
     return (a._rankingOrder ?? 0) - (b._rankingOrder ?? 0);
   });
 
-  return withOverrides.map(({ _rankingOrder, ...entry }) => entry);
+  return withOverrides.map(({ _rankingOrder, ...entry }) => entry as RankedQualification<TQualification>);
 }
 
 /**

@@ -701,6 +701,20 @@ describe('E2E case drift coverage', () => {
     expect(exportRoute).toContain('qualificationEntries.slice(0, CDM_TT_QUAL_MAX_PLAYERS)');
   });
 
+  it('documents TC-2180 as TT Qualifications row cap stale-row coverage', () => {
+    const section = e2eCaseSection('TC-2180');
+
+    expect(section).toContain('issue #2180');
+    expect(section).toContain('TT Qualifications');
+    expect(section).toContain('row 62');
+    expect(section).toContain('CDM_TT_QUAL_MAX_PLAYERS');
+    expect(section).toContain('route.test.ts');
+    expect(exportRoute).toContain('qualificationEntries.slice(0, CDM_TT_QUAL_MAX_PLAYERS)');
+    expect(exportRouteTest).toContain('should cap TT Qualifications rows at 60 and preserve row 62 template cells');
+    expect(exportRouteTest).toContain('TT Qualifications');
+    expect(exportRouteTest).toContain('TT-KEEP-OUT-OF-BOUNDS');
+  });
+
   it('documents TC-1872A as finals and TT round coordinate constants', () => {
     const section = e2eCaseSection('TC-1872A');
 

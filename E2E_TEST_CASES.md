@@ -849,6 +849,17 @@
 - **期待結果**: 60人ちょうどでは Main Hub の有効範囲だけが書き込まれ、61行目相当の `B62` は生成されない
 - **スクリプト**: `__tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`
 
+## TC-2180: CDM export — TT Qualifications の row 62 stale cells を保持する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2180。TT Qualifications は Main Hub と同じ60行のテンプレート容量を使うため、61件目の TT qualification entry を書き込むと row 62 の固定テンプレート領域を壊す。
+- **手順**:
+  1. TT Qualifications の `E62`/`F62`/`G62` に stale marker が残っている CDM workbook fixture を用意する
+  2. CDM export fixture に qualification stage の TT entries を61人分用意する
+  3. `GET /api/tournaments/:id/export?format=cdm` を実行する
+  4. TT Qualifications の `E2`/`F2` と `E61`/`F61` が1人目/60人目で埋まり、`E62`/`F62`/`G62` が stale marker のまま残ることを確認する
+- **期待結果**: TT Qualifications は `CDM_TT_QUAL_MAX_PLAYERS` を超えて書き込まず、row 62 のテンプレート領域を保持する
+- **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1877A: CDM export — grand_final_reset の正規化で到達不能条件を残さない
 - **URL**: /api/tournaments/[id]/export?format=cdm
 - **背景**: issue #1877。`grand_final_reset` は native slot table で先に解決されるため、同じ round 文字列を後段の別条件に残すと読み手に誤解を与える。

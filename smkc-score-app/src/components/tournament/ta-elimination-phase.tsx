@@ -843,7 +843,7 @@ export default function TAEliminationPhase({
 
       {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
-        isAdmin={isAdmin}
+        isAdmin={Boolean(isAdmin)}
         isComplete={isComplete}
         pendingSuddenDeath={pendingSuddenDeath}
         pendingSuddenDeathEntries={pendingSuddenDeathEntries}
