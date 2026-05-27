@@ -1523,6 +1523,7 @@ describe('E2E case drift coverage', () => {
     }));
   });
 
+  // TC-2196-DRIFT-GUARD-START
   it('keeps TC-2196 aligned with overlay phase target-wins stage context', () => {
     const section = e2eCaseSection('TC-2196');
     const readCurrentPhaseInputSource = sectionBetween(
@@ -1568,6 +1569,7 @@ describe('E2E case drift coverage', () => {
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r1'");
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r2'");
   });
+  // TC-2196-DRIFT-GUARD-END
 
   it('keeps TC-2200 aligned with required nullable overlay finals stage input', () => {
     const section = e2eCaseSection('TC-2200');
@@ -1593,8 +1595,8 @@ describe('E2E case drift coverage', () => {
     const section = e2eCaseSection('TC-2201');
     const tc2196DriftGuard = sectionBetween(
       readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts'),
-      "it('keeps TC-2196 aligned with overlay phase target-wins stage context'",
-      "it('keeps TC-2201 aligned with AST-backed overlay-events stage guard coverage'",
+      '// TC-2196-DRIFT-GUARD-START',
+      '// TC-2196-DRIFT-GUARD-END',
     );
 
     expect(section).toContain('issue #2201');
@@ -1609,12 +1611,13 @@ describe('E2E case drift coverage', () => {
     expect(tc2196DriftGuard).not.toContain('select: { stage: true, round: true, createdAt: true }');
   });
 
+  // TC-2224-DRIFT-GUARD-START
   it('keeps TC-2224 aligned with overlay finals select count guard coverage', () => {
     const section = e2eCaseSection('TC-2224');
     const tc2196DriftGuard = sectionBetween(
       readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts'),
-      "it('keeps TC-2196 aligned with overlay phase target-wins stage context'",
-      "it('keeps TC-2200 aligned with required nullable overlay finals stage input'",
+      '// TC-2196-DRIFT-GUARD-START',
+      '// TC-2196-DRIFT-GUARD-END',
     );
 
     expect(section).toContain('issue #2224');
@@ -1623,7 +1626,31 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('stage');
     expect(section).toContain('round');
     expect(section).toContain('createdAt');
-    expect(tc2196DriftGuard).toContain('expect(overlayFinalsSelects.length).toBeGreaterThanOrEqual(3)');
+    expect(tc2196DriftGuard).toContain('overlayFinalsSelects.length');
+    expect(tc2196DriftGuard).toContain('toBeGreaterThanOrEqual');
+  });
+  // TC-2224-DRIFT-GUARD-END
+
+  it('keeps TC-2229 aligned with stable TC-2224 drift guard extraction', () => {
+    const section = e2eCaseSection('TC-2229');
+    const docsDriftSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
+    const tc2224DriftGuard = sectionBetween(
+      docsDriftSource,
+      '// TC-2224-DRIFT-GUARD-START',
+      '// TC-2224-DRIFT-GUARD-END',
+    );
+
+    expect(section).toContain('issue #2229');
+    expect(section).toContain('TC-2196-DRIFT-GUARD-START');
+    expect(section).toContain('TC-2224-DRIFT-GUARD-START');
+    expect(section).toContain('overlayFinalsSelects.length');
+    expect(section).toContain('toBeGreaterThanOrEqual');
+    expect(tc2224DriftGuard).toContain('// TC-2196-DRIFT-GUARD-START');
+    expect(tc2224DriftGuard).toContain('// TC-2196-DRIFT-GUARD-END');
+    expect(tc2224DriftGuard).toContain('overlayFinalsSelects.length');
+    expect(tc2224DriftGuard).not.toContain(
+      'expect(overlayFinalsSelects.length).toBeGreaterThanOrEqual(3)',
+    );
   });
 
   it('keeps TC-2225 aligned with missing-callee helper coverage', () => {
