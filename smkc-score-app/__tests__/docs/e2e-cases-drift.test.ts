@@ -2020,6 +2020,41 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).toContain('keeps generic schema or migration stderr out of migration guidance');
   });
 
+  it('keeps TC-2235 aligned with GP finals sudden-death fixture ID consistency', () => {
+    const section = e2eCaseSection('TC-2235');
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'api',
+      'tournaments',
+      '[id]',
+      'gp',
+      'finals',
+      'route.test.ts',
+    );
+    const player1WinnerCase = sectionBetween(
+      routeTest,
+      'should ignore sudden-death winner on tied GP finals scores when player1 is sudden-death winner',
+      "it('should ignore sudden-death winner on tied GP finals scores when player2 is sudden-death winner'",
+    );
+    const player2WinnerCase = sectionBetween(
+      routeTest,
+      'should ignore sudden-death winner on tied GP finals scores when player2 is sudden-death winner',
+      "it('should allow GP playoff round 1 results to finish at first to 1'",
+    );
+
+    expect(section).toContain('issue #2235');
+    expect(section).toContain("`p1` / `p2`");
+    expect(section).toContain('Top-24');
+    expect(player1WinnerCase).toContain("player1Id: 'p1'");
+    expect(player1WinnerCase).toContain("suddenDeathWinnerId: 'p1'");
+    expect(player1WinnerCase).not.toContain('player-19');
+    expect(player2WinnerCase).toContain("player2Id: 'p2'");
+    expect(player2WinnerCase).toContain("suddenDeathWinnerId: 'p2'");
+    expect(player2WinnerCase).not.toContain('player-8');
+  });
+
   it('documents TC-825 as a full Prisma migration JSON type guard for D1', () => {
     const section = e2eCaseSection('TC-825');
 
