@@ -405,6 +405,19 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/static/tc-2136-finals-route-dead-helper.test.ts');
   });
 
+  it('keeps TC-2263 documented with asserted archive isolation mocks', () => {
+    const section = e2eCaseSection('TC-2263');
+    const registrationTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-all-registration.test.ts');
+
+    expect(section).toContain('issue #2263');
+    expect(section).toContain('targetPage.goto');
+    expect(section).toContain('targetPage.waitForFunction');
+    expect(registrationTest).toContain('expect(rootPage.goto).not.toHaveBeenCalled()');
+    expect(registrationTest).toContain('expect(targetPage.goto).toHaveBeenCalledWith(');
+    expect(registrationTest).toContain('expect(targetPage.waitForFunction).toHaveBeenCalledWith(');
+    expect(registrationTest).toContain('.resolves.toBe(0)');
+  });
+
   it('keeps TC-2161 aligned with preview preflight implementation coverage', () => {
     const preflight = readE2eLib('preview-schema-preflight.js');
     const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
