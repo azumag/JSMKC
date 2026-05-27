@@ -599,6 +599,19 @@ describe('E2E case drift coverage', () => {
     expect(staticTest).toContain('keeps the hydration guard class value as string or undefined');
   });
 
+  it('keeps TC-2185 aligned with TC-939 null marker reporting coverage', () => {
+    const section = e2eCaseSection('TC-2185');
+    const libTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'tc939-reporting.test.ts');
+
+    expect(section).toContain('issue #2185');
+    expect(section).toContain('spaMarker: null');
+    expect(section).toContain('cleanClasses: false');
+    expect(section).toContain('__tests__/lib/tc939-reporting.test.ts');
+    expect(libTest).toContain('reports null SPA markers as full reload failures with className detail');
+    expect(libTest).toContain('spaMarker: null');
+    expect(libTest).toContain('Tab click caused a full document reload / Hydrated tab className contains extra whitespace');
+  });
+
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
     const section = e2eCaseSection('TC-830');
     const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
