@@ -1,8 +1,13 @@
 /**
  * @jest-environment jsdom
  */
-import { act, renderHook } from '@testing-library/react';
-import { useTaSuddenDeath } from '@/components/tournament/ta-sudden-death-panel';
+import { act, render, renderHook, screen } from '@testing-library/react';
+import { TASuddenDeathSection, useTaSuddenDeath } from '@/components/tournament/ta-sudden-death-panel';
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string, values?: Record<string, unknown>) =>
+    values ? `${key}:${Object.values(values).join(':')}` : key,
+}));
 
 const entries = [
   { id: 'entry-1', playerId: 'player-1', player: { nickname: 'Mario' } },
@@ -24,6 +29,11 @@ const rounds = [
     ],
   },
 ];
+
+const pendingSuddenDeath = {
+  ...rounds[0].suddenDeathRounds[0],
+  round: rounds[0],
+};
 
 function mockJsonResponse(ok: boolean, body: Record<string, unknown> = {}) {
   return {
@@ -174,5 +184,35 @@ describe('useTaSuddenDeath', () => {
     expect(setSaveError).toHaveBeenLastCalledWith('course failed');
     expect(fetchData).not.toHaveBeenCalled();
     expect(result.current.changingSuddenDeathCourse).toBe(false);
+  });
+});
+
+describe('TASuddenDeathSection', () => {
+  it('passes pending entries and submitting state through with matching prop names', () => {
+    render(
+      <TASuddenDeathSection
+        isAdmin
+        isComplete={false}
+        pendingSuddenDeath={pendingSuddenDeath}
+        pendingSuddenDeathEntries={entries}
+        availableCourses={['MC1']}
+        saveError={null}
+        suddenDeathTimes={{ 'player-1': '1:00.00', 'player-2': '1:01.00' }}
+        changingSuddenDeathCourse={false}
+        submittingSuddenDeath
+        timeInputProps={{ 'aria-label': 'Sudden-death time' }}
+        timeInputHelp="Enter M:SS.mm format."
+        timePlaceholder="1:23.45"
+        submittingLabel="Saving..."
+        onCourseChange={jest.fn()}
+        onTimeChange={jest.fn()}
+        onTimeBlur={jest.fn()}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByDisplayValue('1:00.00')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('1:01.00')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Saving...' })).toBeDisabled();
   });
 });
