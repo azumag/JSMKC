@@ -290,6 +290,13 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).toContain('hasRecoveryLinks=${hasRecoveryLinks}');
   });
 
+  it('keeps TC-2070B documented with the same navigationType payload used by tc-all.js', () => {
+    const section = e2eCaseSection('TC-2070B');
+
+    expect(section).toContain("navigationType: 'navigate'");
+    expect(tcAll).toContain("navigationType: 'navigate'");
+  });
+
   const gpSuiteDefinition = sectionBetween(tcGp, '    tests: [', '    ],');
 
   const gpTc831Tc832OrderRationale =

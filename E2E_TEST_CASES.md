@@ -98,7 +98,7 @@
 - **authRequired**: false
 - **背景**: issue #2070。`WebVitalsReporter` は root layout に常時マウントされるが、通常環境では `PERF_LOG !== '1'` のため `/api/internal/vitals` が副作用なしに 204 を返すことを preview で確認する。`PERF_LOG=1` のログ内容は環境依存なので単体テストで補助する。
 - **手順**:
-  1. ブラウザコンテキストから `/api/internal/vitals` に最小 payload を POST する
+  1. ブラウザコンテキストから `/api/internal/vitals` に `navigationType: 'navigate'` を含む payload を POST する
   2. 通常 preview 設定で 204 が返ることを確認する
   3. トップページに遷移し、Web Vitals reporter のマウントでページロードが壊れないことを確認する
 - **期待結果**: 通常設定では vitals endpoint は 204 を返し、トップページは JS エラーなしに表示される
