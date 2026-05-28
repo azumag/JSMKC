@@ -29,6 +29,9 @@ export type RankedQualification<TQualification> = TQualification & {
   _rank: number;
   _rankOverridden?: boolean;
 };
+type RankedWithOrder<TQualification> = RankedQualification<TQualification> & {
+  _rankingOrder: number;
+};
 
 function assignRanksForPartition<TQualification extends RankableQualification, TMatch extends RankableMatch>(
   qualifications: TQualification[],
@@ -133,9 +136,7 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
     ranked.splice(0, ranked.length, ...resolved);
   }
 
-  type RankedWithOrder = RankedQualification<TQualification> & { _rankingOrder: number };
-
-  const withOverrides: RankedWithOrder[] = ranked.map((entry, index) => {
+  const withOverrides: RankedWithOrder<TQualification>[] = ranked.map((entry, index) => {
     if (entry.rankOverride != null) {
       const rankOverride = entry.rankOverride;
       return {
@@ -152,10 +153,7 @@ function assignRanksForPartition<TQualification extends RankableQualification, T
     };
   });
 
-  withOverrides.sort((
-    a: { _rank: number; rankOverride?: number | null; _rankingOrder: number },
-    b: { _rank: number; rankOverride?: number | null; _rankingOrder: number },
-  ) => {
+  withOverrides.sort((a, b) => {
     if (a._rank !== b._rank) return a._rank - b._rank;
 
     const aOverride = a.rankOverride != null;

@@ -31,6 +31,7 @@ describe('E2E case drift coverage', () => {
   const tcGp = readE2eScript('tc-gp.js');
   const tcOverlay = readE2eScript('tc-overlay.js');
   const overlayPhase = readRepoFile('smkc-score-app', 'src', 'lib', 'overlay', 'phase.ts');
+  const serverRanking = readRepoFile('smkc-score-app', 'src', 'lib', 'server-ranking.ts');
   const overlayEventsRoute = readRepoFile(
     'smkc-score-app',
     'src',
@@ -1508,6 +1509,20 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('callObjectPropertyNames');
     expect(helperTests).toContain("it('returns empty arrays when the requested callee is absent'");
     expect(helperTests).toContain('prisma.NONEXISTENT.findFirst');
+  });
+
+  it('keeps TC-2266 aligned with server-ranking rankOverride narrowing coverage', () => {
+    const section = e2eCaseSection('TC-2266');
+    const serverRankingTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'server-ranking.test.ts');
+
+    expect(section).toContain('issue #2266');
+    expect(section).toContain('entry.rankOverride != null');
+    expect(section).toContain('rankOverride: undefined');
+    expect(serverRanking).toContain('if (entry.rankOverride != null)');
+    expect(serverRanking).not.toContain('const overrideRank = entry.rankOverride != null');
+    expect(serverRankingTest).toContain('treats undefined rankOverride as auto-ranked');
+    expect(serverRankingTest).toContain('rankOverride: undefined');
+    expect(serverRankingTest).toContain('expect(autoRanked?._rankOverridden).toBeUndefined()');
   });
 
   it('keeps TC-1087 aligned with finite positive round-number guards', () => {
