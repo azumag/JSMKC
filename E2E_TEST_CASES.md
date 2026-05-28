@@ -90,6 +90,7 @@
   3. `/auth/error?error=NotWhitelisted` にアクセスする
   4. 管理者未登録の安全な説明文と復帰導線を確認する
 - **期待結果**: エラー詳細はユーザー向けの安全な文言で表示され、再ログインとトップページへのリンクが常に存在する
+- **診断**: FAIL時は対象error codeごとに `hasSafeCopy` と `hasRecoveryLinks` の真偽値をログ詳細に出す
 - **スクリプト**: tc-all.js TC-2070A
 
 ## TC-2070B: Web Vitals ingestion は通常設定で 204 を返しページ表示を壊さない
