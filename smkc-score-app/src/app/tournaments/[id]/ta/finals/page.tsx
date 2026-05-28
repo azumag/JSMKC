@@ -913,7 +913,7 @@ export default function TimeAttackFinals({
 
       {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
-        isAdmin={isAdmin}
+        isAdmin={Boolean(isAdmin)}
         isComplete={isComplete}
         pendingSuddenDeath={pendingSuddenDeath}
         pendingSuddenDeathEntries={pendingSuddenDeathEntries}
