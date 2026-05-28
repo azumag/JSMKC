@@ -78,6 +78,18 @@ class MockNextRequest {
 
 describe('Export API Route - /api/tournaments/[id]/export', () => {
   const loggerMock = { error: jest.fn(), warn: jest.fn() };
+  const makeCdmMainHubPlayer = (index: number) => {
+    const n = String(index + 1).padStart(2, "0");
+    return {
+      playerId: `p${index + 1}`,
+      player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
+      stage: 'qualification',
+      seeding: index + 1,
+      lives: 3,
+      eliminated: false,
+      totalTime: 12000 + index,
+    };
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -318,19 +330,6 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     });
 
     it('should write the Main Hub player rows for exactly 60 players', async () => {
-      const makePlayer = (index: number) => {
-        const n = String(index + 1).padStart(2, "0");
-        return {
-          playerId: `p${index + 1}`,
-          player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
-          stage: 'qualification',
-          seeding: index + 1,
-          lives: 3,
-          eliminated: false,
-          totalTime: 12000 + index,
-        };
-      };
-
       const mockTournament = {
         id: 't1',
         name: 'CDM Player Hub Cap',
@@ -342,7 +341,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         bmMatches: [],
         mrMatches: [],
         gpMatches: [],
-        ttEntries: Array.from({ length: 60 }, (_value, index) => makePlayer(index)),
+        ttEntries: Array.from({ length: 60 }, (_value, index) => makeCdmMainHubPlayer(index)),
         ttPhaseRounds: [],
         playerScores: [],
       };
@@ -394,19 +393,6 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       };
       (XLSX.read as jest.Mock).mockImplementationOnce(() => staleWorkbook as any);
 
-      const makePlayer = (index: number) => {
-        const n = String(index + 1).padStart(2, "0");
-        return {
-          playerId: `p${index + 1}`,
-          player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
-          stage: 'qualification',
-          seeding: index + 1,
-          lives: 3,
-          eliminated: false,
-          totalTime: 12000 + index,
-        };
-      };
-
       const mockTournament = {
         id: 't1',
         name: 'CDM Player Hub Cap',
@@ -418,7 +404,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         bmMatches: [],
         mrMatches: [],
         gpMatches: [],
-        ttEntries: Array.from({ length: 61 }, (_value, index) => makePlayer(index)),
+        ttEntries: Array.from({ length: 61 }, (_value, index) => makeCdmMainHubPlayer(index)),
         ttPhaseRounds: [],
         playerScores: [],
       };
@@ -436,8 +422,8 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
       expect(workbook.Sheets["Main Hub"].B2.v).toBe('Name 01');
       expect(workbook.Sheets["Main Hub"].B61.v).toBe('Name 60');
-      for (const col of ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]) {
-        expect(workbook.Sheets["Main Hub"][`${col}62`]).toEqual({
+      for (const column of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']) {
+        expect(workbook.Sheets["Main Hub"][`${column}62`]).toEqual({
           v: 'KEEP-OUT-OF-BOUNDS',
         });
       }
@@ -467,7 +453,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       };
       (XLSX.read as jest.Mock).mockImplementationOnce(() => staleWorkbook as any);
 
-      const makePlayer = (index: number) => {
+      const makeTtQualificationPlayer = (index: number) => {
         const n = String(index + 1).padStart(2, "0");
         return {
           playerId: `p${index + 1}`,
@@ -492,7 +478,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         bmMatches: [],
         mrMatches: [],
         gpMatches: [],
-        ttEntries: Array.from({ length: 61 }, (_value, index) => makePlayer(index)),
+        ttEntries: Array.from({ length: 61 }, (_value, index) => makeTtQualificationPlayer(index)),
         ttPhaseRounds: [],
         playerScores: [],
       };
