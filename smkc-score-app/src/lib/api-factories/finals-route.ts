@@ -876,12 +876,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const bOverride = b.qualification.rankOverride != null;
         if (aOverride !== bOverride) return aOverride ? -1 : 1;
         if (aOverride) {
-          // After the inequality guard above, `aOverride` and `bOverride` are both true
-          // only when both qualifications have non-null `rankOverride` values.
-          const aRankOverride = a.qualification.rankOverride ?? Number.POSITIVE_INFINITY;
-          const bRankOverride = b.qualification.rankOverride ?? Number.POSITIVE_INFINITY;
-          // `Number.POSITIVE_INFINITY` is defensive; nullish values here should not occur
-          // after the above guard, but this keeps ordering logic type-safe.
+          if (b.qualification.rankOverride == null) return -1;
+          if (a.qualification.rankOverride == null) return 1;
+          const aRankOverride = a.qualification.rankOverride;
+          const bRankOverride = b.qualification.rankOverride;
           if (aRankOverride !== bRankOverride) return aRankOverride - bRankOverride;
 
           // When manual overrides collide on the same rank value, prefer the

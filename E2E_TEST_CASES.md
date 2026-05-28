@@ -875,14 +875,14 @@
 
 ## TC-2088: CDM export — Main Hub は60人ちょうどで B62 を空のままにする
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #2088。Main Hub の player rows は B2 から B61 までの60行に限定される。60人ちょうどの境界テストでは、最終行 B61 への書き込みだけでなく、範囲外の B62 が作成されないことも明示的に確認する必要がある。
+- **背景**: issue #2088/#2193。Main Hub の player rows は B2 から B61 までの60行に限定される。60人ちょうどの境界テストでは、最終行 B61 への書き込みだけでなく、範囲外の B62 が作成されないことも明示的に確認する必要がある。メタテストは整形済みソース文字列ではなく TypeScript AST で 60件 fixture と B62 未書き込みアサーションを確認する。
 - **手順**:
   1. CDM export fixture に TT entries を60人だけ用意する
   2. `GET /api/tournaments/:id/export?format=cdm` を実行する
   3. Main Hub の `B2` が1人目、`B61`/`C61` が60人目の name/nickname で埋まることを確認する
   4. Main Hub の `B62` が `undefined` のままであることを確認する
 - **期待結果**: 60人ちょうどでは Main Hub の有効範囲だけが書き込まれ、61行目相当の `B62` は生成されない
-- **スクリプト**: `__tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`
+- **スクリプト**: `__tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-2087: CDM export — Main Hub 境界テストは共通 player fixture を使う
 - **URL**: /api/tournaments/[id]/export?format=cdm
