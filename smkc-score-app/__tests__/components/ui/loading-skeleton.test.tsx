@@ -47,4 +47,10 @@ describe('QualificationClientLoadingState', () => {
 
     expect(screen.queryByTestId('qualification-action-skeleton')).not.toBeInTheDocument();
   });
+
+  it('uses the qualification page title skeleton width by default', () => {
+    render(<QualificationClientLoadingState title="マッチレース" />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'マッチレース' }).nextElementSibling).toHaveClass('w-48');
+  });
 });

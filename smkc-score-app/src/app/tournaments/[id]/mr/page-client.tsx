@@ -482,7 +482,7 @@ export default function MatchRacePageClient({
 
   /* Loading skeleton shown only on first visit (no cached data yet) */
   if (!pollData) {
-    return <QualificationClientLoadingState title={t('title')} titleSkeletonClassName="w-48" />;
+    return <QualificationClientLoadingState title={t('title')} />;
   }
 
   return (
