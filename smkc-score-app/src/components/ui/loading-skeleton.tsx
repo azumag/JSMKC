@@ -19,6 +19,8 @@
  */
 "use client";
 
+import type { HTMLAttributes } from "react";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,7 +29,7 @@ import { cn } from "@/lib/utils";
  *   dimensions (e.g., "h-4 w-3/4") since the skeleton renders as an
  *   empty div that relies on explicit sizing.
  */
-export interface SkeletonProps {
+export interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
   className?: string;
 }
 
@@ -46,7 +48,7 @@ export interface SkeletonProps {
  * <Skeleton className="h-10 w-10 rounded-full" />  // Avatar placeholder
  * ```
  */
-export function Skeleton({ className }: SkeletonProps) {
+export function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
       className={cn(
@@ -55,6 +57,7 @@ export function Skeleton({ className }: SkeletonProps) {
       )}
       role="status"
       aria-label="Loading content"
+      {...props}
     />
   );
 }
@@ -160,9 +163,11 @@ export function QualificationFallback({ title }: { title?: string } = {}) {
 export function QualificationClientLoadingState({
   title,
   titleSkeletonClassName = "w-32",
+  showActionButton = true,
 }: {
   title: string;
   titleSkeletonClassName?: string;
+  showActionButton?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -171,7 +176,7 @@ export function QualificationClientLoadingState({
           <h1 className="text-2xl font-semibold">{title}</h1>
           <Skeleton className={cn("h-5", titleSkeletonClassName)} />
         </div>
-        <Skeleton className="h-10 w-24" />
+        {showActionButton && <Skeleton className="h-10 w-24" data-testid="qualification-action-skeleton" />}
       </div>
       <CardSkeleton />
     </div>
