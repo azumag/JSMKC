@@ -2019,6 +2019,19 @@ describe('E2E case drift coverage', () => {
     expect(mrReportRouteTest).toContain('should return auth failure before scoresConfirmed for unauthorized users');
   });
 
+  it('documents TC-2109 as MR dual-report player-session coverage', () => {
+    const section = e2eCaseSection('TC-2109');
+
+    expect(section).toContain('Issue**: #2109');
+    expect(section).toContain('P1 session');
+    expect(section).toContain('P2 session');
+    expect(tcMr).toContain('const p1Context = await loginSharedPlayer(adminPage, p1)');
+    expect(tcMr).toContain('const p2Context = await loginSharedPlayer(adminPage, p2)');
+    expect(tcMr).toContain('const p1Report = await p1Context.page.evaluate');
+    expect(tcMr).toContain('const p2Report = await p2Context.page.evaluate');
+    expect(tcMr).toContain('const rejectedReport = await p1Context.page.evaluate');
+  });
+
   it('documents TC-821A as shared TA sudden-death UI and logic coverage', () => {
     const section = e2eCaseSection('TC-821A');
 

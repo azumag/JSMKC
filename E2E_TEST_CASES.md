@@ -3166,6 +3166,19 @@
   5. クリーンアップ
 - **期待結果**: scoresConfirmed後のスコア報告は400で拒否され、MRMatch.scoresConfirmed=true が保持される
 
+### TC-2109: MR dual-report scoresConfirmed guard uses real player sessions
+- **URL**: /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
+- **authRequired**: true (player)
+- **Issue**: #2109
+- **背景**: TC-822 が admin session だけで P1/P2 の報告を送ると、dual-report の本人セッション経路を検証できない。
+- **手順**:
+  1. dualReportEnabled=true の共有 MR match を作成する
+  2. P1 と P2 をそれぞれ `loginSharedPlayer` で個別ログインする
+  3. P1 session から `reportingPlayer: 1`、P2 session から `reportingPlayer: 2` の不一致スコアを POST する
+  4. 管理者が match detail PUT で `scoresConfirmed=true` に確定する
+  5. P1 session から再報告し、400 で拒否されることを確認する
+- **期待結果**: TC-822 は admin 代理報告ではなく P1/P2 の本人 session で mismatch を作り、scoresConfirmed 後の participant report block を検証する
+
 ## TC-823: セクション公開トグル — レイアウトタブの「未公開」バッジがリアルタイム更新される (issue #621)
 - **URL**: /tournaments/[id]/bm, /tournaments/[id]/overall-ranking
 - **authRequired**: true (admin)
