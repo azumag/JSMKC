@@ -20,7 +20,7 @@
  * - Auto-refresh every 3 seconds for live tournament tracking
  */
 
-import { memo, useState, useEffect, useCallback, useMemo, useRef, ComponentPropsWithoutRef } from "react";
+import { memo, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ import {
   TA_FINALS_ROUND_PLAYER_NAME_CLASS,
   TA_FINALS_TIME_INPUT_CLASS,
   TA_TIME_INPUT_HELP_CLASS,
+  type TaTimeInputProps,
   getTaTimeInputProps,
   parseTvNumberInput,
 } from "@/lib/ta/time-entry-layout";
@@ -106,7 +107,7 @@ type TAEliminationPhaseRowProps = {
   isEditingDisabled: boolean;
   retryLabel: string;
   retryTitle: string;
-  timeInputProps: Partial<ComponentPropsWithoutRef<typeof Input>>;
+  timeInputProps: TaTimeInputProps;
   onTvChange: (playerId: string, value: number | null) => void;
   onTimeChange: (playerId: string, value: string) => void;
   onTimeBlur: (playerId: string) => void;
@@ -843,7 +844,7 @@ export default function TAEliminationPhase({
 
       {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
-        isAdmin={isAdmin}
+        isAdmin={Boolean(isAdmin)}
         isComplete={isComplete}
         pendingSuddenDeath={pendingSuddenDeath}
         pendingSuddenDeathEntries={pendingSuddenDeathEntries}

@@ -236,6 +236,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-2006-2007', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/prisma-selects.test.ts'],
+    ['TC-2031', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/static/ta-time-input-props-usememo.test.ts'],
     ['TC-2034', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-2041', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
@@ -1647,6 +1648,7 @@ describe('E2E case drift coverage', () => {
       'TC-1454-1455',
       'TC-1457',
       'TC-2006-2007',
+      'TC-2031',
       'TC-2034',
       'TC-1528',
       'TC-1669',
@@ -1656,6 +1658,18 @@ describe('E2E case drift coverage', () => {
 
     expect(indexes.every((index) => index >= 0)).toBe(true);
     expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
+  });
+
+  it('keeps TC-2031 aligned with the shared TA time input prop alias', () => {
+    const section = e2eCaseSection('TC-2031');
+    const timeEntryLayout = readRepoFile('smkc-score-app', 'src', 'lib', 'ta', 'time-entry-layout.ts');
+    const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'ta-time-input-props-usememo.test.ts');
+
+    expect(section).toContain('issue #2031');
+    expect(section).toContain('TaTimeInputProps');
+    expect(section).toContain('__tests__/static/ta-time-input-props-usememo.test.ts');
+    expect(timeEntryLayout).toContain('export type TaTimeInputProps');
+    expect(staticTest).toContain('timeInputProps: TaTimeInputProps');
   });
 
   it('keeps TC-2006-2007 aligned with shallow BM/MR lean select payload coverage', () => {

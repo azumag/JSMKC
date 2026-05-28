@@ -27,7 +27,7 @@
  * - 3-second auto-refresh for live tracking
  */
 
-import { ComponentPropsWithoutRef, memo, useState, useEffect, useCallback, use, useMemo, useRef } from "react";
+import { memo, useState, useEffect, useCallback, use, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -83,6 +83,7 @@ import {
   TA_FINALS_ROUND_PLAYER_NAME_CLASS,
   TA_FINALS_TIME_INPUT_CLASS,
   TA_TIME_INPUT_HELP_CLASS,
+  type TaTimeInputProps,
   getTaTimeInputProps,
   parseTvNumberInput,
 } from "@/lib/ta/time-entry-layout";
@@ -158,8 +159,6 @@ function renderLives(lives: number, eliminated: boolean, eliminatedLabel: string
   }
   return <span>{hearts}</span>;
 }
-
-type TaTimeInputProps = Partial<ComponentPropsWithoutRef<typeof Input>>;
 
 type TaFinalsTimeEntryRowProps = {
   playerId: string;
@@ -913,7 +912,7 @@ export default function TimeAttackFinals({
 
       {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
-        isAdmin={isAdmin}
+        isAdmin={Boolean(isAdmin)}
         isComplete={isComplete}
         pendingSuddenDeath={pendingSuddenDeath}
         pendingSuddenDeathEntries={pendingSuddenDeathEntries}

@@ -1,4 +1,9 @@
+import type { ComponentPropsWithoutRef } from "react";
+import type { Input } from "@/components/ui/input";
+
 export const TA_TIME_ENTRY_CUP_GRID_CLASS = "grid grid-cols-1 gap-4 md:grid-cols-2";
+
+export type TaTimeInputProps = Partial<ComponentPropsWithoutRef<typeof Input>>;
 
 export const TA_TIME_INPUT_BASE_PROPS = {
   inputMode: "decimal",
