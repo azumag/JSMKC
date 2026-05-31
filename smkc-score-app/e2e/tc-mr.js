@@ -24,6 +24,7 @@
  *  TC-612  GP race position validation (no-tie + double-game-over)
  *  TC-820  MR match/[matchId] page view-only
  *  TC-822  MR scoresConfirmed blocks later participant reports
+ *  TC-2108 MR report route auth-checks before scoresConfirmed
  *  TC-1079 MR qualification course assignment rejects invalid roundNumber before fallback
  *  TC-617  MR finals same-courses-per-round enforcement (PR #585 normalizer)
  *  TC-618  MR finals admin manual total-score override (PR #585 manual form)
@@ -1554,6 +1555,73 @@ async function runTc822(adminPage) {
   }
 }
 
+/* ───────── TC-2108: MR report auth before scoresConfirmed ─────────
+ * Once a match is scoresConfirmed, unauthenticated report POSTs must still
+ * fail as auth errors instead of revealing the confirmed state. */
+async function runTc2108(adminPage) {
+  try {
+    const { tournamentId, match } = await prepareSharedMrPair(adminPage, { dualReport: true });
+    const reportUrl = `/api/tournaments/${tournamentId}/mr/match/${match.id}/report`;
+
+    await adminPage.evaluate(async ([url, body]) => {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [reportUrl, { reportingPlayer: 1, score1: 3, score2: 1 }]);
+
+    await adminPage.evaluate(async ([url, body]) => {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [reportUrl, { reportingPlayer: 2, score1: 1, score2: 3 }]);
+
+    const afterMismatch = await apiFetchMr(adminPage, tournamentId);
+    const pendingMatch = (afterMismatch.matches || []).find((m) => m.id === match.id);
+    if (!pendingMatch) throw new Error('TC-2108 match missing after mismatch');
+
+    const confirmRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}`, {
+      score1: 3,
+      score2: 1,
+      completed: true,
+      scoresConfirmed: true,
+      version: pendingMatch.version,
+    }]);
+
+    const unauthReport = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [reportUrl, { reportingPlayer: 1, score1: 2, score2: 2 }]);
+
+    const unauthorized = unauthReport.s === 401 || unauthReport.s === 403;
+    const leakedConfirmedState = unauthReport.s === 400
+      && JSON.stringify(unauthReport.b).includes('scoresConfirmed');
+
+    log('TC-2108', confirmRes.s === 200 && unauthorized && !leakedConfirmedState ? 'PASS' : 'FAIL',
+      confirmRes.s !== 200 ? `Admin confirmation failed (${confirmRes.s})`
+      : !unauthorized ? `Unauthenticated report returned ${unauthReport.s} instead of 401/403`
+      : leakedConfirmedState ? 'Unauthenticated report leaked scoresConfirmed validation'
+      : '');
+  } catch (err) {
+    log('TC-2108', 'FAIL', err instanceof Error ? err.message : 'MR TC-2108 auth order failed');
+  }
+}
+
 /* ───────── TC-620: MR qualification tie resolution ─────────
  * Mirrors TC-324 (BM) and TC-713 (GP) — creates 3 players, sets up MR
  * qualification, and forces every non-BYE match to a 2-2 draw so every
@@ -1814,6 +1882,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-612', fn: runTc612 },
       { name: 'TC-611', fn: runTc611 },
       { name: 'TC-822', fn: runTc822 },
+      { name: 'TC-2108', fn: runTc2108 },
       { name: 'TC-620', fn: runTc620 },
       { name: 'TC-617', fn: runTc617 },
       { name: 'TC-618', fn: runTc618 },

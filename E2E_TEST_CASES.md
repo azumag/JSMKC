@@ -1974,6 +1974,18 @@
 - **期待結果**: MR participant で過去報告を確認でき、確定済みスコアを参加者自身が修正できる
 - **スクリプト**: `tc-mr.js TC-1083`
 
+## TC-2108: MR report route は scoresConfirmed より先に認可する
+- **URL**: /api/tournaments/[temp-id]/mr/match/[match-id]/report
+- **authRequired**: true (player/admin)
+- **背景**: issue #2108。MR report POST が `scoresConfirmed` を認可前に返すと、未認証ユーザーが matchId を知っているだけで確定状態を 400 vs 401/403 の差から推測できる。
+- **手順**:
+  1. 管理者セッションで MR 予選2名マッチを作成する
+  2. dual-report mismatch を作り、管理者 PUT で `scoresConfirmed=true` にする
+  3. Cookie を送らない fetch で同じ report URL に POST する
+  4. API route 単体テストで `checkScoreReportAuth` が `scoresConfirmed` validation より先に実行されることを確認する
+- **期待結果**: 未認証 POST は確定済み状態を示す 400 ではなく 401/403 になり、認可済み participant のみ `Scores have already been confirmed` を受け取る
+- **スクリプト**: `tc-mr.js TC-2108`
+
 ## TC-1082: BM/MR participant スコア入力ロジック共通化
 - **URL**: /tournaments/[temp-id]/bm/participant, /tournaments/[temp-id]/mr/participant
 - **authRequired**: true (player)

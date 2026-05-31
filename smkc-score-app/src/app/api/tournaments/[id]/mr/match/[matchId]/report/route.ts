@@ -110,10 +110,6 @@ export async function POST(
       return handleValidationError("Match not found", "matchId");
     }
 
-    if (match.scoresConfirmed) {
-      return handleValidationError("Scores have already been confirmed for this match", "scoresConfirmed");
-    }
-
     /* Validate required fields before auth to fail fast on malformed requests */
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
       return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
@@ -127,6 +123,10 @@ export async function POST(
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
       return handleAuthError('Unauthorized: Not authorized for this match');
+    }
+
+    if (match.scoresConfirmed) {
+      return handleValidationError("Scores have already been confirmed for this match", "scoresConfirmed");
     }
 
     /*
