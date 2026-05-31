@@ -25,7 +25,7 @@
  * - Namespaces: participant, ta, common
  */
 
-import { memo, useState, useEffect, useCallback, use, useMemo, ComponentPropsWithoutRef } from 'react';
+import { memo, useState, useEffect, useCallback, use, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
@@ -38,7 +38,7 @@ import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib/ta/time-utils';
-import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from '@/lib/ta/time-entry-layout';
+import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, type TaTimeInputProps, getTaTimeInputProps } from '@/lib/ta/time-entry-layout';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
@@ -84,7 +84,7 @@ type TaParticipantTimeInputRowProps = {
   placeholder: string;
   disabled: boolean;
   inputClassName: string;
-  timeInputProps: Partial<ComponentPropsWithoutRef<typeof Input>>;
+  timeInputProps: TaTimeInputProps;
   onChange: (course: string, value: string) => void;
   onBlur: (course: string) => void;
 };
