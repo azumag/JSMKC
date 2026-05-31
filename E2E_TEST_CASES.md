@@ -153,6 +153,17 @@
 - **期待結果**: retry loop の最終 attempt が唯一の fallback return となり、到達不能な loop 後 return を持たずに preview preflight の診断挙動を維持する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2036: TC ID 再利用ポリシーは欠番と再割当の条件を明文化する
+- **URL**: n/a (E2E scenario ledger / docs drift guard)
+- **authRequired**: false
+- **背景**: issue #2036。TC-323 は欠番として再利用禁止と書かれている一方、旧 TC-816 は別シナリオへ再割当されており、TC ID の扱いが読み手に矛盾して見える。
+- **手順**:
+  1. 欠番 / リネーム履歴の前に TC ID 再利用ポリシーが明文化されていることを確認する
+  2. TC-323 は runnable script / log 上の内容衝突があったため欠番で固定されることを確認する
+  3. TC-816 の再割当は旧シナリオを `旧 TC-816` として履歴化し、現行 TC-816 に script-backed coverage がある場合だけ許容されることを確認する
+- **期待結果**: TC-323 の欠番固定と TC-816 の条件付き再割当が同じポリシーで説明され、将来の TC ID 変更時に欠番か再割当かを判断できる
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2214: TC-2104 の structural classification assertion は docs drift test に集約する
 - **URL**: n/a (test ownership / docs drift guard)
 - **authRequired**: false
@@ -3887,11 +3898,16 @@
 - TC-7xx: GPフルワークフロー（28名予選 + 決勝）
 - TC-8xx: TT(TA)フルワークフロー（28名予選 + フェーズ1〜3 決勝）— **scenario only**
 
+**TC ID 再利用ポリシー**:
+- runnable script / log 上で既存 ID と内容衝突した番号は欠番にして再利用しない。
+- 文書上で削除された旧シナリオの番号は、履歴が `旧 TC-xxx` と明示され、代替 coverage と現行シナリオの script-backed coverage が両方確認できる場合だけ再割当できる。
+- 再割当時は、現行シナリオの本文と欠番 / リネーム履歴を docs drift test で固定する。
+
 **欠番 / リネーム履歴**:
 - 旧 TC-323 (`tc-bm.js` のBM決勝ブラケット生成) → **TC-503** にリネーム
   （tc-all.js TC-323 と内容衝突していたため）
 - 旧 tc-all.js TC-323 (BM tie warning banner) → **TC-324** にリネーム
-- TC-323 は欠番（再利用しないこと）
+- TC-323 は runnable script / log 上の内容衝突があったため欠番（再利用しないこと）
 - TC-401〜TC-404 は廃止（軽量フルワークフローおよびGPダイアログUIチェック）
 - 旧 TC-816（TA/TT 決勝フェーズ — フェーズ間コース履歴引き継ぎ）は
   E2E スクリプト再整理に伴い文書上で削除。代替の回帰担保は TC-817 で実施し、

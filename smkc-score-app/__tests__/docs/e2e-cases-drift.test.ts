@@ -426,6 +426,26 @@ describe('E2E case drift coverage', () => {
     expect(currentTc816).toContain('tc-ta.js TC-816');
   });
 
+  it('keeps TC-2036 aligned with the TC ID reuse policy', () => {
+    const section = e2eCaseSection('TC-2036');
+    const e2eCases = readRepoFile('E2E_TEST_CASES.md');
+    const reusePolicy = sectionBetween(e2eCases, '**TC ID 再利用ポリシー**:', '**欠番 / リネーム履歴**:');
+    const renameHistory = sectionBetween(e2eCases, '**欠番 / リネーム履歴**:', '### ページ中身の確認ルール');
+    const currentTc816 = e2eCaseSection('TC-816');
+
+    expect(section).toContain('issue #2036');
+    expect(section).toContain('TC-323');
+    expect(section).toContain('TC-816');
+    expect(section).toContain('__tests__/docs/e2e-cases-drift.test.ts');
+    expect(reusePolicy).toContain('runnable script / log 上で既存 ID と内容衝突した番号は欠番にして再利用しない');
+    expect(reusePolicy).toContain('旧 TC-xxx');
+    expect(reusePolicy).toContain('script-backed coverage');
+    expect(renameHistory).toContain('TC-323 は runnable script / log 上の内容衝突があったため欠番');
+    expect(renameHistory).toContain('旧 TC-816');
+    expect(renameHistory).toContain('TC-816 は別シナリオ');
+    expect(currentTc816).toContain('tc-ta.js TC-816');
+  });
+
   it('keeps TC-2118 documented with the shared tournament-tab hydration guard', () => {
     const section = e2eCaseSection('TC-2118');
     const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
