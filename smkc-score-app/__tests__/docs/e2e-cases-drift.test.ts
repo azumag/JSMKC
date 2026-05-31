@@ -1899,6 +1899,26 @@ describe('E2E case drift coverage', () => {
     expect(taCourseSelectionTest).toContain('only available course');
   });
 
+  it('documents TC-2117 as course-selection public API wording coverage', () => {
+    const section = e2eCaseSection('TC-2117');
+    const staticTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'static',
+      'course-selection-dead-export.test.ts'
+    );
+
+    expect(section).toContain('issue #2117');
+    expect(section).toContain('getPlayedCoursesWithSuddenDeath');
+    expect(section).toContain('旧 `getPlayedCourses` export の非公開');
+    expect(section).toContain('__tests__/static/course-selection-dead-export.test.ts');
+    expect(staticTest).toContain(
+      'exposes getPlayedCoursesWithSuddenDeath and hides obsolete getPlayedCourses'
+    );
+    expect(staticTest).toContain('export\\s+async\\s+function\\s+getPlayedCoursesWithSuddenDeath');
+    expect(staticTest).toContain('not.toMatch(/\\bexport\\s+async\\s+function\\s+getPlayedCourses\\s*\\(/)');
+  });
+
   it('documents TC-822A as TA sudden-death UI i18n coverage', () => {
     const section = e2eCaseSection('TC-822A');
 
