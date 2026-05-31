@@ -71,6 +71,26 @@ describe('TA row component memo wrapping', () => {
   );
 });
 
+describe('TA time input prop type alias', () => {
+  it('exports one shared TaTimeInputProps alias for TA row components', () => {
+    const source = readRepoFile('smkc-score-app', 'src', 'lib', 'ta', 'time-entry-layout.ts');
+
+    expect(source).toContain('export type TaTimeInputProps');
+    expect(source).toContain('Partial<ComponentPropsWithoutRef<typeof Input>>');
+  });
+
+  it.each(memoizedRowTargets)(
+    'uses the shared TaTimeInputProps alias in $label',
+    ({ path }) => {
+      const source = readRepoFile('smkc-score-app', ...path);
+
+      expect(source).toMatch(/type\s+TaTimeInputProps\b/);
+      expect(source).toContain('timeInputProps: TaTimeInputProps');
+      expect(source).not.toContain('timeInputProps: Partial<ComponentPropsWithoutRef<typeof Input>>');
+    },
+  );
+});
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -349,6 +349,17 @@
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
 - **補助検証**: `smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2031: TA time input props は共有型 alias を使う
+- **URL**: n/a (static/doc coverage)
+- **authRequired**: false
+- **背景**: issue #2031。TA の participant / phase1・phase2 elimination / finals の時間入力 row は同じ `timeInputProps` contract を共有しているため、各ファイルで `Partial<ComponentPropsWithoutRef<typeof Input>>` をインライン定義すると型名と修正箇所が分散する。
+- **手順**:
+  1. `time-entry-layout.ts` が `TaTimeInputProps` を export していることを確認する
+  2. participant row、TA elimination row、finals row が `timeInputProps: TaTimeInputProps` を使うことを確認する
+  3. 3ファイルに inline の `Partial<ComponentPropsWithoutRef<typeof Input>>` が戻っていないことを確認する
+- **期待結果**: TA 時間入力 props の型 contract は共有 alias に集約され、同じ row contract の変更点が1箇所にまとまる
+- **スクリプト**: n/a (static/doc coverage) — `smkc-score-app/__tests__/static/ta-time-input-props-usememo.test.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2034: TC-109 drift guard は補助テストの実装文字列を固定しない
 - **URL**: n/a (static/doc coverage)
 - **authRequired**: false
