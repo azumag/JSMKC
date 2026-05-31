@@ -20,6 +20,18 @@ function loadPreflight() {
   return loaded;
 }
 
+const loopAfterFallbackReturnPattern = /}\s*\n\s*return\s+\{\s*result,\s*args\s*\};\s*\n\s*}\s*$/;
+
+function runWranglerSchemaCheckSection(source: string) {
+  const functionStart = source.indexOf('function runWranglerSchemaCheck');
+  expect(functionStart).toBeGreaterThanOrEqual(0);
+
+  const assertStart = source.indexOf('function assertPreviewD1Schema', functionStart);
+  expect(assertStart).toBeGreaterThan(functionStart);
+
+  return source.slice(functionStart, assertStart);
+}
+
 describe('preview schema preflight', () => {
   beforeEach(() => {
     spawnSyncMock.mockReset();
@@ -311,14 +323,42 @@ describe('preview schema preflight', () => {
 
   it('keeps runWranglerSchemaCheck free of a loop-after fallback return', () => {
     const source = readFileSync(path.join(process.cwd(), 'e2e/lib/preview-schema-preflight.js'), 'utf8');
-    const functionStart = source.indexOf('function runWranglerSchemaCheck');
-    const assertStart = source.indexOf('function assertPreviewD1Schema', functionStart);
-    const section = source.slice(functionStart, assertStart);
+    const section = runWranglerSchemaCheckSection(source);
 
-    expect(functionStart).toBeGreaterThanOrEqual(0);
-    expect(assertStart).toBeGreaterThan(functionStart);
     expect(section).toContain('attempt === WRANGLER_TRANSIENT_STATUS_RETRIES');
-    expect(section).not.toMatch(/}\s*return \{ result, args \};\s*}$/);
+    expect(section).not.toMatch(loopAfterFallbackReturnPattern);
+  });
+
+  it('keeps TC-2202 documented as source-structure guard coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-2202');
+    expect(section).toContain('issue #2202');
+    expect(section).toContain('slice(..., -1)');
+    expect(section).toContain('multiline fixture');
+  });
+
+  it('fails the runWranglerSchemaCheck section guard before slicing when markers drift', () => {
+    const source = [
+      'function runWranglerSchemaCheck() {',
+      '  return { result, args };',
+      '}',
+    ].join('\n');
+
+    expect(() => runWranglerSchemaCheckSection(source)).toThrow();
+  });
+
+  it('detects multiline loop-after fallback returns in the preflight source section', () => {
+    const section = [
+      'function runWranglerSchemaCheck() {',
+      '  for (let attempt = 0; attempt <= WRANGLER_TRANSIENT_STATUS_RETRIES; attempt += 1) {',
+      '    if (attempt === WRANGLER_TRANSIENT_STATUS_RETRIES) return { result, args };',
+      '  }',
+      '  return { result, args };',
+      '}',
+    ].join('\n');
+
+    expect(section).toMatch(loopAfterFallbackReturnPattern);
   });
 
   it('keeps TC-111 documented as narrow schema drift classification coverage', () => {

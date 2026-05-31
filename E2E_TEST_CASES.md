@@ -141,6 +141,17 @@
 - **期待結果**: preview E2E は実際の D1 schema drift 表記を migration guidance として早期失敗させる一方、接続や進行ログを schema drift と誤分類しない
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2202: Preview D1 schema preflight の source-structure test は marker 欠落と multiline fallback return を検出する
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: false
+- **背景**: issue #2202。`runWranglerSchemaCheck` の structural test は `assertPreviewD1Schema` marker が欠落した場合に `slice(..., -1)` で誤った範囲を検査せず、loop 後 fallback return の検出も multiline source に合わせて明示する必要がある。
+- **手順**:
+  1. `runWranglerSchemaCheck` と `assertPreviewD1Schema` の source marker が両方存在することを先に確認する
+  2. marker 欠落 fixture では source section 抽出が失敗することを確認する
+  3. loop 後の `return { result, args };` を multiline fixture で検出できることを確認する
+- **期待結果**: preview preflight の structural test は marker 欠落を即座に失敗させ、到達不能な loop 後 fallback return が改行を含む形で再導入されても検出する
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2104: Preview D1 schema preflight の Wrangler retry loop は unreachable fallback return を持たない
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
