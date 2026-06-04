@@ -484,7 +484,7 @@ async function main() {
   log('TC-007', hasPlayerTab ? 'PASS' : 'FAIL');
 
   // TC-2070A: auth error page renders safe copy and recovery links
-  let tc2070A = true;
+  const tc2070AFailures = [];
   for (const { code, expected } of [
     { code: 'CredentialsSignin', expected: ['Invalid nickname or password', 'ニックネームまたはパスワード'] },
     { code: 'NotWhitelisted', expected: ['not registered as an administrator', '管理者として登録されていません'] },
@@ -495,9 +495,11 @@ async function main() {
     const hasRecoveryLinks =
       await page.locator('a[href="/auth/signin"]').count() > 0 &&
       await page.locator('a[href="/"]').count() > 0;
-    if (!hasSafeCopy || !hasRecoveryLinks) tc2070A = false;
+    if (!hasSafeCopy || !hasRecoveryLinks) {
+      tc2070AFailures.push(`${code} hasSafeCopy=${hasSafeCopy} hasRecoveryLinks=${hasRecoveryLinks}`);
+    }
   }
-  log('TC-2070A', tc2070A ? 'PASS' : 'FAIL');
+  log('TC-2070A', tc2070AFailures.length === 0 ? 'PASS' : 'FAIL', tc2070AFailures.join('; '));
 
   // TC-2070B: web vitals endpoint is preview-safe with PERF_LOG disabled
   const vitalsStatus = await page.evaluate(async () => {

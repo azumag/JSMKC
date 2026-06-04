@@ -280,6 +280,16 @@ describe('E2E case drift coverage', () => {
     expect(scriptSource).toContain(`log('${tc}'`);
   });
 
+  it('keeps TC-2070A failure diagnostics documented and logged', () => {
+    const section = e2eCaseSection('TC-2070A');
+
+    expect(section).toContain('hasSafeCopy');
+    expect(section).toContain('hasRecoveryLinks');
+    expect(tcAll).toContain('tc2070AFailures');
+    expect(tcAll).toContain('hasSafeCopy=${hasSafeCopy}');
+    expect(tcAll).toContain('hasRecoveryLinks=${hasRecoveryLinks}');
+  });
+
   const gpSuiteDefinition = sectionBetween(tcGp, '    tests: [', '    ],');
 
   const gpTc831Tc832OrderRationale =

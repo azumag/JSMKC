@@ -84,6 +84,9 @@ describe('tc-all focused suite registration', () => {
     expect(source).toContain('/auth/error?error=');
     expect(source).toContain('CredentialsSignin');
     expect(source).toContain('NotWhitelisted');
+    expect(source).toContain('tc2070AFailures');
+    expect(source).toContain('hasSafeCopy=${hasSafeCopy}');
+    expect(source).toContain('hasRecoveryLinks=${hasRecoveryLinks}');
 
     expect(source).toContain("log('TC-2070B'");
     expect(source).toContain('/api/internal/vitals');
