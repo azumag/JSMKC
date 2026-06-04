@@ -90,6 +90,7 @@ describe('tc-all focused suite registration', () => {
 
     expect(source).toContain("log('TC-2070B'");
     expect(source).toContain('/api/internal/vitals');
+    expect(source).toContain("navigationType: 'navigate'");
     expect(source).toContain('vitalsStatus === 204');
   });
 

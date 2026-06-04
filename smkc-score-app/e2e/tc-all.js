@@ -506,7 +506,14 @@ async function main() {
     const response = await fetch('/api/internal/vitals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'tc-2070', name: 'LCP', value: 1, rating: 'good', path: '/' }),
+      body: JSON.stringify({
+        id: 'tc-2070',
+        name: 'LCP',
+        value: 1,
+        rating: 'good',
+        navigationType: 'navigate',
+        path: '/',
+      }),
     });
     return response.status;
   }).catch(() => 0);
