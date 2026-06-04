@@ -25,5 +25,6 @@ describe('pull request template', () => {
     expect(template).toContain('## PR Body Diff Check');
     expect(template).toContain('Summary only describes changes that are present in this PR diff.');
     expect(template).toContain('planned or follow-up work');
+    expect(template).toContain('current-main fixes are mentioned only when they are visible in this PR diff.');
   });
 });
