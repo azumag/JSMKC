@@ -375,7 +375,21 @@ function addChromiumLaunchHelp(error) {
     `  E2E_BROWSER_CHANNEL=chrome`;
 
   error.message = `${msg}${installHint}`;
+  if (error.stack && !error.stack.includes('Recommended bootstrap:')) {
+    error.stack = `${error.stack}${installHint}`;
+  }
   return error;
+}
+
+function formatE2EErrorForLog(error) {
+  if (!(error instanceof Error)) return error;
+  const stack = error.stack || '';
+  const message = error.message || '';
+  if (!stack) return message;
+  if (message.includes('Recommended bootstrap:') && !stack.includes('Recommended bootstrap:')) {
+    return `${stack}\n${message}`;
+  }
+  return stack || message;
 }
 
 async function launchChromium(options = {}) {
@@ -2865,6 +2879,8 @@ module.exports = {
   resolveE2EBrowserHome,
   resolvePlaywrightBrowsersPath,
   getChromiumLaunchConfig,
+  addChromiumLaunchHelp,
+  formatE2EErrorForLog,
   launchChromium,
   launchPersistentChromiumContext,
   /* retry */

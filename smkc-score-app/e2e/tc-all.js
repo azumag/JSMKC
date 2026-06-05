@@ -44,6 +44,7 @@ const {
   resolveAllTies,
   launchChromium,
   launchPersistentChromiumContext,
+  formatE2EErrorForLog,
   BASE,
   resolveE2EProfileDir,
 } = require('./lib/common');
@@ -4505,7 +4506,7 @@ if (require.main === module) {
   main()
     .then((exitCode) => process.exit(exitCode))
     .catch((err) => {
-      console.error('[tc-all] fatal error:', err instanceof Error ? err.stack || err.message : err);
+      console.error('[tc-all] fatal error:', formatE2EErrorForLog(err));
       process.exit(1);
     });
 }
