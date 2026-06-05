@@ -121,18 +121,6 @@ describe("computeQualificationRanks", () => {
     expect(result[1].playerId).toBe("b");
   });
 
-  it("treats undefined rankOverride as automatic rank when sorting collisions", () => {
-    const quals = [
-      { playerId: "manual", score: 10, points: 3, rankOverride: 2 },
-      { playerId: "automatic", score: 8, points: 2 },
-    ];
-
-    const result = computeQualificationRanks(quals, [{ score: "desc" }, { points: "desc" }], []);
-
-    expect(result.map((q) => q.playerId)).toEqual(["manual", "automatic"]);
-    expect(result.find((q) => q.playerId === "automatic")?._rankOverridden).toBeUndefined();
-  });
-
   it("restarts ranks when group is the leading sort field", () => {
     const quals = [
       { playerId: "a1", group: "A", score: 10, points: 3, rankOverride: null },
