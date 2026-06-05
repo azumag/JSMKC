@@ -173,4 +173,17 @@ describe('E2E browser launch helpers', () => {
     expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-browser-home/.cache', { recursive: true });
     expect(mkdirSyncSpy).toHaveBeenCalledWith('/tmp/jsmkc-browser-home/Crashpad', { recursive: true });
   });
+
+  it('keeps the install-browser bootstrap hint visible when Playwright provides a stack', () => {
+    process.env.PLAYWRIGHT_BROWSERS_PATH = '/tmp/jsmkc-browser-home/ms-playwright';
+    common = loadCommon();
+    const error = new Error("Executable doesn't exist at /tmp/jsmkc-browser-home/ms-playwright/chromium/chrome");
+    error.stack = 'browserType.launchPersistentContext: Executable does not exist stack';
+
+    const formatted = common.formatE2EErrorForLog(common.addChromiumLaunchHelp(error));
+
+    expect(formatted).toContain('Recommended bootstrap:');
+    expect(formatted).toContain('PLAYWRIGHT_BROWSERS_PATH=/tmp/jsmkc-browser-home/ms-playwright npm run e2e:install-browser');
+    expect(formatted).toContain('E2E_EXECUTABLE_PATH=/absolute/path/to/chromium-compatible-browser');
+  });
 });

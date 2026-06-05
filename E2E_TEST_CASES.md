@@ -339,8 +339,9 @@
   9. Chromium 引数生成はディレクトリ作成などの I/O を行わず、launch config 作成時に必要な browser home / cache / Crashpad ディレクトリを準備することを確認する
   10. `E2E_BROWSER_CHANNEL=chrome` または `E2E_EXECUTABLE_PATH=...` を明示した場合だけ、その指定が子プロセスへ渡ることを確認する
   11. `npm run e2e:install-browser` と preview runner が同じ `PLAYWRIGHT_BROWSERS_PATH` を使い、`playwright` import 前に子プロセスへ渡ることを補助検証で確認する
-  12. run-preview 側の Crashpad launch helper 補助テストは `fs.mkdirSync` をモックし、実際の `/tmp` 配下へテスト副作用を残さないことを確認する
-- **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / Crashpad permission failure で停止しない
+  12. managed browser cache が空で Playwright が `Executable doesn't exist` を返す場合、fatal log に汎用 `npx playwright install` だけでなく `npm run e2e:install-browser` と同じ `PLAYWRIGHT_BROWSERS_PATH` が表示されることを確認する
+  13. run-preview 側の Crashpad launch helper 補助テストは `fs.mkdirSync` をモックし、実際の `/tmp` 配下へテスト副作用を残さないことを確認する
+- **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / empty managed browser cache / Crashpad permission failure で停止しても project-specific bootstrap guidance が表示される
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
 - **補助検証**: `smkc-score-app/__tests__/e2e/run-preview.test.ts`, `smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts`（どちらも runner command 扱いで、URL 欄には環境変数名を入れない）
 
