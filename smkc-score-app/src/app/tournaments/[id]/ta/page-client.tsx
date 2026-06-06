@@ -681,7 +681,7 @@ export default function TimeAttackPageClient({
 
   // === Loading State (only on first visit with no cached data) ===
   if (!pollData) {
-    return <QualificationClientLoadingState title={t('title')} titleSkeletonClassName="w-48" />;
+    return <QualificationClientLoadingState title={t('title')} titleSkeletonClassName="w-48" showActionButton={false} />;
   }
 
   // === Error State ===

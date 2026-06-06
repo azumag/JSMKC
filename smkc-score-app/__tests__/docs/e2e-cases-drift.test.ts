@@ -194,6 +194,13 @@ describe('E2E case drift coverage', () => {
     'ui',
     'loading-skeleton.test.tsx',
   );
+  const loadingSkeleton = readRepoFile(
+    'smkc-score-app',
+    'src',
+    'components',
+    'ui',
+    'loading-skeleton.tsx',
+  );
   const groupSetupHelperTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -580,6 +587,24 @@ describe('E2E case drift coverage', () => {
     expect(tc357Block).toContain("mr: ['マッチレース', 'Match Race']");
     expect(tc357Block).toContain("gp: ['グランプリ', 'Grand Prix']");
     expect(tc357Block).toContain("ta: ['タイムアタック', 'Time Attack', 'Time Trial']");
+  });
+
+  it('documents and guards TC-2094 TA loading skeleton action placeholder opt-out', () => {
+    const section = e2eCaseSection('TC-2094');
+    const tc2094Block = sectionBetween(tcAll, '// TC-2094:', '// TC-104:');
+
+    expect(section).toContain('TA qualification page header has no first-load action button');
+    expect(section).toContain('showActionButton={false}');
+    expect(section).toContain('qualification-action-skeleton');
+    expect(loadingSkeleton).toContain('showActionButton = true');
+    expect(loadingSkeleton).toContain('qualification-action-skeleton');
+    expect(qualificationFallbackTest).toContain('renders the action-button placeholder by default');
+    expect(qualificationFallbackTest).toContain('can omit the action-button placeholder for TA loading');
+    expect(taPageClient).toContain('showActionButton={false}');
+    expect(tc2094Block).toContain("fs.readFileSync('src/components/ui/loading-skeleton.tsx'");
+    expect(tc2094Block).toContain("fs.readFileSync('src/app/tournaments/[id]/ta/page-client.tsx'");
+    expect(tc2094Block).toContain('otherModesUseDefault2094');
+    expect(tc2094Block).toContain("'TC-2094'");
   });
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {

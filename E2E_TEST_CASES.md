@@ -1173,6 +1173,16 @@
 - **期待結果**: 4モードすべてで fallback/client loading 期間中もモード名見出しが存在し、遅いデータ取得でも見出しセレクタが安定する
 - **スクリプト**: tc-all.js TC-357
 
+## TC-2094: TA qualification loading skeleton — action placeholder is omitted
+- **authRequired**: false
+- **背景**: TA qualification page header has no first-load action button, while BM/MR/GP keep bracket/debug actions. The shared client loading skeleton must keep its default action placeholder for action-bearing modes, but TA must opt out to avoid a misleading button skeleton.
+- **手順**:
+  1. `QualificationClientLoadingState` exposes a default-on `showActionButton` contract.
+  2. TA page-client passes `showActionButton={false}` during first-load skeleton rendering.
+  3. BM/MR/GP page-clients keep the default action placeholder contract.
+- **期待結果**: TA loading state renders the title/text/card skeletons without `qualification-action-skeleton`; BM/MR/GP retain the default action placeholder.
+- **スクリプト**: tc-all.js TC-2094
+
 ## TC-401: 全モードトーナメント — TA/BM/MR/GP の予選データが正しく存在する
 - **authRequired**: true (admin)
 - **背景**: `setupAllModes28PlayerQualification` で28名 × 4モードの予選を完了させた後、各モード API が有効なデータを返すことを確認する統合テスト。

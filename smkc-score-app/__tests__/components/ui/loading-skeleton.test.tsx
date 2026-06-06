@@ -35,4 +35,16 @@ describe('QualificationClientLoadingState', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'バトルモード' })).toBeInTheDocument();
   });
+
+  it('renders the action-button placeholder by default', () => {
+    render(<QualificationClientLoadingState title="マッチレース" />);
+
+    expect(screen.getByTestId('qualification-action-skeleton')).toBeInTheDocument();
+  });
+
+  it('can omit the action-button placeholder for TA loading', () => {
+    render(<QualificationClientLoadingState title="タイムアタック" showActionButton={false} />);
+
+    expect(screen.queryByTestId('qualification-action-skeleton')).not.toBeInTheDocument();
+  });
 });

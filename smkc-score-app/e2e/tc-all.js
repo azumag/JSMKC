@@ -4420,6 +4420,29 @@ async function main() {
     log('TC-357', 'SKIP', 'TID not available');
   }
 
+  // TC-2094: TA loading skeleton does not show an action-button placeholder.
+  try {
+    const loadingSkeletonSource2094 = fs.readFileSync('src/components/ui/loading-skeleton.tsx', 'utf8');
+    const taPageClientSource2094 = fs.readFileSync('src/app/tournaments/[id]/ta/page-client.tsx', 'utf8');
+    const bmPageClientSource2094 = fs.readFileSync('src/app/tournaments/[id]/bm/page-client.tsx', 'utf8');
+    const mrPageClientSource2094 = fs.readFileSync('src/app/tournaments/[id]/mr/page-client.tsx', 'utf8');
+    const gpPageClientSource2094 = fs.readFileSync('src/app/tournaments/[id]/gp/page-client.tsx', 'utf8');
+    const sharedHasOptOut2094 =
+      loadingSkeletonSource2094.includes('showActionButton = true') &&
+      loadingSkeletonSource2094.includes('qualification-action-skeleton');
+    const taOptsOut2094 = taPageClientSource2094.includes('showActionButton={false}');
+    const otherModesUseDefault2094 = [bmPageClientSource2094, mrPageClientSource2094, gpPageClientSource2094]
+      .every((source) => !source.includes('showActionButton={false}'));
+    const pass2094 = sharedHasOptOut2094 && taOptsOut2094 && otherModesUseDefault2094;
+    log(
+      'TC-2094',
+      pass2094 ? 'PASS' : 'FAIL',
+      `sharedOptOut=${sharedHasOptOut2094} taOptOut=${taOptsOut2094} otherModesDefault=${otherModesUseDefault2094}`,
+    );
+  } catch (e) {
+    log('TC-2094', 'FAIL', e instanceof Error ? e.message : String(e));
+  }
+
   // TC-104: Player delete (deferred from earlier in the file — see comment above
   // TC-304. Must run last for the shared `pid` so any TC that invoked
   // uiSetupTaPlayers with that player can find the label in the setup dialog.)
