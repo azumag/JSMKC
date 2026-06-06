@@ -884,6 +884,16 @@
 - **期待結果**: 60人ちょうどでは Main Hub の有効範囲だけが書き込まれ、61行目相当の `B62` は生成されない
 - **スクリプト**: `__tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`
 
+## TC-2087: CDM export — Main Hub 境界テストは共通 player fixture を使う
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2087 / issue #2091。60人ちょうどと61人超の境界テストが同じ player fixture を別々に定義すると、片方だけ変わってテスト意図がずれる。範囲外 sentinel も列ごとに表記ゆれがあると、保護対象セルの読み取りが紛らわしくなる。
+- **手順**:
+  1. CDM Main Hub 境界テストが shared helper `makeCdmMainHubPlayer` を使って60人/61人の TT entries を生成することを確認する
+  2. 61人超ケースの stale workbook が `B62` から `L62` まで同じ `KEEP-OUT-OF-BOUNDS` sentinel を保持することを確認する
+  3. `GET /api/tournaments/:id/export?format=cdm` 後も `B62` から `L62` が stale sentinel のまま残ることを確認する
+- **期待結果**: Main Hub の境界テストは単一 fixture helper を共有し、範囲外 row の sentinel 表記が揃っている
+- **スクリプト**: `__tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`
+
 ## TC-2089A: CDM export — Main Hub の 60行上限で row 62 を保護する
 - **URL**: /api/tournaments/[id]/export?format=cdm
 - **背景**: issue #2089/#2092/#2093。CDM Main Hub は 60人分の固定テンプレート領域だけを書き換えるため、61人以上のデータが来ても row 62 の既存セルを上書きしてはならない。

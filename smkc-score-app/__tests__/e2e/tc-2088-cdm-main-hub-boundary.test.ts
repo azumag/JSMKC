@@ -28,4 +28,28 @@ describe('TC-2088 CDM Main Hub boundary coverage', () => {
     expect(routeTest).toContain('workbook.Sheets["Main Hub"].B61.v');
     expect(routeTest).toContain('workbook.Sheets["Main Hub"].B62).toBeUndefined()');
   });
+
+  it('documents TC-2087 as shared fixture and sentinel consistency coverage', () => {
+    const section = e2eCaseSection('TC-2087');
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'api',
+      'tournaments',
+      '[id]',
+      'export',
+      'route.test.ts',
+    );
+
+    expect(section).toContain('issue #2087');
+    expect(section).toContain('issue #2091');
+    expect(section).toContain('makeCdmMainHubPlayer');
+    expect(section).toContain('KEEP-OUT-OF-BOUNDS');
+    expect(routeTest).toContain('const makeCdmMainHubPlayer = (index: number) => {');
+    expect(routeTest).not.toContain('const makePlayer = (index: number) => {');
+    expect(routeTest.match(/makeCdmMainHubPlayer\(index\)/g)).toHaveLength(2);
+    expect(routeTest).toContain("for (const column of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'])");
+    expect(routeTest).not.toContain('KEEP-OUT-BOUNDS');
+  });
 });
