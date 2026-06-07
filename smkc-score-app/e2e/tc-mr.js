@@ -1485,11 +1485,17 @@ async function runTc616(adminPage) {
  * Dual-report mismatch can be finalized by an admin. Once the admin marks the
  * match scoresConfirmed, participant report POSTs must be rejected. */
 async function runTc822(adminPage) {
+  let p1Browser = null;
+  let p2Browser = null;
   try {
-    const { tournamentId, match } = await prepareSharedMrPair(adminPage, { dualReport: true });
+    const { tournamentId, p1, p2, match } = await prepareSharedMrPair(adminPage, { dualReport: true });
     const reportUrl = `/api/tournaments/${tournamentId}/mr/match/${match.id}/report`;
+    const p1Context = await loginSharedPlayer(adminPage, p1);
+    p1Browser = p1Context.browser;
+    const p2Context = await loginSharedPlayer(adminPage, p2);
+    p2Browser = p2Context.browser;
 
-    const p1Report = await adminPage.evaluate(async ([url, body]) => {
+    const p1Report = await p1Context.page.evaluate(async ([url, body]) => {
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1498,7 +1504,7 @@ async function runTc822(adminPage) {
       return { s: r.status, b: await r.json().catch(() => ({})) };
     }, [reportUrl, { reportingPlayer: 1, score1: 3, score2: 1 }]);
 
-    const p2Report = await adminPage.evaluate(async ([url, body]) => {
+    const p2Report = await p2Context.page.evaluate(async ([url, body]) => {
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1530,7 +1536,7 @@ async function runTc822(adminPage) {
       version: pendingMatch.version,
     }]);
 
-    const rejectedReport = await adminPage.evaluate(async ([url, body]) => {
+    const rejectedReport = await p1Context.page.evaluate(async ([url, body]) => {
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1552,6 +1558,9 @@ async function runTc822(adminPage) {
       : '');
   } catch (err) {
     log('TC-822', 'FAIL', err instanceof Error ? err.message : 'MR TC-822 scoresConfirmed failed');
+  } finally {
+    if (p1Browser) await p1Browser.close().catch(() => {});
+    if (p2Browser) await p2Browser.close().catch(() => {});
   }
 }
 

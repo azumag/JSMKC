@@ -251,6 +251,50 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       expect(prisma.mRMatch.update).not.toHaveBeenCalled();
     });
 
+    it.each([
+      [1, 'player2'],
+      [2, 'player1'],
+    ])('should delegate reportingPlayer %s participant auth before waiting for the peer report', async (reportingPlayer, waitingFor) => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        version: 1,
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1ReportedPoints1: null,
+        player1ReportedPoints2: null,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+
+      const updatedMatch = {
+        ...mockMatch,
+        ...(reportingPlayer === 1
+          ? { player1ReportedPoints1: 3, player1ReportedPoints2: 1 }
+          : { player2ReportedPoints1: 3, player2ReportedPoints2: 1 }),
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', {
+        reportingPlayer,
+        score1: 3,
+        score2: 1,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(checkScoreReportAuth).toHaveBeenCalledWith(request, 't1', reportingPlayer, mockMatch);
+      expect(createSuccessResponse).toHaveBeenCalledWith(
+        { match: updatedMatch, waitingFor },
+        'Score reported successfully',
+      );
+    });
+
     // Success case - Both players' scores match → auto-confirm
     it('should report score successfully for authenticated player', async () => {
       const mockMatch = {
