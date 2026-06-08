@@ -12,6 +12,7 @@ import {
   getAvailableCourses,
   getPlayedCoursesWithSuddenDeath,
   isValidCourseAbbr,
+  selectRandomCourse,
   selectRandomAvailableCourse,
 } from "@/lib/ta/course-selection";
 import { COURSES } from "@/lib/constants";
@@ -141,6 +142,43 @@ describe("selectRandomAvailableCourse", () => {
     const course = selectRandomAvailableCourse(COURSES.slice(0, -1), lastCourse);
 
     expect(course).toBe(lastCourse);
+  });
+});
+
+describe("selectRandomCourse", () => {
+  const originalRandom = Math.random;
+
+  afterEach(() => {
+    Math.random = originalRandom;
+  });
+
+  it("keeps regular rounds on the immediate-repeat avoidance path", async () => {
+    Math.random = jest.fn().mockReturnValue(0);
+    const prisma = {
+      tTPhaseRound: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "p1-r1",
+            phase: "phase1",
+            roundNumber: 1,
+            course: "MC1",
+            suddenDeathRounds: [],
+          },
+          {
+            id: "p1-r2",
+            phase: "phase1",
+            roundNumber: 2,
+            course: "DP1",
+            suddenDeathRounds: [],
+          },
+        ]),
+      },
+    };
+
+    const selected = await selectRandomCourse(prisma as any, "t1", "phase1");
+
+    expect(selected).toBe("GV1");
+    expect(selected).not.toBe("DP1");
   });
 });
 

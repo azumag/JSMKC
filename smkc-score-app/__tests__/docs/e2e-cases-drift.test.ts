@@ -1976,6 +1976,19 @@ describe('E2E case drift coverage', () => {
     expect(staticTest).toContain('not.toMatch(/\\bexport\\s+async\\s+function\\s+getPlayedCourses\\s*\\(/)');
   });
 
+  it('documents TC-2114 as concise TA course-selection comment coverage', () => {
+    const section = e2eCaseSection('TC-2114');
+
+    expect(section).toContain('issue #2114');
+    expect(section).toContain('immediate-repeat');
+    expect(section).toContain('__tests__/lib/ta/course-selection.test.ts');
+    expect(taCourseSelection).toContain(
+      '// Avoid immediate-repeat courses when alternatives exist in normal and sudden-death play.',
+    );
+    expect(taCourseSelection).not.toContain('Keep regular rounds aligned with the previous-change behavior');
+    expect(taCourseSelectionTest).toContain('keeps regular rounds on the immediate-repeat avoidance path');
+  });
+
   it('documents TC-822A as TA sudden-death UI i18n coverage', () => {
     const section = e2eCaseSection('TC-822A');
 
