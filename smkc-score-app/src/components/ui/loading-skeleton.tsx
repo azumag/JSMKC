@@ -162,7 +162,7 @@ export function QualificationFallback({ title }: { title?: string } = {}) {
  * data hydrates, so immediate E2E heading checks do not race the client shell. */
 export function QualificationClientLoadingState({
   title,
-  titleSkeletonClassName = "w-32",
+  titleSkeletonClassName = "w-48",
   showActionButton = true,
 }: {
   title: string;

@@ -194,13 +194,11 @@ describe('E2E case drift coverage', () => {
     'ui',
     'loading-skeleton.test.tsx',
   );
-  const loadingSkeleton = readRepoFile(
-    'smkc-score-app',
-    'src',
-    'components',
-    'ui',
-    'loading-skeleton.tsx',
-  );
+  const loadingSkeleton = readRepoFile('smkc-score-app', 'src', 'components', 'ui', 'loading-skeleton.tsx');
+  const bmPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx');
+  const mrPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx');
+  const gpPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx');
+  const taQualificationPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
   const groupSetupHelperTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -605,6 +603,23 @@ describe('E2E case drift coverage', () => {
     expect(tc2094Block).toContain("fs.readFileSync('src/app/tournaments/[id]/ta/page-client.tsx'");
     expect(tc2094Block).toContain('otherModesUseDefault2094');
     expect(tc2094Block).toContain("'TC-2094'");
+  });
+
+  it('documents TC-2095 as shared qualification loading skeleton width coverage', () => {
+    const section = e2eCaseSection('TC-2095');
+
+    expect(section).toContain('issue #2095');
+    expect(section).toContain('titleSkeletonClassName');
+    expect(section).toContain('w-48');
+    expect(section).toContain('__tests__/components/ui/loading-skeleton.test.tsx');
+    expect(loadingSkeleton).toContain('titleSkeletonClassName = "w-48"');
+    expect(qualificationFallbackTest).toContain('uses the qualification page title skeleton width by default');
+    for (const pageClient of [bmPageClient, mrPageClient, gpPageClient]) {
+      expect(pageClient).toContain("<QualificationClientLoadingState title={t('title')} />");
+      expect(pageClient).not.toContain('titleSkeletonClassName="w-48"');
+    }
+    expect(taQualificationPageClient).toContain("<QualificationClientLoadingState title={t('title')} showActionButton={false} />");
+    expect(taQualificationPageClient).not.toContain('titleSkeletonClassName="w-48"');
   });
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
