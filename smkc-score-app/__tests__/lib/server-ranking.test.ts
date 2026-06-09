@@ -95,6 +95,22 @@ describe("computeQualificationRanks", () => {
     expect(result[1].playerId).toBe("b");
   });
 
+  it("treats undefined rankOverride as auto-ranked", () => {
+    const quals = [
+      { playerId: "a", score: 10, points: 3, rankOverride: undefined },
+      { playerId: "b", score: 8, points: 2, rankOverride: 1 },
+    ];
+
+    const result = computeQualificationRanks(quals, [{ score: "desc" }, { points: "desc" }], []);
+    const autoRanked = result.find((q) => q.playerId === "a");
+    const overridden = result.find((q) => q.playerId === "b");
+
+    expect(autoRanked?._rank).toBe(1);
+    expect(autoRanked?._rankOverridden).toBeUndefined();
+    expect(overridden?._rank).toBe(1);
+    expect(overridden?._rankOverridden).toBe(true);
+  });
+
   it("does not use existing _rankOverridden when rankOverride is missing", () => {
     const quals = [
       { playerId: "a", score: 10, points: 3, _rankOverridden: false } as {
