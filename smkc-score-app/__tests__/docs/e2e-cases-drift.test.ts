@@ -226,6 +226,12 @@ describe('E2E case drift coverage', () => {
     'export',
     'route.test.ts',
   );
+  const tc2088BoundaryTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'e2e',
+    'tc-2088-cdm-main-hub-boundary.test.ts',
+  );
   const enMessages = readRepoFile('smkc-score-app', 'messages', 'en.json');
   const jaMessages = readRepoFile('smkc-score-app', 'messages', 'ja.json');
   const tc109ClassifiedRows: Array<[string, string, string]> = [
@@ -858,6 +864,19 @@ describe('E2E case drift coverage', () => {
     expect(exportRoute).toContain('Math.min(start + CDM_TT_ROUND_BLOCK_END_OFFSET, CDM_TT_ROUND_LAST_COLUMN)');
     expect(exportRoute).not.toContain('CDM_FINALS_BLOCK_WIDTH');
     expect(exportRoute).not.toContain('CDM_TT_ROUND_BLOCK_WIDTH');
+  });
+
+  it('keeps TC-2088 aligned with AST-backed Main Hub boundary coverage', () => {
+    const section = e2eCaseSection('TC-2088');
+
+    expect(section).toContain('issue #2088/#2193');
+    expect(section).toContain('TypeScript AST');
+    expect(section).toContain('tc-2088-cdm-main-hub-boundary.test.ts');
+    expect(tc2088BoundaryTest).toContain('bodyHasArrayFromLength60');
+    expect(tc2088BoundaryTest).toContain('bodyExpectsMainHubCellToBeUndefined');
+    expect(tc2088BoundaryTest).not.toContain("toContain('Array.from({ length: 60 }')");
+    expect(tc2088BoundaryTest).not.toContain('B62).toBeUndefined()');
+    expect(exportRouteTest).toContain('should write the Main Hub player rows for exactly 60 players');
   });
 
   it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {
