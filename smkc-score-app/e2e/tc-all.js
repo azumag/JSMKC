@@ -11,6 +11,7 @@
 const fs = require('fs');
 const https = require('https');
 const XLSX = require('@e965/xlsx');
+const { unzipSync } = require('fflate');
 const {
   apiActivateTournament,
   apiUpdateTournament,
@@ -91,9 +92,16 @@ const CDM_FINALS_E2E_SLOTS = {
   losers_final: [{ blockStart: 53, row: 47 }],
 };
 
-// Keep this expectation map synchronized with route.ts CDM_FINALS_BRACKET_SLOTS.
-// TC-816A intentionally reads the exported workbook, but it still needs the
-// template's native coordinates to know which cell each round should occupy.
+// Keep this expectation map synchronized with src/lib/cdm-export/cdm-constants.ts
+// FINALS_BRACKET_SLOTS (the production source of truth after the ZIP-surgery
+// rewrite — the old slot table that used to live in the export route was deleted).
+// TC-816A reads the exported workbook, so it still needs the template's native
+// coordinates to know which cell each round should occupy. Block offsets:
+// +1 seed#, +2 name, +4 score (FINALS_BLOCK_{SEED,NAME,SCORE}_OFFSET).
+const CDM_FINALS_BLOCK_SEED_OFFSET = 1;
+const CDM_FINALS_BLOCK_NAME_OFFSET = 2;
+const CDM_FINALS_BLOCK_SCORE_OFFSET = 4;
+
 function cdmE2eSlotRound(match) {
   const round = match?.round || '';
   const bracketPosition = String(match?.bracketPosition || '').toLowerCase();
@@ -103,15 +111,110 @@ function cdmE2eSlotRound(match) {
   return null;
 }
 
-function cdmE2eMatchLabel(match) {
-  const slotRound = cdmE2eSlotRound(match);
-  if (slotRound === 'grand_final_reset') return 'GF Reset';
-  if (slotRound === 'grand_final') return 'GF';
-  return match.bracketPosition || match.round || `M${match.matchNumber}`;
-}
-
 function cdmE2eCell(col, row) {
   return XLSX.utils.encode_cell({ c: col - 1, r: row - 1 });
+}
+
+/**
+ * SheetJS reads a cell as { v, f? }: `v` is the value (or a formula's cached
+ * value), `f` is the formula text when the cell carries one. The rewritten
+ * exporter only writes VALUES into input cells and leaves every template formula
+ * untouched, so a cell with `.f` set was NOT written by the exporter (its `.v` is
+ * just the template's stale cached value and must never be asserted as data).
+ */
+function cdmE2eCellValue(sheet, ref) {
+  const cell = sheet?.[ref];
+  if (!cell) return undefined;
+  return cell.v;
+}
+function cdmE2eIsWrittenValue(sheet, ref) {
+  const cell = sheet?.[ref];
+  return Boolean(cell) && cell.f === undefined && cell.v !== undefined && cell.v !== '';
+}
+
+/** Name cell ref (+2) for a slot: slot1 = geometry.row, slot2 = geometry.row + 1. */
+function cdmE2eNameCellRef(slot, slotIndex) {
+  return cdmE2eCell(slot.blockStart + CDM_FINALS_BLOCK_NAME_OFFSET, slot.row + slotIndex);
+}
+/** Score cell ref (+4) for a slot. */
+function cdmE2eScoreCellRef(slot, slotIndex) {
+  return cdmE2eCell(slot.blockStart + CDM_FINALS_BLOCK_SCORE_OFFSET, slot.row + slotIndex);
+}
+/** Seed-number cell ref (+1) for a slot. */
+function cdmE2eSeedCellRef(slot, slotIndex) {
+  return cdmE2eCell(slot.blockStart + CDM_FINALS_BLOCK_SEED_OFFSET, slot.row + slotIndex);
+}
+
+/**
+ * The score a slot should carry for a completed match. BM/MR use score1/score2,
+ * GP uses points1/points2 (FT cups won). slotIndex picks player1 (0) / player2 (1).
+ */
+function cdmE2eMatchScore(match, mode, slotIndex) {
+  if (mode === 'GP') {
+    const value = slotIndex === 0 ? match.points1 : match.points2;
+    return Number.isFinite(value) ? value : null;
+  }
+  const value = slotIndex === 0 ? match.score1 : match.score2;
+  return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Read the BM/MR seed list (column B, rows 3..26) as a Set of written nicknames.
+ * Empty for GP: GP's B3:B26 is an array-spill formula derived from GP
+ * Qualifications, so the exporter never writes it (the cells hold stale cached
+ * values) — GP seed names must not be asserted from this column (design §3.4).
+ */
+function cdmE2eSeedListSet(sheet) {
+  const names = new Set();
+  for (let row = 3; row <= 26; row++) {
+    const ref = `B${row}`;
+    if (cdmE2eIsWrittenValue(sheet, ref)) names.add(String(sheet[ref].v));
+  }
+  return names;
+}
+
+/**
+ * Fetch a mode's qualification roster nicknames. The seed-list check needs
+ * this because in the playoff-only mid-state the exporter fills B-positions
+ * 1..12 from the QUALIFICATION standings fallback (design §3.4) — those
+ * players have no finals match record yet, so finals participants alone is
+ * the wrong allowed-universe for B3:B26.
+ */
+async function cdmE2eQualificationNicknames(page, tournamentId, modePath) {
+  const json = await page.evaluate(async (u) => {
+    const r = await fetch(`${u}?ts=${Date.now()}`, { cache: 'no-store' });
+    return r.json().catch(() => ({}));
+  }, `/api/tournaments/${tournamentId}/${modePath}`);
+  const qualifications = json?.data?.qualifications ?? [];
+  const names = new Set();
+  for (const q of qualifications) {
+    const nickname = q?.player?.nickname;
+    if (typeof nickname === 'string' && nickname) names.add(nickname);
+  }
+  return names;
+}
+
+/**
+ * Verify the structural parts the OLD SheetJS read→write exporter destroyed:
+ * the worksheet tables and the rich-data (flag image) part must survive, and the
+ * stale calcChain must be gone so Excel rebuilds it after fullCalcOnLoad. This is
+ * the root regression guard for the rewrite (design §2 / §5.3).
+ * Returns an array of human-readable failures (empty = OK).
+ */
+function cdmE2eStructuralFailures(zipBytes) {
+  const failures = [];
+  let parts;
+  try {
+    parts = unzipSync(new Uint8Array(zipBytes));
+  } catch (err) {
+    return [`zip could not be decoded: ${err instanceof Error ? err.message : String(err)}`];
+  }
+  if (!parts['xl/tables/table1.xml']) failures.push('xl/tables/table1.xml missing (Registration/Tracks/Cups tables dropped)');
+  if (!parts['xl/richData/rdrichvalue.xml']) failures.push('xl/richData/rdrichvalue.xml missing (flag rich-data dropped)');
+  if (parts['xl/calcChain.xml']) failures.push('xl/calcChain.xml present (stale calc chain not removed)');
+  const workbookXml = parts['xl/workbook.xml'] ? Buffer.from(parts['xl/workbook.xml']).toString('utf8') : '';
+  if (!/fullCalcOnLoad="1"/.test(workbookXml)) failures.push('xl/workbook.xml is missing fullCalcOnLoad="1"');
+  return failures;
 }
 
 const cdmE2eFinalsApi = {
@@ -207,15 +310,6 @@ async function ensureCdmE2eFinalsFixture(page, tournamentId, api = cdmE2eFinalsA
   }
 
   return { modeStates, readinessDetails };
-}
-
-function cdmE2eGpCupResultsSummary(match) {
-  return (match.cupResults || []).map((result, index) => {
-    const cup = typeof result?.cup === 'string' && result.cup ? result.cup : `Cup ${index + 1}`;
-    const points1 = Number.isFinite(result?.points1) ? result.points1 : '';
-    const points2 = Number.isFinite(result?.points2) ? result.points2 : '';
-    return `${cup}: ${points1}-${points2}`;
-  }).join('; ');
 }
 
 function log(tc, s, d = '') {
@@ -3397,7 +3491,36 @@ async function main() {
     }
   }
 
-  // TC-816A: CDM export finals coordinate mapping is covered by the automated E2E runner.
+  // TC-816A: CDM export finals land in the template's native bracket coordinates.
+  //
+  // The exporter was rewritten from SheetJS read→write to ZIP surgery
+  // (src/lib/cdm-export/): it preserves every template formula and writes ONLY
+  // input cells. We assert two contracts against the freshly-exported workbook:
+  //   (a) Structural regression guard — the parts the old exporter destroyed
+  //       (xl/tables/table1.xml, xl/richData/rdrichvalue.xml) survive, the stale
+  //       xl/calcChain.xml is gone, and workbook.xml gained fullCalcOnLoad="1".
+  //   (b) Per-mode finals values — for each slot-mappable finals match we check
+  //       the cells the exporter actually wrote at its native coordinates. We tell
+  //       written values apart from template formulas via SheetJS `.f` (a cell with
+  //       a formula was NOT written by the exporter; its `.v` is only a stale cache):
+  //         · name cell (+2): only when written as a VALUE (the 8-player degenerate
+  //           path value-overwrites resolved nicknames here; the faithful 24-player
+  //           path leaves an XLOOKUP formula, which we skip). When written it must
+  //           equal one of the match's two player nicknames.
+  //         · score cell (+4): completed matches only (else cleared/blank), equal to
+  //           score1/score2 (GP: points1/points2 = FT cups won). The freshly-
+  //           generated fixture usually has no completed finals match yet, so this is
+  //           best-effort. Slot order is p1→slot1 / p2→slot2 except losers_final
+  //           (the exporter reverses it); the faithful path may also place scores by
+  //           identity resolution, so the check accepts {slot1,slot2}=={s1,s2} as a
+  //           set rather than positionally.
+  //         · seed-number cell (+1): the typed B-position the exporter writes at each
+  //           TYPED-seed slot (formula slots are skipped). Asserted as an integer in
+  //           1..24. winners_r1 + Barrage give every mode many of these in the
+  //           faithful path, so all three modes reach ≥1 check even with no scores.
+  //         · BM/MR seed-list (B3:B26) sanity: every nickname the exporter wrote
+  //           there is one of this mode's finals participants. GP's B3:B26 is a
+  //           formula spill (derived from GP Qualifications) we never read.
   {
     const exportTid = sharedFixture?.tournamentId ?? TID;
     if (exportTid) {
@@ -3417,14 +3540,17 @@ async function main() {
         if (exportResp.status !== 200) {
           log('TC-816A', 'FAIL', `CDM export HTTP ${exportResp.status}`);
         } else {
-          const workbook = XLSX.read(Buffer.from(exportResp.bytes), { type: 'buffer' });
-          const failures = [];
+          const structuralFailures = cdmE2eStructuralFailures(exportResp.bytes);
+          // cellFormula:true so SheetJS sets `.f` on formula cells, letting us tell
+          // an exporter-written value apart from a template formula's cached value.
+          const workbook = XLSX.read(Buffer.from(exportResp.bytes), { type: 'buffer', cellFormula: true });
+          const failures = [...structuralFailures];
           let checked = 0;
-          let gpCupResultsChecked = false;
           const checkedByMode = { BM: 0, MR: 0, GP: 0 };
 
           for (const { mode, sheetName, state } of modeStates) {
             const sheet = workbook.Sheets[sheetName];
+            const seedList = mode === 'GP' ? new Set() : cdmE2eSeedListSet(sheet);
             const roundIndexes = new Map();
             for (const match of cdmE2eFinalsMatches(state)) {
               const slotRound = cdmE2eSlotRound(match);
@@ -3432,22 +3558,85 @@ async function main() {
               roundIndexes.set(slotRound, roundIndex + 1);
               const slot = CDM_FINALS_E2E_SLOTS[slotRound]?.[roundIndex];
               if (!slot) continue;
-              const labelCell = cdmE2eCell(slot.blockStart, slot.row);
-              const actual = sheet?.[labelCell]?.v;
-              const expected = cdmE2eMatchLabel(match);
+              const p1Nick = match.player1?.nickname;
+              const p2Nick = match.player2?.nickname;
+              const nicknames = [p1Nick, p2Nick].filter(Boolean);
+
+              // (b.1) Name cells — assert only the slots the exporter wrote as values.
+              for (const slotIndex of [0, 1]) {
+                const nameRef = cdmE2eNameCellRef(slot, slotIndex);
+                if (!cdmE2eIsWrittenValue(sheet, nameRef)) continue; // formula slot → skip.
+                const actualName = String(cdmE2eCellValue(sheet, nameRef));
+                checked++;
+                checkedByMode[mode]++;
+                if (!nicknames.includes(actualName)) {
+                  failures.push(`${mode} ${slotRound} name ${nameRef}: ${actualName} not in [${nicknames.join(', ')}]`);
+                }
+              }
+
+              // (b.2) Score cells — completed matches only (else cleared/blank).
+              if (match.completed) {
+                const expectedScores = [
+                  cdmE2eMatchScore(match, mode, 0),
+                  cdmE2eMatchScore(match, mode, 1),
+                ];
+                if (expectedScores.every((s) => s != null)) {
+                  const actualScores = [0, 1].map((slotIndex) => {
+                    const ref = cdmE2eScoreCellRef(slot, slotIndex);
+                    const v = cdmE2eCellValue(sheet, ref);
+                    return Number.isFinite(v) ? v : null;
+                  });
+                  checked++;
+                  checkedByMode[mode]++;
+                  // Set-equality: tolerates identity resolution / losers_final reversal.
+                  const expSorted = [...expectedScores].sort((a, b) => a - b);
+                  const actSorted = [...actualScores].map((v) => (v == null ? NaN : v)).sort((a, b) => a - b);
+                  const scoreMatch = expSorted.every((s, i) => s === actSorted[i]);
+                  if (!scoreMatch) {
+                    failures.push(`${mode} ${slotRound} score @${slot.blockStart + CDM_FINALS_BLOCK_SCORE_OFFSET},row ${slot.row}: expected {${expSorted.join(',')}}, got {${actualScores.map((v) => v ?? '<blank>').join(',')}}`);
+                  }
+                }
+              }
+
+              // (b.3) Seed-number cells (+1) — the typed B-position the exporter
+              // writes at each slot's native coordinate. Only TYPED-seed slots carry
+              // a written number (others hold a "Winner of N" reverse-lookup formula,
+              // which we skip). winners_r1 + Barrage slots give every mode plenty of
+              // these in the faithful path even before any score is entered, so each
+              // mode reaches ≥1 check. Both modes use this uniformly; GP's seed-NAME
+              // list (B3:B26) is a formula spill we never read, but its seed NUMBERS
+              // are typed the same way as BM/MR.
+              for (const slotIndex of [0, 1]) {
+                const seedRef = cdmE2eSeedCellRef(slot, slotIndex);
+                if (!cdmE2eIsWrittenValue(sheet, seedRef)) continue; // formula slot → skip.
+                const seedVal = cdmE2eCellValue(sheet, seedRef);
+                checked++;
+                checkedByMode[mode]++;
+                if (!Number.isInteger(seedVal) || seedVal < 1 || seedVal > 24) {
+                  failures.push(`${mode} ${slotRound} seed ${seedRef}: expected B-position 1..24, got ${seedVal ?? '<blank>'}`);
+                }
+              }
+            }
+
+            // (b.4) BM/MR seed list (B3:B26) sanity — every name the exporter wrote
+            // there must come from THIS tournament: a finals participant or, for the
+            // playoff-only mid-state, a qualification-roster player (design §3.4 fills
+            // B-positions 1..12 from the qualification standings before winners_r1
+            // exists). The check still catches the real regression — stale CDM 2025
+            // template names ("Geo", "Sami", ...) leaking into the output. (GP's B
+            // column is a formula spill, intentionally skipped above so `seedList`
+            // is empty there.)
+            const allowedSeedNames = await cdmE2eQualificationNicknames(
+              page, exportTid, mode.toLowerCase());
+            for (const match of cdmE2eFinalsMatches(state)) {
+              if (match.player1?.nickname) allowedSeedNames.add(match.player1.nickname);
+              if (match.player2?.nickname) allowedSeedNames.add(match.player2.nickname);
+            }
+            for (const seedName of seedList) {
               checked++;
               checkedByMode[mode]++;
-              if (actual !== expected) {
-                failures.push(`${mode} ${slotRound} ${labelCell}: expected ${expected}, got ${actual ?? '<blank>'}`);
-              }
-              if (mode === 'GP' && Array.isArray(match.cupResults) && match.cupResults.length > 0 && !gpCupResultsChecked) {
-                const summaryCell = cdmE2eCell(slot.blockStart + 5, slot.row);
-                const expectedSummary = cdmE2eGpCupResultsSummary(match);
-                const actualSummary = sheet?.[summaryCell]?.v;
-                gpCupResultsChecked = true;
-                if (actualSummary !== expectedSummary) {
-                  failures.push(`GP cupResults ${summaryCell}: expected ${expectedSummary}, got ${actualSummary ?? '<blank>'}`);
-                }
+              if (!allowedSeedNames.has(seedName)) {
+                failures.push(`${mode} seed list name "${seedName}" is not a finals or qualification participant`);
               }
             }
           }
@@ -3456,11 +3645,11 @@ async function main() {
             .map(([mode]) => mode);
 
           log('TC-816A',
-            checked > 0 && missingModes.length === 0 && failures.length === 0 ? 'PASS' : 'FAIL',
-            checked === 0 ? `No finals matches available for CDM coordinate verification (${readinessSummary})`
-            : missingModes.length > 0 ? `No finals matches checked for modes: ${missingModes.join(', ')} (${readinessSummary})`
+            structuralFailures.length === 0 && checked > 0 && missingModes.length === 0 && failures.length === 0 ? 'PASS' : 'FAIL',
+            structuralFailures.length > 0 ? `structural: ${structuralFailures.slice(0, 3).join('; ')}`
+            : checked === 0 ? `No finals matches available for CDM coordinate verification (${readinessSummary})`
+            : missingModes.length > 0 ? `No finals cells checked for modes: ${missingModes.join(', ')} (${readinessSummary})`
             : failures.length > 0 ? failures.slice(0, 3).join('; ')
-            : !gpCupResultsChecked ? 'GP cupResults not available; skipped summary-cell check'
             : '');
         }
       } catch (err) {

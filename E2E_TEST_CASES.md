@@ -864,13 +864,17 @@
 
 ## TC-816A: CDM export — finals をテンプレートの bracket 座標へ配置する
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #816。CDM Finals シートは dense table ではなく固定 bracket レイアウトなので、match を順番に詰めると Barrage / Top 16 / Upper / Lower / GF / Reset の位置がずれる。
+- **背景**: issue #816。CDM Finals シートは dense table ではなく固定 bracket レイアウトなので、match を順番に詰めると Barrage / Top 16 / Upper / Lower / GF / Reset の位置がずれる。CDM workbook 再設計（ZIP 外科手術）後はラベルや cupResults 要約を書かず、テンプレート数式を保存して**入力セルのみ**を native 座標へ書く（`src/lib/cdm-export/`）。E2E はエクスポートを解凍して構造と入力セルを検証する。
 - **手順**:
   1. 共有大会の BM/MR/GP finals state を確認し、slot-mappable finals match がない mode は top 24 の finals を生成して CDM export fixture を準備する
   2. 生成後も finals match がない mode は、mode 別 match count と round 一覧を診断ログに出して失敗する
-  3. BM/MR/GP Finals の round が `CDM_FINALS_BRACKET_SLOTS` の block/row 座標へ配置されることを確認する
-  4. GP Finals の cupResults summary が移動先の bracket slot に残ることを確認する
-- **期待結果**: finals match は CDM 2025 テンプレートの native bracket coordinates に配置され、GP の cup/points 補足情報も失われない
+  3. 応答バイトを fflate で解凍し、旧実装が壊していた構造（`xl/tables/table1.xml`・`xl/richData/rdrichvalue.xml` の存在、`xl/calcChain.xml` の不在、`xl/workbook.xml` の `fullCalcOnLoad="1"`）を回帰ガードとして確認する
+  4. BM/MR/GP Finals の各 slot-mappable match について、`src/lib/cdm-export/cdm-constants.ts` の `FINALS_BRACKET_SLOTS` 座標で実際にエクスポータが書いた入力セルを検証する（数式セルは SheetJS の `.f` で除外）:
+     - 名前セル（+2）は**値として書かれている場合のみ**（8人縮退パス）プレイヤー nickname と一致
+     - スコアセル（+4）は完了済み match のみ score1/score2（GP は points1/points2）と一致（順序は集合一致で losers_final 反転を許容）
+     - シード番号セル（+1）は typed slot で B-position 1..24 の整数（faithful パスで全 mode が ≥1 件を満たす）
+     - BM/MR のシードリスト B3:B26 に書かれた nickname は当該 mode の finals 参加者**または予選ロスター**であること（playoff-only の途中状態では設計書§3.4 により B-position 1..12 が予選順位フォールバックで埋まるため。テンプレート残骸名の混入検出が目的。GP の B 列は数式スピルなので読まない）
+- **期待結果**: finals 入力セルは CDM 2025 テンプレートの native bracket coordinates に配置され、テンプレートの数式網（tables/richData）と calc 設定が壊れていないこと。チェック件数0は FAIL。
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-2088: CDM export — Main Hub は60人ちょうどで B62 を空のままにする
@@ -896,59 +900,59 @@
 
 ## TC-2089A: CDM export — Main Hub の 60行上限で row 62 を保護する
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #2089/#2092/#2093。CDM Main Hub は 60人分の固定テンプレート領域だけを書き換えるため、61人以上のデータが来ても row 62 の既存セルを上書きしてはならない。
+- **背景**: issue #2089/#2092/#2093。CDM Main Hub は 60人分の固定テンプレート領域（B2〜L61）だけを書き換える。CDM workbook 再設計では ZIP 外科手術で実テンプレートをパッチするため、61人以上のデータが来ても row 62 は一切アドレスされない（テンプレートに B62〜L62 のセルが存在しない＝未書き込みのまま）。
 - **手順**:
-  1. `Main Hub` の B62〜L62 に stale sentinel 値を持つ CDM workbook fixture を用意する
-  2. 61件の TT entries を持つ tournament を CDM export する
-  3. B61/C61 には60人目が出力され、B62〜L62 の sentinel がすべて残ることを確認する
-- **期待結果**: Main Hub は 60人目までを書き込み、row 62 以降のテンプレートセルを保持する
+  1. 61件の TT entries を持つ tournament を CDM export し、応答バイトを fflate で解凍する
+  2. B61/C61 には60人目が出力されることを確認する
+  3. 61人目は切り捨てられ、Main Hub の B62〜L62 が undefined（未書き込み）のままであることを確認する
+- **期待結果**: Main Hub は 60人目までを書き込み、固定テーブル外の row 62 を一切作成しない
 - **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
-## TC-2180A: CDM export — TT Qualifications の 60行上限で row 62 を保護する
+## TC-2180A: CDM export — TT Qualifications の 47行上限で row 62 を保護する
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #2180。TT Qualifications も Main Hub と同じ 60行固定テンプレート領域を使うため、61件目の qualification entry で row 62 のテンプレートセルを上書きしてはならない。
+- **背景**: issue #2180。TT Qualifications シートは Main Hub とは別の固定テンプレート領域（rows 2〜48＝最大47人）を使う。CDM workbook 再設計では入力はコースタイム列（G〜Z）のみで、固定テーブル外の row 62（E62〜Z62）は一切アドレスされない。
 - **手順**:
-  1. `TT Qualifications` の E62〜Z62 に stale sentinel 値を持つ CDM workbook fixture を用意する
-  2. 61件の TT qualification entries を持つ tournament を CDM export する
-  3. E61/F61 には60人目が出力され、E62〜Z62 の sentinel がすべて残ることを確認する
-- **期待結果**: TT Qualifications は 60件目までを書き込み、row 62 以降のテンプレートセルを保持する
+  1. 61件の TT qualification entries を持つ tournament を CDM export し、応答バイトを解凍する
+  2. ニックネーム昇順の先頭エントリのコースタイムが G2 に出力されることを確認する（E61/F61 など固定テーブル内）
+  3. TT Qualifications の E62〜Z62 が undefined（未書き込み）のままであることを確認する
+- **期待結果**: TT Qualifications は 47人上限の固定テーブルだけを書き込み、row 62 以降を一切作成しない
 - **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-1877A: CDM export — grand_final_reset の正規化で到達不能条件を残さない
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #1877。`grand_final_reset` は native slot table で先に解決されるため、同じ round 文字列を後段の別条件に残すと読み手に誤解を与える。
+- **背景**: issue #1877。`grand_final_reset` は bracket slot table で先に解決されるため、同じ round 文字列を後段の別条件に残すと読み手に誤解を与える。CDM workbook 再設計で round 正規化は `src/lib/cdm-export/fill/finals.ts` の `normalizeRound` に移った。
 - **手順**:
-  1. `cdmFinalsSlotRound` が slot table lookup 後に `bracketPosition.includes("reset")` だけで reset alias を扱うことを確認する
+  1. `normalizeRound` が slot table lookup 後に `bracketPosition.includes("reset")` だけで reset alias を扱うことを確認する
   2. `round === "grand_final_reset" || bracketPosition.includes("reset")` が残っていないことを確認する
 - **期待結果**: grand_final_reset の正規化条件に到達不能な round 判定が残らない
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
-## TC-1878A: CDM export — fallback 座標カウンタは unknown round だけで進める
+## TC-1878A: CDM export — マップ不能な round は fallback せず skip+warn する
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #1878。既知 round が native slot に配置された後で unknown round が来ても、fallback の最初の空き座標から配置される必要がある。
+- **背景**: issue #1878。旧実装は未知 round を fallback 座標へ詰めていたが、CDM 2025 テンプレートは固定 bracket 数式網なので、マップ不能な round を任意の空き座標へ書くと数式の帰属が壊れる。再設計では `normalizeRound` が null を返した round は配置せず warn する（design §3.4.1）。
 - **手順**:
-  1. `winners_qf` と、sort 順で `winners_qf` より後に来る `zz_custom_showmatch` を含む CDM export fixture を作る
-  2. `winners_qf` が native slot `Y7` に配置されることを確認する
-  3. `zz_custom_showmatch` が既知 round 数に影響されず fallback slot `D5` に配置されることを確認する
-- **期待結果**: fallbackIndex は fallback 使用時だけ増え、unknown round の fallback 座標がずれない
+  1. `winners_qf` と、bracket にマップできない `zz_custom_showmatch` を含む CDM export fixture を作る
+  2. `winners_qf` が認識され（8人縮退パスでスコアセル AC7/AC8 に配置）ることを確認する
+  3. `zz_custom_showmatch` はどの bracket セルにも書かれないことを確認する
+- **期待結果**: マップ不能な round は fallback 配置されず skip され、数式網が保護される
 - **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
-## TC-1879A: CDM export — E2E の座標期待値は route.ts と同期する前提を明記する
+## TC-1879A: CDM export — E2E の座標期待値は production slot table と同期する前提を明記する
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #1879。E2E は workbook を実際に読むが、期待セルの座標表は production の slot table と同期していないと誤検知を起こす。
+- **背景**: issue #1879。E2E は workbook を実際に読むが、期待セルの座標表は production の slot table と同期していないと誤検知を起こす。CDM 再設計で production の slot table は `src/lib/cdm-export/cdm-constants.ts` の `FINALS_BRACKET_SLOTS` に移った（旧 export route の slot table は削除済み）。
 - **手順**:
-  1. `tc-all.js` の CDM Finals E2E slot table 付近に route.ts の `CDM_FINALS_BRACKET_SLOTS` と同期する旨のコメントがあることを確認する
+  1. `tc-all.js` の CDM Finals E2E slot table 付近に `src/lib/cdm-export/cdm-constants.ts` の `FINALS_BRACKET_SLOTS` と同期する旨のコメントがあることを確認する
   2. TC-816A が XLSM workbook を読み、座標表に基づいて BM/MR/GP のセル値を検証することを確認する
 - **期待結果**: E2E の重複座標表は同期前提が明示され、乖離時のレビュー観点が残る
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/docs/e2e-cases-drift.test.ts`
 
-## TC-1880A: CDM export — GP cupResults がない環境でも座標検証を false failure にしない
+## TC-1880A: CDM export — スコア未入力の生成直後 fixture でも座標検証を false failure にしない
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #1880。GP finals に cupResults がない fixture でも、ブラケット座標自体が正しければ TC-816A は失敗すべきではない。
+- **背景**: issue #1880。GP finals の cupResults 要約セルは再設計後のエクスポータには存在しないため、旧 `gpCupResultsChecked` ゲートは廃止された。その本来の意図（生成直後で**完了済み match が無い** fixture でも、ブラケット座標自体が正しければ TC-816A は失敗すべきでない）は、スコアセル検証を完了済み match に限定し、常に書かれるシード番号 / シードリスト anchor で各 mode を ≥1 件に保つことで担保する。
 - **手順**:
-  1. TC-816A の PASS 条件が `gpCupResultsChecked` を必須にしていないことを確認する
-  2. `gpCupResultsChecked` が false の場合は detail に summary-cell check skipped として記録することを確認する
-- **期待結果**: cupResults 検証は補助チェックになり、BM/MR/GP 座標検証が通れば TC-816A は PASS できる
+  1. スコアセル（+4）検証が `match.completed` の場合のみ実行されることを確認する（未完了 match はクリア/空白なので比較しない）
+  2. TC-816A の PASS 条件が構造ガード・チェック件数 > 0・mode 欠落なし・failures なしを要求することを確認する
+- **期待結果**: スコア未入力の生成直後 fixture でも、座標 anchor（シード番号 / 名前 / シードリスト）が通れば TC-816A は PASS できる
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-2098A: CDM export — finals readiness state を並列取得する
@@ -991,61 +995,61 @@
 
 ## TC-817B: CDM export — CSV では CDM 専用 include を取得しない
 - **URL**: /api/tournaments/[id]/export
-- **背景**: issue #817。CSV 出力は MR/GP qualification seed、TT phase rounds、overall playerScores を使用しないため、CDM 専用 include を無条件に付けると不要な JOIN が増える。
+- **背景**: issue #817。CSV 出力は MR/GP qualification seed と TT phase rounds を使用しないため、CDM 専用 include を無条件に付けると不要な JOIN が増える。CDM workbook 再設計後は Overall Ranking シートが数式駆動になり playerScores を一切書かないため、CDM include からも playerScores を外す（design §3.6）。
 - **手順**:
   1. `GET /api/tournaments/:id/export` を呼ぶ
   2. Prisma `findUnique` の include に `mrQualifications` / `gpQualifications` / `ttPhaseRounds` / `playerScores` が含まれないことを確認する
-  3. `GET /api/tournaments/:id/export?format=cdm` では上記 CDM 専用 include が含まれることを確認する
-- **期待結果**: CSV は軽量 include、CDM は workbook に必要な include を使い分ける
+  3. `GET /api/tournaments/:id/export?format=cdm` では `mrQualifications` / `gpQualifications` / `ttPhaseRounds` が含まれ、`playerScores` は含まれないことを確認する
+- **期待結果**: CSV は軽量 include、CDM は workbook の数式が読む seed/phase だけの include を使い分け、どちらも playerScores を取得しない
 - **スクリプト**: `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
-## TC-818A: CDM export — timeValueForCDM の冗長 wrapper を削除する
+## TC-818A: CDM export — TT タイム変換を cdm-export モジュールに集約する
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #818。`timeValueForCDM` は `parseTimeMs` と等価な wrapper で、CDM 時刻書き込みの意図を増やさず間接参照だけを増やしている。
+- **背景**: issue #818。CDM workbook 再設計で TT タイムの MSSCC 変換は `src/lib/cdm-export/time-format.ts` の `timeStringToCdmTime` / `msToCdmTime` に移り、`fill/tt-qualifications.ts` がそれを使う。export route 側に時刻変換 helper（旧 `timeValueForCDM` / `parseTimeMs`）を残すと二重定義になる。
 - **手順**:
-  1. export route に `timeValueForCDM` 関数が残っていないことを確認する
-  2. TT qualification の CDM コース時刻書き込みが `parseTimeMs(times[course])` を直接使うことを確認する
-- **期待結果**: CDM export の時刻変換は単一 helper `parseTimeMs` に集約される
+  1. export route に `timeValueForCDM` も `parseTimeMs` も残っていないことを確認する
+  2. TT qualification の CDM コース時刻書き込みが cdm-export モジュールの `timeStringToCdmTime(times[course])` を使うことを確認する
+- **期待結果**: CDM export の時刻変換は cdm-export モジュールの単一 helper に集約され、route は変換ロジックを持たない
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-819A: CDM export — テンプレート座標の固定値に根拠コメントを付ける
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #819。CDM 2025 テンプレートの行数・列ブロックは workbook 側の固定座標であり、コメントなしの数値にすると通常の大会上限と誤読されやすい。
+- **背景**: issue #819。CDM 2025 テンプレートの行数・列ブロックは workbook 側の固定座標であり、コメントなしの数値にすると通常の大会上限と誤読されやすい。CDM workbook 再設計でこれらの座標は `src/lib/cdm-export/cdm-constants.ts` に集約され、テンプレートのセルダンプ検証コメント付きの名前付き定数として表現される。
 - **手順**:
-  1. export route に CDM 2025 workbook template coordinates のコメントがあることを確認する
-  2. Main Hub、qualification、finals block、`CDM_TT_ROUND_START_COLUMNS`、overall ranking の固定範囲が名前付き定数で表現されることを確認する
-  3. 書き込み処理がそれらの定数を使うことを確認する
+  1. `cdm-constants.ts` に template coordinates の根拠コメント（実セルダンプ検証）があることを確認する
+  2. Main Hub、TT qualification、qualification block、finals block、TT round の固定範囲が名前付き定数（`MAIN_HUB_*` / `TT_QUAL_*` / `QUAL_BLOCK_*` / `FINALS_*` / `TT_FINALS_*`）で表現されることを確認する
+  3. fill モジュールがそれらの定数を使うことを確認する
 - **期待結果**: CDM テンプレート由来の固定値は、どの workbook 範囲を守るための値か読める
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-1871A: CDM export — TT Qualifications の範囲定数を専用名にする
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #1871。TT Qualifications は Main Hub と同じ行レイアウトだが、`CDM_PLAYER_HUB_*` を直接使うと別シートの範囲が Main Hub に依存しているように読める。
+- **背景**: issue #1871。TT Qualifications は固定 47 行のテンプレート領域を持つ。CDM workbook 再設計で範囲は `cdm-constants.ts` の `TT_QUAL_*` 専用定数として表現され、`fill/tt-qualifications.ts` がそれを使う。
 - **手順**:
-  1. `CDM_TT_QUAL_FIRST_ROW` / `CDM_TT_QUAL_MAX_PLAYERS` が存在することを確認する
-  2. `writeTTQualifications` が TT 専用定数を使って clear と slice を行うことを確認する
-  3. TT 専用定数が Main Hub と同じレイアウトである理由コメントを持つことを確認する
-- **期待結果**: TT Qualifications の固定範囲は、Main Hub の実装詳細ではなく TT シートの範囲として読める
+  1. `TT_QUAL_FIRST_ROW` / `TT_QUAL_MAX_PLAYERS` / `TT_QUAL_FIRST_TIME_COLUMN` が `cdm-constants.ts` に存在することを確認する
+  2. `fill/tt-qualifications.ts` が TT 専用定数を使って clear と slice を行うことを確認する
+  3. TT 専用定数がシートのコース列レイアウトの理由コメントを持つことを確認する
+- **期待結果**: TT Qualifications の固定範囲は、TT シートの範囲として専用定数で読める
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
-## TC-1872A: CDM export — finals/TT round の残存座標を名前付き定数にする
+## TC-1872A: CDM export — finals/TT round の座標を名前付き定数にする
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #1872。`writeMatchFinalsSheet` / `writeTTFinals` の clearRange に残った `107`, `5`, `524`, `1`, `26` は CDM 2025 テンプレート由来の固定座標であり、数値直書きのままだと根拠が追いにくい。
+- **背景**: issue #1872。finals bracket block と TT round block の座標は CDM 2025 テンプレート由来の固定値であり、数値直書きにすると根拠が追いにくい。CDM workbook 再設計でこれらは `cdm-constants.ts` の `FINALS_*` / `TT_FINALS_*` 定数として表現される。
 - **手順**:
-  1. finals block の幅、最終列、match 開始行が `CDM_FINALS_*` 定数で表現されることを確認する
-  2. TT round block の幅、最終列、開始/終了行が `CDM_TT_ROUND_*` 定数で表現されることを確認する
-  3. `clearRange` がこれらの定数を使い、数値直書きを残していないことを確認する
+  1. finals の seed list 列、seed/name/score オフセット、bracket block 座標が `FINALS_*` 定数で表現されることを確認する
+  2. TT round block の stride、入力/表示先頭列、データ行範囲が `TT_FINALS_*` 定数で表現されることを確認する
+  3. fill モジュールがこれらの定数を使うことを確認する
 - **期待結果**: finals/TT round のテンプレート座標はすべて名前付き定数経由で参照される
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
-## TC-1874A: CDM export — clearRange の inclusive end を offset 命名で表現する
+## TC-1874A: CDM export — fill マップは数式セルを書かず入力セルだけを扱う
 - **URL**: /api/tournaments/[id]/export?format=cdm
-- **背景**: issue #1874。`clearRange` の end column は inclusive なので、`start + 6` / `start + 5` を幅として命名すると実際のクリア列数とずれて読める。
+- **背景**: issue #1874。旧実装は SheetJS で read→write し、スピル範囲へ値を書いて #SPILL! を起こした。CDM workbook 再設計では `sheet-xml-patcher.ts` が数式セルへの値書込を拒否（例外）し、`clearValue` は数式・スタイルを残して値だけ落とす。fill マップは入力セルだけを clear/set し、数式セルには触れない。
 - **手順**:
-  1. `clearRange` が end column / row を inclusive に扱うことをコメントで確認する
-  2. finals block と TT round block の派生 end column が `*_BLOCK_END_OFFSET` 定数で表現されることを確認する
-  3. `CDM_FINALS_BLOCK_WIDTH` / `CDM_TT_ROUND_BLOCK_WIDTH` が残っていないことを確認する
-- **期待結果**: CDM テンプレートのブロック終端は「幅」ではなく inclusive end offset として読める
+  1. `sheet-xml-patcher.ts` が数式セルへの number/inlineString 書込を拒否することを確認する
+  2. `clearValue` 系 op が数式・スタイルを保持することを確認する
+  3. 旧 `CDM_FINALS_BLOCK_WIDTH` / `CDM_TT_ROUND_BLOCK_WIDTH` のような幅命名が export route に残っていないことを確認する
+- **期待結果**: CDM export は数式網を破壊せず、入力セルだけを精密にパッチする
 - **スクリプト**: `__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-348: キャラクター統計 API — admin のみアクセス可 (TC-328 と重複なし: 形式チェック)
