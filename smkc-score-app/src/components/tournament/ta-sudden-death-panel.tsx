@@ -190,12 +190,12 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
 
 interface TASuddenDeathPanelProps<Entry extends TASuddenDeathEntry> {
   pendingSuddenDeath: PendingSuddenDeath;
-  entries: Entry[];
+  pendingSuddenDeathEntries: Entry[];
   availableCourses: string[];
   saveError: string | null;
   suddenDeathTimes: Record<string, string>;
   changingSuddenDeathCourse: boolean;
-  submitting: boolean;
+  submittingSuddenDeath: boolean;
   timeInputProps: InputHTMLAttributes<HTMLInputElement>;
   timeInputHelp: string;
   timePlaceholder: string;
@@ -228,12 +228,12 @@ export interface TASuddenDeathSectionProps<Entry extends TASuddenDeathEntry> {
 
 export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
   pendingSuddenDeath,
-  entries,
+  pendingSuddenDeathEntries,
   availableCourses,
   saveError,
   suddenDeathTimes,
   changingSuddenDeathCourse,
-  submitting,
+  submittingSuddenDeath,
   timeInputProps,
   timeInputHelp,
   timePlaceholder,
@@ -267,7 +267,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
           <Select
             value={pendingSuddenDeath.course}
             onValueChange={onCourseChange}
-            disabled={changingSuddenDeathCourse || submitting}
+            disabled={changingSuddenDeathCourse || submittingSuddenDeath}
           >
             <SelectTrigger>
               <SelectValue />
@@ -286,7 +286,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
         </div>
         <div className="space-y-3">
           <p className={TA_TIME_INPUT_HELP_CLASS}>{timeInputHelp}</p>
-          {entries.map((entry) => (
+          {pendingSuddenDeathEntries.map((entry) => (
             <div key={entry.id} className="flex items-center gap-2">
               <Label className="flex-1 truncate">{entry.player.nickname}</Label>
               <Input
@@ -302,8 +302,8 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
           ))}
         </div>
         <div className="mt-6 flex justify-end">
-          <Button onClick={onSubmit} disabled={submitting}>
-            {submitting ? submittingLabel : tTaSuddenDeath("submitSuddenDeath")}
+          <Button onClick={onSubmit} disabled={submittingSuddenDeath}>
+            {submittingSuddenDeath ? submittingLabel : tTaSuddenDeath("submitSuddenDeath")}
           </Button>
         </div>
       </CardContent>
@@ -335,12 +335,12 @@ export function TASuddenDeathSection<Entry extends TASuddenDeathEntry>({
   return (
     <TASuddenDeathPanel<Entry>
       pendingSuddenDeath={pendingSuddenDeath}
-      entries={pendingSuddenDeathEntries}
+      pendingSuddenDeathEntries={pendingSuddenDeathEntries}
       availableCourses={availableCourses}
       saveError={saveError}
       suddenDeathTimes={suddenDeathTimes}
       changingSuddenDeathCourse={changingSuddenDeathCourse}
-      submitting={submittingSuddenDeath}
+      submittingSuddenDeath={submittingSuddenDeath}
       timeInputProps={timeInputProps}
       timeInputHelp={timeInputHelp}
       timePlaceholder={timePlaceholder}

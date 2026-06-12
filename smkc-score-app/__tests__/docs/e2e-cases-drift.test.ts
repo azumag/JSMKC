@@ -2271,6 +2271,34 @@ describe('E2E case drift coverage', () => {
     expect(taEliminationPhase).not.toContain('submit_sudden_death');
   });
 
+  it('documents TC-2292A as shared TA sudden-death prop-name alignment coverage', () => {
+    const section = e2eCaseSection('TC-2292A');
+    const panelProps = sectionBetween(
+      taSuddenDeathPanel,
+      'interface TASuddenDeathPanelProps',
+      'export interface TASuddenDeathSectionProps',
+    );
+    const sectionUsage = sectionBetween(
+      taSuddenDeathPanel,
+      '<TASuddenDeathPanel<Entry>',
+      '/>',
+    );
+
+    expect(section).toContain('issue #2292/#2290');
+    expect(section).toContain('pendingSuddenDeathEntries');
+    expect(section).toContain('submittingSuddenDeath');
+    expect(panelProps).toContain('pendingSuddenDeathEntries: Entry[]');
+    expect(panelProps).toContain('submittingSuddenDeath: boolean');
+    expect(panelProps).not.toContain('entries: Entry[]');
+    expect(panelProps).not.toContain('submitting: boolean');
+    expect(sectionUsage).toContain('pendingSuddenDeathEntries={pendingSuddenDeathEntries}');
+    expect(sectionUsage).toContain('submittingSuddenDeath={submittingSuddenDeath}');
+    expect(sectionUsage).not.toContain('entries={pendingSuddenDeathEntries}');
+    expect(sectionUsage).not.toContain('submitting={submittingSuddenDeath}');
+    expect(taSuddenDeathPanelTest).toContain('passes pending entries and submitting state through with matching prop names');
+    expect(taSuddenDeathPanelTest).toContain('submittingSuddenDeath');
+  });
+
   it('documents TC-1864A as shared TA sudden-death hook fetch coverage', () => {
     const section = e2eCaseSection('TC-1864A');
 
