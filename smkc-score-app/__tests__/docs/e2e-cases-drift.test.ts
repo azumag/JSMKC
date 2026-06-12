@@ -659,41 +659,63 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
     const section = e2eCaseSection('TC-816A');
+    const cdmConstants = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'cdm-constants.ts');
+    const finalsFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'finals.ts');
 
     expect(section).toContain('issue #816');
-    expect(section).toContain('CDM_FINALS_BRACKET_SLOTS');
+    expect(section).toContain('FINALS_BRACKET_SLOTS');
     expect(section).toContain('native bracket coordinates');
-    expect(exportRoute).toContain('const CDM_FINALS_BRACKET_SLOTS');
-    expect(exportRoute).toContain('playoff_r1');
-    expect(exportRoute).toContain('winners_r1');
-    expect(exportRoute).toContain('losers_final');
-    expect(exportRoute).toContain('cdmFinalsSlotRound');
-    expect(exportRoute).toContain('cdmFinalsSlotForMatch');
-    expect(exportRoute).toContain('cdmFinalsMatchLabel');
+    // The bracket geometry table moved to cdm-constants.ts; the fill map resolves
+    // each round through it. The route no longer carries the old slot helpers.
+    expect(cdmConstants).toContain('FINALS_BRACKET_SLOTS');
+    expect(cdmConstants).toContain('playoff_r1');
+    expect(cdmConstants).toContain('winners_r1');
+    expect(cdmConstants).toContain('losers_final');
+    expect(finalsFill).toContain('function normalizeRound');
+    expect(finalsFill).toContain('FINALS_BRACKET_SLOTS');
+    expect(exportRoute).not.toContain('cdmFinalsSlotRound');
+    expect(exportRoute).not.toContain('cdmFinalsSlotForMatch');
+    expect(exportRoute).not.toContain('cdmFinalsMatchLabel');
+    // The E2E script (tc-all.js) reads the exported workbook and keeps its own slot
+    // table synchronized with cdm-constants.ts. After the ZIP-surgery rewrite it
+    // verifies the structural parts the old exporter destroyed plus the input cells
+    // the new exporter writes at native coordinates (seed numbers, written names,
+    // completed-match scores, BM/MR seed list) — it no longer reads label/cup cells.
     expect(tcAll).toContain('TC-816A');
     expect(tcAll).toContain('CDM_FINALS_E2E_SLOTS');
     expect(tcAll).toContain('XLSX.read(Buffer.from(exportResp.bytes)');
-    expect(tcAll).toContain('cdmE2eGpCupResultsSummary');
-    expect(tcAll).toContain('gpCupResultsChecked');
+    expect(tcAll).toContain('cellFormula: true');
+    expect(tcAll).toContain('cdmE2eStructuralFailures');
+    expect(tcAll).toContain("require('fflate')");
+    expect(tcAll).toContain("xl/tables/table1.xml");
+    expect(tcAll).toContain('xl/richData/rdrichvalue.xml');
+    expect(tcAll).toContain('xl/calcChain.xml');
+    expect(tcAll).toContain('fullCalcOnLoad="1"');
+    expect(tcAll).toContain('cdmE2eIsWrittenValue');
+    expect(tcAll).toContain('cdmE2eSeedListSet');
     expect(tcAll).toContain('checkedByMode');
     expect(tcAll).toContain('ensureCdmE2eFinalsFixture');
     expect(tcAll).toContain("if (missingModes.has('BM')) generators.push({ mode: 'BM'");
     expect(tcAll).toContain("if (missingModes.has('MR')) generators.push({ mode: 'MR'");
     expect(tcAll).toContain('cdmE2eFinalsReadinessSummary');
-    expect(tcAll).toContain('slot.blockStart + 5');
+    // The old label/cup-summary reads are gone (route no longer writes them).
+    expect(tcAll).not.toContain('cdmE2eMatchLabel');
+    expect(tcAll).not.toContain('cdmE2eGpCupResultsSummary');
+    expect(tcAll).not.toContain('slot.blockStart + 5');
     expect(section).toContain('mode 別 match count と round 一覧');
     expect(section).toContain('__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts');
-    expect(exportRouteTest).toContain('should place CDM finals matches in native bracket coordinates');
-    expect(exportRouteTest).toContain('sheet.Y7.v');
-    expect(exportRouteTest).toContain('sheet.BA47.v');
-    expect(exportRouteTest).toContain('workbook.Sheets["MR Finals"].AT19.v');
-    expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].BA47.v');
-    expect(exportRouteTest).toContain('workbook.Sheets["GP Finals"].AR19.v');
+    // The unit test now decodes the real .xlsm and checks typed seed + score cells.
+    expect(exportRouteTest).toContain('should place CDM finals seeds and scores in native bracket coordinates');
+    expect(exportRouteTest).toContain("workbook.Sheets['BM Finals']");
+    expect(exportRouteTest).toContain('sheet.S5.v');
+    expect(exportRouteTest).toContain('sheet.V5.v');
+    expect(exportRouteTest).toContain("workbook.Sheets['GP Finals'].S5.v");
   });
 
   it('documents CDM export row-cap coverage for Main Hub and TT Qualifications', () => {
     const mainHubSection = e2eCaseSection('TC-2089A');
     const ttQualificationsSection = e2eCaseSection('TC-2180A');
+    const cdmConstants = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'cdm-constants.ts');
 
     expect(mainHubSection).toContain('issue #2089/#2092/#2093');
     expect(mainHubSection).toContain('B62〜L62');
@@ -703,14 +725,18 @@ describe('E2E case drift coverage', () => {
     expect(ttQualificationsSection).toContain('E62〜Z62');
     expect(ttQualificationsSection).toContain('E61/F61');
     expect(ttQualificationsSection).toContain('__tests__/app/api/tournaments/[id]/export/route.test.ts');
-    expect(exportRoute).toContain('const CDM_PLAYER_HUB_ROW_SPAN = 60');
-    expect(exportRoute).toContain('const CDM_TT_QUAL_MAX_PLAYERS = CDM_PLAYER_HUB_MAX_PLAYERS');
+    // The Main Hub caps at 60 rows; TT Qualifications caps at its own 47-row table.
+    expect(cdmConstants).toContain('MAIN_HUB_MAX_PLAYERS = 60');
+    expect(cdmConstants).toContain('TT_QUAL_MAX_PLAYERS = 47');
     expect(exportRouteTest).toContain('should cap Main Hub player rows at 60 when more players are provided');
     expect(exportRouteTest).toContain('should cap TT Qualifications rows at 60 when more entries are provided');
+    // Row-62 protection is now "the fixed table never addresses row 62", verified
+    // by decoding the real .xlsm and asserting the row-62 cells stay undefined.
     expect(exportRouteTest).toContain('KEEP-OUT-OF-BOUNDS');
     expect(exportRouteTest).not.toContain('KEEP-OUT-BOUNDS');
     expect(exportRouteTest).toContain('ttBoundaryColumns');
-    expect(exportRouteTest).toContain('KEEP-TT-${col}62');
+    expect(exportRouteTest).toContain('`${column}62`]).toBeUndefined()');
+    expect(exportRouteTest).toContain('`${col}62`]).toBeUndefined()');
   });
 
   it('documents TC-808A as TA TV3/TV4 broadcast warning coverage', () => {
@@ -737,42 +763,59 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-1877A as reachable grand-final reset alias coverage', () => {
     const section = e2eCaseSection('TC-1877A');
+    const finalsFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'finals.ts');
 
     expect(section).toContain('issue #1877');
     expect(section).toContain('bracketPosition.includes("reset")');
-    expect(exportRoute).toContain('if (bracketPosition.includes("reset")) return "grand_final_reset"');
-    expect(exportRoute).not.toContain('round === "grand_final_reset" || bracketPosition.includes("reset")');
+    expect(section).toContain('normalizeRound');
+    // Round normalization moved into the finals fill map's normalizeRound.
+    expect(finalsFill).toContain('if (bracketPosition.includes("reset")) return "grand_final_reset"');
+    expect(finalsFill).not.toContain('round === "grand_final_reset" || bracketPosition.includes("reset")');
+    expect(exportRoute).not.toContain('function cdmFinalsSlotRound');
   });
 
-  it('documents TC-1878A as unknown-round fallback counter coverage', () => {
+  it('documents TC-1878A as unmappable-round skip coverage', () => {
     const section = e2eCaseSection('TC-1878A');
+    const finalsFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'finals.ts');
 
     expect(section).toContain('issue #1878');
     expect(section).toContain('zz_custom_showmatch');
-    expect(exportRoute).toContain('isFallback: true');
-    expect(exportRoute).toContain('if (slot.isFallback) fallbackIndex++');
-    expect(exportRouteTest).toContain('should use the first fallback CDM finals slot only for unknown rounds');
+    expect(section).toContain('skip');
+    // No positional fallback: an unmapped round returns null and is skipped.
+    expect(finalsFill).toContain('return null; // unmapped: caller skips');
+    expect(exportRoute).not.toContain('isFallback: true');
+    expect(exportRouteTest).toContain('should skip an unknown CDM finals round instead of using a fallback slot');
     expect(exportRouteTest).toContain('zz_custom_showmatch');
-    expect(exportRouteTest).toContain('sheet.D5.v');
   });
 
   it('documents TC-1879A as E2E slot table synchronization coverage', () => {
     const section = e2eCaseSection('TC-1879A');
 
     expect(section).toContain('issue #1879');
-    expect(section).toContain('CDM_FINALS_BRACKET_SLOTS');
-    expect(tcAll).toContain('Keep this expectation map synchronized with route.ts CDM_FINALS_BRACKET_SLOTS');
+    expect(section).toContain('FINALS_BRACKET_SLOTS');
+    // The production slot table moved to cdm-constants.ts (the old route.ts
+    // CDM_FINALS_BRACKET_SLOTS was deleted in the rewrite); the E2E sync comment
+    // now points there.
+    expect(tcAll).toContain('Keep this expectation map synchronized with src/lib/cdm-export/cdm-constants.ts');
+    expect(tcAll).toContain('FINALS_BRACKET_SLOTS');
+    expect(tcAll).not.toContain('route.ts CDM_FINALS_BRACKET_SLOTS');
     expect(tcAll).toContain('XLSX.read(Buffer.from(exportResp.bytes)');
   });
 
-  it('documents TC-1880A as optional GP cupResults E2E coverage', () => {
+  it('documents TC-1880A as score-cell completion-gated E2E coverage', () => {
     const section = e2eCaseSection('TC-1880A');
 
     expect(section).toContain('issue #1880');
-    expect(section).toContain('gpCupResultsChecked');
-    expect(tcAll).toContain('GP cupResults not available; skipped summary-cell check');
-    expect(tcAll).toContain('checked > 0 && missingModes.length === 0 && failures.length === 0');
-    expect(tcAll).not.toContain('missingModes.length === 0 && gpCupResultsChecked && failures.length === 0');
+    // The GP cup-summary cell no longer exists in the rewritten exporter, so the
+    // old gpCupResultsChecked gate is gone. Its surviving intent — a freshly
+    // generated bracket with no completed match must not false-fail — now lives in
+    // the completion-gated score check plus the always-written seed-number / seed-
+    // list anchors that keep every mode at >=1 check.
+    expect(section).toContain('completed');
+    expect(tcAll).not.toContain('gpCupResultsChecked');
+    expect(tcAll).not.toContain('GP cupResults not available; skipped summary-cell check');
+    expect(tcAll).toContain('if (match.completed)');
+    expect(tcAll).toContain('structuralFailures.length === 0 && checked > 0 && missingModes.length === 0 && failures.length === 0');
   });
 
   it('documents CDM E2E finals readiness parallel fetch and generator diagnostics', () => {
@@ -821,77 +864,99 @@ describe('E2E case drift coverage', () => {
     expect(exportRouteTest).toContain('should export tournament data with summary section');
     expect(exportRouteTest).toContain('should export a populated CDM macro workbook when requested');
     expect(exportRouteTest).toContain('ttPhaseRounds: true');
-    expect(exportRouteTest).toContain('playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } }');
+    // The CDM include carries MR/GP qualification seeds and TT phase rounds, but
+    // NOT playerScores: the Overall Ranking sheet is formula-driven and the
+    // rewritten exporter never writes it (design §3.6).
+    expect(exportRoute).not.toContain('playerScores: { include:');
+    expect(exportRouteTest).not.toContain('playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } }');
   });
 
-  it('documents TC-818A as direct CDM time parser usage coverage', () => {
+  it('documents TC-818A as cdm-export module time-conversion coverage', () => {
     const section = e2eCaseSection('TC-818A');
+    const timeFormat = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'time-format.ts');
+    const ttQualFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'tt-qualifications.ts');
 
     expect(section).toContain('issue #818');
     expect(section).toContain('timeValueForCDM');
-    expect(section).toContain('parseTimeMs(times[course])');
+    expect(section).toContain('timeStringToCdmTime');
+    // The route no longer owns any time conversion; it delegates to the module.
     expect(exportRoute).not.toContain('function timeValueForCDM');
-    expect(exportRoute).toContain('parseTimeMs(times[course])');
+    expect(exportRoute).not.toContain('function parseTimeMs');
+    expect(timeFormat).toContain('export function timeStringToCdmTime');
+    expect(ttQualFill).toContain('timeStringToCdmTime(times[course])');
   });
 
   it('documents TC-819A as CDM template coordinate comment coverage', () => {
     const section = e2eCaseSection('TC-819A');
+    const cdmConstants = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'cdm-constants.ts');
+    const mainHubFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'main-hub.ts');
 
     expect(section).toContain('issue #819');
-    expect(section).toContain('CDM 2025 workbook template coordinates');
-    expect(section).toContain('CDM_TT_ROUND_START_COLUMNS');
-    expect(exportRoute).toContain('CDM 2025 workbook template coordinates');
-    expect(exportRoute).toContain('CDM_PLAYER_HUB_MAX_PLAYERS');
-    expect(exportRoute).toContain('CDM_QUALIFICATION_MAX_ROWS');
-    expect(exportRoute).toContain('CDM_FINALS_BLOCK_START_COLUMNS');
-    expect(exportRoute).toContain('CDM_TT_ROUND_START_COLUMNS');
-    expect(exportRoute).toContain('CDM_OVERALL_MAX_ROWS');
+    expect(section).toContain('cdm-constants.ts');
+    expect(section).toContain('TT_FINALS_*');
+    // The template coordinates moved to cdm-constants.ts with verification comments.
+    expect(cdmConstants).toContain('template coordinates');
+    expect(cdmConstants).toContain('verified against a full cell dump');
+    expect(cdmConstants).toContain('MAIN_HUB_MAX_PLAYERS');
+    expect(cdmConstants).toContain('TT_QUAL_MAX_PLAYERS');
+    expect(cdmConstants).toContain('QUAL_BLOCK_MAX_BLOCKS');
+    expect(cdmConstants).toContain('FINALS_BRACKET_SLOTS');
+    expect(cdmConstants).toContain('TT_FINALS_MAX_ROUNDS');
+    // A fill module actually consumes the named constants.
+    expect(mainHubFill).toContain('MAIN_HUB_MAX_PLAYERS');
+    // The route no longer carries any CDM coordinate constants.
+    expect(exportRoute).not.toContain('CDM_TT_ROUND_START_COLUMNS');
+    expect(exportRoute).not.toContain('CDM_PLAYER_HUB_MAX_PLAYERS');
   });
 
   it('documents TC-1871A as TT Qualifications sheet-specific range names', () => {
     const section = e2eCaseSection('TC-1871A');
+    const cdmConstants = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'cdm-constants.ts');
+    const ttQualFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'tt-qualifications.ts');
 
     expect(section).toContain('issue #1871');
-    expect(section).toContain('CDM_TT_QUAL_FIRST_ROW');
-    expect(section).toContain('CDM_TT_QUAL_MAX_PLAYERS');
-    expect(section).toContain('Main Hub と同じ行レイアウト');
-    expect(exportRoute).toContain('const CDM_TT_QUAL_FIRST_ROW = CDM_PLAYER_HUB_FIRST_ROW');
-    expect(exportRoute).toContain('const CDM_TT_QUAL_MAX_PLAYERS = CDM_PLAYER_HUB_MAX_PLAYERS');
-    expect(exportRoute).toContain('TT Qualifications uses the same rows as Main Hub');
-    expect(exportRoute).toContain('CDM_TT_QUAL_FIRST_ROW + CDM_TT_QUAL_MAX_PLAYERS');
-    expect(exportRoute).toContain('qualificationEntries.slice(0, CDM_TT_QUAL_MAX_PLAYERS)');
+    expect(section).toContain('TT_QUAL_FIRST_ROW');
+    expect(section).toContain('TT_QUAL_MAX_PLAYERS');
+    expect(cdmConstants).toContain('TT_QUAL_FIRST_ROW');
+    expect(cdmConstants).toContain('TT_QUAL_MAX_PLAYERS');
+    expect(cdmConstants).toContain('TT_QUAL_FIRST_TIME_COLUMN');
+    // The fill module clears/slices using the TT-specific constants.
+    expect(ttQualFill).toContain('TT_QUAL_FIRST_ROW + TT_QUAL_MAX_PLAYERS');
+    expect(ttQualFill).toContain('.slice(0, TT_QUAL_MAX_PLAYERS)');
   });
 
   it('documents TC-1872A as finals and TT round coordinate constants', () => {
     const section = e2eCaseSection('TC-1872A');
+    const cdmConstants = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'cdm-constants.ts');
+    const finalsFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'finals.ts');
+    const ttFinalsFill = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'fill', 'tt-finals.ts');
 
     expect(section).toContain('issue #1872');
-    expect(section).toContain('CDM_FINALS_*');
-    expect(section).toContain('CDM_TT_ROUND_*');
-    expect(exportRoute).toContain('CDM_FINALS_BLOCK_END_OFFSET');
-    expect(exportRoute).toContain('CDM_FINALS_LAST_COLUMN');
-    expect(exportRoute).toContain('CDM_FINALS_MATCH_FIRST_ROW');
-    expect(exportRoute).toContain('CDM_TT_ROUND_BLOCK_END_OFFSET');
-    expect(exportRoute).toContain('CDM_TT_ROUND_LAST_COLUMN');
-    expect(exportRoute).toContain('CDM_TT_ROUND_FIRST_ROW');
-    expect(exportRoute).toContain('CDM_TT_ROUND_LAST_ROW');
-    expect(exportRoute).toContain('Math.min(start + CDM_FINALS_BLOCK_END_OFFSET, CDM_FINALS_LAST_COLUMN)');
-    expect(exportRoute).toContain('Math.min(start + CDM_TT_ROUND_BLOCK_END_OFFSET, CDM_TT_ROUND_LAST_COLUMN)');
+    expect(section).toContain('FINALS_*');
+    expect(section).toContain('TT_FINALS_*');
+    expect(cdmConstants).toContain('FINALS_SEED_LIST_COLUMN');
+    expect(cdmConstants).toContain('FINALS_BLOCK_SEED_OFFSET');
+    expect(cdmConstants).toContain('FINALS_BLOCK_SCORE_OFFSET');
+    expect(cdmConstants).toContain('TT_FINALS_ROUND_STRIDE');
+    expect(cdmConstants).toContain('TT_FINALS_INPUT_FIRST_COLUMN');
+    expect(cdmConstants).toContain('TT_FINALS_DISPLAY_FIRST_COLUMN');
+    expect(finalsFill).toContain('FINALS_BLOCK_SCORE_OFFSET');
+    expect(ttFinalsFill).toContain('TT_FINALS_ROUND_STRIDE');
   });
 
-  it('documents TC-1874A as inclusive clearRange end-offset naming', () => {
+  it('documents TC-1874A as patcher formula-cell protection coverage', () => {
     const section = e2eCaseSection('TC-1874A');
+    const patcher = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'sheet-xml-patcher.ts');
 
     expect(section).toContain('issue #1874');
-    expect(section).toContain('end column は inclusive');
-    expect(section).toContain('*_BLOCK_END_OFFSET');
-    expect(exportRoute).toContain('The end column and row are inclusive');
-    expect(exportRoute).toContain('const CDM_FINALS_BLOCK_END_OFFSET = 6');
-    expect(exportRoute).toContain('const CDM_TT_ROUND_BLOCK_END_OFFSET = 5');
-    expect(exportRoute).toContain('Math.min(start + CDM_FINALS_BLOCK_END_OFFSET, CDM_FINALS_LAST_COLUMN)');
-    expect(exportRoute).toContain('Math.min(start + CDM_TT_ROUND_BLOCK_END_OFFSET, CDM_TT_ROUND_LAST_COLUMN)');
+    expect(section).toContain('#SPILL!');
+    expect(section).toContain('sheet-xml-patcher.ts');
+    // The patcher refuses to write a value over a formula cell (no more #SPILL!).
+    expect(patcher).toContain('refusing to write a value over the formula cell');
+    // The old width-named coordinate constants are gone from the route.
     expect(exportRoute).not.toContain('CDM_FINALS_BLOCK_WIDTH');
     expect(exportRoute).not.toContain('CDM_TT_ROUND_BLOCK_WIDTH');
+    expect(exportRoute).not.toContain('CDM_FINALS_BLOCK_END_OFFSET');
   });
 
   it('keeps TC-2088 aligned with AST-backed Main Hub boundary coverage', () => {
