@@ -873,7 +873,7 @@
      - 名前セル（+2）は**値として書かれている場合のみ**（8人縮退パス）プレイヤー nickname と一致
      - スコアセル（+4）は完了済み match のみ score1/score2（GP は points1/points2）と一致（順序は集合一致で losers_final 反転を許容）
      - シード番号セル（+1）は typed slot で B-position 1..24 の整数（faithful パスで全 mode が ≥1 件を満たす）
-     - BM/MR のシードリスト B3:B26 に書かれた nickname は当該 mode の finals 参加者であること（GP の B 列は数式スピルなので読まない）
+     - BM/MR のシードリスト B3:B26 に書かれた nickname は当該 mode の finals 参加者**または予選ロスター**であること（playoff-only の途中状態では設計書§3.4 により B-position 1..12 が予選順位フォールバックで埋まるため。テンプレート残骸名の混入検出が目的。GP の B 列は数式スピルなので読まない）
 - **期待結果**: finals 入力セルは CDM 2025 テンプレートの native bracket coordinates に配置され、テンプレートの数式網（tables/richData）と calc 設定が壊れていないこと。チェック件数0は FAIL。
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/app/api/tournaments/[id]/export/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 

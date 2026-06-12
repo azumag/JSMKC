@@ -174,6 +174,27 @@ function cdmE2eSeedListSet(sheet) {
 }
 
 /**
+ * Fetch a mode's qualification roster nicknames. The seed-list check needs
+ * this because in the playoff-only mid-state the exporter fills B-positions
+ * 1..12 from the QUALIFICATION standings fallback (design §3.4) — those
+ * players have no finals match record yet, so finals participants alone is
+ * the wrong allowed-universe for B3:B26.
+ */
+async function cdmE2eQualificationNicknames(page, tournamentId, modePath) {
+  const json = await page.evaluate(async (u) => {
+    const r = await fetch(`${u}?ts=${Date.now()}`, { cache: 'no-store' });
+    return r.json().catch(() => ({}));
+  }, `/api/tournaments/${tournamentId}/${modePath}`);
+  const qualifications = json?.data?.qualifications ?? [];
+  const names = new Set();
+  for (const q of qualifications) {
+    const nickname = q?.player?.nickname;
+    if (typeof nickname === 'string' && nickname) names.add(nickname);
+  }
+  return names;
+}
+
+/**
  * Verify the structural parts the OLD SheetJS read→write exporter destroyed:
  * the worksheet tables and the rich-data (flag image) part must survive, and the
  * stale calcChain must be gone so Excel rebuilds it after fullCalcOnLoad. This is
@@ -3598,18 +3619,24 @@ async function main() {
             }
 
             // (b.4) BM/MR seed list (B3:B26) sanity — every name the exporter wrote
-            // there must be one of this mode's finals participants (GP's B column is a
-            // formula spill, intentionally skipped above so `seedList` is empty there).
-            const finalsNicknames = new Set();
+            // there must come from THIS tournament: a finals participant or, for the
+            // playoff-only mid-state, a qualification-roster player (design §3.4 fills
+            // B-positions 1..12 from the qualification standings before winners_r1
+            // exists). The check still catches the real regression — stale CDM 2025
+            // template names ("Geo", "Sami", ...) leaking into the output. (GP's B
+            // column is a formula spill, intentionally skipped above so `seedList`
+            // is empty there.)
+            const allowedSeedNames = await cdmE2eQualificationNicknames(
+              page, exportTid, mode.toLowerCase());
             for (const match of cdmE2eFinalsMatches(state)) {
-              if (match.player1?.nickname) finalsNicknames.add(match.player1.nickname);
-              if (match.player2?.nickname) finalsNicknames.add(match.player2.nickname);
+              if (match.player1?.nickname) allowedSeedNames.add(match.player1.nickname);
+              if (match.player2?.nickname) allowedSeedNames.add(match.player2.nickname);
             }
             for (const seedName of seedList) {
               checked++;
               checkedByMode[mode]++;
-              if (!finalsNicknames.has(seedName)) {
-                failures.push(`${mode} seed list name "${seedName}" is not a finals participant`);
+              if (!allowedSeedNames.has(seedName)) {
+                failures.push(`${mode} seed list name "${seedName}" is not a finals or qualification participant`);
               }
             }
           }
