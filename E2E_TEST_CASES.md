@@ -995,6 +995,15 @@
 - **期待結果**: fixture 生成APIの失敗は、workbook検証前に mode 別の具体的な HTTP status として報告される
 - **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2186A: CDM export — finals fixture 生成失敗の文字列 body をそのまま報告する
+- **URL**: /api/tournaments/[id]/export?format=cdm
+- **背景**: issue #2186。TC-816A の不足 finals generation が `"Internal Server Error"` のような primitive string body を返す場合、診断で JSON.stringify すると余分なクォートが付き、実際のエラーメッセージが読みづらくなる。
+- **手順**:
+  1. finals generation の失敗結果が primitive string body を返すケースを unit test で再現する
+  2. `CDM finals fixture generation failed` の mode/status 診断に文字列 body が余分な JSON クォートなしで含まれることを確認する
+- **期待結果**: E2E fixture 生成失敗の診断は `HTTP 500: Internal Server Error` のように実際の body 文字列をそのまま表示する
+- **スクリプト**: `tc-all.js TC-816A`, `__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2187A: CDM export — TC-816A fixture helper の公開 API を最小化する
 - **URL**: /api/tournaments/[id]/export?format=cdm
 - **背景**: issue #2187。`fetchCdmE2eModeStates` と `generateCdmE2eMissingFinals` は `ensureCdmE2eFinalsFixture` の内部処理であり、直接 import するテストがない状態で `tc-all.js` の公開 API に出すと不要な依存先になる。

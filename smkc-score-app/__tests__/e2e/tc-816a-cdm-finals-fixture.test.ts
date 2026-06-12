@@ -111,6 +111,22 @@ describe('TC-816A CDM finals fixture readiness', () => {
     );
   });
 
+  it('reports primitive string finals generator bodies without JSON quotes', async () => {
+    const emptyState = { playoffMatches: [], matches: [] };
+    const api = {
+      fetchBmFinalsState: jest.fn(() => Promise.resolve(emptyState)),
+      fetchMrFinalsState: jest.fn(() => Promise.resolve(emptyState)),
+      fetchGpFinalsState: jest.fn(() => Promise.resolve(emptyState)),
+      generateBmFinals: jest.fn(() => Promise.resolve({ s: 500, b: 'Internal Server Error' })),
+      generateMrFinals: jest.fn(() => Promise.resolve({ s: 201, b: {} })),
+      generateGpFinals: jest.fn(() => Promise.resolve({ s: 200, b: {} })),
+    };
+
+    await expect(ensureCdmE2eFinalsFixture({} as never, 't1', api)).rejects.toThrow(
+      'CDM finals fixture generation failed: BM HTTP 500: Internal Server Error',
+    );
+  });
+
   it('keeps internal fixture helpers out of the tc-all public test API', () => {
     expect(tcAllExports).not.toHaveProperty('fetchCdmE2eModeStates');
     expect(tcAllExports).not.toHaveProperty('generateCdmE2eMissingFinals');
