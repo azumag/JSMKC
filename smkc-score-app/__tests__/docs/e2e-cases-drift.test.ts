@@ -1158,6 +1158,18 @@ describe('E2E case drift coverage', () => {
     expect(taFlowRankAssertionsTypes).toContain('export function evaluateTaFlowRankAssertion');
   });
 
+  it('keeps TA sudden-death non-target protection explicitly asserted', () => {
+    const testCase = sectionBetween(
+      taFinalsPhaseManagerTest,
+      'keeps non-sudden players from becoming an unintended elimination target in phase3',
+      '    });\n  });',
+    );
+
+    expect(testCase).toContain('expect(result.eliminatedIds).toEqual(["p5"])');
+    expect(testCase).toContain('for (const protectedPlayerId of ["p1", "p2", "p3"])');
+    expect(testCase).toContain('expect(result.eliminatedIds).not.toContain(protectedPlayerId)');
+  });
+
   it('keeps TC-1060 aligned with complete TA finals position unit coverage', () => {
     const section = e2eCaseSection('TC-1060');
     const unitTest = readRepoFile(
