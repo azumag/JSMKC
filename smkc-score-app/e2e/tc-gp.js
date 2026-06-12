@@ -22,6 +22,7 @@
  *           Kept next to TC-718 because both cover finals score-save variants
  *           before the suite moves into the longer playoff UI flows.
  *   TC-1109 GP finals cup-form lock count uses the max-cups helper directly
+ *   TC-2234 GP Top-24 preview seeds tied playoff winners via suddenDeathWinnerId
  *   TC-719  GP tied cup extends non-grand-final bracket match
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
@@ -1107,6 +1108,92 @@ async function runTc715(adminPage) {
   }
 }
 
+/* ───────── TC-2234: GP Top-24 preview uses suddenDeathWinnerId for tied playoff winners ─────────
+ * Builds a Top-24 playoff, completes one playoff_r2 match as a tied legacy
+ * score row with suddenDeathWinnerId, then verifies GET preview seeds that
+ * sudden-death winner into the Phase 2 Upper Bracket before creation. */
+async function runTc2234(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: false });
+    const resetRes = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/gp/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, tournamentId);
+    if (resetRes.s !== 200 && resetRes.s !== 201) {
+      throw new Error(`Bracket reset failed (${resetRes.s})`);
+    }
+
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
+
+    const genRes = await apiGenerateGpFinals(adminPage, tournamentId, 24);
+    if (genRes.s !== 201) throw new Error(`Top-24 playoff generation failed (${genRes.s})`);
+
+    for (let mn = 1; mn <= 4; mn++) {
+      const state = await apiFetchGpFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R1 M${mn} missing`);
+      const res = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
+      if (res.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${res.s})`);
+    }
+
+    let tiedR2Match = null;
+    let suddenDeathWinnerId = null;
+    for (let mn = 5; mn <= 8; mn++) {
+      const state = await apiFetchGpFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R2 M${mn} missing`);
+
+      if (mn === 5) {
+        tiedR2Match = match;
+        suddenDeathWinnerId = match.player2Id;
+        if (!suddenDeathWinnerId) throw new Error('Playoff R2 M5 player2 missing after R1 routing');
+        const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 1, 1, suddenDeathWinnerId);
+        if (res.s !== 200) throw new Error(`Playoff R2 M5 sudden-death tie score failed (${res.s})`);
+      } else {
+        const res = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
+        if (res.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${res.s})`);
+      }
+    }
+
+    const preview = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const playoffStructure = preview.raw?.data?.playoffStructure || [];
+    const upperSeed = playoffStructure.find((entry) => entry.matchNumber === tiedR2Match.matchNumber)?.advancesToUpperSeed;
+    const seededPlayers = preview.raw?.data?.seededPlayers || [];
+    const seededWinner = seededPlayers.find((player) => player.seed === upperSeed);
+    const tiedMatchPreview = preview.playoffMatches.find((match) => match.id === tiedR2Match.id);
+
+    const ok =
+      preview.phase === 'playoff' &&
+      preview.playoffComplete === true &&
+      upperSeed &&
+      seededWinner?.playerId === suddenDeathWinnerId &&
+      tiedMatchPreview?.suddenDeathWinnerId === suddenDeathWinnerId &&
+      tiedMatchPreview?.points1 === tiedMatchPreview?.points2;
+
+    log('TC-2234', ok ? 'PASS' : 'FAIL',
+      preview.phase !== 'playoff' ? `phase=${preview.phase}`
+      : preview.playoffComplete !== true ? 'playoffComplete not true'
+      : !upperSeed ? `upper seed missing for M${tiedR2Match?.matchNumber}`
+      : seededWinner?.playerId !== suddenDeathWinnerId ? `seed ${upperSeed} expected=${suddenDeathWinnerId} actual=${seededWinner?.playerId}`
+      : tiedMatchPreview?.suddenDeathWinnerId !== suddenDeathWinnerId ? 'suddenDeathWinnerId not persisted on tied R2 match'
+      : tiedMatchPreview?.points1 !== tiedMatchPreview?.points2 ? `R2 match not tied ${tiedMatchPreview?.points1}-${tiedMatchPreview?.points2}`
+      : '');
+  } catch (err) {
+    log('TC-2234', 'FAIL', err instanceof Error ? err.message : 'GP 2234 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-716: GP qualification page finals-exists state + reset ─────────
  * Reset is hidden while qualification is locked and appears only after unlock. */
 async function runTc716(adminPage) {
@@ -1831,6 +1918,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-1103', fn: runTc1103 },
       { name: 'TC-1109', fn: runTc1109 },
       { name: 'TC-727', fn: runTc727 },
+      { name: 'TC-2234', fn: runTc2234 },
       { name: 'TC-715', fn: runTc715 },
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
