@@ -1383,13 +1383,13 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         matchNumber: 1,
         round: 'winners_qf',
         stage: 'finals',
-        player1Id: 'player-19',
-        player2Id: 'player-8',
+        player1Id: 'p1',
+        player2Id: 'p2',
         points1: 2,
         points2: 2,
         completed: false,
-        player1: { id: 'player-19', name: 'Player 19' },
-        player2: { id: 'player-8', name: 'Player 8' },
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
       };
 
       const updatedMatch = { ...mockMatch, points1: 2, points2: 2, completed: false, suddenDeathWinnerId: null };
@@ -1405,7 +1405,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         matchId: 'm1',
         score1: 2,
         score2: 2,
-        suddenDeathWinnerId: 'player-19',
+        suddenDeathWinnerId: 'p1',
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
@@ -1439,13 +1439,13 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         matchNumber: 1,
         round: 'winners_qf',
         stage: 'finals',
-        player1Id: 'player-19',
-        player2Id: 'player-8',
+        player1Id: 'p1',
+        player2Id: 'p2',
         points1: 2,
         points2: 2,
         completed: false,
-        player1: { id: 'player-19', name: 'Player 19' },
-        player2: { id: 'player-8', name: 'Player 8' },
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
       };
 
       const updatedMatch = { ...mockMatch, points1: 2, points2: 2, completed: false, suddenDeathWinnerId: null };
@@ -1461,7 +1461,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         matchId: 'm1',
         score1: 2,
         score2: 2,
-        suddenDeathWinnerId: 'player-8',
+        suddenDeathWinnerId: 'p2',
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });

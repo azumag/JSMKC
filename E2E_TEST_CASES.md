@@ -3182,6 +3182,18 @@
 - **期待結果**: QF などの非 GF マッチでも同点カップは未決着扱いになり、次カップでFT到達時のみ進行する
 - **スクリプト**: tc-gp.js TC-719
 
+## TC-2235: GP finals sudden-death winner test IDs stay consistent
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: issue #2235。GP finals route の suddenDeathWinnerId 退行テストは同じ describe 内で `p1` / `p2` の短い fixture ID を使っており、同種の player1/player2 winner ケースだけ `player-19` / `player-8` にするとレビュー時に Top-24 seed fixture と誤読されやすい。
+- **手順**:
+  1. GP finals route unit test の unmatched/player1/player2 sudden-death winner ケースを確認する
+  2. player1 winner ケースが `player1Id: 'p1'` と `suddenDeathWinnerId: 'p1'` を使うことを確認する
+  3. player2 winner ケースが `player2Id: 'p2'` と `suddenDeathWinnerId: 'p2'` を使うことを確認する
+  4. どちらのケースも tied GP finals score を未完了として保存し、`suddenDeathWinnerId: null` にクリアすることを確認する
+- **期待結果**: GP finals sudden-death winner 回帰テストの fixture ID は同じ describe 内で `p1` / `p2` に統一され、Top-24 固有 fixture ID と混同しない
+- **スクリプト**: `__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts`, `__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-820: MR match/[matchId] ページがview-onlyであることを確認
 - **URL**: /tournaments/[temp-id]/mr/match/[matchId]
 - **authRequired**: true (player)
