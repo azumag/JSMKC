@@ -278,7 +278,7 @@ export default function TimeAttackFinals({
    * submit results, and eliminate players. Non-admin users see read-only
    * standings, history, and champion banner.
    */
-  const isAdmin = session?.user && session.user.role === 'admin';
+  const isAdmin = session?.user?.role === 'admin';
 
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);

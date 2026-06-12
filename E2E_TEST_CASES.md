@@ -130,6 +130,18 @@
 - **期待結果**: 認証/ログ初期化だけの失敗は通常 preview E2E を本体開始前に止めず、schema missing / SQLite error / timeout / strict preflight は従来どおり診断つきで失敗する。TC-2161 の E2E scenario 文字列確認は `preview-schema-preflight.test.ts` 側に集約し、drift test は preview preflight 実装と補助テストの対応だけを監視する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2236: Preview E2E は共有 fixture 作成前に admin session 不在を fast-fail する
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (persistent preview admin profile)
+- **背景**: issue #2236。`npm run e2e:preview:all` は persistent profile の admin session が切れていると `/tournaments` の public list に進み、`createSharedE2eFixture` / `uiCreateTournament` 内で Create Tournament button を待ち続けて locator timeout になる。Wrangler/D1 preflight の認証警告とは別に、browser admin session 不在は共有 fixture 作成前に明示的に失敗させる必要がある。
+- **手順**:
+  1. `run-preview.js` が target script spawn 前に persistent preview profile で `/tournaments` を開く
+  2. 同じ browser context から `/api/auth/session-status` を `credentials: same-origin` で確認する
+  3. `data.authenticated === true` のときだけ target script を起動できることを確認する
+  4. `No active session` など未認証応答では `createSharedE2eFixture` に進まず、`npm run e2e:preview:login` と `E2E_PROFILE_DIR` を含む復旧案内つきで失敗することを確認する
+- **期待結果**: preview admin profile の session 切れは共有 fixture / Create Tournament locator timeout ではなく、preview runner の admin-session preflight failure として即座に判別できる。Wrangler/D1 preflight warning は従来どおり別系統の診断として扱われる。
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/run-preview.test.ts`
+
 ## TC-2207: Preview D1 schema preflight は Wrangler schema drift 表記の追加パターンを migration guidance に分類する
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)

@@ -244,7 +244,7 @@ export default function TAEliminationPhase({
    * Admin role check: only admin users can start rounds, enter times,
    * and submit results. Non-admin users see read-only standings and history.
    */
-  const isAdmin = session?.user && session.user.role === 'admin';
+  const isAdmin = session?.user?.role === 'admin';
 
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);

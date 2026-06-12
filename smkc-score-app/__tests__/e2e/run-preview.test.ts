@@ -105,6 +105,10 @@ describe('preview E2E runner', () => {
     expect(typeof runner.assertPreviewD1Schema).toBe('function');
   });
 
+  it('exposes preview admin session preflight for E2E startup checks', () => {
+    expect(typeof runner.assertPreviewAdminSession).toBe('function');
+  });
+
   it('regenerates Prisma Client before Cloudflare builds used by preview deploys', () => {
     expect(packageJson.scripts['prebuild:cf']).toBe('prisma generate');
     expect(packageJson.scripts['deploy:preview']).toContain('npm run build:cf');
@@ -185,6 +189,71 @@ describe('preview E2E runner', () => {
     ).resolves.toBeNull();
 
     expect(lookupMock).toHaveBeenCalledWith('preview-alt.example.com');
+  });
+
+  it('passes preview admin session preflight when session-status confirms admin auth', async () => {
+    const close = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const goto = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const evaluate = jest.fn<() => Promise<unknown>>().mockResolvedValue({
+      status: 200,
+      authenticated: true,
+      body: { data: { authenticated: true, user: { role: 'admin' } } },
+    });
+    const launchBrowser = jest.fn<() => Promise<unknown>>().mockResolvedValue({
+      pages: () => [{ goto, evaluate }],
+      close,
+    });
+
+    await expect(
+      runner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+      }, launchBrowser as never),
+    ).resolves.toMatchObject({ authenticated: true });
+
+    expect(launchBrowser).toHaveBeenCalledWith({
+      E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+      E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+    });
+    expect(goto).toHaveBeenCalledWith(
+      'https://preview.smkc.bluemoon.works/tournaments',
+      { waitUntil: 'domcontentloaded', timeout: 30000 },
+    );
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('fails preview admin session preflight before fixture setup when the profile is unauthenticated', async () => {
+    const close = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const goto = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const evaluate = jest.fn<() => Promise<unknown>>().mockResolvedValue({
+      status: 200,
+      authenticated: false,
+      body: { success: false, error: 'No active session', requiresAuth: true },
+    });
+    const launchBrowser = jest.fn<() => Promise<unknown>>().mockResolvedValue({
+      pages: () => [{ goto, evaluate }],
+      close,
+    });
+
+    await expect(
+      runner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+      }, launchBrowser as never),
+    ).rejects.toThrow(/Preview E2E admin session preflight failed/);
+    await expect(
+      runner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+      }, launchBrowser as never),
+    ).rejects.toThrow(/No active session/);
+    await expect(
+      runner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+      }, launchBrowser as never),
+    ).rejects.toThrow(/npm run e2e:preview:login/);
+    expect(close).toHaveBeenCalled();
   });
 
   it('falls back to public DNS when local resolution fails', async () => {

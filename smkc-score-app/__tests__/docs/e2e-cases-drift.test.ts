@@ -398,6 +398,21 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).toContain('keeps Wrangler auth/log message helpers private to the preflight runner');
   });
 
+  it('keeps TC-2236 aligned with preview admin session preflight coverage', () => {
+    const section = e2eCaseSection('TC-2236');
+    const runner = readE2eScript('run-preview.js');
+    const runnerTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'run-preview.test.ts');
+
+    expect(section).toContain('issue #2236');
+    expect(section).toContain('/api/auth/session-status');
+    expect(section).toContain('createSharedE2eFixture');
+    expect(section).toContain('npm run e2e:preview:login');
+    expect(runner).toContain('assertPreviewAdminSession');
+    expect(runner).toContain('Preview E2E admin session preflight failed before shared fixture setup');
+    expect(runner).toContain('npm run e2e:preview:login');
+    expect(runnerTest).toContain('fails preview admin session preflight before fixture setup');
+  });
+
   it('keeps TC-2207 aligned with preview schema failure pattern coverage', () => {
     const section = e2eCaseSection('TC-2207');
     const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
