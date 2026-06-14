@@ -19,6 +19,7 @@ function buildPreviewRuntimeEnv(env = process.env) {
   const runtimeEnv = {
     ...env,
     E2E_BASE_URL: resolveE2EBaseUrl(env),
+    E2E_HEADLESS: env.E2E_HEADLESS || '1',
     E2E_PROFILE_DIR: resolveE2EProfileDir(env),
   };
 

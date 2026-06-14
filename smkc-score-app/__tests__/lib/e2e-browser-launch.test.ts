@@ -36,6 +36,18 @@ describe('E2E browser launch helpers', () => {
     jest.dontMock('playwright');
   });
 
+  function withPlatform<T>(platformValue: NodeJS.Platform, fn: () => T): T {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { value: platformValue });
+    try {
+      return fn();
+    } finally {
+      if (platform) {
+        Object.defineProperty(process, 'platform', platform);
+      }
+    }
+  }
+
   it('defaults Playwright browsers to a writable temp path', () => {
     expect(common.resolveE2EBrowserHome()).toBe(path.join(os.tmpdir(), 'playwright-e2e-home'));
     expect(common.resolvePlaywrightBrowsersPath()).toBe(
@@ -148,6 +160,20 @@ describe('E2E browser launch helpers', () => {
     expect(config.args).toContain('--disable-crashpad-for-testing');
     expect(config.args).toContain('--disable-breakpad');
     expect(config.args).toContain('--crash-dumps-dir=/tmp/jsmkc-browser-home/Crashpad');
+  });
+
+  it('adds the macOS single-process launch guard unless explicitly disabled', () => {
+    withPlatform('darwin', () => {
+      const args = common.getChromiumArgs();
+
+      expect(common.shouldUseMacSingleProcessLaunch()).toBe(true);
+      expect(args).toContain('--single-process');
+      expect(args).toContain('--no-zygote');
+
+      process.env.E2E_MAC_SINGLE_PROCESS = '0';
+      expect(common.shouldUseMacSingleProcessLaunch()).toBe(false);
+      expect(common.getChromiumArgs()).not.toContain('--single-process');
+    });
   });
 
   it('keeps Chromium argument generation free of filesystem side effects', () => {
