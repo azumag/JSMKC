@@ -141,6 +141,17 @@ describe('E2E case drift coverage', () => {
     'e2e',
     'mr-standings-assertions.test.ts',
   );
+  const gpFinalsRouteTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'app',
+    'api',
+    'tournaments',
+    '[id]',
+    'gp',
+    'finals',
+    'route.test.ts',
+  );
   const taFinalsPage = readRepoFile(
     'smkc-score-app',
     'src',
@@ -247,6 +258,7 @@ describe('E2E case drift coverage', () => {
     ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
     ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
     ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
+    ['TC-2247', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts'],
     ['TC-1009', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
     ['TC-1080', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts'],
     ['TC-1088', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts'],
@@ -1871,6 +1883,22 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('getLockedCupCountForMatch');
     expect(tcGp).toContain('/getGpFinalsMaxCups\\([A-Za-z_][A-Za-z0-9_]*\\)/g');
     expect(tcGp).toContain('directMatchCalls.length >= 2');
+  });
+
+  it('keeps TC-2247 aligned with minimal GP tied sudden-death updatedMatch fixtures', () => {
+    const section = e2eCaseSection('TC-2247');
+    const redundantUpdatedMatch =
+      /\{\s*\.\.\.mockMatch,\s*points1:\s*2,\s*points2:\s*2,\s*completed:\s*false,\s*suddenDeathWinnerId:\s*null\s*\}/;
+
+    expect(section).toContain('issue #2247');
+    expect(section).toContain('suddenDeathWinnerId: null');
+    expect(section).toContain('prisma.gPMatch.update');
+    expect(section).toContain('gp/finals/route.test.ts');
+    expect(gpFinalsRouteTest).toContain('const updatedMatch = { ...mockMatch, suddenDeathWinnerId: null };');
+    expect(gpFinalsRouteTest).not.toMatch(redundantUpdatedMatch);
+    expect(gpFinalsRouteTest).toContain('points1: 2');
+    expect(gpFinalsRouteTest).toContain('points2: 2');
+    expect(gpFinalsRouteTest).toContain('completed: false');
   });
 
   it('keeps TC-1098 aligned with shared GP driver-points max usage', () => {
