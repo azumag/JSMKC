@@ -1344,6 +1344,22 @@ describe('E2E case drift coverage', () => {
     expect(generateIdx).toBeGreaterThan(reconfirmIdx);
   });
 
+  it('keeps TC-2243 aligned on the documented all-suite E2E command', () => {
+    const section = e2eCaseSection('TC-2243');
+    const scopeNote = sectionBetween(
+      readRepoFile('E2E_TEST_CASES.md'),
+      '## Scope note:',
+      '---',
+    );
+    const claudeGuide = readRepoFile('CLAUDE.md');
+
+    expect(section).toContain('issue #2243');
+    expect(section).toContain('node e2e/tc-all.js');
+    expect(scopeNote).toContain('node e2e/tc-all.js');
+    expect(scopeNote).not.toContain('smkc-score-app/tc-all.js');
+    expect(claudeGuide).toContain('node e2e/tc-all.js');
+  });
+
   it('keeps TC-1063 aligned with the combined standings memoization guard', () => {
     const section = e2eCaseSection('TC-1063');
     const tc1555 = e2eCaseSection('TC-1555');
