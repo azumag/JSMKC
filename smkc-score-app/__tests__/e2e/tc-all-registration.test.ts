@@ -67,11 +67,20 @@ describe('tc-all focused suite registration', () => {
 
     expect(rootPage.context).not.toHaveBeenCalled();
     await expect(assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta'))
-      .resolves.toBeGreaterThanOrEqual(0);
+      .resolves.toBe(0);
     expect(rootPage.context).toHaveBeenCalled();
     expect(newPage).toHaveBeenCalled();
     expect(targetPage.bringToFront).toHaveBeenCalled();
     expect(targetPage.close).toHaveBeenCalled();
+  });
+
+  it('keeps TC-2262 documented as a direct archive contract import guard', () => {
+    const section = e2eCaseSection('TC-2262');
+
+    expect(section).toContain('issue #2262');
+    expect(section).toContain('tc-all-registration.test.ts');
+    expect(section).toContain('requireFromApp');
+    expect(section).toContain('ソーススキャン');
   });
 
   it('registers auth error and web vitals preview checks for TC-2070', () => {

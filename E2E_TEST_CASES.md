@@ -2939,6 +2939,20 @@
   - 旧 inline 実装が戻った場合は、整形差分に左右されず guard が失敗する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2262: tc-archive isolation contract — export を直接読み込んで検証する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2262。`tc-all-registration.test.ts` の archive qualification fetch isolation guard が `tc-archive.js` のソース文字列を読んでから同じ module を `requireFromApp` で読み込むと、export contract ではなく関数宣言の形に依存して壊れやすい。
+- **手順**:
+  1. `tc-all-registration.test.ts` が `requireFromApp('./e2e/tc-archive')` で `assertQualificationFetchesStartInParallel` を直接読み込むことを確認する
+  2. 読み込んだ export が function であることを確認する
+  3. root page mock から target page を作り、qualification fetch isolation helper が target page を前面化して閉じることを確認する
+- **期待結果**:
+  - guard は `function assertQualificationFetchesStartInParallel(` というソーススキャンに依存しない
+  - export が消えた場合は direct import / typeof assertion で失敗する
+  - helper の isolation contract は root page navigation ではなく target page lifecycle の挙動で検証される
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
