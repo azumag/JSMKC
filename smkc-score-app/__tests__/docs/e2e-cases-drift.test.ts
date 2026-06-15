@@ -630,6 +630,29 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).not.toMatch(/\{\s*name:\s*['"]TC-830['"]/);
   });
 
+  it('keeps TC-2252 naming tied to incomplete GP finals sudden-death saves', () => {
+    const section = e2eCaseSection('TC-2252');
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'api',
+      'tournaments',
+      '[id]',
+      'gp',
+      'finals',
+      'route.test.ts',
+    );
+
+    expect(section).toContain('issue #2252');
+    expect(section).toContain('completed=false');
+    expect(section).toContain('unmatched/player1/player2');
+    expect(section).toContain('suddenDeathWinnerId');
+    expect(routeTest).toContain('while the match is incomplete, even when player1 is named');
+    expect(routeTest).toContain('while the match is incomplete, even when player2 is named');
+    expect(routeTest).toContain('while the match is incomplete, even when unmatched');
+  });
+
   it('keeps TC-356 scoped to the GP finals dialog and failing on mobile layout regressions', () => {
     const section = e2eCaseSection('TC-356');
     const tc356Block = sectionBetween(tcAll, '// TC-356:', '// TC-357:');
@@ -2151,12 +2174,12 @@ describe('E2E case drift coverage', () => {
     );
     const player1WinnerCase = sectionBetween(
       routeTest,
-      'should ignore sudden-death winner on tied GP finals scores when player1 is sudden-death winner',
-      "it('should ignore sudden-death winner on tied GP finals scores when player2 is sudden-death winner'",
+      'should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when player1 is named',
+      "it('should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when player2 is named'",
     );
     const player2WinnerCase = sectionBetween(
       routeTest,
-      'should ignore sudden-death winner on tied GP finals scores when player2 is sudden-death winner',
+      'should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when player2 is named',
       "it('should allow GP playoff round 1 results to finish at first to 1'",
     );
 
