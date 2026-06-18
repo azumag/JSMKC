@@ -70,7 +70,17 @@ describe('tc-all focused suite registration', () => {
       .resolves.toBe(0);
     expect(rootPage.context).toHaveBeenCalled();
     expect(newPage).toHaveBeenCalled();
+    expect(rootPage.goto).not.toHaveBeenCalled();
     expect(targetPage.bringToFront).toHaveBeenCalled();
+    expect(targetPage.goto).toHaveBeenCalledWith(
+      expect.stringContaining('/tournaments/tournament-1/ta'),
+      { waitUntil: 'domcontentloaded' },
+    );
+    expect(targetPage.waitForFunction).toHaveBeenCalledWith(
+      expect.any(Function),
+      null,
+      expect.objectContaining({ timeout: expect.any(Number) }),
+    );
     expect(targetPage.close).toHaveBeenCalled();
   });
 

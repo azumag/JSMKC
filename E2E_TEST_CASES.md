@@ -2966,6 +2966,21 @@
   - helper の isolation contract は root page navigation ではなく target page lifecycle の挙動で検証される
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2263: tc-archive isolation guard — モックしたページ操作を明示的に検証する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2263。`tc-all-registration.test.ts` の archive qualification fetch isolation guard では `targetPage.goto` と `targetPage.waitForFunction` をモックしていたが、呼び出し自体を検証していなかった。
+- **手順**:
+  1. `assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta')` を mock page で実行する
+  2. root page ではなく isolated target page の `goto` が TA qualification URL へ呼ばれることを確認する
+  3. target page の hydration wait (`waitForFunction`) が timeout option 付きで呼ばれることを確認する
+  4. `resolves.toBe(0)` により「失敗数ゼロ」を返す contract を確認する
+- **期待結果**:
+  - archive isolation guard は `rootPage.goto` を呼ばず、fresh page の `targetPage.goto` を使う
+  - `targetPage.waitForFunction` の呼び出しが未検証に戻った場合は `tc-all-registration.test.ts` が失敗する
+  - E2E case drift guard が TC-2263 の文書化と mock assertion の存在を検証する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-1009: 総合ランキング決勝順位 — 16人/Top-24 判定の matchNumber 閾値を明文化する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false
