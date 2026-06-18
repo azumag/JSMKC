@@ -2489,6 +2489,29 @@ describe('E2E case drift coverage', () => {
     expect(taSuddenDeathPanelTest).toContain('submittingSuddenDeath');
   });
 
+  it('documents TC-2293 as runnable shared TA sudden-death UI coverage', () => {
+    const section = e2eCaseSection('TC-2293');
+
+    expect(section).toContain('issue #2293');
+    expect(section).toContain('/ta/finals');
+    expect(section).toContain('/ta/phase1');
+    expect(section).toContain('TASuddenDeathPanel');
+    expect(section).toContain('course select');
+    expect(section).toContain('time inputs');
+    expect(section).toContain('submit button');
+    expect(section).toContain('tc-ta.js');
+    expect(tcTa).toContain("log('TC-2293'");
+    expect(tcTa).toContain('runTc2293');
+    expect(tcTa).toContain('resolveSuddenDeathThroughSharedCard');
+    expect(tcTa).toContain("getByTestId('ta-sudden-death-panel')");
+    expect(tcTa).toContain("getByTestId('ta-sudden-death-course-select')");
+    expect(tcTa).toContain("getByTestId('ta-sudden-death-submit')");
+    expect(taSuddenDeathPanel).toContain('data-testid="ta-sudden-death-panel"');
+    expect(taSuddenDeathPanel).toContain('data-testid="ta-sudden-death-course-select"');
+    expect(taSuddenDeathPanel).toContain('data-testid={`ta-sudden-death-time-${entry.playerId}`}');
+    expect(taSuddenDeathPanel).toContain('data-testid="ta-sudden-death-submit"');
+  });
+
   it('documents TC-1864A as shared TA sudden-death hook fetch coverage', () => {
     const section = e2eCaseSection('TC-1864A');
 

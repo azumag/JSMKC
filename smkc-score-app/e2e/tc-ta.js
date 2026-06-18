@@ -36,6 +36,8 @@
  *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
  *   TC-1005 TA Phase 1 and Finals render the shared course-cycle status panel.
+ *   TC-2293 TA Phase 1 and Finals resolve pending sudden death through the
+ *           shared browser UI card.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-preview-profile by default).
@@ -1617,6 +1619,77 @@ async function setupIsolatedPhase1SuddenDeath(adminPage, label) {
   };
 }
 
+async function createPendingSuddenDeathByApi(adminPage, tournamentId, phase) {
+  const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
+  if (start.s !== 200) throw new Error(`start_round ${phase} failed (${start.s})`);
+  const roundNumber = start.b?.data?.roundNumber;
+  const phaseData = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+  const entries = orderTaEntriesForDeterministicResultSlots(
+    (phaseData.entries ?? []).filter((entry) => !entry.eliminated),
+  );
+  if (entries.length < 4) throw new Error(`${phase} entries=${entries.length}, expected at least 4`);
+
+  const results = phase === 'phase3'
+    ? entries.map((entry, index) => ({
+      playerId: entry.playerId,
+      timeMs: index === 1 || index === 2 ? 90000 : 80000 + index * 10000,
+    }))
+    : entries.map((entry, index) => ({
+      playerId: entry.playerId,
+      timeMs: index >= entries.length - 2 ? 100000 : 80000 + index * 1000,
+    }));
+
+  const tied = await apiPostTaPhase(adminPage, tournamentId, {
+    action: 'submit_results',
+    phase,
+    roundNumber,
+    results,
+  });
+  const sudden = tied.b?.data?.suddenDeathRound;
+  const targets = sudden?.targetPlayerIds ?? [];
+  if (tied.s !== 200 || tied.b?.data?.tieBreakRequired !== true || !sudden?.id || targets.length < 2) {
+    throw new Error(`expected pending sudden death for ${phase}, got status=${tied.s} body=${JSON.stringify(tied.b).slice(0, 260)}`);
+  }
+  return { roundNumber, sudden, targets };
+}
+
+async function resolveSuddenDeathThroughSharedCard(adminPage, tournamentId, phase, targets) {
+  const path = phase === 'phase3' ? 'finals' : phase;
+  await nav(adminPage, `/tournaments/${tournamentId}/ta/${path}`);
+
+  const panel = adminPage.getByTestId('ta-sudden-death-panel');
+  await panel.waitFor({ state: 'visible', timeout: 15000 });
+  await panel.getByTestId('ta-sudden-death-course-select').click();
+  const courseChangePromise = adminPage.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST' &&
+    res.request().postData()?.includes('"change_sudden_death_course"'), { timeout: 60000 });
+  await adminPage.getByRole('option').nth(1).click();
+  const courseChange = await courseChangePromise;
+  if (courseChange.status() !== 200) {
+    throw new Error(`UI change_sudden_death_course ${phase} failed (${courseChange.status()})`);
+  }
+  const changedPayload = courseChange.request().postDataJSON();
+  const changedCourse = changedPayload?.course;
+  if (!changedCourse) throw new Error(`UI course change for ${phase} did not send a course`);
+
+  await panel.getByTestId(`ta-sudden-death-time-${targets[0]}`).fill('1:30.00');
+  await panel.getByTestId(`ta-sudden-death-time-${targets[1]}`).fill('1:31.00');
+
+  const submitPromise = adminPage.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST' &&
+    res.request().postData()?.includes('"submit_sudden_death"'), { timeout: 60000 });
+  await panel.getByTestId('ta-sudden-death-submit').click();
+  const submit = await submitPromise;
+  if (submit.status() !== 200) {
+    const body = await submit.text().catch(() => '');
+    throw new Error(`UI submit_sudden_death ${phase} failed (${submit.status()}): ${body.slice(0, 260)}`);
+  }
+  await adminPage.waitForTimeout(1200);
+  return changedCourse;
+}
+
 /* ───────── TC-814: TA Phase1 sudden-death tiebreak ───────── */
 async function runTc814(adminPage) {
   let fixture = null;
@@ -2017,6 +2090,75 @@ async function runTc1005(adminPage) {
   }
 }
 
+/* ───────── TC-2293: Shared TA sudden-death card resolves from browser UI ───────── */
+async function runTc2293(adminPage) {
+  let phase1Setup = null;
+  let finalsSetup = null;
+  try {
+    phase1Setup = await setupIsolatedPhase1SuddenDeath(adminPage, `Shared SD UI Phase1 ${Date.now()}`);
+    const phase1Pending = await createPendingSuddenDeathByApi(adminPage, phase1Setup.tournamentId, 'phase1');
+    const phase1ChangedCourse = await resolveSuddenDeathThroughSharedCard(
+      adminPage,
+      phase1Setup.tournamentId,
+      'phase1',
+      phase1Pending.targets,
+    );
+    const phase1After = (await apiFetchTaPhase(adminPage, phase1Setup.tournamentId, 'phase1')).b?.data ?? {};
+    const phase1Round = (phase1After.rounds ?? []).find((round) => round.roundNumber === phase1Pending.roundNumber);
+    const phase1History = phase1Round?.suddenDeathRounds ?? [];
+    const phase1Resolved = phase1History.some((round) =>
+      round.id === phase1Pending.sudden.id &&
+      round.resolved === true &&
+      round.course === phase1ChangedCourse);
+    const phase1Eliminated = (phase1After.entries ?? [])
+      .filter((entry) => entry.eliminated)
+      .map((entry) => entry.playerId);
+
+    finalsSetup = await createIsolatedTaQualification(
+      adminPage,
+      `Shared SD UI Finals ${Date.now()}`,
+      sharedTaPlayers(4),
+      { seedTimes: false },
+    );
+    await seedTaQualificationRanks(adminPage, finalsSetup.tournamentId, finalsSetup.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, finalsSetup.tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+
+    const finalsPending = await createPendingSuddenDeathByApi(adminPage, finalsSetup.tournamentId, 'phase3');
+    const finalsChangedCourse = await resolveSuddenDeathThroughSharedCard(
+      adminPage,
+      finalsSetup.tournamentId,
+      'phase3',
+      finalsPending.targets,
+    );
+    const finalsAfter = (await apiFetchTaPhase(adminPage, finalsSetup.tournamentId, 'phase3')).b?.data ?? {};
+    const finalsRound = (finalsAfter.rounds ?? []).find((round) => round.roundNumber === finalsPending.roundNumber);
+    const finalsHistory = finalsRound?.suddenDeathRounds ?? [];
+    const finalsResolved = finalsHistory.some((round) =>
+      round.id === finalsPending.sudden.id &&
+      round.resolved === true &&
+      round.course === finalsChangedCourse);
+    const finalsTargetLives = (finalsAfter.entries ?? [])
+      .filter((entry) => finalsPending.targets.includes(entry.playerId))
+      .map((entry) => entry.lives);
+
+    const ok = phase1Resolved &&
+      phase1Eliminated.includes(phase1Pending.targets[1]) &&
+      finalsResolved &&
+      finalsTargetLives.includes(2) &&
+      finalsTargetLives.includes(3);
+
+    log('TC-2293', ok ? 'PASS' : 'FAIL',
+      ok ? ''
+      : `phase1Resolved=${phase1Resolved} phase1Eliminated=${phase1Eliminated.join(',')} finalsResolved=${finalsResolved} finalsTargetLives=${finalsTargetLives.join(',')}`);
+  } catch (err) {
+    log('TC-2293', 'FAIL', err instanceof Error ? err.message : 'shared TA sudden-death UI flow failed');
+  } finally {
+    if (finalsSetup) await finalsSetup.cleanup().catch(() => {});
+    if (phase1Setup) await phase1Setup.cleanup().catch(() => {});
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -2092,6 +2234,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-817', fn: runTc817 },
       { name: 'TC-1005', fn: runTc1005 },
+      { name: 'TC-2293', fn: runTc2293 },
     ],
   };
 }
@@ -2099,7 +2242,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
-  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005,
+  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,
