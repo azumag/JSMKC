@@ -2353,6 +2353,21 @@ describe('E2E case drift coverage', () => {
     expect(taCourseSelectionTest).toContain('keeps regular rounds on the immediate-repeat avoidance path');
   });
 
+  it('documents TC-2286 as TA sudden-death conflict refresh-message coverage', () => {
+    const section = e2eCaseSection('TC-2286');
+
+    expect(section).toContain('issue #2286');
+    expect(section).toContain('Refresh and submit again');
+    expect(section).toContain('Computed targets');
+    expect(section).toContain('__tests__/lib/ta/finals-phase-manager.test.ts');
+    expect(taFinalsPhaseManagerTest).toContain(
+      'Sudden-death round for phase1 changed during submission\\. Refresh and submit again\\.',
+    );
+    expect(taFinalsPhaseManagerTest).toContain(
+      'Computed targets \\(this request\\): \\["p4","p5"\\], Stored targets \\(concurrent request\\): \\["p1","p2"\\]',
+    );
+  });
+
   it('documents TC-822A as TA sudden-death UI i18n coverage', () => {
     const section = e2eCaseSection('TC-822A');
 
