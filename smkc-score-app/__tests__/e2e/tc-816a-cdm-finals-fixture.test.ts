@@ -1,11 +1,9 @@
-import * as tcAllExports from '../../e2e/tc-all';
-
-const {
+import {
   cdmE2eFinalsMatches,
   cdmE2eFinalsReadinessDetails,
   cdmE2eFinalsReadinessSummary,
   ensureCdmE2eFinalsFixture,
-} = tcAllExports;
+} from '../../e2e/tc-all';
 
 describe('TC-816A CDM finals fixture readiness', () => {
   it('counts slot-mappable playoff and finals matches by mode', () => {
@@ -128,6 +126,8 @@ describe('TC-816A CDM finals fixture readiness', () => {
   });
 
   it('keeps internal fixture helpers out of the tc-all public test API', () => {
+    const tcAllExports = jest.requireActual('../../e2e/tc-all') as Record<string, unknown>;
+
     expect(tcAllExports).not.toHaveProperty('fetchCdmE2eModeStates');
     expect(tcAllExports).not.toHaveProperty('generateCdmE2eMissingFinals');
     expect(tcAllExports).toHaveProperty('ensureCdmE2eFinalsFixture');
