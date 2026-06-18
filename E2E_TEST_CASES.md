@@ -2939,6 +2939,19 @@
   - 旧 inline 実装が戻った場合は、整形差分に左右されず guard が失敗する
 - **スクリプト**: `npm test -- --runTestsByPath __tests__/e2e/tc-all-registration.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2185: TC-939 lib reporting — null SPA marker failure detail を明示する
+- **URL**: n/a (unit/static coverage)
+- **authRequired**: false
+- **背景**: issue #2185。PR #2183 で重複 E2E reporting test を削除した後も、`describeTc939TabNavigation({ spaMarker: null, cleanClasses: false })` が full reload と hydrated className failure の両方を同じ detail に残すことを lib test 側で直接保証する必要がある。
+- **手順**:
+  1. `__tests__/lib/tc939-reporting.test.ts` が `spaMarker: null` と `cleanClasses: false` の組み合わせを直接呼び出すことを確認する
+  2. 戻り値が `status: "FAIL"` になることを確認する
+  3. detail に `Tab click caused a full document reload` と `Hydrated tab className contains extra whitespace` の両方が含まれることを確認する
+- **期待結果**:
+  - 削除済み E2E reporting test の null marker regression が lib test で明示的に保護される
+  - TC-939 の reload/className 両方の診断が片方だけに退化した場合、unit/doc drift coverage が失敗する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/lib/tc939-reporting.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2262: tc-archive isolation contract — export を直接読み込んで検証する
 - **URL**: n/a (unit/static coverage)
 - **authRequired**: false

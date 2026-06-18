@@ -31,6 +31,16 @@ describe('describeTc939TabNavigation', () => {
     });
   });
 
+  it('reports null SPA markers as full reload failures with className detail', async () => {
+    expect(describeTc939TabNavigation({
+      spaMarker: null,
+      cleanClasses: false,
+    })).toEqual({
+      status: 'FAIL',
+      detail: 'Tab click caused a full document reload / Hydrated tab className contains extra whitespace',
+    });
+  });
+
   it('reports reload-only failure without className issues', async () => {
     expect(describeTc939TabNavigation({
       spaMarker: 'reload-only',
