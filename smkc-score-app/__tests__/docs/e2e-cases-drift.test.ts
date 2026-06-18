@@ -562,6 +562,25 @@ describe('E2E case drift coverage', () => {
     expect(currentTc816).toContain('tc-ta.js TC-816');
   });
 
+  it('keeps TC-2242 aligned with PR title/diff authoring guidance', () => {
+    const section = e2eCaseSection('TC-2242');
+    const prTemplate = readRepoFile('.github', 'pull_request_template.md');
+    const prTemplateTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'docs',
+      'pr-template.test.ts',
+    );
+
+    expect(section).toContain('issue #2242');
+    expect(section).toContain('Conventional Commits');
+    expect(section).toContain('docs:');
+    expect(section).toContain('test:` または `refactor:');
+    expect(prTemplate).toContain('PR title and Conventional Commit type match the actual diff.');
+    expect(prTemplate).toContain('Use `docs:` only when this PR changes documentation.');
+    expect(prTemplateTest).toContain('align the PR title type with the actual diff');
+  });
+
   it('keeps TC-2118 documented with the shared tournament-tab hydration guard', () => {
     const section = e2eCaseSection('TC-2118');
     const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
