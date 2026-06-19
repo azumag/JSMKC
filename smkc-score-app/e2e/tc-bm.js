@@ -1282,6 +1282,62 @@ async function runTc1010(adminPage) {
   }
 }
 
+// TC-2334: E2E counterpart to 'uses the latest manual rankOverride when duplicate override ranks collide'.
+async function runTc2334(adminPage) {
+  let tournamentId = null;
+  try {
+    const players = sharedBmPlayers(16);
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM TC-2334 ${Date.now()}`);
+    await setupBmQualViaUi(adminPage, tournamentId, players, { randomize: true });
+
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const qualifications = bmData.qualifications || bmData.data?.qualifications || [];
+    const earlyTarget = qualifications.find((q) => q.playerId === players[0].id);
+    const latestTarget = qualifications.find((q) => q.playerId === players[15].id);
+    if (!earlyTarget || !latestTarget) throw new Error('TC-2334: override targets not found');
+
+    // PATCH player[0] first to record its rankOverrideAt, then player[15] second (should be later).
+    const res0 = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: earlyTarget.id, rankOverride: 1 }]);
+    if (res0.s !== 200) throw new Error(`TC-2334: first rankOverride PATCH failed (${res0.s})`);
+
+    const res15 = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: latestTarget.id, rankOverride: 1 }]);
+    if (res15.s !== 200) throw new Error(`TC-2334: second rankOverride PATCH failed (${res15.s})`);
+
+    // Guard: confirm the server assigned distinct timestamps so the tie-breaker path is exercised.
+    // If both PATCHes land in the same clock tick, the seeding would fall back to array index order
+    // rather than testing the rankOverrideAt tie-breaker.
+    const bmAfter = await apiFetchBm(adminPage, tournamentId);
+    const qualsAfter = bmAfter.qualifications || bmAfter.data?.qualifications || [];
+    const q0 = qualsAfter.find((q) => q.playerId === players[0].id);
+    const q15 = qualsAfter.find((q) => q.playerId === players[15].id);
+    if (!q0?.rankOverrideAt || !q15?.rankOverrideAt) throw new Error('TC-2334: rankOverrideAt missing after PATCH');
+    const t0 = new Date(q0.rankOverrideAt).getTime();
+    const t15 = new Date(q15.rankOverrideAt).getTime();
+    if (t15 <= t0) throw new Error(`TC-2334: timestamps not distinct — both PATCHes in the same clock tick (q0=${q0.rankOverrideAt} q15=${q15.rankOverrideAt})`);
+
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`TC-2334: qualification confirm failed (${confirmRes.s})`);
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 16);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`TC-2334: 16-player finals generation failed (${gen.s})`);
+    const seededPlayers = gen.b?.data?.seededPlayers || [];
+
+    const latestWinsSeed1 = seededPlayers[0]?.playerId === players[15].id;
+    log('TC-2334', latestWinsSeed1 ? 'PASS' : 'FAIL',
+      !latestWinsSeed1 ? `expected seed1=${players[15].id} got ${seededPlayers[0]?.playerId}` : '');
+  } catch (err) {
+    log('TC-2334', 'FAIL', err instanceof Error ? err.message : 'TC-2334 failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+  }
+}
+
 /* ───────── TC-505: BM Grand Final → champion (28-player full) ─────────
  * Drives M1..M16 with player1 sweeping 5-0 each so seeds propagate
  * deterministically. Winners-side champion takes the GF; the champion
@@ -2472,6 +2528,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
       { name: 'TC-1010', fn: runTc1010 },
+      { name: 'TC-2334', fn: runTc2334 },
       { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },
@@ -2497,7 +2554,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1010, runTc1046, runTc1052,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1010, runTc2334, runTc1046, runTc1052,
   bmFinalsTargetWinsForMatch,
   getSuite,
   results,
