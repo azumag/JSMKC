@@ -81,6 +81,19 @@ function isWranglerAuthOrLogFailure(stderr) {
   ].some((pattern) => pattern.test(stderr));
 }
 
+// Detects the non-interactive CLOUDFLARE_API_TOKEN auth error that Wrangler emits in stdout
+// as { "error": { "text": "..." } } or { "error": "..." } when stderr is empty.
+// Wrangler CLI in non-interactive CI environments routes this error to stdout JSON instead
+// of stderr, bypassing the existing isWranglerAuthOrLogFailure check.
+function isWranglerStdoutAuthError(stdout) {
+  const parsed = extractWranglerJson(stdout);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+  // Handle both { "error": { "text": "..." } } and { "error": "..." } Wrangler output shapes
+  const errorField = parsed.error;
+  const text = typeof errorField === 'string' ? errorField : String(errorField?.text || '');
+  return /CLOUDFLARE_API_TOKEN/i.test(text) || /non-interactive environment/i.test(text);
+}
+
 function isWranglerSchemaFailure(stderr) {
   return [
     /no such (table|column)/i,
@@ -108,11 +121,12 @@ function shouldFailOnWranglerAuthOrLogFailure(env = process.env) {
   return env.E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT === '1';
 }
 
-function buildWranglerAuthOrLogFailureMessage(status, stderr, wranglerEnv) {
+function buildWranglerAuthOrLogFailureMessage(status, stderr, stdout, wranglerEnv) {
   return formatPreflightError([
     'Preview D1 schema preflight could not verify the remote database because Wrangler auth/log setup failed.',
     `Command exited ${status}.`,
-    stderr ? `stderr: ${stderr}` : '',
+    stderr ? `stderr: ${boundedOutput(stderr)}` : '',
+    stdout ? `stdout: ${boundedOutput(stdout)}` : '',
     `WRANGLER_LOG_PATH=${wranglerEnv.WRANGLER_LOG_PATH}`,
     'The preview E2E run will continue because this is an environment credential/setup problem, not confirmed schema drift.',
     'Set CLOUDFLARE_API_TOKEN with D1 read access or refresh wrangler login, then rerun with E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1 to make this failure block browser launch.',
@@ -167,8 +181,9 @@ function assertPreviewD1Schema(env = process.env) {
 
   if (result.status !== 0) {
     const stderr = String(result.stderr || '').trim();
-    if (isWranglerAuthOrLogFailure(stderr)) {
-      const message = buildWranglerAuthOrLogFailureMessage(result.status, stderr, wranglerEnv);
+    const stdout = String(result.stdout || '').trim();
+    if (isWranglerAuthOrLogFailure(stderr) || isWranglerStdoutAuthError(stdout)) {
+      const message = buildWranglerAuthOrLogFailureMessage(result.status, stderr, stdout, wranglerEnv);
       if (shouldFailOnWranglerAuthOrLogFailure(env)) {
         throw new Error(message);
       }
@@ -214,6 +229,7 @@ module.exports = {
   DEFAULT_WRANGLER_LOG_PATH,
   isWranglerSchemaFailure,
   isWranglerAuthOrLogFailure,
+  isWranglerStdoutAuthError,
   parsePresentColumns,
   WRANGLER_TRANSIENT_STATUS_RETRIES,
   WRANGLER_TIMEOUT_MS,

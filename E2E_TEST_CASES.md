@@ -130,6 +130,18 @@
 - **期待結果**: 認証/ログ初期化だけの失敗は通常 preview E2E を本体開始前に止めず、schema missing / SQLite error / timeout / strict preflight は従来どおり診断つきで失敗する。TC-2161 の E2E scenario 文字列確認は `preview-schema-preflight.test.ts` 側に集約し、drift test は preview preflight 実装と補助テストの対応だけを監視する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2333: Preview D1 preflight は Wrangler stdout JSON CLOUDFLARE_API_TOKEN エラーを auth setup noise として扱う
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
+- **背景**: issue #2333。非インタラクティブ環境で CLOUDFLARE_API_TOKEN が未設定の場合、Wrangler は `stderr` を空にしたまま stdout に `{ "error": { "text": "...CLOUDFLARE_API_TOKEN..." } }` という JSON を出力して非ゼロ終了する。既存の `isWranglerAuthOrLogFailure` は `stderr` しか検査しないため、この形式はハードフェイルパスに落ちていた。`isWranglerStdoutAuthError` を追加して stdout JSON 内の auth error を認証/ログ初期化失敗として分類し、TC-2161 と同じ non-blocking 扱いにする。
+- **手順**:
+  1. Wrangler が `stderr: ""` / `stdout: {"error":{"text":"...CLOUDFLARE_API_TOKEN..."}}` を返す preflight を模擬する
+  2. 通常の `npm run e2e:preview:all` 相当では警告を出して preflight を通過することを確認する (`console.warn` に `stdout:` と `CLOUDFLARE_API_TOKEN` が含まれる)
+  3. `E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1` 指定時は同じ stdout auth error がブラウザ起動前に失敗することを確認する
+  4. `isWranglerStdoutAuthError` が `{ "error": { "text": "...non-interactive environment..." } }` をも検出することを確認する
+- **期待結果**: stdout JSON auth error は TC-2161 の stderr auth error と同様に non-blocking として扱われ、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
+
 ## TC-2236: Preview E2E は共有 fixture 作成前に admin session 不在を fast-fail する
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (persistent preview admin profile)
