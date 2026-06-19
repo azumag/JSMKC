@@ -38,6 +38,8 @@
  *   TC-1005 TA Phase 1 and Finals render the shared course-cycle status panel.
  *   TC-2293 TA Phase 1 and Finals resolve pending sudden death through the
  *           shared browser UI card.
+ *   TC-2400 Phase1/2 sudden-death retie creates a continuation round; the
+ *           continuation round with a unique-slowest player resolves normally.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-preview-profile by default).
@@ -2159,6 +2161,117 @@ async function runTc2293(adminPage) {
   }
 }
 
+/* ───────── TC-2400: TA Phase1 sudden-death retie → continuation round → resolution ───────── */
+async function runTc2400(adminPage) {
+  let fixture = null;
+  try {
+    fixture = await setupIsolatedPhase1SuddenDeath(adminPage, `SD Continuation ${Date.now()}`);
+    const { tournamentId } = fixture;
+    const phase = 'phase1';
+
+    // Start round and submit results with the last 2 entries tied at 100000ms.
+    const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
+    if (start.s !== 200) throw new Error(`start_round failed (${start.s})`);
+    const roundNumber = start.b?.data?.roundNumber;
+
+    const phaseData = await apiFetchTaPhase(adminPage, tournamentId, phase);
+    const entries = phaseData.b?.data?.entries ?? [];
+    if (entries.length !== 8) throw new Error(`phase1 entries=${entries.length}, expected 8`);
+
+    const results = entries.map((entry, index) => ({
+      playerId: entry.playerId,
+      timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
+    }));
+
+    const tied = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase,
+      roundNumber,
+      results,
+    });
+    if (tied.s !== 200 || tied.b?.data?.tieBreakRequired !== true) {
+      log('TC-2400', 'FAIL', `expected tieBreakRequired after tied round, got status=${tied.s}`);
+      return;
+    }
+
+    const firstSd = tied.b.data.suddenDeathRound;
+    const firstTargets = firstSd?.targetPlayerIds ?? [];
+    if (!firstSd?.id || firstTargets.length !== 2) {
+      log('TC-2400', 'FAIL', `invalid first sudden death payload: ${JSON.stringify(firstSd)}`);
+      return;
+    }
+
+    // Path A: submit sudden death with EQUAL times → getSuddenDeathContinuationTargets returns both IDs → continuation round.
+    const tiedSd = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: firstSd.id,
+      results: [
+        { playerId: firstTargets[0], timeMs: 95000 },
+        { playerId: firstTargets[1], timeMs: 95000 },
+      ],
+    });
+    if (tiedSd.s !== 200 || tiedSd.b?.data?.tieBreakRequired !== true) {
+      log('TC-2400', 'FAIL', `expected continuation after retie, got status=${tiedSd.s} body=${JSON.stringify(tiedSd.b).slice(0, 200)}`);
+      return;
+    }
+
+    const contSd = tiedSd.b.data.suddenDeathRound;
+    const contTargets = contSd?.targetPlayerIds ?? [];
+    if (!contSd?.id || contTargets.length !== 2) {
+      log('TC-2400', 'FAIL', `invalid continuation sudden death payload: ${JSON.stringify(contSd)}`);
+      return;
+    }
+
+    // Continuation round must target the same 2 players as the first round.
+    const sameTargets = contTargets.length === firstTargets.length &&
+      firstTargets.every((id) => contTargets.includes(id));
+    if (!sameTargets) {
+      log('TC-2400', 'FAIL', `continuation targets differ: ${JSON.stringify(contTargets)} vs ${JSON.stringify(firstTargets)}`);
+      return;
+    }
+
+    // Path B: submit continuation round with a unique-slowest player → no continuation, that player eliminated.
+    // slowerPlayerId receives 92000ms; fasterPlayerId receives 88000ms.
+    const slowerPlayerId = contTargets[0];
+    const fasterPlayerId = contTargets[1];
+    const resolved = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: contSd.id,
+      results: [
+        { playerId: slowerPlayerId, timeMs: 92000 },
+        { playerId: fasterPlayerId, timeMs: 88000 },
+      ],
+    });
+    if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired === true) {
+      log('TC-2400', 'FAIL', `expected resolution without continuation, got status=${resolved.s} tieBreak=${resolved.b?.data?.tieBreakRequired}`);
+      return;
+    }
+
+    const finalPhase = await apiFetchTaPhase(adminPage, tournamentId, phase);
+    const finalEntries = finalPhase.b?.data?.entries ?? [];
+    const eliminated = finalEntries.filter((e) => e.eliminated).map((e) => e.playerId);
+    const round = (finalPhase.b?.data?.rounds ?? []).find((r) => r.roundNumber === roundNumber);
+    const suddenHistory = round?.suddenDeathRounds ?? [];
+
+    const ok = eliminated.length === 1 &&
+      eliminated[0] === slowerPlayerId &&
+      suddenHistory.length === 2 &&
+      suddenHistory.every((s) => s.resolved === true);
+
+    log('TC-2400', ok ? 'PASS' : 'FAIL',
+      ok ? ''
+      : eliminated.length !== 1 ? `expected 1 eliminated, got ${eliminated.length}`
+      : eliminated[0] !== slowerPlayerId ? `wrong player eliminated: got ${eliminated[0]} expected ${slowerPlayerId}`
+      : `suddenHistory=${JSON.stringify(suddenHistory)}`);
+  } catch (err) {
+    log('TC-2400', 'FAIL', err instanceof Error ? err.message : 'TA phase1 sudden-death continuation failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -2235,6 +2348,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-817', fn: runTc817 },
       { name: 'TC-1005', fn: runTc1005 },
       { name: 'TC-2293', fn: runTc2293 },
+      { name: 'TC-2400', fn: runTc2400 },
     ],
   };
 }
@@ -2242,7 +2356,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
-  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293,
+  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,

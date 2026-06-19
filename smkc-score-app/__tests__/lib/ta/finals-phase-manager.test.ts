@@ -167,6 +167,23 @@ describe("TA Finals Phase Manager", () => {
       expect(targets).toEqual(["p2", "p3"]);
     });
 
+    it("does not continue phase1 sudden death when there is a unique slowest player", () => {
+      const targets = getSuddenDeathContinuationTargets("phase1",
+        [
+          { playerId: "p1", timeMs: 70000 },
+          { playerId: "p2", timeMs: 80000 },
+          { playerId: "p3", timeMs: 80000 },
+          { playerId: "p4", timeMs: 90000 },
+        ],
+        [
+          { playerId: "p2", timeMs: 88000 },
+          { playerId: "p3", timeMs: 94000 },
+        ]
+      );
+
+      expect(targets).toEqual([]);
+    });
+
     it("returns no targets when one tied player is absent from phase2 sudden death results", () => {
       const phase2BoundaryResults = [
         { playerId: "p1", timeMs: 70000 },
