@@ -258,6 +258,75 @@ describe('preview schema preflight', () => {
     expect(preflight.isWranglerAuthOrLogFailure('Failed to fetch auth token: 400 Bad Request')).toBe(true);
   });
 
+  it('detects CLOUDFLARE_API_TOKEN auth error in Wrangler stdout JSON', () => {
+    const preflight = loadPreflight();
+
+    // nested {"error": {"text": "..."}} shape
+    const stdoutJson = JSON.stringify({
+      error: {
+        text: "In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN environment variable for wrangler to work.",
+      },
+    });
+    expect(preflight.isWranglerStdoutAuthError(stdoutJson)).toBe(true);
+    // flat {"error": "..."} string shape
+    expect(preflight.isWranglerStdoutAuthError('{"error": "CLOUDFLARE_API_TOKEN environment variable required"}')).toBe(true);
+    expect(preflight.isWranglerStdoutAuthError('{"error": "non-interactive environment detected"}')).toBe(true);
+    expect(preflight.isWranglerStdoutAuthError('')).toBe(false);
+    expect(preflight.isWranglerStdoutAuthError('{"results": []}')).toBe(false);
+    expect(preflight.isWranglerStdoutAuthError('{"error": {"text": "Unknown D1 error"}}')).toBe(false);
+    expect(preflight.isWranglerStdoutAuthError('not json at all')).toBe(false);
+  });
+
+  it('continues preview startup on Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth error by default', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: JSON.stringify({
+        error: {
+          text: "In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN environment variable for wrangler to work. Please go to https://developers.cloudflare.com/fundamentals/api/get-started/create-token/ for instructions on how to create an api token, and assign its value to CLOUDFLARE_API_TOKEN.",
+        },
+      }),
+      stderr: '',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({})).not.toThrow();
+
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    const message = String((console.warn as jest.Mock).mock.calls[0]?.[0] ?? '');
+    expect(message).toMatch(/Wrangler auth\/log setup failed/);
+    expect(message).toMatch(/E2E run will continue/);
+    expect(message).toMatch(/WRANGLER_LOG_PATH/);
+    expect(message).toMatch(/stdout:/);
+    expect(message).toMatch(/CLOUDFLARE_API_TOKEN/);
+  });
+
+  it('can require Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth errors to block preview startup', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: JSON.stringify({
+        error: {
+          text: "In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN environment variable for wrangler to work.",
+        },
+      }),
+      stderr: '',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({ E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT: '1' })).toThrow(
+      /Wrangler auth\/log setup failed/,
+    );
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps TC-2333 documented as stdout JSON CLOUDFLARE_API_TOKEN auth error coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-2333');
+    expect(section).toContain('issue #2333');
+    expect(section).toContain('isWranglerStdoutAuthError');
+    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
+  });
+
   it('continues preview startup on Wrangler auth and log setup failures by default', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
