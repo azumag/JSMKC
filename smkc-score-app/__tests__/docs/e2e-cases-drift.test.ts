@@ -1137,6 +1137,26 @@ describe('E2E case drift coverage', () => {
     expect(overallRankingTest).toContain('maps 16-player finals and Top24 playoff losses to standard point bands');
   });
 
+  it('keeps TC-2334 aligned with the BM duplicate rankOverride collision coverage', () => {
+    const section = e2eCaseSection('TC-2334');
+    const finalsRouteTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'lib',
+      'api-factories',
+      'finals-route.test.ts',
+    );
+
+    expect(section).toContain('issue #2357');
+    expect(section).toContain('rankOverride');
+    expect(section).toContain('rankOverrideAt');
+    expect(section).toContain('E2E_TESTS=TC-2334 node e2e/tc-bm.js');
+    expect(tcBm).toContain("{ name: 'TC-2334', fn: runTc2334 }");
+    expect(finalsRouteTest).toContain('uses the latest manual rankOverride when duplicate override ranks collide');
+    expect(finalsRouteTest).toContain('falls back to latest rankOverrideAt timestamp when both players share the same rankOverride value');
+    expect(finalsRouteTest).toContain('uses manual rankOverride values before timestamps when both overridden players are tied');
+  });
+
   it('keeps TC-1007 aligned with the GroupSetupDialog static guard', () => {
     const section = e2eCaseSection('TC-1007');
     const followupSection = e2eCaseSection('TC-1678');

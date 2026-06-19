@@ -142,6 +142,19 @@
 - **期待結果**: stdout JSON auth error は TC-2161 の stderr auth error と同様に non-blocking として扱われ、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2334: BM 16-player finals — duplicate rankOverride collision は latest rankOverrideAt を優先する
+- **URL**: `/api/tournaments/[id]/bm/finals`
+- **authRequired**: true (admin)
+- **背景**: issue #2357。BM 予選で複数プレイヤーが同一の `rankOverride` 値を持つ場合、Top-16 finals bracket の seed 順は最新の `rankOverrideAt` タイムスタンプを持つ qualification が優先される。これは大会ディレクターの「最後の明示的修正が有効」という契約であり、unit test (`uses the latest manual rankOverride when duplicate override ranks collide`) とは別に E2E で end-to-end の動作を確認する必要がある。
+- **手順**:
+  1. 16 名のプレイヤーで BM 予選を完了させる
+  2. player[0] に `rankOverride: 1` を PATCH する（earlier タイムスタンプ）
+  3. player[15] に同じ `rankOverride: 1` を PATCH する（later タイムスタンプ）
+  4. BM 予選を confirm し、16-player finals bracket を生成する
+  5. `seededPlayers[0]` が player[15] であることを確認する（最新 override が seed 1 に来る）
+- **期待結果**: rankOverride が衝突した場合に最新の `rankOverrideAt` を持つプレイヤーが seed 1 となる
+- **スクリプト**: `E2E_TESTS=TC-2334 node e2e/tc-bm.js` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` + `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2236: Preview E2E は共有 fixture 作成前に admin session 不在を fast-fail する
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (persistent preview admin profile)

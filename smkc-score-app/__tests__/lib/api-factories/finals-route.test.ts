@@ -1022,6 +1022,7 @@ describe('Finals Route Factory', () => {
     });
 
     it('uses manual rankOverride values before timestamps when both overridden players are tied', async () => {
+      // player-0: rankOverride=1 (wins) + earliestOverride; player-1: rankOverride=2 (loses) + latestOverride — opposing directions prove rankOverride value beats timestamp.
       const latestOverride = new Date('2026-01-02T00:00:00Z');
       const earliestOverride = new Date('2026-01-01T00:00:00Z');
       const qualifications = Array.from({ length: 16 }, (_, index) => ({
@@ -1031,7 +1032,7 @@ describe('Finals Route Factory', () => {
         score: 10,
         points: 10,
         rankOverride: index === 0 ? 1 : index === 1 ? 2 : null,
-        rankOverrideAt: index === 0 ? latestOverride : index === 1 ? earliestOverride : null,
+        rankOverrideAt: index === 0 ? earliestOverride : index === 1 ? latestOverride : null,
         player: { id: `player-${index}`, name: `Player ${index + 1}` },
       }));
       (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
@@ -1055,6 +1056,44 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(201);
       const json = await response.json();
       expect(json.data.seededPlayers[0].playerId).toBe('player-0');
+    });
+
+    it('falls back to latest rankOverrideAt timestamp when both players share the same rankOverride value', async () => {
+      // Both player-0 and player-1 have rankOverride=1 (collision); player-1 has later rankOverrideAt.
+      // Verifies the timestamp tie-breaker: the most-recent correction wins the seed.
+      const earlyOverride = new Date('2026-01-01T00:00:00Z');
+      const latestOverride = new Date('2026-01-02T00:00:00Z');
+      const qualifications = Array.from({ length: 16 }, (_, index) => ({
+        id: `qual-${index}`,
+        playerId: `player-${index}`,
+        group: 'A',
+        score: 10,
+        points: 10,
+        rankOverride: index === 0 || index === 1 ? 1 : null,
+        rankOverrideAt: index === 0 ? earlyOverride : index === 1 ? latestOverride : null,
+        player: { id: `player-${index}`, name: `Player ${index + 1}` },
+      }));
+      (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
+      (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 31 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig({
+        qualificationOrderBy: [{ score: 'desc' }, { points: 'desc' }],
+      });
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 16 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      const json = await response.json();
+      expect(json.data.seededPlayers[0].playerId).toBe('player-1');
     });
 
     it('does not fetch H2H matches when qualificationOrderBy is empty', async () => {
