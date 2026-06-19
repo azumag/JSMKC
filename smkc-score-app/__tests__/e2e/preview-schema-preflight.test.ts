@@ -277,6 +277,27 @@ describe('preview schema preflight', () => {
     expect(preflight.isWranglerStdoutAuthError('not json at all')).toBe(false);
   });
 
+  it('detects Cloudflare API 7403 authorization errors in Wrangler stdout JSON', () => {
+    const preflight = loadPreflight();
+    const stdoutJson = JSON.stringify({
+      error: {
+        text: 'A request to the Cloudflare API (/accounts/example/d1/database/example/query) failed.',
+        notes: [
+          {
+            text: 'The given account is not valid or is not authorized to access this service [code: 7403]',
+          },
+        ],
+        kind: 'error',
+        name: 'APIError',
+        code: 7403,
+        accountTag: 'example',
+      },
+    });
+
+    expect(preflight.isWranglerStdoutAuthError(stdoutJson)).toBe(true);
+    expect(preflight.isWranglerStdoutAuthError('{"error":{"code":7403,"notes":[{"text":"database missing table"}]}}')).toBe(false);
+  });
+
   it('continues preview startup on Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth error by default', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
@@ -300,6 +321,38 @@ describe('preview schema preflight', () => {
     expect(message).toMatch(/CLOUDFLARE_API_TOKEN/);
   });
 
+  it('continues preview startup on Cloudflare API 7403 authorization stdout JSON by default', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: JSON.stringify({
+        error: {
+          text: 'A request to the Cloudflare API (/accounts/example/d1/database/example/query) failed.',
+          notes: [
+            {
+              text: 'The given account is not valid or is not authorized to access this service [code: 7403]',
+            },
+          ],
+          kind: 'error',
+          name: 'APIError',
+          code: 7403,
+          accountTag: 'example',
+        },
+      }),
+      stderr: '',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({})).not.toThrow();
+
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    const message = String((console.warn as jest.Mock).mock.calls[0]?.[0] ?? '');
+    expect(message).toMatch(/Wrangler auth\/log setup failed/);
+    expect(message).toMatch(/E2E run will continue/);
+    expect(message).toMatch(/stdout:/);
+    expect(message).toMatch(/code.*7403/);
+    expect(message).toMatch(/not valid or is not authorized/);
+  });
+
   it('can require Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth errors to block preview startup', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
@@ -318,12 +371,47 @@ describe('preview schema preflight', () => {
     expect(console.warn).not.toHaveBeenCalled();
   });
 
+  it('can require Cloudflare API 7403 authorization stdout JSON to block preview startup', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: JSON.stringify({
+        error: {
+          text: 'A request to the Cloudflare API (/accounts/example/d1/database/example/query) failed.',
+          notes: [
+            {
+              text: 'The given account is not valid or is not authorized to access this service [code: 7403]',
+            },
+          ],
+          kind: 'error',
+          name: 'APIError',
+          code: 7403,
+        },
+      }),
+      stderr: '',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({ E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT: '1' })).toThrow(
+      /Wrangler auth\/log setup failed/,
+    );
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
   it('keeps TC-2333 documented as stdout JSON CLOUDFLARE_API_TOKEN auth error coverage', () => {
     const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
 
     expect(section).toContain('TC-2333');
     expect(section).toContain('issue #2333');
     expect(section).toContain('isWranglerStdoutAuthError');
+    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
+  });
+
+  it('keeps TC-2385 documented as stdout JSON Cloudflare API 7403 auth error coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-2385');
+    expect(section).toContain('issue #2385');
+    expect(section).toContain('Cloudflare API 7403');
     expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
   });
 

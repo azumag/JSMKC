@@ -81,17 +81,23 @@ function isWranglerAuthOrLogFailure(stderr) {
   ].some((pattern) => pattern.test(stderr));
 }
 
-// Detects the non-interactive CLOUDFLARE_API_TOKEN auth error that Wrangler emits in stdout
-// as { "error": { "text": "..." } } or { "error": "..." } when stderr is empty.
-// Wrangler CLI in non-interactive CI environments routes this error to stdout JSON instead
-// of stderr, bypassing the existing isWranglerAuthOrLogFailure check.
+// Detects auth/setup errors that Wrangler emits in stdout JSON instead of stderr.
 function isWranglerStdoutAuthError(stdout) {
   const parsed = extractWranglerJson(stdout);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
-  // Handle both { "error": { "text": "..." } } and { "error": "..." } Wrangler output shapes
   const errorField = parsed.error;
-  const text = typeof errorField === 'string' ? errorField : String(errorField?.text || '');
-  return /CLOUDFLARE_API_TOKEN/i.test(text) || /non-interactive environment/i.test(text);
+  const notes = Array.isArray(errorField?.notes) ? errorField.notes : [];
+  const text = [
+    typeof errorField === 'string' ? errorField : '',
+    errorField?.text,
+    errorField?.name,
+    ...notes.map((note) => note?.text),
+  ].filter(Boolean).join('\n');
+  return (
+    /CLOUDFLARE_API_TOKEN/i.test(text)
+    || /non-interactive environment/i.test(text)
+    || (Number(errorField?.code) === 7403 && /not valid or is not authorized/i.test(text))
+  );
 }
 
 function isWranglerSchemaFailure(stderr) {
