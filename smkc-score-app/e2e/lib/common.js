@@ -412,7 +412,62 @@ async function launchChromium(options = {}) {
   }
 }
 
+/**
+ * Reads the Playwright persistent-profile SingletonLock and checks if the owning process is live.
+ *
+ * Chromium creates SingletonLock as a symlink whose target is `${hostname}-${pid}`.
+ * Returns:
+ *   { pid, target, alive: true }  — owning process is still running (or EPERM, meaning it exists)
+ *   { pid, target, alive: false } — lock target PID no longer exists (stale lock)
+ *   null                          — no lock, not a symlink, or unreadable (proceed normally)
+ *
+ * Never removes the lock. Callers decide what to do with the result.
+ * Do NOT use pkill -f chromium; only target the SingletonLock file itself.
+ */
+function detectSingletonLockOwner(profileDir) {
+  const lockPath = path.join(profileDir, 'SingletonLock');
+  let target;
+  try {
+    target = fs.readlinkSync(lockPath);
+  } catch (_err) {
+    // ENOENT = no lock present; EINVAL = not a symlink; either way the profile is free.
+    return null;
+  }
+
+  // Lock target format: `${hostname}-${pid}` — parse PID from after the last dash.
+  const dashIndex = target.lastIndexOf('-');
+  if (dashIndex < 0) return null;
+  const pid = Number(target.slice(dashIndex + 1));
+  if (!Number.isFinite(pid) || !Number.isInteger(pid) || pid <= 0) return null;
+
+  let alive = false;
+  try {
+    // Signal 0 checks for process existence without sending a real signal.
+    process.kill(pid, 0);
+    alive = true;
+  } catch (err) {
+    // EPERM = exists but no permission to signal it; treat as alive.
+    // ESRCH = no such process; stale lock.
+    alive = err.code === 'EPERM';
+  }
+
+  return { pid, target, alive };
+}
+
 async function launchPersistentChromiumContext(profileDir, options = {}) {
+  const lockOwner = detectSingletonLockOwner(profileDir);
+  if (lockOwner?.alive) {
+    throw new Error(
+      [
+        `Preview E2E cannot launch: ${profileDir}/SingletonLock is held by a live process (PID ${lockOwner.pid}).`,
+        `Lock target: ${lockOwner.target}`,
+        'Another E2E run is still active. Wait for it to finish or stop it manually.',
+        `To inspect the owner: ps -p ${lockOwner.pid} -o pid,etime,cmd`,
+        'Do NOT rm -f the lock while the owner is alive — doing so causes the next Chromium to hang on profile DB locks.',
+      ].join('\n'),
+    );
+  }
+
   try {
     return await chromium.launchPersistentContext(profileDir, {
       ...options,
@@ -1085,24 +1140,6 @@ async function apiSeedTtEntry(page, tournamentId, entryId, times, totalTimeMs, r
   });
   if (res.s !== 200) {
     throw new Error(`Failed to seed TT entry ${entryId} (${res.s}): ${JSON.stringify(res.b).slice(0, 200)}`);
-  }
-  return res;
-}
-
-/** Force a TTEntry rank without sending times so recalculateRanks is NOT
- * triggered. Use after apiSeedTtEntry when the desired rank (e.g. 17) would
- * be overwritten by the server's rank recalculation across all tournament
- * entries. Sends only `{version, rank}` — the PUT route only calls
- * recalculateRanks when `times` is present in the body. */
-async function apiForceRankOnly(page, tournamentId, entryId, rank) {
-  const ge = await apiGetTtEntry(page, tournamentId, entryId);
-  const version = ge.b?.data?.version;
-  if (ge.s !== 200 || typeof version !== 'number') {
-    throw new Error(`Failed to fetch TT entry version for rank-only update (${entryId}, status=${ge.s})`);
-  }
-  const res = await apiUpdateTtEntry(page, tournamentId, entryId, { version, rank });
-  if (res.s !== 200) {
-    throw new Error(`Failed to force rank ${rank} for entry ${entryId} (${res.s}): ${JSON.stringify(res.b).slice(0, 120)}`);
   }
   return res;
 }
@@ -2892,6 +2929,7 @@ module.exports = {
   formatE2EErrorForLog,
   getChromiumArgs,
   shouldUseMacSingleProcessLaunch,
+  detectSingletonLockOwner,
   launchChromium,
   launchPersistentChromiumContext,
   /* retry */

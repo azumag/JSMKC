@@ -155,6 +155,21 @@
 - **期待結果**: Cloudflare API 7403 authorization stdout JSON は通常 preview E2E を本体開始前に止めず、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2360: Preview E2E は live な SingletonLock 保持プロセス検出で fast-fail する
+- **URL**: n/a (browser launch / preview suite)
+- **authRequired**: true (persistent preview admin profile)
+- **背景**: issue #2360。`npm run e2e:preview:all` が persistent Chromium 起動時に既存の SingletonLock で失敗するケースが発生した。既存の workaround `rm -f .../SingletonLock` は lock 保持プロセスが生存中の場合に unsafe であり、第2の Chromium が profile DB ロックでタイムアウトする。`launchPersistentChromiumContext` の内部で `detectSingletonLockOwner(profileDir)` を呼び出し、lock が live プロセスに保持されていれば actionable なメッセージで fast-fail し、stale（dead process）なら起動を継続する。
+- **手順**:
+  1. `detectSingletonLockOwner(profileDir)` が SingletonLock シンボリックリンクを読み、`hostname-pid` 形式から PID を取得する
+  2. `process.kill(pid, 0)` で保持プロセスの生存を確認する（alive: true / false）
+  3. SingletonLock が存在しない場合は null を返す
+  4. 保持プロセスが生存中の場合、`launchPersistentChromiumContext` は PID を含む actionable エラーで即座に失敗する
+  5. 保持プロセスが dead（stale lock）の場合は起動を継続する（caller が lock cleanup する）
+  6. EPERM（シグナル送信権限なし）は alive 扱いにする（プロセスは存在する）
+  7. `pkill -f chromium` は使用しない。cleanup は SingletonLock ファイルのみを対象にする
+- **期待結果**: SingletonLock が live プロセスに保持される場合、180秒タイムアウトを待たずに PID と操作案内を含むエラーで即時失敗する
+- **スクリプト**: `npm test -- --runTestsByPath __tests__/lib/e2e-browser-launch.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2334: BM 16-player finals — duplicate rankOverride collision は latest rankOverrideAt を優先する
 - **URL**: `/api/tournaments/[id]/bm/finals`
 - **authRequired**: true (admin)

@@ -446,6 +446,23 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).toContain('keeps TC-2333 documented as stdout JSON CLOUDFLARE_API_TOKEN auth error coverage');
   });
 
+  it('keeps TC-2360 aligned with SingletonLock live-owner fast-fail coverage', () => {
+    const section = e2eCaseSection('TC-2360');
+    const commonLib = readE2eLib('common.js');
+    const browserLaunchTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'e2e-browser-launch.test.ts');
+
+    expect(section).toContain('issue #2360');
+    expect(section).toContain('detectSingletonLockOwner');
+    expect(section).toContain('SingletonLock');
+    expect(section).toContain('__tests__/lib/e2e-browser-launch.test.ts');
+    expect(commonLib).toContain('detectSingletonLockOwner');
+    expect(commonLib).toContain('process.kill(pid, 0)');
+    expect(browserLaunchTest).toContain('returns null when SingletonLock does not exist');
+    expect(browserLaunchTest).toContain('returns alive owner when lock target process is running');
+    expect(browserLaunchTest).toContain('throws with live owner PID before launching Chromium');
+    expect(browserLaunchTest).toContain('keeps TC-2360 documented as SingletonLock live-owner fast-fail coverage');
+  });
+
   it('keeps TC-2385 aligned with stdout JSON Cloudflare API 7403 auth error classification', () => {
     const section = e2eCaseSection('TC-2385');
     const preflight = readE2eLib('preview-schema-preflight.js');

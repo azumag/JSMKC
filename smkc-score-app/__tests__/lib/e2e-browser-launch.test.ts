@@ -212,4 +212,92 @@ describe('E2E browser launch helpers', () => {
     expect(formatted).toContain('PLAYWRIGHT_BROWSERS_PATH=/tmp/jsmkc-browser-home/ms-playwright npm run e2e:install-browser');
     expect(formatted).toContain('E2E_EXECUTABLE_PATH=/absolute/path/to/chromium-compatible-browser');
   });
+
+  describe('detectSingletonLockOwner', () => {
+    it('returns null when SingletonLock does not exist', () => {
+      jest.spyOn(fs, 'readlinkSync').mockImplementation(() => {
+        const err = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+        throw err;
+      });
+
+      expect(common.detectSingletonLockOwner('/tmp/test-profile')).toBeNull();
+    });
+
+    it('returns null when SingletonLock is not a symlink', () => {
+      jest.spyOn(fs, 'readlinkSync').mockImplementation(() => {
+        const err = Object.assign(new Error('EINVAL'), { code: 'EINVAL' });
+        throw err;
+      });
+
+      expect(common.detectSingletonLockOwner('/tmp/test-profile')).toBeNull();
+    });
+
+    it('returns alive owner when lock target process is running', () => {
+      jest.spyOn(fs, 'readlinkSync').mockReturnValue('AzMacMiniM4.local-28661');
+      (jest.spyOn(process, 'kill') as jest.Mock).mockReturnValue(true);
+
+      expect(common.detectSingletonLockOwner('/tmp/test-profile')).toEqual({
+        pid: 28661,
+        target: 'AzMacMiniM4.local-28661',
+        alive: true,
+      });
+    });
+
+    it('returns dead owner when lock target process no longer exists', () => {
+      jest.spyOn(fs, 'readlinkSync').mockReturnValue('AzMacMiniM4.local-99999');
+      (jest.spyOn(process, 'kill') as jest.Mock).mockImplementation(() => {
+        throw Object.assign(new Error('kill ESRCH 99999'), { code: 'ESRCH' });
+      });
+
+      expect(common.detectSingletonLockOwner('/tmp/test-profile')).toEqual({
+        pid: 99999,
+        target: 'AzMacMiniM4.local-99999',
+        alive: false,
+      });
+    });
+
+    it('treats EPERM as alive because the process exists but cannot be signaled', () => {
+      jest.spyOn(fs, 'readlinkSync').mockReturnValue('host-55555');
+      (jest.spyOn(process, 'kill') as jest.Mock).mockImplementation(() => {
+        throw Object.assign(new Error('kill EPERM 55555'), { code: 'EPERM' });
+      });
+
+      expect(common.detectSingletonLockOwner('/tmp/test-profile')).toEqual({
+        pid: 55555,
+        target: 'host-55555',
+        alive: true,
+      });
+    });
+
+    it('returns null when lock target has no parseable PID', () => {
+      jest.spyOn(fs, 'readlinkSync').mockReturnValue('AzMacMiniM4.local-notanumber');
+
+      expect(common.detectSingletonLockOwner('/tmp/test-profile')).toBeNull();
+    });
+
+    it('keeps TC-2360 documented as SingletonLock live-owner fast-fail coverage', () => {
+      expect(common.detectSingletonLockOwner).toBeInstanceOf(Function);
+    });
+  });
+
+  describe('launchPersistentChromiumContext SingletonLock guard', () => {
+    it('throws with live owner PID before launching Chromium', async () => {
+      const mockLaunchPersistentContext = jest.fn();
+      jest.doMock('playwright', () => ({
+        chromium: {
+          launch: jest.fn(),
+          launchPersistentContext: mockLaunchPersistentContext,
+        },
+      }));
+      common = loadCommon();
+
+      jest.spyOn(fs, 'readlinkSync').mockReturnValue('AzMacMiniM4.local-28661');
+      (jest.spyOn(process, 'kill') as jest.Mock).mockReturnValue(true);
+
+      await expect(common.launchPersistentChromiumContext('/tmp/test-profile')).rejects.toThrow(
+        /PID 28661/,
+      );
+      expect(mockLaunchPersistentContext).not.toHaveBeenCalled();
+    });
+  });
 });
