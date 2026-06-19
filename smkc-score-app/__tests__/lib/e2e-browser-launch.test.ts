@@ -308,4 +308,68 @@ describe('E2E browser launch helpers', () => {
       expect(mockLaunchPersistentContext).not.toHaveBeenCalled();
     });
   });
+
+  describe('addPersistentContextCrashHelp', () => {
+    it('appends recovery guidance on GPU process crash signature', () => {
+      const error = new Error('[pid=123][err] GPU process exited unexpectedly: exit_code=5');
+      const result = common.addPersistentContextCrashHelp(error, '/tmp/test-profile');
+
+      expect(result).toBe(error);
+      expect(result.message).toContain('Recovery steps:');
+      expect(result.message).toContain('rm -f /tmp/test-profile/SingletonLock');
+    });
+
+    it('appends recovery guidance on SEGV_ACCERR signature', () => {
+      const error = new Error('[pid=42][err] Received signal 11 SEGV_ACCERR addr=0x0');
+      const result = common.addPersistentContextCrashHelp(error, '/tmp/test-profile');
+
+      expect(result.message).toContain('Recovery steps:');
+      expect(result.message).toContain('E2E_MAC_SINGLE_PROCESS=0');
+    });
+
+    it('appends recovery guidance on network service crashed signature', () => {
+      const error = new Error('Network service crashed, restarting service.');
+      const result = common.addPersistentContextCrashHelp(error, '/tmp/test-profile');
+
+      expect(result.message).toContain('Recovery steps:');
+    });
+
+    it('appends recovery guidance on browser context closed signature', () => {
+      const error = new Error('browserContext.newPage: Target page, context or browser has been closed');
+      const result = common.addPersistentContextCrashHelp(error, '/tmp/test-profile');
+
+      expect(result.message).toContain('Recovery steps:');
+    });
+
+    it('returns the error unchanged for unrelated errors', () => {
+      const error = new Error('some unrelated error');
+      const original = error.message;
+      const result = common.addPersistentContextCrashHelp(error, '/tmp/test-profile');
+
+      expect(result).toBe(error);
+      expect(result.message).toBe(original);
+    });
+
+    it('returns non-Error values as-is', () => {
+      const value = { code: 'ENOENT' };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = common.addPersistentContextCrashHelp(value as any, '/tmp/test-profile');
+
+      expect(result).toBe(value);
+    });
+
+    it('uses default profile lock path when profileDir is omitted', () => {
+      const error = new Error('[pid=1][err] GPU process exited unexpectedly: exit_code=5');
+      const result = common.addPersistentContextCrashHelp(error, undefined);
+
+      expect(result.message).toContain('/tmp/playwright-smkc-preview-profile/SingletonLock');
+    });
+
+    it('keeps TC-2352 documented as GPU crash classification coverage', () => {
+      const commonLib = fs.readFileSync(path.join(__dirname, '../../e2e/lib/common.js'), 'utf8');
+      expect(commonLib).toContain('GPU process exited');
+      expect(commonLib).toContain('SEGV_ACCERR');
+      expect(commonLib).toContain('addPersistentContextCrashHelp');
+    });
+  });
 });

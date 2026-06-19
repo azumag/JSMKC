@@ -420,6 +420,7 @@
   14. macOS では sandboxed automation の Mach/Crashpad launch abort を避けるため `--single-process` / `--no-zygote` を付与し、`E2E_MAC_SINGLE_PROCESS=0` で明示的に無効化できることを確認する
   15. preview runner は `E2E_HEADLESS` 未指定時に `1` を補完し、明示指定は保持することを確認する
   16. `npm run e2e:preview:launch-smoke` が TC 本体に入る前の browser launch だけを検証する入口として存在することを確認する
+  17. `launchPersistentChromiumContext` が GPU process クラッシュ (exit_code=5) / SEGV_ACCERR / ネットワークサービスクラッシュ / ブラウザコンテキスト閉鎖を検出し、`addPersistentContextCrashHelp` が Recovery steps (SingletonLock 削除手順・`E2E_MAC_SINGLE_PROCESS=0` 無効化・issue #2352 参照) を error.message に付与することを確認する (`smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts` の `addPersistentContextCrashHelp` describe ブロックで補助検証)
 - **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / empty managed browser cache / Crashpad permission failure で停止しても project-specific bootstrap guidance が表示され、macOS sandboxed automation では launch-smoke で起動だけを検証できる
 - **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`, `npm run e2e:preview:launch-smoke`
 - **補助検証**: `smkc-score-app/__tests__/e2e/run-preview.test.ts`, `smkc-score-app/__tests__/lib/e2e-browser-launch.test.ts`（どちらも runner command 扱いで、URL 欄には環境変数名を入れない）
