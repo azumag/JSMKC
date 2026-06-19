@@ -1303,6 +1303,9 @@ async function runTc2334(adminPage) {
     }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: earlyTarget.id, rankOverride: 1 }]);
     if (res0.s !== 200) throw new Error(`TC-2334: first rankOverride PATCH failed (${res0.s})`);
 
+    // Ensure timestamps are distinct across clock ticks in CI environments with low clock resolution.
+    await new Promise((r) => setTimeout(r, 50));
+
     const res15 = await adminPage.evaluate(async ([url, body]) => {
       const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       return { s: r.status, b: await r.json().catch(() => ({})) };
