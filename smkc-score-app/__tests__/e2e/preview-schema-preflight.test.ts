@@ -277,6 +277,93 @@ describe('preview schema preflight', () => {
     expect(preflight.isWranglerStdoutAuthError('not json at all')).toBe(false);
   });
 
+  it('detects Cloudflare API 7403 authorization error in Wrangler stdout JSON', () => {
+    const preflight = loadPreflight();
+
+    // nested { "error": { "code": 7403, ... } } shape from Cloudflare API
+    const stdoutJson7403 = JSON.stringify({
+      error: {
+        text: 'A request to the Cloudflare API (/accounts/xxx/d1/database/yyy/query) failed.',
+        notes: [{ text: 'The given account is not valid or is not authorized to access this service [code: 7403]' }],
+        kind: 'error',
+        name: 'APIError',
+        code: 7403,
+        accountTag: 'xxx',
+      },
+    });
+    expect(preflight.isWranglerStdoutAuthError(stdoutJson7403)).toBe(true);
+
+    // error.code alone is sufficient for detection
+    expect(preflight.isWranglerStdoutAuthError('{"error":{"code":7403,"text":"Some auth error"}}')).toBe(true);
+
+    // notes text matching "not valid or is not authorized" is also detected
+    const stdoutWithNotes = JSON.stringify({
+      error: { text: 'CF API error', notes: [{ text: 'The given account is not valid or is not authorized to access this service [code: 7403]' }] },
+    });
+    expect(preflight.isWranglerStdoutAuthError(stdoutWithNotes)).toBe(true);
+
+    // non-7403 error codes are not classified as auth errors
+    expect(preflight.isWranglerStdoutAuthError('{"error":{"code":9999,"text":"Some other error"}}')).toBe(false);
+    expect(preflight.isWranglerStdoutAuthError('{"error":{"text":"Unknown D1 error","notes":[{"text":"Some unrelated error"}]}}')).toBe(false);
+  });
+
+  it('continues preview startup on Wrangler stdout JSON Cloudflare API 7403 authorization error by default', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: JSON.stringify({
+        error: {
+          text: 'A request to the Cloudflare API (/accounts/b9ab93f1f71640b6965a60c646b2392b/d1/database/5a974a4a-a606-4ea2-b619-4b50db03857d/query) failed.',
+          notes: [{ text: 'The given account is not valid or is not authorized to access this service [code: 7403]' }],
+          kind: 'error',
+          name: 'APIError',
+          code: 7403,
+          accountTag: 'b9ab93f1f71640b6965a60c646b2392b',
+        },
+      }),
+      stderr: '',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({})).not.toThrow();
+
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    const message = String((console.warn as jest.Mock).mock.calls[0]?.[0] ?? '');
+    expect(message).toMatch(/Wrangler auth\/log setup failed/);
+    expect(message).toMatch(/E2E run will continue/);
+    expect(message).toMatch(/WRANGLER_LOG_PATH/);
+    expect(message).toMatch(/stdout:/);
+  });
+
+  it('can require Wrangler stdout JSON Cloudflare API 7403 errors to block preview startup', () => {
+    const preflight = loadPreflight();
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: JSON.stringify({
+        error: {
+          text: 'A request to the Cloudflare API failed.',
+          notes: [{ text: 'The given account is not valid or is not authorized to access this service [code: 7403]' }],
+          code: 7403,
+        },
+      }),
+      stderr: '',
+    });
+
+    expect(() => preflight.assertPreviewD1Schema({ E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT: '1' })).toThrow(
+      /Wrangler auth\/log setup failed/,
+    );
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps TC-2335 documented as stdout JSON Cloudflare API 7403 auth error coverage', () => {
+    const section = readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+
+    expect(section).toContain('TC-2335');
+    expect(section).toContain('issue #2385');
+    expect(section).toContain('7403');
+    expect(section).toContain('isWranglerStdoutAuthError');
+    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
+  });
+
   it('continues preview startup on Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth error by default', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({

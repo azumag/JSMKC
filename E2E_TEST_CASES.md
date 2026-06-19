@@ -155,6 +155,19 @@
 - **期待結果**: rankOverride が衝突した場合に最新の `rankOverrideAt` を持つプレイヤーが seed 1 となる
 - **スクリプト**: `E2E_TESTS=TC-2334 node e2e/tc-bm.js` + `smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts` + `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2335: Preview D1 preflight は Wrangler stdout JSON Cloudflare API 7403 アカウント認証エラーを auth setup noise として扱う
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (Cloudflare D1 token with sufficient account permissions required unless strict preflight is requested)
+- **背景**: issue #2385。Wrangler が Cloudflare API に接続したが対象アカウントが無効またはサービスへのアクセス権がない場合、stdout に `{ "error": { "code": 7403, "text": "...", "notes": [{"text": "The given account is not valid or is not authorized..."}] } }` という JSON を出力して非ゼロ終了する。既存の `isWranglerStdoutAuthError` は `CLOUDFLARE_API_TOKEN` と `non-interactive environment` のパターンしか検査しないため、この 7403 形式はハードフェイルパスに落ちていた。`isWranglerStdoutAuthError` を拡張して `error.code === 7403` または notes 内の `not valid or is not authorized` パターンも認証/アカウント権限失敗として分類し、TC-2333 と同じ non-blocking 扱いにする。
+- **手順**:
+  1. Wrangler が `stderr: ""` / `stdout: {"error":{"code":7403,"text":"...","notes":[{"text":"The given account is not valid..."}]}}` を返す preflight を模擬する
+  2. 通常の `npm run e2e:preview:all` 相当では警告を出して preflight を通過することを確認する (`console.warn` に `Wrangler auth/log setup failed` と `E2E run will continue` が含まれる)
+  3. `E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1` 指定時は同じ 7403 エラーがブラウザ起動前に失敗することを確認する
+  4. `isWranglerStdoutAuthError` が `error.code === 7403` を直接検出することを確認する
+  5. スキーマ drift / SQLite missing table エラーは 7403 分類に影響されず引き続き失敗することを確認する
+- **期待結果**: stdout JSON Cloudflare API 7403 auth error は TC-2333 の CLOUDFLARE_API_TOKEN auth error と同様に non-blocking として扱われ、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
+
 ## TC-2236: Preview E2E は共有 fixture 作成前に admin session 不在を fast-fail する
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (persistent preview admin profile)

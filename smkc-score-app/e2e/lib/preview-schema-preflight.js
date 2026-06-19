@@ -83,7 +83,9 @@ function isWranglerAuthOrLogFailure(stderr) {
 
 // Detects the non-interactive CLOUDFLARE_API_TOKEN auth error that Wrangler emits in stdout
 // as { "error": { "text": "..." } } or { "error": "..." } when stderr is empty.
-// Wrangler CLI in non-interactive CI environments routes this error to stdout JSON instead
+// Also detects Cloudflare API account authorization errors (code 7403) that Wrangler emits as
+// { "error": { "code": 7403, "text": "...", "notes": [...] } } when the account/token lacks D1 access.
+// Wrangler CLI in non-interactive CI environments routes these errors to stdout JSON instead
 // of stderr, bypassing the existing isWranglerAuthOrLogFailure check.
 function isWranglerStdoutAuthError(stdout) {
   const parsed = extractWranglerJson(stdout);
@@ -91,7 +93,16 @@ function isWranglerStdoutAuthError(stdout) {
   // Handle both { "error": { "text": "..." } } and { "error": "..." } Wrangler output shapes
   const errorField = parsed.error;
   const text = typeof errorField === 'string' ? errorField : String(errorField?.text || '');
-  return /CLOUDFLARE_API_TOKEN/i.test(text) || /non-interactive environment/i.test(text);
+  if (/CLOUDFLARE_API_TOKEN/i.test(text) || /non-interactive environment/i.test(text)) return true;
+  // Cloudflare API 7403: account not valid or not authorized — emitted when token has no D1 access
+  if (typeof errorField === 'object' && errorField !== null) {
+    if (errorField.code === 7403) return true;
+    const notesText = Array.isArray(errorField.notes)
+      ? errorField.notes.map((n) => String(n?.text || '')).join('\n')
+      : '';
+    if (/not valid or is not authorized/i.test(notesText)) return true;
+  }
+  return false;
 }
 
 function isWranglerSchemaFailure(stderr) {

@@ -446,6 +446,22 @@ describe('E2E case drift coverage', () => {
     expect(preflightTest).toContain('keeps TC-2333 documented as stdout JSON CLOUDFLARE_API_TOKEN auth error coverage');
   });
 
+  it('keeps TC-2335 aligned with stdout JSON Cloudflare API 7403 auth error classification', () => {
+    const section = e2eCaseSection('TC-2335');
+    const preflight = readE2eLib('preview-schema-preflight.js');
+    const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
+
+    expect(section).toContain('issue #2385');
+    expect(section).toContain('7403');
+    expect(section).toContain('isWranglerStdoutAuthError');
+    expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
+    expect(preflight).toContain('7403');
+    expect(preflight).toContain('not valid or is not authorized');
+    expect(preflightTest).toContain('detects Cloudflare API 7403 authorization error in Wrangler stdout JSON');
+    expect(preflightTest).toContain('continues preview startup on Wrangler stdout JSON Cloudflare API 7403 authorization error by default');
+    expect(preflightTest).toContain('keeps TC-2335 documented as stdout JSON Cloudflare API 7403 auth error coverage');
+  });
+
   it('keeps TC-2236 aligned with preview admin session preflight coverage', () => {
     const section = e2eCaseSection('TC-2236');
     const runner = readE2eScript('run-preview.js');
