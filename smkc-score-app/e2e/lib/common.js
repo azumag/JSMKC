@@ -390,6 +390,53 @@ function addChromiumLaunchHelp(error) {
   return error;
 }
 
+/**
+ * Detects GPU process crash / SIGSEGV signatures in a persistent-context launch
+ * error and adds actionable recovery guidance (issue #2352).
+ *
+ * Chromium's --single-process mode on macOS can trigger a GPU process crash
+ * (SEGV_ACCERR, exit_code=5) before the first page is opened. This failure
+ * class is distinct from:
+ *   - "Executable doesn't exist"  → handled by addChromiumLaunchHelp
+ *   - SingletonLock live-owner    → handled by detectSingletonLockOwner
+ *
+ * Observed signatures (issue #2352):
+ *   [pid=N][err] GPU process exited unexpectedly: exit_code=5
+ *   [pid=N][err] Received signal 11 SEGV_ACCERR ...
+ *   browserContext.newPage: Target page, context or browser has been closed
+ */
+function addPersistentContextCrashHelp(error, profileDir) {
+  if (!(error instanceof Error)) return error;
+  const text = `${error.message || ''}\n${error.stack || ''}`;
+
+  const isGpuCrash =
+    /GPU process exited/i.test(text) ||
+    /SEGV_ACCERR|signal 11 SEGV/i.test(text) ||
+    /Network service crashed/i.test(text);
+  const isBrowserClosed = /Target page.*context.*browser has been closed/i.test(text);
+
+  if (!isGpuCrash && !isBrowserClosed) return error;
+
+  const lockPath = profileDir
+    ? `${profileDir}/SingletonLock`
+    : '/tmp/playwright-smkc-preview-profile/SingletonLock';
+  const hint = [
+    '',
+    'Persistent Chromium context crashed before first page (GPU process / SIGSEGV).',
+    'Recovery steps:',
+    `  1. Remove stale profile lock (only if no owner is alive): rm -f ${lockPath}`,
+    '  2. Isolate browser launch: npm run e2e:preview:launch-smoke',
+    '  3. macOS: disable --single-process mode: E2E_MAC_SINGLE_PROCESS=0 npm run e2e:preview',
+    '  See issue #2352 for full diagnosis.',
+  ].join('\n');
+
+  error.message = `${error.message || ''}${hint}`;
+  if (error.stack && !error.stack.includes('Recovery steps:')) {
+    error.stack = `${error.stack}${hint}`;
+  }
+  return error;
+}
+
 function formatE2EErrorForLog(error) {
   if (!(error instanceof Error)) return error;
   const stack = error.stack || '';
@@ -398,7 +445,8 @@ function formatE2EErrorForLog(error) {
   if (message.includes('Recommended bootstrap:') && !stack.includes('Recommended bootstrap:')) {
     return `${stack}\n${message}`;
   }
-  return stack || message;
+  // !stack was already handled above, so stack is always truthy here
+  return stack;
 }
 
 async function launchChromium(options = {}) {
@@ -474,7 +522,7 @@ async function launchPersistentChromiumContext(profileDir, options = {}) {
       ...getChromiumLaunchConfig(),
     });
   } catch (error) {
-    throw addChromiumLaunchHelp(error);
+    throw addPersistentContextCrashHelp(addChromiumLaunchHelp(error), profileDir);
   }
 }
 
@@ -2926,6 +2974,7 @@ module.exports = {
   resolvePlaywrightBrowsersPath,
   getChromiumLaunchConfig,
   addChromiumLaunchHelp,
+  addPersistentContextCrashHelp,
   formatE2EErrorForLog,
   getChromiumArgs,
   shouldUseMacSingleProcessLaunch,
