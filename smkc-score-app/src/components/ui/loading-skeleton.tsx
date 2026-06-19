@@ -29,9 +29,7 @@ import { cn } from "@/lib/utils";
  *   dimensions (e.g., "h-4 w-3/4") since the skeleton renders as an
  *   empty div that relies on explicit sizing.
  */
-export interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
-  className?: string;
-}
+export type SkeletonProps = HTMLAttributes<HTMLDivElement>;
 
 /**
  * Base skeleton placeholder component.
@@ -51,19 +49,22 @@ export interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
 export function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
+      {...props}
+      role="status"
+      aria-label="Loading content"
       className={cn(
         "animate-pulse bg-muted rounded-md",
         className
       )}
-      role="status"
-      aria-label="Loading content"
-      {...props}
     />
   );
 }
 
 /**
  * Props for the CardSkeleton component.
+ * Intentionally accepts only className so callers cannot pass arbitrary HTML
+ * attributes (data-*, aria-*, etc.) onto the outer wrapper — the card's inner
+ * Skeleton elements own their own accessibility attributes.
  * @property className - Additional CSS classes for the card container
  */
 export interface CardSkeletonProps {
@@ -174,7 +175,7 @@ export function QualificationClientLoadingState({
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div className="space-y-3">
           <h1 className="text-2xl font-semibold">{title}</h1>
-          <Skeleton className={cn("h-5", titleSkeletonClassName)} />
+          <Skeleton className={cn("h-5", titleSkeletonClassName)} data-testid="title-skeleton" />
         </div>
         {showActionButton && <Skeleton className="h-10 w-24" data-testid="qualification-action-skeleton" />}
       </div>
