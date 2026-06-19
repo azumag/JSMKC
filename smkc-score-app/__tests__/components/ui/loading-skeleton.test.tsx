@@ -7,6 +7,7 @@ import { render, screen } from '@testing-library/react';
 import {
   QualificationClientLoadingState,
   QualificationFallback,
+  Skeleton,
 } from '@/components/ui/loading-skeleton';
 
 describe('QualificationFallback', () => {
@@ -51,6 +52,29 @@ describe('QualificationClientLoadingState', () => {
   it('uses the qualification page title skeleton width by default', () => {
     render(<QualificationClientLoadingState title="マッチレース" />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'マッチレース' }).nextElementSibling).toHaveClass('w-48');
+    expect(screen.getByTestId('title-skeleton')).toHaveClass('w-48');
+  });
+});
+
+describe('Skeleton accessibility contract (TC-2401)', () => {
+  it('always renders with role="status" even when caller passes a different role', () => {
+    // role must come after {...props} spread to prevent callers from accidentally
+    // overriding the accessibility role (issue #2343)
+    render(<Skeleton role="img" className="h-4 w-3/4" />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('always renders with aria-label even when caller passes a different aria-label', () => {
+    render(<Skeleton aria-label="custom label" className="h-4 w-3/4" />);
+
+    expect(screen.getByRole('status', { name: 'Loading content' })).toBeInTheDocument();
+  });
+
+  it('passes through non-accessibility props from caller', () => {
+    render(<Skeleton data-testid="my-skeleton" className="h-4 w-3/4" />);
+
+    expect(screen.getByTestId('my-skeleton')).toBeInTheDocument();
   });
 });

@@ -822,6 +822,29 @@ describe('E2E case drift coverage', () => {
     expect(taQualificationPageClient).not.toContain('titleSkeletonClassName="w-48"');
   });
 
+  it('documents TC-2401 Skeleton accessibility contract — role and aria-label are not overridable by callers', () => {
+    const section = e2eCaseSection('TC-2401');
+
+    expect(section).toContain('issue #2343');
+    expect(section).toContain('role="status"');
+    expect(section).toContain('aria-label');
+    expect(section).toContain('data-testid="title-skeleton"');
+    // Skeleton props spread must come before role/aria-label so callers cannot override them
+    expect(loadingSkeleton).toContain('{...props}');
+    expect(loadingSkeleton).toMatch(/\{\.\.\.props\}[\s\S]{0,20}role="status"/);
+    expect(loadingSkeleton).toMatch(/\{\.\.\.props\}[\s\S]{0,50}aria-label="Loading content"/);
+    // SkeletonProps must not redundantly declare className (HTMLAttributes already provides it)
+    expect(loadingSkeleton).not.toContain('interface SkeletonProps');
+    expect(loadingSkeleton).toContain('type SkeletonProps');
+    // title-skeleton testid must exist in QualificationClientLoadingState
+    expect(loadingSkeleton).toContain('data-testid="title-skeleton"');
+    // Unit tests must cover the accessibility contract
+    expect(qualificationFallbackTest).toContain('TC-2401');
+    expect(qualificationFallbackTest).toContain('always renders with role="status" even when caller passes a different role');
+    expect(qualificationFallbackTest).toContain('always renders with aria-label even when caller passes a different aria-label');
+    expect(qualificationFallbackTest).toContain('getByTestId(\'title-skeleton\')');
+  });
+
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
     const section = e2eCaseSection('TC-816A');
     const cdmConstants = readRepoFile('smkc-score-app', 'src', 'lib', 'cdm-export', 'cdm-constants.ts');
