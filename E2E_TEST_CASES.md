@@ -1342,12 +1342,13 @@
 ## TC-2006-2007: BM/MR match lean select — shallow boolean payload contract
 - **URL**: n/a
 - **authRequired**: false
-- **背景**: issue #2006/#2007。`BM_MR_MATCH_LEAN_SELECT` は BM/MR 予選 match payload の共有 select 契約であり、必須 field set は `satisfies` 型契約で守り、unit test では Prisma select として shallow な `true` 値だけを持つことを確認する。
+- **背景**: issue #2006/#2007/#2024。`BM_MR_MATCH_LEAN_SELECT` は BM/MR 予選 match payload の共有 select 契約であり、必須 field set は `satisfies` 型契約で守り、unit test では Prisma select として shallow な `true` 値だけを持つことを確認する。また、`satisfies` 制約は余分なフィールドの追加を検出しないため (issue #2024)、`Object.keys` による exact key 検証も実施する。
 - **手順**:
   1. `prisma-selects.test.ts` が `Object.entries(BM_MR_MATCH_LEAN_SELECT)` から selected entries を検証することを確認する
   2. selected entries が空でなく、各 entry が空でない key と `true` 値だけを持つことを確認する
-  3. drift test が本 TC と unit coverage の対応を検証する
-- **期待結果**: BM/MR 共有 match payload は shallow な boolean select として維持され、必須 field set の増減は `satisfies` 型契約で検出する
+  3. `Object.keys(BM_MR_MATCH_LEAN_SELECT)` が `EXPECTED_FIELDS` と完全一致することを確認する (accidental addition guard)
+  4. drift test が本 TC と unit coverage の対応を検証する
+- **期待結果**: BM/MR 共有 match payload は shallow な boolean select として維持され、必須 field set の削除は `satisfies` 型契約で、余分な追加は exact-key unit test で検出する
 - **スクリプト**: n/a (unit/static coverage) — `smkc-score-app/__tests__/lib/prisma-selects.test.ts`, `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`
 
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)

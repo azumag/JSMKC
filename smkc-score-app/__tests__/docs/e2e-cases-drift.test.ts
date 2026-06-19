@@ -2230,8 +2230,9 @@ describe('E2E case drift coverage', () => {
     expect(prismaSelectsTest).toContain('Object.entries(BM_MR_MATCH_LEAN_SELECT)');
     expect(prismaSelectsTest).toContain('selectedFields.length');
     expect(prismaSelectsTest).toContain('key.length > 0 && value === true');
-    expect(prismaSelectsTest).not.toContain('const expectedFields');
-    expect(prismaSelectsTest).not.toContain('Object.keys(BM_MR_MATCH_LEAN_SELECT)');
+    // Issue #2024: exact-key guard must also be present (detects accidental field additions).
+    expect(prismaSelectsTest).toContain('Object.keys(BM_MR_MATCH_LEAN_SELECT)');
+    expect(prismaSelectsTest).toContain('EXPECTED_FIELDS');
   });
 
   it('keeps TC-1090-1091 aligned with overall-ranking static and unit coverage', () => {

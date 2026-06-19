@@ -876,10 +876,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const bOverride = b.qualification.rankOverride != null;
         if (aOverride !== bOverride) return aOverride ? -1 : 1;
         if (aOverride) {
-          if (b.qualification.rankOverride == null) return -1;
-          if (a.qualification.rankOverride == null) return 1;
-          const aRankOverride = a.qualification.rankOverride;
-          const bRankOverride = b.qualification.rankOverride;
+          // Both aOverride and bOverride are true here (line 877 returns early when they differ),
+          // so rankOverride is guaranteed non-null for both.
+          const aRankOverride = a.qualification.rankOverride!;
+          const bRankOverride = b.qualification.rankOverride!;
           if (aRankOverride !== bRankOverride) return aRankOverride - bRankOverride;
 
           // When manual overrides collide on the same rank value, prefer the
