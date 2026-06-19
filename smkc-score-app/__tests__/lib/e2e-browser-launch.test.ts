@@ -269,6 +269,12 @@ describe('E2E browser launch helpers', () => {
       });
     });
 
+    it('returns null when lock target contains no dash', () => {
+      jest.spyOn(fs, 'readlinkSync').mockReturnValue('nodashhere');
+
+      expect(common.detectSingletonLockOwner('/tmp/test-profile')).toBeNull();
+    });
+
     it('returns null when lock target has no parseable PID', () => {
       jest.spyOn(fs, 'readlinkSync').mockReturnValue('AzMacMiniM4.local-notanumber');
 
@@ -276,7 +282,9 @@ describe('E2E browser launch helpers', () => {
     });
 
     it('keeps TC-2360 documented as SingletonLock live-owner fast-fail coverage', () => {
-      expect(common.detectSingletonLockOwner).toBeInstanceOf(Function);
+      const commonLib = fs.readFileSync(path.join(__dirname, '../../e2e/lib/common.js'), 'utf8');
+      expect(commonLib).toContain("err.code === 'EPERM'");
+      expect(commonLib).toContain('lockOwner?.alive');
     });
   });
 
