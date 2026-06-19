@@ -142,6 +142,19 @@
 - **期待結果**: stdout JSON auth error は TC-2161 の stderr auth error と同様に non-blocking として扱われ、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
+## TC-2385: Preview D1 preflight は Wrangler stdout JSON Cloudflare API 7403 を auth setup noise として扱う
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
+- **背景**: issue #2385。Wrangler が Cloudflare API permission failure を stdout JSON の `error.code: 7403` と `notes[].text: "The given account is not valid or is not authorized..."` として返す場合、stderr は空のまま非ゼロ終了する。これは schema drift ではなく token/account setup failure なので、通常 preview E2E では TC-2161/TC-2333 と同じ non-blocking preflight warning に分類する必要がある。
+- **手順**:
+  1. Wrangler が `stderr: ""` / `stdout: {"error":{"code":7403,"notes":[{"text":"The given account is not valid or is not authorized to access this service [code: 7403]"}]}}` を返す preflight を模擬する
+  2. `isWranglerStdoutAuthError` が stdout JSON 内の Cloudflare API 7403 authorization failure を検出することを確認する
+  3. 通常の `npm run e2e:preview:all` 相当では警告を出して preflight を通過することを確認する (`console.warn` に `stdout:`, `7403`, `not valid or is not authorized` が含まれる)
+  4. `E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1` 指定時は同じ stdout auth error がブラウザ起動前に失敗することを確認する
+  5. `error.code: 7403` だけで authorization 文言がない stdout JSON は auth setup noise として扱わないことを確認する
+- **期待結果**: Cloudflare API 7403 authorization stdout JSON は通常 preview E2E を本体開始前に止めず、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2334: BM 16-player finals — duplicate rankOverride collision は latest rankOverrideAt を優先する
 - **URL**: `/api/tournaments/[id]/bm/finals`
 - **authRequired**: true (admin)
