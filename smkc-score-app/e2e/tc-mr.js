@@ -786,7 +786,7 @@ async function runTc608(adminPage) {
     const finalStandings = await apiFetchMrStandings(adminPage, tournamentId);
     // Incorporate standings failures as a boolean flag so log() is always reached
     // even when assertMrStandingStats throws — avoids bypassing the explicit log call (issue #2370)
-    let standingsErr608 = '';
+    let standingsErr = '';
     try {
       assertMrStandingStats(finalStandings, match.player1Id, {
         matchesPlayed: 1,
@@ -805,12 +805,12 @@ async function runTc608(adminPage) {
         score: 0,
       });
     } catch (e) {
-      standingsErr608 = e instanceof Error ? e.message : 'standings check failed';
+      standingsErr = e instanceof Error ? e.message : 'standings check failed';
     }
 
     log('TC-608',
-      p1Waiting && stillPending && autoConfirmed && isComplete && !standingsErr608 ? 'PASS' : 'FAIL',
-      standingsErr608 ? standingsErr608
+      p1Waiting && stillPending && autoConfirmed && isComplete && !standingsErr ? 'PASS' : 'FAIL',
+      standingsErr ? standingsErr
       : !p1Waiting ? 'P1 report did not return waitingFor: player2'
       : !stillPending ? 'Match became completed after single report'
       : !autoConfirmed ? 'P2 report did not auto-confirm'
