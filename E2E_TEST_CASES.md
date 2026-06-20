@@ -155,6 +155,19 @@
 - **期待結果**: Cloudflare API 7403 authorization stdout JSON は通常 preview E2E を本体開始前に止めず、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
+## TC-2427: Preview E2E は managed Playwright cache の実行ファイル欠落を1回だけ自動復旧する
+- **URL**: n/a (runner configuration / preview suite)
+- **authRequired**: true (persistent preview admin profile)
+- **背景**: issue #2427。`npm run e2e:preview:all` が admin session preflight に到達する前に、managed Playwright cache 内の `chromium_headless_shell-*` ディレクトリだけが存在し `chrome-headless-shell` 実行ファイルがない partial cache で失敗した。これは session 不在や app failure ではなく bootstrap failure なので、preview runner は `npm run e2e:install-browser` 相当を1回だけ実行してブラウザ cache を復旧し、その後に admin session preflight を再試行する必要がある。
+- **手順**:
+  1. `launchPreviewAdminSessionBrowser` が `Executable doesn't exist` / `chrome-headless-shell` を含む Playwright 起動エラーを返すケースを模擬する
+  2. `assertPreviewAdminSession` が `node e2e/install-browser.js chromium` を preview runtime env で1回だけ実行することを確認する
+  3. install 成功後、同じ admin session preflight を再試行して `/api/auth/session-status` を確認することを確認する
+  4. install 後も失敗する場合は、元の起動エラーを隠さず install 失敗として返す
+  5. admin session 不在 (`No active session`) は browser cache 問題ではないため自動loginせず、従来どおり `E2E_PROFILE_DIR=/tmp/playwright-smkc-preview-profile npm run e2e:preview:login` を案内して失敗する
+- **期待結果**: partial managed cache は preview runner が1回だけ自己修復し、認証が必要な blocker は admin-session preflight の明確なメッセージに集約される。`pkill -f chromium` は使用しない
+- **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/run-preview.test.ts __tests__/docs/e2e-cases-drift.test.ts`
+
 ## TC-2360: Preview E2E は live な SingletonLock 保持プロセス検出で fast-fail する
 - **URL**: n/a (browser launch / preview suite)
 - **authRequired**: true (persistent preview admin profile)
