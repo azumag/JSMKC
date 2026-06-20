@@ -277,24 +277,22 @@ describe('preview schema preflight', () => {
     expect(preflight.isWranglerStdoutAuthError('not json at all')).toBe(false);
   });
 
+  // Shared fixture for a real Cloudflare API 7403 authorization error in Wrangler stdout JSON.
+  const STUB_7403_STDOUT = JSON.stringify({
+    error: {
+      text: 'A request to the Cloudflare API (/accounts/example/d1/database/example/query) failed.',
+      notes: [{ text: 'The given account is not valid or is not authorized to access this service [code: 7403]' }],
+      kind: 'error',
+      name: 'APIError',
+      code: 7403,
+      accountTag: 'example',
+    },
+  });
+
   it('detects Cloudflare API 7403 authorization errors in Wrangler stdout JSON', () => {
     const preflight = loadPreflight();
-    const stdoutJson = JSON.stringify({
-      error: {
-        text: 'A request to the Cloudflare API (/accounts/example/d1/database/example/query) failed.',
-        notes: [
-          {
-            text: 'The given account is not valid or is not authorized to access this service [code: 7403]',
-          },
-        ],
-        kind: 'error',
-        name: 'APIError',
-        code: 7403,
-        accountTag: 'example',
-      },
-    });
 
-    expect(preflight.isWranglerStdoutAuthError(stdoutJson)).toBe(true);
+    expect(preflight.isWranglerStdoutAuthError(STUB_7403_STDOUT)).toBe(true);
     expect(preflight.isWranglerStdoutAuthError('{"error":{"code":7403,"notes":[{"text":"database missing table"}]}}')).toBe(false);
   });
 
@@ -325,20 +323,7 @@ describe('preview schema preflight', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
       status: 1,
-      stdout: JSON.stringify({
-        error: {
-          text: 'A request to the Cloudflare API (/accounts/example/d1/database/example/query) failed.',
-          notes: [
-            {
-              text: 'The given account is not valid or is not authorized to access this service [code: 7403]',
-            },
-          ],
-          kind: 'error',
-          name: 'APIError',
-          code: 7403,
-          accountTag: 'example',
-        },
-      }),
+      stdout: STUB_7403_STDOUT,
       stderr: '',
     });
 
@@ -375,19 +360,7 @@ describe('preview schema preflight', () => {
     const preflight = loadPreflight();
     spawnSyncMock.mockReturnValue({
       status: 1,
-      stdout: JSON.stringify({
-        error: {
-          text: 'A request to the Cloudflare API (/accounts/example/d1/database/example/query) failed.',
-          notes: [
-            {
-              text: 'The given account is not valid or is not authorized to access this service [code: 7403]',
-            },
-          ],
-          kind: 'error',
-          name: 'APIError',
-          code: 7403,
-        },
-      }),
+      stdout: STUB_7403_STDOUT,
       stderr: '',
     });
 

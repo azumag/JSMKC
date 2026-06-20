@@ -82,15 +82,19 @@ function isWranglerAuthOrLogFailure(stderr) {
 }
 
 // Detects auth/setup errors that Wrangler emits in stdout JSON instead of stderr.
+// Patterns 1 & 2 (CLOUDFLARE_API_TOKEN / non-interactive) are exclusive to auth errors
+// in practice, so matching them anywhere in the error text is safe.
+// Pattern 3 (notes text) additionally requires code===7403 to avoid false-positives from
+// unrelated Cloudflare errors that happen to contain the authorization phrase.
 function isWranglerStdoutAuthError(stdout) {
   const parsed = extractWranglerJson(stdout);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
   const errorField = parsed.error;
   const notes = Array.isArray(errorField?.notes) ? errorField.notes : [];
+  // errorField?.name ('APIError' etc.) is excluded: it never matches the auth patterns below.
   const text = [
     typeof errorField === 'string' ? errorField : '',
     errorField?.text,
-    errorField?.name,
     ...notes.map((note) => note?.text),
   ].filter(Boolean).join('\n');
   return (

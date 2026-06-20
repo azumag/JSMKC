@@ -214,6 +214,7 @@ describe('E2E browser launch helpers', () => {
     expect(formatted).toContain('Recommended bootstrap:');
     expect(formatted).toContain('PLAYWRIGHT_BROWSERS_PATH=/tmp/jsmkc-browser-home/ms-playwright npm run e2e:install-browser');
     expect(formatted).toContain('E2E_EXECUTABLE_PATH=/absolute/path/to/chromium-compatible-browser');
+    delete process.env.PLAYWRIGHT_BROWSERS_PATH;
   });
 
   describe('formatE2EErrorForLog', () => {
@@ -306,9 +307,11 @@ describe('E2E browser launch helpers', () => {
     });
 
     it('keeps TC-2360 documented as SingletonLock live-owner fast-fail coverage', () => {
-      const commonLib = fs.readFileSync(path.join(__dirname, '../../e2e/lib/common.js'), 'utf8');
-      expect(commonLib).toContain("err.code === 'EPERM'");
-      expect(commonLib).toContain('lockOwner?.alive');
+      // EPERM behavior is covered by 'treats EPERM as alive' above.
+      // This sentinel verifies detectSingletonLockOwner is exported and TC-2360 is documented.
+      const doc = fs.readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
+      expect(doc).toContain('TC-2360');
+      expect(common.detectSingletonLockOwner).toBeInstanceOf(Function);
     });
   });
 
