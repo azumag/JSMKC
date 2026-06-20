@@ -1958,6 +1958,12 @@ describe('E2E case drift coverage', () => {
     expect(tc1083).not.toContain('waitForTimeout(3000)');
   });
 
+  it('keeps TC-608 assertMrStandingStats wrapped in try-catch to avoid bypassing log()', () => {
+    const tc608 = sectionBetween(tcMr, 'async function runTc608', 'async function runTc609');
+    // assertMrStandingStats must be wrapped in try-catch to avoid bypassing log() (issue #2370/#2425)
+    expect(tc608).toContain('standingsErr');
+  });
+
   it('keeps TC-1082 aligned with shared BM/MR participant score input coverage', () => {
     const section = e2eCaseSection('TC-1082');
     const bmPage = readRepoFile(
