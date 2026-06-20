@@ -133,6 +133,8 @@ describe('useBroadcastReflect', () => {
 
       // Verifies the exact timer handle is cancelled, not just that clearTimeout was called
       expect(clearTimeoutSpy).toHaveBeenCalledWith(timerId);
+      // Unmount must cancel exactly once — guards against double-cancel regressions
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
     });
 
     it('replaces the previous idle reset timer when reflecting again', async () => {
@@ -175,6 +177,8 @@ describe('useBroadcastReflect', () => {
       expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
       // Verifies the exact timer handle is cancelled (issue #1959)
       expect(clearTimeoutSpy).toHaveBeenCalledWith(timerId);
+      // Reset must cancel exactly once — guards against double-cancel regressions (issue #2429)
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
       expect(result.current.broadcastStatus).toBe('idle');
     });
 
