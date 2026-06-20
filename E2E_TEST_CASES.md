@@ -3509,10 +3509,10 @@
 - **手順**:
   1. `useBroadcastReflect` を `renderHook` でマウントし、`handleBroadcastReflect()` を呼んでタイマーをスケジュールする
   2. `setTimeoutSpy.mock.results[0].value` でタイマー ID を捕捉する
-  3. `resetBroadcastStatus()` / `unmount()` のいずれかを実行する
+  3. `resetBroadcastStatus()` / `unmount()` / 再反映 のいずれかを実行する
   4. `clearTimeoutSpy` が捕捉したタイマー ID と同じ値で呼ばれたことを確認する
-  5. `clearTimeoutSpy` のコール回数が 1 であることを確認する（二重キャンセル防止）
-- **期待結果**: `clearTimeout` は常に「直前の `setTimeout` が返した正しい ID」で、かつ 1 回だけ呼ばれる
+  5. unmount / resetBroadcastStatus パスでは `clearTimeoutSpy` のコール回数が 1 であることを確認する（二重キャンセル防止）
+- **期待結果**: `clearTimeout` は常に「直前の `setTimeout` が返した正しい ID」で呼ばれる。unmount/reset パスでは 1 回だけ呼ばれる
 - **スクリプト**: `__tests__/lib/hooks/use-broadcast-reflect.test.ts`
 
 ## TC-897: TAタイム入力欄フォーカス時にスマホ数字キーボードを出す
