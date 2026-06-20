@@ -1,6 +1,9 @@
 import {
-  TA_FINALS_ROUND_ENTRY_ROW_CLASS,
-  TA_FINALS_ROUND_PLAYER_NAME_CLASS,
+  TA_TIME_ENTRY_CONTROLS_CLASS,
+  TA_TIME_ENTRY_INPUT_CLASS,
+  TA_TIME_ENTRY_PLAYER_LABEL_CLASS,
+  TA_TIME_ENTRY_PLAYER_NAME_CLASS,
+  TA_TIME_ENTRY_ROW_CLASS,
   TA_TIME_ENTRY_CUP_GRID_CLASS,
   TA_TIME_INPUT_BASE_PROPS,
   TA_TIME_INPUT_HELP_CLASS,
@@ -39,12 +42,24 @@ describe("TA time entry layout", () => {
     );
   });
 
-  it("keeps TA finals player names on their own mobile row before sm layout", () => {
-    expect(TA_FINALS_ROUND_ENTRY_ROW_CLASS.split(" ")).toEqual(
+  it("keeps TA time entry player names on their own mobile row before sm layout", () => {
+    expect(TA_TIME_ENTRY_ROW_CLASS.split(" ")).toEqual(
       expect.arrayContaining(["space-y-2", "sm:flex", "sm:space-y-0"]),
     );
-    expect(TA_FINALS_ROUND_PLAYER_NAME_CLASS.split(" ")).toEqual(
+    expect(TA_TIME_ENTRY_PLAYER_NAME_CLASS.split(" ")).toEqual(
       expect.arrayContaining(["block", "truncate", "text-base", "sm:text-sm"]),
+    );
+  });
+
+  it("player-label, controls, and input constants carry expected Tailwind tokens", () => {
+    expect(TA_TIME_ENTRY_PLAYER_LABEL_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["min-w-0", "sm:flex-1"]),
+    );
+    expect(TA_TIME_ENTRY_CONTROLS_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["sm:flex", "sm:shrink-0"]),
+    );
+    expect(TA_TIME_ENTRY_INPUT_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["font-mono", "text-sm"]),
     );
   });
 

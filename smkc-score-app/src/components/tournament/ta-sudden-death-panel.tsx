@@ -28,7 +28,7 @@ import {
 import { COURSE_INFO } from "@/lib/constants";
 import { autoFormatTime, timeToMs } from "@/lib/ta/time-utils";
 import {
-  TA_FINALS_TIME_INPUT_CLASS,
+  TA_TIME_ENTRY_INPUT_CLASS,
   TA_TIME_INPUT_HELP_CLASS,
 } from "@/lib/ta/time-entry-layout";
 
@@ -297,7 +297,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
                 value={suddenDeathTimes[entry.playerId] || ""}
                 onChange={(event) => onTimeChange(entry.playerId, event.target.value)}
                 onBlur={() => onTimeBlur(entry.playerId)}
-                className={TA_FINALS_TIME_INPUT_CLASS}
+                className={TA_TIME_ENTRY_INPUT_CLASS}
               />
             </div>
           ))}
