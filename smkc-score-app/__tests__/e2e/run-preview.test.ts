@@ -266,24 +266,15 @@ describe('preview E2E runner', () => {
       close,
     });
 
-    await expect(
-      runner.assertPreviewAdminSession({
-        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
-        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
-      }, launchBrowser as never),
-    ).rejects.toThrow(/Preview E2E admin session preflight failed/);
-    await expect(
-      runner.assertPreviewAdminSession({
-        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
-        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
-      }, launchBrowser as never),
-    ).rejects.toThrow(/No active session/);
-    await expect(
-      runner.assertPreviewAdminSession({
-        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
-        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
-      }, launchBrowser as never),
-    ).rejects.toThrow(/npm run e2e:preview:login/);
+    // Consolidate into a single call: catch the error once and assert all message parts (#2365).
+    const err = await runner.assertPreviewAdminSession({
+      E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+      E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+    }, launchBrowser as never).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/Preview E2E admin session preflight failed/);
+    expect((err as Error).message).toMatch(/No active session/);
+    expect((err as Error).message).toMatch(/npm run e2e:preview:login/);
     expect(close).toHaveBeenCalled();
   });
 
