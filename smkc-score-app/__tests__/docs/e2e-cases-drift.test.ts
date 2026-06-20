@@ -1245,11 +1245,12 @@ describe('E2E case drift coverage', () => {
     expect(helperAliasCallGuardSection).toContain('同一の `throwUnexpectedMockCall(...)` 呼び出し');
     expect(groupSetupHelperTest).not.toContain('const expectedPageRoleLookups');
     expect(groupSetupHelperTest).not.toContain('const actualPageRoleLookup');
-    expect(callExpressionWithArguments(groupSetupHelperTest, 'throwUnexpectedMockCall', [
+    // Throwing on not-found is the assertion — the return value always contains the required args
+    callExpressionWithArguments(groupSetupHelperTest, 'throwUnexpectedMockCall', [
       "'page.getByRole'",
       'roleLookup(_role, name)',
       'EXPECTED_PAGE_ROLE_LOOKUPS',
-    ])).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
+    ]);
     expect(guard).toContain("e2eCaseSection('TC-1007')");
     expect(guard).toContain("e2eCaseSection('TC-1678')");
     expect(guard).toContain("not.toContain('groupCount={groupCount}')");

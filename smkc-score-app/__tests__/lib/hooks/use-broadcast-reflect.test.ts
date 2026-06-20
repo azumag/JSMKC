@@ -119,6 +119,7 @@ describe('useBroadcastReflect', () => {
     it('clears the pending idle reset timer on unmount', async () => {
       mockFetchOk();
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
       const { result, unmount } = renderHook(() =>
         useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
       );
@@ -127,14 +128,17 @@ describe('useBroadcastReflect', () => {
         await result.current.handleBroadcastReflect();
       });
 
+      const timerId = setTimeoutSpy.mock.results[0].value;
       unmount();
 
-      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+      // Verifies the exact timer handle is cancelled, not just that clearTimeout was called
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(timerId);
     });
 
     it('replaces the previous idle reset timer when reflecting again', async () => {
       mockFetchOk();
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
       const { result } = renderHook(() =>
         useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
       );
@@ -142,11 +146,13 @@ describe('useBroadcastReflect', () => {
       await act(async () => {
         await result.current.handleBroadcastReflect();
       });
+      const firstTimerId = setTimeoutSpy.mock.results[0].value;
       await act(async () => {
         await result.current.handleBroadcastReflect();
       });
 
-      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+      // The first timer must be cleared before scheduling the replacement
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(firstTimerId);
     });
 
     it('cancels a pending idle reset when resetBroadcastStatus is called', async () => {
@@ -161,12 +167,14 @@ describe('useBroadcastReflect', () => {
         await result.current.handleBroadcastReflect();
       });
 
+      const timerId = setTimeoutSpy.mock.results[0].value;
       act(() => {
         result.current.resetBroadcastStatus();
       });
 
       expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
-      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+      // Verifies the exact timer handle is cancelled (issue #1959)
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(timerId);
       expect(result.current.broadcastStatus).toBe('idle');
     });
 
