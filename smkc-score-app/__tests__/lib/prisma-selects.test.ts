@@ -16,6 +16,8 @@ describe('prisma selects', () => {
       'id', 'tournamentId', 'player1Id', 'player2Id',
       'score1', 'score2', 'rounds', 'completed', 'isBye',
     ];
-    expect(Object.keys(BM_MR_MATCH_LEAN_SELECT)).toEqual(EXPECTED_FIELDS);
+    // Use Set comparison so field definition order in BM_MR_MATCH_LEAN_SELECT doesn't
+    // cause false-positive failures when the object is semantically unchanged.
+    expect(new Set(Object.keys(BM_MR_MATCH_LEAN_SELECT))).toEqual(new Set(EXPECTED_FIELDS));
   });
 });

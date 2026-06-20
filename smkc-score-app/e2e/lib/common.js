@@ -445,7 +445,8 @@ function formatE2EErrorForLog(error) {
   if (message.includes('Recommended bootstrap:') && !stack.includes('Recommended bootstrap:')) {
     return `${stack}\n${message}`;
   }
-  // !stack was already handled above, so stack is always truthy here
+  // Node.js Error instances always have .stack; the guard above covers any edge case,
+  // so stack is guaranteed non-empty at this point.
   return stack;
 }
 
