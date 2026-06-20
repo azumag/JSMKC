@@ -1690,9 +1690,12 @@ async function resolveSuddenDeathThroughSharedCard(adminPage, tournamentId, phas
   }
   // Wait for the panel to disappear after React re-renders with the resolved sudden-death
   // state, rather than sleeping a fixed interval that may be too short on CI.
-  // The .catch is intentional: callers verify results via direct API fetches, not DOM
-  // state, so a detached/already-hidden panel is not a failure signal here.
-  await panel.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+  // Catch is intentional for detached/closed cases: callers verify results via direct API
+  // fetches, not DOM state. Timeout errors are re-thrown because 10 s without going hidden
+  // likely indicates a real UI regression.
+  await panel.waitFor({ state: 'hidden', timeout: 10000 }).catch((e) => {
+    if (/Timeout|timed out/i.test(e.message)) throw e;
+  });
   return changedCourse;
 }
 
@@ -2182,7 +2185,10 @@ async function runTc2400(adminPage) {
     const entries = phaseData.b?.data?.entries ?? [];
     if (entries.length !== 8) throw new Error(`phase1 entries=${entries.length}, expected 8`);
 
-    const results = entries.map((entry, index) => ({
+    // Sort entries by playerId for stable ordering — API return order is not guaranteed,
+    // so relying on index position to decide who gets 100000ms would be fragile.
+    const sortedEntries = [...entries].sort((a, b) => a.playerId.localeCompare(b.playerId));
+    const results = sortedEntries.map((entry, index) => ({
       playerId: entry.playerId,
       timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
     }));
@@ -2236,16 +2242,18 @@ async function runTc2400(adminPage) {
     }
 
     // Path B: submit continuation round with a unique-slowest player → no continuation, that player eliminated.
-    // slowerPlayerId receives 92000ms; fasterPlayerId receives 88000ms.
-    const slowerPlayerId = contTargets[0];
-    const fasterPlayerId = contTargets[1];
+    // Use neutral names here — who is "slower" is determined by the time values we assign below,
+    // not by the array index. targetA gets 92000ms (slower → eliminated); targetB gets 88000ms (faster → survives).
+    const targetA = contTargets[0];
+    const targetB = contTargets[1];
+    const expectedEliminatedId = targetA; // targetA receives the higher (slower) time
     const resolved = await apiPostTaPhase(adminPage, tournamentId, {
       action: 'submit_sudden_death',
       phase,
       suddenDeathRoundId: contSd.id,
       results: [
-        { playerId: slowerPlayerId, timeMs: 92000 },
-        { playerId: fasterPlayerId, timeMs: 88000 },
+        { playerId: targetA, timeMs: 92000 }, // slower → eliminated
+        { playerId: targetB, timeMs: 88000 }, // faster → survives
       ],
     });
     if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired === true) {
@@ -2260,14 +2268,14 @@ async function runTc2400(adminPage) {
     const suddenHistory = round?.suddenDeathRounds ?? [];
 
     const ok = eliminated.length === 1 &&
-      eliminated[0] === slowerPlayerId &&
+      eliminated[0] === expectedEliminatedId &&
       suddenHistory.length === 2 &&
       suddenHistory.every((s) => s.resolved === true);
 
     log('TC-2400', ok ? 'PASS' : 'FAIL',
       ok ? ''
       : eliminated.length !== 1 ? `expected 1 eliminated, got ${eliminated.length}`
-      : eliminated[0] !== slowerPlayerId ? `wrong player eliminated: got ${eliminated[0]} expected ${slowerPlayerId}`
+      : eliminated[0] !== expectedEliminatedId ? `wrong player eliminated: got ${eliminated[0]} expected ${expectedEliminatedId}`
       : `suddenHistory=${JSON.stringify(suddenHistory)}`);
   } catch (err) {
     log('TC-2400', 'FAIL', err instanceof Error ? err.message : 'TA phase1 sudden-death continuation failed');

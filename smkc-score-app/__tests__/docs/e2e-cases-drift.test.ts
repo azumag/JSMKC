@@ -2984,6 +2984,38 @@ describe('E2E case drift coverage', () => {
     // to transition to hidden state instead (deterministic, not time-dependent).
     expect(resolveSuddenDeathSection).not.toContain('waitForTimeout');
     expect(resolveSuddenDeathSection).toContain("state: 'hidden'");
+    // #2417: catch must not be empty — timeout errors (panel not going hidden) should
+    // be re-thrown so callers can detect UI regressions. Only detached/closed errors
+    // are silently ignored because callers verify results via direct API fetches.
+    expect(resolveSuddenDeathSection).not.toContain('.catch(() => {})');
+    expect(resolveSuddenDeathSection).toContain('throw e');
+  });
+
+  it('keeps TC-2415 E2E scenario documenting correct shadcn/ui SelectContent attribute (#2416)', () => {
+    const section = e2eCaseSection('TC-2415');
+    // The correct attribute added by shadcn/ui select.tsx wrapper is data-slot="select-content",
+    // not data-radix-select-content which Radix UI itself does not emit.
+    expect(section).toContain('[data-slot="select-content"]');
+    expect(section).not.toContain('[data-radix-select-content]');
+  });
+
+  it('keeps TC-2400 using stable sorted entry order and neutral variable names (#2401 #2402)', () => {
+    // runTc2400 is the last function before getSuite; use allowTerminal to read until end.
+    const tc2400Section = sectionBetween(
+      tcTa,
+      'async function runTc2400(',
+      'function getSuite(',
+    );
+    // #2401: entries must be sorted by playerId before time assignment to avoid
+    // fragile dependence on the API's return order.
+    expect(tc2400Section).toContain('localeCompare');
+    // #2402: variable names must not imply speed before time values are assigned;
+    // neutral names (targetA/targetB) are used instead of slowerPlayerId/fasterPlayerId.
+    expect(tc2400Section).not.toContain('slowerPlayerId');
+    expect(tc2400Section).not.toContain('fasterPlayerId');
+    expect(tc2400Section).toContain('targetA');
+    expect(tc2400Section).toContain('targetB');
+    expect(tc2400Section).toContain('expectedEliminatedId');
   });
 
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {

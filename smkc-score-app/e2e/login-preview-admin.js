@@ -42,8 +42,8 @@ async function isAuthenticated(page) {
       throw error;
     }
 
-    // Use console.log (not console.debug) so CI environments don't suppress this. (#1965)
-    console.log(`[preview-login] ignoring transient Playwright ${PLAYWRIGHT_VERSION} login polling error`);
+    // Use console.warn (not console.debug/log) so CI environments don't suppress this. (#1965)
+    console.warn(`[preview-login] ignoring transient Playwright ${PLAYWRIGHT_VERSION} login polling error`);
     // Discord OAuth redirects can destroy the current page execution context
     // while the helper is polling. Treat those transient Playwright errors the
     // same as "not authenticated yet" so the manual login window remains open.
