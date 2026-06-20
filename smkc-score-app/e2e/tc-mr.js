@@ -389,29 +389,37 @@ async function runTc1083(adminPage) {
     const correctedMr = await apiFetchMr(adminPage, tournamentId);
     const correctedMatch = (correctedMr.matches || []).find((m) => m.id === match.id);
     const correctedStandings = await apiFetchMrStandings(adminPage, tournamentId);
-    assertMrStandingStats(correctedStandings, p1.id, {
-      matchesPlayed: 1,
-      wins: 0,
-      ties: 1,
-      losses: 0,
-      points: 0,
-      score: 1,
-    });
-    assertMrStandingStats(correctedStandings, match.player2Id, {
-      matchesPlayed: 1,
-      wins: 0,
-      ties: 1,
-      losses: 0,
-      points: 0,
-      score: 1,
-    });
+    // Incorporate standings failures as a boolean flag so log() is always reached
+    // even when assertMrStandingStats throws — avoids bypassing the explicit log call (issue #2370)
+    let standingsErr = '';
+    try {
+      assertMrStandingStats(correctedStandings, p1.id, {
+        matchesPlayed: 1,
+        wins: 0,
+        ties: 1,
+        losses: 0,
+        points: 0,
+        score: 1,
+      });
+      assertMrStandingStats(correctedStandings, match.player2Id, {
+        matchesPlayed: 1,
+        wins: 0,
+        ties: 1,
+        losses: 0,
+        points: 0,
+        score: 1,
+      });
+    } catch (e) {
+      standingsErr = e instanceof Error ? e.message : 'standings check failed';
+    }
     const ok =
+      !standingsErr &&
       correctedMatch?.completed === true &&
       correctedMatch.score1 === 2 &&
       correctedMatch.score2 === 2;
 
     log('TC-1083', ok ? 'PASS' : 'FAIL',
-      ok ? ''
+      standingsErr ? standingsErr
       : !correctedMatch ? 'Corrected MR match not found'
       : `completed=${correctedMatch.completed} score=${correctedMatch.score1}-${correctedMatch.score2}`);
   } catch (err) {
@@ -776,26 +784,34 @@ async function runTc608(adminPage) {
     const finalMatch = (finalCheck.matches || []).find((m) => m.id === match.id);
     const isComplete = finalMatch?.completed === true && finalMatch.score1 === 3 && finalMatch.score2 === 1;
     const finalStandings = await apiFetchMrStandings(adminPage, tournamentId);
-    assertMrStandingStats(finalStandings, match.player1Id, {
-      matchesPlayed: 1,
-      wins: 1,
-      ties: 0,
-      losses: 0,
-      points: 2,
-      score: 2,
-    });
-    assertMrStandingStats(finalStandings, match.player2Id, {
-      matchesPlayed: 1,
-      wins: 0,
-      ties: 0,
-      losses: 1,
-      points: -2,
-      score: 0,
-    });
+    // Incorporate standings failures as a boolean flag so log() is always reached
+    // even when assertMrStandingStats throws — avoids bypassing the explicit log call (issue #2370)
+    let standingsErr608 = '';
+    try {
+      assertMrStandingStats(finalStandings, match.player1Id, {
+        matchesPlayed: 1,
+        wins: 1,
+        ties: 0,
+        losses: 0,
+        points: 2,
+        score: 2,
+      });
+      assertMrStandingStats(finalStandings, match.player2Id, {
+        matchesPlayed: 1,
+        wins: 0,
+        ties: 0,
+        losses: 1,
+        points: -2,
+        score: 0,
+      });
+    } catch (e) {
+      standingsErr608 = e instanceof Error ? e.message : 'standings check failed';
+    }
 
     log('TC-608',
-      p1Waiting && stillPending && autoConfirmed && isComplete ? 'PASS' : 'FAIL',
-      !p1Waiting ? 'P1 report did not return waitingFor: player2'
+      p1Waiting && stillPending && autoConfirmed && isComplete && !standingsErr608 ? 'PASS' : 'FAIL',
+      standingsErr608 ? standingsErr608
+      : !p1Waiting ? 'P1 report did not return waitingFor: player2'
       : !stillPending ? 'Match became completed after single report'
       : !autoConfirmed ? 'P2 report did not auto-confirm'
       : !isComplete ? `Final state: completed=${finalMatch?.completed} score=${finalMatch?.score1}-${finalMatch?.score2}`
