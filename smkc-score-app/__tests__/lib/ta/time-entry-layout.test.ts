@@ -51,10 +51,16 @@ describe("TA time entry layout", () => {
     );
   });
 
-  it("time entry layout constants cover all shared row elements", () => {
-    expect(TA_TIME_ENTRY_PLAYER_LABEL_CLASS).toContain("sm:flex-1");
-    expect(TA_TIME_ENTRY_CONTROLS_CLASS).toContain("sm:flex");
-    expect(TA_TIME_ENTRY_INPUT_CLASS).toContain("font-mono");
+  it("player-label, controls, and input constants carry expected Tailwind tokens", () => {
+    expect(TA_TIME_ENTRY_PLAYER_LABEL_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["min-w-0", "sm:flex-1"]),
+    );
+    expect(TA_TIME_ENTRY_CONTROLS_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["sm:flex", "sm:shrink-0"]),
+    );
+    expect(TA_TIME_ENTRY_INPUT_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["font-mono", "text-sm"]),
+    );
   });
 
   it("parses TV number input with explicit radix", () => {
