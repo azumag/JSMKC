@@ -165,6 +165,7 @@
   3. install 成功後、同じ admin session preflight を再試行して `/api/auth/session-status` を確認することを確認する
   4. install 後も失敗する場合は、元の起動エラーを隠さず install 失敗として返す
   5. admin session 不在 (`No active session`) は browser cache 問題ではないため自動loginせず、従来どおり `E2E_PROFILE_DIR=/tmp/playwright-smkc-preview-profile npm run e2e:preview:login` を案内して失敗する
+  6. `isMissingPlaywrightExecutableError` は `"Executable doesn't exist"` + `"playwright install"` の組み合わせも検出する（`chrome-headless-shell` / `chromium_headless_shell` パスがない場合の Playwright フォールバックメッセージ）。なおサンプルパスはプラットフォームによって異なる（`linux-x64`, `mac-arm64` 等）が検出は部分文字列一致で行う
 - **期待結果**: partial managed cache は preview runner が1回だけ自己修復し、認証が必要な blocker は admin-session preflight の明確なメッセージに集約される。`pkill -f chromium` は使用しない
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/run-preview.test.ts __tests__/docs/e2e-cases-drift.test.ts`
 
