@@ -66,6 +66,7 @@ describe('tc-all focused suite registration', () => {
     };
 
     expect(rootPage.context).not.toHaveBeenCalled();
+    // 0 = detected-and-resolved violations count; the mock env triggers no parallel violations.
     await expect(assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta'))
       .resolves.toBe(0);
     expect(rootPage.context).toHaveBeenCalled();

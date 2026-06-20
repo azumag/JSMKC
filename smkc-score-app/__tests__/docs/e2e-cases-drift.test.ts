@@ -1254,7 +1254,7 @@ describe('E2E case drift coverage', () => {
     expect(disabledButtonSection).toContain('issue #1680');
     expect(disabledButtonSection).toContain('disabled');
     expect(outlineButtonSection).toContain('issue #1682');
-    expect(outlineButtonSection).toContain('variant="outline"');
+    expect(outlineButtonSection).toContain('variant="secondary"');
     expect(helperAliasSection).toContain('issue #1980 / #1982');
     expect(helperAliasSection).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
     expect(helperAliasGuardSection).toContain('issue #2012');
@@ -1274,7 +1274,7 @@ describe('E2E case drift coverage', () => {
     expect(guard).toContain("not.toContain('groupCount={groupCount}')");
     expect(guard).toContain("not.toContain('setGroupCount={setGroupCount}')");
     expect(guard).toContain("expect(groupCountButton).toContain('disabled')");
-    expect(guard).toContain('expect(groupCountButton).toContain(\'variant="outline"\')');
+    expect(guard).toContain('expect(groupCountButton).toContain(\'variant="secondary"\')');
   });
 
   it('keeps TC-1004 aligned with the CourseCycleStatus YAGNI guard', () => {

@@ -21,7 +21,7 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
     expect(disabledButtonSection).toContain('issue #1680');
     expect(disabledButtonSection).toContain('disabled');
     expect(outlineButtonSection).toContain('issue #1682');
-    expect(outlineButtonSection).toContain('variant="outline"');
+    expect(outlineButtonSection).toContain('variant="secondary"');
     expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
   });
 
@@ -49,7 +49,8 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
       '</Button>',
     );
     expect(groupCountButton).toContain('disabled');
-    expect(groupCountButton).toContain('variant="outline"');
+    // secondary variant signals a read-only display value rather than an actionable control (#1682)
+    expect(groupCountButton).toContain('variant="secondary"');
     expect(groupCountButton).not.toContain('onClick');
   });
 
