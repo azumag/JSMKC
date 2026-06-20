@@ -121,6 +121,38 @@ async function queryPreviewAdminSession(page) {
   });
 }
 
+function isMissingPlaywrightExecutableError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Executable doesn't exist") &&
+    (
+      message.includes('chrome-headless-shell') ||
+      message.includes('chromium_headless_shell') ||
+      message.includes('playwright install')
+    )
+  );
+}
+
+function installPreviewBrowser(env) {
+  console.warn('[preview] managed Playwright browser executable is missing; running e2e/install-browser.js chromium once.');
+  const result = spawnSync(
+    process.execPath,
+    [path.join(__dirname, 'install-browser.js'), 'chromium'],
+    {
+      cwd: path.join(__dirname, '..'),
+      env,
+      stdio: 'inherit',
+    },
+  );
+
+  if (result.error) {
+    throw new Error(`[preview] failed to bootstrap Playwright browser cache: ${result.error.message}`);
+  }
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`[preview] failed to bootstrap Playwright browser cache: install-browser exited ${result.status ?? 1}`);
+  }
+}
+
 function previewAdminSessionError(env, session) {
   const detail = session?.error
     ? session.error
@@ -141,7 +173,17 @@ async function assertPreviewAdminSession(env, launchBrowser = launchPreviewAdmin
     return { skipped: true };
   }
 
-  const browser = await launchBrowser(env);
+  let browser;
+  try {
+    browser = await launchBrowser(env);
+  } catch (error) {
+    if (!isMissingPlaywrightExecutableError(error)) {
+      throw error;
+    }
+    installPreviewBrowser(env);
+    browser = await launchBrowser(env);
+  }
+
   try {
     const page = browser.pages()[0] || await browser.newPage();
     await page.goto(`${env.E2E_BASE_URL}/tournaments`, {
@@ -209,6 +251,8 @@ module.exports = {
   assertBaseUrlResolvable,
   assertPreviewAdminSession,
   buildPreviewRuntimeEnv,
+  installPreviewBrowser,
+  isMissingPlaywrightExecutableError,
   resolveHostViaPublicDns,
   runTargetScript,
   assertPreviewD1Schema,

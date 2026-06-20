@@ -494,6 +494,21 @@ describe('E2E case drift coverage', () => {
     expect(runnerTest).toContain('fails preview admin session preflight before fixture setup');
   });
 
+  it('keeps TC-2427 aligned with preview browser cache self-recovery coverage', () => {
+    const section = e2eCaseSection('TC-2427');
+    const runner = readE2eScript('run-preview.js');
+    const runnerTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'run-preview.test.ts');
+
+    expect(section).toContain('issue #2427');
+    expect(section).toContain('managed Playwright cache');
+    expect(section).toContain('node e2e/install-browser.js chromium');
+    expect(section).toContain('admin session preflight');
+    expect(runner).toContain('isMissingPlaywrightExecutableError');
+    expect(runner).toContain('installPreviewBrowser');
+    expect(runner).toContain('install-browser.js');
+    expect(runnerTest).toContain('bootstraps a missing managed Playwright browser once');
+  });
+
   it('keeps TC-2207 aligned with preview schema failure pattern coverage', () => {
     const section = e2eCaseSection('TC-2207');
     const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');

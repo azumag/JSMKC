@@ -109,6 +109,13 @@ describe('preview E2E runner', () => {
     expect(typeof runner.assertPreviewAdminSession).toBe('function');
   });
 
+  it('exposes missing Playwright executable detection for preview bootstrap recovery', () => {
+    expect(runner.isMissingPlaywrightExecutableError(
+      new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-arm64/chrome-headless-shell"),
+    )).toBe(true);
+    expect(runner.isMissingPlaywrightExecutableError(new Error('No active session'))).toBe(false);
+  });
+
   it('regenerates Prisma Client before Cloudflare builds used by preview deploys', () => {
     expect(packageJson.scripts['prebuild:cf']).toBe('prisma generate');
     expect(packageJson.scripts['deploy:preview']).toContain('npm run build:cf');
@@ -273,6 +280,60 @@ describe('preview E2E runner', () => {
       }, launchBrowser as never),
     ).rejects.toThrow(/npm run e2e:preview:login/);
     expect(close).toHaveBeenCalled();
+  });
+
+  it('bootstraps a missing managed Playwright browser once before retrying admin session preflight', async () => {
+    const close = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const goto = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const evaluate = jest.fn<() => Promise<unknown>>().mockResolvedValue({
+      status: 200,
+      authenticated: true,
+      body: { data: { authenticated: true, user: { role: 'admin' } } },
+    });
+    const launchBrowser = jest.fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-arm64/chrome-headless-shell"))
+      .mockResolvedValueOnce({
+        pages: () => [{ goto, evaluate }],
+        close,
+      });
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+
+    await expect(
+      runner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+        PLAYWRIGHT_BROWSERS_PATH: '/tmp/playwright-e2e-home/ms-playwright',
+      }, launchBrowser as never),
+    ).resolves.toMatchObject({ authenticated: true });
+
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      process.execPath,
+      [expect.stringContaining('e2e/install-browser.js'), 'chromium'],
+      expect.objectContaining({
+        cwd: expect.stringContaining('smkc-score-app'),
+        env: expect.objectContaining({
+          PLAYWRIGHT_BROWSERS_PATH: '/tmp/playwright-e2e-home/ms-playwright',
+        }),
+        stdio: 'inherit',
+      }),
+    );
+    expect(launchBrowser).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('surfaces install-browser failure when managed cache bootstrap cannot recover', async () => {
+    const launchBrowser = jest.fn<() => Promise<unknown>>()
+      .mockRejectedValue(new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell"));
+    spawnSyncMock.mockReturnValue({ status: 1, stdout: '', stderr: 'download failed' });
+
+    await expect(
+      runner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+      }, launchBrowser as never),
+    ).rejects.toThrow(/failed to bootstrap Playwright browser cache/);
+
+    expect(launchBrowser).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to public DNS when local resolution fails', async () => {
