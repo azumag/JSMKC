@@ -83,6 +83,8 @@ export function e2eCaseSection(tc: string, source = e2eCases) {
   return source.slice(start, end);
 }
 
+// AST-based: regex cannot safely verify all required args appear in the same call expression —
+// nested parens and multi-line formatting make string/regex co-occurrence checks unreliable.
 export function callExpressionWithArguments(
   source: string,
   functionName: string,
