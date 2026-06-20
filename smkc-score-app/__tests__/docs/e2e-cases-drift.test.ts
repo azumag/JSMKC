@@ -1854,7 +1854,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('round');
     expect(section).toContain('createdAt');
     expect(tc2196DriftGuard).toContain('overlayFinalsSelects.length');
-    expect(tc2196DriftGuard).toContain('toBeGreaterThanOrEqual');
+    // Verify the threshold (3) is also checked, not just the assertion name — see issue #2369
+    expect(tc2196DriftGuard).toContain('toBeGreaterThanOrEqual(3)');
   });
   // TC-2224-DRIFT-GUARD-END
 
@@ -1901,7 +1902,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('entry.rankOverride != null');
     expect(section).toContain('rankOverride: undefined');
     expect(serverRanking).toContain('if (entry.rankOverride != null)');
-    expect(serverRanking).not.toContain('const overrideRank = entry.rankOverride != null');
+    // Use regex so a rename of the boolean variable (e.g. overrideRank → hasOverride) still triggers detection — see issue #2353
+    expect(serverRanking).not.toMatch(/const \w+ = entry\.rankOverride != null/);
     expect(serverRankingTest).toContain('treats undefined rankOverride as auto-ranked');
     expect(serverRankingTest).toContain('rankOverride: undefined');
     expect(serverRankingTest).toContain('expect(autoRanked?._rankOverridden).toBeUndefined()');
@@ -1949,6 +1951,8 @@ describe('E2E case drift coverage', () => {
     expect(tc1083).toContain('apiFetchMr');
     expect(tc1083).toContain('apiFetchMrStandings');
     expect(tc1083).toContain('assertMrStandingStats');
+    // assertMrStandingStats must be wrapped in try-catch to avoid bypassing log() (issue #2370)
+    expect(tc1083).toContain('standingsErr');
     expect(mrReportRouteTest).toContain('useRoundDifferential: true');
     expect(mrStandingsAssertionsTest).toContain('MR standings ties for p2');
     expect(tc1083).not.toContain('waitForTimeout(3000)');
@@ -2057,7 +2061,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('suddenDeathWinnerId: null');
     expect(section).toContain('prisma.gPMatch.update');
     expect(section).toContain('gp/finals/route.test.ts');
-    expect(gpFinalsRouteTest).toContain('const updatedMatch = { ...mockMatch, suddenDeathWinnerId: null };');
+    // Use regex to tolerate Prettier line-wrap reformatting — see issue #2375
+    expect(gpFinalsRouteTest).toMatch(/const updatedMatch\s*=\s*\{\s*\.\.\.mockMatch,\s*suddenDeathWinnerId:\s*null\s*\}/);
     expect(gpFinalsRouteTest).not.toMatch(redundantUpdatedMatch);
     expect(gpFinalsRouteTest).toContain('points1: 2');
     expect(gpFinalsRouteTest).toContain('points2: 2');

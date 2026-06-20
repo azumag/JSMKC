@@ -1,4 +1,28 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { assertMrStandingStats, normalizeMrStandingsPayload } from '../../e2e/lib/mr-standings-assertions';
+
+/** Verify .d.ts declarations stay in sync with the CJS module exports (issue #2373) */
+describe('mr-standings-assertions type declaration drift', () => {
+  const dtsPath = path.resolve(__dirname, '../../e2e/lib/mr-standings-assertions.d.ts');
+  const dtsSource = fs.readFileSync(dtsPath, 'utf-8');
+
+  it('.d.ts exports assertMrStandingStats', () => {
+    expect(dtsSource).toContain('export function assertMrStandingStats(');
+  });
+
+  it('.d.ts exports normalizeMrStandingsPayload', () => {
+    expect(dtsSource).toContain('export function normalizeMrStandingsPayload(');
+  });
+
+  it('.d.ts exports MrStandingEntry interface', () => {
+    expect(dtsSource).toContain('export interface MrStandingEntry');
+  });
+
+  it('.d.ts exports MrStandingStats interface', () => {
+    expect(dtsSource).toContain('export interface MrStandingStats');
+  });
+});
 
 describe('MR standings E2E assertions', () => {
   const standingsPayload = {
