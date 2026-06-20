@@ -173,6 +173,9 @@ describe('E2E browser launch helpers', () => {
       process.env.E2E_MAC_SINGLE_PROCESS = '0';
       expect(common.shouldUseMacSingleProcessLaunch()).toBe(false);
       expect(common.getChromiumArgs()).not.toContain('--single-process');
+      // Explicitly restore so the env var doesn't leak past withPlatform's scope;
+      // afterEach also resets it, but this keeps the scope of the mutation explicit.
+      delete process.env.E2E_MAC_SINGLE_PROCESS;
     });
   });
 

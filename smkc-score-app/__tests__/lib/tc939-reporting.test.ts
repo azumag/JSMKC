@@ -11,7 +11,7 @@ describe('describeTc939TabNavigation', () => {
     ({ describeTc939TabNavigation } = (await import('../../e2e/lib/tc939-reporting.js')) as Tc939ReportingModule);
   });
 
-  it('passes with no detail when SPA state and hydrated classes are both valid', async () => {
+  it('passes with no detail when SPA state and hydrated classes are both valid', () => {
     expect(describeTc939TabNavigation({
       spaMarker: 'alive',
       cleanClasses: true,
@@ -21,7 +21,7 @@ describe('describeTc939TabNavigation', () => {
     });
   });
 
-  it('reports both independent TC-939 failure reasons', async () => {
+  it('reports both independent TC-939 failure reasons', () => {
     expect(describeTc939TabNavigation({
       spaMarker: 'lost',
       cleanClasses: false,
@@ -31,7 +31,7 @@ describe('describeTc939TabNavigation', () => {
     });
   });
 
-  it('reports null SPA markers as full reload failures with className detail', async () => {
+  it('reports null SPA markers as full reload failures with className detail', () => {
     expect(describeTc939TabNavigation({
       spaMarker: null,
       cleanClasses: false,
@@ -41,7 +41,7 @@ describe('describeTc939TabNavigation', () => {
     });
   });
 
-  it('reports reload-only failure without className issues', async () => {
+  it('reports reload-only failure without className issues', () => {
     expect(describeTc939TabNavigation({
       spaMarker: 'reload-only',
       cleanClasses: true,
@@ -51,7 +51,7 @@ describe('describeTc939TabNavigation', () => {
     });
   });
 
-  it('reports a className-only failure without a reload message', async () => {
+  it('reports a className-only failure without a reload message', () => {
     expect(describeTc939TabNavigation({
       spaMarker: 'alive',
       cleanClasses: false,
@@ -61,7 +61,7 @@ describe('describeTc939TabNavigation', () => {
     });
   });
 
-  it('uses the shared TC-939 reporter declaration without local input/result casts', async () => {
+  it('uses the shared TC-939 reporter declaration without local input/result casts', () => {
     const pass = describeTc939TabNavigation({
       spaMarker: 'alive',
       cleanClasses: true,
