@@ -297,3 +297,50 @@ describe("SheetXmlPatcher — ordering and idempotency", () => {
     expect(a).toBe(b);
   });
 });
+
+describe("SheetXmlPatcher — multiple insertions keep correct row index (#2362)", () => {
+  it("writes to correct rows when inserting several new rows out of order", () => {
+    // Verify that row-index integrity is maintained after multiple insertions.
+    // A full-map rebuild (O(n) per insert) and an incremental update (O(k) per
+    // insert) must both produce the same document order — this test catches
+    // a bug where the incremental path mis-maps a row number to the wrong index.
+    const patcher = new SheetXmlPatcher(FIXTURE_XML);
+    // Insert between existing rows 2 and 4, plus before row 2 and after row 6.
+    patcher.apply("A1", { op: "number", value: 10 });
+    patcher.apply("A3", { op: "number", value: 30 });
+    patcher.apply("A5", { op: "number", value: 50 });
+    patcher.apply("A7", { op: "number", value: 70 });
+    const out = patcher.serialize();
+    // Rows must appear in ascending order and carry the correct values.
+    const r1 = out.indexOf('<row r="1"');
+    const r2 = out.indexOf('<row r="2"');
+    const r3 = out.indexOf('<row r="3"');
+    const r4 = out.indexOf('<row r="4"');
+    const r5 = out.indexOf('<row r="5"');
+    const r6 = out.indexOf('<row r="6"');
+    const r7 = out.indexOf('<row r="7"');
+    expect(r1).toBeGreaterThan(-1);
+    expect(r2).toBeGreaterThan(r1);
+    expect(r3).toBeGreaterThan(r2);
+    expect(r4).toBeGreaterThan(r3);
+    expect(r5).toBeGreaterThan(r4);
+    expect(r6).toBeGreaterThan(r5);
+    expect(r7).toBeGreaterThan(r6);
+    expect(out).toContain('<row r="1"><c r="A1"><v>10</v></c></row>');
+    expect(out).toContain('<row r="3"><c r="A3"><v>30</v></c></row>');
+    expect(out).toContain('<row r="5"><c r="A5"><v>50</v></c></row>');
+    expect(out).toContain('<row r="7"><c r="A7"><v>70</v></c></row>');
+  });
+
+  it("can overwrite a newly inserted row after subsequent insertions shift indices", () => {
+    // After inserting row 3 (between 2 and 4), inserting row 1 shifts row 3's
+    // index by 1. A subsequent apply("A3", …) must still find the correct row.
+    const patcher = new SheetXmlPatcher(FIXTURE_XML);
+    patcher.apply("A3", { op: "number", value: 99 });
+    patcher.apply("A1", { op: "number", value: 11 }); // shifts index of row 3
+    patcher.apply("A3", { op: "number", value: 33 }); // must overwrite row 3, not row 4
+    const out = patcher.serialize();
+    expect(out).toContain('<row r="3"><c r="A3"><v>33</v></c></row>');
+    expect(out).toContain('<row r="1"><c r="A1"><v>11</v></c></row>');
+  });
+});

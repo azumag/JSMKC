@@ -124,6 +124,21 @@ interface RowModel {
 const ROW_OPEN = "<row";
 const ROW_CLOSE = "</row>";
 
+/**
+ * Pre-compiled attribute regexps for parseCellAttrs.
+ * Each <c> tag has up to 5 attributes (r, s, t, cm, vm). Compiling RegExp
+ * once at module load instead of per-attribute-per-cell avoids allocating a
+ * new RegExp object for every attribute on every cell during sheet parsing —
+ * a CDM sheet can have thousands of cells. (#2363)
+ */
+const CELL_ATTR_RE = {
+  r:  /\br="([^"]*)"/,
+  s:  /\bs="([^"]*)"/,
+  t:  /\bt="([^"]*)"/,
+  cm: /\bcm="([^"]*)"/,
+  vm: /\bvm="([^"]*)"/,
+} as const;
+
 export class SheetXmlPatcher {
   /** Bytes before "<sheetData…" (prolog + sheet header), emitted verbatim. */
   private readonly prefix: string;
@@ -267,16 +282,15 @@ export class SheetXmlPatcher {
       }
     }
     this.rows.splice(insertAt, 0, model);
-    // Indices shifted; rebuild the row index map for correctness.
-    this.reindexRows();
-    return model;
-  }
-
-  private reindexRows(): void {
-    this.rowIndex.clear();
-    for (let i = 0; i < this.rows.length; i++) {
+    // Only update indices for the new row and those shifted by the splice.
+    // A full-map rebuild after every insertion would be O(n) per insert, making
+    // repeated insertions O(n^2) in total. Incrementing only the tail is O(k)
+    // where k is the number of rows after the insertion point. (#2362)
+    this.rowIndex.set(row, insertAt);
+    for (let i = insertAt + 1; i < this.rows.length; i++) {
       this.rowIndex.set(this.rows[i].row, i);
     }
+    return model;
   }
 
   /** Insert a new cell into a parsed row, keeping cells sorted by column. */
@@ -347,15 +361,17 @@ export class SheetXmlPatcher {
 
   /** Parse the attribute string of a <c …> start tag into a CellAttrs. */
   private parseCellAttrs(startTag: string): CellAttrs {
-    const read = (name: string): string | undefined => {
-      const m = new RegExp(`\\b${name}="([^"]*)"`).exec(startTag);
+    // Use module-level pre-compiled CELL_ATTR_RE instead of constructing a new
+    // RegExp per attribute per cell. (#2363)
+    const read = (re: RegExp): string | undefined => {
+      const m = re.exec(startTag);
       return m ? m[1] : undefined;
     };
-    const r = read("r");
+    const r = read(CELL_ATTR_RE.r);
     if (!r) {
       throw new Error(`SheetXmlPatcher: <c> without r attribute: ${startTag}`);
     }
-    return { r, s: read("s"), t: read("t"), cm: read("cm"), vm: read("vm") };
+    return { r, s: read(CELL_ATTR_RE.s), t: read(CELL_ATTR_RE.t), cm: read(CELL_ATTR_RE.cm), vm: read(CELL_ATTR_RE.vm) };
   }
 
   /** Mutate a cell model according to the op (validation included). */
