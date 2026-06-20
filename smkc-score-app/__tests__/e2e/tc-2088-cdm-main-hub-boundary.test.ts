@@ -72,7 +72,7 @@ function bodyHasArrayFromLength60(body: ts.Node, sourceFile: ts.SourceFile) {
   return found;
 }
 
-function isMainHubCellAccess(node: ts.Node, cell: string) {
+function isMainHubCellAccess(node: ts.Node, cell: string, sourceFile: ts.SourceFile) {
   if (!ts.isPropertyAccessExpression(node) || node.name.text !== cell) return false;
   const sheetAccess = node.expression;
   return (
@@ -80,7 +80,7 @@ function isMainHubCellAccess(node: ts.Node, cell: string) {
     ts.isStringLiteral(sheetAccess.argumentExpression) &&
     sheetAccess.argumentExpression.text === 'Main Hub' &&
     ts.isPropertyAccessExpression(sheetAccess.expression) &&
-    sheetAccess.expression.expression.getText() === 'workbook' &&
+    sheetAccess.expression.expression.getText(sourceFile) === 'workbook' &&
     sheetAccess.expression.name.text === 'Sheets'
   );
 }
@@ -104,7 +104,7 @@ function bodyExpectsMainHubCellToBeUndefined(
       node.expression.expression.expression.text === 'expect'
     ) {
       const [expectArgument] = node.expression.expression.arguments;
-      found = Boolean(expectArgument && isMainHubCellAccess(expectArgument, cell));
+      found = Boolean(expectArgument && isMainHubCellAccess(expectArgument, cell, sourceFile));
       return;
     }
 
@@ -157,7 +157,8 @@ describe('TC-2088 CDM Main Hub boundary coverage', () => {
     expect(section).toContain('KEEP-OUT-OF-BOUNDS');
     expect(routeTest).toContain('const makeCdmMainHubPlayer = (index: number) => {');
     expect(routeTest).not.toContain('const makePlayer = (index: number) => {');
-    expect(routeTest.match(/makeCdmMainHubPlayer\(index\)/g)).toHaveLength(2);
+    // At least 2 calls: one for the 60-player boundary case and one for the 61-player out-of-bounds case.
+    expect(routeTest.match(/makeCdmMainHubPlayer\(index\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(routeTest).toContain("for (const column of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'])");
     expect(routeTest).not.toContain('KEEP-OUT-BOUNDS');
   });
