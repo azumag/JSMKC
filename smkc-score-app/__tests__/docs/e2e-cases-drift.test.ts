@@ -2984,10 +2984,11 @@ describe('E2E case drift coverage', () => {
     // to transition to hidden state instead (deterministic, not time-dependent).
     expect(resolveSuddenDeathSection).not.toContain('waitForTimeout');
     expect(resolveSuddenDeathSection).toContain("state: 'hidden'");
-    // #2417: catch must not be empty — timeout errors (panel not going hidden) should
-    // be re-thrown so callers can detect UI regressions. Only detached/closed errors
-    // are silently ignored because callers verify results via direct API fetches.
+    // #2419: catch must use allowlist approach — only detached/closed errors are silently
+    // ignored (stale element after navigation); all other errors including Timeout are
+    // re-thrown. Denylist approach (Timeout check only) silently swallows unexpected errors.
     expect(resolveSuddenDeathSection).not.toContain('.catch(() => {})');
+    expect(resolveSuddenDeathSection).toContain('/detached|closed/i');
     expect(resolveSuddenDeathSection).toContain('throw e');
   });
 
