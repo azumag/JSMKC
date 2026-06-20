@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 import {
-  TA_FINALS_ROUND_CONTROLS_CLASS,
-  TA_FINALS_ROUND_ENTRY_ROW_CLASS,
-  TA_FINALS_ROUND_PLAYER_LABEL_CLASS,
-  TA_FINALS_ROUND_PLAYER_NAME_CLASS,
-  TA_FINALS_TIME_INPUT_CLASS,
+  TA_TIME_ENTRY_CONTROLS_CLASS,
+  TA_TIME_ENTRY_INPUT_CLASS,
+  TA_TIME_ENTRY_PLAYER_LABEL_CLASS,
+  TA_TIME_ENTRY_PLAYER_NAME_CLASS,
+  TA_TIME_ENTRY_ROW_CLASS,
   type TaTimeInputProps,
   parseTvNumberInput,
 } from "@/lib/ta/time-entry-layout";
@@ -54,12 +54,12 @@ export const TaTimeEntryRow = memo(function TaTimeEntryRow({
 }: TaTimeEntryRowProps) {
   return (
     <div
-      className={TA_FINALS_ROUND_ENTRY_ROW_CLASS}
+      className={TA_TIME_ENTRY_ROW_CLASS}
       data-testid="ta-time-entry-row"
     >
-      <div className={TA_FINALS_ROUND_PLAYER_LABEL_CLASS}>
+      <div className={TA_TIME_ENTRY_PLAYER_LABEL_CLASS}>
         <Label
-          className={TA_FINALS_ROUND_PLAYER_NAME_CLASS}
+          className={TA_TIME_ENTRY_PLAYER_NAME_CLASS}
           data-testid="ta-time-entry-player-name"
         >
           {playerName}
@@ -71,7 +71,7 @@ export const TaTimeEntryRow = memo(function TaTimeEntryRow({
         )}
       </div>
       <div
-        className={TA_FINALS_ROUND_CONTROLS_CLASS}
+        className={TA_TIME_ENTRY_CONTROLS_CLASS}
         data-testid="ta-time-entry-controls"
       >
         <select
@@ -95,7 +95,7 @@ export const TaTimeEntryRow = memo(function TaTimeEntryRow({
           }
           onBlur={() => onTimeBlur(playerId)}
           disabled={isRetry}
-          className={TA_FINALS_TIME_INPUT_CLASS}
+          className={TA_TIME_ENTRY_INPUT_CLASS}
         />
         {/* Retry penalty button: sets time to 9:59.990 */}
         <Button
