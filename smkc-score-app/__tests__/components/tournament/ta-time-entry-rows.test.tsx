@@ -51,6 +51,7 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
 
     fireEvent.blur(timeInput);
     expect(onTimeBlur).toHaveBeenCalledWith('player-1');
+    // disabled because isRetry={true} — not caused by blur
     expect(timeInput).toBeDisabled();
 
     const retryButton = screen.getByRole('button', { name: 'Retry' });
