@@ -1973,7 +1973,8 @@ describe('E2E case drift coverage', () => {
     // assertMrStandingStats must be wrapped in try-catch to avoid bypassing log() (issue #2370)
     expect(tc1083).toContain('standingsErr');
     expect(mrReportRouteTest).toContain('useRoundDifferential: true');
-    expect(mrStandingsAssertionsTest).toContain('MR standings ties for p2');
+    // Use test case name instead of internal error message to avoid implementation-string dependency (#2372).
+    expect(mrStandingsAssertionsTest).toContain("'fails with a targeted stat diff'");
     expect(tc1083).not.toContain('waitForTimeout(3000)');
   });
 
@@ -2569,15 +2570,19 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-2109 as MR dual-report player-session coverage', () => {
     const section = e2eCaseSection('TC-2109');
+    // Narrow to the TC-822 function body to avoid false positives from other functions (#2436).
+    const tc822Source = sectionBetween(tcMr, 'async function runTc822', 'async function runTc2108');
 
     expect(section).toContain('Issue**: #2109');
     expect(section).toContain('P1 session');
     expect(section).toContain('P2 session');
-    // Check function calls rather than variable names to avoid fragility from renames (#2347/#2348).
-    expect(tcMr).toContain('loginSharedPlayer(adminPage, p1)');
-    expect(tcMr).toContain('loginSharedPlayer(adminPage, p2)');
-    // .page.evaluate only appears in runTc822's dual-session section; verifies player-context usage.
-    expect(tcMr).toContain('.page.evaluate');
+    // Check function calls in the TC-822 section specifically, not the whole file.
+    expect(tc822Source).toContain('loginSharedPlayer(adminPage, p1)');
+    expect(tc822Source).toContain('loginSharedPlayer(adminPage, p2)');
+    // p1Context.page.evaluate verifies the dual-session player-context usage.
+    expect(tc822Source).toContain('p1Context.page.evaluate');
+    // rejectedReport confirms post-confirm participant report is blocked (#2436).
+    expect(tc822Source).toContain('rejectedReport');
   });
 
   it('documents TC-821A as shared TA sudden-death UI and logic coverage', () => {
