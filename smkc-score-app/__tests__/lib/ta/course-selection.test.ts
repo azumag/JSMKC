@@ -180,10 +180,9 @@ describe("selectRandomCourse", () => {
     // Both MC1 and DP1 were played in this cycle so both must be excluded.
     // Not asserting exact "GV1" to avoid coupling to COURSES array order (#2351).
     // Positive inclusion check ensures the result is a real course, not garbage (#2437).
+    // If selected ∈ validCandidates (which excludes MC1 and DP1), the not.toBe assertions are implied.
     const validCandidates = COURSES.filter((c) => c !== "MC1" && c !== "DP1");
     expect(validCandidates).toContain(selected);
-    expect(selected).not.toBe("DP1"); // immediate-repeat avoidance: DP1 was last played
-    expect(selected).not.toBe("MC1"); // cycle exclusion: MC1 was played earlier
   });
 });
 
