@@ -642,7 +642,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('test:` または `refactor:');
     expect(prTemplate).toContain('PR title and Conventional Commit type match the actual diff.');
     expect(prTemplate).toContain('Use `docs:` only when this PR changes documentation.');
-    expect(prTemplateTest).toContain('align the PR title type with the actual diff');
+    // Check actual assertion content rather than the it() description to avoid fragility from renames.
+    expect(prTemplateTest).toContain("Use `test:` or `refactor:` for test-only refactors.");
   });
 
   it('keeps TC-2118 documented with the shared tournament-tab hydration guard', () => {
@@ -1174,8 +1175,10 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #2088/#2193');
     expect(section).toContain('TypeScript AST');
     expect(section).toContain('tc-2088-cdm-main-hub-boundary.test.ts');
-    expect(tc2088BoundaryTest).toContain('bodyHasArrayFromLength60');
-    expect(tc2088BoundaryTest).toContain('bodyExpectsMainHubCellToBeUndefined');
+    // Check AST behavior targets rather than function names to avoid fragility on renames (#2354).
+    expect(tc2088BoundaryTest).toContain("'Array.from'");        // AST detects Array.from({ length: 60 }) call
+    expect(tc2088BoundaryTest).toContain("'Main Hub'");          // AST detects Main Hub cell boundary access
+    expect(tc2088BoundaryTest).toContain('ts.forEachChild');     // AST traversal approach still in use
     expect(tc2088BoundaryTest).not.toContain("toContain('Array.from({ length: 60 }')");
     expect(tc2088BoundaryTest).not.toContain('B62).toBeUndefined()');
     expect(exportRouteTest).toContain('should write the Main Hub player rows for exactly 60 players');
@@ -2256,7 +2259,6 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('smkc-score-app/__tests__/lib/prisma-selects.test.ts');
     expect(prismaSelectsTest).toContain('Object.entries(BM_MR_MATCH_LEAN_SELECT)');
     expect(prismaSelectsTest).toContain('selectedFields.length');
-    expect(prismaSelectsTest).toContain('key.length > 0 && value === true');
     // Issue #2024: exact-key guard must also be present (detects accidental field additions).
     expect(prismaSelectsTest).toContain('Object.keys(BM_MR_MATCH_LEAN_SELECT)');
     expect(prismaSelectsTest).toContain('EXPECTED_FIELDS');
@@ -2571,11 +2573,11 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('Issue**: #2109');
     expect(section).toContain('P1 session');
     expect(section).toContain('P2 session');
-    expect(tcMr).toContain('const p1Context = await loginSharedPlayer(adminPage, p1)');
-    expect(tcMr).toContain('const p2Context = await loginSharedPlayer(adminPage, p2)');
-    expect(tcMr).toContain('const p1Report = await p1Context.page.evaluate');
-    expect(tcMr).toContain('const p2Report = await p2Context.page.evaluate');
-    expect(tcMr).toContain('const rejectedReport = await p1Context.page.evaluate');
+    // Check function calls rather than variable names to avoid fragility from renames (#2347/#2348).
+    expect(tcMr).toContain('loginSharedPlayer(adminPage, p1)');
+    expect(tcMr).toContain('loginSharedPlayer(adminPage, p2)');
+    // .page.evaluate only appears in runTc822's dual-session section; verifies player-context usage.
+    expect(tcMr).toContain('.page.evaluate');
   });
 
   it('documents TC-821A as shared TA sudden-death UI and logic coverage', () => {

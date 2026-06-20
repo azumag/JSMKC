@@ -177,8 +177,10 @@ describe("selectRandomCourse", () => {
 
     const selected = await selectRandomCourse(prisma as any, "t1", "phase1");
 
-    expect(selected).toBe("GV1");
-    expect(selected).not.toBe("DP1");
+    // Both MC1 and DP1 were played in this cycle so both must be excluded.
+    // Not asserting exact "GV1" to avoid coupling to COURSES array order (#2351).
+    expect(selected).not.toBe("DP1"); // immediate-repeat avoidance: DP1 was last played
+    expect(selected).not.toBe("MC1"); // cycle exclusion: MC1 was played earlier
   });
 });
 
