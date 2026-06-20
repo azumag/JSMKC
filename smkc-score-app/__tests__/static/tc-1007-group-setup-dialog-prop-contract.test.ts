@@ -11,7 +11,7 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
     const section = e2eCaseSection('TC-1007');
     const followupSection = e2eCaseSection('TC-1678');
     const disabledButtonSection = e2eCaseSection('TC-1680');
-    const outlineButtonSection = e2eCaseSection('TC-1682');
+    const secondaryButtonSection = e2eCaseSection('TC-1682');
 
     expect(section).toContain('issue #1007');
     expect(section).toContain('GroupSetupDialog');
@@ -20,8 +20,8 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
     expect(followupSection).toContain('setGroupCount');
     expect(disabledButtonSection).toContain('issue #1680');
     expect(disabledButtonSection).toContain('disabled');
-    expect(outlineButtonSection).toContain('issue #1682');
-    expect(outlineButtonSection).toContain('variant="secondary"');
+    expect(secondaryButtonSection).toContain('issue #1682');
+    expect(secondaryButtonSection).toContain('variant="secondary"');
     expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
   });
 

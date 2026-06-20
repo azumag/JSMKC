@@ -1235,7 +1235,7 @@ describe('E2E case drift coverage', () => {
     const section = e2eCaseSection('TC-1007');
     const followupSection = e2eCaseSection('TC-1678');
     const disabledButtonSection = e2eCaseSection('TC-1680');
-    const outlineButtonSection = e2eCaseSection('TC-1682');
+    const secondaryButtonSection = e2eCaseSection('TC-1682');
     const helperAliasSection = e2eCaseSection('TC-1980-1982');
     const helperAliasGuardSection = e2eCaseSection('TC-2012');
     const helperAliasCallGuardSection = e2eCaseSection('TC-2014');
@@ -1253,8 +1253,8 @@ describe('E2E case drift coverage', () => {
     expect(followupSection).toContain('setGroupCount');
     expect(disabledButtonSection).toContain('issue #1680');
     expect(disabledButtonSection).toContain('disabled');
-    expect(outlineButtonSection).toContain('issue #1682');
-    expect(outlineButtonSection).toContain('variant="secondary"');
+    expect(secondaryButtonSection).toContain('issue #1682');
+    expect(secondaryButtonSection).toContain('variant="secondary"');
     expect(helperAliasSection).toContain('issue #1980 / #1982');
     expect(helperAliasSection).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
     expect(helperAliasGuardSection).toContain('issue #2012');
