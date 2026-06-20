@@ -218,14 +218,12 @@ describe('E2E browser launch helpers', () => {
 
   describe('formatE2EErrorForLog', () => {
     it('returns non-Error values as-is', () => {
-      common = loadCommon();
       const value = { code: 'ENOENT' };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(common.formatE2EErrorForLog(value as any)).toBe(value);
     });
 
     it('returns error message when stack is absent', () => {
-      common = loadCommon();
       const error = new Error('something went wrong');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (error as any).stack;
@@ -233,7 +231,6 @@ describe('E2E browser launch helpers', () => {
     });
 
     it('returns error message when stack is empty string', () => {
-      common = loadCommon();
       const error = new Error('something went wrong');
       error.stack = '';
       expect(common.formatE2EErrorForLog(error)).toBe('something went wrong');
