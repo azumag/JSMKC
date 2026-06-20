@@ -1666,7 +1666,7 @@ async function resolveSuddenDeathThroughSharedCard(adminPage, tournamentId, phas
     res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
     res.request().method() === 'POST' &&
     res.request().postData()?.includes('"change_sudden_death_course"'), { timeout: 60000 });
-  await adminPage.getByRole('option').nth(1).click();
+  await adminPage.locator('[data-slot="select-content"]').getByRole('option').nth(1).click();
   const courseChange = await courseChangePromise;
   if (courseChange.status() !== 200) {
     throw new Error(`UI change_sudden_death_course ${phase} failed (${courseChange.status()})`);
@@ -1688,7 +1688,11 @@ async function resolveSuddenDeathThroughSharedCard(adminPage, tournamentId, phas
     const body = await submit.text().catch(() => '');
     throw new Error(`UI submit_sudden_death ${phase} failed (${submit.status()}): ${body.slice(0, 260)}`);
   }
-  await adminPage.waitForTimeout(1200);
+  // Wait for the panel to disappear after React re-renders with the resolved sudden-death
+  // state, rather than sleeping a fixed interval that may be too short on CI.
+  // The .catch is intentional: callers verify results via direct API fetches, not DOM
+  // state, so a detached/already-hidden panel is not a failure signal here.
+  await panel.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   return changedCourse;
 }
 

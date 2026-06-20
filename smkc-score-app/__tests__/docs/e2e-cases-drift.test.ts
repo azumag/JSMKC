@@ -2966,6 +2966,26 @@ describe('E2E case drift coverage', () => {
     expect(tc1614DriftTest).toContain('Current TC-1612 guard body is substantially longer');
   });
 
+  it('keeps resolveSuddenDeathThroughSharedCard using scoped option selector and state-based wait (#2380 #2381)', () => {
+    // Extract only the resolveSuddenDeathThroughSharedCard function body to avoid
+    // matching patterns that are legitimately used elsewhere in tc-ta.js.
+    const resolveSuddenDeathSection = sectionBetween(
+      tcTa,
+      'async function resolveSuddenDeathThroughSharedCard(',
+      'async function runTc814(',
+    );
+    // #2380: option click must be scoped to the shadcn/ui SelectContent element
+    // (data-slot="select-content") so that other role=option elements on the page
+    // cannot be accidentally selected. Note: Radix emits data-state/data-side only;
+    // the data-slot attribute is added by the shadcn/ui wrapper (select.tsx).
+    expect(resolveSuddenDeathSection).toContain('[data-slot="select-content"]');
+    expect(resolveSuddenDeathSection).not.toMatch(/adminPage\.getByRole\('option'\)/);
+    // #2381: fixed-time waitForTimeout is flaky under CI load; wait for the panel
+    // to transition to hidden state instead (deterministic, not time-dependent).
+    expect(resolveSuddenDeathSection).not.toContain('waitForTimeout');
+    expect(resolveSuddenDeathSection).toContain("state: 'hidden'");
+  });
+
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
     expect(tcAll).not.toContain('TC-403');
   });
