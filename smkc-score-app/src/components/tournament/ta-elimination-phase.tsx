@@ -20,11 +20,10 @@
  * - Auto-refresh every 3 seconds for live tournament tracking
  */
 
-import { memo, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -57,19 +56,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS, TV_NUMBER_OPTIONS } from "@/lib/constants";
+import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import {
-  TA_FINALS_ROUND_CONTROLS_CLASS,
-  TA_FINALS_ROUND_ENTRY_ROW_CLASS,
-  TA_FINALS_ROUND_PLAYER_LABEL_CLASS,
-  TA_FINALS_ROUND_PLAYER_NAME_CLASS,
-  TA_FINALS_TIME_INPUT_CLASS,
   TA_TIME_INPUT_HELP_CLASS,
-  type TaTimeInputProps,
   getTaTimeInputProps,
-  parseTvNumberInput,
 } from "@/lib/ta/time-entry-layout";
+import { TaTimeEntryRow } from "@/components/tournament/ta-time-entry-row";
 import { getCourseCycleStatus } from "@/lib/ta/course-cycle-status";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
@@ -96,97 +89,6 @@ export interface TAEliminationPhaseProps {
 }
 
 
-type TAEliminationPhaseRowProps = {
-  playerId: string;
-  playerName: string;
-  tvNumber: number | null;
-  tvLabel: string;
-  timeValue: string;
-  timePlaceholder: string;
-  isRetry: boolean;
-  isEditingDisabled: boolean;
-  retryLabel: string;
-  retryTitle: string;
-  timeInputProps: TaTimeInputProps;
-  onTvChange: (playerId: string, value: number | null) => void;
-  onTimeChange: (playerId: string, value: string) => void;
-  onTimeBlur: (playerId: string) => void;
-  onRetryToggle: (playerId: string) => void;
-};
-
-export const TAEliminationPhaseRow = memo(function TAEliminationPhaseRow({
-  playerId,
-  playerName,
-  tvNumber,
-  tvLabel,
-  timeValue,
-  timePlaceholder,
-  isRetry,
-  isEditingDisabled,
-  retryLabel,
-  retryTitle,
-  timeInputProps,
-  onTvChange,
-  onTimeChange,
-  onTimeBlur,
-  onRetryToggle,
-}: TAEliminationPhaseRowProps) {
-  return (
-    <div
-      className={TA_FINALS_ROUND_ENTRY_ROW_CLASS}
-      data-testid="ta-finals-round-entry-row"
-    >
-      <div className={TA_FINALS_ROUND_PLAYER_LABEL_CLASS}>
-        <Label
-          className={TA_FINALS_ROUND_PLAYER_NAME_CLASS}
-          data-testid="ta-finals-round-player-name"
-        >
-          {playerName}
-        </Label>
-      </div>
-      <div
-        className={TA_FINALS_ROUND_CONTROLS_CLASS}
-        data-testid="ta-finals-round-controls"
-      >
-        <select
-          className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
-          value={tvNumber ?? ""}
-          onChange={(e) =>
-            onTvChange(playerId, parseTvNumberInput(e.target.value))
-          }
-          aria-label={tvLabel}
-        >
-          <option value="">-</option>
-          {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>TV{n}</option>)}
-        </select>
-        <Input
-          type="text"
-          {...timeInputProps}
-          placeholder={timePlaceholder}
-          value={timeValue}
-          onChange={(e) =>
-            onTimeChange(playerId, e.target.value)
-          }
-          onBlur={() => onTimeBlur(playerId)}
-          disabled={isRetry}
-          className={TA_FINALS_TIME_INPUT_CLASS}
-        />
-        {/* Retry penalty button: sets time to 9:59.990 */}
-        <Button
-          variant={isRetry ? "destructive" : "outline"}
-          size="sm"
-          onClick={() => onRetryToggle(playerId)}
-          title={retryTitle}
-          disabled={isEditingDisabled}
-        >
-          {retryLabel}
-        </Button>
-      </div>
-    </div>
-  );
-});
-
-TAEliminationPhaseRow.displayName = 'TAEliminationPhaseRow';
 
 /** TTEntry from the phases API */
 interface TTEntry {
@@ -885,7 +787,7 @@ export default function TAEliminationPhase({
                   {tElim('timeInputHelp')}
                 </p>
                 {activeEntries.map((entry) => (
-                  <TAEliminationPhaseRow
+                  <TaTimeEntryRow
                     key={entry.id}
                     playerId={entry.playerId}
                     playerName={entry.player.nickname}

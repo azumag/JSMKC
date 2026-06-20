@@ -26,18 +26,13 @@ const targets = [
 const memoizedRowTargets = [
   {
     label: 'TA participant row component',
-    path: ['src', 'app', 'tournaments', '[id]', 'ta', 'participant', 'page.tsx'],
+    path: ['src', 'components', 'tournament', 'ta-participant-time-input-row.tsx'],
     componentName: 'TaParticipantTimeInputRow',
   },
   {
-    label: 'TA elimination phase row component',
-    path: ['src', 'components', 'tournament', 'ta-elimination-phase.tsx'],
-    componentName: 'TAEliminationPhaseRow',
-  },
-  {
-    label: 'TA finals row component',
-    path: ['src', 'app', 'tournaments', '[id]', 'ta', 'finals', 'page.tsx'],
-    componentName: 'TaFinalsTimeEntryRow',
+    label: 'TA time entry row component (shared by finals and elimination phases)',
+    path: ['src', 'components', 'tournament', 'ta-time-entry-row.tsx'],
+    componentName: 'TaTimeEntryRow',
   },
 ] as const;
 

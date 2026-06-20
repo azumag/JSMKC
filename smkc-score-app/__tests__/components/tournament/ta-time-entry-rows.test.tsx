@@ -3,16 +3,15 @@
  */
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import { TaFinalsTimeEntryRow } from '@/app/tournaments/[id]/ta/finals/page';
-import { TAEliminationPhaseRow } from '@/components/tournament/ta-elimination-phase';
-import { TaParticipantTimeInputRow } from '@/app/tournaments/[id]/ta/participant/page';
+import { TaTimeEntryRow } from '@/components/tournament/ta-time-entry-row';
+import { TaParticipantTimeInputRow } from '@/components/tournament/ta-participant-time-input-row';
 
 const timeInputProps = {
   inputMode: 'decimal',
   autoComplete: 'off',
 } as const;
 
-describe('TaFinalsTimeEntryRow', () => {
+describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
   it('renders props and calls callbacks with correct arguments', () => {
     const onTvChange = jest.fn();
     const onTimeChange = jest.fn();
@@ -20,7 +19,7 @@ describe('TaFinalsTimeEntryRow', () => {
     const onRetryToggle = jest.fn();
 
     render(
-      <TaFinalsTimeEntryRow
+      <TaTimeEntryRow
         playerId="player-1"
         playerName="Alice"
         livesLabel="L3"
@@ -61,7 +60,7 @@ describe('TaFinalsTimeEntryRow', () => {
 
   it('disables retry button when editing is disabled', () => {
     render(
-      <TaFinalsTimeEntryRow
+      <TaTimeEntryRow
         playerId="player-1"
         playerName="Alice"
         livesLabel="L3"
@@ -83,9 +82,59 @@ describe('TaFinalsTimeEntryRow', () => {
 
     expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
   });
+
+  it('renders livesLabel when provided', () => {
+    render(
+      <TaTimeEntryRow
+        playerId="player-1"
+        playerName="Alice"
+        livesLabel={<span data-testid="lives">♥♥♥</span>}
+        tvNumber={null}
+        tvLabel="TV number"
+        timeValue=""
+        timePlaceholder="Time"
+        isRetry={false}
+        isEditingDisabled={false}
+        retryLabel="Retry"
+        retryTitle="Retry time"
+        timeInputProps={timeInputProps}
+        onTvChange={jest.fn()}
+        onTimeChange={jest.fn()}
+        onTimeBlur={jest.fn()}
+        onRetryToggle={jest.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('lives')).toBeInTheDocument();
+  });
+
+  it('omits livesLabel container when livesLabel is not provided', () => {
+    render(
+      <TaTimeEntryRow
+        playerId="player-2"
+        playerName="Bob"
+        tvNumber={null}
+        tvLabel="TV number"
+        timeValue=""
+        timePlaceholder="Time"
+        isRetry={false}
+        isEditingDisabled={false}
+        retryLabel="Penalty"
+        retryTitle="Toggle penalty"
+        timeInputProps={timeInputProps}
+        onTvChange={jest.fn()}
+        onTimeChange={jest.fn()}
+        onTimeBlur={jest.fn()}
+        onRetryToggle={jest.fn()}
+      />
+    );
+
+    // No lives container rendered when livesLabel omitted (elimination phase usage)
+    expect(screen.queryByTestId('lives')).not.toBeInTheDocument();
+  });
 });
 
-describe('TAEliminationPhaseRow', () => {
+describe('TaTimeEntryRow (elimination phase — without livesLabel)', () => {
   it('renders props and calls callbacks with correct arguments', () => {
     const onTvChange = jest.fn();
     const onTimeChange = jest.fn();
@@ -93,7 +142,7 @@ describe('TAEliminationPhaseRow', () => {
     const onRetryToggle = jest.fn();
 
     render(
-      <TAEliminationPhaseRow
+      <TaTimeEntryRow
         playerId="player-2"
         playerName="Bob"
         tvNumber={1}
@@ -130,7 +179,7 @@ describe('TAEliminationPhaseRow', () => {
 
   it('disables retry button when editing is disabled', () => {
     render(
-      <TAEliminationPhaseRow
+      <TaTimeEntryRow
         playerId="player-2"
         playerName="Bob"
         tvNumber={null}

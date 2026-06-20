@@ -730,16 +730,16 @@ async function runTc896(adminPage) {
     await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
     await uiPhaseStartRound(adminPage, tournamentId, 'phase3');
 
-    const names = adminPage.locator('[data-testid="ta-finals-round-player-name"]');
+    const names = adminPage.locator('[data-testid="ta-time-entry-player-name"]');
     const rowCount = await names.count();
     if (rowCount < 2) throw new Error(`expected at least 2 visible player names, got ${rowCount}`);
 
-    const rows = adminPage.locator('[data-testid="ta-finals-round-entry-row"]');
+    const rows = adminPage.locator('[data-testid="ta-time-entry-row"]');
     let layoutProblem = '';
     for (let i = 0; i < rowCount; i++) {
       const row = rows.nth(i);
-      const name = row.locator('[data-testid="ta-finals-round-player-name"]');
-      const controls = row.locator('[data-testid="ta-finals-round-controls"]');
+      const name = row.locator('[data-testid="ta-time-entry-player-name"]');
+      const controls = row.locator('[data-testid="ta-time-entry-controls"]');
       const nameText = (await name.innerText()).trim();
       const rowClass = await row.getAttribute('class');
       const nameClass = await name.getAttribute('class');
@@ -828,7 +828,7 @@ async function runTc1996(adminPage) {
       throw new Error(`expected two active phase3 entries, got ${activeEntries.length}`);
     }
 
-    const tvRow = adminPage.locator('[data-testid="ta-finals-round-entry-row"]')
+    const tvRow = adminPage.locator('[data-testid="ta-time-entry-row"]')
       .filter({ hasText: tvEntry.player.nickname })
       .first();
     await tvRow.locator('select').selectOption('3');
