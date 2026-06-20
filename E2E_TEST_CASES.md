@@ -3502,16 +3502,17 @@
 - **期待結果**: TV3/TV4 が選ばれている状態で「配信に反映」を押しても、利用者は TV3/TV4 がOBS表示対象外であることを画面上で確認できる
 - **スクリプト**: tc-ta.js TC-808A / e2e-cases-drift.test.ts / use-broadcast-reflect.test.ts
 
-## TC-1959: useBroadcastReflect — タイマーキャンセル時に正しい ID で clearTimeout が呼ばれる
+## TC-1959: useBroadcastReflect — タイマーキャンセル時に正しい ID かつ1回だけ clearTimeout が呼ばれる
 - **URL**: n/a (unit test)
 - **authRequired**: false
-- **背景**: issue #1959。`useBroadcastReflect` はブロードキャスト反映後に 3 秒で `idle` へ戻すタイマーを管理する。`resetBroadcastStatus()` やアンマウント時にタイマーをキャンセルする際、`clearTimeout` に「直前の `setTimeout` が返した ID」を渡すことで確実に正しいタイマーをキャンセルしなければならない。タイマー ID を検証しないと、`clearTimeout(undefined)` などの無効呼び出しでテストが通過してしまう。
+- **背景**: issue #1959, #2429。`useBroadcastReflect` はブロードキャスト反映後に 3 秒で `idle` へ戻すタイマーを管理する。`resetBroadcastStatus()` やアンマウント時にタイマーをキャンセルする際、`clearTimeout` に「直前の `setTimeout` が返した ID」を渡すことで確実に正しいタイマーをキャンセルしなければならない。タイマー ID を検証しないと、`clearTimeout(undefined)` などの無効呼び出しでテストが通過してしまう。また、二重キャンセル（同じ ID で複数回呼び出し）は副作用がないが、フック実装が変更された際の回帰を検出するためコール回数も1回であることを保証する（issue #2429）。
 - **手順**:
   1. `useBroadcastReflect` を `renderHook` でマウントし、`handleBroadcastReflect()` を呼んでタイマーをスケジュールする
   2. `setTimeoutSpy.mock.results[0].value` でタイマー ID を捕捉する
-  3. `resetBroadcastStatus()` / `unmount()` / 再反映 のいずれかを実行する
+  3. `resetBroadcastStatus()` / `unmount()` のいずれかを実行する
   4. `clearTimeoutSpy` が捕捉したタイマー ID と同じ値で呼ばれたことを確認する
-- **期待結果**: `clearTimeout` は常に「直前の `setTimeout` が返した正しい ID」で呼ばれる
+  5. `clearTimeoutSpy` のコール回数が 1 であることを確認する（二重キャンセル防止）
+- **期待結果**: `clearTimeout` は常に「直前の `setTimeout` が返した正しい ID」で、かつ 1 回だけ呼ばれる
 - **スクリプト**: `__tests__/lib/hooks/use-broadcast-reflect.test.ts`
 
 ## TC-897: TAタイム入力欄フォーカス時にスマホ数字キーボードを出す
