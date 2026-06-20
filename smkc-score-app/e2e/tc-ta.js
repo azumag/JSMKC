@@ -1690,11 +1690,12 @@ async function resolveSuddenDeathThroughSharedCard(adminPage, tournamentId, phas
   }
   // Wait for the panel to disappear after React re-renders with the resolved sudden-death
   // state, rather than sleeping a fixed interval that may be too short on CI.
-  // Catch is intentional for detached/closed cases: callers verify results via direct API
-  // fetches, not DOM state. Timeout errors are re-thrown because 10 s without going hidden
-  // likely indicates a real UI regression.
+  // Allowlist: only detached/closed errors (stale element after nav) are silently ignored;
+  // callers verify results via direct API fetches. All other errors (including Timeout)
+  // are re-thrown so unexpected failures surface rather than being swallowed (#2419).
   await panel.waitFor({ state: 'hidden', timeout: 10000 }).catch((e) => {
-    if (/Timeout|timed out/i.test(e.message)) throw e;
+    if (/detached|closed/i.test(e.message)) return;
+    throw e;
   });
   return changedCourse;
 }
