@@ -280,6 +280,12 @@ describe('E2E case drift coverage', () => {
     ['TC-2473', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
     ['TC-2474', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
     ['TC-2475', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
+    ['TC-2476', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
+    ['TC-2477', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
+    ['TC-2478', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
+    ['TC-2479', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
+    ['TC-2480', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
+    ['TC-2481', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3167,5 +3173,49 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('401');
     expect(section).toContain('admin');
     expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
+  });
+
+  // TC-2476: jest.mocked(auth) 移行ドリフトガード
+  it('documents TC-2476 as jest.mocked(auth) migration in auth.ts', () => {
+    const section = e2eCaseSection('TC-2476');
+    expect(section).toContain('jest.mocked(auth)');
+    expect(section).toContain('never');
+    expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
+  });
+
+  // TC-2477〜TC-2481: Middleware ドリフトガード
+  it('documents TC-2477 as middleware 401 for unauthenticated POST', () => {
+    const section = e2eCaseSection('TC-2477');
+    expect(section).toContain('401');
+    expect(section).toContain('POST');
+    expect(section).toContain('__tests__/middleware.test.ts');
+  });
+
+  it('documents TC-2478 as middleware auth skip for GET requests', () => {
+    const section = e2eCaseSection('TC-2478');
+    expect(section).toContain('GET');
+    expect(section).toContain('auth');
+    expect(section).toContain('__tests__/middleware.test.ts');
+  });
+
+  it('documents TC-2479 as middleware redirect to /auth/signin', () => {
+    const section = e2eCaseSection('TC-2479');
+    expect(section).toContain('/auth/signin');
+    expect(section).toContain('/profile');
+    expect(section).toContain('__tests__/middleware.test.ts');
+  });
+
+  it('documents TC-2480 as middleware fallback when auth() throws', () => {
+    const section = e2eCaseSection('TC-2480');
+    expect(section).toContain('throw');
+    expect(section).toContain('NextResponse.next()');
+    expect(section).toContain('__tests__/middleware.test.ts');
+  });
+
+  it('documents TC-2481 as middleware x-nonce and x-pathname header injection', () => {
+    const section = e2eCaseSection('TC-2481');
+    expect(section).toContain('x-nonce');
+    expect(section).toContain('x-pathname');
+    expect(section).toContain('__tests__/middleware.test.ts');
   });
 });

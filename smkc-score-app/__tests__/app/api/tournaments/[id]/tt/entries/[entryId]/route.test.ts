@@ -112,7 +112,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
   });
 
@@ -196,7 +196,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
   describe('PUT - Update Time Trial entry with optimistic locking', () => {
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: [1000, 2000],
@@ -215,7 +215,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     // Authorization failure case - Returns 403 when user is not admin and not player
     it('should return 403 when user is not admin and not player', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: [1000, 2000],
@@ -234,7 +234,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     // Authorization: player can update their own entry
     it('should allow player to update their own entry', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
       });
 
@@ -279,7 +279,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     // Authorization: player cannot update another player's entry
     it('should return 403 when player tries to update another player\'s entry', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
       });
 
@@ -300,7 +300,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     // Authorization: player cannot update non-existent entry
     it('should return 403 when player tries to update non-existent entry', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
       });
 

@@ -50,7 +50,7 @@ describe('BM Matches API Route - /api/tournaments/[id]/bm/matches', () => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     // Default: authenticated admin session for most tests
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
   });
 
@@ -143,7 +143,7 @@ describe('BM Matches API Route - /api/tournaments/[id]/bm/matches', () => {
     // Authentication failure case - Returns 401 when not authenticated
     it('should return 401 when not authenticated', async () => {
       // Override default session mock: no session means unauthenticated
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/matches');
       const params = Promise.resolve({ id: 't1' });

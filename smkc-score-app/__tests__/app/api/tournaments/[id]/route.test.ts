@@ -283,7 +283,7 @@ describe('GET /api/tournaments/[id]', () => {
 
   describe('Visibility', () => {
     it('should return 403 when tournament has no public modes and user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
         id: 't1',
         name: 'Private Tournament',
@@ -304,7 +304,7 @@ describe('GET /api/tournaments/[id]', () => {
     });
 
     it('should return 200 when tournament has no public modes but user is admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       const mockTournament = {
@@ -385,7 +385,7 @@ describe('PUT /api/tournaments/[id]', () => {
 
   describe('Authorization', () => {
     it('should return 403 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await tournamentRoute.PUT(
         new NextRequest('http://localhost:3000/api/tournaments/t1', {
@@ -406,7 +406,7 @@ describe('PUT /api/tournaments/[id]', () => {
     });
 
     it('should return 403 when authenticated user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', role: 'user' },
       });
 
@@ -438,7 +438,7 @@ describe('PUT /api/tournaments/[id]', () => {
         status: 'active',
       };
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
@@ -497,7 +497,7 @@ describe('PUT /api/tournaments/[id]', () => {
       // Order is irrelevant
       [['overall', 'gp', 'ta']],
     ])('should accept any valid publicModes subset %p', async (publicModes) => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ publicModes });
@@ -525,7 +525,7 @@ describe('PUT /api/tournaments/[id]', () => {
       [['ta', 'ta']],
       [['bm', 'mr', 'bm']],
     ])('should reject invalid publicModes %p with 400', async (publicModes) => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ publicModes });
@@ -556,7 +556,7 @@ describe('PUT /api/tournaments/[id]', () => {
         status: 'completed',
       };
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
@@ -583,7 +583,7 @@ describe('PUT /api/tournaments/[id]', () => {
     it('should enable debugMode on an existing tournament (#746)', async () => {
       const mockTournament = { id: 't1', debugMode: true };
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ debugMode: true });
@@ -616,7 +616,7 @@ describe('PUT /api/tournaments/[id]', () => {
         name: 'Test Tournament',
       };
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
@@ -649,7 +649,7 @@ describe('PUT /api/tournaments/[id]', () => {
       const prismaError = new Error('Record not found') as Error & { code?: string };
       prismaError.code = 'P2025';
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
@@ -689,7 +689,7 @@ describe('DELETE /api/tournaments/[id]', () => {
 
   describe('Authorization', () => {
     it('should return 403 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await tournamentRoute.DELETE(
         new NextRequest('http://localhost:3000/api/tournaments/t1'),
@@ -707,7 +707,7 @@ describe('DELETE /api/tournaments/[id]', () => {
     });
 
     it('should return 403 when authenticated user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', role: 'user' },
       });
 
@@ -729,7 +729,7 @@ describe('DELETE /api/tournaments/[id]', () => {
 
   describe('Success Cases', () => {
     it('should delete tournament successfully', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
@@ -776,7 +776,7 @@ describe('DELETE /api/tournaments/[id]', () => {
     it.each(['active', 'completed'])(
       'should return 409 when tournament status is %s',
       async (status) => {
-        (auth as jest.Mock).mockResolvedValue({
+        jest.mocked(auth).mockResolvedValue({
           user: { id: 'admin-1', role: 'admin' },
         });
         (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
@@ -807,7 +807,7 @@ describe('DELETE /api/tournaments/[id]', () => {
     );
 
     it('should handle audit log failures gracefully', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
@@ -835,7 +835,7 @@ describe('DELETE /api/tournaments/[id]', () => {
     });
 
     it('should return 404 when tournament not found', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });

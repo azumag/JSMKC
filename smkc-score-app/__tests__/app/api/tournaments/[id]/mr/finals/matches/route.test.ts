@@ -77,7 +77,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Success case - Creates match with valid data
     it('should create a finals match with valid data', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
@@ -141,7 +141,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Success case - Uses default values for optional fields
     it('should create match with default values for optional fields', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
@@ -182,7 +182,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
 
     it('should reject tvNumber greater than 4', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
         player1Id: UUID_P1,
@@ -199,7 +199,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Success case - Increments match number correctly
     it('should increment match number correctly', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
@@ -237,7 +237,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
 
     // Authentication failure case - Returns 401 when user is not authenticated
     it('should return 401 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
         player1Id: UUID_P1,
@@ -252,7 +252,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
 
     // Authorization failure case - Returns 403 when user has no user object
     it('should return 403 when session exists but user is missing', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: null });
+      jest.mocked(auth).mockResolvedValue({ user: null });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
         player1Id: UUID_P1,
@@ -268,7 +268,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user role is not admin', async () => {
       const mockAuth = { user: { id: 'player1', role: 'player' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
         player1Id: UUID_P1,
@@ -285,7 +285,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Use valid UUIDs so Zod validation passes, then player lookup returns null
     it('should return 404 when player1 does not exist', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       (prisma.player.findUnique as jest.Mock)
         .mockResolvedValueOnce(null)
@@ -305,7 +305,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Validation error case - Returns 404 when player2 not found
     it('should return 404 when player2 does not exist', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
       (prisma.player.findUnique as jest.Mock)
@@ -326,7 +326,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Validation error case - Returns 400 for empty player IDs (#272: min(1) replaces uuid())
     it('should return 400 for empty player1Id', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
         player1Id: '',
@@ -342,7 +342,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Use valid UUIDs to pass Zod validation, then make prisma reject
     it('should return 500 when database operation fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       (prisma.player.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
@@ -362,7 +362,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Use valid UUIDs for Zod validation
     it('should create grand final match with isGrandFinal=true', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
@@ -404,7 +404,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     // Edge case - Audit log failure is non-critical
     it('should continue when audit log creation fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };

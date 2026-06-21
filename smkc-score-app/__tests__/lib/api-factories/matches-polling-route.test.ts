@@ -48,7 +48,7 @@ describe('Matches Polling Route Factory', () => {
 
   // Auth: GET requires any session (admin or player)
   it('should return 401 when no session exists', async () => {
-    (auth as jest.Mock).mockResolvedValue(null);
+    jest.mocked(auth).mockResolvedValue(null);
 
     const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/matches');
     const params = Promise.resolve({ id: 't1' });
@@ -61,7 +61,7 @@ describe('Matches Polling Route Factory', () => {
 
   // Not found: Returns 404 when tournament does not exist
   it('should return 404 when tournament does not exist', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
     (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
 
     const request = new NextRequest('http://localhost:3000/api/tournaments/nonexistent/bm/matches');
@@ -75,7 +75,7 @@ describe('Matches Polling Route Factory', () => {
 
   // Success: Returns paginated matches
   it('should return paginated matches on success', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'player' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'player' } });
     (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({ id: 't1' });
 
     const mockResult = createPaginateResult([{ id: 'm1', matchNumber: 1 }]);
@@ -95,7 +95,7 @@ describe('Matches Polling Route Factory', () => {
 
   // Query params: Parses page and limit from URL search params
   it('should parse page and limit from query params', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
     (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({ id: 't1' });
     (paginate as jest.Mock).mockResolvedValue(createPaginateResult());
 
@@ -114,7 +114,7 @@ describe('Matches Polling Route Factory', () => {
 
   // Defaults: Uses page=1, limit=50 when query params not provided
   it('should use default page=1 and limit=50 when not specified', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
     (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({ id: 't1' });
     (paginate as jest.Mock).mockResolvedValue(createPaginateResult());
 
@@ -132,7 +132,7 @@ describe('Matches Polling Route Factory', () => {
 
   // Error: Returns 500 when database throws
   it('should return 500 on database failure', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
     (prisma.tournament.findFirst as jest.Mock).mockRejectedValue(new Error('DB connection failed'));
 
     const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/matches');

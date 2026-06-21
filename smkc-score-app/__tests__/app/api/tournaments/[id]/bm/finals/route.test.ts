@@ -79,7 +79,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', bmQualificationConfirmed: false }));
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
@@ -288,7 +288,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
   describe('POST - Create finals tournament from qualification results', () => {
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });
@@ -300,7 +300,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });
@@ -444,7 +444,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
   describe('PUT - Update match result and advance players', () => {
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
@@ -456,7 +456,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });

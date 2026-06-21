@@ -62,7 +62,7 @@ describe('GET /api/monitor/polling-stats', () => {
 
   describe('Success Cases', () => {
     it('should return polling statistics', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -90,7 +90,7 @@ describe('GET /api/monitor/polling-stats', () => {
     });
 
     it('should return empty stats when no activity', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -120,7 +120,7 @@ describe('GET /api/monitor/polling-stats', () => {
 
   describe('Authentication', () => {
     it('should return 401 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await pollingStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/monitor/polling-stats')
@@ -138,7 +138,7 @@ describe('GET /api/monitor/polling-stats', () => {
 
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      (auth as jest.Mock).mockRejectedValue(new Error('Auth error'));
+      jest.mocked(auth).mockRejectedValue(new Error('Auth error'));
 
       await pollingStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/monitor/polling-stats')

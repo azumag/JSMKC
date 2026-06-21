@@ -86,7 +86,7 @@ describe('Standings Route Factory', () => {
 
     // Auth: Returns 403 when not authenticated
     it('should return 403 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const params = Promise.resolve({ id: 't1' });
@@ -99,7 +99,7 @@ describe('Standings Route Factory', () => {
 
     // Auth: Returns 403 when user is not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'member' } });
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const params = Promise.resolve({ id: 't1' });
@@ -117,7 +117,7 @@ describe('Standings Route Factory', () => {
 
     // Cache hit: Returns cached data with _cached flag
     it('should return cached data with _cached: true on cache hit', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const cached = createCacheEntry();
       (get as jest.Mock).mockResolvedValue(cached);
       (isExpired as jest.Mock).mockReturnValue(false);
@@ -135,7 +135,7 @@ describe('Standings Route Factory', () => {
 
     // Cache headers: ETag and Cache-Control are set on cache hit
     it('should include ETag and Cache-Control headers on cache hit', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const cached = createCacheEntry({ etag: 'etag-test-123' });
       (get as jest.Mock).mockResolvedValue(cached);
       (isExpired as jest.Mock).mockReturnValue(false);
@@ -150,7 +150,7 @@ describe('Standings Route Factory', () => {
 
     // Cache bypass: If-None-Match: * forces fresh fetch
     it('should bypass cache when If-None-Match: * is sent', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const cached = createCacheEntry();
       (get as jest.Mock).mockResolvedValue(cached);
       (isExpired as jest.Mock).mockReturnValue(false);
@@ -174,7 +174,7 @@ describe('Standings Route Factory', () => {
 
     // Cache expired: Fetches fresh data when cache TTL exceeded
     it('should fetch fresh data when cache is expired', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const cached = createCacheEntry();
       (get as jest.Mock).mockResolvedValue(cached);
       (isExpired as jest.Mock).mockReturnValue(true); // Expired!
@@ -201,7 +201,7 @@ describe('Standings Route Factory', () => {
 
     // Paginate: Uses paginate() utility for BM mode
     it('should use paginate() when usePagination=true', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const paginateResult = { data: mockQualifications };
       (paginate as jest.Mock).mockResolvedValue(paginateResult);
 
@@ -220,7 +220,7 @@ describe('Standings Route Factory', () => {
 
     // Query params: Parses page and limit in pagination mode
     it('should parse page and limit from query params', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (paginate as jest.Mock).mockResolvedValue({ data: [] });
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/standings?page=2&limit=25');
@@ -243,7 +243,7 @@ describe('Standings Route Factory', () => {
     it('should use findMany when usePagination=false', async () => {
       const config = createDirectConfig();
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings');
@@ -265,7 +265,7 @@ describe('Standings Route Factory', () => {
       const transform = jest.fn((q: { id: string }) => ({ ...q, transformed: true }));
       const config = createDirectConfig({ transformQualification: transform });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings');
@@ -290,7 +290,7 @@ describe('Standings Route Factory', () => {
       ];
       const config = createDirectConfig({ transformQualification: undefined });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQualifications);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings');
@@ -308,7 +308,7 @@ describe('Standings Route Factory', () => {
     it('should return raw qualifications when no transform function', async () => {
       const config = createDirectConfig({ transformQualification: undefined });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings');
@@ -347,7 +347,7 @@ describe('Standings Route Factory', () => {
         transformQualification: undefined,
       });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
       // H2H: p1 beat p2 (score1=4, score2=0)
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([
@@ -378,7 +378,7 @@ describe('Standings Route Factory', () => {
         transformQualification: undefined,
       });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
       // No H2H match exists between them (e.g. cross-group tie)
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
@@ -407,7 +407,7 @@ describe('Standings Route Factory', () => {
         transformQualification: undefined,
       });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
       // GP H2H: p2 had more driver points (45 vs 9)
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([
@@ -439,7 +439,7 @@ describe('Standings Route Factory', () => {
         transformQualification: undefined,
       });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(quals);
       // H2H: p2 beat p3
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([
@@ -479,7 +479,7 @@ describe('Standings Route Factory', () => {
       ];
       const config = createDirectConfig({ transformQualification: undefined });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(quals);
 
       const response = await GET(
@@ -503,7 +503,7 @@ describe('Standings Route Factory', () => {
       ];
       const config = createDirectConfig({ transformQualification: undefined });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(quals);
 
       const response = await GET(
@@ -532,7 +532,7 @@ describe('Standings Route Factory', () => {
         transformQualification: undefined,
       });
       const { GET } = createStandingsHandlers(config);
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
       // H2H: p1 beat p2 — but p2's override should still win
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([
@@ -560,7 +560,7 @@ describe('Standings Route Factory', () => {
 
     // Error: Returns 500 on database failure
     it('should return 500 on database failure', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (paginate as jest.Mock).mockRejectedValue(new Error('DB connection failed'));
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');

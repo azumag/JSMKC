@@ -973,7 +973,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     jest.clearAllMocks();
     loggerMock.createLogger.mockReturnValue(loggerInstance);
     // Default: authenticated as admin
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     // Default: tournament exists
     (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 'tournament-1' });
     // Default: phase not frozen
@@ -981,7 +981,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   });
 
   it('should return 403 when not authenticated', async () => {
-    (auth as jest.Mock).mockResolvedValue(null);
+    jest.mocked(auth).mockResolvedValue(null);
 
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
 
@@ -992,7 +992,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   });
 
   it('should return 403 when authenticated but not admin', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'user-1', role: 'user' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'user-1', role: 'user' } });
 
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
 

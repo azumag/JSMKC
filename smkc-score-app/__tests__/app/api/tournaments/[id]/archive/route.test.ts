@@ -50,7 +50,7 @@ import { GET, POST } from '@/app/api/tournaments/[id]/archive/route';
 const mockParams = (id: string) => ({ params: Promise.resolve({ id }) });
 const mockReq = () => ({} as unknown as NextRequest);
 
-const mockAuth = auth as jest.Mock; // next-auth type via NextAuth(config as any) makes jest.mocked() infer 'never'
+const mockAuth = jest.mocked(auth);
 const mockResolveTournament = jest.mocked(resolveTournament);
 const mockReadTournamentArchive = jest.mocked(readTournamentArchive);
 const mockPersistTournamentArchive = jest.mocked(persistTournamentArchive);

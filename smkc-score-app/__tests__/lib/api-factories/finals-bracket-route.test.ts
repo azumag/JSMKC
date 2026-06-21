@@ -176,7 +176,7 @@ describe('Finals Bracket Route Factory', () => {
   describe('POST handler', () => {
     // Auth: Returns 403 when not authenticated
     it('should return 403 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket', {
         method: 'POST',
@@ -191,7 +191,7 @@ describe('Finals Bracket Route Factory', () => {
 
     // Auth: Returns 403 when not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'member' } });
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket', {
         method: 'POST',
@@ -204,7 +204,7 @@ describe('Finals Bracket Route Factory', () => {
 
     // Success: Generates bracket with admin auth
     it('should generate bracket successfully with admin auth', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const quals = createMockQualifications(8);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(quals);
       (generateDoubleEliminationBracket as jest.Mock).mockReturnValue(mockBracketResult);
@@ -226,7 +226,7 @@ describe('Finals Bracket Route Factory', () => {
 
     // Validation: Returns 400 when no qualifications exist
     it('should return 400 when no qualifications exist', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket', {
@@ -242,7 +242,7 @@ describe('Finals Bracket Route Factory', () => {
 
     // Bracket gen: Calls generateDoubleEliminationBracket with players and eventCode
     it('should call generateDoubleEliminationBracket with correct arguments', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const quals = createMockQualifications(4);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(quals);
       (generateDoubleEliminationBracket as jest.Mock).mockReturnValue(mockBracketResult);
@@ -263,7 +263,7 @@ describe('Finals Bracket Route Factory', () => {
 
     // Audit resilience: Succeeds even when audit log fails
     it('should succeed even when audit log creation fails', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       const quals = createMockQualifications(4);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(quals);
       (generateDoubleEliminationBracket as jest.Mock).mockReturnValue(mockBracketResult);
@@ -285,7 +285,7 @@ describe('Finals Bracket Route Factory', () => {
 
     // Error: Returns 500 on database failure
     it('should return 500 on database failure', async () => {
-      (auth as jest.Mock).mockResolvedValue(adminSession);
+      jest.mocked(auth).mockResolvedValue(adminSession);
       (prisma.bMQualification.findMany as jest.Mock).mockRejectedValue(new Error('DB error'));
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket', {

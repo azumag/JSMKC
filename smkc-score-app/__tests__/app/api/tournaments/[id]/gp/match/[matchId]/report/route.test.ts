@@ -118,7 +118,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     const rateLimitMocks = jest.requireMock('@/lib/rate-limit');
     rateLimitMocks.checkRateLimit.mockResolvedValue({ success: true, remaining: 100 });
     // Default: admin session so auth passes. Tests that check auth failure override this.
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
     // Reset Prisma mocks to prevent cross-test contamination
     (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ dualReportEnabled: true });
@@ -1076,7 +1076,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       // No session — user is not authenticated
-      (auth as jest.Mock).mockResolvedValueOnce(null);
+      jest.mocked(auth).mockResolvedValueOnce(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,

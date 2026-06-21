@@ -144,7 +144,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
   describe('Authorization', () => {
     it('should return 403 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await standingsRoute.GET(
         new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
@@ -159,7 +159,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
     });
 
     it('should return 403 when authenticated user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', role: 'user' },
       });
 
@@ -177,7 +177,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
   describe('Cache Handling', () => {
     it('should return cached data if available and not expired', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -215,7 +215,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
     });
 
     it('should skip cache and fetch fresh data if cache is expired', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -260,7 +260,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
   describe('Success Cases', () => {
     it('should return TA standings successfully with valid entries', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -339,7 +339,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
     });
 
     it('should handle entries with totalTime = 0', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -388,7 +388,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
   describe('Error Cases', () => {
     it('should handle database errors gracefully', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -415,7 +415,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
     });
 
     it('should handle cache set errors gracefully', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 

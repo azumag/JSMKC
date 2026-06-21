@@ -129,7 +129,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 403 for non-admin users when overall ranking is unpublished', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
         ...mockTournament,
         publicModes: ['ta', 'bm', 'mr', 'gp'],
@@ -146,7 +146,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('allows admins to fetch unpublished overall rankings', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
@@ -211,7 +211,7 @@ describe('Overall Ranking Route', () => {
 
   describe('POST /api/tournaments/[id]/overall-ranking', () => {
     it('returns 401 for unauthenticated users', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const response = await POST(
         {} as any,
@@ -223,7 +223,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 403 for non-admin users', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', role: 'user' },
       });
 
@@ -237,7 +237,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 404 when tournament not found', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
@@ -252,7 +252,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('calculates and saves overall rankings on success', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
@@ -280,7 +280,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 500 when saveOverallRankings fails', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
@@ -299,7 +299,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 500 when calculation fails', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);

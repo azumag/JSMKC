@@ -85,7 +85,7 @@ class MockNextRequest {
 describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (resolveTournamentId as jest.Mock).mockImplementation(async (identifier: string) => identifier);
     // Stage-aware validation: factory calls findUnique({select:{stage:true}}) before validating.
     (prisma.mRMatch as any).findUnique = jest.fn().mockResolvedValue({ stage: 'qualification' });
@@ -105,7 +105,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         player2: { id: 'p2', name: 'Player 2' },
       };
 
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1');
@@ -178,7 +178,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
   describe('PUT - Update match score with optimistic locking', () => {
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -193,7 +193,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });

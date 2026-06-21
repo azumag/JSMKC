@@ -84,7 +84,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', gpQualificationConfirmed: false }));
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     (createLogger as jest.Mock).mockReturnValue(logger);
     /* finals-route defensive tournament existence check */
@@ -458,7 +458,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
   describe('POST - Create finals bracket', () => {
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });
@@ -470,7 +470,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });
@@ -703,7 +703,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
   describe('PUT - Update finals match score', () => {
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
@@ -715,7 +715,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });

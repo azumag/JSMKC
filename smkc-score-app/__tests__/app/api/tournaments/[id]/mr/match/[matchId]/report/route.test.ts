@@ -114,7 +114,7 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
     (getClientIdentifier as jest.Mock).mockReturnValue('test-ip');
     (getUserAgent as jest.Mock).mockReturnValue('test-agent');
     /* Default: auth passes (admin) */
-    (auth as jest.Mock).mockResolvedValue(null);
+    jest.mocked(auth).mockResolvedValue(null);
     /* Default: helpers pass through */
     (checkScoreReportAuth as jest.Mock).mockResolvedValue(true);
     (createScoreEntryLog as jest.Mock).mockResolvedValue(undefined);
