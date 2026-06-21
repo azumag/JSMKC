@@ -79,7 +79,7 @@ describe('tc-all focused suite registration', () => {
     );
     expect(targetPage.waitForFunction).toHaveBeenCalledWith(
       expect.any(Function),
-      null,
+      null, // Playwright arg param: null is the explicit contract in tc-archive.js; undefined has the same runtime effect but null is passed intentionally
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
     expect(targetPage.close).toHaveBeenCalled();
