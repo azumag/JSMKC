@@ -319,9 +319,9 @@ describe('preview E2E runner', () => {
 
   it('restores process.env entries when launchPersistentChromiumContext throws (TC-2446)', async () => {
     // launchPreviewAdminSessionBrowser writes env into process.env then restores via finally.
-    // jest.doMock inside isolateModules scopes the factory to the isolated registry so it
-    // intercepts the runtime require('./lib/common') inside launchPreviewAdminSessionBrowser
-    // without leaking into the global mock registry.
+    // jest.doMock registers in the GLOBAL mock registry (not an isolated one), so it must be
+    // cleaned up with jest.unmock after the test. jest.isolateModules ensures a fresh module
+    // instance picks up the factory, but the factory itself lives in the global registry.
     const throwingLaunch = jest.fn<() => Promise<never>>().mockRejectedValue(new Error('browser not available'));
     let isolatedRunner: PreviewRunner | undefined;
     jest.isolateModules(() => {
@@ -348,6 +348,58 @@ describe('preview E2E runner', () => {
     // finally block must have restored the sentinel to its original value
     expect(process.env[sentinelKey]).toBe('original-value');
     delete process.env[sentinelKey];
+    // jest.doMock registers globally — unmock to prevent factory leaking to subsequent tests
+    jest.unmock('../../e2e/lib/common');
+  });
+
+  it('restores process.env entries written before the write loop aborts mid-way (TC-2448)', async () => {
+    // Covers the core correctness of the #2446 fix: moving the write loop inside try ensures
+    // the finally block runs even when the loop itself throws mid-way (i.e. when a process.env
+    // write is interrupted). The sentinel key is inserted before the throwing key in the env
+    // object so its modified value is already in process.env when the throw occurs.
+    // beforeEach replaces process.env with a plain object, so we use Object.defineProperty to
+    // install a throwing setter on process.env['THROW_ON_WRITE'] — plain object assignment
+    // does not coerce values, making the toString() trick ineffective here.
+    const launchMock = jest.fn<() => Promise<never>>();
+    let isolatedRunner: PreviewRunner | undefined;
+    jest.isolateModules(() => {
+      jest.doMock('../../e2e/lib/common', () => ({
+        launchPersistentChromiumContext: launchMock,
+        getChromiumLaunchConfig: jest.fn(),
+      }));
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      isolatedRunner = require('../../e2e/run-preview') as PreviewRunner;
+    });
+    if (!isolatedRunner) throw new Error('isolation failed — run-preview module not loaded');
+
+    const sentinelKey = 'E2E_RUN_PREVIEW_TEST_SENTINEL_2448';
+    process.env[sentinelKey] = 'original-value';
+
+    // Install a setter that throws when the write loop tries to assign THROW_ON_WRITE on
+    // process.env. The sentinel key appears before THROW_ON_WRITE in the env object, so its
+    // modified value ('modified-value') has already been written when the throw occurs.
+    Object.defineProperty(process.env, 'THROW_ON_WRITE', {
+      set() { throw new Error('env assignment failed'); },
+      get() { return undefined; },
+      configurable: true,
+      enumerable: false,
+    });
+
+    await expect(
+      isolatedRunner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+        [sentinelKey]: 'modified-value',
+        THROW_ON_WRITE: 'any-value',
+      }),
+    ).rejects.toThrow('env assignment failed');
+
+    // finally block must have restored the sentinel to its original value
+    expect(process.env[sentinelKey]).toBe('original-value');
+    delete process.env[sentinelKey];
+    // launchPersistentChromiumContext is never reached when the loop aborts early
+    expect(launchMock).not.toHaveBeenCalled();
+    // jest.doMock registers globally — unmock to prevent factory leaking to subsequent tests
     jest.unmock('../../e2e/lib/common');
   });
 

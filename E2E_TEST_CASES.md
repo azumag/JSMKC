@@ -3571,6 +3571,19 @@
 - **期待結果**: `launchPersistentChromiumContext` 失敗後も `process.env` のエントリが呼び出し前の値に復元される
 - **スクリプト**: n/a (unit coverage) / smkc-score-app/__tests__/e2e/run-preview.test.ts
 
+## TC-2448: run-preview の書き込みループ途中例外でも process.env が finally で復元される
+- **URL**: n/a (unit contract)
+- **authRequired**: false
+- **背景**: issue #2448。TC-2446 が修正した本質は「書き込みループを try 内に移動したことで、ループ自体が途中で throw しても finally が実行される」点である。TC-2446 のテストは `launchPersistentChromiumContext` が throw するシナリオを検証しており、旧コードでも finally が正常動作していたケースだった。本 TC は「書き込みループ自体の途中 throw（`process.env` 代入時に `toString()` が失敗するケース）でセンチネルキーが復元されること」を直接検証する。
+- **手順**:
+  1. `launchPersistentChromiumContext` をモックした isolated runner を `jest.doMock` + `jest.isolateModules` で用意する
+  2. `process.env` にセンチネルキーを original-value でセットする
+  3. `toString()` が throw するオブジェクトを値に持つ env を作成する（センチネルキーより後に配置）
+  4. `assertPreviewAdminSession` を上記 env で呼び出す
+  5. 呼び出しが `'env stringify failed'` エラーで reject した後、`process.env[sentinelKey]` が original-value に戻っていることと、`launchPersistentChromiumContext` が未呼び出しであることを確認する
+- **期待結果**: 書き込みループが途中 throw した後も `process.env` のエントリが呼び出し前の値に復元される
+- **スクリプト**: n/a (unit coverage) / smkc-score-app/__tests__/e2e/run-preview.test.ts
+
 ## TC-1996: TA決勝 row のTV番号を送信 payload と履歴に保存する
 - **URL**: /tournaments/[temp-id]/ta/finals, /api/tournaments/[id]/ta/phases
 - **authRequired**: true (admin)
