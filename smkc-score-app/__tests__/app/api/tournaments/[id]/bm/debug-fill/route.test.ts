@@ -21,7 +21,7 @@ describe('POST /api/tournaments/[id]/bm/debug-fill (TC-2489)', () => {
 
   it('delegates to handleDebugFillRequest with mode "bm" and id from params', async () => {
     const mockResponse = { status: 200 };
-    mockHandleDebugFillRequest.mockResolvedValue(mockResponse as unknown as ReturnType<typeof handleDebugFillRequest> extends Promise<infer R> ? R : never);
+    mockHandleDebugFillRequest.mockResolvedValue(mockResponse as any);
 
     const request = {} as unknown as NextRequest;
     const result = await POST(request, { params: Promise.resolve({ id: 't-abc' }) });
