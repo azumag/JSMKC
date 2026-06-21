@@ -3102,4 +3102,35 @@ describe('E2E case drift coverage', () => {
   it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
     expect(tcAll).not.toContain('TC-403');
   });
+
+  // TC-2460 / issue #2374 / #2368: Unit Test Coverage ラベルのドリフトガード
+  it('marks TC-2235 as Unit Test Coverage to prevent browser-step confusion (#2374)', () => {
+    const section = e2eCaseSection('TC-2235');
+    expect(section).toContain('Unit Test Coverage');
+    expect(section).toContain('ブラウザ操作なし');
+    // 背景フィールドの既存内容は維持されていること
+    expect(section).toContain('issue #2235');
+    expect(section).toContain('Top-24');
+  });
+
+  it('marks TC-2249 as Unit Test Coverage with simplified steps (#2368)', () => {
+    const section = e2eCaseSection('TC-2249');
+    expect(section).toContain('Unit Test Coverage');
+    expect(section).toContain('ブラウザ操作なし');
+    expect(section).toContain('ユニットテストで自動検証済み');
+    // 背景フィールドの既存内容は維持されていること
+    expect(section).toContain('issue #2249');
+    expect(section).toContain('サドンデス不参加');
+    expect(section).toContain('p3');
+    expect(section).toContain('__tests__/lib/ta/finals-phase-manager.test.ts');
+  });
+
+  // TC-2460: CI npm audit ステップのドリフトガード (issue #2016)
+  it('documents TC-2460 as CI npm audit configuration coverage', () => {
+    const section = e2eCaseSection('TC-2460');
+    expect(section).toContain('issue #2016');
+    expect(section).toContain('npm audit --audit-level=high');
+    expect(section).toContain('ENOLOCK');
+    expect(section).toContain('__tests__/docs/ci-config.test.ts');
+  });
 });

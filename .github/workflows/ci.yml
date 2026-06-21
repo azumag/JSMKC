@@ -38,6 +38,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Security audit
+        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
+        run: npm audit --audit-level=high
+
       - name: Unit tests
         run: npm test -- --ci --forceExit
         env:
