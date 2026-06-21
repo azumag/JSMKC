@@ -9,6 +9,7 @@
  */
 
 import NextAuth from 'next-auth';
+import type { User } from 'next-auth';
 import Discord from 'next-auth/providers/discord';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -324,10 +325,13 @@ export const authConfig = {
 
 // Destructure with explicit type for `auth` so jest.mocked(auth) infers the correct type in test files.
 // NextAuth(config as any) causes TypeScript to lose type information, making jest.mocked(auth) infer 'never'.
+// We use { user?: User } | null instead of Session | null because Session.expires is a required field
+// that would force all 100+ test fixtures to include it — YAGNI. User has all-optional fields so
+// mock objects like { user: { id, role } } remain valid without modification.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _nextAuth = NextAuth(authConfig as any);
 export const handlers = _nextAuth.handlers;
 export const signIn = _nextAuth.signIn;
 export const signOut = _nextAuth.signOut;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const auth: (...args: any[]) => Promise<unknown> = _nextAuth.auth;
+export const auth: (...args: any[]) => Promise<{ user?: User } | null> = _nextAuth.auth;

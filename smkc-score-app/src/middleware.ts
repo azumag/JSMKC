@@ -125,11 +125,12 @@ export default async function middleware(req: NextRequest) {
     addSecurityHeaders(response, nonce)
     return response
   } catch (err) {
-    // Graceful degradation: if the middleware crashes (e.g., auth() throws
-    // due to WASM engine failure on Workers), let the request through rather
-    // than returning error code 1101. The route handler has its own auth
-    // check and will enforce access control independently.
-    // Log the actual error for diagnosing 1101 root causes.
+    // Graceful degradation: if auth() throws (e.g., WASM engine failure on Workers),
+    // pass the request through rather than returning error code 1101.
+    // Security assumption (defense-in-depth): every protected API route handler
+    // independently calls auth() and enforces access control, so the middleware
+    // is not the sole security boundary. Frontend pages (/profile etc.) also
+    // perform server-side auth checks independent of this middleware redirect.
     console.error('[middleware] Unhandled error:', err instanceof Error ? err.stack || err.message : err)
     return NextResponse.next()
   }

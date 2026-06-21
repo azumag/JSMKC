@@ -154,7 +154,11 @@ describe('middleware — auth gate', () => {
     mockAuth.mockRejectedValue(new Error('auth failure'));
     const req = makeRequest('http://localhost/api/tournaments', 'POST');
 
-    // Must not propagate — middleware wraps everything in try/catch
+    // Must not propagate — middleware wraps everything in try/catch.
+    // Security assumption: this fallback is safe because each API route handler
+    // independently enforces authentication (defense-in-depth). The middleware
+    // is NOT the sole security boundary; it is an optimization layer that
+    // avoids unnecessary JWT processing for public GET routes.
     await expect(middleware(req)).resolves.toBeDefined();
     expect(mockNextFn).toHaveBeenCalledTimes(1);
   });
