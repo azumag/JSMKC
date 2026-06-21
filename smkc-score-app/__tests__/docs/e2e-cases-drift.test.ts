@@ -276,6 +276,10 @@ describe('E2E case drift coverage', () => {
     ['TC-2444', 'n/a (unit coverage)', 'smkc-score-app/__tests__/components/tournament/ta-time-entry-rows.test.tsx'],
     ['TC-2446', 'n/a (unit coverage)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
     ['TC-2448', 'n/a (unit coverage)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
+    ['TC-2472', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
+    ['TC-2473', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
+    ['TC-2474', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
+    ['TC-2475', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3132,5 +3136,35 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('npm audit --audit-level=high');
     expect(section).toContain('ENOLOCK');
     expect(section).toContain('__tests__/docs/ci-config.test.ts');
+  });
+
+  // TC-2472〜TC-2475: Tournament Archive API ドリフトガード
+  it('documents TC-2472 as archive GET 403 for empty publicModes', () => {
+    const section = e2eCaseSection('TC-2472');
+    expect(section).toContain('publicModes');
+    expect(section).toContain('403');
+    expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
+  });
+
+  it('documents TC-2473 as archive GET 404 when no archive exists', () => {
+    const section = e2eCaseSection('TC-2473');
+    expect(section).toContain('null');
+    expect(section).toContain('404');
+    expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
+  });
+
+  it('documents TC-2474 as archive POST 409 for non-completed tournament', () => {
+    const section = e2eCaseSection('TC-2474');
+    expect(section).toContain('409');
+    expect(section).toContain('active');
+    expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
+  });
+
+  it('documents TC-2475 as archive POST 403/401 for non-admin', () => {
+    const section = e2eCaseSection('TC-2475');
+    expect(section).toContain('403');
+    expect(section).toContain('401');
+    expect(section).toContain('admin');
+    expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
   });
 });
