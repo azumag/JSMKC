@@ -307,11 +307,18 @@ describe('E2E browser launch helpers', () => {
     });
 
     it('keeps TC-2360 documented as SingletonLock live-owner fast-fail coverage', () => {
-      // EPERM behavior is covered by 'treats EPERM as alive' above.
-      // This sentinel verifies detectSingletonLockOwner is exported and TC-2360 is documented.
+      // Verify TC-2360 is documented and key implementation details are present in common.js.
+      // This guards against drift where the fast-fail logic is removed or renamed (#2397).
       const doc = fs.readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
       expect(doc).toContain('TC-2360');
-      expect(common.detectSingletonLockOwner).toBeInstanceOf(Function);
+      const commonLib = fs.readFileSync(
+        path.join(process.cwd(), 'e2e', 'lib', 'common.js'),
+        'utf8',
+      );
+      expect(commonLib).toContain('detectSingletonLockOwner');
+      expect(commonLib).toContain('process.kill(pid, 0)'); // live-owner PID check
+      expect(commonLib).toContain('EPERM'); // process exists but cannot be signaled
+      expect(commonLib).toContain('launchPersistentChromiumContext'); // integration site
     });
   });
 
