@@ -133,12 +133,13 @@
 ## TC-2333: Preview D1 preflight は Wrangler stdout JSON CLOUDFLARE_API_TOKEN エラーを auth setup noise として扱う
 - **URL**: n/a (runner configuration / preview suite)
 - **authRequired**: true (Cloudflare D1 token is optional unless strict preflight is requested)
-- **背景**: issue #2333。非インタラクティブ環境で CLOUDFLARE_API_TOKEN が未設定の場合、Wrangler は `stderr` を空にしたまま stdout に `{ "error": { "text": "...CLOUDFLARE_API_TOKEN..." } }` という JSON を出力して非ゼロ終了する。既存の `isWranglerAuthOrLogFailure` は `stderr` しか検査しないため、この形式はハードフェイルパスに落ちていた。`isWranglerStdoutAuthError` を追加して stdout JSON 内の auth error を認証/ログ初期化失敗として分類し、TC-2161 と同じ non-blocking 扱いにする。
+- **背景**: issue #2333。非インタラクティブ環境で CLOUDFLARE_API_TOKEN が未設定の場合、Wrangler は `stderr` を空にしたまま stdout に `{ "error": { "text": "...CLOUDFLARE_API_TOKEN..." } }` という JSON を出力して非ゼロ終了する。既存の `isWranglerAuthOrLogFailure` は `stderr` しか検査しないため、この形式はハードフェイルパスに落ちていた。`isWranglerStdoutAuthError` を追加して stdout JSON 内の auth error を認証/ログ初期化失敗として分類し、TC-2161 と同じ non-blocking 扱いにする。フラット形式 `{ "error": "..." }` は実際の Wrangler バージョンで確認されなかったため YAGNI 観点で除去済み（issue #2384）。
 - **手順**:
   1. Wrangler が `stderr: ""` / `stdout: {"error":{"text":"...CLOUDFLARE_API_TOKEN..."}}` を返す preflight を模擬する
   2. 通常の `npm run e2e:preview:all` 相当では警告を出して preflight を通過することを確認する (`console.warn` に `stdout:` と `CLOUDFLARE_API_TOKEN` が含まれる)
   3. `E2E_REQUIRE_PREVIEW_SCHEMA_PREFLIGHT=1` 指定時は同じ stdout auth error がブラウザ起動前に失敗することを確認する
   4. `isWranglerStdoutAuthError` が `{ "error": { "text": "...non-interactive environment..." } }` をも検出することを確認する
+  5. フラット形式 `{ "error": "CLOUDFLARE_API_TOKEN..." }` は処理されないことを確認する (no-op)
 - **期待結果**: stdout JSON auth error は TC-2161 の stderr auth error と同様に non-blocking として扱われ、strict フラグで hard fail に戻せる。スキーマ drift / SQLite error は引き続き失敗する
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/preview-schema-preflight.test.ts`
 
@@ -207,6 +208,7 @@
   3. `data.authenticated === true` のときだけ target script を起動できることを確認する
   4. `No active session` など未認証応答では `createSharedE2eFixture` に進まず、`npm run e2e:preview:login` と `E2E_PROFILE_DIR` を含む復旧案内つきで失敗することを確認する
 - **期待結果**: preview admin profile の session 切れは共有 fixture / Create Tournament locator timeout ではなく、preview runner の admin-session preflight failure として即座に判別できる。Wrangler/D1 preflight warning は従来どおり別系統の診断として扱われる。
+- **エスケープハッチ**: `E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT=1` を設定すると admin session preflight をスキップできる。これは CI 環境でブラウザが利用できない場合など、セッション確認が不可能または不要な場面に限って使用する。本番 E2E ループでは通常使用しないこと。
 - **スクリプト**: `npm run e2e:preview:all` / `npm test -- --runTestsByPath __tests__/e2e/run-preview.test.ts`
 
 ## TC-2207: Preview D1 schema preflight は Wrangler schema drift 表記の追加パターンを migration guidance に分類する
@@ -3303,9 +3305,10 @@
   2. `playoff_r1` M1〜M4 を API 入力し、`playoff_r2` の対戦者を確定する
   3. `playoff_r2` M5 を `points1 === points2` かつ `suddenDeathWinnerId` が player2 の completed 状態として保存し、M6〜M8 は通常勝者で完了する
   4. Phase 2 作成前に `GET /api/tournaments/[id]/gp/finals` で preview を取得する
-  5. `playoffStructure` の M5 `advancesToUpperSeed` に対応する `seededPlayers` が `suddenDeathWinnerId` の player を指すことを確認する
-  6. `playoffComplete=true` のまま phase は `playoff` で、Upper Bracket 作成前 preview にとどまることを確認する
-- **期待結果**: GP Top-24 Phase 2 preview は同点 playoff_r2 の `suddenDeathWinnerId` を winner として採用し、該当 Upper Bracket seed を欠落させない
+  5. `preview.raw.data` が存在することを確認する（欠落時は `TC-2234: preview.raw.data missing` エラーで即失敗）
+  6. `playoffStructure` の M5 `advancesToUpperSeed` に対応する `seededPlayers` が `suddenDeathWinnerId` の player を指すことを確認する
+  7. `playoffComplete=true` のまま phase は `playoff` で、Upper Bracket 作成前 preview にとどまることを確認する
+- **期待結果**: GP Top-24 Phase 2 preview は同点 playoff_r2 の `suddenDeathWinnerId` を winner として採用し、該当 Upper Bracket seed を欠落させない。`preview.raw.data` 欠落時は silent fallback ではなく診断可能なエラーで即失敗する
 - **スクリプト**: tc-gp.js TC-2234
 
 ## TC-716: GP 予選ページの決勝ブラケット存在状態 + リセット
