@@ -88,7 +88,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         expiresAt: new Date(Date.now() + 3600000),
       };
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(mockCachedData);
       (isExpired as jest.Mock).mockReturnValue(false);
 
@@ -142,7 +142,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         },
       ];
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (set as jest.Mock).mockResolvedValue(undefined);
@@ -221,7 +221,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         },
       ];
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(mockCachedData);
       (isExpired as jest.Mock).mockReturnValue(true);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
@@ -260,7 +260,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         },
       ];
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(mockCachedData);
       (isExpired as jest.Mock).mockReturnValue(false);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
@@ -283,7 +283,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     it('should return empty standings when no qualifications exist', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
@@ -303,7 +303,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
 
     // Authentication failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
@@ -318,7 +318,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     it('should return 403 when user is authenticated but not admin', async () => {
       const mockAuth = { user: { id: 'user1', role: 'user' } };
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
@@ -331,7 +331,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
 
     // Authentication failure case - Returns 403 when session exists but user is missing
     it('should return 403 when session exists but user is missing', async () => {
-      (auth as jest.Mock).mockResolvedValue({});
+      jest.mocked(auth).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
@@ -345,7 +345,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     it('should return 403 when user exists but role is missing', async () => {
       const mockAuth = { user: { id: 'admin1' } };
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
@@ -359,7 +359,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     it('should return 500 when database query fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
@@ -376,7 +376,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     it('should handle invalid tournament ID gracefully', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockRejectedValue(new Error('Invalid UUID'));
 
@@ -407,7 +407,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         },
       ];
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (generateETag as jest.Mock).mockReturnValue('generated-etag');
@@ -467,7 +467,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         },
       ];
 
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (set as jest.Mock).mockResolvedValue(undefined);

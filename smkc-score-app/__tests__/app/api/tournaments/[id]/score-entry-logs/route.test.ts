@@ -59,7 +59,7 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
      * without reaching the try/catch block. No error logging occurs in this path.
      */
     it('should return 401 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await scoreEntryLogsRoute.GET(
         new NextRequest('http://localhost:3000/api/tournaments/t1/score-entry-logs'),
@@ -82,7 +82,7 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
      * logs the error with the tournament ID for debugging and returns 500.
      */
     it('should include tournament ID in error logging', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.scoreEntryLog.findMany as jest.Mock).mockRejectedValue(

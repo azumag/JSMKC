@@ -105,7 +105,7 @@ describe('GET /api/tournaments', () => {
     it('should filter out fully-private tournaments for non-admin users', async () => {
       // Non-admin (no session): only tournaments with at least one public mode are returned.
       // Tournaments with publicModes: [] are excluded to prevent metadata leakage.
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const mockTournaments = [
         { id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta', 'bm'] },
@@ -134,7 +134,7 @@ describe('GET /api/tournaments', () => {
 
     it('should return all tournaments to admin users including private ones', async () => {
       // Admin: sees all tournaments regardless of publicModes
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
@@ -163,7 +163,7 @@ describe('GET /api/tournaments', () => {
 
     it('should filter private tournaments for non-admin authenticated user', async () => {
       // Authenticated non-admin user: also filtered to public tournaments
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', role: 'user' },
       });
 
@@ -184,7 +184,7 @@ describe('GET /api/tournaments', () => {
     });
 
     it('should use default pagination and apply non-admin filter when no params', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const mockTournaments = [
         { id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta'] },
@@ -256,7 +256,7 @@ describe('POST /api/tournaments', () => {
 
   describe('Authorization', () => {
     it('should return 403 when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
@@ -276,7 +276,7 @@ describe('POST /api/tournaments', () => {
     });
 
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', email: 'user@example.com', role: 'user' },
       });
 
@@ -300,7 +300,7 @@ describe('POST /api/tournaments', () => {
 
   describe('Validation', () => {
     it('should return 400 when name is missing', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ date: '2024-01-01' });
@@ -321,7 +321,7 @@ describe('POST /api/tournaments', () => {
     });
 
     it('should return 400 when date is missing', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
@@ -342,7 +342,7 @@ describe('POST /api/tournaments', () => {
     });
 
     it('should return 400 when slug format is invalid', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
@@ -378,7 +378,7 @@ describe('POST /api/tournaments', () => {
     };
 
     it('should create tournament successfully with valid data', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
@@ -432,7 +432,7 @@ describe('POST /api/tournaments', () => {
     });
 
     it('should create audit log on successful tournament creation', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
@@ -458,7 +458,7 @@ describe('POST /api/tournaments', () => {
     });
 
     it('should handle audit log failures gracefully', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
@@ -495,7 +495,7 @@ describe('POST /api/tournaments', () => {
     });
 
     it('should normalize and persist slug when provided', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
@@ -533,7 +533,7 @@ describe('POST /api/tournaments', () => {
 
   describe('Error Cases', () => {
     it('should handle database errors gracefully', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({

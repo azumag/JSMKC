@@ -72,7 +72,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
   beforeEach(() => {
     jest.clearAllMocks();
     // Mock auth to return admin user by default for PUT tests
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (resolveTournamentId as jest.Mock).mockImplementation(async (identifier: string) => identifier);
   });
 
@@ -92,7 +92,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         player2: { id: 'p2', name: 'Player 2' },
       };
 
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest();
@@ -243,7 +243,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
   describe('PUT - Update battle mode match score with optimistic locking', () => {
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest({ score1: 3, score2: 1, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -257,7 +257,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest({ score1: 3, score2: 1, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });

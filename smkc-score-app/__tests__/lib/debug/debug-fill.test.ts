@@ -45,7 +45,7 @@ beforeEach(() => {
 
 describe('handleDebugFillRequest — auth & debugMode gates', () => {
   it('returns 403 FORBIDDEN when caller is not admin', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'p1', role: 'player' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'p1', role: 'player' } });
 
     const res = await handleDebugFillRequest('t-1', 'bm', makeRequest());
     expect(res.status).toBe(403);
@@ -56,7 +56,7 @@ describe('handleDebugFillRequest — auth & debugMode gates', () => {
   });
 
   it('returns 403 DEBUG_MODE_DISABLED when tournament.debugMode is false', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
     (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
       id: 't-1',
       debugMode: false,
@@ -71,7 +71,7 @@ describe('handleDebugFillRequest — auth & debugMode gates', () => {
   });
 
   it('returns 404 when tournament does not exist', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
     (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
 
     const res = await handleDebugFillRequest('missing', 'bm', makeRequest());
@@ -81,7 +81,7 @@ describe('handleDebugFillRequest — auth & debugMode gates', () => {
 
 describe('handleDebugFillRequest — lock & skip behaviour (BM)', () => {
   beforeEach(() => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
   });
 
   it('returns 409 QUALIFICATION_LOCKED when bmQualificationConfirmed is true', async () => {
@@ -163,7 +163,7 @@ describe('handleDebugFillRequest — lock & skip behaviour (BM)', () => {
 
 describe('handleDebugFillRequest — TA semantics', () => {
   beforeEach(() => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
   });
 
   it('skips entries that already have any course times (preserves prior data)', async () => {
@@ -203,7 +203,7 @@ describe('handleDebugFillRequest — TA semantics', () => {
 
 describe('handleDebugFillRequest — GP requires assigned cup', () => {
   beforeEach(() => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
   });
 
   it('refuses to fill GP matches that are missing their pre-assigned cup', async () => {

@@ -49,7 +49,7 @@ describe('Score Report Helpers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    mockAuth = auth as jest.MockedFunction<typeof auth>;
+    mockAuth = jest.mocked(auth);
     mockLogger = {
       error: jest.fn(),
       warn: jest.fn(),

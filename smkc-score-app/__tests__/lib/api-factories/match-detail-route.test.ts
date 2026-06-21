@@ -101,7 +101,7 @@ describe('Match Detail Route Factory', () => {
     jest.clearAllMocks();
 
     // Setup mocks
-    mockAuth = auth as jest.MockedFunction<typeof auth>;
+    mockAuth = jest.mocked(auth);
     mockSanitizeInput = sanitizeInput as jest.MockedFunction<typeof sanitizeInput>;
     mockResolveTournamentId = resolveTournamentId as jest.MockedFunction<typeof resolveTournamentId>;
     mockCreateSuccessResponse = createSuccessResponse as jest.MockedFunction<typeof createSuccessResponse>;

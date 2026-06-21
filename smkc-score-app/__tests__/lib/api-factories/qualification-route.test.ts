@@ -101,7 +101,7 @@ describe('Qualification Route Factory', () => {
     jest.clearAllMocks();
 
     // Setup mocks
-    mockAuth = auth as jest.MockedFunction<typeof auth>;
+    mockAuth = jest.mocked(auth);
     mockCreateAuditLog = createAuditLog as jest.MockedFunction<typeof createAuditLog>;
     mockGetServerSideIdentifier = getServerSideIdentifier as jest.MockedFunction<typeof getServerSideIdentifier>;
     mockSanitizeInput = sanitizeInput as jest.MockedFunction<typeof sanitizeInput>;

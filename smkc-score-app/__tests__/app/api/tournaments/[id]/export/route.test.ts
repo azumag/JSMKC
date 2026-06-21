@@ -180,7 +180,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock | undefined) = undefined;
     (getCloudflareContext as jest.Mock).mockReturnValue({ env: { DB: {} } });
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     /* Re-configure NextResponse constructor and json after clearAllMocks */
     (NextResponse as unknown as jest.Mock).mockImplementation((body: string, options?: any) => ({
@@ -630,7 +630,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     });
 
     it('should return 401 when CDM export is requested without authentication', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
       const params = Promise.resolve({ id: 't1' });
@@ -646,7 +646,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     });
 
     it('should return 403 when CDM export is requested by a non-admin user', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'player-1', role: 'player' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'player-1', role: 'player' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
       const params = Promise.resolve({ id: 't1' });

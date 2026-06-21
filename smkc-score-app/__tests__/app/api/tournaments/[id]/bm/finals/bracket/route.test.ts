@@ -212,7 +212,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Success case - Generates bracket from qualification results with admin auth
     it('should generate double-elimination bracket with admin authentication', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockQualifications = [
         {
@@ -302,7 +302,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Success case - Generates bracket for all qualified players
     it('should generate bracket including all qualified players', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockQualifications = [
         { playerId: 'p1', score: 10, points: 20, player: { id: 'p1', name: 'Player 1', nickname: 'P1' } },
@@ -334,7 +334,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
 
     // Authentication failure case - Returns 401 when not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket');
       const params = Promise.resolve({ id: 't1' });
@@ -347,7 +347,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
 
     // Authentication failure case - Returns 403 when user has no user object
     it('should return 403 when session exists but user is missing', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: null });
+      jest.mocked(auth).mockResolvedValue({ user: null });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket');
       const params = Promise.resolve({ id: 't1' });
@@ -360,7 +360,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not an admin', async () => {
       const mockAuth = { user: { id: 'user1', role: 'user' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket');
       const params = Promise.resolve({ id: 't1' });
@@ -373,7 +373,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Validation error case - Returns 400 when no qualification results found
     it('should return 400 when no qualification results exist', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
 
@@ -389,7 +389,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       (prisma.bMQualification.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
@@ -405,7 +405,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Error case - Returns 500 when bracket generation fails
     it('should return 500 when bracket generation function throws error', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockQualifications = [
         { playerId: 'p1', score: 10, points: 20, player: { id: 'p1', name: 'Player 1', nickname: 'P1' } },
@@ -427,7 +427,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Edge case - Uses x-forwarded-for header for IP address
     it('should use x-forwarded-for header for IP address when available', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockQualifications = [
         { playerId: 'p1', score: 10, points: 20, player: { id: 'p1', name: 'Player 1', nickname: 'P1' } },
@@ -452,7 +452,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Edge case - Audit log failure is non-critical
     it('should continue even if audit log creation fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockQualifications = [
         { playerId: 'p1', score: 10, points: 20, player: { id: 'p1', name: 'Player 1', nickname: 'P1' } },
@@ -477,7 +477,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Edge case - Correctly passes tournament mode 'BM' to bracket generator
     it('should pass correct tournament mode "BM" to bracket generator', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockQualifications = [
         { playerId: 'p1', score: 10, points: 20, player: { id: 'p1', name: 'Player 1', nickname: 'P1' } },
@@ -500,7 +500,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
     // Edge case - All players have zero losses initially
     it('should initialize all players with zero losses', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockQualifications = [
         { playerId: 'p1', score: 10, points: 20, player: { id: 'p1', name: 'Player 1', nickname: 'P1' } },

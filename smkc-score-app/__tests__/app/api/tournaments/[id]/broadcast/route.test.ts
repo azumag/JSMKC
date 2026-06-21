@@ -145,7 +145,7 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
 describe('PUT /api/tournaments/[id]/broadcast', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
     mockResolveTournament.mockResolvedValue({ id: 't1' });
     (prisma.tournament.update as jest.Mock).mockResolvedValue({});
   });
@@ -312,7 +312,7 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
   });
 
   it('returns 403 for unauthenticated request', async () => {
-    (auth as jest.Mock).mockResolvedValue(null);
+    jest.mocked(auth).mockResolvedValue(null);
 
     await PUT(mockReq({ player1Name: 'X' }), mockParams('t1'));
 
@@ -321,7 +321,7 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
   });
 
   it('returns 403 for non-admin (player role)', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'p1', role: 'player' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'p1', role: 'player' } });
 
     await PUT(mockReq({ player1Name: 'X' }), mockParams('t1'));
 

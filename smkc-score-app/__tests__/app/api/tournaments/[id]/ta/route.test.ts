@@ -424,7 +424,7 @@ describe('/api/tournaments/[id]/ta', () => {
   describe('POST', () => {
     it('should add a player to qualification', async () => {
       // Admin session required — requireAdminOrPlayer() runs before creating the entry
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 
@@ -482,7 +482,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 409 when knockout has already started', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
       (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
@@ -503,7 +503,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 409 when player tries to self-register after knockout has started', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
       });
       (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
@@ -525,7 +525,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should resolve tournament slug for POST', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValueOnce({ id: VALID_UUID });
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
       (prisma.tTEntry.findMany as jest.Mock)
@@ -558,7 +558,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it.skip('should return 429 when rate limited', async () => {
       // Auth must pass before rate limit check runs for add-player action
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
       rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: false }));
@@ -599,7 +599,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should return 403 for add player without session auth', async () => {
       // No session — neither admin nor player authenticated
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await taRoute.POST(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -617,7 +617,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should add player with valid player session', async () => {
       // Player session — authenticated player can add themselves
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
       });
 
@@ -651,7 +651,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should return 403 when player tries to add another player', async () => {
       // Player session with playerId VALID_UUID2 — attempting to add a different player
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
       });
 
@@ -673,7 +673,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should return 403 when player tries to add batch with mixed player IDs', async () => {
       // Player session — attempting to add themselves AND another player in a batch
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
       });
 
@@ -699,7 +699,7 @@ describe('/api/tournaments/[id]/ta', () => {
   // =========================================================================
   describe('PUT', () => {
     it('should update a course time', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 
@@ -742,7 +742,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should resolve tournament slug for PUT', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValueOnce({ id: VALID_UUID });
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tTEntry.findUnique as jest.Mock)
@@ -813,7 +813,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 403 for eliminate action when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', role: 'member' },
       });
 
@@ -836,7 +836,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 403 for eliminate action without admin auth (null session)', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await taRoute.PUT(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -857,7 +857,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 403 for update_lives action without admin auth', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await taRoute.PUT(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -878,7 +878,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 403 for reset_lives action without admin auth', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await taRoute.PUT(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -899,7 +899,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should return 403 for update times without session auth', async () => {
       // No session — neither admin nor player authenticated
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await taRoute.PUT(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -920,7 +920,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should update times with valid player session', async () => {
       // Player session — authenticated player can update their own times
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
       });
 
@@ -962,7 +962,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 403 when player tries to edit qualification times after knockout starts', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
       });
 
@@ -1001,7 +1001,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should return 403 when player tries to update another player\'s times', async () => {
       // Player session with playerId 'p1' — attempting to update entry owned by 'p2'
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
       });
 
@@ -1038,7 +1038,7 @@ describe('/api/tournaments/[id]/ta', () => {
   // =========================================================================
   describe('DELETE', () => {
     it('should delete an entry with admin auth', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 
@@ -1075,7 +1075,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 403 without admin auth (null session)', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await taRoute.DELETE(
         new NextRequest(
@@ -1091,7 +1091,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 403 when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'user-1', email: 'user@example.com', role: 'member' },
       });
 
@@ -1109,7 +1109,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 404 when entry not found', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 
@@ -1129,7 +1129,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should handle database errors with 500', async () => {
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 

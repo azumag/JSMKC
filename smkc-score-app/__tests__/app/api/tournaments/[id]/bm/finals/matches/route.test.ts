@@ -77,7 +77,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue({});
-    (auth as jest.Mock).mockResolvedValue(null);
+    jest.mocked(auth).mockResolvedValue(null);
     auditLogMock.createAuditLog.mockResolvedValue(undefined);
   });
 
@@ -85,7 +85,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Success case - Creates finals match with valid data and admin auth
     it('should create a finals match with valid data and admin authentication', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
@@ -168,7 +168,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Success case - Uses default values for optional fields
     it('should use default values for optional fields when not provided', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
@@ -206,7 +206,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
 
     it('should reject tvNumber greater than 4', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/matches', {
         player1Id: UUID_P1,
@@ -223,7 +223,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Success case - Increments match number based on existing matches
     it('should calculate match number based on existing matches', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: 'p1', name: 'Player 1' };
       const mockPlayer2 = { id: 'p2', name: 'Player 2' };
@@ -253,7 +253,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
 
     // Authentication failure case - Returns 401 when not authenticated
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const requestBody = { player1Id: UUID_P1, player2Id: UUID_P2 };
 
@@ -268,7 +268,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
 
     // Authentication failure case - Returns 403 when user has no user object
     it('should return 403 when session exists but user is missing', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: null });
+      jest.mocked(auth).mockResolvedValue({ user: null });
 
       const requestBody = { player1Id: UUID_P1, player2Id: UUID_P2 };
 
@@ -283,7 +283,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Authorization failure case - Returns 403 when user is not admin
     it('should return 403 when user is not an admin', async () => {
       const mockAuth = { user: { id: 'user1', role: 'user' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const requestBody = { player1Id: UUID_P1, player2Id: UUID_P2 };
 
@@ -298,7 +298,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Validation error case - Returns 400 when player1Id is empty (#272: min(1) replaces uuid())
     it('should return 400 when player1Id is empty string', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const requestBody = { player1Id: '', player2Id: UUID_P2 };
 
@@ -313,7 +313,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Validation error case - Returns 400 when player2Id is empty (#272: min(1) replaces uuid())
     it('should return 400 when player2Id is empty string', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const requestBody = { player1Id: UUID_P1, player2Id: '' };
 
@@ -327,7 +327,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Validation error case - Returns 400 when player1Side is out of range
     it('should return 400 when player1Side is out of valid range (1-2)', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const requestBody = { player1Id: UUID_P1, player2Id: UUID_P2, player1Side: 3 };
 
@@ -341,7 +341,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Validation error case - Returns 400 when bracket is invalid
     it('should return 400 when bracket value is invalid', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const requestBody = { player1Id: UUID_P1, player2Id: UUID_P2, bracket: 'invalid' };
 
@@ -355,7 +355,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Validation error case - Returns 400 when player1Id is missing
     it('should return 400 when player1Id is missing', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const requestBody = { player2Id: UUID_P2 };
 
@@ -369,7 +369,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Validation error case - Returns 400 when player2Id is missing
     it('should return 400 when player2Id is missing', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const requestBody = { player1Id: UUID_P1 };
 
@@ -383,7 +383,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Not found case - Returns 404 when player1 does not exist
     it('should return 404 when player1 is not found', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       (prisma.player.findUnique as jest.Mock)
         .mockResolvedValueOnce(null)
@@ -402,7 +402,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Not found case - Returns 404 when player2 does not exist
     it('should return 404 when player2 is not found', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       (prisma.player.findUnique as jest.Mock)
         .mockResolvedValueOnce({ id: 'p1', name: 'Player 1' })
@@ -421,7 +421,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       (prisma.player.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
@@ -439,7 +439,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Edge case - Handles invalid JSON in request body
     it('should handle invalid JSON in request body', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockRequest = {
         json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
@@ -455,7 +455,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Edge case - Uses x-forwarded-for header for IP address
     it('should use x-forwarded-for header for IP address when available', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
@@ -481,7 +481,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Edge case - Uses x-real-ip header when x-forwarded-for is not available
     it('should use x-real-ip header when x-forwarded-for is not available', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
@@ -507,7 +507,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Edge case - Falls back to 'unknown' when no IP headers available
     it('should fall back to "unknown" when no IP headers are available', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
@@ -533,7 +533,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     // Edge case - Audit log failure is non-critical
     it('should continue even if audit log creation fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
       const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };

@@ -83,7 +83,7 @@ describe('GET /api/auth/session-status', () => {
         name: 'Test User',
       };
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: mockUser,
         expires: '2025-01-01T00:00:00Z',
       });
@@ -99,7 +99,7 @@ describe('GET /api/auth/session-status', () => {
     });
 
     it('should return null session when not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       await sessionStatusRoute.GET(
         new NextRequest('http://localhost:3000/api/auth/session-status')
@@ -124,7 +124,7 @@ describe('GET /api/auth/session-status', () => {
         role: 'user',
       };
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: mockUser,
         expires: '2025-01-01T00:00:00Z',
       });
@@ -160,7 +160,7 @@ describe('GET /api/auth/session-status', () => {
         role: 'user',
       };
 
-      (auth as jest.Mock).mockResolvedValue({
+      jest.mocked(auth).mockResolvedValue({
         user: mockUser,
         expires: '2025-01-01T00:00:00Z',
       });
@@ -177,7 +177,7 @@ describe('GET /api/auth/session-status', () => {
 
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      (auth as jest.Mock).mockRejectedValue(new Error('Auth error'));
+      jest.mocked(auth).mockRejectedValue(new Error('Auth error'));
 
       await sessionStatusRoute.GET(
         new NextRequest('http://localhost:3000/api/auth/session-status')

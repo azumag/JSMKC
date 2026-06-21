@@ -99,7 +99,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Auth: Returns 403 when not authenticated
   it('should return 403 when not authenticated', async () => {
-    (auth as jest.Mock).mockResolvedValue(null);
+    jest.mocked(auth).mockResolvedValue(null);
 
     const request = createPostRequest(validBody);
     const params = Promise.resolve({ id: 't1' });
@@ -112,7 +112,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Auth: Returns 403 when user is not admin
   it('should return 403 when user is not admin', async () => {
-    (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'member' } });
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'member' } });
 
     const request = createPostRequest(validBody);
     const params = Promise.resolve({ id: 't1' });
@@ -125,7 +125,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Validation: Returns 400 for empty player1Id
   it('should return 400 for empty player1Id', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
 
     const request = createPostRequest({ ...validBody, player1Id: '' });
     const params = Promise.resolve({ id: 't1' });
@@ -139,7 +139,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Validation: Returns 400 when player2Id is missing
   it('should return 400 when player2Id is missing', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
 
     const request = createPostRequest({ player1Id: PLAYER1_ID });
     const params = Promise.resolve({ id: 't1' });
@@ -153,7 +153,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Validation: Returns 400 for invalid bracket enum value
   it('should return 400 for invalid bracket value', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
 
     const request = createPostRequest({ ...validBody, bracket: 'invalid_bracket' });
     const params = Promise.resolve({ id: 't1' });
@@ -169,7 +169,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Player lookup: Returns 404 when player1 not found
   it('should return 404 when player1 not found', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     /* player1 not found, player2 found */
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(null)
@@ -186,7 +186,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Player lookup: Returns 404 when player2 not found
   it('should return 404 when player2 not found', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     /* player1 found, player2 not found */
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
@@ -205,7 +205,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Auto-increment: Sets matchNumber from last finals match + 1
   it('should auto-increment matchNumber from last finals match', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
       .mockResolvedValueOnce(mockPlayer2);
@@ -227,7 +227,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Auto-increment: Sets matchNumber to 1 when no existing matches
   it('should set matchNumber to 1 when no existing finals matches', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
       .mockResolvedValueOnce(mockPlayer2);
@@ -251,7 +251,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Success: Creates match and returns 201 with match data
   it('should create match and return 201 with match data', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
       .mockResolvedValueOnce(mockPlayer2);
@@ -270,7 +270,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Include: Player1 and player2 relations are included in create query
   it('should include player1 and player2 relations in create query', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
       .mockResolvedValueOnce(mockPlayer2);
@@ -296,7 +296,7 @@ describe('Finals Matches Route Factory', () => {
     const sanitizeConfig = createMockConfig({ sanitizeBody: true });
     const { POST: sanitizedPOST } = createFinalsMatchesHandlers(sanitizeConfig);
 
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
       .mockResolvedValueOnce(mockPlayer2);
@@ -314,7 +314,7 @@ describe('Finals Matches Route Factory', () => {
 
   // No sanitize: Does not call sanitizeInput when sanitizeBody=false
   it('should not call sanitizeInput when sanitizeBody=false', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
       .mockResolvedValueOnce(mockPlayer2);
@@ -333,7 +333,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Audit: Succeeds even when audit log creation fails
   it('should succeed even when audit log creation fails', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     (prisma.player.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockPlayer1)
       .mockResolvedValueOnce(mockPlayer2);
@@ -356,7 +356,7 @@ describe('Finals Matches Route Factory', () => {
 
   // Error: Returns 500 on database failure
   it('should return 500 on database failure', async () => {
-    (auth as jest.Mock).mockResolvedValue(adminSession);
+    jest.mocked(auth).mockResolvedValue(adminSession);
     /* Simulate database error during request.json() processing flow */
     (prisma.player.findUnique as jest.Mock).mockRejectedValue(new Error('DB error'));
 

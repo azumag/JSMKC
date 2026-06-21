@@ -68,7 +68,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
   describe('GET - Fetch BM standings with caching', () => {
     it('should return cached standings when cache is valid', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const cachedData = {
         data: [
@@ -94,7 +94,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should fetch fresh data when cache is not available', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
         { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
@@ -138,7 +138,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should fetch fresh data when cache is expired', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const cachedData = {
         data: [],
@@ -160,7 +160,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should bypass cache when If-None-Match header is *', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const cachedData = {
         data: [],
@@ -182,7 +182,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
     // Authentication tests
     it('should return 403 when user is not authenticated', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
+      jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
@@ -192,7 +192,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should return 403 when session exists but user is missing', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: null });
+      jest.mocked(auth).mockResolvedValue({ user: null });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
@@ -202,7 +202,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should return 403 when user role is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'player1', role: 'player' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'player1', role: 'player' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
@@ -212,7 +212,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should return 403 when user role is undefined', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'user1' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
@@ -223,7 +223,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
     // Error handling
     it('should return 500 when findMany fails', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
       prisma.bMQualification.findMany.mockRejectedValue(new Error('DB error'));
@@ -237,7 +237,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should return 500 when cache get operation fails', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockRejectedValue(new Error('Cache error'));
 
@@ -250,7 +250,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
     // Edge cases
     it('should handle empty standings correctly', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
       prisma.bMQualification.findMany.mockResolvedValue([]);
@@ -264,7 +264,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should generate and set ETag correctly for fresh data', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
         { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
@@ -283,7 +283,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should include ISO timestamp in lastUpdated field', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
       prisma.bMQualification.findMany.mockResolvedValue([]);
@@ -298,7 +298,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should use correct stage identifier for caching', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
       prisma.bMQualification.findMany.mockResolvedValue([]);
@@ -315,7 +315,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
   describe('H2H tiebreaker (§4.1 step 3)', () => {
     it('should resolve ties by H2H direct match results', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       // Two players tied on score=4 and points=2 in group A
       const mockQualifications = [
@@ -365,7 +365,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should keep players tied when H2H is a draw', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
         { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
@@ -391,7 +391,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should not affect non-tied players', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
         { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
@@ -415,7 +415,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
     });
 
     it('should reset ranks for players in different groups with matching stats', async () => {
-      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       // Players with identical stats in different groups should each start from
       // rank 1 because qualification standings are group-local.

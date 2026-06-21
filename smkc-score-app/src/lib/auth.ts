@@ -322,5 +322,12 @@ export const authConfig = {
   },
 };
 
+// Destructure with explicit type for `auth` so jest.mocked(auth) infers the correct type in test files.
+// NextAuth(config as any) causes TypeScript to lose type information, making jest.mocked(auth) infer 'never'.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const { handlers, signIn, signOut, auth } = NextAuth(authConfig as any);
+const _nextAuth = NextAuth(authConfig as any);
+export const handlers = _nextAuth.handlers;
+export const signIn = _nextAuth.signIn;
+export const signOut = _nextAuth.signOut;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const auth: (...args: any[]) => Promise<unknown> = _nextAuth.auth;

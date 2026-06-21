@@ -146,7 +146,7 @@ describe('Finals Route Factory', () => {
     (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', bmQualificationConfirmed: false, mrQualificationConfirmed: false, gpQualificationConfirmed: false }));
 
     // Setup mocks
-    mockAuth = auth as jest.MockedFunction<typeof auth>;
+    mockAuth = jest.mocked(auth);
     mockGenerateBracketStructure = generateBracketStructure as jest.MockedFunction<typeof generateBracketStructure>;
     mockGeneratePlayoffStructure = generatePlayoffStructure as jest.MockedFunction<typeof generatePlayoffStructure>;
     mockPaginate = paginate as jest.MockedFunction<typeof paginate>;
