@@ -90,7 +90,7 @@ jest.mock('next/server', () => {
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { buildOverlayEvents } from '@/lib/overlay/events';
 import { computeCurrentPhase, computeCurrentPhaseFormat } from '@/lib/overlay/phase';
-import { normalizeOverlayBroadcastLayout } from '@/lib/overlay/layout';
+import { normalizeOverlayBroadcastLayout, DEFAULT_OVERLAY_BROADCAST_LAYOUT } from '@/lib/overlay/layout';
 import { GET, invalidateOverlayProbe } from '@/app/api/tournaments/[id]/overlay-events/route';
 import { createLogger } from '@/lib/logger';
 
@@ -125,7 +125,7 @@ function makeTournament(id = 'tournament-1') {
     overlayPlayer1Wins: null,
     overlayPlayer2Wins: null,
     overlayMatchFt: null,
-    overlayLayout: 'default',
+    overlayLayout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
   };
 }
 
@@ -177,7 +177,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockComputeCurrentPhase.mockReturnValue('qualification');
   mockComputeCurrentPhaseFormat.mockReturnValue(null);
-  mockNormalizeLayout.mockReturnValue('default');
+  mockNormalizeLayout.mockReturnValue(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
   mockBuildOverlayEvents.mockReturnValue([]);
 });
 
@@ -232,7 +232,7 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
     it('returns events from buildOverlayEvents when latestChange > since', async () => {
       const id = 'full-build-tc-2485';
       mockResolveTournament.mockResolvedValue(makeTournament(id));
-      mockBuildOverlayEvents.mockReturnValue([{ type: 'score_entered', timestamp: new Date().toISOString() }]);
+      mockBuildOverlayEvents.mockReturnValue([{ id: 'evt-1', type: 'score_reported', title: 'Score', timestamp: new Date().toISOString() }]);
 
       // Aggregate returns a timestamp from NOW (after since = 1 hour ago).
       const now = new Date();
