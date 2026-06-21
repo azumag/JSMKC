@@ -301,6 +301,14 @@ describe('E2E case drift coverage', () => {
     ['TC-2495', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
     ['TC-2496', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
     ['TC-2497', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
+    ['TC-2498', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2499', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2500', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2501', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2502', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2503', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2504', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2505', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3317,5 +3325,41 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('audit-log.test.ts');
     expect(auditTest).toContain('TC-2497');
     expect(auditTest).toContain('id: undefined'); // user.id が undefined のケースを具体的にカバー
+  });
+
+  it('documents TC-2498 as requireAdminSession returning error for null session', () => {
+    const section = e2eCaseSection('TC-2498');
+    const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
+    expect(section).toContain('null');
+    expect(section).toContain('api-auth.test.ts');
+    expect(apiAuthTest).toContain('TC-2498');
+    expect(apiAuthTest).toContain('requireAdminSession');
+  });
+
+  it('documents TC-2501 as requireAdminSession returning session for admin role', () => {
+    const section = e2eCaseSection('TC-2501');
+    const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
+    expect(section).toContain('admin');
+    expect(section).toContain('api-auth.test.ts');
+    expect(apiAuthTest).toContain('TC-2501');
+    expect(apiAuthTest).toContain("role: 'admin'");
+  });
+
+  it('documents TC-2502 as requireAdminOrPlayerSession returning error for null session', () => {
+    const section = e2eCaseSection('TC-2502');
+    const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
+    expect(section).toContain('null');
+    expect(section).toContain('api-auth.test.ts');
+    expect(apiAuthTest).toContain('TC-2502');
+    expect(apiAuthTest).toContain('requireAdminOrPlayerSession');
+  });
+
+  it('documents TC-2504 as requireAdminOrPlayerSession returning session for player userType', () => {
+    const section = e2eCaseSection('TC-2504');
+    const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
+    expect(section).toContain('player');
+    expect(section).toContain('api-auth.test.ts');
+    expect(apiAuthTest).toContain('TC-2504');
+    expect(apiAuthTest).toContain("userType: 'player'");
   });
 });
