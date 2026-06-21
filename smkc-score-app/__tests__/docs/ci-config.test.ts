@@ -6,6 +6,9 @@ import { parse } from 'yaml';
 // (YAML パース結果は unknown なので as でキャストする前に実行時ガードを挟む)
 interface CiStep {
   run?: string;
+  uses?: string;
+  with?: Record<string, unknown>;
+  env?: Record<string, string>;
 }
 
 interface CiJob {
@@ -73,5 +76,47 @@ describe('CI workflow configuration', () => {
     const auditIdx = steps.indexOf(auditSteps[0]);
     const testIdx = steps.indexOf(testSteps[0]);
     expect(testIdx).toBeGreaterThan(auditIdx);
+  });
+
+  it('runs lint before the security audit step', () => {
+    // Lint → Security audit → Unit tests の順序を保証する。
+    // lint エラーが早期に検出されるよう audit より前に配置する必要がある。
+    const steps = lintAndTestJob.steps;
+    const lintSteps = steps.filter((s) => s.run?.match(/\bnpm run lint\b/));
+    const auditSteps = steps.filter((s) => s.run?.includes('npm audit --audit-level=high'));
+
+    expect(lintSteps).toHaveLength(1);
+    expect(auditSteps).toHaveLength(1);
+
+    const lintIdx = steps.indexOf(lintSteps[0]);
+    const auditIdx = steps.indexOf(auditSteps[0]);
+    expect(lintIdx).toBeGreaterThanOrEqual(0);
+    expect(auditIdx).toBeGreaterThan(lintIdx);
+  });
+
+  it('uses Node.js 22 in setup-node step', () => {
+    // Node.js バージョンのドリフトを検出する。
+    // package.json engines や Cloudflare Workers ランタイムとの互換性を維持するため
+    // バージョンを 22 に固定している。
+    const setupNodeStep = lintAndTestJob.steps.find((s) =>
+      s.uses?.startsWith('actions/setup-node')
+    );
+    expect(setupNodeStep).toBeDefined();
+    expect(setupNodeStep?.with?.['node-version']).toBe('22');
+  });
+
+  it('passes --ci and --forceExit flags to npm test', () => {
+    // --ci: テスト失敗時に即座に終了し、スナップショットを自動更新しない
+    // --forceExit: 非同期タスクが残留しても CI がハングしないようにする
+    const testStep = lintAndTestJob.steps.find((s) => s.run?.match(/\bnpm test\b/));
+    expect(testStep?.run).toMatch(/--ci\b/);
+    expect(testStep?.run).toMatch(/--forceExit\b/);
+  });
+
+  it('sets SKIP_OPENNEXT_CLOUDFLARE_DEV env var in npm test step', () => {
+    // opennextjs-cloudflare の開発サーバー起動をスキップして
+    // CI でのテスト実行時間を削減するための環境変数
+    const testStep = lintAndTestJob.steps.find((s) => s.run?.match(/\bnpm test\b/));
+    expect(testStep?.env?.['SKIP_OPENNEXT_CLOUDFLARE_DEV']).toBe('1');
   });
 });
