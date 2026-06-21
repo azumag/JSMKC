@@ -78,16 +78,15 @@ async function launchPreviewAdminSessionBrowser(env) {
   // E2E_MAC_SINGLE_PROCESS, E2E_EXECUTABLE_PATH, and E2E_BROWSER_CHANNEL internally,
   // so env must be written to process.env before calling it and restored after.
   const previousEnv = {};
-  for (const [key, value] of Object.entries(env)) {
-    previousEnv[key] = process.env[key];
-    if (value === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = value;
-    }
-  }
-
   try {
+    for (const [key, value] of Object.entries(env)) {
+      previousEnv[key] = process.env[key];
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
     return await launchPersistentChromiumContext(env.E2E_PROFILE_DIR, {
       headless: env.E2E_HEADLESS === '1',
       viewport: { width: 1280, height: 720 },

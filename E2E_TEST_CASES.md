@@ -3559,6 +3559,18 @@
 - **期待結果**: `isRetry` と `isEditingDisabled` は独立して動作し、組み合わせの disabled 状態が正しく描画される
 - **スクリプト**: n/a (unit coverage) / smkc-score-app/__tests__/components/tournament/ta-time-entry-rows.test.tsx
 
+## TC-2446: run-preview の launchPreviewAdminSessionBrowser が process.env を finally で確実に復元する
+- **URL**: n/a (unit contract)
+- **authRequired**: false
+- **背景**: issue #2446。`launchPreviewAdminSessionBrowser` は `launchPersistentChromiumContext` 呼び出し前に env を `process.env` へ書き込み、finally ブロックで復元する。書き込みループが `try` の外にあると、ループ途中で例外が発生した場合に `finally` が実行されず `process.env` が汚染されたまま残る。ループを `try` 内に移動することで、どの段階で例外が起きても復元が保証される。
+- **手順**:
+  1. `launchPersistentChromiumContext` が失敗するよう `jest.doMock` + `jest.isolateModules` でモックした isolated runner を用意する
+  2. `process.env` にセンチネルキーを original-value でセットする
+  3. `assertPreviewAdminSession` を sentinel キー付き env で呼び出す（launchBrowser 引数なし = 実関数使用）
+  4. 呼び出しがエラーで reject した後、`process.env[sentinelKey]` が original-value に戻っていることを確認する
+- **期待結果**: `launchPersistentChromiumContext` 失敗後も `process.env` のエントリが呼び出し前の値に復元される
+- **スクリプト**: n/a (unit coverage) / smkc-score-app/__tests__/e2e/run-preview.test.ts
+
 ## TC-1996: TA決勝 row のTV番号を送信 payload と履歴に保存する
 - **URL**: /tournaments/[temp-id]/ta/finals, /api/tournaments/[id]/ta/phases
 - **authRequired**: true (admin)
