@@ -2808,6 +2808,9 @@ describe('E2E case drift coverage', () => {
     /* Guard for preview.raw.data absence must throw a diagnostic error (issue #2367). */
     expect(tcGp).toContain('TC-2234: preview.raw.data missing');
     expect(section).toContain('preview.raw.data');
+    /* After guard, optional chaining is dead – access must be preview.raw.data.* directly (issue #2458). */
+    expect(tcGp).toContain('preview.raw.data.playoffStructure');
+    expect(tcGp).toContain('preview.raw.data.seededPlayers');
   });
 
   it('documents TC-535 as BM Top-24 qualification label coverage', () => {
