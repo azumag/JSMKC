@@ -14,7 +14,6 @@
  * - Returns generated archive on success
  * - Returns 500 and logs error when persistTournamentArchive throws
  */
-// @ts-nocheck
 // Logger factory is hoisted, so the shared instance must live inside the factory.
 // Retrieve it later via jest.requireMock('@/lib/logger').createLogger().
 jest.mock('@/lib/logger', () => {
@@ -24,7 +23,7 @@ jest.mock('@/lib/logger', () => {
 
 jest.mock('next/server', () => ({
   NextResponse: {
-    json: jest.fn((data, options) => ({ data, status: options?.status ?? 200 })),
+    json: jest.fn((data: unknown, options?: { status?: number }) => ({ data, status: options?.status ?? 200 })),
   },
   NextRequest: jest.fn(),
 }));
@@ -42,19 +41,19 @@ jest.mock('@/lib/tournament-archive', () => ({
   persistTournamentArchive: jest.fn(),
 }));
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { resolveTournament } from '@/lib/tournament-identifier';
-import { readTournamentArchive, persistTournamentArchive } from '@/lib/tournament-archive';
+import { readTournamentArchive, persistTournamentArchive, type TournamentArchiveBundle } from '@/lib/tournament-archive';
 import { GET, POST } from '@/app/api/tournaments/[id]/archive/route';
 
 const mockParams = (id: string) => ({ params: Promise.resolve({ id }) });
-const mockReq = () => ({} as any);
+const mockReq = () => ({} as unknown as NextRequest);
 
-const mockAuth = auth as jest.Mock;
-const mockResolveTournament = resolveTournament as jest.Mock;
-const mockReadTournamentArchive = readTournamentArchive as jest.Mock;
-const mockPersistTournamentArchive = persistTournamentArchive as jest.Mock;
+const mockAuth = auth as jest.Mock; // next-auth type via NextAuth(config as any) makes jest.mocked() infer 'never'
+const mockResolveTournament = jest.mocked(resolveTournament);
+const mockReadTournamentArchive = jest.mocked(readTournamentArchive);
+const mockPersistTournamentArchive = jest.mocked(persistTournamentArchive);
 
 function makeArchiveBundle(publicModes: string[]) {
   return {
@@ -79,7 +78,7 @@ function makeArchiveBundle(publicModes: string[]) {
     modes: { ta: { entries: [], phaseRounds: [] }, bm: {}, mr: {}, gp: {} },
     overallRanking: { rankings: [] },
     archived: true,
-  };
+  } as unknown as TournamentArchiveBundle;
 }
 
 describe('GET /api/tournaments/[id]/archive', () => {

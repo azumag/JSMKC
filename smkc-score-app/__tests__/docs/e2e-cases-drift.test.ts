@@ -3139,17 +3139,18 @@ describe('E2E case drift coverage', () => {
   });
 
   // TC-2472〜TC-2475: Tournament Archive API ドリフトガード
+  // HTTP ステータスコードとエラーコードで検証する（自然言語の表現変更に対し安定）
   it('documents TC-2472 as archive GET 403 for empty publicModes', () => {
     const section = e2eCaseSection('TC-2472');
-    expect(section).toContain('publicModes');
     expect(section).toContain('403');
+    expect(section).toContain('FORBIDDEN');
     expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
   });
 
   it('documents TC-2473 as archive GET 404 when no archive exists', () => {
     const section = e2eCaseSection('TC-2473');
-    expect(section).toContain('null');
     expect(section).toContain('404');
+    expect(section).toContain('NOT_FOUND');
     expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
   });
 
