@@ -25,7 +25,7 @@ jest.mock('@/lib/logger', () => {
   };
 });
 
-import { createAuditLog, createAuditLogs, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { createAuditLog, createAuditLogs, resolveAuditUserId, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { prisma as prismaMock } from '@/lib/prisma';
 
 const loggerModuleMock = jest.requireMock('@/lib/logger') as {
@@ -298,6 +298,41 @@ describe('Audit Log', () => {
           error: 'Database connection failed',
         }
       );
+    });
+  });
+
+  // TC-2493–TC-2497: resolveAuditUserId behavior
+  describe('resolveAuditUserId', () => {
+    it('TC-2493: returns undefined for null session', () => {
+      expect(resolveAuditUserId(null)).toBeUndefined();
+    });
+
+    it('TC-2493: returns undefined for undefined session', () => {
+      expect(resolveAuditUserId(undefined)).toBeUndefined();
+    });
+
+    it('TC-2494: returns undefined when user is null', () => {
+      expect(resolveAuditUserId({ user: null })).toBeUndefined();
+    });
+
+    it('TC-2494: returns undefined when user is absent', () => {
+      expect(resolveAuditUserId({})).toBeUndefined();
+    });
+
+    it('TC-2495: returns undefined for player session (FK violation prevention #734)', () => {
+      expect(resolveAuditUserId({ user: { id: 'player-abc', userType: 'player' } as any })).toBeUndefined();
+    });
+
+    it('TC-2496: returns user.id for admin session', () => {
+      expect(resolveAuditUserId({ user: { id: 'admin-user-id', userType: 'admin' } as any })).toBe('admin-user-id');
+    });
+
+    it('TC-2496: returns user.id for non-player userType (undefined userType)', () => {
+      expect(resolveAuditUserId({ user: { id: 'user-xyz' } as any })).toBe('user-xyz');
+    });
+
+    it('TC-2497: returns undefined when admin user.id is undefined', () => {
+      expect(resolveAuditUserId({ user: { id: undefined, userType: 'admin' } as any })).toBeUndefined();
     });
   });
 });

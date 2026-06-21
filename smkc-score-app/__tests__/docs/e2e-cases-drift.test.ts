@@ -296,6 +296,11 @@ describe('E2E case drift coverage', () => {
     ['TC-2490', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/mr/debug-fill/route.test.ts'],
     ['TC-2491', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/gp/debug-fill/route.test.ts'],
     ['TC-2492', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/ta/debug-fill/route.test.ts'],
+    ['TC-2493', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
+    ['TC-2494', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
+    ['TC-2495', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
+    ['TC-2496', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
+    ['TC-2497', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3267,5 +3272,32 @@ describe('E2E case drift coverage', () => {
     const section = e2eCaseSection('TC-2487');
     expect(section).toContain('invalidateOverlayProbe');
     expect(section).toContain('overlay-events/route.test.ts');
+  });
+
+  it('documents TC-2493 as resolveAuditUserId returning undefined for null/undefined session', () => {
+    const section = e2eCaseSection('TC-2493');
+    const auditTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'audit-log.test.ts');
+    expect(section).toContain('null');
+    expect(section).toContain('audit-log.test.ts');
+    expect(auditTest).toContain('TC-2493');
+    expect(auditTest).toContain('resolveAuditUserId(null)');
+  });
+
+  it('documents TC-2495 as resolveAuditUserId FK violation prevention for player sessions', () => {
+    const section = e2eCaseSection('TC-2495');
+    const auditTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'audit-log.test.ts');
+    expect(section).toContain('#734');
+    expect(section).toContain('audit-log.test.ts');
+    expect(auditTest).toContain('TC-2495');
+    expect(auditTest).toContain("userType: 'player'");
+  });
+
+  it('documents TC-2496 as resolveAuditUserId returning user.id for admin sessions', () => {
+    const section = e2eCaseSection('TC-2496');
+    const auditTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'audit-log.test.ts');
+    expect(section).toContain('admin');
+    expect(section).toContain('audit-log.test.ts');
+    expect(auditTest).toContain('TC-2496');
+    expect(auditTest).toContain("userType: 'admin'");
   });
 });
