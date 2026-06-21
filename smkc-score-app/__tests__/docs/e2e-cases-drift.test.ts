@@ -286,6 +286,12 @@ describe('E2E case drift coverage', () => {
     ['TC-2479', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2480', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2481', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
+    ['TC-2482', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    ['TC-2483', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    ['TC-2484', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    ['TC-2485', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    ['TC-2486', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    ['TC-2487', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3217,5 +3223,45 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('x-nonce');
     expect(section).toContain('x-pathname');
     expect(section).toContain('__tests__/middleware.test.ts');
+  });
+
+  // TC-2482〜TC-2487: overlay-events route ドリフトガード
+  it('documents TC-2482 as overlay-events 404 when tournament not found', () => {
+    const section = e2eCaseSection('TC-2482');
+    expect(section).toContain('404');
+    expect(section).toContain('overlay-events/route.test.ts');
+  });
+
+  it('documents TC-2483 as overlay-events 500 on unexpected database error', () => {
+    const section = e2eCaseSection('TC-2483');
+    expect(section).toContain('500');
+    expect(section).toContain('overlay-events/route.test.ts');
+  });
+
+  it('documents TC-2484 as overlay-events early-return when nothing changed since `since`', () => {
+    const section = e2eCaseSection('TC-2484');
+    expect(section).toContain('since');
+    expect(section).toContain('buildOverlayEvents');
+    expect(section).toContain('overlay-events/route.test.ts');
+  });
+
+  it('documents TC-2485 as overlay-events full-build with Cache-Control no-store', () => {
+    const section = e2eCaseSection('TC-2485');
+    expect(section).toContain('Cache-Control');
+    expect(section).toContain('no-store');
+    expect(section).toContain('overlay-events/route.test.ts');
+  });
+
+  it('documents TC-2486 as overlay-events initial=1 bypasses early-return', () => {
+    const section = e2eCaseSection('TC-2486');
+    expect(section).toContain('initial');
+    expect(section).toContain('buildOverlayEvents');
+    expect(section).toContain('overlay-events/route.test.ts');
+  });
+
+  it('documents TC-2487 as invalidateOverlayProbe removes probe cache entry', () => {
+    const section = e2eCaseSection('TC-2487');
+    expect(section).toContain('invalidateOverlayProbe');
+    expect(section).toContain('overlay-events/route.test.ts');
   });
 });

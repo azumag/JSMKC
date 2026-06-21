@@ -104,6 +104,7 @@ jest.mock('@/lib/prisma', () => {
 
   const createMockModelWithMethods = () => ({
     ...createMockModel(),
+    aggregate: jest.fn(),
     count: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
@@ -146,6 +147,7 @@ jest.mock('@/lib/prisma', () => {
     tTPhaseRound: createMockModelWithMethods(),
     tournamentPlayerScore: createMockModelWithMethods(),
     scoreEntryLog: {
+      aggregate: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       deleteMany: jest.fn(),
