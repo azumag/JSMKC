@@ -27,7 +27,7 @@ import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } fr
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
-import type { Session } from "next-auth";
+import type { User } from "next-auth";
 import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
 import { recalculateRanks, rerankStageAfterDelete } from "@/lib/ta/rank-calculation";
@@ -51,12 +51,14 @@ const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
  * Returns { error } if user is not authenticated or not admin.
  * Returns { session } if authentication succeeds.
  */
-async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; session?: Session | null }> {
+async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; session?: { user: User } | null }> {
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
     return { error: createErrorResponse('Forbidden', 403, 'FORBIDDEN') };
   }
-  return { session };
+  // user is guaranteed non-null by the guard above; TS cannot narrow `user?` through
+  // optional-chaining checks so we assert the narrowed type explicitly.
+  return { session: session as { user: User } };
 }
 
 /**
@@ -68,10 +70,10 @@ async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; sess
  * Returns { error } if user is not authenticated as admin or player.
  * Returns { session } if authentication succeeds.
  */
-async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; session?: Session | null }> {
+async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; session?: { user: User } | null }> {
   const session = await auth();
-  if (session?.user?.role === 'admin') return { session };
-  if (session?.user?.userType === 'player') return { session };
+  if (session?.user?.role === 'admin') return { session: session as { user: User } };
+  if (session?.user?.userType === 'player') return { session: session as { user: User } };
   return { error: createErrorResponse('Forbidden', 403, 'FORBIDDEN') };
 }
 

@@ -31,7 +31,7 @@
  *   });
  */
 
-import type { Session } from 'next-auth';
+import type { User } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
 
@@ -121,7 +121,10 @@ function sanitizeObjectForAuditLog(
  * a FK violation on AuditLog.userId (#734). Returns undefined for player
  * sessions so the audit log row stores NULL instead.
  */
-export function resolveAuditUserId(session: Session | null | undefined): string | undefined {
+// Accept the type that `auth()` actually returns. The `Session` type from
+// next-auth also requires `expires`, which our auth() wrapper intentionally
+// omits (see src/lib/auth.ts §326–332).
+export function resolveAuditUserId(session: { user?: User | null } | null | undefined): string | undefined {
   if (!session?.user) return undefined;
   if (session.user.userType === 'player') return undefined;
   return session.user.id ?? undefined;
