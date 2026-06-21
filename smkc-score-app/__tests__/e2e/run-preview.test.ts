@@ -110,7 +110,8 @@ describe('preview E2E runner', () => {
   });
 
   it('exposes missing Playwright executable detection for preview bootstrap recovery', () => {
-    // Path suffix is platform-specific (linux-x64, mac-arm64, etc.); detection uses substring match on chrome-headless-shell
+    // Path suffix is platform-specific (linux-x64, mac-arm64, etc.);
+    // detection uses substring match on chrome-headless-shell OR chromium_headless_shell (directory name alone)
     expect(runner.isMissingPlaywrightExecutableError(
       new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell"),
     )).toBe(true);
