@@ -102,7 +102,9 @@ describe('CI workflow configuration', () => {
       s.uses?.startsWith('actions/setup-node')
     );
     expect(setupNodeStep).toBeDefined();
-    expect(setupNodeStep?.with?.['node-version']).toBe('22');
+    // String() で YAML パーサの数値/文字列表記差異を吸収する (#2467)
+    // node-version: 22 (クォートなし整数) でも node-version: "22" (文字列) でも通る
+    expect(String(setupNodeStep?.with?.['node-version'])).toBe('22');
   });
 
   it('passes --ci and --forceExit flags to npm test', () => {
