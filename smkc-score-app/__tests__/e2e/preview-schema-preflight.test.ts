@@ -268,9 +268,9 @@ describe('preview schema preflight', () => {
       },
     });
     expect(preflight.isWranglerStdoutAuthError(stdoutJson)).toBe(true);
-    // flat {"error": "..."} string shape
-    expect(preflight.isWranglerStdoutAuthError('{"error": "CLOUDFLARE_API_TOKEN environment variable required"}')).toBe(true);
-    expect(preflight.isWranglerStdoutAuthError('{"error": "non-interactive environment detected"}')).toBe(true);
+    // flat {"error": "string"} shape is not supported (no real-world Wrangler version emits it)
+    expect(preflight.isWranglerStdoutAuthError('{"error": "CLOUDFLARE_API_TOKEN environment variable required"}')).toBe(false);
+    expect(preflight.isWranglerStdoutAuthError('{"error": "non-interactive environment detected"}')).toBe(false);
     expect(preflight.isWranglerStdoutAuthError('')).toBe(false);
     expect(preflight.isWranglerStdoutAuthError('{"results": []}')).toBe(false);
     expect(preflight.isWranglerStdoutAuthError('{"error": {"text": "Unknown D1 error"}}')).toBe(false);

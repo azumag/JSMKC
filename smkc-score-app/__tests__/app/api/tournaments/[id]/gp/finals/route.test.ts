@@ -1349,7 +1349,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         matchId: 'm1',
         score1: 2,
         score2: 2,
-        suddenDeathWinnerId: 'player-z',
+        suddenDeathWinnerId: 'p3',
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });

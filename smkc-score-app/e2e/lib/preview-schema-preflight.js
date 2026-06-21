@@ -93,7 +93,6 @@ function isWranglerStdoutAuthError(stdout) {
   const notes = Array.isArray(errorField?.notes) ? errorField.notes : [];
   // errorField?.name ('APIError' etc.) is excluded: it never matches the auth patterns below.
   const text = [
-    typeof errorField === 'string' ? errorField : '',
     errorField?.text,
     ...notes.map((note) => note?.text),
   ].filter(Boolean).join('\n');

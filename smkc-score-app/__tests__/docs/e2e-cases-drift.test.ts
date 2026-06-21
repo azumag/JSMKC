@@ -444,6 +444,9 @@ describe('E2E case drift coverage', () => {
     expect(preflight).toContain('isWranglerStdoutAuthError');
     expect(preflight).toContain('CLOUDFLARE_API_TOKEN');
     expect(preflight).toContain('non-interactive environment');
+    /* Flat {"error": "string"} shape removed per YAGNI (issue #2384): no real Wrangler version emits it. */
+    expect(preflight).not.toContain("typeof errorField === 'string'");
+    expect(section).toContain('issue #2384');
     expect(preflightTest).toContain('detects CLOUDFLARE_API_TOKEN auth error in Wrangler stdout JSON');
     expect(preflightTest).toContain('continues preview startup on Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth error by default');
     expect(preflightTest).toContain('keeps TC-2333 documented as stdout JSON CLOUDFLARE_API_TOKEN auth error coverage');
@@ -491,7 +494,10 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('/api/auth/session-status');
     expect(section).toContain('createSharedE2eFixture');
     expect(section).toContain('npm run e2e:preview:login');
+    /* E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT escape hatch must be documented (issue #2366). */
+    expect(section).toContain('E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT');
     expect(runner).toContain('assertPreviewAdminSession');
+    expect(runner).toContain('E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT');
     expect(runner).toContain('Preview E2E admin session preflight failed before shared fixture setup');
     expect(runner).toContain('npm run e2e:preview:login');
     expect(runnerTest).toContain('fails preview admin session preflight before fixture setup');
@@ -2379,6 +2385,12 @@ describe('E2E case drift coverage', () => {
       "it('should allow GP playoff round 1 results to finish at first to 1'",
     );
 
+    const unmatchedCase = sectionBetween(
+      routeTest,
+      'should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when unmatched',
+      "it('should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when player1 is named'",
+    );
+
     expect(section).toContain('issue #2235');
     expect(section).toContain("`p1` / `p2`");
     expect(section).toContain('Top-24');
@@ -2388,6 +2400,9 @@ describe('E2E case drift coverage', () => {
     expect(player2WinnerCase).toContain("player2Id: 'p2'");
     expect(player2WinnerCase).toContain("suddenDeathWinnerId: 'p2'");
     expect(player2WinnerCase).not.toContain('player-8');
+    /* Unmatched case must use short 'p...' style, not numeric 'player-N' IDs. */
+    expect(unmatchedCase).not.toContain('player-z');
+    expect(unmatchedCase).toContain("suddenDeathWinnerId: 'p3'");
   });
 
   it('documents TC-825 as a full Prisma migration JSON type guard for D1', () => {
@@ -2790,6 +2805,9 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain("log('TC-2234'");
     expect(tcGp).toContain('apiSetGpFinalsScore(adminPage, tournamentId, match.id, 1, 1, suddenDeathWinnerId)');
     expect(tcGp).toContain('seededWinner?.playerId === suddenDeathWinnerId');
+    /* Guard for preview.raw.data absence must throw a diagnostic error (issue #2367). */
+    expect(tcGp).toContain('TC-2234: preview.raw.data missing');
+    expect(section).toContain('preview.raw.data');
   });
 
   it('documents TC-535 as BM Top-24 qualification label coverage', () => {

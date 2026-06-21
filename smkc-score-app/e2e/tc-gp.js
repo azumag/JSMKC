@@ -1165,6 +1165,8 @@ async function runTc2234(adminPage) {
     }
 
     const preview = await apiFetchGpFinalsState(adminPage, tournamentId);
+    /* Guard: raw.data absence causes silent [] fallback and misleading 'upper seed missing' error. */
+    if (!preview.raw?.data) throw new Error(`TC-2234: preview.raw.data missing – raw: ${JSON.stringify(preview.raw)}`);
     const playoffStructure = preview.raw?.data?.playoffStructure || [];
     const upperSeed = playoffStructure.find((entry) => entry.matchNumber === tiedR2Match.matchNumber)?.advancesToUpperSeed;
     const seededPlayers = preview.raw?.data?.seededPlayers || [];
