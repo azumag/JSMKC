@@ -198,5 +198,55 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
         })
       );
     });
+
+    /**
+     * TC-2508: tournament with no logs returns empty logsByMatch and totalCount=0.
+     * New tournaments have no score entries yet; the route must handle the empty case
+     * gracefully without error.
+     */
+    it('TC-2508: should return empty logsByMatch and totalCount=0 when no logs exist', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      jest.mocked(prisma.scoreEntryLog.findMany).mockResolvedValue([]);
+
+      await scoreEntryLogsRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/score-entry-logs'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            tournamentId: 't1',
+            totalCount: 0,
+            logsByMatch: {},
+          }),
+        })
+      );
+    });
+
+    /**
+     * TC-2509: findMany is called with orderBy timestamp descending so the most
+     * recent score entries appear first in each match group.
+     */
+    it('TC-2509: should query logs ordered by timestamp descending', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      jest.mocked(prisma.scoreEntryLog.findMany).mockResolvedValue([]);
+
+      await scoreEntryLogsRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/score-entry-logs'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(jest.mocked(prisma.scoreEntryLog.findMany)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { timestamp: 'desc' },
+        })
+      );
+    });
   });
 });
