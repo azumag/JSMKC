@@ -280,7 +280,7 @@ describe('E2E case drift coverage', () => {
     ['TC-2473', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
     ['TC-2474', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
     ['TC-2475', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
-    ['TC-2476', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
+    ['TC-2476', 'n/a (unit/static coverage)', 'smkc-score-app/src/lib/auth.ts'],
     ['TC-2477', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2478', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2479', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
@@ -3180,7 +3180,7 @@ describe('E2E case drift coverage', () => {
     const section = e2eCaseSection('TC-2476');
     expect(section).toContain('jest.mocked(auth)');
     expect(section).toContain('never');
-    expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
+    expect(section).toContain('src/lib/auth.ts');
   });
 
   // TC-2477〜TC-2481: Middleware ドリフトガード
