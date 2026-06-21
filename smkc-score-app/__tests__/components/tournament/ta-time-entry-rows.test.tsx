@@ -12,7 +12,7 @@ const timeInputProps = {
 } as const;
 
 describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
-  it('renders props and calls callbacks with correct arguments', () => {
+  it('verifies time input is disabled and TV/retry callbacks work when isRetry=true', () => {
     const onTvChange = jest.fn();
     const onTimeChange = jest.fn();
     const onTimeBlur = jest.fn();
@@ -39,24 +39,60 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
       />
     );
 
+    // isRetry={true} disables the time input; assert before any interactions
+    const timeInput = screen.getByPlaceholderText('Time');
+    expect(timeInput).toBeDisabled();
+    expect(onTimeChange).not.toHaveBeenCalled();
+    expect(onTimeBlur).not.toHaveBeenCalled();
+
+    // TV select is independent of isRetry — callbacks still fire
     const tvSelect = screen.getByLabelText('TV number');
     fireEvent.change(tvSelect, { target: { value: '3' } });
     fireEvent.change(tvSelect, { target: { value: '' } });
     expect(onTvChange).toHaveBeenNthCalledWith(1, 'player-1', 3);
     expect(onTvChange).toHaveBeenNthCalledWith(2, 'player-1', null);
 
+    // retry button remains clickable when isRetry=true (toggling off)
+    const retryButton = screen.getByRole('button', { name: 'Retry' });
+    fireEvent.click(retryButton);
+    expect(onRetryToggle).toHaveBeenCalledWith('player-1');
+  });
+
+  it('calls time input callbacks when isRetry=false', () => {
+    const onTvChange = jest.fn();
+    const onTimeChange = jest.fn();
+    const onTimeBlur = jest.fn();
+    const onRetryToggle = jest.fn();
+
+    render(
+      <TaTimeEntryRow
+        playerId="player-1"
+        playerName="Alice"
+        livesLabel="L3"
+        tvNumber={2}
+        tvLabel="TV number"
+        timeValue="1:23.45"
+        timePlaceholder="Time"
+        isRetry={false}
+        isEditingDisabled={false}
+        retryLabel="Retry"
+        retryTitle="Retry time"
+        timeInputProps={timeInputProps}
+        onTvChange={onTvChange}
+        onTimeChange={onTimeChange}
+        onTimeBlur={onTimeBlur}
+        onRetryToggle={onRetryToggle}
+      />
+    );
+
     const timeInput = screen.getByPlaceholderText('Time');
+    expect(timeInput).not.toBeDisabled();
+
     fireEvent.change(timeInput, { target: { value: '1:10.00' } });
     expect(onTimeChange).toHaveBeenCalledWith('player-1', '1:10.00');
 
     fireEvent.blur(timeInput);
     expect(onTimeBlur).toHaveBeenCalledWith('player-1');
-    // disabled because isRetry={true} — not caused by blur
-    expect(timeInput).toBeDisabled();
-
-    const retryButton = screen.getByRole('button', { name: 'Retry' });
-    fireEvent.click(retryButton);
-    expect(onRetryToggle).toHaveBeenCalledWith('player-1');
   });
 
   it('disables retry button when editing is disabled', () => {
@@ -81,6 +117,33 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
       />
     );
 
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
+  });
+
+  it('disables both retry button and time input when isRetry=true and isEditingDisabled=true', () => {
+    // When both flags are set, time input is disabled by isRetry and retry button by isEditingDisabled
+    render(
+      <TaTimeEntryRow
+        playerId="player-1"
+        playerName="Alice"
+        livesLabel="L3"
+        tvNumber={null}
+        tvLabel="TV number"
+        timeValue="9:59.99"
+        timePlaceholder="Time"
+        isRetry={true}
+        isEditingDisabled={true}
+        retryLabel="Retry"
+        retryTitle="Retry time"
+        timeInputProps={timeInputProps}
+        onTvChange={jest.fn()}
+        onTimeChange={jest.fn()}
+        onTimeBlur={jest.fn()}
+        onRetryToggle={jest.fn()}
+      />
+    );
+
+    expect(screen.getByPlaceholderText('Time')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
   });
 

@@ -74,6 +74,9 @@ function resolveHostViaPublicDns(hostname) {
 
 async function launchPreviewAdminSessionBrowser(env) {
   const { launchPersistentChromiumContext } = require('./lib/common');
+  // launchPersistentChromiumContext reads process.env for E2E_HOST_RESOLVER_RULES,
+  // E2E_MAC_SINGLE_PROCESS, E2E_EXECUTABLE_PATH, and E2E_BROWSER_CHANNEL internally,
+  // so env must be written to process.env before calling it and restored after.
   const previousEnv = {};
   for (const [key, value] of Object.entries(env)) {
     previousEnv[key] = process.env[key];
