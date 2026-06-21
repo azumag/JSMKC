@@ -3547,6 +3547,18 @@
 - **期待結果**: TAのTV番号 helper は空入力・非数値入力を保存可能な数値として扱わず、`null` に正規化する
 - **スクリプト**: tc-ta.js TC-1987 / time-entry-layout.test.ts / ta-time-entry-rows.test.tsx
 
+## TC-2444: TA タイムエントリー row の isRetry/isEditingDisabled 組み合わせが disabled 状態を正しく制御する
+- **URL**: n/a (unit contract)
+- **authRequired**: false
+- **背景**: issue #1930。`TaTimeEntryRow` の time input は `isRetry={true}` で disabled になり、retry button は `isEditingDisabled={true}` で disabled になる。これらは独立したフラグであり、両方が true の場合は両要素が disabled になる。`fireEvent` はdisabled属性を無視してイベントを発火するため、disabled 要素へのインタラクションは行わず、描画直後にdisabled状態を検証すべき。
+- **手順**:
+  1. `isRetry={true}` で `TaTimeEntryRow` を描画し、time input が即座に disabled であることを確認する（blur イベント後に確認しない）
+  2. `isRetry={true}` 状態では `onTimeChange`・`onTimeBlur` コールバックが呼ばれないこと（disabled 要素のインタラクションは行わない）
+  3. `isRetry={false}` で描画し、time input が enabled で callbacks が正常に呼ばれることを確認する
+  4. `isRetry={true}` かつ `isEditingDisabled={true}` で描画し、time input と retry button の両方が disabled であることを確認する
+- **期待結果**: `isRetry` と `isEditingDisabled` は独立して動作し、組み合わせの disabled 状態が正しく描画される
+- **スクリプト**: n/a (unit coverage) / smkc-score-app/__tests__/components/tournament/ta-time-entry-rows.test.tsx
+
 ## TC-1996: TA決勝 row のTV番号を送信 payload と履歴に保存する
 - **URL**: /tournaments/[temp-id]/ta/finals, /api/tournaments/[id]/ta/phases
 - **authRequired**: true (admin)
