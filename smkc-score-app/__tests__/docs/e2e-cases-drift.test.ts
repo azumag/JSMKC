@@ -3279,7 +3279,7 @@ describe('E2E case drift coverage', () => {
     const auditTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'audit-log.test.ts');
     expect(section).toContain('null');
     expect(section).toContain('audit-log.test.ts');
-    expect(auditTest).toContain('TC-2493');
+    expect(auditTest).toContain('TC-2493a');
     expect(auditTest).toContain('resolveAuditUserId(null)');
   });
 
@@ -3292,12 +3292,29 @@ describe('E2E case drift coverage', () => {
     expect(auditTest).toContain("userType: 'player'");
   });
 
+  it('documents TC-2494 as resolveAuditUserId returning undefined when user is null', () => {
+    const section = e2eCaseSection('TC-2494');
+    const auditTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'audit-log.test.ts');
+    expect(section).toContain('null');
+    expect(section).toContain('audit-log.test.ts');
+    expect(auditTest).toContain('TC-2494a');
+    expect(auditTest).toContain('user: null');
+  });
+
   it('documents TC-2496 as resolveAuditUserId returning user.id for admin sessions', () => {
     const section = e2eCaseSection('TC-2496');
     const auditTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'audit-log.test.ts');
     expect(section).toContain('admin');
     expect(section).toContain('audit-log.test.ts');
-    expect(auditTest).toContain('TC-2496');
+    expect(auditTest).toContain('TC-2496a');
     expect(auditTest).toContain("userType: 'admin'");
+  });
+
+  it('documents TC-2497 as resolveAuditUserId returning undefined when admin user.id is undefined', () => {
+    const section = e2eCaseSection('TC-2497');
+    const auditTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'audit-log.test.ts');
+    expect(section).toContain('undefined');
+    expect(section).toContain('audit-log.test.ts');
+    expect(auditTest).toContain('TC-2497');
   });
 });
