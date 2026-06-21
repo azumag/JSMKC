@@ -11,7 +11,6 @@
  * - Skips early-return path and runs full build when initial=1 (TC-2486)
  * - invalidateOverlayProbe removes the probe cache entry for a tournament (TC-2487)
  */
-// @ts-nocheck
 
 // Prisma mock: factory must be self-contained because jest.mock is hoisted.
 // Access the mock instance via jest.requireMock('@/lib/prisma').default.
@@ -70,7 +69,11 @@ jest.mock('next/server', () => {
   class NextResponseMock {
     data: unknown;
     status: number;
-    headers: { set: (k: string, v: string) => void; get: (k: string) => string | undefined; _store: Record<string, string> };
+    headers: {
+      set: (k: string, v: string) => void;
+      get: (k: string) => string | undefined;
+      _store: Record<string, string>;
+    };
     constructor(body: unknown, options?: { status?: number }) {
       this.data = body;
       this.status = options?.status ?? 200;
@@ -90,6 +93,13 @@ import { computeCurrentPhase, computeCurrentPhaseFormat } from '@/lib/overlay/ph
 import { normalizeOverlayBroadcastLayout } from '@/lib/overlay/layout';
 import { GET, invalidateOverlayProbe } from '@/app/api/tournaments/[id]/overlay-events/route';
 import { createLogger } from '@/lib/logger';
+
+/** Response shape returned by our NextResponseMock (not the real NextResponse). */
+type MockResponse = {
+  data: { success: boolean; data: Record<string, unknown> };
+  status: number;
+  headers: { get: (k: string) => string | undefined };
+};
 
 const mockResolveTournament = jest.mocked(resolveTournament);
 const mockBuildOverlayEvents = jest.mocked(buildOverlayEvents);
@@ -131,9 +141,9 @@ function makeParams(id = 'tournament-1') {
   return { params: Promise.resolve({ id }) };
 }
 
-/** Stub all aggregate queries to return a timestamp at or before `before`. */
-function stubAggregatesEmpty(before: Date) {
-  const result = { _max: { updatedAt: before, createdAt: before, submittedAt: before, timestamp: before } };
+/** Stub all aggregate queries to return the given `at` timestamp. */
+function stubAggregatesAt(at: Date) {
+  const result = { _max: { updatedAt: at, createdAt: at, submittedAt: at, timestamp: at } };
   mockPrisma.bMMatch.aggregate.mockResolvedValue(result);
   mockPrisma.mRMatch.aggregate.mockResolvedValue(result);
   mockPrisma.gPMatch.aggregate.mockResolvedValue(result);
@@ -175,7 +185,7 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
   describe('TC-2482: 404 when tournament not found', () => {
     it('returns 404 when resolveTournament returns null', async () => {
       mockResolveTournament.mockResolvedValue(null);
-      const res = await GET(makeRequest(), makeParams('unknown-id'));
+      const res = (await GET(makeRequest(), makeParams('unknown-id'))) as unknown as MockResponse;
       expect(res.status).toBe(404);
       expect(res.data).toMatchObject({ success: false });
     });
@@ -184,7 +194,7 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
   describe('TC-2483: 500 on unexpected error', () => {
     it('returns 500 and logs error when resolveTournament throws', async () => {
       mockResolveTournament.mockRejectedValue(new Error('DB connection failed'));
-      const res = await GET(makeRequest(), makeParams());
+      const res = (await GET(makeRequest(), makeParams())) as unknown as MockResponse;
       expect(res.status).toBe(500);
       const logger = createLogger('overlay-events-api');
       expect(logger.error).toHaveBeenCalledWith(
@@ -202,12 +212,12 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
 
       // All aggregate timestamps are 2 hours ago; since = 1 hour ago → no change.
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      stubAggregatesEmpty(twoHoursAgo);
+      stubAggregatesAt(twoHoursAgo);
       stubPhaseInputEmpty();
 
       // since = 1 hour ago (passed as query param)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const res = await GET(makeRequest({ since: oneHourAgo }), makeParams(id));
+      const res = (await GET(makeRequest({ since: oneHourAgo }), makeParams(id))) as unknown as MockResponse;
 
       expect(res.status).toBe(200);
       // Empty events returned on early-return path
@@ -226,17 +236,17 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
 
       // Aggregate returns a timestamp from NOW (after since = 1 hour ago).
       const now = new Date();
-      stubAggregatesEmpty(now);
+      stubAggregatesAt(now);
       stubPhaseInputEmpty();
       stubFindManyEmpty();
       // findFirst for earliestFinals (bMMatch)
       mockPrisma.bMMatch.findFirst.mockResolvedValue(null);
 
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const res = await GET(makeRequest({ since: oneHourAgo }), makeParams(id));
+      const res = (await GET(makeRequest({ since: oneHourAgo }), makeParams(id))) as unknown as MockResponse;
 
       expect(res.status).toBe(200);
-      expect(res.data.data.events).toHaveLength(1);
+      expect((res.data.data.events as unknown[]).length).toBe(1);
       expect(mockBuildOverlayEvents).toHaveBeenCalled();
     });
 
@@ -245,11 +255,11 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
       mockResolveTournament.mockResolvedValue(makeTournament(id));
 
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      stubAggregatesEmpty(twoHoursAgo);
+      stubAggregatesAt(twoHoursAgo);
       stubPhaseInputEmpty();
 
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const res = await GET(makeRequest({ since: oneHourAgo }), makeParams(id));
+      const res = (await GET(makeRequest({ since: oneHourAgo }), makeParams(id))) as unknown as MockResponse;
 
       // Cache-Control: no-store must be set to prevent browser caching of
       // time-sensitive overlay poll responses.
@@ -265,13 +275,13 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
 
       // Aggregate timestamps are very old (early-return would trigger without initial=1).
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      stubAggregatesEmpty(twoHoursAgo);
+      stubAggregatesAt(twoHoursAgo);
       stubPhaseInputEmpty();
       stubFindManyEmpty();
       mockPrisma.bMMatch.findFirst.mockResolvedValue(null);
 
       // initial=1 is the key; since is omitted (initial window auto-computed)
-      const res = await GET(makeRequest({ initial: '1' }), makeParams(id));
+      const res = (await GET(makeRequest({ initial: '1' }), makeParams(id))) as unknown as MockResponse;
 
       expect(res.status).toBe(200);
       // buildOverlayEvents MUST be called on initial=1 path even with no recent changes.
@@ -280,10 +290,30 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
   });
 
   describe('TC-2487: invalidateOverlayProbe removes probe cache entry', () => {
-    it('exported invalidateOverlayProbe does not throw and is callable', () => {
-      // Populate the cache first via a probe write by calling the route,
-      // then verify invalidation succeeds without throwing.
-      expect(() => invalidateOverlayProbe('any-tournament-id')).not.toThrow();
+    it('invalidates the probe cache, causing the next GET to re-query aggregates', async () => {
+      const id = 'probe-invalidation-tc-2487';
+      mockResolveTournament.mockResolvedValue(makeTournament(id));
+      // Timestamps 2 hours ago: the early-return path fires (since = 1h ago > latest).
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      stubAggregatesAt(twoHoursAgo);
+      stubPhaseInputEmpty();
+
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+      // First GET populates the probe cache (runs the 7 aggregate queries).
+      await GET(makeRequest({ since }), makeParams(id));
+      const callsAfterFirstGet = (mockPrisma.bMMatch.aggregate as jest.Mock).mock.calls.length;
+
+      // Second GET within TTL reuses the cached probe: no additional aggregate calls.
+      await GET(makeRequest({ since }), makeParams(id));
+      expect((mockPrisma.bMMatch.aggregate as jest.Mock).mock.calls.length).toBe(callsAfterFirstGet);
+
+      // Invalidate the probe cache entry for this tournament.
+      invalidateOverlayProbe(id);
+
+      // Third GET must re-run aggregate queries because the probe entry was deleted.
+      await GET(makeRequest({ since }), makeParams(id));
+      expect((mockPrisma.bMMatch.aggregate as jest.Mock).mock.calls.length).toBeGreaterThan(callsAfterFirstGet);
     });
   });
 });
