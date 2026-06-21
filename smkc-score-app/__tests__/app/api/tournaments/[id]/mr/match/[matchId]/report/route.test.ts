@@ -254,7 +254,7 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
     it.each([
       [1, 'player2'],
       [2, 'player1'],
-    ])('should delegate reportingPlayer %s participant auth before waiting for the peer report', async (reportingPlayer, waitingFor) => {
+    ])('should verify participant auth for reportingPlayer %s and return correct waitingFor value', async (reportingPlayer, waitingFor) => {
       const mockMatch = {
         id: 'm1',
         tournamentId: 't1',

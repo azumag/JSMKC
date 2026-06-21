@@ -18,8 +18,8 @@ describe('broadcast admin manual', () => {
   });
 
   it('states TV2/TV3/TV4 2P-mode overlay exclusions without ambiguous wording', () => {
-    const tvSectionMatch = manual.match(/## 5\. TV# の使い方[\s\S]*?(?=\n## 6\.)/);
-    expect(tvSectionMatch).not.toBeNull();
+    const tvSectionMatch = manual.match(/## \d+\. TV# の使い方[\s\S]*?(?=\n## \d+\.|$)/);
+    expect(tvSectionMatch).not.toBeNull(); // section number is dynamic to survive renumbering
     const tvSection = tvSectionMatch![0];
 
     const troubleshootingMatch = manual.match(/### TV2\/TV3\/TV4 の選手名が出ない[\s\S]*?(?=\n###|$)/);
