@@ -26,10 +26,11 @@ describe('CI workflow configuration', () => {
     const raw = fs.readFileSync(ciPath, 'utf8');
     const workflow = parse(raw) as CiWorkflow;
     // jobs キーが存在しない (不正な YAML、コンフリクトマーカー混入等) 場合に
-    // 各 it ブロックで TypeError が出るより明確なエラーにするための実行時ガード
-    if (!workflow?.jobs?.['lint-and-test']) {
+    // 各 it ブロックで TypeError が出るより明確なエラーにするための実行時ガード。
+    // steps が undefined/空の場合も同様に早期エラーとする (#2464)
+    if (!workflow?.jobs?.['lint-and-test']?.steps?.length) {
       throw new Error(
-        `ci.yml の jobs['lint-and-test'] が見つかりません。ジョブ名が変更された可能性があります。`
+        `ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`
       );
     }
     lintAndTestJob = workflow.jobs['lint-and-test'];
@@ -58,8 +59,8 @@ describe('CI workflow configuration', () => {
     // 異なる job への誤参照を防ぐ (indexOf による文字列比較は使用しない)
     const steps = lintAndTestJob.steps;
 
-    // 各ステップが steps 配列に 1 件だけ存在することを確認してから
-    // インデックスを比較する (複数マッチ時の誤判定を防ぐ)
+    // 各ステップが steps 配列に 1 件だけ存在することを filter で確認してから
+    // indexOf でインデックスを取得する (#2465: findIndex の二重走査を解消)
     const auditSteps = steps.filter((s) => s.run?.includes('npm audit --audit-level=high'));
     // \bnpm test\b の語境界で絞り込み、npm run test:coverage 等の部分一致を排除する
     const testSteps = steps.filter((s) => s.run?.match(/\bnpm test\b/));
@@ -67,8 +68,10 @@ describe('CI workflow configuration', () => {
     expect(auditSteps).toHaveLength(1);
     expect(testSteps).toHaveLength(1);
 
-    const auditIdx = steps.findIndex((s) => s.run?.includes('npm audit --audit-level=high'));
-    const testIdx = steps.findIndex((s) => s.run?.match(/\bnpm test\b/));
+    // filter 結果から steps.indexOf で参照比較によりインデックスを得る
+    // (同じ predicate で findIndex を再実行する二重走査を回避)
+    const auditIdx = steps.indexOf(auditSteps[0]);
+    const testIdx = steps.indexOf(testSteps[0]);
     expect(testIdx).toBeGreaterThan(auditIdx);
   });
 });
