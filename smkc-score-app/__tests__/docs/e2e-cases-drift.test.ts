@@ -274,6 +274,7 @@ describe('E2E case drift coverage', () => {
     ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
     ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-2444', 'n/a (unit coverage)', 'smkc-score-app/__tests__/components/tournament/ta-time-entry-rows.test.tsx'],
+    ['TC-2446', 'n/a (unit coverage)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 

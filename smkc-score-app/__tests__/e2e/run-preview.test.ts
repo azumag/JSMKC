@@ -317,6 +317,40 @@ describe('preview E2E runner', () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it('restores process.env entries when launchPersistentChromiumContext throws (TC-2446)', async () => {
+    // launchPreviewAdminSessionBrowser writes env into process.env then restores via finally.
+    // jest.doMock inside isolateModules scopes the factory to the isolated registry so it
+    // intercepts the runtime require('./lib/common') inside launchPreviewAdminSessionBrowser
+    // without leaking into the global mock registry.
+    const throwingLaunch = jest.fn<() => Promise<never>>().mockRejectedValue(new Error('browser not available'));
+    let isolatedRunner: PreviewRunner | undefined;
+    jest.isolateModules(() => {
+      jest.doMock('../../e2e/lib/common', () => ({
+        launchPersistentChromiumContext: throwingLaunch,
+        getChromiumLaunchConfig: jest.fn(),
+      }));
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      isolatedRunner = require('../../e2e/run-preview') as PreviewRunner;
+    });
+    if (!isolatedRunner) throw new Error('isolation failed — run-preview module not loaded');
+
+    const sentinelKey = 'E2E_RUN_PREVIEW_TEST_SENTINEL_2446';
+    process.env[sentinelKey] = 'original-value';
+
+    await expect(
+      isolatedRunner.assertPreviewAdminSession({
+        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+        [sentinelKey]: 'modified-value',
+      }),
+    ).rejects.toThrow('browser not available');
+
+    // finally block must have restored the sentinel to its original value
+    expect(process.env[sentinelKey]).toBe('original-value');
+    delete process.env[sentinelKey];
+    jest.unmock('../../e2e/lib/common');
+  });
+
   it('surfaces install-browser failure when managed cache bootstrap cannot recover', async () => {
     const launchBrowser = jest.fn<() => Promise<unknown>>()
       .mockRejectedValue(new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell"));
