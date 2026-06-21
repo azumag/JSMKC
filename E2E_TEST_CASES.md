@@ -3578,9 +3578,9 @@
 - **手順**:
   1. `launchPersistentChromiumContext` をモックした isolated runner を `jest.doMock` + `jest.isolateModules` で用意する
   2. `process.env` にセンチネルキーを original-value でセットする
-  3. `toString()` が throw するオブジェクトを値に持つ env を作成する（センチネルキーより後に配置）
-  4. `assertPreviewAdminSession` を上記 env で呼び出す
-  5. 呼び出しが `'env stringify failed'` エラーで reject した後、`process.env[sentinelKey]` が original-value に戻っていることと、`launchPersistentChromiumContext` が未呼び出しであることを確認する
+  3. `Object.defineProperty` で `process.env['THROW_ON_WRITE']` に throw するセッターを設置する。センチネルキーは env パラメータ内で THROW_ON_WRITE より前に配置し、書き込みループがセンチネルを修正した後でセッターが発火するようにする
+  4. `assertPreviewAdminSession` を env = `{ ..., [sentinelKey]: 'modified-value', THROW_ON_WRITE: 'any-value' }` で呼び出す
+  5. 呼び出しが `'env assignment failed'` エラーで reject した後、`process.env[sentinelKey]` が original-value に戻っていることと、`launchPersistentChromiumContext` が未呼び出しであることを確認する
 - **期待結果**: 書き込みループが途中 throw した後も `process.env` のエントリが呼び出し前の値に復元される
 - **スクリプト**: n/a (unit coverage) / smkc-score-app/__tests__/e2e/run-preview.test.ts
 
