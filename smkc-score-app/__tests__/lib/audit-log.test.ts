@@ -301,21 +301,21 @@ describe('Audit Log', () => {
     });
   });
 
-  // TC-2493–TC-2497: resolveAuditUserId behavior
+  // TC-2493a/b–TC-2497: resolveAuditUserId behavior
   describe('resolveAuditUserId', () => {
-    it('TC-2493: returns undefined for null session', () => {
+    it('TC-2493a: returns undefined for null session', () => {
       expect(resolveAuditUserId(null)).toBeUndefined();
     });
 
-    it('TC-2493: returns undefined for undefined session', () => {
+    it('TC-2493b: returns undefined for undefined session', () => {
       expect(resolveAuditUserId(undefined)).toBeUndefined();
     });
 
-    it('TC-2494: returns undefined when user is null', () => {
+    it('TC-2494a: returns undefined when user is null', () => {
       expect(resolveAuditUserId({ user: null })).toBeUndefined();
     });
 
-    it('TC-2494: returns undefined when user is absent', () => {
+    it('TC-2494b: returns undefined when user is absent', () => {
       expect(resolveAuditUserId({})).toBeUndefined();
     });
 
@@ -323,11 +323,11 @@ describe('Audit Log', () => {
       expect(resolveAuditUserId({ user: { id: 'player-abc', userType: 'player' } as any })).toBeUndefined();
     });
 
-    it('TC-2496: returns user.id for admin session', () => {
+    it('TC-2496a: returns user.id for admin session', () => {
       expect(resolveAuditUserId({ user: { id: 'admin-user-id', userType: 'admin' } as any })).toBe('admin-user-id');
     });
 
-    it('TC-2496: returns user.id for non-player userType (undefined userType)', () => {
+    it('TC-2496b: returns user.id for non-player userType (undefined userType)', () => {
       expect(resolveAuditUserId({ user: { id: 'user-xyz' } as any })).toBe('user-xyz');
     });
 
