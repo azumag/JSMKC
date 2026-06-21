@@ -316,7 +316,7 @@ describe('E2E browser launch helpers', () => {
         'utf8',
       );
       expect(commonLib).toContain('detectSingletonLockOwner');
-      expect(commonLib).toContain('process.kill(pid, 0)'); // live-owner PID check
+      expect(commonLib).toMatch(/process\.kill\s*\(\s*pid\s*,\s*0\s*\)/); // live-owner PID check
       expect(commonLib).toContain('EPERM'); // process exists but cannot be signaled
       expect(commonLib).toContain('launchPersistentChromiumContext'); // integration site
     });
