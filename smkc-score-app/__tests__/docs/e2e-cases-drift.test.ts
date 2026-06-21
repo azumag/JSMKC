@@ -495,7 +495,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('SingletonLock');
     expect(section).toContain('__tests__/lib/e2e-browser-launch.test.ts');
     expect(commonLib).toContain('detectSingletonLockOwner');
-    expect(commonLib).toContain('process.kill(pid, 0)');
+    expect(commonLib).toMatch(/process\.kill\s*\(\s*pid\s*,\s*0\s*\)/);
     expect(browserLaunchTest).toContain('returns null when SingletonLock does not exist');
     expect(browserLaunchTest).toContain('returns alive owner when lock target process is running');
     expect(browserLaunchTest).toContain('throws with live owner PID before launching Chromium');
@@ -3339,7 +3339,7 @@ describe('E2E case drift coverage', () => {
   it('documents TC-2499 as requireAdminSession returning error when session has no user', () => {
     const section = e2eCaseSection('TC-2499');
     const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
-    expect(section).toContain('requireAdminSession');
+    expect(section).toContain('{}'); // "user なしセッション ({})" scenario-specific token
     expect(section).toContain('api-auth.test.ts');
     expect(apiAuthTest).toContain('TC-2499');
     expect(apiAuthTest).toContain('requireAdminSession');
