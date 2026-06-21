@@ -201,6 +201,72 @@ describe('handleDebugFillRequest — TA semantics', () => {
   });
 });
 
+describe('handleDebugFillRequest — MR lock and assignedCourses', () => {
+  beforeEach(() => {
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+  });
+
+  it('returns 409 QUALIFICATION_LOCKED when mrQualificationConfirmed is true', async () => {
+    (prisma.tournament.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ id: 't-1', debugMode: true })
+      .mockResolvedValueOnce({ mrQualificationConfirmed: true });
+
+    const res = await handleDebugFillRequest('t-1', 'mr', makeRequest());
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe('QUALIFICATION_LOCKED');
+    expect((prisma.mRMatch.update as jest.Mock)).not.toHaveBeenCalled();
+  });
+
+  it('fills MR matches using assignedCourses from the match row', async () => {
+    (prisma.tournament.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ id: 't-1', debugMode: true })
+      .mockResolvedValueOnce({ mrQualificationConfirmed: false });
+
+    (prisma.mRMatch.findMany as jest.Mock)
+      .mockResolvedValueOnce([
+        { id: 'm-empty', completed: false, isBye: false, assignedCourses: ['MC1', 'DP1', 'GV1', 'BC1'] },
+      ])
+      // Second call: recalc2PStandings
+      .mockResolvedValueOnce([]);
+
+    const res = await handleDebugFillRequest('t-1', 'mr', makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data).toMatchObject({ filled: 1, skipped: 0, total: 1, mode: 'mr' });
+
+    const updateMock = prisma.mRMatch.update as jest.Mock;
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    const data = updateMock.mock.calls[0][0].data;
+    // score1 + score2 must equal total races (4 in assignedCourses)
+    expect(data.score1 + data.score2).toBe(4);
+    expect(data.completed).toBe(true);
+    // rounds must contain exactly 4 entries matching the assigned courses
+    expect(data.rounds).toHaveLength(4);
+    expect(data.rounds.map((r: any) => r.course)).toEqual(['MC1', 'DP1', 'GV1', 'BC1']);
+  });
+
+  it('falls back to first 4 COURSES when assignedCourses is null', async () => {
+    (prisma.tournament.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ id: 't-1', debugMode: true })
+      .mockResolvedValueOnce({ mrQualificationConfirmed: false });
+
+    (prisma.mRMatch.findMany as jest.Mock)
+      .mockResolvedValueOnce([
+        { id: 'm-no-courses', completed: false, isBye: false, assignedCourses: null },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const res = await handleDebugFillRequest('t-1', 'mr', makeRequest());
+    expect(res.status).toBe(200);
+    const updateMock = prisma.mRMatch.update as jest.Mock;
+    const data = updateMock.mock.calls[0][0].data;
+    // Fallback: 4 rounds (TOTAL_MR_RACES = 4)
+    expect(data.rounds).toHaveLength(4);
+    expect(data.score1 + data.score2).toBe(4);
+  });
+});
+
 describe('handleDebugFillRequest — GP requires assigned cup', () => {
   beforeEach(() => {
     jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
@@ -220,5 +286,32 @@ describe('handleDebugFillRequest — GP requires assigned cup', () => {
     const body = await res.json();
     expect(body.code).toBe('QUALIFICATION_LOCKED');
     expect((prisma.gPMatch.update as jest.Mock)).not.toHaveBeenCalled();
+  });
+
+  it('fills GP matches with 5 races when cup is assigned', async () => {
+    (prisma.tournament.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ id: 't-1', debugMode: true })
+      .mockResolvedValueOnce({ gpQualificationConfirmed: false });
+
+    (prisma.gPMatch.findMany as jest.Mock)
+      .mockResolvedValueOnce([
+        { id: 'm-mushroom', completed: false, isBye: false, cup: 'Mushroom' },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const res = await handleDebugFillRequest('t-1', 'gp', makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data).toMatchObject({ filled: 1, skipped: 0, total: 1, mode: 'gp' });
+
+    const updateMock = prisma.gPMatch.update as jest.Mock;
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    const data = updateMock.mock.calls[0][0].data;
+    // GP generates 5 races per cup (TOTAL_GP_RACES)
+    expect(data.races).toHaveLength(5);
+    expect(data.completed).toBe(true);
+    // points must be summed from races
+    expect(data.points1).toBe(data.races.reduce((s: number, r: any) => s + r.points1, 0));
+    expect(data.points2).toBe(data.races.reduce((s: number, r: any) => s + r.points2, 0));
   });
 });

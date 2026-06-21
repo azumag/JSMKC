@@ -292,6 +292,10 @@ describe('E2E case drift coverage', () => {
     ['TC-2485', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
     ['TC-2486', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
     ['TC-2487', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    ['TC-2489', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/bm/debug-fill/route.test.ts'],
+    ['TC-2490', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/mr/debug-fill/route.test.ts'],
+    ['TC-2491', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/gp/debug-fill/route.test.ts'],
+    ['TC-2492', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/ta/debug-fill/route.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
