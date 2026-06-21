@@ -80,6 +80,7 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
     /**
      * TC-2506: player role session is rejected with 403.
      * score-entry-logs is admin-only; non-admin authenticated users must be forbidden.
+     * The authorization check must short-circuit before any DB query is executed.
      */
     it('TC-2506: should return 403 when authenticated as player role', async () => {
       jest.mocked(auth).mockResolvedValue({
@@ -99,6 +100,8 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
         }),
         { status: 403 }
       );
+      // Verify the authorization check short-circuits before any DB query (#2529)
+      expect(jest.mocked(prisma.scoreEntryLog.findMany)).not.toHaveBeenCalled();
     });
 
     /**
@@ -109,7 +112,7 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
       jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.scoreEntryLog.findMany as jest.Mock).mockRejectedValue(
+      jest.mocked(prisma.scoreEntryLog.findMany).mockRejectedValue(
         new Error('Database connection failed')
       );
 
@@ -168,7 +171,7 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
           player: { id: 'p1', name: 'Alice', nickname: 'ali' },
         },
       ];
-      (prisma.scoreEntryLog.findMany as jest.Mock).mockResolvedValue(fakeLogs);
+      jest.mocked(prisma.scoreEntryLog.findMany).mockResolvedValue(fakeLogs);
 
       await scoreEntryLogsRoute.GET(
         new NextRequest('http://localhost:3000/api/tournaments/t1/score-entry-logs'),
