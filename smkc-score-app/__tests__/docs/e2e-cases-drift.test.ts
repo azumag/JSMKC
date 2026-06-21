@@ -311,6 +311,8 @@ describe('E2E case drift coverage', () => {
     ['TC-2505', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
     ['TC-2506', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
     ['TC-2507', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
+    ['TC-2508', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
+    ['TC-2509', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3417,5 +3419,24 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('route.test.ts');
     expect(routeTest).toContain('TC-2507');
     expect(routeTest).toContain('logsByMatch');
+  });
+
+  it('documents TC-2508 as score-entry-logs returning empty logsByMatch when no logs exist', () => {
+    const section = e2eCaseSection('TC-2508');
+    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    expect(section).toContain('totalCount: 0');
+    expect(section).toContain('route.test.ts');
+    expect(routeTest).toContain('TC-2508');
+    expect(routeTest).toContain('totalCount: 0');
+  });
+
+  it('documents TC-2509 as score-entry-logs querying with orderBy timestamp descending', () => {
+    const section = e2eCaseSection('TC-2509');
+    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    expect(section).toContain('orderBy');
+    expect(section).toContain('desc');
+    expect(section).toContain('route.test.ts');
+    expect(routeTest).toContain('TC-2509');
+    expect(routeTest).toContain("orderBy: { timestamp: 'desc' }");
   });
 });
