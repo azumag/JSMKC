@@ -309,6 +309,8 @@ describe('E2E case drift coverage', () => {
     ['TC-2503', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
     ['TC-2504', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
     ['TC-2505', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
+    ['TC-2506', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
+    ['TC-2507', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3397,5 +3399,23 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('api-auth.test.ts');
     expect(apiAuthTest).toContain('TC-2505');
     expect(apiAuthTest).toContain("role: 'guest'");
+  });
+
+  it('documents TC-2506 as score-entry-logs returning 403 for player role', () => {
+    const section = e2eCaseSection('TC-2506');
+    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    expect(section).toContain('player');
+    expect(section).toContain('route.test.ts');
+    expect(routeTest).toContain('TC-2506');
+    expect(routeTest).toContain("role: 'player'");
+  });
+
+  it('documents TC-2507 as score-entry-logs returning logs grouped by matchId for admin', () => {
+    const section = e2eCaseSection('TC-2507');
+    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    expect(section).toContain('matchId');
+    expect(section).toContain('route.test.ts');
+    expect(routeTest).toContain('TC-2507');
+    expect(routeTest).toContain('logsByMatch');
   });
 });

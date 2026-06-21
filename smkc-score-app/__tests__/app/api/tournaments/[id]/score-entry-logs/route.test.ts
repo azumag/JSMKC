@@ -78,6 +78,30 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
     });
 
     /**
+     * TC-2506: player role session is rejected with 403.
+     * score-entry-logs is admin-only; non-admin authenticated users must be forbidden.
+     */
+    it('TC-2506: should return 403 when authenticated as player role', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'player-1', role: 'player' },
+      });
+
+      await scoreEntryLogsRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/score-entry-logs'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      // handleAuthzError returns 403 FORBIDDEN for non-admin users
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          code: 'FORBIDDEN',
+        }),
+        { status: 403 }
+      );
+    });
+
+    /**
      * When auth succeeds but the database query throws, the catch block
      * logs the error with the tournament ID for debugging and returns 500.
      */
@@ -106,6 +130,68 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
         expect.objectContaining({
           tournamentId: 't1',
           error: expect.any(Error),
+        })
+      );
+    });
+  });
+
+  describe('Success', () => {
+    /**
+     * TC-2507: admin session returns logs grouped by matchId.
+     * Multiple logs for the same match must be coalesced under the same key.
+     */
+    it('TC-2507: should return logs grouped by matchId for admin session', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+
+      const fakeLogs = [
+        {
+          id: 'log-1',
+          matchId: 'match-A',
+          tournamentId: 't1',
+          timestamp: new Date('2024-01-01T10:00:00Z'),
+          player: { id: 'p1', name: 'Alice', nickname: 'ali' },
+        },
+        {
+          id: 'log-2',
+          matchId: 'match-A',
+          tournamentId: 't1',
+          timestamp: new Date('2024-01-01T10:05:00Z'),
+          player: { id: 'p2', name: 'Bob', nickname: 'bob' },
+        },
+        {
+          id: 'log-3',
+          matchId: 'match-B',
+          tournamentId: 't1',
+          timestamp: new Date('2024-01-01T11:00:00Z'),
+          player: { id: 'p1', name: 'Alice', nickname: 'ali' },
+        },
+      ];
+      (prisma.scoreEntryLog.findMany as jest.Mock).mockResolvedValue(fakeLogs);
+
+      await scoreEntryLogsRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/score-entry-logs'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      // createSuccessResponse calls NextResponse.json(body) without status for 200
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            tournamentId: 't1',
+            totalCount: 3,
+            logsByMatch: expect.objectContaining({
+              'match-A': expect.arrayContaining([
+                expect.objectContaining({ id: 'log-1' }),
+                expect.objectContaining({ id: 'log-2' }),
+              ]),
+              'match-B': expect.arrayContaining([
+                expect.objectContaining({ id: 'log-3' }),
+              ]),
+            }),
+          }),
         })
       );
     });
