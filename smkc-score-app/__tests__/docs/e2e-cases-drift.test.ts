@@ -313,6 +313,14 @@ describe('E2E case drift coverage', () => {
     ['TC-2507', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
     ['TC-2508', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
     ['TC-2509', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
+    ['TC-2510', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
+    ['TC-2511', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
+    ['TC-2512', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
+    ['TC-2513', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
+    ['TC-2514', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
+    ['TC-2515', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
+    ['TC-2516', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/tournament-tab-hydration.test.ts'],
+    ['TC-2517', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/tournament-tab-hydration.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3438,5 +3446,70 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('route.test.ts');
     expect(routeTest).toContain('TC-2509');
     expect(routeTest).toContain("orderBy: { timestamp: 'desc' }");
+  });
+
+  it('documents TC-2510 as retryDbRead returning result on first successful attempt', () => {
+    const section = e2eCaseSection('TC-2510');
+    const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
+    expect(section).toContain('db-read-retry.test.ts');
+    expect(dbRetryTest).toContain('TC-2510');
+    expect(dbRetryTest).toContain('result-value');
+  });
+
+  it('documents TC-2511 as retryDbRead retrying after one failure and returning result', () => {
+    const section = e2eCaseSection('TC-2511');
+    const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
+    expect(section).toContain('db-read-retry.test.ts');
+    expect(dbRetryTest).toContain('TC-2511');
+    expect(dbRetryTest).toContain('retry-success');
+  });
+
+  it('documents TC-2512 as retryDbRead throwing last error after exhausting all attempts', () => {
+    const section = e2eCaseSection('TC-2512');
+    const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
+    expect(section).toContain('db-read-retry.test.ts');
+    expect(dbRetryTest).toContain('TC-2512');
+    expect(dbRetryTest).toContain('rejects.toThrow');
+  });
+
+  it('documents TC-2513 as retryDbRead respecting custom attempts option', () => {
+    const section = e2eCaseSection('TC-2513');
+    const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
+    expect(section).toContain('db-read-retry.test.ts');
+    expect(dbRetryTest).toContain('TC-2513');
+    expect(dbRetryTest).toContain('attempts: 3');
+  });
+
+  it('documents TC-2514 as retryDbRead calling onRetry with attempt number and error', () => {
+    const section = e2eCaseSection('TC-2514');
+    const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
+    expect(section).toContain('db-read-retry.test.ts');
+    expect(dbRetryTest).toContain('TC-2514');
+    expect(dbRetryTest).toContain('onRetry');
+  });
+
+  it('documents TC-2515 as retryDbRead not retrying when attempts is 1', () => {
+    const section = e2eCaseSection('TC-2515');
+    const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
+    expect(section).toContain('db-read-retry.test.ts');
+    expect(dbRetryTest).toContain('TC-2515');
+    expect(dbRetryTest).toContain('attempts: 1');
+    expect(dbRetryTest).toContain('single-attempt-fail');
+  });
+
+  it('documents TC-2516 as getTabHydrationGuardProps returning enabled props when hydrated', () => {
+    const section = e2eCaseSection('TC-2516');
+    const tabHydrationTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'tournament-tab-hydration.test.ts');
+    expect(section).toContain('tournament-tab-hydration.test.ts');
+    expect(tabHydrationTest).toContain('TC-2516');
+    expect(tabHydrationTest).toContain('toBeUndefined');
+  });
+
+  it('documents TC-2517 as getTabHydrationGuardProps returning disabled props when not hydrated', () => {
+    const section = e2eCaseSection('TC-2517');
+    const tabHydrationTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'tournament-tab-hydration.test.ts');
+    expect(section).toContain('tournament-tab-hydration.test.ts');
+    expect(tabHydrationTest).toContain('TC-2517');
+    expect(tabHydrationTest).toContain('pointer-events-none');
   });
 });
