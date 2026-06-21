@@ -114,6 +114,10 @@ describe('preview E2E runner', () => {
     expect(runner.isMissingPlaywrightExecutableError(
       new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell"),
     )).toBe(true);
+    // TC-2488: chromium_headless_shell directory name alone (no chrome-headless-shell binary) must also be detected
+    expect(runner.isMissingPlaywrightExecutableError(
+      new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/some-other-binary"),
+    )).toBe(true);
     // Playwright may also emit a "playwright install" hint instead of the full path (issue #2431)
     expect(runner.isMissingPlaywrightExecutableError(
       new Error("browserType.launchPersistentContext: Executable doesn't exist\nRun: playwright install chromium"),
