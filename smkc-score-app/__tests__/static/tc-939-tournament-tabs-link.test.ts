@@ -10,7 +10,7 @@ describe('TC-939 tournament tab navigation', () => {
     expect(layoutSource).toContain('href={`/tournaments/${id}/${tab.href}`}');
     expect(layoutSource).toContain('prefetch={false}');
     expect(layoutSource).not.toMatch(
-      /<a[\s\S]*href=\{`\/tournaments\/\$\{id\}\/\$\{tab\.href\}`\}/
+      /<a[^>]*href=\{`\/tournaments\/\$\{id\}\/\$\{tab\.href\}`\}/
     );
   });
 
