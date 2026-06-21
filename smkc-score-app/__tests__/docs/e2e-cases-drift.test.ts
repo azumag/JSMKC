@@ -3375,7 +3375,7 @@ describe('E2E case drift coverage', () => {
   it('documents TC-2503 as requireAdminOrPlayerSession returning session for admin role', () => {
     const section = e2eCaseSection('TC-2503');
     const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
-    expect(section).toContain('admin');
+    expect(section).toContain('requireAdminOrPlayerSession'); // scenario-specific: distinguishes TC-2503 from TC-2501 which tests requireAdminSession
     expect(section).toContain('api-auth.test.ts');
     expect(apiAuthTest).toContain('TC-2503');
     expect(apiAuthTest).toContain("role: 'admin'");
