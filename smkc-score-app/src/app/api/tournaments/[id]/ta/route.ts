@@ -26,9 +26,8 @@ import prisma from "@/lib/prisma";
 import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
-import { auth } from "@/lib/auth";
-import type { User } from "next-auth";
 import { z } from "zod";
+import { requireAdminSession, requireAdminOrPlayerSession } from "@/lib/api-auth";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
 import { recalculateRanks, rerankStageAfterDelete } from "@/lib/ta/rank-calculation";
 import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
@@ -45,37 +44,6 @@ import {
 } from "@/lib/tournament-archive";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
-
-/**
- * Admin authentication helper that returns the session.
- * Returns { error } if user is not authenticated or not admin.
- * Returns { session } if authentication succeeds.
- */
-async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; session?: { user: User } | null }> {
-  const session = await auth();
-  if (!session?.user || session.user.role !== 'admin') {
-    return { error: createErrorResponse('Forbidden', 403, 'FORBIDDEN') };
-  }
-  // user is guaranteed non-null by the guard above; TS cannot narrow `user?` through
-  // optional-chaining checks so we assert the narrowed type explicitly.
-  return { session: session as { user: User } };
-}
-
-/**
- * Admin or player session authentication helper.
- * Returns the session object for ownership verification by the caller.
- * Admins have full access; players must additionally verify ownership
- * of the specific resource they are modifying.
- *
- * Returns { error } if user is not authenticated as admin or player.
- * Returns { session } if authentication succeeds.
- */
-async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; session?: { user: User } | null }> {
-  const session = await auth();
-  if (session?.user?.role === 'admin') return { session: session as { user: User } };
-  if (session?.user?.userType === 'player') return { session: session as { user: User } };
-  return { error: createErrorResponse('Forbidden', 403, 'FORBIDDEN') };
-}
 
 async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
   const knockoutEntry = await prisma.tTEntry.findFirst({
@@ -422,7 +390,7 @@ export async function PUT(
     // === Partner Assignment (§3.1) ===
     // Set or clear the partner player ID for pair running (admin only)
     if (action === "set_partner") {
-      const authResult = await requireAdminAndGetSession();
+      const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
       const entry = await prisma.tTEntry.findUnique({
@@ -467,7 +435,7 @@ export async function PUT(
     // === Seeding Update (§3.1) ===
     // Update the seeding number for a TA entry (admin only, per-tournament)
     if (action === "update_seeding") {
-      const authResult = await requireAdminAndGetSession();
+      const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
       const updatedEntry = await prisma.tTEntry.update({
@@ -482,7 +450,7 @@ export async function PUT(
     // === Lives Actions ===
     // Manually update or reset player lives (admin only)
     if (action === "update_lives" || action === "reset_lives") {
-      const authResult = await requireAdminAndGetSession();
+      const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
       const entry = await prisma.tTEntry.findUnique({
@@ -528,7 +496,7 @@ export async function PUT(
     // === Elimination Action ===
     // Manually eliminate or un-eliminate a player (admin only)
     if (action === "eliminate") {
-      const authResult = await requireAdminAndGetSession();
+      const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
       if (eliminated === undefined) {
@@ -737,7 +705,7 @@ export async function DELETE(
   const tournamentId = await resolveTournamentId(id);
   try {
 
-    const authResult = await requireAdminAndGetSession();
+    const authResult = await requireAdminSession();
     if (authResult.error) return authResult.error;
 
     // Get entry ID from query parameters

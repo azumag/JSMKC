@@ -3316,5 +3316,6 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('undefined');
     expect(section).toContain('audit-log.test.ts');
     expect(auditTest).toContain('TC-2497');
+    expect(auditTest).toContain('id: undefined'); // user.id が undefined のケースを具体的にカバー
   });
 });
