@@ -566,6 +566,16 @@ describe('E2E case drift coverage', () => {
     );
   });
 
+  it('keeps TC-2450 aligned with per-range getNextPhase3ResetThreshold it blocks', () => {
+    const section = e2eCaseSection('TC-2450');
+
+    expect(section).toContain('issue #1954');
+    expect(section).toContain('finals-phase-manager.test.ts');
+    expect(taFinalsPhaseManagerTest).toContain('returns 8 for activeCount above 8');
+    expect(taFinalsPhaseManagerTest).toContain('returns 4 for activeCount in range (4, 8]');
+    expect(taFinalsPhaseManagerTest).toContain('returns 2 for activeCount in range (2, 4]');
+  });
+
   it('keeps TC-2104 aligned with preview preflight retry-loop coverage', () => {
     const section = e2eCaseSection('TC-2104');
     const preflight = readE2eLib('preview-schema-preflight.js');
@@ -696,6 +706,19 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/static/tc-939-tournament-tabs-link.test.ts');
     expect(helper).toContain('guardClassName: !tabsHydrated ? "pointer-events-none opacity-70" : undefined');
     expect(staticTest).toContain('keeps the hydration guard class value as string or undefined');
+  });
+
+  it('keeps TC-2449 aligned with narrow <a> tag regex in TC-939 static test', () => {
+    const section = e2eCaseSection('TC-2449');
+    const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
+
+    expect(section).toContain('issue #1942');
+    expect(section).toContain('[^>]*');
+    expect(section).toContain('tc-939-tournament-tabs-link.test.ts');
+    // [^>]* constrains the <a> match to within a single opening tag
+    expect(staticTest).toContain('<a[^>]*href=');
+    // [\s\S]* would match across tag boundaries — must not regress
+    expect(staticTest).not.toContain('<a[\\s\\S]*href=');
   });
 
   it('keeps TC-2185 aligned with TC-939 null marker reporting coverage', () => {
@@ -1230,7 +1253,7 @@ describe('E2E case drift coverage', () => {
     expect(tcBm).toContain("{ name: 'TC-2334', fn: runTc2334 }");
     expect(finalsRouteTest).toContain('uses the latest manual rankOverride when duplicate override ranks collide');
     expect(finalsRouteTest).toContain('falls back to latest rankOverrideAt timestamp when both players share the same rankOverride value');
-    expect(finalsRouteTest).toContain('uses manual rankOverride values before timestamps when both overridden players are tied');
+    expect(finalsRouteTest).toContain('sorts by rankOverride value ascending when both players have rankOverride set (score/points tied)');
   });
 
   it('keeps TC-1007 aligned with the GroupSetupDialog static guard', () => {

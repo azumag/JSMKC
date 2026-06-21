@@ -1021,7 +1021,7 @@ describe('Finals Route Factory', () => {
       expect(json.data.seededPlayers[0].playerId).toBe('player-15');
     });
 
-    it('uses manual rankOverride values before timestamps when both overridden players are tied', async () => {
+    it('sorts by rankOverride value ascending when both players have rankOverride set (score/points tied)', async () => {
       // player-0: rankOverride=1 (wins) + earliestOverride; player-1: rankOverride=2 (loses) + latestOverride — opposing directions prove rankOverride value beats timestamp.
       const latestOverride = new Date('2026-01-02T00:00:00Z');
       const earliestOverride = new Date('2026-01-01T00:00:00Z');

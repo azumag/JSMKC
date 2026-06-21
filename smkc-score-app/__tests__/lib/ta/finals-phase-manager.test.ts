@@ -443,14 +443,20 @@ describe("TA Finals Phase Manager", () => {
   });
 
   describe("getNextPhase3ResetThreshold", () => {
-    it("uses the highest configured threshold when activeCount allows one", () => {
+    it("returns 8 for activeCount above 8", () => {
       expect(getNextPhase3ResetThreshold(16)).toBe(8);
       expect(getNextPhase3ResetThreshold(15)).toBe(8);
       expect(getNextPhase3ResetThreshold(11)).toBe(8);
       expect(getNextPhase3ResetThreshold(9)).toBe(8);
+    });
+
+    it("returns 4 for activeCount in range (4, 8]", () => {
       expect(getNextPhase3ResetThreshold(8)).toBe(4);
       expect(getNextPhase3ResetThreshold(7)).toBe(4);
       expect(getNextPhase3ResetThreshold(5)).toBe(4);
+    });
+
+    it("returns 2 for activeCount in range (2, 4]", () => {
       expect(getNextPhase3ResetThreshold(4)).toBe(2);
       expect(getNextPhase3ResetThreshold(3)).toBe(2);
     });
