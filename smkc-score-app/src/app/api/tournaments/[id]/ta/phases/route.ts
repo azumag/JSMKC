@@ -21,14 +21,13 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
-import { auth } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/api-auth";
 import { z } from "zod";
 import { createLogger } from "@/lib/logger";
 import { retryDbRead } from "@/lib/db-read-retry";
 import {
   createSuccessResponse,
   createErrorResponse,
-  handleAuthzError,
   handleValidationError,
 } from "@/lib/error-handling";
 import {
@@ -50,7 +49,6 @@ import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { resolveAuditUserId } from "@/lib/audit-log";
-import type { User } from "next-auth";
 import { readTournamentArchive } from "@/lib/tournament-archive";
 
 function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
@@ -127,26 +125,6 @@ function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
     if (rankCompare !== 0) return rankCompare;
     return compareNullableNumber(a.totalTime, b.totalTime);
   });
-}
-
-/**
- * Admin authentication helper that returns the session.
- * Returns { error } if user is not authenticated or not admin.
- * Returns { session } if authentication succeeds.
- */
-async function requireAdminAndGetSession(): Promise<{
-  error?: NextResponse;
-  session?: { user: User } | null;
-}> {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") {
-    return {
-      error: handleAuthzError(),
-    };
-  }
-  // user is guaranteed non-null by the guard above; TS cannot narrow `user?` through
-  // optional-chaining checks so we assert the narrowed type explicitly.
-  return { session: session as { user: User } };
 }
 
 /** Valid phase names for URL query parameters and request bodies */
@@ -573,7 +551,7 @@ export async function POST(
   const tournamentId = await resolveTournamentId(id);
 
   // Require admin authentication
-  const { error: authError, session } = await requireAdminAndGetSession();
+  const { error: authError, session } = await requireAdminSession();
   if (authError) return authError;
 
   try {
