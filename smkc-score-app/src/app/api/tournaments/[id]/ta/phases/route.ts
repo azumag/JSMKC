@@ -50,7 +50,7 @@ import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { resolveAuditUserId } from "@/lib/audit-log";
-import type { Session } from "next-auth";
+import type { User } from "next-auth";
 import { readTournamentArchive } from "@/lib/tournament-archive";
 
 function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
@@ -136,7 +136,7 @@ function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
  */
 async function requireAdminAndGetSession(): Promise<{
   error?: NextResponse;
-  session?: Session;
+  session?: { user: User } | null;
 }> {
   const session = await auth();
   if (!session?.user || session.user.role !== "admin") {
@@ -144,7 +144,9 @@ async function requireAdminAndGetSession(): Promise<{
       error: handleAuthzError(),
     };
   }
-  return { session };
+  // user is guaranteed non-null by the guard above; TS cannot narrow `user?` through
+  // optional-chaining checks so we assert the narrowed type explicitly.
+  return { session: session as { user: User } };
 }
 
 /** Valid phase names for URL query parameters and request bodies */
