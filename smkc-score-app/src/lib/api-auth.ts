@@ -13,9 +13,11 @@
 import { NextResponse } from 'next/server';
 import type { User } from 'next-auth';
 import { auth } from '@/lib/auth';
+// handleAuthzError() === createErrorResponse('Forbidden', 403, 'FORBIDDEN') — same body/headers (#2510)
 import { handleAuthzError } from '@/lib/error-handling';
 
-export type AuthSessionResult = { error?: NextResponse; session?: { user: User } | null };
+// session is never null on success: helpers return { error } on failure, { session } on success (#2511)
+export type AuthSessionResult = { error?: NextResponse; session?: { user: User } };
 
 /**
  * Requires an authenticated admin session.
