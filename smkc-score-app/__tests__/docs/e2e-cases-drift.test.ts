@@ -659,7 +659,6 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-2122 aligned with behavior-based tournament-tab hydration guard coverage', () => {
     const section = e2eCaseSection('TC-2122');
     const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-939-tournament-tabs-link.test.ts');
-    const helper = readRepoFile('smkc-score-app', 'src', 'lib', 'tournament-tab-hydration.ts');
 
     expect(section).toContain('issue #2122');
     expect(section).toContain('getTabHydrationGuardProps(false)');
@@ -668,7 +667,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('src/lib/tournament-tab-hydration.ts');
     expect(staticTest).toContain('uses the hydration guard helper output to disable tabs before hydration');
     expect(staticTest).toContain('uses class merging behavior so hydrated tabs do not keep whitespace-only guard classes');
-    expect(helper).toContain('guardClassName: !tabsHydrated ? "pointer-events-none opacity-70" : undefined');
+    // guardClassName string check belongs to TC-2205; omit here to avoid duplication
   });
 
   it('keeps TC-2204 aligned with tournament-tab positive match fallback coverage', () => {
