@@ -3894,6 +3894,28 @@ describe('E2E case drift coverage', () => {
       expect(standingsTest).toContain('prisma.bMQualification.findMany).not.toHaveBeenCalled()');
       expect(standingsTest).toContain('prisma.bMQualification.count).not.toHaveBeenCalled()');
     });
+
+    it('documents TC-2583 through TC-2586 as overlay layout edge-case unit tests in layout.test.ts', () => {
+      const layoutTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'overlay',
+        'layout.test.ts',
+      );
+      for (const tc of ['TC-2583', 'TC-2584', 'TC-2585', 'TC-2586']) {
+        expect(layoutTest).toContain(tc);
+      }
+      expect(layoutTest).toContain('normalizeOverlayBroadcastLayout');
+      expect(layoutTest).toContain('isOverlayBroadcastLayoutInput');
+      // TC-2583: non-object inputs fall back to full defaults
+      expect(layoutTest).toContain('DEFAULT_OVERLAY_BROADCAST_LAYOUT');
+      // TC-2585: NaN and Infinity are handled per-coordinate
+      expect(layoutTest).toContain('Number.NaN');
+      expect(layoutTest).toContain('POSITIVE_INFINITY');
+      // TC-2586: empty object is valid
+      expect(layoutTest).toContain('isOverlayBroadcastLayoutInput({})');
+    });
   });
 });
 
