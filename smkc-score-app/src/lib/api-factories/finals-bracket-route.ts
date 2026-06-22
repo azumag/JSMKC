@@ -116,7 +116,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
 
     /* Admin authorization required for bracket generation */
     if (!session?.user || session.user.role !== 'admin') {
-      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
+      return handleAuthzError();
     }
 
     /* Rate limit: prevent abuse on bracket generation endpoint */

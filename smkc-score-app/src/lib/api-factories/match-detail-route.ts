@@ -177,7 +177,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     if (config.putRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
+        return handleAuthzError();
       }
     }
 

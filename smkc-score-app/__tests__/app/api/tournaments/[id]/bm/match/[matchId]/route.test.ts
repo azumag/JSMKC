@@ -60,7 +60,8 @@ const {
   createSuccessResponse: _createSuccessResponse,
   createErrorResponse,
   handleValidationError,
-  handleDatabaseError
+  handleDatabaseError,
+  handleAuthzError,
 } = jest.requireMock('@/lib/error-handling');
 
 // Mock NextRequest class
@@ -254,6 +255,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         data: { error: 'Forbidden', code: 'FORBIDDEN' },
         status: 403
       });
+      expect(handleAuthzError).toHaveBeenCalled();
     });
 
     // Authorization failure case - Returns 403 when user is not admin
@@ -268,6 +270,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         data: { error: 'Forbidden', code: 'FORBIDDEN' },
         status: 403
       });
+      expect(handleAuthzError).toHaveBeenCalled();
     });
 
     // Success case - Updates match score with valid version
