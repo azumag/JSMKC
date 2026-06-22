@@ -336,6 +336,17 @@ describe('E2E case drift coverage', () => {
     ['TC-2541', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
     ['TC-2542', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
     ['TC-2543', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
+    ['TC-2544', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2545', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2546', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2547', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2548', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2549', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2550', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2551', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2552', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2553', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2554', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3659,6 +3670,95 @@ describe('E2E case drift coverage', () => {
     expect(atTest).toContain('TC-2543');
     expect(atTest).toContain('rejects.toThrow');
     expect(atTest).toContain('not.toHaveBeenCalled');
+  });
+
+  it('documents TC-2544 as msToCdmTime encoding 1:10.34 as MSSCC 11034', () => {
+    const section = e2eCaseSection('TC-2544');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2544');
+    expect(tfTest).toContain('11034');
+  });
+
+  it('documents TC-2545 as msToCdmTime encoding 0:59.79 as MSSCC 5979', () => {
+    const section = e2eCaseSection('TC-2545');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2545');
+    expect(tfTest).toContain('5979');
+  });
+
+  it('documents TC-2546 as msToCdmTime encoding 0ms as 0', () => {
+    const section = e2eCaseSection('TC-2546');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2546');
+  });
+
+  it('documents TC-2547 as msToCdmTime rounding 155ms to 16cs', () => {
+    const section = e2eCaseSection('TC-2547');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2547');
+    expect(tfTest).toContain('155');
+  });
+
+  it('documents TC-2548 as msToCdmTime throwing for negative duration', () => {
+    const section = e2eCaseSection('TC-2548');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2548');
+    expect(tfTest).toContain('-1');
+  });
+
+  it('documents TC-2549 as msToCdmTime throwing for NaN and Infinity', () => {
+    const section = e2eCaseSection('TC-2549');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2549');
+    expect(tfTest).toContain('NaN');
+    expect(tfTest).toContain('Infinity');
+  });
+
+  it('documents TC-2550 as timeStringToCdmTime encoding "1:10.34" as 11034', () => {
+    const section = e2eCaseSection('TC-2550');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2550');
+    expect(tfTest).toContain('timeStringToCdmTime');
+  });
+
+  it('documents TC-2551 as timeStringToCdmTime returning null for non-string input', () => {
+    const section = e2eCaseSection('TC-2551');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2551');
+    expect(tfTest).toContain('toBeNull');
+  });
+
+  it('documents TC-2552 as timeStringToCdmTime returning null for empty strings', () => {
+    const section = e2eCaseSection('TC-2552');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2552');
+    expect(tfTest).toContain('toBeNull');
+  });
+
+  it('documents TC-2553 as timeStringToCdmTime returning null for unparsable strings', () => {
+    const section = e2eCaseSection('TC-2553');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2553');
+    expect(tfTest).toContain('not-a-time');
+  });
+
+  it('documents TC-2554 as msToCdmTime rounding 59995ms up to MSSCC 10000 (1:00.00)', () => {
+    const section = e2eCaseSection('TC-2554');
+    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    expect(section).toContain('time-format.test.ts');
+    expect(tfTest).toContain('TC-2554');
+    expect(tfTest).toContain('59995');
+    expect(tfTest).toContain('10000');
   });
 });
 
