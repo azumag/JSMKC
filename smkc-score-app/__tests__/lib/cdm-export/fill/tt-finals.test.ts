@@ -80,7 +80,7 @@ function qualEntry(
 
 interface RoundResult {
   playerId: string;
-  timeMs: number;
+  timeMs: number | null;
 }
 
 function phaseRound(
@@ -533,19 +533,12 @@ describe("replayTTFinals — row ordering", () => {
     const data = emptyData({
       ttEntries: Array.from({ length: 4 }, (_, i) => qualEntry(id(i + 1), i + 1)),
       ttPhaseRounds: [
-        {
-          phase: "phase3" as const,
-          roundNumber: 1,
-          course: "MC1",
-          results: [
-            { playerId: id(1), timeMs: 60000 },
-            { playerId: id(2), timeMs: null }, // null-time runner → key 0
-            { playerId: id(3), timeMs: 70000 },
-            // p04 is a non-runner → key 0
-          ],
-          eliminatedIds: null,
-          livesReset: false,
-        } as CdmTTPhaseRound,
+        phaseRound("phase3", 1, "MC1", [
+          { playerId: id(1), timeMs: 60000 },
+          { playerId: id(2), timeMs: null }, // null-time runner → key 0
+          { playerId: id(3), timeMs: 70000 },
+          // p04 is a non-runner → key 0
+        ]),
       ],
     });
     const r = replayTTFinals(data)[0];
