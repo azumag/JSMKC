@@ -3938,14 +3938,13 @@ describe('E2E case drift coverage', () => {
       expect(ttEntryTest).toContain('checkStageFrozen');
       expect(ttEntryTest).toContain('frozenStageResponse');
       expect(ttEntryTest).toContain('updateTTEntry).not.toHaveBeenCalled()');
-      // TC-2603: lastRecordedCourse/Time updated for valid times object
+      // TC-2603: lastRecordedCourse/Time updated using COURSES constant (not hardcoded list)
       expect(ttEntryTest).toContain('lastRecordedCourse');
       expect(ttEntryTest).toContain('lastRecordedTime');
-      expect(ttEntryTest).toContain("'RR'");
-      // TC-2604: recalculateRanks called with correct args
+      expect(ttEntryTest).toContain('COURSES');
+      // TC-2604: recalculateRanks called with tournamentId/stage from DB entry (not URL param)
       expect(ttEntryTest).toContain('recalculateRanks');
-      expect(ttEntryTest).toContain("'tournament-abc'");
-      expect(ttEntryTest).toContain("'phase1'");
+      expect(ttEntryTest).toContain('toHaveBeenCalledWith');
     });
   });
 });
