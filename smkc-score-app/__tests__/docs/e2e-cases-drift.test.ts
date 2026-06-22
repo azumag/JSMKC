@@ -332,6 +332,10 @@ describe('E2E case drift coverage', () => {
     ['TC-2526', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
     ['TC-2527', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
     ['TC-2528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
+    ['TC-2540', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2541', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2542', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
+    ['TC-2543', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3538,7 +3542,8 @@ describe('E2E case drift coverage', () => {
     const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
     expect(section).toContain('query-counter.test.ts');
     expect(qcTest).toContain('TC-2519');
-    expect(qcTest).toContain('expected-value');
+    // result.result はリターン値の転送パターンを表す。特定のリテラル値ではなくプロパティ名を確認する (#2539)。
+    expect(qcTest).toContain('result.result');
   });
 
   it('documents TC-2520 as runWithQueryStats starting with count=0 and totalDurationMs=0', () => {
@@ -3547,7 +3552,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('query-counter.test.ts');
     expect(qcTest).toContain('TC-2520');
     expect(qcTest).toContain('count');
-    expect(qcTest).toContain('toBe(0)');
+    expect(qcTest).toContain('totalDurationMs');
   });
 
   it('documents TC-2521 as recordQuery accumulating count and totalDurationMs in a scope', () => {
@@ -3557,7 +3562,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('AsyncLocalStorage');
     expect(qcTest).toContain('TC-2521');
     expect(qcTest).toContain('totalDurationMs');
-    expect(qcTest).toContain('200');
+    // recordQuery 呼び出しパターンで振る舞いを確認する。合計値の特定リテラルは除外 (#2539)。
+    expect(qcTest).toContain('recordQuery');
   });
 
   it('documents TC-2522 as recordQuery being a no-op outside a scope', () => {
@@ -3565,7 +3571,8 @@ describe('E2E case drift coverage', () => {
     const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
     expect(section).toContain('query-counter.test.ts');
     expect(qcTest).toContain('TC-2522');
-    expect(qcTest).toContain('not.toThrow');
+    // テスト説明の "does not throw" は振る舞いキーワードとして安定している (#2539)。
+    expect(qcTest).toContain('does not throw');
   });
 
   it('documents TC-2523 as getCurrentStats returning stats object inside a scope', () => {
@@ -3590,7 +3597,8 @@ describe('E2E case drift coverage', () => {
     const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
     expect(section).toContain('query-counter.test.ts');
     expect(qcTest).toContain('TC-2525');
-    expect(qcTest).toContain('toBe(60)');
+    // "accumulate" は振る舞いを表す語句であり、特定の合計値リテラルより堅牢 (#2539)。
+    expect(qcTest).toContain('accumulate');
   });
 
   it('documents TC-2526 as withApiTiming passing through without logging when PERF_LOG is unset', () => {
@@ -3618,6 +3626,39 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('PERF_SLOW_REQUEST_MS');
     expect(atTest).toContain('TC-2528');
     expect(atTest).toContain('PERF_SLOW_REQUEST_MS');
+  });
+
+  it('documents TC-2540 as runWithQueryStats propagating fn rejection (noop path)', () => {
+    const section = e2eCaseSection('TC-2540');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2540');
+    expect(qcTest).toContain('rejects.toThrow');
+  });
+
+  it('documents TC-2541 as runWithQueryStats propagating fn rejection (ALS path)', () => {
+    const section = e2eCaseSection('TC-2541');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2541');
+    expect(qcTest).toContain('rejects.toThrow');
+  });
+
+  it('documents TC-2542 as withApiTiming propagating fn rejection in passthrough mode', () => {
+    const section = e2eCaseSection('TC-2542');
+    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
+    expect(section).toContain('api-timing.test.ts');
+    expect(atTest).toContain('TC-2542');
+    expect(atTest).toContain('rejects.toThrow');
+  });
+
+  it('documents TC-2543 as withApiTiming propagating fn rejection when PERF_LOG=1', () => {
+    const section = e2eCaseSection('TC-2543');
+    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
+    expect(section).toContain('api-timing.test.ts');
+    expect(atTest).toContain('TC-2543');
+    expect(atTest).toContain('rejects.toThrow');
+    expect(atTest).toContain('not.toHaveBeenCalled');
   });
 });
 

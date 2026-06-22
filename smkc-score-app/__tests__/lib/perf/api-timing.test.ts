@@ -106,4 +106,27 @@ describe('withApiTiming', () => {
 
     expect(mockInfo).not.toHaveBeenCalled();
   });
+
+  it('TC-2542: withApiTiming propagates fn rejection in passthrough mode (PERF_LOG unset)', async () => {
+    // パススルーモードでは fn が直接実行される。fn が reject した場合、
+    // エラーは withApiTiming を経由して呼び出し元に伝播しなければならない。
+    const withApiTiming = await loadWithApiTiming(undefined);
+    const boom = new Error('passthrough-boom');
+
+    await expect(withApiTiming('error.route', jest.fn().mockRejectedValue(boom))).rejects.toThrow(
+      'passthrough-boom',
+    );
+    expect(mockInfo).not.toHaveBeenCalled();
+  });
+
+  it('TC-2543: withApiTiming propagates fn rejection when PERF_LOG=1', async () => {
+    // PERF_LOG=1 モードでは runWithQueryStats 経由で fn が実行される。
+    // fn が reject した場合、エラーは伝播し、部分的なログは出力されない。
+    const boom = new Error('perf-log-boom');
+    mockRunWithQueryStats.mockRejectedValue(boom);
+
+    const withApiTiming = await loadWithApiTiming('1');
+    await expect(withApiTiming('error.route', jest.fn())).rejects.toThrow('perf-log-boom');
+    expect(mockInfo).not.toHaveBeenCalled();
+  });
 });
