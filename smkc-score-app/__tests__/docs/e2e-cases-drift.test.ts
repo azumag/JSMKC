@@ -322,6 +322,16 @@ describe('E2E case drift coverage', () => {
     ['TC-2518', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
     ['TC-2516', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/tournament-tab-hydration.test.ts'],
     ['TC-2517', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/tournament-tab-hydration.test.ts'],
+    ['TC-2519', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2520', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2521', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2522', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2523', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2524', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2525', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/query-counter.test.ts'],
+    ['TC-2526', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
+    ['TC-2527', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
+    ['TC-2528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/perf/api-timing.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3522,4 +3532,92 @@ describe('E2E case drift coverage', () => {
     expect(tabHydrationTest).toContain('TC-2517');
     expect(tabHydrationTest).toContain('pointer-events-none');
   });
+
+  it('documents TC-2519 as runWithQueryStats returning the result of fn', () => {
+    const section = e2eCaseSection('TC-2519');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2519');
+    expect(qcTest).toContain('expected-value');
+  });
+
+  it('documents TC-2520 as runWithQueryStats starting with count=0 and totalDurationMs=0', () => {
+    const section = e2eCaseSection('TC-2520');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2520');
+    expect(qcTest).toContain('count');
+    expect(qcTest).toContain('toBe(0)');
+  });
+
+  it('documents TC-2521 as recordQuery accumulating count and totalDurationMs in a scope', () => {
+    const section = e2eCaseSection('TC-2521');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(section).toContain('AsyncLocalStorage');
+    expect(qcTest).toContain('TC-2521');
+    expect(qcTest).toContain('totalDurationMs');
+    expect(qcTest).toContain('200');
+  });
+
+  it('documents TC-2522 as recordQuery being a no-op outside a scope', () => {
+    const section = e2eCaseSection('TC-2522');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2522');
+    expect(qcTest).toContain('not.toThrow');
+  });
+
+  it('documents TC-2523 as getCurrentStats returning stats object inside a scope', () => {
+    const section = e2eCaseSection('TC-2523');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2523');
+    expect(qcTest).toContain('getCurrentStats');
+    expect(qcTest).toContain('toBeDefined');
+  });
+
+  it('documents TC-2524 as getCurrentStats returning undefined outside a scope', () => {
+    const section = e2eCaseSection('TC-2524');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2524');
+    expect(qcTest).toContain('toBeUndefined');
+  });
+
+  it('documents TC-2525 as multiple recordQuery calls accumulating totalDurationMs correctly', () => {
+    const section = e2eCaseSection('TC-2525');
+    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    expect(section).toContain('query-counter.test.ts');
+    expect(qcTest).toContain('TC-2525');
+    expect(qcTest).toContain('toBe(60)');
+  });
+
+  it('documents TC-2526 as withApiTiming passing through without logging when PERF_LOG is unset', () => {
+    const section = e2eCaseSection('TC-2526');
+    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
+    expect(section).toContain('api-timing.test.ts');
+    expect(atTest).toContain('TC-2526');
+    expect(atTest).toContain('PERF_LOG');
+    expect(atTest).toContain('not.toHaveBeenCalled');
+  });
+
+  it('documents TC-2527 as withApiTiming logging request stats when PERF_LOG=1', () => {
+    const section = e2eCaseSection('TC-2527');
+    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
+    expect(section).toContain('api-timing.test.ts');
+    expect(section).toContain('PERF_LOG');
+    expect(atTest).toContain('TC-2527');
+    expect(atTest).toContain('api_request_ms');
+  });
+
+  it('documents TC-2528 as withApiTiming skipping log when below PERF_SLOW_REQUEST_MS threshold', () => {
+    const section = e2eCaseSection('TC-2528');
+    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
+    expect(section).toContain('api-timing.test.ts');
+    expect(section).toContain('PERF_SLOW_REQUEST_MS');
+    expect(atTest).toContain('TC-2528');
+    expect(atTest).toContain('PERF_SLOW_REQUEST_MS');
+  });
 });
+
