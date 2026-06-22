@@ -3880,16 +3880,19 @@ describe('E2E case drift coverage', () => {
         expect(standingsTest).toContain(tc);
       }
       expect(standingsTest).toContain('createStandingsHandlers');
-      // TC-2580: BM paginated path uses lastCall to reference its own paginate call (#2588 pattern)
-      expect(standingsTest).toContain('mock.lastCall?.[0]');
+      // TC-2580: adapter.findMany is invoked to assert delegation (behavior, not implementation-detail string like 'mock.lastCall?.[0]') (#2592)
+      expect(standingsTest).toContain('adapter.findMany');
       // TC-2580: Both findMany and count must be verified for BM delegation (#2587 pattern)
       expect(standingsTest).toContain('expect(prisma.bMQualification.findMany).toHaveBeenCalled()');
       expect(standingsTest).toContain('expect(prisma.bMQualification.count).toHaveBeenCalled()');
       // TC-2581: GP H2H must call gPMatch.findMany positively
       expect(standingsTest).toContain('expect(prisma.gPMatch.findMany).toHaveBeenCalled()');
-      // TC-2582: 304 Not Modified branch verified
-      expect(standingsTest).toContain('304');
+      // TC-2582: 304 Not Modified branch verified — use .toBe(304) for precision (#2592)
+      expect(standingsTest).toContain('.toBe(304)');
       expect(standingsTest).toContain('etag-v1');
+      // TC-2582: 304 path must not reach DB — findMany/count not called (#2594)
+      expect(standingsTest).toContain('prisma.bMQualification.findMany).not.toHaveBeenCalled()');
+      expect(standingsTest).toContain('prisma.bMQualification.count).not.toHaveBeenCalled()');
     });
   });
 });

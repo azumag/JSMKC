@@ -673,8 +673,10 @@ describe('Standings Route Factory', () => {
       expect(response.status).toBe(304);
       // 304 must carry the ETag so clients can re-validate on next request
       expect(response.headers.get('ETag')).toBe('etag-v1');
-      // No paginate or findMany calls — cache was used as-is
+      // 304 short-circuit must not reach DB at all — no paginate, no findMany, no count (#2594)
       expect(paginate).not.toHaveBeenCalled();
+      expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
+      expect(prisma.bMQualification.count).not.toHaveBeenCalled();
     });
   });
 });
