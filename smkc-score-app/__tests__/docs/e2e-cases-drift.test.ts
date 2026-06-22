@@ -3917,6 +3917,36 @@ describe('E2E case drift coverage', () => {
       // TC-2586: empty object is valid
       expect(layoutTest).toContain('isOverlayBroadcastLayoutInput({})');
     });
+
+    it('documents TC-2601 through TC-2604 as TT entry route unit tests', () => {
+      const ttEntryTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'app',
+        'api',
+        'tournaments',
+        '[id]',
+        'tt',
+        'entries',
+        '[entryId]',
+        'route.test.ts',
+      );
+      for (const tc of ['TC-2601', 'TC-2602', 'TC-2603', 'TC-2604']) {
+        expect(ttEntryTest).toContain(tc);
+      }
+      // TC-2601: admin blocked by frozen stage — checkStageFrozen returns non-null
+      expect(ttEntryTest).toContain('checkStageFrozen');
+      expect(ttEntryTest).toContain('frozenStageResponse');
+      expect(ttEntryTest).toContain('updateTTEntry).not.toHaveBeenCalled()');
+      // TC-2603: lastRecordedCourse/Time updated for valid times object
+      expect(ttEntryTest).toContain('lastRecordedCourse');
+      expect(ttEntryTest).toContain('lastRecordedTime');
+      expect(ttEntryTest).toContain("'RR'");
+      // TC-2604: recalculateRanks called with correct args
+      expect(ttEntryTest).toContain('recalculateRanks');
+      expect(ttEntryTest).toContain("'tournament-abc'");
+      expect(ttEntryTest).toContain("'phase1'");
+    });
   });
 });
 
