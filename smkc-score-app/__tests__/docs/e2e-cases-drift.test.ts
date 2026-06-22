@@ -3832,7 +3832,7 @@ describe('E2E case drift coverage', () => {
       }
     });
 
-    it('documents TC-2569 through TC-2575 as fetchQualInitialData unit tests in qual-initial-data.test.ts', () => {
+    it('documents TC-2569 through TC-2576 as fetchQualInitialData unit tests in qual-initial-data.test.ts', () => {
       const qualTest = readRepoFile(
         'smkc-score-app',
         '__tests__',
@@ -3840,11 +3840,25 @@ describe('E2E case drift coverage', () => {
         'api-factories',
         'qual-initial-data.test.ts',
       );
-      for (const tc of ['TC-2569', 'TC-2570', 'TC-2571', 'TC-2572', 'TC-2573', 'TC-2574', 'TC-2575']) {
+      for (const tc of ['TC-2569', 'TC-2570', 'TC-2571', 'TC-2572', 'TC-2573', 'TC-2574', 'TC-2575', 'TC-2576']) {
         expect(qualTest).toContain(tc);
       }
       // Verifies the function under test is fetchQualInitialData
       expect(qualTest).toContain('fetchQualInitialData');
+    });
+
+    it('documents TC-2577 through TC-2579 as matches-polling-route unit tests in matches-polling-route.test.ts', () => {
+      const pollingTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'api-factories',
+        'matches-polling-route.test.ts',
+      );
+      for (const tc of ['TC-2577', 'TC-2578', 'TC-2579']) {
+        expect(pollingTest).toContain(tc);
+      }
+      expect(pollingTest).toContain('createMatchesPollingHandlers');
     });
   });
 });
