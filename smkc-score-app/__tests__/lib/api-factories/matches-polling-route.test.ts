@@ -165,18 +165,22 @@ describe('Matches Polling Route Factory — model routing', () => {
     const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/matches');
     await mrGET(request, { params: Promise.resolve({ id: 't1' }) });
 
-    // paginate is invoked with the mRMatch model object — verify via the first arg
     expect(paginate).toHaveBeenCalledWith(
-      expect.objectContaining({ findMany: expect.any(Function), count: expect.any(Function) }),
+      expect.any(Object),
       { tournamentId: 't1' },
       { matchNumber: 'asc' },
       expect.any(Object),
     );
-    // mRMatch.findMany should have been bound; bMMatch must NOT be called directly
+    // Positive assertion: calling the bound findMany delegates to prisma.mRMatch.findMany.
+    // .bind() preserves the jest mock identity, so calling the wrapper triggers the mock.
+    const modelArg = (paginate as jest.Mock).mock.calls[0][0];
+    await modelArg.findMany({});
+    expect(prisma.mRMatch.findMany).toHaveBeenCalled();
     expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
+    expect(prisma.gPMatch.findMany).not.toHaveBeenCalled();
   });
 
-  // TC-2578: GP config routes to gPMatch (not bMMatch)
+  // TC-2578: GP config routes to gPMatch (not bMMatch or mRMatch)
   it('TC-2578: GP config routes to gPMatch model', async () => {
     const { GET: gpGET } = createMatchesPollingHandlers(
       createMockConfig({ matchModel: 'gPMatch', loggerName: 'test-gp-matches' }),
@@ -186,6 +190,10 @@ describe('Matches Polling Route Factory — model routing', () => {
     await gpGET(request, { params: Promise.resolve({ id: 't1' }) });
 
     expect(paginate).toHaveBeenCalled();
+    // Positive assertion: gPMatch.findMany must be the delegate, not bMMatch or mRMatch.
+    const modelArg = (paginate as jest.Mock).mock.calls[0][0];
+    await modelArg.findMany({});
+    expect(prisma.gPMatch.findMany).toHaveBeenCalled();
     expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
     expect(prisma.mRMatch.findMany).not.toHaveBeenCalled();
   });
