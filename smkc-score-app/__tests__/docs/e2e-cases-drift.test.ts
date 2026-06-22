@@ -3943,8 +3943,8 @@ describe('E2E case drift coverage', () => {
       expect(ttEntryTest).toContain('lastRecordedTime');
       expect(ttEntryTest).toContain('COURSES');
       // TC-2604: recalculateRanks called with tournamentId/stage from DB entry (not URL param)
-      expect(ttEntryTest).toContain('recalculateRanks');
-      expect(ttEntryTest).toContain('toHaveBeenCalledWith');
+      // Use a combined regex so the guard targets this specific assertion, not any toHaveBeenCalledWith
+      expect(ttEntryTest).toMatch(/expect\(recalculateRanks\)\.toHaveBeenCalledWith/);
     });
   });
 });
