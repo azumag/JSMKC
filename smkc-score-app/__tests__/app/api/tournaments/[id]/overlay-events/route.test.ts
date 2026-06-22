@@ -246,7 +246,7 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
       const res = (await GET(makeRequest({ since: oneHourAgo }), makeParams(id))) as unknown as MockResponse;
 
       expect(res.status).toBe(200);
-      expect(res.data.data.events as unknown[]).toHaveLength(1); // TC-2555: toHaveLength idiom preferred (#2562)
+      expect(res.data.data.events as unknown[]).toHaveLength(1);
       expect(mockBuildOverlayEvents).toHaveBeenCalled();
     });
 

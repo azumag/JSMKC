@@ -91,7 +91,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
      * it, leaving BM/MR/GP standings publicly readable. */
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
+      return handleAuthzError();
     }
 
     const { id } = await params;

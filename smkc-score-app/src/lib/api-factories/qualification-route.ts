@@ -416,7 +416,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     if (config.postRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
+        return handleAuthzError();
       }
       currentSession = session;
     }
@@ -766,7 +766,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     if (config.putRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
+        return handleAuthzError();
       }
     }
 
@@ -877,7 +877,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
+      return handleAuthzError();
     }
 
     /* Rate limit: prevent abuse on admin update endpoints */
