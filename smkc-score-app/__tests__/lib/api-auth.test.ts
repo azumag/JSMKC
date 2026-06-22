@@ -11,8 +11,8 @@ import { requireAdminSession, requireAdminOrPlayerSession } from '@/lib/api-auth
 import { auth } from '@/lib/auth';
 import { handleAuthzError } from '@/lib/error-handling';
 
-const mockAuth = auth as jest.Mock;
-const mockHandleAuthzError = handleAuthzError as jest.Mock;
+const mockAuth = jest.mocked(auth);
+const mockHandleAuthzError = jest.mocked(handleAuthzError);
 
 describe('api-auth', () => {
   beforeEach(() => jest.clearAllMocks());
