@@ -42,6 +42,7 @@ jest.mock('@/lib/error-handling', () => ({
   createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
   handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+  handleAuthzError: jest.fn((message = 'Forbidden') => ({ data: { error: message, code: 'FORBIDDEN' }, status: 403 })),
 }));
 
 jest.mock('@/lib/sanitize', () => ({

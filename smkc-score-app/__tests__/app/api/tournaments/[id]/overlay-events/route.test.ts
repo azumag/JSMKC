@@ -228,7 +228,7 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
     });
   });
 
-  describe('TC-2485: full-build path returns events with Cache-Control: no-store', () => {
+  describe('TC-2485 / TC-2555: full-build path returns events with Cache-Control: no-store', () => {
     it('returns events from buildOverlayEvents when latestChange > since', async () => {
       const id = 'full-build-tc-2485';
       mockResolveTournament.mockResolvedValue(makeTournament(id));
@@ -246,7 +246,7 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
       const res = (await GET(makeRequest({ since: oneHourAgo }), makeParams(id))) as unknown as MockResponse;
 
       expect(res.status).toBe(200);
-      expect((res.data.data.events as unknown[]).length).toBe(1);
+      expect(res.data.data.events as unknown[]).toHaveLength(1); // TC-2555: toHaveLength idiom preferred (#2562)
       expect(mockBuildOverlayEvents).toHaveBeenCalled();
     });
 

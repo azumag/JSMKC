@@ -19,7 +19,7 @@ import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket, BracketPlayer } from '@/lib/tournament/double-elimination';
 import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError, handleAuthzError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
@@ -116,7 +116,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
 
     /* Admin authorization required for bracket generation */
     if (!session?.user || session.user.role !== 'admin') {
-      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
     }
 
     /* Rate limit: prevent abuse on bracket generation endpoint */

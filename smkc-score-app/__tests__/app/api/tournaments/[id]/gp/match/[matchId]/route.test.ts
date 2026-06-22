@@ -32,6 +32,7 @@ jest.mock('@/lib/error-handling', () => ({
   createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
   handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+  handleAuthzError: jest.fn((message = 'Forbidden') => ({ data: { error: message, code: 'FORBIDDEN', details: undefined }, status: 403 })),
 }));
 
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })) }));
@@ -51,6 +52,7 @@ const {
   createErrorResponse,
   handleValidationError,
   handleDatabaseError,
+  handleAuthzError,
 } = jest.requireMock('@/lib/error-handling');
 
 class MockNextRequest {
@@ -179,7 +181,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         data: { error: 'Forbidden', code: 'FORBIDDEN', details: undefined },
         status: 403,
       });
-      expect(createErrorResponse).toHaveBeenCalledWith('Forbidden', 403, 'FORBIDDEN');
+      expect(handleAuthzError).toHaveBeenCalled();
     });
 
     // Authorization failure case - Returns 403 when user is not admin

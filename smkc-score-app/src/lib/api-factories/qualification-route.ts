@@ -18,7 +18,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier, getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError, handleAuthzError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
 import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
@@ -416,7 +416,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     if (config.postRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+        return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
       }
       currentSession = session;
     }
@@ -766,7 +766,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     if (config.putRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+        return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
       }
     }
 
@@ -877,7 +877,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
     }
 
     /* Rate limit: prevent abuse on admin update endpoints */

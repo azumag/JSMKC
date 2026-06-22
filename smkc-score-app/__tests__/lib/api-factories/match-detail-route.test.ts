@@ -62,7 +62,7 @@ import { auth } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/sanitize';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { recalculatePlayersStats } from '@/lib/api-factories/score-report-helpers';
-import { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError } from '@/lib/error-handling';
+import { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError, handleAuthzError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 
@@ -74,6 +74,7 @@ describe('Match Detail Route Factory', () => {
   let mockCreateErrorResponse: jest.MockedFunction<typeof createErrorResponse>;
   let mockHandleValidationError: jest.MockedFunction<typeof handleValidationError>;
   let mockHandleDatabaseError: jest.MockedFunction<typeof handleDatabaseError>;
+  let mockHandleAuthzError: jest.MockedFunction<typeof handleAuthzError>;
   let mockLogger: ReturnType<typeof createLogger>;
 
   const createMockMatch = (overrides = {}) => ({
@@ -108,6 +109,7 @@ describe('Match Detail Route Factory', () => {
     mockCreateErrorResponse = createErrorResponse as jest.MockedFunction<typeof createErrorResponse>;
     mockHandleValidationError = handleValidationError as jest.MockedFunction<typeof handleValidationError>;
     mockHandleDatabaseError = handleDatabaseError as jest.MockedFunction<typeof handleDatabaseError>;
+    mockHandleAuthzError = handleAuthzError as jest.MockedFunction<typeof handleAuthzError>;
     mockLogger = {
       error: jest.fn(),
       warn: jest.fn(),
@@ -559,7 +561,7 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Forbidden', 403, 'FORBIDDEN');
+      expect(mockHandleAuthzError).toHaveBeenCalled();
     });
 
     it('should return 403 when putRequiresAuth and user is not admin', async () => {
@@ -588,7 +590,7 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Forbidden', 403, 'FORBIDDEN');
+      expect(mockHandleAuthzError).toHaveBeenCalled();
     });
   });
 
