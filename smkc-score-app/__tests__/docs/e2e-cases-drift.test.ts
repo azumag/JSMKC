@@ -3548,217 +3548,216 @@ describe('E2E case drift coverage', () => {
     expect(tabHydrationTest).toContain('pointer-events-none');
   });
 
-  it('documents TC-2519 as runWithQueryStats returning the result of fn', () => {
-    const section = e2eCaseSection('TC-2519');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2519');
-    // result.result はリターン値の転送パターンを表す。特定のリテラル値ではなくプロパティ名を確認する (#2539)。
-    expect(qcTest).toContain('result.result');
+  describe('perf/query-counter drift guards (TC-2519–2525, TC-2540–2541)', () => {
+    let qcTest: string;
+    beforeAll(() => {
+      qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
+    });
+
+    it('documents TC-2519 as runWithQueryStats returning the result of fn', () => {
+      const section = e2eCaseSection('TC-2519');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2519');
+      // result.result はリターン値の転送パターンを表す。特定のリテラル値ではなくプロパティ名を確認する (#2539)。
+      expect(qcTest).toContain('result.result');
+    });
+
+    it('documents TC-2520 as runWithQueryStats starting with count=0 and totalDurationMs=0', () => {
+      const section = e2eCaseSection('TC-2520');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2520');
+      expect(qcTest).toContain('count');
+      expect(qcTest).toContain('totalDurationMs');
+    });
+
+    it('documents TC-2521 as recordQuery accumulating count and totalDurationMs in a scope', () => {
+      const section = e2eCaseSection('TC-2521');
+      expect(section).toContain('query-counter.test.ts');
+      expect(section).toContain('AsyncLocalStorage');
+      expect(qcTest).toContain('TC-2521');
+      expect(qcTest).toContain('totalDurationMs');
+      // recordQuery 呼び出しパターンで振る舞いを確認する。合計値の特定リテラルは除外 (#2539)。
+      expect(qcTest).toContain('recordQuery');
+    });
+
+    it('documents TC-2522 as recordQuery being a no-op outside a scope', () => {
+      const section = e2eCaseSection('TC-2522');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2522');
+      // テスト説明の "does not throw" は振る舞いキーワードとして安定している (#2539)。
+      expect(qcTest).toContain('does not throw');
+    });
+
+    it('documents TC-2523 as getCurrentStats returning stats object inside a scope', () => {
+      const section = e2eCaseSection('TC-2523');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2523');
+      expect(qcTest).toContain('getCurrentStats');
+      expect(qcTest).toContain('toBeDefined');
+    });
+
+    it('documents TC-2524 as getCurrentStats returning undefined outside a scope', () => {
+      const section = e2eCaseSection('TC-2524');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2524');
+      expect(qcTest).toContain('toBeUndefined');
+    });
+
+    it('documents TC-2525 as multiple recordQuery calls accumulating totalDurationMs correctly', () => {
+      const section = e2eCaseSection('TC-2525');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2525');
+      // "accumulate" は振る舞いを表す語句であり、特定の合計値リテラルより堅牢 (#2539)。
+      expect(qcTest).toContain('accumulate');
+    });
+
+    it('documents TC-2540 as runWithQueryStats propagating fn rejection (noop path)', () => {
+      const section = e2eCaseSection('TC-2540');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2540');
+      expect(qcTest).toContain('rejects.toThrow');
+    });
+
+    it('documents TC-2541 as runWithQueryStats propagating fn rejection (ALS path)', () => {
+      const section = e2eCaseSection('TC-2541');
+      expect(section).toContain('query-counter.test.ts');
+      expect(qcTest).toContain('TC-2541');
+      expect(qcTest).toContain('rejects.toThrow');
+    });
   });
 
-  it('documents TC-2520 as runWithQueryStats starting with count=0 and totalDurationMs=0', () => {
-    const section = e2eCaseSection('TC-2520');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2520');
-    expect(qcTest).toContain('count');
-    expect(qcTest).toContain('totalDurationMs');
+  describe('perf/api-timing drift guards (TC-2526–2528, TC-2542–2543)', () => {
+    let atTest: string;
+    beforeAll(() => {
+      atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
+    });
+
+    it('documents TC-2526 as withApiTiming passing through without logging when PERF_LOG is unset', () => {
+      const section = e2eCaseSection('TC-2526');
+      expect(section).toContain('api-timing.test.ts');
+      expect(atTest).toContain('TC-2526');
+      expect(atTest).toContain('PERF_LOG');
+      expect(atTest).toContain('not.toHaveBeenCalled');
+    });
+
+    it('documents TC-2527 as withApiTiming logging request stats when PERF_LOG=1', () => {
+      const section = e2eCaseSection('TC-2527');
+      expect(section).toContain('api-timing.test.ts');
+      expect(section).toContain('PERF_LOG');
+      expect(atTest).toContain('TC-2527');
+      expect(atTest).toContain('api_request_ms');
+    });
+
+    it('documents TC-2528 as withApiTiming skipping log when below PERF_SLOW_REQUEST_MS threshold', () => {
+      const section = e2eCaseSection('TC-2528');
+      expect(section).toContain('api-timing.test.ts');
+      expect(section).toContain('PERF_SLOW_REQUEST_MS');
+      expect(atTest).toContain('TC-2528');
+      expect(atTest).toContain('PERF_SLOW_REQUEST_MS');
+    });
+
+    it('documents TC-2542 as withApiTiming propagating fn rejection in passthrough mode', () => {
+      const section = e2eCaseSection('TC-2542');
+      expect(section).toContain('api-timing.test.ts');
+      expect(atTest).toContain('TC-2542');
+      expect(atTest).toContain('rejects.toThrow');
+    });
+
+    it('documents TC-2543 as withApiTiming propagating fn rejection when PERF_LOG=1', () => {
+      const section = e2eCaseSection('TC-2543');
+      expect(section).toContain('api-timing.test.ts');
+      expect(atTest).toContain('TC-2543');
+      expect(atTest).toContain('rejects.toThrow');
+      expect(atTest).toContain('not.toHaveBeenCalled');
+    });
   });
 
-  it('documents TC-2521 as recordQuery accumulating count and totalDurationMs in a scope', () => {
-    const section = e2eCaseSection('TC-2521');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(section).toContain('AsyncLocalStorage');
-    expect(qcTest).toContain('TC-2521');
-    expect(qcTest).toContain('totalDurationMs');
-    // recordQuery 呼び出しパターンで振る舞いを確認する。合計値の特定リテラルは除外 (#2539)。
-    expect(qcTest).toContain('recordQuery');
-  });
+  describe('cdm-export/time-format drift guards (TC-2544–2554)', () => {
+    let tfTest: string;
+    beforeAll(() => {
+      tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
+    });
 
-  it('documents TC-2522 as recordQuery being a no-op outside a scope', () => {
-    const section = e2eCaseSection('TC-2522');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2522');
-    // テスト説明の "does not throw" は振る舞いキーワードとして安定している (#2539)。
-    expect(qcTest).toContain('does not throw');
-  });
+    it('documents TC-2544 as msToCdmTime encoding 1:10.34 as MSSCC 11034', () => {
+      const section = e2eCaseSection('TC-2544');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2544');
+      expect(tfTest).toContain('11034');
+    });
 
-  it('documents TC-2523 as getCurrentStats returning stats object inside a scope', () => {
-    const section = e2eCaseSection('TC-2523');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2523');
-    expect(qcTest).toContain('getCurrentStats');
-    expect(qcTest).toContain('toBeDefined');
-  });
+    it('documents TC-2545 as msToCdmTime encoding 0:59.79 as MSSCC 5979', () => {
+      const section = e2eCaseSection('TC-2545');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2545');
+      expect(tfTest).toContain('5979');
+    });
 
-  it('documents TC-2524 as getCurrentStats returning undefined outside a scope', () => {
-    const section = e2eCaseSection('TC-2524');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2524');
-    expect(qcTest).toContain('toBeUndefined');
-  });
+    it('documents TC-2546 as msToCdmTime encoding 0ms as 0', () => {
+      const section = e2eCaseSection('TC-2546');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2546');
+      // 出力値 0 は toBe(0) 等でも使われる汎用リテラルなので出力値確認は省略する (#2542)。
+    });
 
-  it('documents TC-2525 as multiple recordQuery calls accumulating totalDurationMs correctly', () => {
-    const section = e2eCaseSection('TC-2525');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2525');
-    // "accumulate" は振る舞いを表す語句であり、特定の合計値リテラルより堅牢 (#2539)。
-    expect(qcTest).toContain('accumulate');
-  });
+    it('documents TC-2547 as msToCdmTime rounding 155ms to 16cs', () => {
+      const section = e2eCaseSection('TC-2547');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2547');
+      expect(tfTest).toContain('155');
+      expect(tfTest).toContain('16');
+    });
 
-  it('documents TC-2526 as withApiTiming passing through without logging when PERF_LOG is unset', () => {
-    const section = e2eCaseSection('TC-2526');
-    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
-    expect(section).toContain('api-timing.test.ts');
-    expect(atTest).toContain('TC-2526');
-    expect(atTest).toContain('PERF_LOG');
-    expect(atTest).toContain('not.toHaveBeenCalled');
-  });
+    it('documents TC-2548 as msToCdmTime throwing for negative duration', () => {
+      const section = e2eCaseSection('TC-2548');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2548');
+      expect(tfTest).toContain('-1');
+    });
 
-  it('documents TC-2527 as withApiTiming logging request stats when PERF_LOG=1', () => {
-    const section = e2eCaseSection('TC-2527');
-    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
-    expect(section).toContain('api-timing.test.ts');
-    expect(section).toContain('PERF_LOG');
-    expect(atTest).toContain('TC-2527');
-    expect(atTest).toContain('api_request_ms');
-  });
+    it('documents TC-2549 as msToCdmTime throwing for NaN, +Infinity, and -Infinity', () => {
+      const section = e2eCaseSection('TC-2549');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2549');
+      expect(tfTest).toContain('NaN');
+      expect(tfTest).toContain('Infinity');
+      expect(tfTest).toContain('-Infinity');
+    });
 
-  it('documents TC-2528 as withApiTiming skipping log when below PERF_SLOW_REQUEST_MS threshold', () => {
-    const section = e2eCaseSection('TC-2528');
-    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
-    expect(section).toContain('api-timing.test.ts');
-    expect(section).toContain('PERF_SLOW_REQUEST_MS');
-    expect(atTest).toContain('TC-2528');
-    expect(atTest).toContain('PERF_SLOW_REQUEST_MS');
-  });
+    it('documents TC-2550 as timeStringToCdmTime encoding "1:10.34" as 11034', () => {
+      const section = e2eCaseSection('TC-2550');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2550');
+      expect(tfTest).toContain('timeStringToCdmTime');
+    });
 
-  it('documents TC-2540 as runWithQueryStats propagating fn rejection (noop path)', () => {
-    const section = e2eCaseSection('TC-2540');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2540');
-    expect(qcTest).toContain('rejects.toThrow');
-  });
+    it('documents TC-2551 as timeStringToCdmTime returning null for non-string input', () => {
+      const section = e2eCaseSection('TC-2551');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2551');
+      expect(tfTest).toContain('toBeNull');
+    });
 
-  it('documents TC-2541 as runWithQueryStats propagating fn rejection (ALS path)', () => {
-    const section = e2eCaseSection('TC-2541');
-    const qcTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'query-counter.test.ts');
-    expect(section).toContain('query-counter.test.ts');
-    expect(qcTest).toContain('TC-2541');
-    expect(qcTest).toContain('rejects.toThrow');
-  });
+    it('documents TC-2552 as timeStringToCdmTime returning null for empty strings', () => {
+      const section = e2eCaseSection('TC-2552');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2552');
+      expect(tfTest).toContain('toBeNull');
+    });
 
-  it('documents TC-2542 as withApiTiming propagating fn rejection in passthrough mode', () => {
-    const section = e2eCaseSection('TC-2542');
-    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
-    expect(section).toContain('api-timing.test.ts');
-    expect(atTest).toContain('TC-2542');
-    expect(atTest).toContain('rejects.toThrow');
-  });
+    it('documents TC-2553 as timeStringToCdmTime returning null for unparsable strings', () => {
+      const section = e2eCaseSection('TC-2553');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2553');
+      expect(tfTest).toContain('not-a-time');
+    });
 
-  it('documents TC-2543 as withApiTiming propagating fn rejection when PERF_LOG=1', () => {
-    const section = e2eCaseSection('TC-2543');
-    const atTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'perf', 'api-timing.test.ts');
-    expect(section).toContain('api-timing.test.ts');
-    expect(atTest).toContain('TC-2543');
-    expect(atTest).toContain('rejects.toThrow');
-    expect(atTest).toContain('not.toHaveBeenCalled');
-  });
-
-  it('documents TC-2544 as msToCdmTime encoding 1:10.34 as MSSCC 11034', () => {
-    const section = e2eCaseSection('TC-2544');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2544');
-    expect(tfTest).toContain('11034');
-  });
-
-  it('documents TC-2545 as msToCdmTime encoding 0:59.79 as MSSCC 5979', () => {
-    const section = e2eCaseSection('TC-2545');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2545');
-    expect(tfTest).toContain('5979');
-  });
-
-  it('documents TC-2546 as msToCdmTime encoding 0ms as 0', () => {
-    const section = e2eCaseSection('TC-2546');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2546');
-  });
-
-  it('documents TC-2547 as msToCdmTime rounding 155ms to 16cs', () => {
-    const section = e2eCaseSection('TC-2547');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2547');
-    expect(tfTest).toContain('155');
-  });
-
-  it('documents TC-2548 as msToCdmTime throwing for negative duration', () => {
-    const section = e2eCaseSection('TC-2548');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2548');
-    expect(tfTest).toContain('-1');
-  });
-
-  it('documents TC-2549 as msToCdmTime throwing for NaN and Infinity', () => {
-    const section = e2eCaseSection('TC-2549');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2549');
-    expect(tfTest).toContain('NaN');
-    expect(tfTest).toContain('Infinity');
-  });
-
-  it('documents TC-2550 as timeStringToCdmTime encoding "1:10.34" as 11034', () => {
-    const section = e2eCaseSection('TC-2550');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2550');
-    expect(tfTest).toContain('timeStringToCdmTime');
-  });
-
-  it('documents TC-2551 as timeStringToCdmTime returning null for non-string input', () => {
-    const section = e2eCaseSection('TC-2551');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2551');
-    expect(tfTest).toContain('toBeNull');
-  });
-
-  it('documents TC-2552 as timeStringToCdmTime returning null for empty strings', () => {
-    const section = e2eCaseSection('TC-2552');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2552');
-    expect(tfTest).toContain('toBeNull');
-  });
-
-  it('documents TC-2553 as timeStringToCdmTime returning null for unparsable strings', () => {
-    const section = e2eCaseSection('TC-2553');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2553');
-    expect(tfTest).toContain('not-a-time');
-  });
-
-  it('documents TC-2554 as msToCdmTime rounding 59995ms up to MSSCC 10000 (1:00.00)', () => {
-    const section = e2eCaseSection('TC-2554');
-    const tfTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'time-format.test.ts');
-    expect(section).toContain('time-format.test.ts');
-    expect(tfTest).toContain('TC-2554');
-    expect(tfTest).toContain('59995');
-    expect(tfTest).toContain('10000');
+    it('documents TC-2554 as msToCdmTime rounding 59995ms up to MSSCC 10000 (1:00.00)', () => {
+      const section = e2eCaseSection('TC-2554');
+      expect(section).toContain('time-format.test.ts');
+      expect(tfTest).toContain('TC-2554');
+      expect(tfTest).toContain('59995');
+      expect(tfTest).toContain('10000');
+    });
   });
 });
 
