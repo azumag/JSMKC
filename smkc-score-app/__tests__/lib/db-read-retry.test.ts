@@ -74,7 +74,20 @@ describe('retryDbRead', () => {
   it('TC-2515: does not retry when attempts is 1', async () => {
     const operation = jest.fn().mockImplementation(() => Promise.reject(new Error('single-attempt-fail')));
 
-    await expect(retryDbRead(operation, { attempts: 1 })).rejects.toThrow('single-attempt-fail');
+    await expect(retryDbRead(operation, { attempts: 1, delayMs: 0 })).rejects.toThrow('single-attempt-fail');
     expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it('TC-2518: onRetry is NOT called on the final failed attempt', async () => {
+    // The implementation breaks before calling onRetry when attempt >= attempts,
+    // so callers must not expect onRetry to fire on every error, only between attempts.
+    const onRetry = jest.fn();
+    const operation = jest.fn().mockImplementation(() => Promise.reject(new Error('always-fails')));
+
+    await expect(retryDbRead(operation, { attempts: 2, delayMs: 0, onRetry })).rejects.toThrow('always-fails');
+    expect(operation).toHaveBeenCalledTimes(2);
+    // onRetry fires after attempt 1 (not the last), but NOT after attempt 2 (the final failure)
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onRetry).toHaveBeenCalledWith({ attempt: 1, error: expect.any(Error) });
   });
 });
