@@ -347,6 +347,8 @@ describe('E2E case drift coverage', () => {
     ['TC-2552', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
     ['TC-2553', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
     ['TC-2554', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
+    ['TC-2555', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    ['TC-2556', 'n/a (unit/static coverage)', 'smkc-score-app/src/lib/api-factories/'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3758,6 +3760,36 @@ describe('E2E case drift coverage', () => {
       expect(tfTest).toContain('TC-2554');
       expect(tfTest).toContain('59995');
       expect(tfTest).toContain('10000');
+    });
+
+    it('documents TC-2555 as overlay-events using toHaveLength Jest idiom', () => {
+      const section = e2eCaseSection('TC-2555');
+      expect(section).toContain('overlay-events/route.test.ts');
+      const overlayTest = readRepoFile(
+        'smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'overlay-events', 'route.test.ts'
+      );
+      // TC-2555: expect(array).toHaveLength(n) preferred over expect(array.length).toBe(n) (#2562)
+      expect(overlayTest).toContain('TC-2555');
+      expect(overlayTest).toContain('toHaveLength');
+      expect(overlayTest).not.toContain('.length).toBe(1)');
+    });
+
+    it('documents TC-2556 as api-factories using handleAuthzError() for Forbidden responses', () => {
+      const section = e2eCaseSection('TC-2556');
+      expect(section).toContain('api-factories/');
+      const factoryFiles = [
+        'standings-route.ts',
+        'qualification-route.ts',
+        'finals-bracket-route.ts',
+        'finals-route.ts',
+        'match-detail-route.ts',
+        'finals-matches-route.ts',
+      ];
+      for (const file of factoryFiles) {
+        const src = readRepoFile('smkc-score-app', 'src', 'lib', 'api-factories', file);
+        // TC-2556: handleAuthzError() must replace createErrorResponse('Forbidden', 403, 'FORBIDDEN') (#2563)
+        expect(src).not.toContain("createErrorResponse('Forbidden', 403, 'FORBIDDEN')");
+      }
     });
   });
 });

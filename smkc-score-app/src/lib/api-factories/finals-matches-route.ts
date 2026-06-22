@@ -19,7 +19,7 @@ import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError, handleAuthzError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
@@ -83,7 +83,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
 
     /* Admin authorization required for match creation */
     if (!session?.user || session.user.role !== 'admin') {
-      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
     }
 
     /* Rate limit: prevent abuse on match creation */

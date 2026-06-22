@@ -20,7 +20,7 @@ import { auth } from '@/lib/auth';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { computeQualificationRanks } from '@/lib/server-ranking';
 
@@ -91,7 +91,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
      * it, leaving BM/MR/GP standings publicly readable. */
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
     }
 
     const { id } = await params;

@@ -25,7 +25,7 @@ import { getGpFinalsMaxCups, getMrFinalsMaxRounds } from '@/lib/finals-target-wi
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError, handleAuthzError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
@@ -1374,7 +1374,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     if (config.postRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+        return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
       }
     }
 
@@ -1949,7 +1949,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     if (config.putRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+        return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
       }
     }
 
@@ -2337,7 +2337,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+      return handleAuthzError(); // TC-2556: unified Forbidden response (#2563)
     }
 
     const patchClientIp = getClientIdentifier(request);
