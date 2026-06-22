@@ -572,4 +572,109 @@ describe('Standings Route Factory', () => {
       expect(json.error).toBe('Failed to fetch standings');
     });
   });
+
+  // === MODEL ROUTING & CONDITIONAL GET ===
+
+  describe('Model routing and conditional GET', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      (get as jest.Mock).mockResolvedValue(null);
+      (set as jest.Mock).mockResolvedValue(undefined);
+      (isExpired as jest.Mock).mockReturnValue(false);
+      (generateETag as jest.Mock).mockReturnValue('etag-new');
+      jest.mocked(auth).mockResolvedValue(adminSession);
+      (paginate as jest.Mock).mockResolvedValue({ data: [] });
+    });
+
+    // TC-2580: BM paginated path delegates findMany and count to bMQualification
+    it('TC-2580: BM paginated config delegates findMany and count to bMQualification model', async () => {
+      // The factory wraps prisma.bMQualification.findMany/.count with .bind() and passes the adapter
+      // to paginate(). Calling the adapter methods should trigger the underlying prisma mock.
+      // Uses paginate.mock.lastCall over calls[0] to isolate this test (pattern from TC-2588 fix).
+      const config = createPaginatedConfig({ qualificationModel: 'bMQualification', usePagination: true });
+      const { GET } = createStandingsHandlers(config);
+
+      await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/bm/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      expect(paginate).toHaveBeenCalledWith(
+        expect.objectContaining({ findMany: expect.any(Function), count: expect.any(Function) }),
+        { tournamentId: 't1' },
+        expect.any(Object),
+        expect.any(Object),
+      );
+
+      // Invoke the bound adapter to verify delegation to bMQualification
+      const adapter = (paginate as jest.Mock).mock.lastCall?.[0];
+      expect(adapter).toBeDefined();
+
+      await adapter.findMany({});
+      expect(prisma.bMQualification.findMany).toHaveBeenCalled();
+      expect(prisma.mRQualification.findMany).not.toHaveBeenCalled();
+      expect(prisma.gPQualification.findMany).not.toHaveBeenCalled();
+
+      // count must also delegate to bMQualification (#2587 pattern)
+      await adapter.count({});
+      expect(prisma.bMQualification.count).toHaveBeenCalled();
+      expect(prisma.mRQualification.count).not.toHaveBeenCalled();
+      expect(prisma.gPQualification.count).not.toHaveBeenCalled();
+    });
+
+    // TC-2581: GP direct path delegates H2H match query to gPMatch (not mRMatch or bMMatch)
+    it('TC-2581: GP direct config delegates H2H match query to gPMatch model', async () => {
+      const tiedQuals = [
+        { id: 'q1', playerId: 'p1', points: 30, score: 4, player: { name: 'P1' } },
+        { id: 'q2', playerId: 'p2', points: 30, score: 4, player: { name: 'P2' } },
+      ];
+      const config = createDirectConfig({
+        qualificationModel: 'gPQualification',
+        matchModel: 'gPMatch',
+        matchScoreFields: { p1: 'points1', p2: 'points2' },
+        orderBy: [{ points: 'desc' as const }, { score: 'desc' as const }],
+        transformQualification: undefined,
+      });
+      const { GET } = createStandingsHandlers(config);
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([
+        { player1Id: 'p1', player2Id: 'p2', points1: 9, points2: 45 },
+      ]);
+
+      await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/gp/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      // Positive assertion: H2H query must target gPMatch, not mRMatch or bMMatch
+      expect(prisma.gPMatch.findMany).toHaveBeenCalled();
+      expect(prisma.mRMatch.findMany).not.toHaveBeenCalled();
+      expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
+    });
+
+    // TC-2582: 304 Not Modified when If-None-Match matches cached ETag exactly
+    it('TC-2582: returns 304 when If-None-Match header matches cached ETag', async () => {
+      // When a client resends the ETag it received earlier, the server should return
+      // 304 with no body, avoiding redundant payload transfer.
+      const cached = createCacheEntry({ etag: 'etag-v1' });
+      (get as jest.Mock).mockResolvedValue(cached);
+      (isExpired as jest.Mock).mockReturnValue(false);
+
+      const config = createPaginatedConfig();
+      const { GET } = createStandingsHandlers(config);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/bm/standings', {
+          headers: { 'if-none-match': 'etag-v1' },
+        }),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      expect(response.status).toBe(304);
+      // 304 must carry the ETag so clients can re-validate on next request
+      expect(response.headers.get('ETag')).toBe('etag-v1');
+      // No paginate or findMany calls — cache was used as-is
+      expect(paginate).not.toHaveBeenCalled();
+    });
+  });
 });
