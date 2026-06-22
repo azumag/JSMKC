@@ -521,6 +521,69 @@ describe("replayTTFinals — row ordering", () => {
     // p03 before p02 among the runners.
     expect(display.indexOf(id(3))).toBeLessThan(display.indexOf(id(2)));
   });
+
+  // TC-2567: timeMs=null ランナーの displayRowOrder ソート動作 (issue #2575)
+  it("TC-2567: a runner with timeMs=null sorts with non-runners (key=0) ahead of positive-time runners", () => {
+    // The display sort key is `t ?? 0` where t = participants.get(id).
+    // Non-runners (t=undefined → 0) and null-time runners (t=null → 0) both
+    // get key 0, so they appear before any positive-time runner. This is
+    // distinct from the loss-step, where timeForSort(null)=Infinity treats a
+    // null-time runner as the slowest. The behaviour difference is intentional
+    // (sheet encodes null as 0, same as a non-runner) and must be documented.
+    const data = emptyData({
+      ttEntries: Array.from({ length: 4 }, (_, i) => qualEntry(id(i + 1), i + 1)),
+      ttPhaseRounds: [
+        {
+          phase: "phase3" as const,
+          roundNumber: 1,
+          course: "MC1",
+          results: [
+            { playerId: id(1), timeMs: 60000 },
+            { playerId: id(2), timeMs: null }, // null-time runner → key 0
+            { playerId: id(3), timeMs: 70000 },
+            // p04 is a non-runner → key 0
+          ],
+          eliminatedIds: null,
+          livesReset: false,
+        } as CdmTTPhaseRound,
+      ],
+    });
+    const r = replayTTFinals(data)[0];
+    const display = r.displayRowOrder;
+    // Null-time runner (p02) and non-runner (p04) both have key=0; both must
+    // appear before positive-time runners p01 (60000) and p03 (70000).
+    expect(display.indexOf(id(2))).toBeLessThan(display.indexOf(id(1)));
+    expect(display.indexOf(id(4))).toBeLessThan(display.indexOf(id(1)));
+    // Among positive-time runners, p01 (60000) before p03 (70000).
+    expect(display.indexOf(id(1))).toBeLessThan(display.indexOf(id(3)));
+  });
+
+  // TC-2568: 同一 timeMs 時の安定ソート動作 (issue #2576)
+  it("TC-2568: equal timeMs values preserve their relative input order (stable sort)", () => {
+    // stableSort tiebreaks equal keys by original index, reproducing Excel
+    // SORTBY stable semantics. Two runners sharing the same timeMs must appear
+    // in the same order they held in inputRowOrder (qualification rank order for
+    // round 1). TC-2564 only covered distinct times; this pins the tie case.
+    const data = emptyData({
+      ttEntries: Array.from({ length: 4 }, (_, i) => qualEntry(id(i + 1), i + 1)),
+      ttPhaseRounds: [
+        phaseRound("phase1", 1, "MC1", [
+          { playerId: id(1), timeMs: 60000 }, // tied with p02
+          { playerId: id(2), timeMs: 60000 }, // tied with p01
+          { playerId: id(3), timeMs: 70000 },
+          { playerId: id(4), timeMs: 80000 },
+        ], { eliminatedIds: [id(4)] }),
+      ],
+    });
+    const r = replayTTFinals(data)[0];
+    const display = r.displayRowOrder;
+    // p01 (rank 1) and p02 (rank 2) share timeMs=60000. Round-1 inputRowOrder
+    // is qualification rank order, so p01 precedes p02 → stable sort must keep
+    // p01 before p02 in the display order.
+    expect(display.indexOf(id(1))).toBeLessThan(display.indexOf(id(2)));
+    // Both tied runners appear before p03 (70000).
+    expect(display.indexOf(id(2))).toBeLessThan(display.indexOf(id(3)));
+  });
 });
 
 // --------------------------------------------------------------------------

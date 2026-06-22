@@ -359,6 +359,8 @@ describe('E2E case drift coverage', () => {
     ['TC-2564', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/fill/tt-lives-replay.test.ts'],
     ['TC-2565', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/fill/tt-lives-replay.test.ts'],
     ['TC-2566', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/fill/tt-lives-replay.test.ts'],
+    ['TC-2567', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/fill/tt-finals.test.ts'],
+    ['TC-2568', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/fill/tt-finals.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
   ];
 
@@ -3813,6 +3815,20 @@ describe('E2E case drift coverage', () => {
       );
       for (const tc of ['TC-2557', 'TC-2558', 'TC-2559', 'TC-2560', 'TC-2561', 'TC-2562', 'TC-2563', 'TC-2564', 'TC-2565', 'TC-2566']) {
         expect(replayTest).toContain(tc);
+      }
+    });
+
+    it('documents TC-2567 and TC-2568 as displayRowOrder stable-sort unit tests in tt-finals.test.ts', () => {
+      const finalsTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'cdm-export',
+        'fill',
+        'tt-finals.test.ts',
+      );
+      for (const tc of ['TC-2567', 'TC-2568']) {
+        expect(finalsTest).toContain(tc);
       }
     });
   });
