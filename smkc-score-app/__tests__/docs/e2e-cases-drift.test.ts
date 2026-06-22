@@ -319,6 +319,7 @@ describe('E2E case drift coverage', () => {
     ['TC-2513', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
     ['TC-2514', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
     ['TC-2515', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
+    ['TC-2518', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
     ['TC-2516', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/tournament-tab-hydration.test.ts'],
     ['TC-2517', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/tournament-tab-hydration.test.ts'],
     ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
@@ -3495,6 +3496,15 @@ describe('E2E case drift coverage', () => {
     expect(dbRetryTest).toContain('TC-2515');
     expect(dbRetryTest).toContain('attempts: 1');
     expect(dbRetryTest).toContain('single-attempt-fail');
+  });
+
+  it('documents TC-2518 as retryDbRead not calling onRetry on the final failed attempt', () => {
+    const section = e2eCaseSection('TC-2518');
+    const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
+    expect(section).toContain('db-read-retry.test.ts');
+    expect(dbRetryTest).toContain('TC-2518');
+    expect(dbRetryTest).toContain('toHaveBeenCalledTimes(1)');
+    expect(dbRetryTest).toContain('always-fails');
   });
 
   it('documents TC-2516 as getTabHydrationGuardProps returning enabled props when hydrated', () => {
