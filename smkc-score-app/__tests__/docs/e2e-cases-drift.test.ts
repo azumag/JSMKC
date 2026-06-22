@@ -3960,11 +3960,11 @@ describe('E2E case drift coverage', () => {
       }
       // TC-2606: verifies true is returned on debugMode=true response
       expect(debugModeTest).toContain('debugMode: true');
-      // TC-2609: verifies json.data wrapper unwrapping (createSuccessResponse format)
-      expect(debugModeTest).toContain('json.data');
-      // TC-2610: verifies cancelled flag prevents state update after unmount
+      // TC-2609: verifies mock uses wrapped { data: { debugMode } } shape (createSuccessResponse format)
+      expect(debugModeTest).toContain('data: { debugMode: true }');
+      // TC-2610: verifies cancellation of state update when unmounted; check behavior description, not internal var name
       expect(debugModeTest).toContain('unmount');
-      expect(debugModeTest).toContain('cancelled');
+      expect(debugModeTest).toContain('cancels state update');
       // URL correctness check
       expect(debugModeTest).toContain('?fields=summary');
     });
@@ -3988,19 +3988,19 @@ describe('E2E case drift coverage', () => {
       expect(qualActionsTest).toMatch(/expect\(refetch\)\.toHaveBeenCalledTimes\(1\)/);
       // TC-2613: handleBulkRankOverrideSave returns true on full success
       expect(qualActionsTest).toContain('handleBulkRankOverrideSave');
-      expect(qualActionsTest).toContain('returnValue!).toBe(true)');
+      expect(qualActionsTest).toContain('returnValue).toBe(true)');
       // TC-2614: handleBulkRankOverrideSave stops on failure and returns false
-      expect(qualActionsTest).toContain('returnValue!).toBe(false)');
+      expect(qualActionsTest).toContain('returnValue).toBe(false)');
       // TC-2615: handleTvAssign sends matchId and tvNumber
       expect(qualActionsTest).toContain('handleTvAssign');
       expect(qualActionsTest).toContain('matchId');
       expect(qualActionsTest).toContain('tvNumber');
-      // TC-2616: handleBroadcastReflect calls broadcast PUT with player names
+      // TC-2616: handleBroadcastReflect calls broadcast PUT with player names; toast key checked
       expect(qualActionsTest).toContain('handleBroadcastReflect');
       expect(qualActionsTest).toContain('/broadcast');
-      expect(qualActionsTest).toContain('toast.success');
-      // TC-2617/TC-2618: toast.error on failure paths
-      expect(qualActionsTest).toContain('toast.error');
+      expect(qualActionsTest).toContain("'broadcastReflected'");
+      // TC-2617/TC-2618: toast.error with broadcastError key on failure paths
+      expect(qualActionsTest).toContain("'broadcastError'");
     });
   });
 });

@@ -21,6 +21,11 @@ jest.mock('@/lib/client-logger', () => ({
   createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn() })),
 }));
 
+// Return i18n keys verbatim so toast assertions can target stable keys, not translation strings
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 jest.mock('sonner', () => ({
   toast: {
     success: jest.fn(),
@@ -98,14 +103,14 @@ describe('useQualificationActions', () => {
         { qualificationId: 'q2', rankOverride: 2 },
       ];
 
-      let returnValue: boolean;
+      let returnValue: boolean | undefined;
       await act(async () => {
         returnValue = await result.current.handleBulkRankOverrideSave(updates);
       });
 
       expect(global.fetch).toHaveBeenCalledTimes(2);
       expect(refetch).toHaveBeenCalledTimes(1);
-      expect(returnValue!).toBe(true);
+      expect(returnValue).toBe(true);
     });
 
     it('TC-2614: stops on first failure, skips remaining updates, returns false', async () => {
@@ -125,7 +130,7 @@ describe('useQualificationActions', () => {
         { qualificationId: 'q3', rankOverride: 3 }, // should never be reached
       ];
 
-      let returnValue: boolean;
+      let returnValue: boolean | undefined;
       await act(async () => {
         returnValue = await result.current.handleBulkRankOverrideSave(updates);
       });
@@ -134,7 +139,7 @@ describe('useQualificationActions', () => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
       expect(alertSpy).toHaveBeenCalledWith('Server error');
       expect(refetch).not.toHaveBeenCalled();
-      expect(returnValue!).toBe(false);
+      expect(returnValue).toBe(false);
     });
   });
 
@@ -167,7 +172,7 @@ describe('useQualificationActions', () => {
       (global.fetch as jest.Mock).mockResolvedValue({ ok: true } as Response);
       const { result } = makeHook();
 
-      let returnValue: boolean;
+      let returnValue: boolean | undefined;
       await act(async () => {
         returnValue = await result.current.handleBroadcastReflect('Alice', 'Bob');
       });
@@ -179,34 +184,34 @@ describe('useQualificationActions', () => {
           body: JSON.stringify({ player1Name: 'Alice', player2Name: 'Bob' }),
         }),
       );
-      expect(toast.success).toHaveBeenCalledWith('Broadcast updated');
-      expect(returnValue!).toBe(true);
+      expect(toast.success).toHaveBeenCalledWith('broadcastReflected');
+      expect(returnValue).toBe(true);
     });
 
     it('TC-2617: shows error toast and returns false on non-ok broadcast response', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({ ok: false } as Response);
       const { result } = makeHook();
 
-      let returnValue: boolean;
+      let returnValue: boolean | undefined;
       await act(async () => {
         returnValue = await result.current.handleBroadcastReflect('Alice', 'Bob');
       });
 
-      expect(toast.error).toHaveBeenCalledWith('Broadcast failed');
-      expect(returnValue!).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith('broadcastError');
+      expect(returnValue).toBe(false);
     });
 
     it('TC-2618: shows error toast and returns false on network failure', async () => {
       (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
       const { result } = makeHook();
 
-      let returnValue: boolean;
+      let returnValue: boolean | undefined;
       await act(async () => {
         returnValue = await result.current.handleBroadcastReflect('Alice', 'Bob');
       });
 
-      expect(toast.error).toHaveBeenCalledWith('Broadcast failed');
-      expect(returnValue!).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith('broadcastError');
+      expect(returnValue).toBe(false);
     });
   });
 });
