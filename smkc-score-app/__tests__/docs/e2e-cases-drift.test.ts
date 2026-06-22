@@ -3910,9 +3910,10 @@ describe('E2E case drift coverage', () => {
       expect(layoutTest).toContain('isOverlayBroadcastLayoutInput');
       // TC-2583: non-object inputs fall back to full defaults
       expect(layoutTest).toContain('DEFAULT_OVERLAY_BROADCAST_LAYOUT');
-      // TC-2585: NaN and Infinity are handled per-coordinate
-      expect(layoutTest).toContain('Number.NaN');
-      expect(layoutTest).toContain('POSITIVE_INFINITY');
+      // TC-2585: NaN and Infinity are handled per-coordinate — match substrings so
+      //          either Number.NaN/Number.POSITIVE_INFINITY or bare NaN/Infinity are accepted (#2598)
+      expect(layoutTest).toMatch(/NaN/);
+      expect(layoutTest).toMatch(/Infinity/);
       // TC-2586: empty object is valid
       expect(layoutTest).toContain('isOverlayBroadcastLayoutInput({})');
     });
