@@ -9,6 +9,7 @@
  * - TC-2573: GP config → uses gPQualification and gPMatch models
  * - TC-2574: gpQualificationConfirmed=true → qualificationConfirmed=true for GP config
  * - TC-2575: mrQualificationConfirmed=true → qualificationConfirmed=true for MR config
+ * - TC-2576: MR config → uses mRQualification and mRMatch models
  *
  * All DB calls and computeQualificationRanks are mocked to isolate the function.
  * Uses // @ts-nocheck because the manual prisma mock does not carry full PrismaClient
@@ -144,5 +145,21 @@ describe('fetchQualInitialData', () => {
     const result = await fetchQualInitialData(mrConfig, 'tournament-1');
 
     expect(result!.qualificationConfirmed).toBe(true);
+  });
+
+  it('TC-2576: MR config uses mRQualification and mRMatch models', async () => {
+    (mockPrisma.mRQualification.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
+    mockComputeRanks.mockReturnValue([]);
+
+    const result = await fetchQualInitialData(mrConfig, 'tournament-1');
+
+    expect(result).not.toBeNull();
+    expect(mockPrisma.mRQualification.findMany).toHaveBeenCalled();
+    expect(mockPrisma.mRMatch.findMany).toHaveBeenCalled();
+    expect(mockPrisma.bMQualification.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.bMMatch.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.gPQualification.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.gPMatch.findMany).not.toHaveBeenCalled();
   });
 });

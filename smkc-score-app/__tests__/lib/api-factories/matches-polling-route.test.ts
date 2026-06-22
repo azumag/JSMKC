@@ -10,6 +10,9 @@
  * - Query parameter parsing (page, limit) with orderBy verification
  * - Default pagination values
  * - Database error handling (500)
+ * - TC-2577: MR config routes to mRMatch model (not bMMatch)
+ * - TC-2578: GP config routes to gPMatch model (not bMMatch)
+ * - TC-2579: Player session (non-admin) is accepted and returns 200
  */
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
@@ -142,5 +145,60 @@ describe('Matches Polling Route Factory', () => {
     expect(response.status).toBe(500);
     const json = await response.json();
     expect(json.error).toBe('Failed to fetch matches');
+  });
+});
+
+describe('Matches Polling Route Factory — model routing', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'u1', role: 'admin' } });
+    (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({ id: 't1' });
+    (paginate as jest.Mock).mockResolvedValue({ data: [], meta: { page: 1, limit: 50, total: 0, totalPages: 0 } });
+  });
+
+  // TC-2577: MR config routes to mRMatch (not bMMatch)
+  it('TC-2577: MR config routes to mRMatch model', async () => {
+    const { GET: mrGET } = createMatchesPollingHandlers(
+      createMockConfig({ matchModel: 'mRMatch', loggerName: 'test-mr-matches' }),
+    );
+
+    const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/matches');
+    await mrGET(request, { params: Promise.resolve({ id: 't1' }) });
+
+    // paginate is invoked with the mRMatch model object — verify via the first arg
+    expect(paginate).toHaveBeenCalledWith(
+      expect.objectContaining({ findMany: expect.any(Function), count: expect.any(Function) }),
+      { tournamentId: 't1' },
+      { matchNumber: 'asc' },
+      expect.any(Object),
+    );
+    // mRMatch.findMany should have been bound; bMMatch must NOT be called directly
+    expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
+  });
+
+  // TC-2578: GP config routes to gPMatch (not bMMatch)
+  it('TC-2578: GP config routes to gPMatch model', async () => {
+    const { GET: gpGET } = createMatchesPollingHandlers(
+      createMockConfig({ matchModel: 'gPMatch', loggerName: 'test-gp-matches' }),
+    );
+
+    const request = new NextRequest('http://localhost:3000/api/tournaments/t1/gp/matches');
+    await gpGET(request, { params: Promise.resolve({ id: 't1' }) });
+
+    expect(paginate).toHaveBeenCalled();
+    expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
+    expect(prisma.mRMatch.findMany).not.toHaveBeenCalled();
+  });
+
+  // TC-2579: Player session (non-admin) is accepted — returns 200
+  it('TC-2579: player session (non-admin) is accepted and returns 200', async () => {
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'p1', role: 'player', userType: 'player' } });
+    const { GET: bmGET } = createMatchesPollingHandlers(createMockConfig());
+
+    const request = new NextRequest('http://localhost:3000/api/tournaments/t1/bm/matches');
+    const response = await bmGET(request, { params: Promise.resolve({ id: 't1' }) });
+
+    expect(response.status).toBe(200);
+    expect(paginate).toHaveBeenCalled();
   });
 });
