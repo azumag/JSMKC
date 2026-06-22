@@ -3946,6 +3946,62 @@ describe('E2E case drift coverage', () => {
       // Use a combined regex so the guard targets this specific assertion, not any toHaveBeenCalledWith
       expect(ttEntryTest).toMatch(/expect\(recalculateRanks\)\.toHaveBeenCalledWith/);
     });
+
+    it('documents TC-2605 through TC-2610 as useTournamentDebugMode unit tests', () => {
+      const debugModeTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'hooks',
+        'use-tournament-debug-mode.test.ts',
+      );
+      for (const tc of ['TC-2605', 'TC-2606', 'TC-2607', 'TC-2608', 'TC-2609', 'TC-2610']) {
+        expect(debugModeTest).toContain(tc);
+      }
+      // TC-2606: verifies true is returned on debugMode=true response
+      expect(debugModeTest).toContain('debugMode: true');
+      // TC-2609: verifies json.data wrapper unwrapping (createSuccessResponse format)
+      expect(debugModeTest).toContain('json.data');
+      // TC-2610: verifies cancelled flag prevents state update after unmount
+      expect(debugModeTest).toContain('unmount');
+      expect(debugModeTest).toContain('cancelled');
+      // URL correctness check
+      expect(debugModeTest).toContain('?fields=summary');
+    });
+
+    it('documents TC-2611 through TC-2618 as useQualificationActions unit tests', () => {
+      const qualActionsTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'hooks',
+        'useQualificationActions.test.ts',
+      );
+      for (const tc of [
+        'TC-2611', 'TC-2612', 'TC-2613', 'TC-2614',
+        'TC-2615', 'TC-2616', 'TC-2617', 'TC-2618',
+      ]) {
+        expect(qualActionsTest).toContain(tc);
+      }
+      // TC-2611: handleRankOverrideSave calls refetch on success
+      expect(qualActionsTest).toContain('handleRankOverrideSave');
+      expect(qualActionsTest).toMatch(/expect\(refetch\)\.toHaveBeenCalledTimes\(1\)/);
+      // TC-2613: handleBulkRankOverrideSave returns true on full success
+      expect(qualActionsTest).toContain('handleBulkRankOverrideSave');
+      expect(qualActionsTest).toContain('returnValue!).toBe(true)');
+      // TC-2614: handleBulkRankOverrideSave stops on failure and returns false
+      expect(qualActionsTest).toContain('returnValue!).toBe(false)');
+      // TC-2615: handleTvAssign sends matchId and tvNumber
+      expect(qualActionsTest).toContain('handleTvAssign');
+      expect(qualActionsTest).toContain('matchId');
+      expect(qualActionsTest).toContain('tvNumber');
+      // TC-2616: handleBroadcastReflect calls broadcast PUT with player names
+      expect(qualActionsTest).toContain('handleBroadcastReflect');
+      expect(qualActionsTest).toContain('/broadcast');
+      expect(qualActionsTest).toContain('toast.success');
+      // TC-2617/TC-2618: toast.error on failure paths
+      expect(qualActionsTest).toContain('toast.error');
+    });
   });
 });
 
