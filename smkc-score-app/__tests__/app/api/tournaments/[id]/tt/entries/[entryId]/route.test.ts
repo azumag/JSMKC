@@ -90,6 +90,7 @@ import { createLogger } from '@/lib/logger';
 import { updateTTEntry, OptimisticLockError } from '@/lib/optimistic-locking';
 import { checkStageFrozen } from '@/lib/ta/freeze-check';
 import { recalculateRanks } from '@/lib/ta/rank-calculation';
+import { COURSES } from '@/lib/constants';
 import { GET, PUT } from '@/app/api/tournaments/[id]/tt/entries/[entryId]/route';
 
 class MockNextRequest {
@@ -755,12 +756,11 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     // TC-2603: lastRecordedCourse/Time is updated when times is a valid object with all 20 courses
     it('TC-2603: should update lastRecordedCourse/Time to last COURSES entry when times is a full object', async () => {
-      // All 20 courses in canonical order. RR gets a distinct time so the
-      // lastRecordedTime assertion is unambiguous (not just the default '1:23.00').
+      // All courses from the canonical COURSES constant. The last course gets a
+      // distinct time so lastRecordedTime is unambiguous (not just '1:23.00').
+      const lastCourse = COURSES[COURSES.length - 1];
       const allCourseTimes = Object.fromEntries(
-        ['MC1','DP1','GV1','BC1','MC2','CI1','GV2','DP2','BC2','MC3',
-         'KB1','CI2','VL1','BC3','MC4','DP3','KB2','GV3','VL2','RR']
-          .map((c) => [c, c === 'RR' ? '1:24.56' : '1:23.00'])
+        COURSES.map((c) => [c, c === lastCourse ? '1:24.56' : '1:23.00'])
       );
       const mockEntry = {
         id: 'e1', playerId: 'p1', tournamentId: 't1',
