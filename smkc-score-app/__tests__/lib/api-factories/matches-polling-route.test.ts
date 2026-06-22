@@ -165,19 +165,27 @@ describe('Matches Polling Route Factory — model routing', () => {
     const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/matches');
     await mrGET(request, { params: Promise.resolve({ id: 't1' }) });
 
+    // paginate adapter must expose both findMany and count — restores invariant lost in #2585 (#2587)
     expect(paginate).toHaveBeenCalledWith(
-      expect.any(Object),
+      expect.objectContaining({ findMany: expect.any(Function), count: expect.any(Function) }),
       { tournamentId: 't1' },
       { matchNumber: 'asc' },
       expect.any(Object),
     );
     // Positive assertion: calling the bound findMany delegates to prisma.mRMatch.findMany.
     // .bind() preserves the jest mock identity, so calling the wrapper triggers the mock.
-    const modelArg = (paginate as jest.Mock).mock.calls[0][0];
+    // lastCall over calls[0] because both TCs run in the same describe; explicit index is fragile (#2588)
+    const modelArg = (paginate as jest.Mock).mock.lastCall?.[0];
+    expect(modelArg).toBeDefined();
     await modelArg.findMany({});
     expect(prisma.mRMatch.findMany).toHaveBeenCalled();
     expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
     expect(prisma.gPMatch.findMany).not.toHaveBeenCalled();
+    // count must delegate to mRMatch too — count-only callers broke when only findMany was verified (#2587)
+    await modelArg.count({});
+    expect(prisma.mRMatch.count).toHaveBeenCalled();
+    expect(prisma.bMMatch.count).not.toHaveBeenCalled();
+    expect(prisma.gPMatch.count).not.toHaveBeenCalled();
   });
 
   // TC-2578: GP config routes to gPMatch (not bMMatch or mRMatch)
@@ -189,13 +197,26 @@ describe('Matches Polling Route Factory — model routing', () => {
     const request = new NextRequest('http://localhost:3000/api/tournaments/t1/gp/matches');
     await gpGET(request, { params: Promise.resolve({ id: 't1' }) });
 
-    expect(paginate).toHaveBeenCalled();
+    // Same shape requirement as TC-2577 — both findMany and count must be present (#2587)
+    expect(paginate).toHaveBeenCalledWith(
+      expect.objectContaining({ findMany: expect.any(Function), count: expect.any(Function) }),
+      { tournamentId: 't1' },
+      { matchNumber: 'asc' },
+      expect.any(Object),
+    );
     // Positive assertion: gPMatch.findMany must be the delegate, not bMMatch or mRMatch.
-    const modelArg = (paginate as jest.Mock).mock.calls[0][0];
+    // lastCall over calls[0] because both TCs run in the same describe; explicit index is fragile (#2588)
+    const modelArg = (paginate as jest.Mock).mock.lastCall?.[0];
+    expect(modelArg).toBeDefined();
     await modelArg.findMany({});
     expect(prisma.gPMatch.findMany).toHaveBeenCalled();
     expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
     expect(prisma.mRMatch.findMany).not.toHaveBeenCalled();
+    // count must delegate to gPMatch too, not mRMatch or bMMatch (#2587)
+    await modelArg.count({});
+    expect(prisma.gPMatch.count).toHaveBeenCalled();
+    expect(prisma.bMMatch.count).not.toHaveBeenCalled();
+    expect(prisma.mRMatch.count).not.toHaveBeenCalled();
   });
 
   // TC-2579: Player session (non-admin) is accepted — returns 200

@@ -3859,6 +3859,13 @@ describe('E2E case drift coverage', () => {
         expect(pollingTest).toContain(tc);
       }
       expect(pollingTest).toContain('createMatchesPollingHandlers');
+      // TC-2577/TC-2578 use lastCall to reliably reference each test's own paginate call (#2588)
+      expect(pollingTest).toContain('mock.lastCall?.[0]');
+      // TC-2577/TC-2578 restore objectContaining({findMany, count}) shape check (#2587)
+      expect(pollingTest).toContain('objectContaining({ findMany: expect.any(Function), count: expect.any(Function) })');
+      // Positive count assertion pinned to specific string to survive negative-only refactors (#2587)
+      expect(pollingTest).toContain('expect(prisma.mRMatch.count).toHaveBeenCalled()');
+      expect(pollingTest).toContain('expect(prisma.gPMatch.count).toHaveBeenCalled()');
     });
   });
 });
