@@ -4215,6 +4215,38 @@
 
 ---
 
+### TC-2583: normalizeOverlayBroadcastLayout — 非オブジェクト入力はすべてデフォルトにフォールバックする
+- **背景**: `normalizeOverlayBroadcastLayout` の `isRecord(value)` ガードは `null`/`undefined`/文字列/数値/配列を非レコードとして検出し、すべてのスロットをデフォルト値で初期化する。この境界動作が未テストのまま、呼び出し元が予期しない DB 値を渡した場合にレイアウトが壊れるリスクがある。
+- **手順**: `normalizeOverlayBroadcastLayout(null)`、`normalizeOverlayBroadcastLayout(undefined)`、`normalizeOverlayBroadcastLayout('string')`、`normalizeOverlayBroadcastLayout(42)`、`normalizeOverlayBroadcastLayout([])` を呼び出す。
+- **期待結果**: いずれも `DEFAULT_OVERLAY_BROADCAST_LAYOUT` と完全に等しい値を返す。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/lib/overlay/layout.test.ts
+
+---
+
+### TC-2584: normalizeOverlayBroadcastLayout — スロット値が非オブジェクトの場合はそのスロットをデフォルトにフォールバックする
+- **背景**: `normalizePosition(value, fallback)` は `isRecord(value)` で各スロット値を検証し、非レコード（`null`、文字列、数値など）の場合は `fallback` をそのまま返す。スロット単位のフォールバックが未テストであり、一部のスロットだけ壊れた入力が来た場合に他のスロットが正常に設定されることを保証する必要がある。
+- **手順**: `{ player1Name: null, player2Name: 'bad', player1Score: 999 }` を引数に `normalizeOverlayBroadcastLayout` を呼び出す。
+- **期待結果**: 返り値が `DEFAULT_OVERLAY_BROADCAST_LAYOUT` と等しい（壊れたスロットはデフォルトで上書きされ、未指定のスロットもデフォルトのまま）。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/lib/overlay/layout.test.ts
+
+---
+
+### TC-2585: normalizeOverlayBroadcastLayout — 非有限座標（NaN/Infinity）は座標単位でデフォルトにフォールバックする
+- **背景**: `isFiniteCoordinate(value)` は `Number.isFinite` を使い NaN や Infinity を除外する。座標が片方だけ非有限の場合は、その座標のみデフォルトに差し替えられ、有限な座標はそのまま保持される。この細粒度フォールバックが未テストであり、クライアントが Infinity/NaN を送信した場合に正しく処理されるかを保証する必要がある。
+- **手順**: `{ player1Name: { x: NaN, y: Infinity }, footer: { x: 180, y: NaN } }` を引数に `normalizeOverlayBroadcastLayout` を呼び出す。
+- **期待結果**: `player1Name` は `DEFAULT_OVERLAY_BROADCAST_LAYOUT.player1Name` と等しい（両座標ともデフォルト）。`footer` は `{ x: 180, y: DEFAULT_OVERLAY_BROADCAST_LAYOUT.footer.y }`（x は保持、y はデフォルト）。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/lib/overlay/layout.test.ts
+
+---
+
+### TC-2586: isOverlayBroadcastLayoutInput — 非オブジェクト入力は false を返す; 空オブジェクトは true を返す
+- **背景**: `isOverlayBroadcastLayoutInput` の入口ガード `isRecord(value)` は `null`/`undefined`/プリミティブを早期に `false` で弾く。空オブジェクト `{}` は "スロットなし" として有効（違反エントリがないので `every` が true）。さらに、スロット値が非オブジェクト（文字列など）の場合も `isRecord(position)` でブロックされる。これらの境界ケースが未テストである。
+- **手順**: `isOverlayBroadcastLayoutInput(null)`、`isOverlayBroadcastLayoutInput(undefined)`、`isOverlayBroadcastLayoutInput('string')`、`isOverlayBroadcastLayoutInput(42)`、`isOverlayBroadcastLayoutInput({})`、`isOverlayBroadcastLayoutInput({ player1Name: 'bad' })` を呼び出す。
+- **期待結果**: `null`/`undefined`/`'string'`/`42`/`{ player1Name: 'bad' }` は `false`。`{}` は `true`。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/lib/overlay/layout.test.ts
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）
