@@ -3867,6 +3867,30 @@ describe('E2E case drift coverage', () => {
       expect(pollingTest).toContain('expect(prisma.mRMatch.count).toHaveBeenCalled()');
       expect(pollingTest).toContain('expect(prisma.gPMatch.count).toHaveBeenCalled()');
     });
+
+    it('documents TC-2580 through TC-2582 as standings-route unit tests in standings-route.test.ts', () => {
+      const standingsTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'api-factories',
+        'standings-route.test.ts',
+      );
+      for (const tc of ['TC-2580', 'TC-2581', 'TC-2582']) {
+        expect(standingsTest).toContain(tc);
+      }
+      expect(standingsTest).toContain('createStandingsHandlers');
+      // TC-2580: BM paginated path uses lastCall to reference its own paginate call (#2588 pattern)
+      expect(standingsTest).toContain('mock.lastCall?.[0]');
+      // TC-2580: Both findMany and count must be verified for BM delegation (#2587 pattern)
+      expect(standingsTest).toContain('expect(prisma.bMQualification.findMany).toHaveBeenCalled()');
+      expect(standingsTest).toContain('expect(prisma.bMQualification.count).toHaveBeenCalled()');
+      // TC-2581: GP H2H must call gPMatch.findMany positively
+      expect(standingsTest).toContain('expect(prisma.gPMatch.findMany).toHaveBeenCalled()');
+      // TC-2582: 304 Not Modified branch verified
+      expect(standingsTest).toContain('304');
+      expect(standingsTest).toContain('etag-v1');
+    });
   });
 });
 

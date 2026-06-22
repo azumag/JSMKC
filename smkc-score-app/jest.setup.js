@@ -203,9 +203,34 @@ if (typeof window !== 'undefined') {
 
 // Mock next/server to fix Response.json issue
 jest.mock('next/server', () => {
-  const mockJson = jest.fn((body, init) => {
+  // NextResponse mock supports both constructor (new NextResponse(body, init))
+  // and static NextResponse.json(data, init).
+  // - The constructor form is used by routes returning non-JSON responses (e.g. 304 Not Modified).
+  // - NextResponse.json is a jest.fn() so tests can assert on it with toHaveBeenCalledWith.
+  class MockNextResponse {
+    constructor(body, init = {}) {
+      this.status = init.status || 200
+      this.statusText = init.statusText || 'OK'
+      this.headers = new Headers(init.headers || {})
+      this.body = body
+      this.ok = this.status >= 200 && this.status < 300
+    }
+
+    async json() {
+      if (this.body === null || this.body === undefined) return null
+      return JSON.parse(this.body)
+    }
+
+    async text() {
+      return this.body === null || this.body === undefined ? '' : String(this.body)
+    }
+  }
+
+  // Attach json as a jest.fn() so tests can use toHaveBeenCalledWith on NextResponse.json.
+  // The implementation creates a MockNextResponse instance with JSON body + Content-Type header.
+  MockNextResponse.json = jest.fn((body, init) => {
     const status = init?.status || 200
-    const response = new global.Response(JSON.stringify(body), {
+    return new MockNextResponse(JSON.stringify(body), {
       status,
       statusText: init?.statusText || 'OK',
       headers: new Headers({
@@ -213,13 +238,10 @@ jest.mock('next/server', () => {
         ...(init?.headers || {}),
       }),
     })
-    return response
   })
 
   return {
-    NextResponse: {
-      json: mockJson,
-    },
+    NextResponse: MockNextResponse,
     NextRequest: class {
       constructor(urlOrRequest, init) {
         if (typeof urlOrRequest === 'string') {
