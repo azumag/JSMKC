@@ -3704,7 +3704,8 @@ describe('E2E case drift coverage', () => {
       expect(section).toContain('time-format.test.ts');
       expect(tfTest).toContain('TC-2547');
       expect(tfTest).toContain('155');
-      expect(tfTest).toContain('16');
+      // '16' は汎用的な数値リテラルなので toBe(16) の形式で確認し一意性を高める (#2545)
+      expect(tfTest).toContain('toBe(16)');
     });
 
     it('documents TC-2548 as msToCdmTime throwing for negative duration', () => {
