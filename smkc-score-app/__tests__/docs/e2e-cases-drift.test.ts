@@ -3960,6 +3960,9 @@ describe('E2E case drift coverage', () => {
       }
       // TC-2606 + TC-2609: verifies debugMode=true is asserted; stable substring avoids sensitivity to object-literal formatting
       expect(debugModeTest).toContain('debugMode: true');
+      // TC-2609: verifies TC-2609 tests the createSuccessResponse wrapped format { data: { debugMode } };
+      // regex is tolerant of whitespace differences around colons and braces
+      expect(debugModeTest).toMatch(/data\s*:\s*\{[^}]*debugMode\s*:\s*true/);
       // TC-2610: verifies cancellation of state update when unmounted; check behavior description, not internal var name
       expect(debugModeTest).toContain('unmount');
       expect(debugModeTest).toContain('cancels state update');
