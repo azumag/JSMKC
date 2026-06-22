@@ -88,6 +88,8 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { updateTTEntry, OptimisticLockError } from '@/lib/optimistic-locking';
+import { checkStageFrozen } from '@/lib/ta/freeze-check';
+import { recalculateRanks } from '@/lib/ta/rank-calculation';
 import { GET, PUT } from '@/app/api/tournaments/[id]/tt/entries/[entryId]/route';
 
 class MockNextRequest {
@@ -194,6 +196,9 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
   });
 
   describe('PUT - Update Time Trial entry with optimistic locking', () => {
+    // Shared response shape used in TC-2601 and TC-2602 to verify freeze-block pass-through
+    const frozenStageResponse = { data: { success: false, error: 'Stage frozen' }, status: 423 };
+
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
@@ -706,6 +711,112 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
       expect(result.data).toEqual({ success: false, error: 'Failed to update time trial entry' });
       expect(result.status).toBe(500);
+    });
+
+    // TC-2601: Admin is blocked when stage is frozen
+    it('TC-2601: should return freeze error when admin tries to update a frozen stage entry', async () => {
+      // Admin path calls checkStageFrozen after fetching the entry's stage.
+      // A frozen stage must block even admin users from editing times.
+      (checkStageFrozen as jest.Mock).mockResolvedValueOnce(frozenStageResponse);
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result).toBe(frozenStageResponse);
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
+    // TC-2602: Player is blocked when their own entry's stage is frozen
+    it('TC-2602: should return freeze error when player tries to update their own frozen stage entry', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
+      });
+      (checkStageFrozen as jest.Mock).mockResolvedValueOnce(frozenStageResponse);
+      // Player ownership check: entry belongs to p1 with stage info
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ playerId: 'p1', stage: 'qualification', tournamentId: 't1' });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result).toBe(frozenStageResponse);
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
+    // TC-2603: lastRecordedCourse/Time is updated when times is a valid object with all 20 courses
+    it('TC-2603: should update lastRecordedCourse/Time to last COURSES entry when times is a full object', async () => {
+      // All 20 courses in canonical order. RR gets a distinct time so the
+      // lastRecordedTime assertion is unambiguous (not just the default '1:23.00').
+      const allCourseTimes = Object.fromEntries(
+        ['MC1','DP1','GV1','BC1','MC2','CI1','GV2','DP2','BC2','MC3',
+         'KB1','CI2','VL1','BC3','MC4','DP3','KB2','GV3','VL2','RR']
+          .map((c) => [c, c === 'RR' ? '1:24.56' : '1:23.00'])
+      );
+      const mockEntry = {
+        id: 'e1', playerId: 'p1', tournamentId: 't1',
+        times: allCourseTimes, totalTime: null, rank: null,
+        eliminated: false, lives: 3, stage: 'qualification', version: 2,
+        player: { id: 'p1', name: 'Player 1', nickname: 'P1' },
+        tournament: { id: 't1', name: 'Test Tournament' },
+      };
+      (updateTTEntry as jest.Mock).mockResolvedValue({ id: 'e1', version: 2 });
+      // findUnique call order for admin with isTimeRecord(times)=true:
+      //   1. admin freeze check  2. recalculate stage lookup  3. re-fetch after update
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })
+        .mockResolvedValueOnce(mockEntry);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: allCourseTimes,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      // lastRecordedCourse must be "RR" (last in COURSES) and lastRecordedTime its value
+      expect(prisma.tTEntry.update).toHaveBeenCalledWith({
+        where: { id: 'e1' },
+        data: { lastRecordedCourse: 'RR', lastRecordedTime: '1:24.56' },
+      });
+    });
+
+    // TC-2604: recalculateRanks is called with the correct tournamentId and stage
+    it('TC-2604: should call recalculateRanks with tournamentId and stage from the entry lookup', async () => {
+      const mockEntry = {
+        id: 'e1', playerId: 'p1', tournamentId: 'tournament-abc',
+        times: [1000], totalTime: 1000, rank: 1,
+        eliminated: false, lives: 3, stage: 'phase1', version: 2,
+        player: { id: 'p1', name: 'Player 1', nickname: 'P1' },
+        tournament: { id: 'tournament-abc', name: 'Test Tournament' },
+      };
+      (updateTTEntry as jest.Mock).mockResolvedValue({ id: 'e1', version: 2 });
+      // findUnique call order for admin with times=[1000] (array, not isTimeRecord):
+      //   1. admin freeze check  2. recalculate stage lookup  3. re-fetch after update
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'phase1', tournamentId: 'tournament-abc' })
+        .mockResolvedValueOnce({ stage: 'phase1', tournamentId: 'tournament-abc' })
+        .mockResolvedValueOnce(mockEntry);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      await PUT(request, { params });
+
+      expect(recalculateRanks).toHaveBeenCalledWith('tournament-abc', 'phase1', prisma);
     });
   });
 });
