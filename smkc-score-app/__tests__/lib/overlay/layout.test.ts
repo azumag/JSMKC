@@ -55,13 +55,24 @@ describe('overlay broadcast layout', () => {
     expect(normalizeOverlayBroadcastLayout([])).toEqual(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
   });
 
-  // TC-2584: normalizeOverlayBroadcastLayout falls back to slot defaults when position value is not an object
+  // TC-2584: normalizeOverlayBroadcastLayout falls back to slot defaults when position value is not an object;
+  //          valid slots alongside invalid ones are preserved (#2597)
   it('TC-2584: falls back to slot default when a position value is not an object', () => {
+    // All-invalid: every bad slot defaults independently
     expect(normalizeOverlayBroadcastLayout({
       player1Name: null,
       player2Name: 'bad',
       player1Score: 999,
     })).toEqual(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
+
+    // Mixed valid+invalid: valid slot is preserved, invalid slot falls back to default
+    expect(normalizeOverlayBroadcastLayout({
+      player1Name: null,
+      player2Name: { x: 120, y: 500 },
+    })).toEqual({
+      ...DEFAULT_OVERLAY_BROADCAST_LAYOUT,
+      player2Name: { x: 120, y: 500 },
+    });
   });
 
   // TC-2585: normalizeOverlayBroadcastLayout falls back per-coordinate for non-finite values
