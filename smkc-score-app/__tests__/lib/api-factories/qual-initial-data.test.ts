@@ -8,8 +8,11 @@
  * - TC-2572: Prisma error → swallowed, returns null
  * - TC-2573: GP config → uses gPQualification and gPMatch models
  * - TC-2574: gpQualificationConfirmed=true → qualificationConfirmed=true for GP config
+ * - TC-2575: mrQualificationConfirmed=true → qualificationConfirmed=true for MR config
  *
  * All DB calls and computeQualificationRanks are mocked to isolate the function.
+ * Uses // @ts-nocheck because the manual prisma mock does not carry full PrismaClient
+ * TypeScript types; all method calls are typed via `as jest.Mock` casts instead.
  */
 // @ts-nocheck
 
@@ -23,8 +26,9 @@ import prisma from '@/lib/prisma';
 import { computeQualificationRanks } from '@/lib/server-ranking';
 import { bmConfig } from '@/lib/event-types/bm-config';
 import { gpConfig } from '@/lib/event-types/gp-config';
+import { mrConfig } from '@/lib/event-types/mr-config';
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+const mockPrisma = prisma;
 const mockComputeRanks = jest.mocked(computeQualificationRanks);
 
 const TOURNAMENT = {
@@ -124,6 +128,20 @@ describe('fetchQualInitialData', () => {
     mockComputeRanks.mockReturnValue([]);
 
     const result = await fetchQualInitialData(gpConfig, 'tournament-1');
+
+    expect(result!.qualificationConfirmed).toBe(true);
+  });
+
+  it('TC-2575: returns qualificationConfirmed=true when mrQualificationConfirmed is true', async () => {
+    (mockPrisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+      ...TOURNAMENT,
+      mrQualificationConfirmed: true,
+    });
+    (mockPrisma.mRQualification.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
+    mockComputeRanks.mockReturnValue([]);
+
+    const result = await fetchQualInitialData(mrConfig, 'tournament-1');
 
     expect(result!.qualificationConfirmed).toBe(true);
   });
