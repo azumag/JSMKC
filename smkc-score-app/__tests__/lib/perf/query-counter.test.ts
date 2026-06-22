@@ -44,8 +44,7 @@ describe('query-counter (real AsyncLocalStorage path)', () => {
 
   beforeAll(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    (globalThis as Record<string, unknown>).AsyncLocalStorage =
-      require('async_hooks').AsyncLocalStorage;
+    (globalThis as Record<string, unknown>).AsyncLocalStorage = require('async_hooks').AsyncLocalStorage;
   });
 
   afterAll(() => {
