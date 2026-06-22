@@ -3832,7 +3832,7 @@ describe('E2E case drift coverage', () => {
       }
     });
 
-    it('documents TC-2569 through TC-2574 as fetchQualInitialData unit tests in qual-initial-data.test.ts', () => {
+    it('documents TC-2569 through TC-2575 as fetchQualInitialData unit tests in qual-initial-data.test.ts', () => {
       const qualTest = readRepoFile(
         'smkc-score-app',
         '__tests__',
@@ -3840,7 +3840,7 @@ describe('E2E case drift coverage', () => {
         'api-factories',
         'qual-initial-data.test.ts',
       );
-      for (const tc of ['TC-2569', 'TC-2570', 'TC-2571', 'TC-2572', 'TC-2573', 'TC-2574']) {
+      for (const tc of ['TC-2569', 'TC-2570', 'TC-2571', 'TC-2572', 'TC-2573', 'TC-2574', 'TC-2575']) {
         expect(qualTest).toContain(tc);
       }
       // Verifies the function under test is fetchQualInitialData
