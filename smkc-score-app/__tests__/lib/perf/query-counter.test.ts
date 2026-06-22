@@ -19,6 +19,14 @@ describe('query-counter (noop-storage path)', () => {
     expect(result.result).toBe('expected-value');
   });
 
+  it('TC-2540: runWithQueryStats propagates fn rejection to caller', async () => {
+    // fn が reject した場合、エラーが握りつぶされずに呼び出し元に再 throw される。
+    // noopStorage パスでも storage.run が fn の結果を await するため伝播する。
+    const boom = new Error('boom-noop');
+
+    await expect(runWithQueryStats(() => Promise.reject(boom))).rejects.toThrow('boom-noop');
+  });
+
   it('TC-2520: runWithQueryStats starts with count=0 and totalDurationMs=0', async () => {
     const { stats } = await runWithQueryStats(() => Promise.resolve(null));
 
@@ -101,6 +109,16 @@ describe('query-counter (real AsyncLocalStorage path)', () => {
 
       expect(stats.count).toBe(3);
       expect(stats.totalDurationMs).toBe(60);
+    });
+  });
+
+  it('TC-2541: runWithQueryStats propagates fn rejection to caller (ALS path)', async () => {
+    // ALS パスでも fn が reject した場合にエラーが伝播することを確認する。
+    // stats スコープは解放され、部分的に記録されたデータは呼び出し元に漏洩しない。
+    await withIsolatedMod(async (mod) => {
+      const boom = new Error('boom-als');
+
+      await expect(mod.runWithQueryStats(() => Promise.reject(boom))).rejects.toThrow('boom-als');
     });
   });
 });
