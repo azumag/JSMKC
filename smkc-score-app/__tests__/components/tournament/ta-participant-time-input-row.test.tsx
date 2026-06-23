@@ -7,7 +7,8 @@
  * (Time Attack) qualification page for each course time entry. It forwards
  * timeInputProps onto the input and fires onChange/onBlur with the courseAbbr.
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { TaParticipantTimeInputRow } from '@/components/tournament/ta-participant-time-input-row';
 
 const onChangeMock = jest.fn();
@@ -36,20 +37,29 @@ describe('TaParticipantTimeInputRow', () => {
     expect(screen.getByText('MKS')).toBeInTheDocument();
   });
 
-  it('TC-2670: onChange fires with courseAbbr and new value', () => {
+  it('TC-2670: onChange fires with courseAbbr and new value', async () => {
+    // userEvent.type fires a realistic keystroke sequence (keydown → keypress →
+    // input → keyup) rather than a single synthetic change event.  For a
+    // controlled input whose value prop is not updated by the mock, each
+    // character triggers one onChange call.  We type a single character so the
+    // assertion on call count and forwarded value remain unambiguous.
+    const user = userEvent.setup();
     render(<TaParticipantTimeInputRow {...defaultProps} />);
 
-    const timeValue = "1'23\"456";
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: timeValue } });
+    await user.type(screen.getByRole('textbox'), '1');
 
     expect(onChangeMock).toHaveBeenCalledTimes(1);
-    expect(onChangeMock).toHaveBeenCalledWith('MKS', timeValue);
+    expect(onChangeMock).toHaveBeenCalledWith('MKS', '1');
   });
 
-  it('TC-2671: onBlur fires with courseAbbr when input loses focus', () => {
+  it('TC-2671: onBlur fires with courseAbbr when input loses focus', async () => {
+    // userEvent.tab() shifts focus away from the input, generating the same
+    // blur/focusout sequence a real user would trigger with the keyboard.
+    const user = userEvent.setup();
     render(<TaParticipantTimeInputRow {...defaultProps} />);
 
-    fireEvent.blur(screen.getByRole('textbox'));
+    await user.click(screen.getByRole('textbox'));
+    await user.tab();
 
     expect(onBlurMock).toHaveBeenCalledTimes(1);
     expect(onBlurMock).toHaveBeenCalledWith('MKS');
