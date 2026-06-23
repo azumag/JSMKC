@@ -4620,6 +4620,54 @@ describe('E2E case drift coverage', () => {
       // checking implementation details like 'if (start > end)' is fragile if tcRange moves files.
       expect(driftTest).toContain('RangeError');
     });
+
+    it('documents TC-2821 through TC-2839 as Table unit tests', () => {
+      const tableTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'table.test.tsx',
+      );
+      for (const tc of tcRange(2821, 2839)) {
+        expect(tableTest).toContain(tc);
+      }
+      // TC-2821/2822: querySelector selectors for container and inner table element
+      expect(tableTest).toContain('data-slot="table-container"');
+      expect(tableTest).toContain('data-slot="table"');
+      // TC-2825/2827/2829/2831/2833/2835/2837: subcomponent data-slot selector strings
+      expect(tableTest).toContain('data-slot="table-header"');
+      expect(tableTest).toContain('data-slot="table-body"');
+      expect(tableTest).toContain('data-slot="table-footer"');
+      expect(tableTest).toContain('data-slot="table-row"');
+      expect(tableTest).toContain('data-slot="table-head"');
+      expect(tableTest).toContain('data-slot="table-cell"');
+      expect(tableTest).toContain('data-slot="table-caption"');
+      // TC-2839: integration test covers all subcomponents together
+      expect(tableTest).toContain('TableHeader');
+      expect(tableTest).toContain('TableBody');
+      expect(tableTest).toContain('TableFooter');
+      expect(tableTest).toContain('TableCaption');
+    });
+
+    it('documents TC-2840 through TC-2845 as Label unit tests', () => {
+      const labelTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'label.test.tsx',
+      );
+      for (const tc of tcRange(2840, 2845)) {
+        expect(labelTest).toContain(tc);
+      }
+      // TC-2840: data-slot="label" attribute via toHaveAttribute
+      expect(labelTest).toContain("'data-slot', 'label'");
+      // TC-2843: htmlFor association renders as "for" attribute in DOM
+      expect(labelTest).toContain("'for', 'player-input'");
+      // TC-2844: rendered as a <label> element
+      expect(labelTest).toContain("toBe('LABEL')");
+    });
   });
 });
 
