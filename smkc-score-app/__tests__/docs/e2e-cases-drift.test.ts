@@ -16,6 +16,11 @@ function readE2eLib(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', 'lib', script);
 }
 
+/** Generates ['TC-start', 'TC-start+1', ..., 'TC-end'] for contiguous TC ranges. */
+function tcRange(start: number, end: number): string[] {
+  return Array.from({ length: end - start + 1 }, (_, i) => `TC-${start + i}`);
+}
+
 function expectHeadingRoleOptions(source: string, method: 'getByRole' | 'queryByRole', assertions: RegExp[]) {
   const match = source.match(new RegExp(`${method}\\(\\s*["']heading["']\\s*,\\s*\\{([^}]*)\\}`));
   expect(match?.[1] ?? '').toMatch(/level:\s*1\b/);
@@ -4547,10 +4552,7 @@ describe('E2E case drift coverage', () => {
         'ui',
         'switch.test.tsx',
       );
-      for (const tc of [
-        'TC-2788', 'TC-2789', 'TC-2790', 'TC-2791', 'TC-2792', 'TC-2793', 'TC-2794',
-        'TC-2795', 'TC-2796', 'TC-2797', 'TC-2798', 'TC-2799', 'TC-2800', 'TC-2801',
-      ]) {
+      for (const tc of tcRange(2788, 2801)) {
         expect(switchTest).toContain(tc);
       }
       // TC-2788: role="switch" button
@@ -4578,11 +4580,7 @@ describe('E2E case drift coverage', () => {
         'ui',
         'card.test.tsx',
       );
-      for (const tc of [
-        'TC-2802', 'TC-2803', 'TC-2804', 'TC-2805', 'TC-2806', 'TC-2807', 'TC-2808',
-        'TC-2809', 'TC-2810', 'TC-2811', 'TC-2812', 'TC-2813', 'TC-2814', 'TC-2815',
-        'TC-2816', 'TC-2817',
-      ]) {
+      for (const tc of tcRange(2802, 2817)) {
         expect(cardTest).toContain(tc);
       }
       // TC-2802–2816: data-slot and className passthrough assertions
