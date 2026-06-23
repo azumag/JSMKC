@@ -26,11 +26,15 @@ describe("AuthHeader", () => {
   it("TC-2696: shows skeleton while session is loading, no interactive elements", () => {
     mockUseSession.mockReturnValue({ data: null, status: "loading" });
 
-    render(<AuthHeader />);
+    const { container } = render(<AuthHeader />);
 
     // Loading state must not expose premature auth state (no buttons or links)
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    // Skeleton must be aria-hidden so screen readers skip it during load
+    const skeleton = container.querySelector(".animate-pulse");
+    expect(skeleton).toBeInTheDocument();
+    expect(skeleton).toHaveAttribute("aria-hidden", "true");
   });
 
   it("TC-2697: authenticated player shows nickname as /profile link", () => {
@@ -103,5 +107,29 @@ describe("AuthHeader", () => {
     render(<AuthHeader />);
 
     expect(screen.getByRole("link", { name: "empty-name@example.com" })).toBeInTheDocument();
+  });
+
+  it("TC-2703: player with null nickname falls back to email", () => {
+    // nickname may be null for players who haven't set one yet
+    mockUseSession.mockReturnValue({
+      data: { user: { userType: "player", nickname: null, email: "player@example.com" } },
+      status: "authenticated",
+    });
+
+    render(<AuthHeader />);
+
+    expect(screen.getByRole("link", { name: "player@example.com" })).toBeInTheDocument();
+  });
+
+  it("TC-2704: player with empty-string nickname falls back to email", () => {
+    // nickname can be stored as empty string; ensure falsy fallback to email works
+    mockUseSession.mockReturnValue({
+      data: { user: { userType: "player", nickname: "", email: "empty-nick@example.com" } },
+      status: "authenticated",
+    });
+
+    render(<AuthHeader />);
+
+    expect(screen.getByRole("link", { name: "empty-nick@example.com" })).toBeInTheDocument();
   });
 });
