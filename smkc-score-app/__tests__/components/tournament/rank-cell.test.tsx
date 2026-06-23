@@ -262,13 +262,43 @@ describe('RankCell — edge cases', () => {
     expect(screen.queryByRole('spinbutton')).toBeNull();
   });
 
-  it('TC-2659: commitSave has no try/catch — onSave rejection leaves editor open', () => {
-    // commitSave has no try/catch around `await onSave(...)`, so a rejection propagates
-    // and setIsEditing(false) is never reached — the editor stays open.
-    // Static source check is in e2e-cases-drift.test.ts (documents TC-2659 structural guard).
+  it('TC-2659: commitSave has no try/catch — setIsEditing(false) only runs after onSave resolves', async () => {
+    // With no try/catch in commitSave, setIsEditing(false) is only reached when onSave
+    // resolves. If onSave rejects, the error propagates and setIsEditing(false) is skipped
+    // — the editor stays open. The structural absence of try/catch is guarded in
+    // e2e-cases-drift.test.ts (TC-2659 drift guard).
     //
-    // This test documents the intent so the TC ID is registered and the drift guard in
-    // e2e-cases-drift.test.ts can assert the structural property via readRepoFile.
-    expect(true).toBe(true); // intentional no-op: structural assertion lives in drift guards
+    // Here we verify the control-flow invariant using a controlled promise:
+    // while onSave is in-flight the editor remains open; on success it closes.
+    let resolveOnSave!: () => void;
+    const controlledSave = jest.fn().mockImplementation(
+      () => new Promise<void>(resolve => { resolveOnSave = resolve; }),
+    );
+
+    render(
+      <RankCell
+        qualificationId="qual-reject"
+        rankOverride={null}
+        autoRank={3}
+        isAdmin={true}
+        onSave={controlledSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+    const input = screen.getByRole('spinbutton');
+    fireEvent.change(input, { target: { value: '1' } });
+
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+
+    // commitSave is awaiting onSave — setIsEditing(false) not yet called → editor open
+    expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+    expect(controlledSave).toHaveBeenCalledWith('qual-reject', 1);
+
+    // Resolve the save: setIsEditing(false) now runs and the editor closes
+    await act(async () => { resolveOnSave(); });
+    expect(screen.queryByRole('spinbutton')).toBeNull();
   });
 });
