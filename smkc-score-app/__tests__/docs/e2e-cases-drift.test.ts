@@ -16,8 +16,12 @@ function readE2eLib(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', 'lib', script);
 }
 
-/** Generates ['TC-start', 'TC-start+1', ..., 'TC-end'] for contiguous TC ranges. */
+/**
+ * Generates ['TC-start', 'TC-start+1', ..., 'TC-end'] for contiguous TC ranges.
+ * Throws RangeError when start > end to prevent silent empty-array coverage gaps (issue #2692).
+ */
 function tcRange(start: number, end: number): string[] {
+  if (start > end) throw new RangeError(`tcRange: start (${start}) > end (${end})`);
   return Array.from({ length: end - start + 1 }, (_, i) => `TC-${start + i}`);
 }
 
@@ -4599,6 +4603,39 @@ describe('E2E case drift coverage', () => {
       expect(cardTest).toContain('CardContent');
       expect(cardTest).toContain('CardFooter');
     });
+
+    it('documents TC-2818 through TC-2820 as tcRange helper unit tests', () => {
+      const driftTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'docs',
+        'e2e-cases-drift.test.ts',
+      );
+      // Check for the it-block label prefixes, not just the TC number, to avoid
+      // a tautology where the number appears in this very tcRange(2818, 2820) call.
+      expect(driftTest).toContain("it('TC-2818:");
+      expect(driftTest).toContain("it('TC-2819:");
+      expect(driftTest).toContain("it('TC-2820:");
+      // TC-2820: guard throws RangeError — check guard condition, not JSDoc comment
+      expect(driftTest).toContain('RangeError');
+      expect(driftTest).toContain('if (start > end)');
+    });
+  });
+});
+
+describe('tcRange helper', () => {
+  it('TC-2818: generates a contiguous range', () => {
+    expect(tcRange(1, 3)).toEqual(['TC-1', 'TC-2', 'TC-3']);
+  });
+
+  it('TC-2819: generates a single-element range when start equals end', () => {
+    expect(tcRange(5, 5)).toEqual(['TC-5']);
+  });
+
+  it('TC-2820: throws RangeError when start > end to prevent silent empty-array coverage gaps', () => {
+    // Use class + message regex rather than exact string to avoid brittle message-template coupling
+    expect(() => tcRange(2817, 2802)).toThrow(RangeError);
+    expect(() => tcRange(2817, 2802)).toThrow(/start \(2817\) > end \(2802\)/);
   });
 });
 
