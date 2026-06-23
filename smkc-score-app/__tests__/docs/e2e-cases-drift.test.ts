@@ -4099,7 +4099,7 @@ describe('E2E case drift coverage', () => {
       expect(modePublishTest).toContain('Network error');
     });
 
-    it('documents TC-2643 through TC-2652 as RankCell unit tests', () => {
+    it('documents TC-2643 through TC-2659 as RankCell unit tests', () => {
       const rankCellTest = readRepoFile(
         'smkc-score-app',
         '__tests__',
@@ -4110,7 +4110,7 @@ describe('E2E case drift coverage', () => {
       for (const tc of [
         'TC-2643', 'TC-2644', 'TC-2645', 'TC-2646',
         'TC-2647', 'TC-2648', 'TC-2649', 'TC-2650',
-        'TC-2651', 'TC-2652',
+        'TC-2651', 'TC-2652', 'TC-2657', 'TC-2658', 'TC-2659',
       ]) {
         expect(rankCellTest).toContain(tc);
       }
@@ -4120,9 +4120,11 @@ describe('E2E case drift coverage', () => {
       // TC-2645/TC-2646: admin view mode shows Edit rank button
       expect(rankCellTest).toContain("Edit rank");
       expect(rankCellTest).toContain('isAdmin={true}');
-      // TC-2647: empty input when no override
+      // TC-2647: empty input when no override (TC-2647 uses queryByRole for null check)
       expect(rankCellTest).toContain("rankOverride={null}");
       expect(rankCellTest).toContain('spinbutton');
+      // TC-2648/TC-2652: clear button queried consistently via getByRole
+      expect(rankCellTest).toContain("getByRole('button', { name: /✕/ })");
       // TC-2648: prefilled input when override exists
       expect(rankCellTest).toContain('rankOverride={7}');
       // TC-2649: Enter key save
@@ -4132,9 +4134,33 @@ describe('E2E case drift coverage', () => {
       // TC-2651: Escape cancel without onSave
       expect(rankCellTest).toContain("key: 'Escape'");
       expect(rankCellTest).toContain('not.toHaveBeenCalled');
-      // TC-2652: clear button sets override to null
+      // TC-2652: clear button targets qual-99 and calls onSave with null
       expect(rankCellTest).toContain('✕');
-      expect(rankCellTest).toContain("null");
+      expect(rankCellTest).toContain("qual-99");
+      // TC-2657: empty string → null (parseInt("") === NaN)
+      expect(rankCellTest).toContain('qual-empty');
+      expect(rankCellTest).toContain("parseInt");
+      // TC-2658: rank 0 passes isNaN check
+      expect(rankCellTest).toContain('qual-zero');
+      expect(rankCellTest).toContain("isNaN");
+      // TC-2659: test documents intent; structural guard is in the block below
+      expect(rankCellTest).toContain('commitSave has no try/catch');
+    });
+
+    it('TC-2659: commitSave has no try/catch in rank-cell.tsx (structural drift guard)', () => {
+      // Verify the intentional absence of try/catch around onSave in commitSave.
+      // If a future refactor wraps onSave in try/catch+setIsEditing(false), the component
+      // behaviour changes (editor closes on error) and this guard flags the change for review.
+      const rankCellSrc = readRepoFile(
+        'smkc-score-app', 'src', 'components', 'tournament', 'rank-cell.tsx',
+      );
+      expect(rankCellSrc).toContain('commitSave');
+      // The catch keyword must not appear in commitSave — not even in a comment starting "No try/catch"
+      // We check for 'catch (' as the functional pattern to avoid matching prose comments.
+      expect(rankCellSrc).not.toContain('catch (');
+      expect(rankCellSrc).toContain('setIsEditing(false)');
+      // The intentional design must be documented in source comments
+      expect(rankCellSrc).toContain('No try/catch');
     });
 
     it('documents TC-2653 through TC-2656 as TieWarningBanner unit tests', () => {
