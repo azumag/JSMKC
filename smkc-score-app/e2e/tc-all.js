@@ -3841,6 +3841,77 @@ async function main() {
     }
   }
 
+  // TC-362: Export API 不正IDに対する構造化エラーレスポンス
+  // Verifies that a malformed tournament ID returns a structured JSON error
+  // (success:false) instead of an HTML error page. Accepts 4xx or 5xx as valid
+  // error status — the key invariant is JSON body, not a specific status code,
+  // because in preview (DB accessible) resolveTournamentId returns the raw ID
+  // and findUnique returns null → 404, while in production with a DB error it
+  // throws → 500. Both paths must return JSON, never an HTML error page.
+  {
+    try {
+      const tc362 = await new Promise((resolve) => {
+        let rawBody = '';
+        const req = https.get(`${BASE}/api/tournaments/INVALID_FORMAT_ID/export`, (res) => {
+          const ct = res.headers['content-type'] || '';
+          res.on('data', (chunk) => { rawBody += chunk; });
+          res.on('end', () => {
+            const statusOk = res.statusCode >= 400;
+            const isJson = ct.includes('application/json');
+            let bodyOk = false;
+            try {
+              const parsed = JSON.parse(rawBody);
+              bodyOk = parsed.success === false && typeof parsed.error === 'string';
+            } catch { /* non-JSON body */ }
+            resolve({ pass: statusOk && isJson && bodyOk, status: res.statusCode, ct, body: rawBody.slice(0, 200) });
+          });
+        });
+        req.on('error', (err) => resolve({ pass: false, error: err.message }));
+        req.setTimeout(10000, () => { req.destroy(); resolve({ pass: false, error: 'timeout' }); });
+      });
+      log('TC-362', tc362.pass ? 'PASS' : 'FAIL',
+        !tc362.pass ? `status=${tc362.status} ct=${tc362.ct} body=${tc362.body ?? tc362.error}` : '');
+    } catch (err) {
+      log('TC-362', 'FAIL', err instanceof Error ? err.message : 'TC-362 threw');
+    }
+  }
+
+  // TC-363: CDM Export — unauthenticated request returns 401 JSON (security test)
+  // Verifies that ?format=cdm is admin-only and rejects unauthenticated https
+  // requests with a structured JSON 401, not an HTML redirect or error page.
+  {
+    const tc363Tid = sharedFixture?.tournamentId ?? TID;
+    if (tc363Tid) {
+      try {
+        const tc363 = await new Promise((resolve) => {
+          let rawBody = '';
+          const req = https.get(`${BASE}/api/tournaments/${tc363Tid}/export?format=cdm`, (res) => {
+            const ct = res.headers['content-type'] || '';
+            res.on('data', (chunk) => { rawBody += chunk; });
+            res.on('end', () => {
+              const is401 = res.statusCode === 401;
+              const isJson = ct.includes('application/json');
+              let bodyOk = false;
+              try {
+                const parsed = JSON.parse(rawBody);
+                bodyOk = parsed.success === false;
+              } catch { /* non-JSON body */ }
+              resolve({ pass: is401 && isJson && bodyOk, status: res.statusCode, ct, body: rawBody.slice(0, 200) });
+            });
+          });
+          req.on('error', (err) => resolve({ pass: false, error: err.message }));
+          req.setTimeout(10000, () => { req.destroy(); resolve({ pass: false, error: 'timeout' }); });
+        });
+        log('TC-363', tc363.pass ? 'PASS' : 'FAIL',
+          !tc363.pass ? `status=${tc363.status} ct=${tc363.ct} body=${tc363.body ?? tc363.error}` : '');
+      } catch (err) {
+        log('TC-363', 'FAIL', err instanceof Error ? err.message : 'TC-363 threw');
+      }
+    } else {
+      log('TC-363', 'SKIP', 'No tournament ID available');
+    }
+  }
+
   // TC-348: Character stats API — admin gets stats shape, non-admin gets 403
   {
     const statsPid = sharedFixture?.playerIds?.[0];

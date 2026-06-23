@@ -368,6 +368,8 @@ describe('E2E case drift coverage', () => {
     ['TC-352', tcAll],
     ['TC-356', tcAll],
     ['TC-357', tcAll],
+    ['TC-362', tcAll],
+    ['TC-363', tcAll],
     ['TC-702', tcGp],
     ['TC-717', tcGp],
     ['TC-722', tcGp],
