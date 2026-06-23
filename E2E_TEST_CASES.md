@@ -545,10 +545,23 @@
 - **authRequired**: false (auth チェックは resolveTournamentId より後に行われるため不要)
 - **手順**:
   1. `https` モジュールでブラウザ外から `GET /api/tournaments/INVALID_FORMAT_ID/export` を直接リクエスト
-  2. HTTPステータスコードを確認
-  3. レスポンスボディのContent-Typeを確認
-- **期待結果**: HTTPステータス 500 で `{ success: false, error: "..." }` 形式のJSON が返り、HTML 500エラーページにならない
+  2. HTTPステータスコードを確認 (4xx or 5xx)
+  3. レスポンスボディの Content-Type が `application/json` であることを確認
+  4. レスポンスボディが `{ success: false, error: "..." }` 形式であることを確認
+- **期待結果**: HTTP 4xx/5xx で `{ success: false, error: "..." }` 形式の JSON が返り、HTML エラーページにならない。プレビュー環境 (DB 疎通あり) では 404、DB エラー時は 500 となるが、いずれも JSON であること
 - **背景**: resolveTournamentId が try 外で呼ばれると不正IDのDB同時エラーで未ハンドル例外になるバグ修正 (#2675)
+- **スクリプト**: tc-all.js TC-362
+
+## TC-363: CDM Export — 非認証アクセスは 401 JSON を返す
+- **URL**: GET /api/tournaments/[id]/export?format=cdm
+- **authRequired**: false (テスト自体は非認証で実行)
+- **手順**:
+  1. `https` モジュールでブラウザ外から `GET /api/tournaments/:id/export?format=cdm` を直接リクエスト (セッションなし)
+  2. HTTP ステータスコードを確認
+  3. レスポンスボディを確認
+- **期待結果**: HTTP 401 で `{ success: false, error: "..." }` 形式の JSON が返る。HTML リダイレクトや HTML エラーページにならない
+- **背景**: CDM エクスポートは管理者専用。未認証リクエストが 401 JSON で拒否されることをセキュリティテストとして確認する
+- **スクリプト**: tc-all.js TC-363
 
 ## TC-201: 各モードページのデータ読み込み確認
 - **URL**: /tournaments/[id]/ta, /bm, /mr, /gp
