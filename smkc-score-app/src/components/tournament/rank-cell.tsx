@@ -40,32 +40,44 @@ interface RankCellProps {
 export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onSave }: RankCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  // Inline error message shown when onSave rejects; null means no error.
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const openEdit = () => {
     setInputValue(rankOverride?.toString() ?? "");
+    setSaveError(null);
     setIsEditing(true);
   };
 
   const commitSave = async () => {
-    const v = parseInt(inputValue);
-    // No try/catch: if onSave rejects, the error propagates to the caller and
-    // setIsEditing(false) is never reached, keeping the editor open. This is
-    // intentional — the parent component or page-level error boundary handles
-    // network/server errors. Rank 0 is allowed through (isNaN(0) === false) and
-    // the API layer is responsible for enforcing minimum rank constraints.
-    await onSave(qualificationId, isNaN(v) ? null : v);
-    setIsEditing(false);
+    setSaveError(null);
+    try {
+      const v = parseInt(inputValue);
+      // Rank 0 is allowed through (isNaN(0) === false); the API layer enforces
+      // minimum rank constraints.
+      await onSave(qualificationId, isNaN(v) ? null : v);
+      setIsEditing(false);
+    } catch (err) {
+      // Keep the editor open so the user can retry after seeing the error.
+      setSaveError(err instanceof Error ? err.message : "保存に失敗しました");
+    }
   };
 
   const commitClear = async () => {
-    await onSave(qualificationId, null);
-    setIsEditing(false);
+    setSaveError(null);
+    try {
+      await onSave(qualificationId, null);
+      setIsEditing(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "保存に失敗しました");
+    }
   };
 
   if (isAdmin && isEditing) {
     return (
       /* Inline rank editor: number input + save/cancel/clear controls */
-      <div className="flex items-center gap-1">
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-1">
         <Input
           type="number"
           min={1}
@@ -96,6 +108,10 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
           >
             ✕
           </Button>
+        )}
+        </div>
+        {saveError && (
+          <p className="text-xs text-destructive" role="alert">{saveError}</p>
         )}
       </div>
     );
