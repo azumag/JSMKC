@@ -4359,6 +4359,30 @@
 
 ---
 
+### TC-2657: RankCell — 空文字入力で Enter を押すと onSave が null で呼ばれる
+- **背景**: `parseInt("") === NaN` なのでコンポーネントは NaN を null として扱い、オーバーライドをクリアする。
+- **手順**: admin として編集を開く → input を空のまま Enter を押す。
+- **期待結果**: `onSave(qualificationId, null)` が呼ばれる。編集モードが閉じる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2658: RankCell — 入力値 "0" で Enter を押すと onSave が 0 で呼ばれる
+- **背景**: `parseInt("0") === 0`、`isNaN(0) === false` なので 0 は NaN ではなく数値として保存される。呼び出し側が順位 0 の有効性を制御する必要がある。
+- **手順**: admin として編集を開く → "0" を入力して Enter を押す。
+- **期待結果**: `onSave(qualificationId, 0)` が呼ばれる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2659: RankCell — commitSave に try/catch がないため onSave reject で編集モードが維持される
+- **背景**: `commitSave` は `try/catch` なしで `onSave` を await するため、reject するとその後の `setIsEditing(false)` が実行されず編集モードが開いたままになる。この挙動はソースコードの静的検証で保証する（try/catch を追加するとこの保証が変わるため drift guard が検出する）。
+- **手順**: `rank-cell.tsx` の `commitSave` 実装に `try { ... await onSave } catch` が存在しないことを確認。
+- **期待結果**: `commitSave` の `onSave` 呼び出しが try/catch で囲まれていない。`setIsEditing(false)` が同関数内に存在する。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）

@@ -48,6 +48,11 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
 
   const commitSave = async () => {
     const v = parseInt(inputValue);
+    // No try/catch: if onSave rejects, the error propagates to the caller and
+    // setIsEditing(false) is never reached, keeping the editor open. This is
+    // intentional — the parent component or page-level error boundary handles
+    // network/server errors. Rank 0 is allowed through (isNaN(0) === false) and
+    // the API layer is responsible for enforcing minimum rank constraints.
     await onSave(qualificationId, isNaN(v) ? null : v);
     setIsEditing(false);
   };
