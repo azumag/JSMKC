@@ -4379,7 +4379,7 @@
 - **背景**: `commitSave` は `try/catch` なしで `onSave` を await するため、reject するとその後の `setIsEditing(false)` が実行されず編集モードが開いたままになる。この挙動はソースコードの静的検証で保証する（try/catch を追加するとこの保証が変わるため drift guard が検出する）。
 - **手順**: `rank-cell.tsx` の `commitSave` 実装に `try { ... await onSave } catch` が存在しないことを確認。
 - **期待結果**: `commitSave` の `onSave` 呼び出しが try/catch で囲まれていない。`setIsEditing(false)` が同関数内に存在する。
-- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+- **スクリプト**: n/a (structural drift guard) — smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts; 制御フロー検証は smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
 
 ---
 

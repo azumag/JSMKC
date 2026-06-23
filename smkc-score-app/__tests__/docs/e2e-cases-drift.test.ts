@@ -4155,10 +4155,14 @@ describe('E2E case drift coverage', () => {
         'smkc-score-app', 'src', 'components', 'tournament', 'rank-cell.tsx',
       );
       expect(rankCellSrc).toContain('commitSave');
-      // The catch keyword must not appear in commitSave — not even in a comment starting "No try/catch"
-      // We check for 'catch (' as the functional pattern to avoid matching prose comments.
-      expect(rankCellSrc).not.toContain('catch (');
-      expect(rankCellSrc).toContain('setIsEditing(false)');
+      // Scope the catch-absence check to the commitSave function block only, so a
+      // legitimate try/catch elsewhere in rank-cell.tsx doesn't false-fail this guard.
+      const commitSaveBlock = rankCellSrc.match(/const commitSave[\s\S]*?\n  };/)?.[0] ?? '';
+      expect(commitSaveBlock).not.toBe(''); // sanity: function block must be present
+      // Use regex to catch both `catch (err)` and bare `catch {` (ES2019 optional binding).
+      // The comment "No try/catch:" in commitSave contains "catch" but not followed by ( or {.
+      expect(commitSaveBlock).not.toMatch(/\bcatch\s*[({]/);
+      expect(commitSaveBlock).toContain('setIsEditing(false)');
       // The intentional design must be documented in source comments
       expect(rankCellSrc).toContain('No try/catch');
     });
