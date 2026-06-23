@@ -4247,6 +4247,118 @@
 
 ---
 
+### TC-2643: RankCell — 非管理者は rankOverride なしのとき autoRank を表示する
+- **背景**: `RankCell` はランク表示セルと管理者向けインライン編集を統合したコンポーネント。非管理者は閲覧専用で編集ボタンが表示されない。
+- **手順**: `isAdmin=false`、`rankOverride=null`、`autoRank=3` で `RankCell` をレンダリングする。
+- **期待結果**: "3" が表示される。ボタン要素は存在しない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2644: RankCell — 非管理者は rankOverride が設定されているときオーバーライドバッジを表示する
+- **背景**: 管理者が手動でランクを上書きした場合、非管理者にもアンバーバッジで通知する。autoRank は表示しない。
+- **手順**: `isAdmin=false`、`rankOverride=2`、`autoRank=5` でレンダリングする。
+- **期待結果**: "2" が表示される。"5" は表示されない。ボタンは存在しない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2645: RankCell — 管理者は autoRank と編集ボタンを見る
+- **背景**: `isAdmin=true` のとき、ランク表示の横に鉛筆アイコン (Edit rank) ボタンが表示される。
+- **手順**: `isAdmin=true`、`rankOverride=null`、`autoRank=4` でレンダリングする。
+- **期待結果**: "4" と "Edit rank" ボタンが表示される。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2646: RankCell — 管理者はオーバーライドバッジと編集ボタンを見る
+- **背景**: オーバーライドがある場合も管理者は編集ボタンを持ち続け、再編集や削除が可能。
+- **手順**: `isAdmin=true`、`rankOverride=1`、`autoRank=3` でレンダリングする。
+- **期待結果**: "1" と "Edit rank" ボタンが表示される。"3" は表示されない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2647: RankCell — 編集ボタンをクリックすると rankOverride=null のとき空文字の input が開く
+- **背景**: 既存オーバーライドがない場合、インライン入力は空で開く。clear ボタン (✕) は rankOverride=null 時は表示されない。
+- **手順**: `rankOverride=null` で編集ボタンをクリックする。
+- **期待結果**: number input が空文字値で表示される。✕ ボタンは存在しない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2648: RankCell — 編集ボタンをクリックすると rankOverride の値で input が prefill される
+- **背景**: 既存オーバーライドを編集するとき、現在値を input に表示して修正しやすくする。✕ ボタンも表示される。
+- **手順**: `rankOverride=7` で編集ボタンをクリックする。
+- **期待結果**: input の値が "7"。✕ ボタンが表示される。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2649: RankCell — Enter キー押下で onSave が数値引数で呼ばれ編集モードが閉じる
+- **背景**: キーボード操作で素早くランクを確定できるよう、Enter キーで `commitSave()` を呼ぶ。
+- **手順**: 編集モードを開き、input に "5" を入力して Enter を押す。
+- **期待結果**: `onSave("qual-42", 5)` が呼ばれる。input が消え Edit rank ボタンが戻る。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2650: RankCell — ✓ ボタンクリックで onSave が呼ばれ編集モードが閉じる
+- **背景**: ✓ ボタン (commitSave) はマウス操作でランクを確定する代替手段。
+- **手順**: 編集モードを開き、"3" を入力して ✓ をクリックする。
+- **期待結果**: `onSave("qual-7", 3)` が呼ばれる。input が消える。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2651: RankCell — Escape キー押下で onSave を呼ばずに編集モードをキャンセルする
+- **背景**: Escape で変更を破棄して元の表示に戻る。onSave は呼ばれない。
+- **手順**: 編集モードを開き、"9" を入力して Escape を押す。
+- **期待結果**: `onSave` が呼ばれない。input が消え Edit rank ボタンが戻る。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2652: RankCell — ✕ ボタンクリックで onSave(null) が呼ばれてオーバーライドをクリアする
+- **背景**: ✕ ボタン (commitClear) はオーバーライドを削除して自動ランクに戻す。`rankOverride != null` のときのみ表示される。
+- **手順**: `rankOverride=3` で編集ボタンをクリックし、✕ をクリックする。
+- **期待結果**: `onSave("qual-99", null)` が呼ばれる。input が消える。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+---
+
+### TC-2653: TieWarningBanner — hasTies=false のとき何もレンダリングしない (管理者)
+- **背景**: `TieWarningBanner` は `hasTies` が false なら null を返し、上位から無条件に配置しても表示されないようにする。
+- **手順**: `hasTies=false`、`isAdmin=true` でレンダリングする。
+- **期待結果**: container.firstChild が null。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/tie-warning-banner.test.tsx
+
+---
+
+### TC-2654: TieWarningBanner — hasTies=false のとき何もレンダリングしない (非管理者)
+- **背景**: isAdmin の値に関係なく hasTies=false なら非表示。
+- **手順**: `hasTies=false`、`isAdmin=false` でレンダリングする。
+- **期待結果**: container.firstChild が null。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/tie-warning-banner.test.tsx
+
+---
+
+### TC-2655: TieWarningBanner — hasTies=true かつ isAdmin=true のとき管理者向けメッセージを表示する
+- **背景**: 管理者向けには sudden-death プレーオフの記録を促すメッセージを表示する。i18n キー `tiedRanksWarningAdmin` が使われる。
+- **手順**: `hasTies=true`、`isAdmin=true` でレンダリングする。useTranslations はキーをそのまま返すモックを使用。
+- **期待結果**: "tiedRanksWarningAdmin" が表示される。"tiedRanksWarningViewer" は表示されない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/tie-warning-banner.test.tsx
+
+---
+
+### TC-2656: TieWarningBanner — hasTies=true かつ isAdmin=false のとき閲覧者向けメッセージを表示する
+- **背景**: 非管理者向けには "同着解決待ち" の通知メッセージを表示する。i18n キー `tiedRanksWarningViewer` が使われる。
+- **手順**: `hasTies=true`、`isAdmin=false` でレンダリングする。
+- **期待結果**: "tiedRanksWarningViewer" が表示される。"tiedRanksWarningAdmin" は表示されない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/tie-warning-banner.test.tsx
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）

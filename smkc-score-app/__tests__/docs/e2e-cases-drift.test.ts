@@ -4098,6 +4098,68 @@ describe('E2E case drift coverage', () => {
       expect(modePublishTest).toContain('updating).toBe(false)');
       expect(modePublishTest).toContain('Network error');
     });
+
+    it('documents TC-2643 through TC-2652 as RankCell unit tests', () => {
+      const rankCellTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'rank-cell.test.tsx',
+      );
+      for (const tc of [
+        'TC-2643', 'TC-2644', 'TC-2645', 'TC-2646',
+        'TC-2647', 'TC-2648', 'TC-2649', 'TC-2650',
+        'TC-2651', 'TC-2652',
+      ]) {
+        expect(rankCellTest).toContain(tc);
+      }
+      // TC-2643/TC-2644: non-admin view mode
+      expect(rankCellTest).toContain('isAdmin={false}');
+      expect(rankCellTest).toContain('queryByRole');
+      // TC-2645/TC-2646: admin view mode shows Edit rank button
+      expect(rankCellTest).toContain("Edit rank");
+      expect(rankCellTest).toContain('isAdmin={true}');
+      // TC-2647: empty input when no override
+      expect(rankCellTest).toContain("rankOverride={null}");
+      expect(rankCellTest).toContain('spinbutton');
+      // TC-2648: prefilled input when override exists
+      expect(rankCellTest).toContain('rankOverride={7}');
+      // TC-2649: Enter key save
+      expect(rankCellTest).toContain("key: 'Enter'");
+      // TC-2650: checkmark button save
+      expect(rankCellTest).toContain('✓');
+      // TC-2651: Escape cancel without onSave
+      expect(rankCellTest).toContain("key: 'Escape'");
+      expect(rankCellTest).toContain('not.toHaveBeenCalled');
+      // TC-2652: clear button sets override to null
+      expect(rankCellTest).toContain('✕');
+      expect(rankCellTest).toContain("null");
+    });
+
+    it('documents TC-2653 through TC-2656 as TieWarningBanner unit tests', () => {
+      const tieWarningTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'tie-warning-banner.test.tsx',
+      );
+      for (const tc of ['TC-2653', 'TC-2654', 'TC-2655', 'TC-2656']) {
+        expect(tieWarningTest).toContain(tc);
+      }
+      // TC-2653/TC-2654: hasTies=false returns null
+      expect(tieWarningTest).toContain('hasTies={false}');
+      expect(tieWarningTest).toContain('firstChild');
+      // TC-2655: admin message i18n key
+      expect(tieWarningTest).toContain('tiedRanksWarningAdmin');
+      expect(tieWarningTest).toContain('isAdmin={true}');
+      // TC-2656: viewer message i18n key
+      expect(tieWarningTest).toContain('tiedRanksWarningViewer');
+      expect(tieWarningTest).toContain('isAdmin={false}');
+      // next-intl mocked to return key as string
+      expect(tieWarningTest).toContain('useTranslations');
+    });
   });
 });
 
