@@ -78,37 +78,37 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
       /* Inline rank editor: number input + save/cancel/clear controls */
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1">
-        <Input
-          type="number"
-          min={1}
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          className="w-14 h-7 text-center text-sm p-1"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitSave();
-            if (e.key === "Escape") setIsEditing(false);
-          }}
-          autoFocus
-        />
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 px-1 text-xs"
-          onClick={commitSave}
-        >
-          ✓
-        </Button>
-        {rankOverride != null && (
-          /* Clear button: removes override and restores automatic rank */
+          <Input
+            type="number"
+            min={1}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            className="w-14 h-7 text-center text-sm p-1"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitSave();
+              if (e.key === "Escape") setIsEditing(false);
+            }}
+            autoFocus
+          />
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 px-1 text-xs text-destructive"
-            onClick={commitClear}
+            className="h-7 px-1 text-xs"
+            onClick={commitSave}
           >
-            ✕
+            ✓
           </Button>
-        )}
+          {rankOverride != null && (
+            /* Clear button: removes override and restores automatic rank */
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-1 text-xs text-destructive"
+              onClick={commitClear}
+            >
+              ✕
+            </Button>
+          )}
         </div>
         {saveError && (
           <p className="text-xs text-destructive" role="alert">{saveError}</p>

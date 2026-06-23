@@ -3542,7 +3542,7 @@ describe('E2E case drift coverage', () => {
     const dbRetryTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'db-read-retry.test.ts');
     expect(section).toContain('db-read-retry.test.ts');
     expect(dbRetryTest).toContain('TC-2518');
-    expect(dbRetryTest).toContain('toHaveBeenCalledTimes(1)');
+    expect(dbRetryTest).toContain('onRetry).toHaveBeenCalledTimes(1)');
     expect(dbRetryTest).toContain('always-fails');
   });
 
@@ -4188,6 +4188,59 @@ describe('E2E case drift coverage', () => {
       expect(tieWarningTest).toContain('isAdmin={false}');
       // next-intl mocked to return key as string
       expect(tieWarningTest).toContain('useTranslations');
+    });
+
+    it('documents TC-2663 through TC-2668 as ModePublishSwitch unit tests', () => {
+      const mpsTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'mode-publish-switch.test.tsx',
+      );
+      for (const tc of ['TC-2663', 'TC-2664', 'TC-2665', 'TC-2666', 'TC-2667', 'TC-2668']) {
+        expect(mpsTest).toContain(tc);
+      }
+      // TC-2663: unpublishMode badge
+      expect(mpsTest).toContain('unpublishMode');
+      // TC-2664: publishMode badge
+      expect(mpsTest).toContain('publishMode');
+      // TC-2665/TC-2666: disabled when loading or updating
+      expect(mpsTest).toContain('loading: true');
+      expect(mpsTest).toContain('updating: true');
+      expect(mpsTest).toContain('toBeDisabled');
+      // TC-2667: toggle called on click
+      expect(mpsTest).toContain('toggleMock');
+      // TC-2668: aria-label
+      expect(mpsTest).toContain('aria-label');
+      // useModePublish is mocked
+      expect(mpsTest).toContain('useModePublish');
+    });
+
+    it('documents TC-2669 through TC-2673 as TaParticipantTimeInputRow unit tests', () => {
+      const taRowTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'ta-participant-time-input-row.test.tsx',
+      );
+      for (const tc of ['TC-2669', 'TC-2670', 'TC-2671', 'TC-2672', 'TC-2673']) {
+        expect(taRowTest).toContain(tc);
+      }
+      // TC-2669: courseAbbr label
+      expect(taRowTest).toContain('MKS');
+      // TC-2670: onChange with courseAbbr
+      expect(taRowTest).toContain('onChangeMock');
+      expect(taRowTest).toContain("'MKS'");
+      // TC-2671: onBlur with courseAbbr
+      expect(taRowTest).toContain('onBlurMock');
+      // TC-2672: disabled
+      expect(taRowTest).toContain('disabled={true}');
+      expect(taRowTest).toContain('toBeDisabled');
+      // TC-2673: timeInputProps spread
+      expect(taRowTest).toContain('timeInputProps');
+      expect(taRowTest).toContain('time-mks');
     });
   });
 });

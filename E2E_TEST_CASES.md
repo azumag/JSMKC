@@ -4401,6 +4401,94 @@
 
 ---
 
+### TC-2663: ModePublishSwitch — 非公開状態で "unpublishMode" バッジを表示する
+- **背景**: `isPublic=false` のとき、スイッチの隣に "unpublishMode" (i18nキー) バッジが表示される。
+- **手順**: `useModePublish` を `isPublic: false` でモックし、`ModePublishSwitch` をレンダリングする。
+- **期待結果**: "unpublishMode" テキストが表示され、"publishMode" は表示されない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/mode-publish-switch.test.tsx
+
+---
+
+### TC-2664: ModePublishSwitch — 公開状態で "publishMode" バッジを表示する
+- **背景**: `isPublic=true` のとき、スイッチの隣に "publishMode" バッジが表示される。
+- **手順**: `useModePublish` を `isPublic: true` でモックし、`ModePublishSwitch` をレンダリングする。
+- **期待結果**: "publishMode" テキストが表示され、"unpublishMode" は表示されない。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/mode-publish-switch.test.tsx
+
+---
+
+### TC-2665: ModePublishSwitch — loading=true のとき Switch が無効化される
+- **背景**: 初回フェッチ中はトグル不可にして二重操作を防ぐ。
+- **手順**: `useModePublish` を `loading: true` でモックし、`ModePublishSwitch` をレンダリングする。
+- **期待結果**: `role="switch"` 要素が `disabled` 属性を持つ。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/mode-publish-switch.test.tsx
+
+---
+
+### TC-2666: ModePublishSwitch — updating=true のとき Switch が無効化される
+- **背景**: PUT リクエスト処理中はトグルを受け付けない。
+- **手順**: `useModePublish` を `updating: true` でモックし、`ModePublishSwitch` をレンダリングする。
+- **期待結果**: `role="switch"` 要素が `disabled` 属性を持つ。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/mode-publish-switch.test.tsx
+
+---
+
+### TC-2667: ModePublishSwitch — Switch クリックで toggle() が呼ばれる
+- **背景**: Switch の `onCheckedChange` が `useModePublish` の `toggle` に紐づいている。
+- **手順**: `ModePublishSwitch` をレンダリングし、`role="switch"` をクリックする。
+- **期待結果**: `toggle` モック関数が1回呼ばれる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/mode-publish-switch.test.tsx
+
+---
+
+### TC-2668: ModePublishSwitch — aria-label が modeLabelKey と現在の公開状態を含む
+- **背景**: スクリーンリーダー向けに `aria-label` が「{モード名}: {公開状態}」の形式で設定される。
+- **手順**: `modeLabelKey="battleMode"` で `ModePublishSwitch` をレンダリングする (非公開状態)。
+- **期待結果**: `aria-label` が `"battleMode: unpublishMode"` になる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/mode-publish-switch.test.tsx
+
+---
+
+### TC-2669: TaParticipantTimeInputRow — courseAbbr ラベルがレンダリングされる
+- **背景**: 各コースの入力行に略称ラベルを表示し、どのコースの入力かを明示する。
+- **手順**: `courseAbbr="MKS"` で `TaParticipantTimeInputRow` をレンダリングする。
+- **期待結果**: "MKS" テキストが表示される。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/ta-participant-time-input-row.test.tsx
+
+---
+
+### TC-2670: TaParticipantTimeInputRow — onChange が courseAbbr と新しい値で呼ばれる
+- **背景**: 入力変更時に `onChange(courseAbbr, value)` を呼ぶことで、親コンポーネントがどのコースの値かを識別できる。
+- **手順**: 入力フィールドに値を入力する。
+- **期待結果**: `onChange` が `('MKS', 入力値)` で呼ばれる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/ta-participant-time-input-row.test.tsx
+
+---
+
+### TC-2671: TaParticipantTimeInputRow — onBlur が courseAbbr で呼ばれる
+- **背景**: フォーカスアウト時に `onBlur(courseAbbr)` でバリデーションや保存をトリガーする。
+- **手順**: 入力フィールドをブラーする。
+- **期待結果**: `onBlur` が `'MKS'` で呼ばれる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/ta-participant-time-input-row.test.tsx
+
+---
+
+### TC-2672: TaParticipantTimeInputRow — disabled=true のとき入力が無効化される
+- **背景**: TA 凍結後や管理者専用入力フィールドでは入力を無効化する。
+- **手順**: `disabled={true}` で `TaParticipantTimeInputRow` をレンダリングする。
+- **期待結果**: テキストボックスが `disabled` 属性を持つ。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/ta-participant-time-input-row.test.tsx
+
+---
+
+### TC-2673: TaParticipantTimeInputRow — value/placeholder/timeInputProps がスプレッドされる
+- **背景**: `timeInputProps` のスプレッドで `id`・`maxLength` 等をフォワードできる。
+- **手順**: `value`・`placeholder`・`timeInputProps: { id: 'time-mks', maxLength: 8 }` を渡す。
+- **期待結果**: input の value・placeholder が一致し、id が `'time-mks'` になる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/ta-participant-time-input-row.test.tsx
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）
