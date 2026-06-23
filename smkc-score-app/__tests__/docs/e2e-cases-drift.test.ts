@@ -4159,7 +4159,9 @@ describe('E2E case drift coverage', () => {
       // legitimate try/catch elsewhere in rank-cell.tsx doesn't false-fail this guard.
       const commitSaveBlock = rankCellSrc.match(/const commitSave[\s\S]*?\n  };/)?.[0] ?? '';
       expect(commitSaveBlock).not.toBe(''); // sanity: function block must be present
-      expect(commitSaveBlock).not.toContain('catch (');
+      // Use regex to catch both `catch (err)` and bare `catch {` (ES2019 optional binding).
+      // The comment "No try/catch:" in commitSave contains "catch" but not followed by ( or {.
+      expect(commitSaveBlock).not.toMatch(/\bcatch\s*[({]/);
       expect(commitSaveBlock).toContain('setIsEditing(false)');
       // The intentional design must be documented in source comments
       expect(rankCellSrc).toContain('No try/catch');

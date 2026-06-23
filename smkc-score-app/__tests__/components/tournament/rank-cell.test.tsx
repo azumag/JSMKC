@@ -277,7 +277,7 @@ describe('RankCell — edge cases', () => {
 
     render(
       <RankCell
-        qualificationId="qual-reject"
+        qualificationId="qual-pend"
         rankOverride={null}
         autoRank={3}
         isAdmin={true}
@@ -295,7 +295,7 @@ describe('RankCell — edge cases', () => {
 
     // commitSave is awaiting onSave — setIsEditing(false) not yet called → editor open
     expect(screen.getByRole('spinbutton')).toBeInTheDocument();
-    expect(controlledSave).toHaveBeenCalledWith('qual-reject', 1);
+    expect(controlledSave).toHaveBeenCalledWith('qual-pend', 1);
 
     // Resolve the save: setIsEditing(false) now runs and the editor closes
     await act(async () => { resolveOnSave(); });
