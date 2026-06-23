@@ -4327,6 +4327,46 @@ describe('E2E case drift coverage', () => {
       expect(btnTest).toContain('エラー:');
       expect(btnTest).toContain('not.toBeDisabled');
     });
+
+    it('documents TC-2705 through TC-2718 as ParticipantPageLayout unit tests', () => {
+      const layoutTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'participant-page-layout.test.tsx',
+      );
+      for (const tc of [
+        'TC-2705', 'TC-2706', 'TC-2707', 'TC-2708', 'TC-2709',
+        'TC-2710', 'TC-2711', 'TC-2712', 'TC-2713', 'TC-2714',
+        'TC-2715', 'TC-2716', 'TC-2717', 'TC-2718',
+      ]) {
+        expect(layoutTest).toContain(tc);
+      }
+      // TC-2705: loading state
+      expect(layoutTest).toContain('sessionStatus');
+      expect(layoutTest).toContain('Loading tournament data');
+      // TC-2706: admin blocked
+      expect(layoutTest).toContain('isAdminBlocked');
+      expect(layoutTest).toContain('Open main mode page');
+      // TC-2707: login required
+      expect(layoutTest).toContain('hasAccess');
+      expect(layoutTest).toContain('/auth/signin');
+      // TC-2708: tournament not found
+      expect(layoutTest).toContain('tournament={null}');
+      expect(layoutTest).toContain('Tournament Not Found');
+      // TC-2709: empty matches
+      expect(layoutTest).toContain('myMatches={[]}');
+      expect(layoutTest).toContain('renderMatchForm');
+      // TC-2713: qualification confirmed
+      expect(layoutTest).toContain('qualificationConfirmed');
+      expect(layoutTest).toContain('Score editing is locked');
+      // TC-2717: You badge
+      expect(layoutTest).toContain('"You"');
+      // TC-2718: final score
+      expect(layoutTest).toContain('score1');
+      expect(layoutTest).toContain('Final Score');
+    });
   });
 });
 
