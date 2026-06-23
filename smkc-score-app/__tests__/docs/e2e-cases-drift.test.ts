@@ -4549,7 +4549,7 @@ describe('E2E case drift coverage', () => {
       );
       for (const tc of [
         'TC-2788', 'TC-2789', 'TC-2790', 'TC-2791', 'TC-2792', 'TC-2793', 'TC-2794',
-        'TC-2795', 'TC-2796', 'TC-2797', 'TC-2798', 'TC-2799', 'TC-2800',
+        'TC-2795', 'TC-2796', 'TC-2797', 'TC-2798', 'TC-2799', 'TC-2800', 'TC-2801',
       ]) {
         expect(switchTest).toContain(tc);
       }

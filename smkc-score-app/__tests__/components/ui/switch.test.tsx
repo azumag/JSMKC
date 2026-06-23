@@ -109,4 +109,11 @@ describe('Switch', () => {
     fireEvent.keyDown(screen.getByRole('switch'), { key: ' ' });
     expect(onCheckedChange).not.toHaveBeenCalled();
   });
+
+  it('TC-2801: Enter key does not call onCheckedChange when disabled', () => {
+    const onCheckedChange = jest.fn();
+    render(<Switch {...defaultProps} disabled onCheckedChange={onCheckedChange} />);
+    fireEvent.keyDown(screen.getByRole('switch'), { key: 'Enter' });
+    expect(onCheckedChange).not.toHaveBeenCalled();
+  });
 });
