@@ -16,6 +16,7 @@ beforeEach(() => {
 afterEach(() => {
   jest.runOnlyPendingTimers();
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 describe('UpdateIndicator — polling badge', () => {
@@ -39,8 +40,7 @@ describe('UpdateIndicator — time display', () => {
   });
 
   it('TC-2734: shows seconds-ago when lastUpdated is < 60s in the past', () => {
-    const now = new Date();
-    const tenSecondsAgo = new Date(now.getTime() - 10_000);
+    const tenSecondsAgo = new Date(Date.now() - 10_000);
     render(<UpdateIndicator lastUpdated={tenSecondsAgo} isPolling={false} />);
     expect(screen.getByText(/Last updated:.*\ds ago/)).toBeInTheDocument();
   });

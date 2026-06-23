@@ -4381,8 +4381,8 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(spinnerTest).toContain(tc);
       }
-      // TC-2719: role="status"
-      expect(spinnerTest).toContain('role="status"');
+      // TC-2719: getByRole('status') asserts the element has role="status"
+      expect(spinnerTest).toContain("getByRole('status')");
       // TC-2720: aria-live="polite"
       expect(spinnerTest).toContain('aria-live');
       // TC-2721: aria-label="Loading"
