@@ -14,6 +14,8 @@
  * - TC-2625: myMatches sorts incomplete matches before completed
  * - TC-2626: submitReport POSTs to correct endpoint, updates local match on success
  * - TC-2627: submitReport on non-ok response → sets error and returns null
+ * - TC-2640: fetchWithRetry throws (network error) → sets error, loading=false
+ * - TC-2641: global.fetch (matches) throws (network error) → sets error, loading=false
  */
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useParticipantMatches } from '@/lib/hooks/useParticipantMatches';
@@ -272,6 +274,39 @@ describe('useParticipantMatches', () => {
 
       expect(returnValue).toBeNull();
       expect(result.current.error).toBe('Score invalid');
+    });
+  });
+
+  describe('TC-2640: fetchWithRetry throws → sets error, loading=false', () => {
+    it('sets error state and loading=false when tournament fetch fails with network error', async () => {
+      mockUseSession.mockReturnValue(playerSession());
+      mockedFetchWithRetry.mockRejectedValue(new Error('Network timeout'));
+      // matches fetch would succeed, but Promise.all rejects when either leg throws
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ matches: [] }),
+      });
+
+      const { result } = makeHook();
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.error).toBeTruthy();
+    });
+  });
+
+  describe('TC-2641: global.fetch (matches) throws → sets error, loading=false', () => {
+    it('sets error state and loading=false when matches fetch fails with network error', async () => {
+      mockUseSession.mockReturnValue(playerSession());
+      mockedFetchWithRetry.mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: TOURNAMENT_ID }),
+      } as Response);
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('Connection refused'));
+
+      const { result } = makeHook();
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.error).toBeTruthy();
     });
   });
 });
