@@ -32,24 +32,29 @@ const renderTabs = (defaultValue = 'tab1') =>
 
 describe('Tabs', () => {
   it('TC-2767: Tabs container has data-slot="tabs"', () => {
-    render(<Tabs defaultValue="a"><TabsList><TabsTrigger value="a">A</TabsTrigger></TabsList><TabsContent value="a">A</TabsContent></Tabs>);
-    expect(document.querySelector('[data-slot="tabs"]')).toBeInTheDocument();
+    // Use container.querySelector (scoped, not global document) to check
+    // the data-slot attribute on the Tabs root element, which has no ARIA role.
+    const { container } = renderTabs();
+    expect(container.querySelector('[data-slot="tabs"]')).toBeInTheDocument();
   });
 
   it('TC-2768: TabsList has data-slot="tabs-list"', () => {
     renderTabs();
-    expect(document.querySelector('[data-slot="tabs-list"]')).toBeInTheDocument();
+    expect(screen.getByRole('tablist')).toHaveAttribute('data-slot', 'tabs-list');
   });
 
   it('TC-2769: TabsTrigger has data-slot="tabs-trigger"', () => {
     renderTabs();
-    const triggers = document.querySelectorAll('[data-slot="tabs-trigger"]');
-    expect(triggers.length).toBe(2);
+    const triggers = screen.getAllByRole('tab');
+    expect(triggers).toHaveLength(2);
+    triggers.forEach((trigger) =>
+      expect(trigger).toHaveAttribute('data-slot', 'tabs-trigger')
+    );
   });
 
   it('TC-2770: TabsContent has data-slot="tabs-content"', () => {
     renderTabs();
-    expect(document.querySelector('[data-slot="tabs-content"]')).toBeInTheDocument();
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('data-slot', 'tabs-content');
   });
 
   it('TC-2771: default tab content is visible', () => {
@@ -86,7 +91,9 @@ describe('Tabs', () => {
   });
 
   it('TC-2775: custom className is forwarded to Tabs container', () => {
-    render(
+    // Use container.querySelector (scoped) to assert the className on the
+    // Tabs root element, which has no ARIA role for direct screen.* lookup.
+    const { container } = render(
       <Tabs defaultValue="a" className="my-tabs">
         <TabsList>
           <TabsTrigger value="a">A</TabsTrigger>
@@ -94,6 +101,6 @@ describe('Tabs', () => {
         <TabsContent value="a">A content</TabsContent>
       </Tabs>
     );
-    expect(document.querySelector('.my-tabs')).toBeInTheDocument();
+    expect(container.querySelector('.my-tabs')).toBeInTheDocument();
   });
 });
