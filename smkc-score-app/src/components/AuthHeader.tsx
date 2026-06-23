@@ -26,7 +26,7 @@ export function AuthHeader() {
 
   /* Show nothing during session loading to avoid flash of incorrect state */
   if (status === 'loading') {
-    return <div className="w-20 h-5 bg-muted animate-pulse rounded" aria-hidden="true" />;
+    return <div className="w-20 h-5 bg-muted animate-pulse rounded" aria-hidden="true" data-testid="auth-skeleton" />;
   }
 
   if (session) {
