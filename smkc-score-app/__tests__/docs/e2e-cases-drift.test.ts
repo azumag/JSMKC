@@ -4217,7 +4217,7 @@ describe('E2E case drift coverage', () => {
       expect(mpsTest).toContain('useModePublish');
     });
 
-    it('documents TC-2669 through TC-2673 as TaParticipantTimeInputRow unit tests', () => {
+    it('documents TC-2669 through TC-2674 as TaParticipantTimeInputRow unit tests', () => {
       const taRowTest = readRepoFile(
         'smkc-score-app',
         '__tests__',
@@ -4225,7 +4225,7 @@ describe('E2E case drift coverage', () => {
         'tournament',
         'ta-participant-time-input-row.test.tsx',
       );
-      for (const tc of ['TC-2669', 'TC-2670', 'TC-2671', 'TC-2672', 'TC-2673']) {
+      for (const tc of ['TC-2669', 'TC-2670', 'TC-2671', 'TC-2672', 'TC-2673', 'TC-2674']) {
         expect(taRowTest).toContain(tc);
       }
       // TC-2669: courseAbbr label
@@ -4241,6 +4241,10 @@ describe('E2E case drift coverage', () => {
       // TC-2673: timeInputProps spread
       expect(taRowTest).toContain('timeInputProps');
       expect(taRowTest).toContain('time-mks');
+      // TC-2674: full time-format string via useState wrapper
+      expect(taRowTest).toContain('ControlledWrapper');
+      expect(taRowTest).toContain('useState');
+      expect(taRowTest).toContain("1'23");
     });
   });
 });

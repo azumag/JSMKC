@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * Unit tests for the TaParticipantTimeInputRow component (TC-2669 through TC-2673).
+ * Unit tests for the TaParticipantTimeInputRow component (TC-2669 through TC-2674).
  *
  * TaParticipantTimeInputRow is a memoized row component used in the TA
  * (Time Attack) qualification page for each course time entry. It forwards
@@ -9,6 +9,7 @@
  */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { TaParticipantTimeInputRow } from '@/components/tournament/ta-participant-time-input-row';
 
 const onChangeMock = jest.fn();
@@ -87,5 +88,36 @@ describe('TaParticipantTimeInputRow', () => {
     expect(input.placeholder).toBe(timePlaceholder);
     // timeInputProps spread: id is forwarded
     expect(input.id).toBe('time-mks');
+  });
+
+  it('TC-2674: onChange receives full time format string via controlled wrapper', async () => {
+    // TC-2670 only types a single character because the mock does not update the
+    // value prop, so each keystroke overwrites the same empty input.  This test
+    // uses a useState wrapper that actually updates the controlled value on every
+    // onChange call, allowing userEvent.type to accumulate characters and
+    // confirming that the complete time-format string "1'23\"456" is forwarded.
+    function ControlledWrapper() {
+      const [value, setValue] = useState('');
+      const handleChange = (course: string, val: string) => {
+        setValue(val);
+        onChangeMock(course, val);
+      };
+      return (
+        <TaParticipantTimeInputRow
+          {...defaultProps}
+          value={value}
+          onChange={handleChange}
+        />
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<ControlledWrapper />);
+
+    await user.type(screen.getByRole('textbox'), "1'23\"456");
+
+    // 8 characters typed → 8 onChange calls; last call receives the full accumulated string.
+    expect(onChangeMock).toHaveBeenCalledTimes(8);
+    expect(onChangeMock).toHaveBeenLastCalledWith('MKS', "1'23\"456");
   });
 });
