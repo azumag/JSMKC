@@ -4539,7 +4539,7 @@ describe('E2E case drift coverage', () => {
       expect(tabsTest).toContain('toBeDisabled');
     });
 
-    it('documents TC-2788 through TC-2800 as Switch unit tests', () => {
+    it('documents TC-2788 through TC-2801 as Switch unit tests', () => {
       const switchTest = readRepoFile(
         'smkc-score-app',
         '__tests__',

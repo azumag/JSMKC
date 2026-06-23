@@ -2,18 +2,6 @@
  * @jest-environment jsdom
  */
 
-/**
- * @module Switch Component Tests
- *
- * Unit tests for the Switch UI component.
- * Covers:
- * - Semantic role="switch" with aria-checked attribute
- * - Click handler forwarding (checked/unchecked toggling)
- * - Disabled state prevents toggling
- * - Keyboard interaction: Space and Enter keys
- * - aria-label and id passthrough
- * - Custom className passthrough
- */
 import { fireEvent, render, screen } from '@testing-library/react';
 import { Switch } from '@/components/ui/switch';
 
