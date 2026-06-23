@@ -4569,6 +4569,38 @@ describe('E2E case drift coverage', () => {
       expect(switchTest).toContain("key: ' '");
       expect(switchTest).toContain("key: 'Enter'");
     });
+
+    it('documents TC-2802 through TC-2817 as Card unit tests', () => {
+      const cardTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'card.test.tsx',
+      );
+      for (const tc of [
+        'TC-2802', 'TC-2803', 'TC-2804', 'TC-2805', 'TC-2806', 'TC-2807', 'TC-2808',
+        'TC-2809', 'TC-2810', 'TC-2811', 'TC-2812', 'TC-2813', 'TC-2814', 'TC-2815',
+        'TC-2816', 'TC-2817',
+      ]) {
+        expect(cardTest).toContain(tc);
+      }
+      // TC-2802–2816: data-slot and className passthrough assertions
+      expect(cardTest).toContain("'data-slot', 'card'");
+      expect(cardTest).toContain("'data-slot', 'card-header'");
+      expect(cardTest).toContain("'data-slot', 'card-title'");
+      expect(cardTest).toContain("'data-slot', 'card-description'");
+      expect(cardTest).toContain("'data-slot', 'card-action'");
+      expect(cardTest).toContain("'data-slot', 'card-content'");
+      expect(cardTest).toContain("'data-slot', 'card-footer'");
+      // TC-2817: integration test covers all subcomponents together
+      expect(cardTest).toContain('CardHeader');
+      expect(cardTest).toContain('CardTitle');
+      expect(cardTest).toContain('CardDescription');
+      expect(cardTest).toContain('CardAction');
+      expect(cardTest).toContain('CardContent');
+      expect(cardTest).toContain('CardFooter');
+    });
   });
 });
 
