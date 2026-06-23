@@ -542,7 +542,7 @@
 
 ## TC-362: Export API 不正IDに対する構造化エラーレスポンス
 - **URL**: GET /api/tournaments/INVALID_FORMAT_ID/export
-- **authRequired**: false (エラーはID解決前に返る)
+- **authRequired**: false (auth チェックは resolveTournamentId より後に行われるため不要)
 - **手順**:
   1. `https` モジュールでブラウザ外から `GET /api/tournaments/INVALID_FORMAT_ID/export` を直接リクエスト
   2. HTTPステータスコードを確認
