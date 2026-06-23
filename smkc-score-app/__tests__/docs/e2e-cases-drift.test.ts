@@ -4538,6 +4538,37 @@ describe('E2E case drift coverage', () => {
       // TC-2774: disabled trigger
       expect(tabsTest).toContain('toBeDisabled');
     });
+
+    it('documents TC-2788 through TC-2800 as Switch unit tests', () => {
+      const switchTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'switch.test.tsx',
+      );
+      for (const tc of [
+        'TC-2788', 'TC-2789', 'TC-2790', 'TC-2791', 'TC-2792', 'TC-2793', 'TC-2794',
+        'TC-2795', 'TC-2796', 'TC-2797', 'TC-2798', 'TC-2799', 'TC-2800', 'TC-2801',
+      ]) {
+        expect(switchTest).toContain(tc);
+      }
+      // TC-2788: role="switch" button
+      expect(switchTest).toContain("getByRole('switch')");
+      // TC-2789/2790: aria-checked
+      expect(switchTest).toContain("'aria-checked', 'false'");
+      expect(switchTest).toContain("'aria-checked', 'true'");
+      // TC-2792/2793: onCheckedChange called with boolean
+      expect(switchTest).toContain('toHaveBeenCalledWith(true)');
+      expect(switchTest).toContain('toHaveBeenCalledWith(false)');
+      // TC-2794: not called when disabled
+      expect(switchTest).toContain('not.toHaveBeenCalled');
+      // TC-2795: disabled attribute
+      expect(switchTest).toContain('toBeDisabled');
+      // TC-2796/2797: keyboard keys
+      expect(switchTest).toContain("key: ' '");
+      expect(switchTest).toContain("key: 'Enter'");
+    });
   });
 });
 
