@@ -3960,9 +3960,9 @@ describe('E2E case drift coverage', () => {
       }
       // TC-2606 + TC-2609: verifies debugMode=true is asserted; stable substring avoids sensitivity to object-literal formatting
       expect(debugModeTest).toContain('debugMode: true');
-      // TC-2609: verifies TC-2609 tests the createSuccessResponse wrapped format { data: { debugMode } };
-      // use toContain instead of a regex so nested braces in test fixtures don't break the guard
-      expect(debugModeTest).toContain('debugMode: true');
+      // TC-2609: verifies the test exercises the createSuccessResponse wrapper format { data: { debugMode: true } };
+      // use toContain on the full inline object so the check is distinct from the TC-2606 check above
+      expect(debugModeTest).toContain('data: { debugMode: true }');
       // TC-2610: verifies cancellation of state update when unmounted; check behavior description, not internal var name
       expect(debugModeTest).toContain('unmount');
       expect(debugModeTest).toContain('cancels state update');
@@ -4038,8 +4038,10 @@ describe('E2E case drift coverage', () => {
       // TC-2625: myMatches sorts incomplete before completed
       expect(participantMatchesTest).toContain('completed: true');
       expect(participantMatchesTest).toContain('myMatches[0].id');
-      // TC-2626: submitReport POSTs to correct endpoint; TC number above confirms test exists
+      // TC-2626: submitReport POSTs to correct endpoint; check URL and method string
       expect(participantMatchesTest).toContain('/report');
+      // toContain("'POST'") is stable across refactors — checks the method value, not call-site syntax
+      expect(participantMatchesTest).toContain("'POST'");
       // TC-2627: submitReport on non-ok → sets error and returns null
       expect(participantMatchesTest).toContain('Score invalid');
       expect(participantMatchesTest).toMatch(/expect\(returnValue\)\.toBeNull/);
