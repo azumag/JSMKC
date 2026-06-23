@@ -262,14 +262,9 @@ describe('RankCell — edge cases', () => {
     expect(screen.queryByRole('spinbutton')).toBeNull();
   });
 
-  it('TC-2659: commitSave has no try/catch — setIsEditing(false) only runs after onSave resolves', async () => {
-    // With no try/catch in commitSave, setIsEditing(false) is only reached when onSave
-    // resolves. If onSave rejects, the error propagates and setIsEditing(false) is skipped
-    // — the editor stays open. The structural absence of try/catch is guarded in
-    // e2e-cases-drift.test.ts (TC-2659 drift guard).
-    //
-    // Here we verify the control-flow invariant using a controlled promise:
-    // while onSave is in-flight the editor remains open; on success it closes.
+  it('TC-2659: commitSave closes editor on success and keeps it open while in-flight', async () => {
+    // With try/catch in commitSave, setIsEditing(false) is called only on success.
+    // While onSave is in-flight the editor stays open; after it resolves, the editor closes.
     let resolveOnSave!: () => void;
     const controlledSave = jest.fn().mockImplementation(
       () => new Promise<void>(resolve => { resolveOnSave = resolve; }),
@@ -302,55 +297,86 @@ describe('RankCell — edge cases', () => {
     expect(screen.queryByRole('spinbutton')).toBeNull();
   });
 
-  it('TC-2659 reject: onSave reject leaves editor open (no try/catch in commitSave)', async () => {
-    // Without try/catch in commitSave, a rejected onSave propagates without calling
-    // setIsEditing(false), so the editor stays open.
-    //
-    // The "reject path" is covered IMPLICITLY by two existing assertions:
-    //  1. Structural drift guard: e2e-cases-drift.test.ts TC-2659 verifies no try/catch exists
-    //  2. Resolve-path test above: setIsEditing(false) only runs after onSave RESOLVES
-    //
-    // Here we verify the in-flight invariant using a never-resolving/rejecting promise:
-    // while onSave is pending, the editor must stay open regardless of future outcome.
-    // (Directly triggering a floating-promise rejection would surface as an unhandled
-    // rejection in jest-circus even with try/catch, because the rejection occurs
-    // outside the awaitable scope of the event handler's callsite.)
-    let rejectOnSave!: (err: Error) => void;
-    const controlledSave = jest.fn().mockImplementation(
-      () => new Promise<void>((_, reject) => { rejectOnSave = reject; }),
-    );
+  it('TC-2660: commitSave shows inline error and keeps editor open when onSave rejects', async () => {
+    // try/catch in commitSave catches the rejection, shows an error message, and
+    // keeps the editor open so the user can see the message and retry.
+    const failingSave = jest.fn().mockRejectedValue(new Error('Network error'));
 
     render(
       <RankCell
-        qualificationId="qual-pend"
+        qualificationId="qual-err"
         rankOverride={null}
         autoRank={3}
         isAdmin={true}
-        onSave={controlledSave}
+        onSave={failingSave}
       />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
-    fireEvent.change(input, { target: { value: '1' } });
+    fireEvent.change(input, { target: { value: '2' } });
 
-    // commitSave() is in-flight (awaiting onSave) — editor still open
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter' });
     });
+
+    // Editor stays open
     expect(screen.getByRole('spinbutton')).toBeInTheDocument();
-    expect(controlledSave).toHaveBeenCalledWith('qual-pend', 1);
+    // Error message is shown
+    expect(screen.getByRole('alert')).toHaveTextContent('Network error');
+  });
 
-    // Prevent jest-circus from catching an unhandled rejection on test teardown:
-    // attach a no-op handler before triggering the reject.
-    const pendingRejection = controlledSave.mock.results[0].value as Promise<void>;
-    pendingRejection.catch(() => {});
-    rejectOnSave(new Error('save failed'));
+  it('TC-2661: error message is cleared when the editor is reopened', async () => {
+    // After a failed save, reopening the editor (openEdit) clears the previous error.
+    const failingSave = jest.fn()
+      .mockRejectedValueOnce(new Error('Server error'))
+      .mockResolvedValue(undefined);
 
-    // Give microtasks a chance to run (the rejection propagates through commitSave)
-    await Promise.resolve();
+    render(
+      <RankCell
+        qualificationId="qual-retry"
+        rankOverride={null}
+        autoRank={4}
+        isAdmin={true}
+        onSave={failingSave}
+      />,
+    );
 
-    // setIsEditing(false) was never reached → editor stays open
+    // First attempt → error
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '1' } });
+    await act(async () => { fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' }); });
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    // Press Escape to close editor
+    fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Escape' });
+    // Reopen: error should be gone
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('TC-2662: commitClear shows inline error and keeps editor open when onSave rejects', async () => {
+    // commitClear has the same try/catch pattern as commitSave.
+    const failingSave = jest.fn().mockRejectedValue(new Error('Clear failed'));
+
+    render(
+      <RankCell
+        qualificationId="qual-clear-err"
+        rankOverride={5}
+        autoRank={3}
+        isAdmin={true}
+        onSave={failingSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /✕/ }));
+    });
+
+    // Editor stays open
     expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+    // Error message is shown
+    expect(screen.getByRole('alert')).toHaveTextContent('Clear failed');
   });
 });

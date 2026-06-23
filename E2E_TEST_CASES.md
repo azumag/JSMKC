@@ -4375,11 +4375,29 @@
 
 ---
 
-### TC-2659: RankCell — commitSave に try/catch がないため onSave reject で編集モードが維持される
-- **背景**: `commitSave` は `try/catch` なしで `onSave` を await するため、reject するとその後の `setIsEditing(false)` が実行されず編集モードが開いたままになる。この挙動はソースコードの静的検証で保証する（try/catch を追加するとこの保証が変わるため drift guard が検出する）。
-- **手順**: `rank-cell.tsx` の `commitSave` 実装に `try { ... await onSave } catch` が存在しないことを確認。
-- **期待結果**: `commitSave` の `onSave` 呼び出しが try/catch で囲まれていない。`setIsEditing(false)` が同関数内に存在する。
-- **スクリプト**: n/a (structural drift guard) — smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts; 制御フロー検証は smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+### TC-2659: RankCell — commitSave は onSave 成功時にエディタを閉じ、飛行中は開いたまま
+- **背景**: `commitSave` は `try/catch` で `onSave` を囲み、成功時のみ `setIsEditing(false)` を呼ぶ。in-flight 中はエディタが開いたままになる。
+- **手順**: 制御可能な Promise を onSave に渡し、resolve 前後のエディタ状態を確認。
+- **期待結果**: resolve 前はエディタが開いたまま。resolve 後はエディタが閉じる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+### TC-2660: RankCell — onSave reject 時にインラインエラーメッセージを表示してエディタを維持する
+- **背景**: `commitSave` の try/catch は reject を捕捉し、`setSaveError` でエラーメッセージを表示する。ユーザーはメッセージを確認してリトライできる（`setIsEditing(false)` は呼ばれない）。
+- **手順**: reject する onSave を渡して Enter を押す。
+- **期待結果**: エディタが開いたままで `role="alert"` のエラーメッセージが表示される。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+### TC-2661: RankCell — 編集モードを再度開くと前回のエラーメッセージがクリアされる
+- **背景**: `openEdit` は `setSaveError(null)` を呼ぶため、前回の保存エラーが次回の編集に持ち越されない。
+- **手順**: onSave が reject した後、Escape で閉じ、再度編集ボタンをクリックする。
+- **期待結果**: エラーメッセージが表示されない（`role="alert"` 要素が存在しない）。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
+
+### TC-2662: RankCell — commitClear も onSave reject 時にインラインエラーを表示してエディタを維持する
+- **背景**: `commitClear` も `commitSave` と同様の try/catch パターンで `setSaveError` を呼ぶ。
+- **手順**: reject する onSave と rankOverride=5 で RankCell をレンダリングし、✕ ボタンをクリックする。
+- **期待結果**: エディタが開いたままで `role="alert"` のエラーメッセージが表示される。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/rank-cell.test.tsx
 
 ---
 

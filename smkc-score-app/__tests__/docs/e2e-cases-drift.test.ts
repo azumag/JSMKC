@@ -4099,7 +4099,7 @@ describe('E2E case drift coverage', () => {
       expect(modePublishTest).toContain('Network error');
     });
 
-    it('documents TC-2643 through TC-2659 as RankCell unit tests', () => {
+    it('documents TC-2643 through TC-2662 as RankCell unit tests', () => {
       const rankCellTest = readRepoFile(
         'smkc-score-app',
         '__tests__',
@@ -4111,6 +4111,7 @@ describe('E2E case drift coverage', () => {
         'TC-2643', 'TC-2644', 'TC-2645', 'TC-2646',
         'TC-2647', 'TC-2648', 'TC-2649', 'TC-2650',
         'TC-2651', 'TC-2652', 'TC-2657', 'TC-2658', 'TC-2659',
+        'TC-2660', 'TC-2661', 'TC-2662',
       ]) {
         expect(rankCellTest).toContain(tc);
       }
@@ -4143,28 +4144,26 @@ describe('E2E case drift coverage', () => {
       // TC-2658: rank 0 passes isNaN check
       expect(rankCellTest).toContain('qual-zero');
       expect(rankCellTest).toContain("isNaN");
-      // TC-2659: test documents intent; structural guard is in the block below
-      expect(rankCellTest).toContain('commitSave has no try/catch');
+      // TC-2660: error message shown on reject
+      expect(rankCellTest).toContain("getByRole('alert')");
+      // TC-2661: error cleared on reopen
+      expect(rankCellTest).toContain('queryByRole(\'alert\')');
     });
 
-    it('TC-2659: commitSave has no try/catch in rank-cell.tsx (structural drift guard)', () => {
-      // Verify the intentional absence of try/catch around onSave in commitSave.
-      // If a future refactor wraps onSave in try/catch+setIsEditing(false), the component
-      // behaviour changes (editor closes on error) and this guard flags the change for review.
+    it('TC-2659: commitSave has try/catch with inline error in rank-cell.tsx (structural drift guard)', () => {
+      // Verify try/catch is present in commitSave so that onSave rejections are caught
+      // and shown as inline error messages rather than propagating unhandled.
       const rankCellSrc = readRepoFile(
         'smkc-score-app', 'src', 'components', 'tournament', 'rank-cell.tsx',
       );
       expect(rankCellSrc).toContain('commitSave');
-      // Scope the catch-absence check to the commitSave function block only, so a
-      // legitimate try/catch elsewhere in rank-cell.tsx doesn't false-fail this guard.
+      // Scope the check to the commitSave function block only.
       const commitSaveBlock = rankCellSrc.match(/const commitSave[\s\S]*?\n\s*};/)?.[0] ?? '';
       expect(commitSaveBlock).not.toBe(''); // sanity: function block must be present
-      // Use regex to catch both `catch (err)` and bare `catch {` (ES2019 optional binding).
-      // The comment "No try/catch:" in commitSave contains "catch" but not followed by ( or {.
-      expect(commitSaveBlock).not.toMatch(/\bcatch\s*[({]/);
+      // try/catch must be present in commitSave for error handling
+      expect(commitSaveBlock).toMatch(/\bcatch\s*[({]/);
       expect(commitSaveBlock).toContain('setIsEditing(false)');
-      // The intentional design must be documented in source comments
-      expect(rankCellSrc).toContain('No try/catch');
+      expect(commitSaveBlock).toContain('setSaveError');
     });
 
     it('documents TC-2653 through TC-2656 as TieWarningBanner unit tests', () => {
