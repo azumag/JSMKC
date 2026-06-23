@@ -4003,6 +4003,49 @@ describe('E2E case drift coverage', () => {
       // TC-2617/TC-2618: toast.error with broadcastError key on failure paths
       expect(qualActionsTest).toContain("'broadcastError'");
     });
+
+    it('documents TC-2619 through TC-2627 as useParticipantMatches unit tests', () => {
+      const participantMatchesTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'hooks',
+        'useParticipantMatches.test.ts',
+      );
+      for (const tc of [
+        'TC-2619', 'TC-2620', 'TC-2621', 'TC-2622',
+        'TC-2623', 'TC-2624', 'TC-2625', 'TC-2626', 'TC-2627',
+      ]) {
+        expect(participantMatchesTest).toContain(tc);
+      }
+      // TC-2619: sessionStatus=loading keeps loading=true
+      expect(participantMatchesTest).toContain('status: \'loading\'');
+      expect(participantMatchesTest).toContain('loading).toBe(true)');
+      // TC-2620: admin-blocked sets loading=false without API calls
+      expect(participantMatchesTest).toContain('isAdminBlocked');
+      expect(participantMatchesTest).toContain('loading).toBe(false)');
+      // TC-2621: player session fetches tournament and matches
+      expect(participantMatchesTest).toContain('?fields=summary');
+      expect(participantMatchesTest).toContain('tournament?.id');
+      // TC-2622: unwraps json.data createSuccessResponse wrapper
+      expect(participantMatchesTest).toContain('data: tournament');
+      expect(participantMatchesTest).toContain('tournament?.name');
+      // TC-2623: sets qualificationConfirmed from response
+      expect(participantMatchesTest).toContain('qualificationConfirmed: true');
+      expect(participantMatchesTest).toMatch(/qualificationConfirmed\)\.toBe\(true\)/);
+      // TC-2624: myMatches filters by playerId, excludes BYE
+      expect(participantMatchesTest).toContain('isBye: true');
+      expect(participantMatchesTest).toMatch(/myMatches\)\.toHaveLength\(1\)/);
+      // TC-2625: myMatches sorts incomplete before completed
+      expect(participantMatchesTest).toContain('completed: true');
+      expect(participantMatchesTest).toContain('myMatches[0].id');
+      // TC-2626: submitReport POSTs to correct endpoint
+      expect(participantMatchesTest).toContain('/report');
+      expect(participantMatchesTest).toContain("=== 'POST'");
+      // TC-2627: submitReport on non-ok → sets error and returns null
+      expect(participantMatchesTest).toContain('Score invalid');
+      expect(participantMatchesTest).toMatch(/expect\(returnValue\)\.toBeNull/);
+    });
   });
 });
 
