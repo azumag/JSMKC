@@ -26,13 +26,13 @@ describe("AuthHeader", () => {
   it("TC-2696: shows skeleton while session is loading, no interactive elements", () => {
     mockUseSession.mockReturnValue({ data: null, status: "loading" });
 
-    const { container } = render(<AuthHeader />);
+    render(<AuthHeader />);
 
     // Loading state must not expose premature auth state (no buttons or links)
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     // Skeleton must be aria-hidden so screen readers skip it during load
-    const skeleton = container.querySelector(".animate-pulse");
+    const skeleton = screen.getByTestId("auth-skeleton");
     expect(skeleton).toBeInTheDocument();
     expect(skeleton).toHaveAttribute("aria-hidden", "true");
   });
