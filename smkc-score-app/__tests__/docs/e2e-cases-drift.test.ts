@@ -4246,6 +4246,87 @@ describe('E2E case drift coverage', () => {
       expect(taRowTest).toContain('useState');
       expect(taRowTest).toContain("1'23");
     });
+
+    it('documents TC-2675 through TC-2680 as OverlayToastStack unit tests', () => {
+      const stackTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'overlay',
+        'overlay-toast-stack.test.tsx',
+      );
+      for (const tc of ['TC-2675', 'TC-2676', 'TC-2677', 'TC-2678', 'TC-2679', 'TC-2680']) {
+        expect(stackTest).toContain(tc);
+      }
+      // TC-2675: data-testid
+      expect(stackTest).toContain('overlay-toast-stack');
+      // TC-2677: event id rendered per toast
+      expect(stackTest).toContain('data-event-id');
+      // TC-2678: leaving set forwarding
+      expect(stackTest).toContain('data-leaving');
+      // TC-2679: flex-col-reverse
+      expect(stackTest).toContain('flex-col-reverse');
+      // TC-2680: fixed + pointer-events-none
+      expect(stackTest).toContain('pointer-events-none');
+      expect(stackTest).toContain('fixed');
+    });
+
+    it('documents TC-2681 through TC-2686 as DashboardFooter unit tests', () => {
+      const footerTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'overlay',
+        'dashboard-footer.test.tsx',
+      );
+      for (const tc of ['TC-2681', 'TC-2682', 'TC-2683', 'TC-2684', 'TC-2685', 'TC-2686']) {
+        expect(footerTest).toContain(tc);
+      }
+      // TC-2681: data-testid
+      expect(footerTest).toContain('dashboard-footer');
+      // TC-2683: overlayMatchLabel override
+      expect(footerTest).toContain('overlayMatchLabel');
+      expect(footerTest).toContain('Finals Winners Quarter Final');
+      // TC-2684: currentPhaseFormat badge
+      expect(footerTest).toContain('dashboard-footer-ft');
+      expect(footerTest).toContain('First to 5');
+      // TC-2686: empty overlayMatchLabel fallback
+      expect(footerTest).toContain('overlayMatchLabel=""');
+    });
+
+    it('documents TC-2687 through TC-2695 as DebugFillButton unit tests', () => {
+      const btnTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'debug-fill-button.test.tsx',
+      );
+      for (const tc of [
+        'TC-2687', 'TC-2688', 'TC-2689', 'TC-2690',
+        'TC-2691', 'TC-2692', 'TC-2693', 'TC-2694', 'TC-2695',
+      ]) {
+        expect(btnTest).toContain(tc);
+      }
+      // TC-2687: title attribute with mode
+      expect(btnTest).toContain('debug mode');
+      // TC-2688: busy state text
+      expect(btnTest).toContain('実行中…');
+      // TC-2689: duplicate click prevention
+      expect(btnTest).toContain('toHaveBeenCalledTimes(1)');
+      // TC-2690: correct endpoint
+      expect(btnTest).toContain('debug-fill');
+      // TC-2691: success status
+      expect(btnTest).toContain('件入力');
+      expect(btnTest).toContain('件スキップ');
+      // TC-2692: onFilled callback
+      expect(btnTest).toContain('onFilled');
+      // TC-2693: failure message
+      expect(btnTest).toContain('失敗:');
+      // TC-2694: error message and re-enable
+      expect(btnTest).toContain('エラー:');
+      expect(btnTest).toContain('not.toBeDisabled');
+    });
   });
 });
 
