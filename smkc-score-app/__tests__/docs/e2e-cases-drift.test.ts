@@ -4367,6 +4367,91 @@ describe('E2E case drift coverage', () => {
       expect(layoutTest).toContain('score1');
       expect(layoutTest).toContain('Final Score');
     });
+
+    it('documents TC-2719 through TC-2725 as LoadingSpinner unit tests', () => {
+      const spinnerTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'loading-spinner.test.tsx',
+      );
+      for (const tc of [
+        'TC-2719', 'TC-2720', 'TC-2721', 'TC-2722', 'TC-2723', 'TC-2724', 'TC-2725',
+      ]) {
+        expect(spinnerTest).toContain(tc);
+      }
+      // TC-2719: role="status"
+      expect(spinnerTest).toContain('role="status"');
+      // TC-2720: aria-live="polite"
+      expect(spinnerTest).toContain('aria-live');
+      // TC-2721: aria-label="Loading"
+      expect(spinnerTest).toContain('aria-label');
+      // TC-2722–2724: size classes
+      expect(spinnerTest).toContain('h-6');
+      expect(spinnerTest).toContain('h-4');
+      expect(spinnerTest).toContain('h-8');
+      // TC-2725: className forwarding
+      expect(spinnerTest).toContain('className');
+    });
+
+    it('documents TC-2726 through TC-2730 as LoadingOverlay unit tests', () => {
+      const overlayTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'loading-overlay.test.tsx',
+      );
+      for (const tc of [
+        'TC-2726', 'TC-2727', 'TC-2728', 'TC-2729', 'TC-2730',
+      ]) {
+        expect(overlayTest).toContain(tc);
+      }
+      // TC-2726: null when closed
+      expect(overlayTest).toContain('isOpen={false}');
+      expect(overlayTest).toContain('container.firstChild');
+      // TC-2727: dialog when open
+      expect(overlayTest).toContain("getByRole('dialog')");
+      // TC-2728: default message
+      expect(overlayTest).toContain('Processing...');
+      // TC-2729: custom message
+      expect(overlayTest).toContain('ブラケット生成中');
+      // TC-2730: accessibility
+      expect(overlayTest).toContain('aria-modal');
+    });
+
+    it('documents TC-2731 through TC-2740 as UpdateIndicator unit tests', () => {
+      const indicatorTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'update-indicator.test.tsx',
+      );
+      for (const tc of [
+        'TC-2731', 'TC-2732', 'TC-2733', 'TC-2734', 'TC-2735',
+        'TC-2736', 'TC-2737', 'TC-2738', 'TC-2739', 'TC-2740',
+      ]) {
+        expect(indicatorTest).toContain(tc);
+      }
+      // TC-2731/2732: polling badges
+      expect(indicatorTest).toContain('Live');
+      expect(indicatorTest).toContain('Paused');
+      // TC-2733: null lastUpdated
+      expect(indicatorTest).toContain('lastUpdated={null}');
+      // TC-2734–2736: time formatting
+      expect(indicatorTest).toContain('1m ago');
+      expect(indicatorTest).toContain('2h ago');
+      // TC-2737: timer advances
+      expect(indicatorTest).toContain('advanceTimersByTime');
+      // TC-2738: cleanup on unmount
+      expect(indicatorTest).toContain('clearInterval');
+      // TC-2739: prop change resets interval
+      expect(indicatorTest).toContain('rerender');
+      // TC-2740: initial sync calculation
+      expect(indicatorTest).toContain('5s ago');
+    });
   });
 });
 
