@@ -17,6 +17,7 @@
  * - TC-2637: toggle() dispatches CustomEvent('publicModesChanged') with tournamentId on success
  * - TC-2638: toggle() is no-op when already updating (double-click guard)
  * - TC-2639: Cancels pending state update when hook unmounts before fetch resolves
+ * - TC-2642: toggle() on PUT network exception → no state change, updating resets to false
  */
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useModePublish } from '@/hooks/use-mode-publish';
@@ -260,13 +261,39 @@ describe('useModePublish', () => {
       // Unmount while fetch is still pending
       unmount();
 
-      // Resolve the fetch after unmount — cancelled flag must prevent setState
-      resolvePromise({ ok: true, json: async () => ({ publicModes: [MODE] }) });
-      await new Promise((r) => setTimeout(r, 0));
+      // Resolve and flush microtasks inside act — avoids fragile macrotask timing (setTimeout).
+      // Three microtask yields cover: (1) deferred resolves, (2) json() async fn, (3) finally block.
+      await act(async () => {
+        resolvePromise({ ok: true, json: async () => ({ publicModes: [MODE] }) });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
 
-      // State stays at unmount-time values; isPublic must not flip to true
+      // State stays at unmount-time values; cancelled flag must prevent isPublic from flipping
       expect(result.current.isPublic).toBe(false);
       expect(result.current.loading).toBe(true);
+    });
+  });
+
+  describe('TC-2642: toggle() on PUT network exception → no state change, updating resets', () => {
+    it('handles fetch exception in toggle: isPublic unchanged, updating resets to false', async () => {
+      mockedFetchWithRetry.mockResolvedValue({
+        ok: true,
+        json: async () => ({ publicModes: [] }),
+      } as Response);
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+      const { result } = renderHook(() => useModePublish(TOURNAMENT_ID, MODE));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await act(async () => {
+        await result.current.toggle();
+      });
+
+      // catch block swallows the error; finally block resets updating
+      expect(result.current.isPublic).toBe(false);
+      expect(result.current.updating).toBe(false);
     });
   });
 });

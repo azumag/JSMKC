@@ -4053,7 +4053,7 @@ describe('E2E case drift coverage', () => {
       expect(participantMatchesTest).toContain('error).toBeTruthy');
     });
 
-    it('documents TC-2628 through TC-2639 as useModePublish unit tests', () => {
+    it('documents TC-2628 through TC-2639 and TC-2642 as useModePublish unit tests', () => {
       const modePublishTest = readRepoFile(
         'smkc-score-app',
         '__tests__',
@@ -4064,6 +4064,7 @@ describe('E2E case drift coverage', () => {
         'TC-2628', 'TC-2629', 'TC-2630', 'TC-2631',
         'TC-2632', 'TC-2633', 'TC-2634', 'TC-2635',
         'TC-2636', 'TC-2637', 'TC-2638', 'TC-2639',
+        'TC-2642',
       ]) {
         expect(modePublishTest).toContain(tc);
       }
@@ -4076,8 +4077,8 @@ describe('E2E case drift coverage', () => {
       expect(modePublishTest).toContain('loading).toBe(false)');
       // TC-2631: non-ok fetch clears loading without setting isPublic
       expect(modePublishTest).toContain('ok: false');
-      // TC-2633: json.data unwrap path
-      expect(modePublishTest).toMatch(/data\s*:\s*\{[^}]*publicModes/);
+      // TC-2633: json.data unwrap path — toContain avoids nested-brace regex fragility
+      expect(modePublishTest).toContain('publicModes: [MODE]');
       // TC-2634/TC-2635: toggle sends PUT to tournament endpoint
       expect(modePublishTest).toContain("method: 'PUT'");
       expect(modePublishTest).toContain('publicModes');
@@ -4087,9 +4088,13 @@ describe('E2E case drift coverage', () => {
       // TC-2638: double-click guard
       expect(modePublishTest).toContain('updating).toBe(true)');
       expect(modePublishTest).toContain('not.toHaveBeenCalled');
-      // TC-2639: unmount cancellation
+      // TC-2639: unmount cancellation uses microtask flush (not setTimeout) per issue #2626
       expect(modePublishTest).toContain('unmount');
       expect(modePublishTest).toContain('cancelled');
+      expect(modePublishTest).toContain('Promise.resolve');
+      // TC-2642: toggle() network exception → isPublic unchanged, updating resets
+      expect(modePublishTest).toContain('updating).toBe(false)');
+      expect(modePublishTest).toContain('Network error');
     });
   });
 });
