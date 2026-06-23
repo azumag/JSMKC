@@ -273,10 +273,16 @@ export async function GET(
   // Logger created inside function for proper test mocking support
   const logger = createLogger('tournament-export-api');
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
   const exportFormat = new URL(request.url).searchParams.get("format");
+  // Use raw id as fallback so the catch-block logger always has a tournamentId,
+  // even if resolveTournamentId throws before assigning.
+  let tournamentId = id;
 
   try {
+    // Resolve inside try so identifier-validation errors from resolveTournamentId
+    // (e.g. malformed id combined with a DB connectivity failure) are returned as
+    // a structured 500 instead of an unhandled exception that crashes the handler.
+    tournamentId = await resolveTournamentId(id);
     if (exportFormat === "cdm") {
       const session = await auth();
       if (!session?.user) {
