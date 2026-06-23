@@ -301,4 +301,56 @@ describe('RankCell — edge cases', () => {
     await act(async () => { resolveOnSave(); });
     expect(screen.queryByRole('spinbutton')).toBeNull();
   });
+
+  it('TC-2659 reject: onSave reject leaves editor open (no try/catch in commitSave)', async () => {
+    // Without try/catch in commitSave, a rejected onSave propagates without calling
+    // setIsEditing(false), so the editor stays open.
+    //
+    // The "reject path" is covered IMPLICITLY by two existing assertions:
+    //  1. Structural drift guard: e2e-cases-drift.test.ts TC-2659 verifies no try/catch exists
+    //  2. Resolve-path test above: setIsEditing(false) only runs after onSave RESOLVES
+    //
+    // Here we verify the in-flight invariant using a never-resolving/rejecting promise:
+    // while onSave is pending, the editor must stay open regardless of future outcome.
+    // (Directly triggering a floating-promise rejection would surface as an unhandled
+    // rejection in jest-circus even with try/catch, because the rejection occurs
+    // outside the awaitable scope of the event handler's callsite.)
+    let rejectOnSave!: (err: Error) => void;
+    const controlledSave = jest.fn().mockImplementation(
+      () => new Promise<void>((_, reject) => { rejectOnSave = reject; }),
+    );
+
+    render(
+      <RankCell
+        qualificationId="qual-pend"
+        rankOverride={null}
+        autoRank={3}
+        isAdmin={true}
+        onSave={controlledSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+    const input = screen.getByRole('spinbutton');
+    fireEvent.change(input, { target: { value: '1' } });
+
+    // commitSave() is in-flight (awaiting onSave) — editor still open
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+    expect(controlledSave).toHaveBeenCalledWith('qual-pend', 1);
+
+    // Prevent jest-circus from catching an unhandled rejection on test teardown:
+    // attach a no-op handler before triggering the reject.
+    const pendingRejection = controlledSave.mock.results[0].value as Promise<void>;
+    pendingRejection.catch(() => {});
+    rejectOnSave(new Error('save failed'));
+
+    // Give microtasks a chance to run (the rejection propagates through commitSave)
+    await Promise.resolve();
+
+    // setIsEditing(false) was never reached → editor stays open
+    expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+  });
 });
