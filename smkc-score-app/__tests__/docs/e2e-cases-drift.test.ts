@@ -4454,6 +4454,90 @@ describe('E2E case drift coverage', () => {
       // TC-2740: initial sync calculation
       expect(indicatorTest).toContain('5s ago');
     });
+
+    it('documents TC-2741 through TC-2758 as Button unit tests', () => {
+      const buttonTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'button.test.tsx',
+      );
+      for (const tc of [
+        'TC-2741', 'TC-2742', 'TC-2743', 'TC-2744', 'TC-2745', 'TC-2746', 'TC-2747',
+        'TC-2748', 'TC-2749', 'TC-2750', 'TC-2751', 'TC-2752', 'TC-2753', 'TC-2754',
+        'TC-2755', 'TC-2756', 'TC-2757', 'TC-2758',
+      ]) {
+        expect(buttonTest).toContain(tc);
+      }
+      // TC-2742: default variant
+      expect(buttonTest).toContain('bg-primary');
+      // TC-2743: destructive variant
+      expect(buttonTest).toContain('bg-destructive');
+      // TC-2751: disabled state
+      expect(buttonTest).toContain('toBeDisabled');
+      // TC-2752: onClick fires
+      expect(buttonTest).toContain('toHaveBeenCalledTimes(1)');
+      // TC-2753: onClick not called when disabled
+      expect(buttonTest).toContain('not.toHaveBeenCalled');
+      // TC-2754: asChild renders child
+      expect(buttonTest).toContain('asChild');
+      // TC-2755: data-slot
+      expect(buttonTest).toContain("'data-slot', 'button'");
+      // TC-2756: data-variant
+      expect(buttonTest).toContain('data-variant');
+    });
+
+    it('documents TC-2759 through TC-2766 as Input unit tests', () => {
+      const inputTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'input.test.tsx',
+      );
+      for (const tc of [
+        'TC-2759', 'TC-2760', 'TC-2761', 'TC-2762', 'TC-2763', 'TC-2764', 'TC-2765', 'TC-2766',
+      ]) {
+        expect(inputTest).toContain(tc);
+      }
+      // TC-2759: renders as input
+      expect(inputTest).toContain("tagName).toBe('INPUT')");
+      // TC-2760: data-slot
+      expect(inputTest).toContain("'data-slot', 'input'");
+      // TC-2763: disabled
+      expect(inputTest).toContain('toBeDisabled');
+      // TC-2764: aria-invalid
+      expect(inputTest).toContain('aria-invalid');
+    });
+
+    it('documents TC-2767 through TC-2775 as Tabs unit tests', () => {
+      const tabsTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'tabs.test.tsx',
+      );
+      for (const tc of [
+        'TC-2767', 'TC-2768', 'TC-2769', 'TC-2770', 'TC-2771',
+        'TC-2772', 'TC-2773', 'TC-2774', 'TC-2775',
+      ]) {
+        expect(tabsTest).toContain(tc);
+      }
+      // TC-2767/2768/2769/2770: data-slot attributes
+      expect(tabsTest).toContain('data-slot="tabs"');
+      expect(tabsTest).toContain('data-slot="tabs-list"');
+      expect(tabsTest).toContain('data-slot="tabs-trigger"');
+      expect(tabsTest).toContain('data-slot="tabs-content"');
+      // TC-2772: inactive tab not in DOM
+      expect(tabsTest).toContain('not.toBeInTheDocument');
+      // TC-2773: clicking trigger switches tab
+      expect(tabsTest).toContain("getByRole('tab'");
+      expect(tabsTest).toContain('findByText');
+      // TC-2774: disabled trigger
+      expect(tabsTest).toContain('toBeDisabled');
+    });
   });
 });
 

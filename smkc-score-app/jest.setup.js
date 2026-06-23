@@ -91,6 +91,52 @@ jest.mock('@opennextjs/cloudflare', () => ({
   initOpenNextCloudflareForDev: jest.fn(),
 }))
 
+// Mock @prisma/client to provide Prisma namespace members in test environments
+// where the Prisma engine binary is unavailable (no prisma generate was run).
+// Without this mock:
+// - Prisma.sql tagged template (rank-calculation.ts) throws "not a function"
+// - Prisma.PrismaClientKnownRequestError used with instanceof throws
+//   "Right-hand side of instanceof is not an object"
+jest.mock('@prisma/client', () => {
+  const originalModule = jest.requireActual('@prisma/client');
+
+  // Tagged template tag that returns an object compatible with $executeRaw spread
+  const sql = (strings, ...values) => ({
+    strings: Array.from(strings),
+    values,
+    sql: strings.raw ? strings.raw.join('') : strings.join(''),
+  });
+
+  // Minimal error class used with instanceof checks in error-handling and finals-phase-manager
+  class PrismaClientKnownRequestError extends Error {
+    constructor(message, { code, clientVersion } = {}) {
+      super(message);
+      this.code = code;
+      this.clientVersion = clientVersion;
+      this.name = 'PrismaClientKnownRequestError';
+    }
+  }
+  class PrismaClientValidationError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = 'PrismaClientValidationError';
+    }
+  }
+
+  return {
+    ...originalModule,
+    Prisma: {
+      ...(originalModule.Prisma ?? {}),
+      sql,
+      // Sentinel value for JSON null fields in Prisma update/create calls
+      JsonNull: null,
+      PrismaClientKnownRequestError,
+      PrismaClientValidationError,
+    },
+    PrismaClient: jest.fn().mockImplementation(() => ({})),
+  };
+})
+
 // Mock Prisma client globally - optimized to minimize overhead
 // Provides both default and named `prisma` export to match src/lib/prisma.ts
 jest.mock('@/lib/prisma', () => {
