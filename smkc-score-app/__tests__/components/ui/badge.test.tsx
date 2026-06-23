@@ -16,59 +16,59 @@ import { render, screen } from '@testing-library/react';
 import { Badge } from '@/components/ui/badge';
 
 describe('Badge', () => {
-  it('renders children', () => {
+  it('TC-2776: renders children', () => {
     render(<Badge>Hello</Badge>);
     expect(screen.getByText('Hello')).toBeInTheDocument();
   });
 
-  it('renders with default variant classes', () => {
+  it('TC-2777: renders with default variant classes', () => {
     render(<Badge data-testid="badge">Default</Badge>);
     const el = screen.getByTestId('badge');
     expect(el).toHaveClass('bg-primary', 'text-primary-foreground');
   });
 
-  it('renders secondary variant', () => {
+  it('TC-2778: renders secondary variant', () => {
     render(<Badge variant="secondary" data-testid="badge">Secondary</Badge>);
     const el = screen.getByTestId('badge');
     expect(el).toHaveClass('bg-secondary', 'text-secondary-foreground');
   });
 
-  it('renders destructive variant', () => {
+  it('TC-2779: renders destructive variant', () => {
     render(<Badge variant="destructive" data-testid="badge">Error</Badge>);
     const el = screen.getByTestId('badge');
     expect(el).toHaveClass('bg-destructive', 'text-white');
   });
 
-  it('renders outline variant', () => {
+  it('TC-2780: renders outline variant', () => {
     render(<Badge variant="outline" data-testid="badge">Outline</Badge>);
     const el = screen.getByTestId('badge');
     expect(el).toHaveClass('border-foreground/70', 'bg-transparent');
   });
 
-  it('renders flag-active variant', () => {
+  it('TC-2781: renders flag-active variant', () => {
     render(<Badge variant="flag-active" data-testid="badge">Active</Badge>);
     const el = screen.getByTestId('badge');
     expect(el).toHaveClass('flag-active');
   });
 
-  it('renders flag-draft variant', () => {
+  it('TC-2782: renders flag-draft variant', () => {
     render(<Badge variant="flag-draft" data-testid="badge">Draft</Badge>);
     const el = screen.getByTestId('badge');
     expect(el).toHaveClass('flag-draft');
   });
 
-  it('renders flag-completed variant', () => {
+  it('TC-2783: renders flag-completed variant', () => {
     render(<Badge variant="flag-completed" data-testid="badge">Done</Badge>);
     const el = screen.getByTestId('badge');
     expect(el).toHaveClass('flag-completed');
   });
 
-  it('accepts custom className', () => {
+  it('TC-2784: accepts custom className', () => {
     render(<Badge className="custom-class" data-testid="badge">Custom</Badge>);
     expect(screen.getByTestId('badge')).toHaveClass('custom-class');
   });
 
-  it('renders as child element with asChild', () => {
+  it('TC-2785: renders as child element with asChild', () => {
     render(
       <Badge asChild>
         <a href="/test" data-testid="link-badge">Link</a>

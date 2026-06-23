@@ -125,6 +125,11 @@ jest.mock('@prisma/client', () => {
 
   return {
     ...originalModule,
+    // TC-2786/2787: Also exported at the module top level so that
+    // `import { PrismaClientKnownRequestError } from '@prisma/client'`
+    // (named import style) resolves to the same mock class in tests.
+    PrismaClientKnownRequestError,
+    PrismaClientValidationError,
     Prisma: {
       ...(originalModule.Prisma ?? {}),
       sql,
