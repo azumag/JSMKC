@@ -4489,6 +4489,14 @@
 
 ---
 
+### TC-2674: TaParticipantTimeInputRow — フル時間フォーマット文字列の onChange 転送を useState ラッパーで検証
+- **背景**: TC-2670 は controlled input の制約から単一文字のみテストしているが、実際のユースケースである `"1'23\"456"` のような複数文字の時間フォーマット文字列の入力を検証する必要がある。`useState` ラッパーで value を更新することで、各キーストロークが正しく蓄積され、最終的な onChange 呼び出しが完全な文字列を受け取ることを確認する。
+- **手順**: `useState` でラップした `TaParticipantTimeInputRow` に `user.type` で `"1'23\"456"` を入力する。
+- **期待結果**: 最後の `onChange` 呼び出しが `('MKS', "1'23\"456")` で呼ばれる。
+- **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/components/tournament/ta-participant-time-input-row.test.tsx
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）
