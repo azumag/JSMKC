@@ -4337,7 +4337,7 @@ describe('E2E case drift coverage', () => {
         'participant-page-layout.test.tsx',
       );
       for (const tc of [
-        'TC-2705', 'TC-2706', 'TC-2707', 'TC-2708', 'TC-2709',
+        'TC-2705', 'TC-2705b', 'TC-2706', 'TC-2707', 'TC-2708', 'TC-2709',
         'TC-2710', 'TC-2711', 'TC-2712', 'TC-2713', 'TC-2714',
         'TC-2715', 'TC-2716', 'TC-2717', 'TC-2718',
       ]) {
