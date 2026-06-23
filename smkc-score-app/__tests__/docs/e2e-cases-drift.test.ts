@@ -4046,6 +4046,45 @@ describe('E2E case drift coverage', () => {
       expect(participantMatchesTest).toContain('Score invalid');
       expect(participantMatchesTest).toMatch(/expect\(returnValue\)\.toBeNull/);
     });
+
+    it('documents TC-2628 through TC-2639 as useModePublish unit tests', () => {
+      const modePublishTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'hooks',
+        'use-mode-publish.test.ts',
+      );
+      for (const tc of [
+        'TC-2628', 'TC-2629', 'TC-2630', 'TC-2631',
+        'TC-2632', 'TC-2633', 'TC-2634', 'TC-2635',
+        'TC-2636', 'TC-2637', 'TC-2638', 'TC-2639',
+      ]) {
+        expect(modePublishTest).toContain(tc);
+      }
+      // TC-2628: loading=true before fetch resolves
+      expect(modePublishTest).toContain('loading).toBe(true)');
+      expect(modePublishTest).toContain('isPublic).toBe(false)');
+      expect(modePublishTest).toContain('?fields=summary');
+      // TC-2629/TC-2630: isPublic reflects mode presence in publicModes
+      expect(modePublishTest).toContain('isPublic).toBe(true)');
+      expect(modePublishTest).toContain('loading).toBe(false)');
+      // TC-2631: non-ok fetch clears loading without setting isPublic
+      expect(modePublishTest).toContain('ok: false');
+      // TC-2633: json.data unwrap path
+      expect(modePublishTest).toMatch(/data\s*:\s*\{[^}]*publicModes/);
+      // TC-2634/TC-2635: toggle sends PUT to tournament endpoint
+      expect(modePublishTest).toContain("method: 'PUT'");
+      expect(modePublishTest).toContain('publicModes');
+      // TC-2637: CustomEvent dispatch
+      expect(modePublishTest).toContain('publicModesChanged');
+      expect(modePublishTest).toContain('event.detail.tournamentId');
+      // TC-2638: double-click guard
+      expect(modePublishTest).toContain('updating).toBe(true)');
+      expect(modePublishTest).toContain('not.toHaveBeenCalled');
+      // TC-2639: unmount cancellation
+      expect(modePublishTest).toContain('unmount');
+      expect(modePublishTest).toContain('cancelled');
+    });
   });
 });
 
