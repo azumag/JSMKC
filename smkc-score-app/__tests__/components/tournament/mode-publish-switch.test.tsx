@@ -6,7 +6,8 @@
  * ModePublishSwitch is the per-mode publish toggle rendered on each mode page.
  * It wraps useModePublish and shows a badge reflecting the current publish state.
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
 
 const toggleMock = jest.fn();
@@ -96,7 +97,12 @@ describe('ModePublishSwitch', () => {
     expect(screen.getByRole('switch')).toBeDisabled();
   });
 
-  it('TC-2667: clicking switch calls toggle()', () => {
+  it('TC-2667: clicking switch calls toggle()', async () => {
+    // userEvent is preferred over fireEvent for Radix UI Switch, which relies
+    // on pointer events internally — userEvent fires the full pointer-event
+    // sequence (pointerdown → mousedown → pointerup → mouseup → click) so the
+    // test is resilient to future internal event-handling changes.
+    const user = userEvent.setup();
     render(
       <ModePublishSwitch
         tournamentId="t-1"
@@ -105,7 +111,7 @@ describe('ModePublishSwitch', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('switch'));
+    await user.click(screen.getByRole('switch'));
 
     expect(toggleMock).toHaveBeenCalledTimes(1);
   });
