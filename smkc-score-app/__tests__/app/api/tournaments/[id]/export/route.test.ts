@@ -1332,6 +1332,30 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(loggerMock.error).toHaveBeenCalled();
     });
 
+    // Regression: resolveTournamentId was previously called OUTSIDE the try/catch.
+    // An identifier that fails the slug/UUID format check causes resolveTournamentId to
+    // throw when there is also a DB connectivity error. The throw must be caught and
+    // returned as a structured 500, not left as an unhandled exception (which would
+    // surface as a raw Next.js 500 HTML page and skip the error-response JSON body).
+    it('should return structured 500 when resolveTournamentId throws (invalid format + DB error)', async () => {
+      // Use an identifier that fails both TOURNAMENT_SLUG_REGEX and UUID_REGEX so
+      // resolveTournamentId's internal catch will re-throw after a DB error.
+      const badId = 'INVALID_FORMAT_ID';
+      (prisma.tournament.findFirst as jest.Mock).mockRejectedValue(new Error('D1 connection error'));
+
+      const request = new MockNextRequest(`http://localhost:3000/api/tournaments/${badId}/export`);
+      const params = Promise.resolve({ id: badId });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(500);
+      expect(result.data).toEqual(expect.objectContaining({ success: false }));
+      // Logger should capture the error with the raw id as tournamentId fallback
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', {
+        error: expect.any(Error),
+        tournamentId: badId,
+      });
+    });
+
     it('should handle tournament with all empty data', async () => {
       const mockTournament = {
         id: 't1',

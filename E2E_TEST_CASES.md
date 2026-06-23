@@ -540,6 +540,16 @@
 - **期待結果**: エラー alert が表示され、ボタンは disabled 解除かつ `aria-busy=false` になる。再クリックで `/export?format=cdm` リクエストが再送される。
 - **スクリプト**: tc-all.js TC-361
 
+## TC-362: Export API 不正IDに対する構造化エラーレスポンス
+- **URL**: GET /api/tournaments/INVALID_FORMAT_ID/export
+- **authRequired**: false (エラーはID解決前に返る)
+- **手順**:
+  1. `https` モジュールでブラウザ外から `GET /api/tournaments/INVALID_FORMAT_ID/export` を直接リクエスト
+  2. HTTPステータスコードを確認
+  3. レスポンスボディのContent-Typeを確認
+- **期待結果**: HTTPステータス 500 で `{ success: false, error: "..." }` 形式のJSON が返り、HTML 500エラーページにならない
+- **背景**: resolveTournamentId が try 外で呼ばれると不正IDのDB同時エラーで未ハンドル例外になるバグ修正 (#2675)
+
 ## TC-201: 各モードページのデータ読み込み確認
 - **URL**: /tournaments/[id]/ta, /bm, /mr, /gp
 - **authRequired**: true (admin)
