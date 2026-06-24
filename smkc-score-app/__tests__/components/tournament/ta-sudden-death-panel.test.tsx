@@ -284,6 +284,7 @@ describe('useTaSuddenDeath', () => {
     });
 
     expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 
   it('TC-2942: pendingSuddenDeath が undefined のとき handleSuddenDeathCourseChange は早期リターンする', async () => {
@@ -305,10 +306,15 @@ describe('useTaSuddenDeath', () => {
     });
 
     expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });
 
 describe('TASuddenDeathSection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   const defaultSectionProps = {
     isAdmin: true,
     isComplete: false,
