@@ -186,6 +186,7 @@ export function GroupSetupDialog({
       <DialogTrigger asChild>
         <Button
           variant={hasExistingQualifications ? "outline" : "default"}
+          data-variant={hasExistingQualifications ? "outline" : "default"}
         >
           {hasExistingQualifications ? tc("editGroups") : tc("setupGroups")}
         </Button>
