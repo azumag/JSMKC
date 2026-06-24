@@ -98,7 +98,7 @@ function getOrCreateClient(): PrismaClient {
       ? base.$extends({
           name: 'perf-instrumentation',
           query: {
-            $allOperations: async ({ model, operation, args, query }) => {
+            $allOperations: async ({ model, operation, args, query }: { model?: string; operation: string; args: unknown; query: (args: unknown) => Promise<unknown> }) => {
               const start = Date.now();
               try {
                 return await query(args);

@@ -17,7 +17,6 @@
  */
 
 import { NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
 import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
@@ -142,8 +141,9 @@ function validateDirectDriverPoints(points1: unknown, points2: unknown): Process
   };
 }
 
-function toReportedRacesJson(races: ProcessedRace[] | null): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
-  return races ?? Prisma.JsonNull;
+function toReportedRacesJson(races: ProcessedRace[] | null) {
+  // Prisma v6 accepts plain null for nullable Json? fields
+  return races ?? null;
 }
 
 function processRaceReport(assignedCup: string | null | undefined, races: unknown): ProcessedReport {

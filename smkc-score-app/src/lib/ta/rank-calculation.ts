@@ -23,7 +23,10 @@ import { COURSES } from "@/lib/constants";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { timeToMs } from "@/lib/ta/time-utils";
 import { calculateAllCourseScores } from "@/lib/ta/qualification-scoring";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+// Prisma.sql was removed from the Prisma namespace stub in v6; sqltag is the underlying
+// tagged template implementation exported from the runtime library.
+import { sqltag as sql } from "@prisma/client/runtime/library";
 
 /**
  * Represents a tournament entry with its calculated total time and scoring data.
@@ -46,7 +49,7 @@ export interface EntryWithTotal {
   qualificationPoints: number;
 }
 
-export const QUALIFICATION_RANK_ORDER_SQL = Prisma.sql`
+export const QUALIFICATION_RANK_ORDER_SQL = sql`
   ORDER BY
     COALESCE(qualificationPoints, 0) DESC,
     totalTime IS NULL ASC,
@@ -195,7 +198,8 @@ export async function recalculateRanks(
   });
 
   // Calculate total time for each entry from individual course times
-  const entriesWithTotal = entries.map((entry) =>
+  const typedEntries = entries as Array<{ id: string; times: unknown; lives: number; eliminated: boolean; stage: string; playerId: string }>;
+  const entriesWithTotal = typedEntries.map((entry) =>
     calculateEntryTotal({
       times: entry.times as Record<string, string> | null,
       lives: entry.lives,
@@ -207,7 +211,7 @@ export async function recalculateRanks(
 
   // For qualification stage: calculate per-course scores and total qualification points
   if (stage === "qualification") {
-    const scoringEntries = entries.map((entry) => ({
+    const scoringEntries = typedEntries.map((entry) => ({
       id: entry.id,
       times: entry.times as Record<string, string> | null,
     }));

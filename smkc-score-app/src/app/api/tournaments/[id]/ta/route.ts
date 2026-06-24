@@ -21,7 +21,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
@@ -290,7 +289,15 @@ export async function POST(
      */
     // Explicit payload type so TypeScript knows `.player.nickname` is
     // safe on each entry after the later findMany runs with the include.
-    let createdEntries: Prisma.TTEntryGetPayload<{ include: { player: { select: typeof PLAYER_PUBLIC_SELECT } } }>[] = [];
+    // Prisma.TTEntryGetPayload is unavailable until `prisma generate` runs;
+    // inline type captures the fields actually accessed below.
+    type TtEntryWithPlayer = {
+      id: string;
+      playerId: string;
+      player: { nickname: string };
+      [key: string]: unknown;
+    };
+    let createdEntries: TtEntryWithPlayer[] = [];
 
     if (playerIds.length > 0) {
       const existingEntries = await prisma.tTEntry.findMany({
@@ -301,7 +308,7 @@ export async function POST(
         },
         select: { playerId: true },
       });
-      const existingPlayerIds = new Set(existingEntries.map((e) => e.playerId));
+      const existingPlayerIds = new Set(existingEntries.map((e: { playerId: string }) => e.playerId));
       const newPlayerIds = playerIds.filter((pid) => !existingPlayerIds.has(pid));
 
       if (newPlayerIds.length > 0) {

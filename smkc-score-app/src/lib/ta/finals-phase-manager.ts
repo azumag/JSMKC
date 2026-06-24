@@ -26,7 +26,28 @@
  * - "qualification" -> "phase1" -> "phase2" -> "phase3"
  */
 
-import { PrismaClient, TTEntry, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+// InputJsonValue, PrismaClientKnownRequestError, and objectEnumValues were moved out of
+// the Prisma namespace in v6; import directly from runtime library.
+import type { InputJsonValue } from "@prisma/client/runtime/library";
+import { PrismaClientKnownRequestError, objectEnumValues } from "@prisma/client/runtime/library";
+
+// TTEntry is not exported by the stub client; define the shape from the schema fields.
+type TTEntry = {
+  id: string;
+  tournamentId: string;
+  playerId: string;
+  stage: string;
+  lives: number;
+  rank: number | null;
+  totalTime: number | null;
+  qualificationPoints: number | null;
+  eliminated: boolean;
+  times: unknown;
+  seeding: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
@@ -257,7 +278,7 @@ export async function promoteToPhase1(
     where: { tournamentId, stage: "phase1", playerId: { in: playerIds } },
     select: { playerId: true },
   });
-  const existingIds = new Set(existingEntries.map((e) => e.playerId));
+  const existingIds = new Set(existingEntries.map((e: { playerId: string }) => e.playerId));
 
   const toCreate = eligible.filter((q) => !existingIds.has(q.playerId));
   if (toCreate.length === 0) {
@@ -275,7 +296,7 @@ export async function promoteToPhase1(
         stage: "phase1",
         lives: 0, // Phase1 uses direct elimination, not the life system
         eliminated: false,
-        times: qual.times as Prisma.InputJsonValue,
+        times: qual.times as InputJsonValue,
         totalTime: qual.totalTime,
         rank: qual.rank,
       })),
@@ -388,7 +409,7 @@ export async function promoteToPhase2(
     where: { tournamentId, stage: "phase2", playerId: { in: playerIds } },
     select: { playerId: true },
   });
-  const existingIds = new Set(existingEntries.map((e) => e.playerId));
+  const existingIds = new Set(existingEntries.map((e: { playerId: string }) => e.playerId));
 
   const toCreate = eligible.filter((s) => !existingIds.has(s.playerId));
   if (toCreate.length === 0) {
@@ -404,7 +425,7 @@ export async function promoteToPhase2(
         stage: "phase2",
         lives: 0,
         eliminated: false,
-        times: source.times as Prisma.InputJsonValue,
+        times: source.times as InputJsonValue,
         totalTime: source.totalTime,
         rank: source.rank,
       })),
@@ -509,7 +530,7 @@ export async function promoteToPhase3(
     where: { tournamentId, stage: "phase3", playerId: { in: playerIds } },
     select: { playerId: true },
   });
-  const existingIds = new Set(existingEntries.map((e) => e.playerId));
+  const existingIds = new Set(existingEntries.map((e: { playerId: string }) => e.playerId));
 
   const toCreate = eligible.filter((s) => !existingIds.has(s.playerId));
   if (toCreate.length === 0) {
@@ -525,7 +546,7 @@ export async function promoteToPhase3(
         stage: "phase3",
         lives: config.initialLives,
         eliminated: false,
-        times: source.times as Prisma.InputJsonValue,
+        times: source.times as InputJsonValue,
         totalTime: source.totalTime,
         rank: source.rank,
       })),
@@ -1113,14 +1134,14 @@ async function createSuddenDeathRound(
           phaseRoundId,
           sequence: count + 1,
           course,
-          targetPlayerIds: targetPlayerIds as Prisma.InputJsonValue,
-          results: Prisma.JsonNull,
+          targetPlayerIds: targetPlayerIds as InputJsonValue,
+          results: objectEnumValues.instances.JsonNull,
           resolved: false,
         },
       });
     } catch (error) {
       const isUniqueViolation =
-        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+        error instanceof PrismaClientKnownRequestError && error.code === "P2002";
       if (isUniqueViolation) {
         const existing = await prisma.tTPhaseSuddenDeathRound.findFirst({
           where: {
@@ -1278,7 +1299,7 @@ export async function startPhaseRound(
       // P2002 = unique constraint violation = another request created this round first.
       // Log and retry with the next roundNumber.
       const isUniqueViolation =
-        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+        error instanceof PrismaClientKnownRequestError && error.code === "P2002";
       if (isUniqueViolation && attempt < MAX_ROUND_CREATE_ATTEMPTS) {
         logger.warn("Round creation race condition detected, retrying", {
           tournamentId,
@@ -1454,7 +1475,7 @@ export async function submitRoundResults(
       where: { id: round.id },
       data: {
         results: storedResults,
-        eliminatedIds: Prisma.JsonNull,
+        eliminatedIds: objectEnumValues.instances.JsonNull,
         livesReset: false,
         submittedAt: null,
       },
@@ -1494,7 +1515,7 @@ export async function submitRoundResults(
     where: { id: round.id },
     data: {
       results: storedResults,
-      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.JsonNull,
+      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : objectEnumValues.instances.JsonNull,
       livesReset,
       submittedAt: new Date(),
     },
@@ -1618,7 +1639,7 @@ export async function submitSuddenDeathResults(
   await prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRound.id },
     data: {
-      results: storedResults as Prisma.InputJsonValue,
+      results: storedResults as InputJsonValue,
       resolved: true,
     },
   });
@@ -1666,7 +1687,7 @@ export async function submitSuddenDeathResults(
   await prisma.tTPhaseRound.update({
     where: { id: suddenDeathRound.phaseRoundId },
     data: {
-      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.JsonNull,
+      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : objectEnumValues.instances.JsonNull,
       livesReset,
       submittedAt: new Date(),
     },
@@ -1801,7 +1822,7 @@ export async function undoLastPhaseRound(
     orderBy: { roundNumber: "asc" },
   });
 
-  const submittedRounds = rounds.filter((r) => {
+  const submittedRounds = (rounds as Array<{ roundNumber: number; results: unknown; [k: string]: unknown }>).filter((r) => {
     const results = r.results as unknown[];
     return Array.isArray(results) && results.length > 0;
   });
@@ -1820,7 +1841,7 @@ export async function undoLastPhaseRound(
       // Keep an empty array rather than JsonNull so client code can safely
       // treat the round as "open again" without null checks.
       results: [],
-      eliminatedIds: Prisma.JsonNull,
+      eliminatedIds: objectEnumValues.instances.JsonNull,
       livesReset: false,
       submittedAt: null,
     },
@@ -1852,7 +1873,7 @@ export async function undoLastPhaseRound(
       select: { playerId: true },
     });
     const playerState = new Map<string, { lives: number; eliminated: boolean }>(
-      allEntries.map((e) => [e.playerId, { lives: config.initialLives, eliminated: false }])
+      (allEntries as Array<{ playerId: string }>).map((e) => [e.playerId, { lives: config.initialLives, eliminated: false }])
     );
 
     for (const round of previousRounds) {

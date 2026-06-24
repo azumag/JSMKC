@@ -56,6 +56,34 @@ const mockPrismaClient = {
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
 
+// finals-phase-manager.ts imports PrismaClientKnownRequestError from runtime/library (Prisma v6).
+// To make instanceof checks work across the module boundary, both the source and the test must
+// use the SAME class object. We define it in the runtime/library mock, then re-export it from
+// @prisma/client so `new Prisma.PrismaClientKnownRequestError(...)` in tests creates an instance
+// that the source's `instanceof PrismaClientKnownRequestError` recognises.
+jest.mock('@prisma/client/runtime/library', () => ({
+  __esModule: true,
+  PrismaClientKnownRequestError: class extends Error {
+    code: string;
+    constructor(message: string, { code }: { code: string; clientVersion: string }) {
+      super(message);
+      this.name = 'PrismaClientKnownRequestError';
+      this.code = code;
+    }
+  },
+  objectEnumValues: { instances: { JsonNull: null } },
+}));
+
+jest.mock('@prisma/client', () => {
+  const lib = jest.requireMock('@prisma/client/runtime/library');
+  return {
+    __esModule: true,
+    Prisma: {
+      PrismaClientKnownRequestError: lib.PrismaClientKnownRequestError,
+    },
+  };
+});
+
 // Mock audit log
 jest.mock("@/lib/audit-log", () => ({
   createAuditLog: jest.fn(() => Promise.resolve()),

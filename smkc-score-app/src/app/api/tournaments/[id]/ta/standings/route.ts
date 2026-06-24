@@ -94,7 +94,15 @@ export async function GET(
       tournamentId,
       stage: 'qualification',
       lastUpdated,
-      entries: entries.map((e) => ({
+      entries: (entries as Array<{
+        rank: number | null;
+        playerId: string;
+        player: { name: string; nickname: string };
+        totalTime: number | null;
+        qualificationPoints: number | null;
+        lives: number;
+        eliminated: boolean;
+      }>).map((e) => ({
         rank: e.rank || '-',
         playerId: e.playerId,
         playerName: e.player.name,

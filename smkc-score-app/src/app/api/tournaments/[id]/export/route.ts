@@ -120,6 +120,38 @@ type CdmTournamentRow = {
   ttPhaseRounds: CdmTtPhaseRoundRow[];
 };
 
+/*
+ * CSV-specific row shapes extend the CDM types with columns the CSV section
+ * reads but the CDM workbook does not (mp/wins/ties/losses, rounds, createdAt).
+ * Casting the Prisma result to CsvTournamentRow follows the same pattern as the
+ * CDM path's `as unknown as CdmTournamentRow` cast on line ~318.
+ */
+type CsvQualRow = CdmQualificationRow & {
+  mp: number;
+  wins: number;
+  ties: number;
+  losses: number;
+};
+
+type CsvMatchRow = CdmMatchRow & {
+  rounds?: unknown;
+};
+
+type CsvTtEntryRow = CdmTtEntryRow & {
+  createdAt: Date;
+};
+
+type CsvTournamentRow = {
+  name: string;
+  date: Date;
+  status: string;
+  bmQualifications: CsvQualRow[];
+  bmMatches: CsvMatchRow[];
+  mrMatches: CsvMatchRow[];
+  gpMatches: CsvMatchRow[];
+  ttEntries: CsvTtEntryRow[];
+};
+
 const BASE_EXPORT_INCLUDE = {
   bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
   bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
@@ -339,7 +371,7 @@ export async function GET(
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: BASE_EXPORT_INCLUDE,
-    });
+    }) as unknown as CsvTournamentRow | null;
 
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);

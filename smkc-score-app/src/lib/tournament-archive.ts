@@ -1,6 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { R2Bucket } from "@cloudflare/workers-types";
-import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { PLAYER_PUBLIC_SELECT } from "@/lib/prisma-selects";
 import { computeQualificationRanks, type RankedQualification } from "@/lib/server-ranking";
@@ -12,38 +11,25 @@ export const TOURNAMENT_ARCHIVE_SCHEMA_VERSION = 1;
 const twoPlayerQualificationOrder = () => [{ group: "asc" }, { score: "desc" }, { points: "desc" }] as const;
 const GP_MATCH_SCORE_FIELDS = { p1: "points1", p2: "points2" };
 
-type ArchivePlayer = Prisma.PlayerGetPayload<{ select: typeof PLAYER_PUBLIC_SELECT }>;
-type BMQualificationArchiveRow = RankedQualification<Prisma.BMQualificationGetPayload<{
-  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
-}>>;
-type MRQualificationArchiveRow = RankedQualification<Prisma.MRQualificationGetPayload<{
-  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
-}>>;
-type GPQualificationArchiveRow = RankedQualification<Prisma.GPQualificationGetPayload<{
-  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
-}>>;
-type BMMatchArchiveRow = Prisma.BMMatchGetPayload<{
-  include: {
-    player1: { select: typeof PLAYER_PUBLIC_SELECT };
-    player2: { select: typeof PLAYER_PUBLIC_SELECT };
-  };
-}>;
-type MRMatchArchiveRow = Prisma.MRMatchGetPayload<{
-  include: {
-    player1: { select: typeof PLAYER_PUBLIC_SELECT };
-    player2: { select: typeof PLAYER_PUBLIC_SELECT };
-  };
-}>;
-type GPMatchArchiveRow = Prisma.GPMatchGetPayload<{
-  include: {
-    player1: { select: typeof PLAYER_PUBLIC_SELECT };
-    player2: { select: typeof PLAYER_PUBLIC_SELECT };
-  };
-}>;
-type TTEntryArchiveRow = Prisma.TTEntryGetPayload<{
-  include: { player: { select: typeof PLAYER_PUBLIC_SELECT } };
-}>;
-type TTPhaseRoundArchiveRow = Prisma.TTPhaseRoundGetPayload<Record<string, never>>;
+// Inline types replacing Prisma.*GetPayload<> which require a generated client.
+// These mirror the fields selected/included in each query below.
+type ArchivePlayer = {
+  id: string;
+  name: string;
+  nickname: string;
+  country: string | null;
+  noCamera: boolean;
+};
+type QualWithPlayer = { playerId: string; player: ArchivePlayer; [k: string]: unknown };
+type BMQualificationArchiveRow = RankedQualification<QualWithPlayer>;
+type MRQualificationArchiveRow = RankedQualification<QualWithPlayer>;
+type GPQualificationArchiveRow = RankedQualification<QualWithPlayer>;
+type MatchWithPlayers = { player1Id: string; player2Id: string; player1: ArchivePlayer; player2: ArchivePlayer; [k: string]: unknown };
+type BMMatchArchiveRow = MatchWithPlayers;
+type MRMatchArchiveRow = MatchWithPlayers;
+type GPMatchArchiveRow = MatchWithPlayers;
+type TTEntryArchiveRow = { player: ArchivePlayer; [k: string]: unknown };
+type TTPhaseRoundArchiveRow = { [k: string]: unknown };
 
 export type TournamentArchiveModePayload<TQualification = unknown, TMatch = unknown> = {
   qualifications?: TQualification[];
@@ -266,9 +252,9 @@ export function getArchivedFinalsPayload(
   if (style === "grouped") {
     return {
       matches,
-      winnersMatches: matches.filter((match) => (match.round ?? "").startsWith("winners_")),
-      losersMatches: matches.filter((match) => (match.round ?? "").startsWith("losers_")),
-      grandFinalMatches: matches.filter((match) => (match.round ?? "").startsWith("grand_final")),
+      winnersMatches: matches.filter((match) => ((match.round as string | null) ?? "").startsWith("winners_")),
+      losersMatches: matches.filter((match) => ((match.round as string | null) ?? "").startsWith("losers_")),
+      grandFinalMatches: matches.filter((match) => ((match.round as string | null) ?? "").startsWith("grand_final")),
       ...common,
     };
   }
@@ -375,17 +361,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
     throw new Error(`Tournament not found: ${tournamentId}`);
   }
 
-  const [
-    ttEntries,
-    ttPhaseRounds,
-    bmQualifications,
-    mrQualifications,
-    gpQualifications,
-    bmMatches,
-    mrMatches,
-    gpMatches,
-    overallRankings,
-  ] = await Promise.all([
+  const rawResults = await Promise.all([
     prisma.tTEntry.findMany({
       where: { tournamentId },
       include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -427,6 +403,29 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
     }),
     getOverallRankings(prisma, tournamentId),
   ]);
+
+  // Cast from any[] results from the stub Prisma client to the expected types.
+  const [
+    ttEntries,
+    ttPhaseRounds,
+    bmQualifications,
+    mrQualifications,
+    gpQualifications,
+    bmMatches,
+    mrMatches,
+    gpMatches,
+    overallRankings,
+  ] = rawResults as [
+    TTEntryArchiveRow[],
+    TTPhaseRoundArchiveRow[],
+    QualWithPlayer[],
+    QualWithPlayer[],
+    QualWithPlayer[],
+    MatchWithPlayers[],
+    MatchWithPlayers[],
+    MatchWithPlayers[],
+    PlayerTournamentScore[],
+  ];
 
   const modes = {
     ta: {
