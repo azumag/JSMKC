@@ -64,23 +64,24 @@ describe("GroupSetupDialog", () => {
       <GroupSetupDialog {...defaultProps} existingAssignments={[]} />,
     );
     const newBtn = screen.getByRole("button", { name: /Setup Groups/i });
-    // default variant has bg-primary class
-    expect(newBtn.className).toMatch(/bg-primary/);
+    // Use data-variant instead of CSS class names to avoid coupling to shadcn/Tailwind internals
+    expect(newBtn).toHaveAttribute("data-variant", "default");
 
     const existing: SetupPlayer[] = [{ playerId: "p1", group: "A" }];
     rerender(<GroupSetupDialog {...defaultProps} existingAssignments={existing} />);
     const editBtn = screen.getByRole("button", { name: /Edit Groups/i });
-    // outline variant has border-input or bg-background class (no bg-primary)
-    expect(editBtn.className).not.toMatch(/\bbg-primary\b/);
+    expect(editBtn).toHaveAttribute("data-variant", "outline");
   });
 
-  it("TC-2932: renders for all supported modes without errors", () => {
+  it("TC-2932: renders trigger button for all supported modes without errors", () => {
+    // defaultProps has existingAssignments: [] so the trigger button reads "Setup Groups"
     const modes: Array<"bm" | "mr" | "gp"> = ["bm", "mr", "gp"];
     for (const mode of modes) {
       const { unmount } = render(
         <GroupSetupDialog {...defaultProps} mode={mode} />,
       );
-      expect(screen.getByRole("button")).toBeInTheDocument();
+      // Named query avoids ambiguity when additional buttons are added to the component
+      expect(screen.getByRole("button", { name: /Setup Groups/i })).toBeInTheDocument();
       unmount();
     }
   });
