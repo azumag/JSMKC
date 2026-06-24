@@ -4668,6 +4668,69 @@ describe('E2E case drift coverage', () => {
       // TC-2844: rendered as a <label> element
       expect(labelTest).toContain("toBe('LABEL')");
     });
+
+    it('documents TC-2846 through TC-2851 as Checkbox unit tests', () => {
+      const checkboxTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'checkbox.test.tsx',
+      );
+      for (const tc of tcRange(2846, 2851)) {
+        expect(checkboxTest).toContain(tc);
+      }
+      // TC-2846: data-slot="checkbox" attribute
+      expect(checkboxTest).toContain("'data-slot', 'checkbox'");
+      // TC-2847: rendered as BUTTON element (Radix CheckboxPrimitive.Root)
+      expect(checkboxTest).toContain("toBe('BUTTON')");
+      // TC-2849: unchecked default state
+      expect(checkboxTest).toContain("'data-state', 'unchecked'");
+      // TC-2850: checked state when checked=true
+      expect(checkboxTest).toContain("'data-state', 'checked'");
+    });
+
+    it('documents TC-2852 through TC-2861 as Alert unit tests', () => {
+      const alertTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'alert.test.tsx',
+      );
+      for (const tc of tcRange(2852, 2861)) {
+        expect(alertTest).toContain(tc);
+      }
+      // TC-2852: role="alert"
+      expect(alertTest).toContain("getByRole('alert')");
+      // TC-2855: default variant class
+      expect(alertTest).toContain('border-l-accent');
+      // TC-2856: destructive variant class
+      expect(alertTest).toContain('border-l-destructive');
+      // TC-2857: AlertTitle is an h5 element
+      expect(alertTest).toContain("toBe('H5')");
+    });
+
+    it('documents TC-2862 through TC-2872 as Dialog unit tests', () => {
+      const dialogTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'dialog.test.tsx',
+      );
+      for (const tc of tcRange(2862, 2872)) {
+        expect(dialogTest).toContain(tc);
+      }
+      // TC-2862: querySelector for dialog-content slot (portal renders outside React tree)
+      expect(dialogTest).toContain('[data-slot="dialog-content"]');
+      // TC-2864: close button detection via querySelector
+      expect(dialogTest).toContain('[data-slot="dialog-close"]');
+      // TC-2865: showCloseButton=false hides close button
+      expect(dialogTest).toContain('showCloseButton={false}');
+      // TC-2866: dialog-trigger data-slot via toHaveAttribute
+      expect(dialogTest).toContain("'data-slot', 'dialog-trigger'");
+    });
   });
 });
 
