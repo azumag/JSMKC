@@ -12,7 +12,7 @@ const timeInputProps = {
 } as const;
 
 describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
-  it('verifies time input is disabled and TV/retry callbacks work when isRetry=true', () => {
+  it('TC-2903: verifies time input is disabled and TV/retry callbacks work when isRetry=true', () => {
     const onTvChange = jest.fn();
     const onTimeChange = jest.fn();
     const onTimeBlur = jest.fn();
@@ -58,7 +58,7 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
     expect(onRetryToggle).toHaveBeenCalledWith('player-1');
   });
 
-  it('calls time input callbacks when isRetry=false', () => {
+  it('TC-2904: calls time input callbacks when isRetry=false', () => {
     const onTvChange = jest.fn();
     const onTimeChange = jest.fn();
     const onTimeBlur = jest.fn();
@@ -95,7 +95,7 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
     expect(onTimeBlur).toHaveBeenCalledWith('player-1');
   });
 
-  it('disables retry button when editing is disabled', () => {
+  it('TC-2905: disables retry button when editing is disabled', () => {
     render(
       <TaTimeEntryRow
         playerId="player-1"
@@ -120,7 +120,7 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
   });
 
-  it('disables both retry button and time input when isRetry=true and isEditingDisabled=true', () => {
+  it('TC-2906: disables both retry button and time input when isRetry=true and isEditingDisabled=true', () => {
     // When both flags are set, time input is disabled by isRetry and retry button by isEditingDisabled
     render(
       <TaTimeEntryRow
@@ -147,7 +147,7 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
   });
 
-  it('renders livesLabel when provided', () => {
+  it('TC-2907: renders livesLabel when provided', () => {
     render(
       <TaTimeEntryRow
         playerId="player-1"
@@ -172,7 +172,7 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
     expect(screen.getByTestId('lives')).toBeInTheDocument();
   });
 
-  it('omits livesLabel container when livesLabel is not provided', () => {
+  it('TC-2908: omits livesLabel container when livesLabel is not provided', () => {
     render(
       <TaTimeEntryRow
         playerId="player-2"
@@ -199,7 +199,7 @@ describe('TaTimeEntryRow (finals phase — with livesLabel)', () => {
 });
 
 describe('TaTimeEntryRow (elimination phase — without livesLabel)', () => {
-  it('renders props and calls callbacks with correct arguments', () => {
+  it('TC-2909: renders props and calls callbacks with correct arguments', () => {
     const onTvChange = jest.fn();
     const onTimeChange = jest.fn();
     const onTimeBlur = jest.fn();
@@ -241,7 +241,7 @@ describe('TaTimeEntryRow (elimination phase — without livesLabel)', () => {
     expect(onRetryToggle).toHaveBeenCalledWith('player-2');
   });
 
-  it('disables retry button when editing is disabled', () => {
+  it('TC-2910: disables retry button when editing is disabled', () => {
     render(
       <TaTimeEntryRow
         playerId="player-2"
@@ -267,7 +267,7 @@ describe('TaTimeEntryRow (elimination phase — without livesLabel)', () => {
 });
 
 describe('TaParticipantTimeInputRow', () => {
-  it('renders props and calls callbacks with correct arguments', () => {
+  it('TC-2911: renders props and calls callbacks with correct arguments', () => {
     const onChange = jest.fn();
     const onBlur = jest.fn();
 
@@ -292,7 +292,7 @@ describe('TaParticipantTimeInputRow', () => {
     expect(input).not.toBeDisabled();
   });
 
-  it('forwards disabled prop', () => {
+  it('TC-2912: forwards disabled prop', () => {
     render(
       <TaParticipantTimeInputRow
         courseAbbr="GV1"
