@@ -2,7 +2,8 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Checkbox } from '@/components/ui/checkbox';
 
 describe('Checkbox', () => {
@@ -31,10 +32,11 @@ describe('Checkbox', () => {
     expect(screen.getByTestId('cb')).toHaveAttribute('data-state', 'checked');
   });
 
-  it('TC-2851: calls onCheckedChange when clicked', () => {
+  it('TC-2851: calls onCheckedChange when clicked', async () => {
+    const user = userEvent.setup();
     const onCheckedChange = jest.fn();
     render(<Checkbox data-testid="cb" onCheckedChange={onCheckedChange} />);
-    fireEvent.click(screen.getByTestId('cb'));
+    await user.click(screen.getByTestId('cb'));
     expect(onCheckedChange).toHaveBeenCalledTimes(1);
   });
 });

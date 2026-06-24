@@ -31,29 +31,33 @@ describe('Alert', () => {
     expect(screen.getByRole('alert')).toHaveClass('border-l-destructive');
   });
 
-  it('TC-2857: AlertTitle renders as an h5 element', () => {
-    render(<Alert><AlertTitle>Warning</AlertTitle></Alert>);
-    const title = screen.getByText('Warning');
-    expect(title.tagName).toBe('H5');
+  describe('AlertTitle', () => {
+    it('TC-2857: renders as an h5 element', () => {
+      render(<Alert><AlertTitle>Warning</AlertTitle></Alert>);
+      const title = screen.getByText('Warning');
+      expect(title.tagName).toBe('H5');
+    });
+
+    it('TC-2858: renders children', () => {
+      render(<Alert><AlertTitle>Score saved</AlertTitle></Alert>);
+      expect(screen.getByText('Score saved')).toBeInTheDocument();
+    });
+
+    it('TC-2859: forwards custom className', () => {
+      render(<Alert><AlertTitle className="title-class">T</AlertTitle></Alert>);
+      expect(screen.getByText('T')).toHaveClass('title-class');
+    });
   });
 
-  it('TC-2858: AlertTitle renders children', () => {
-    render(<Alert><AlertTitle>Score saved</AlertTitle></Alert>);
-    expect(screen.getByText('Score saved')).toBeInTheDocument();
-  });
+  describe('AlertDescription', () => {
+    it('TC-2860: renders children', () => {
+      render(<Alert><AlertDescription>Details here</AlertDescription></Alert>);
+      expect(screen.getByText('Details here')).toBeInTheDocument();
+    });
 
-  it('TC-2859: AlertTitle forwards custom className', () => {
-    render(<Alert><AlertTitle className="title-class">T</AlertTitle></Alert>);
-    expect(screen.getByText('T')).toHaveClass('title-class');
-  });
-
-  it('TC-2860: AlertDescription renders children', () => {
-    render(<Alert><AlertDescription>Details here</AlertDescription></Alert>);
-    expect(screen.getByText('Details here')).toBeInTheDocument();
-  });
-
-  it('TC-2861: AlertDescription forwards custom className', () => {
-    render(<Alert><AlertDescription className="desc-class">D</AlertDescription></Alert>);
-    expect(screen.getByText('D')).toHaveClass('desc-class');
+    it('TC-2861: forwards custom className', () => {
+      render(<Alert><AlertDescription className="desc-class">D</AlertDescription></Alert>);
+      expect(screen.getByText('D')).toHaveClass('desc-class');
+    });
   });
 });
