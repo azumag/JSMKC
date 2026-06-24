@@ -127,7 +127,9 @@ describe('preview E2E runner', () => {
   });
 
   it('regenerates Prisma Client before Cloudflare builds used by preview deploys', () => {
-    expect(packageJson.scripts['prebuild:cf']).toBe('prisma generate');
+    // prebuild:cf bypasses native engine downloads (PRISMA_*=/dev/null) so CI containers
+    // without pre-downloaded Prisma binaries still get full generated TypeScript types.
+    expect(packageJson.scripts['prebuild:cf']).toContain('prisma generate');
     expect(packageJson.scripts['deploy:preview']).toContain('npm run build:cf');
   });
 

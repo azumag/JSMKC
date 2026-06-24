@@ -232,7 +232,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         data: expect.objectContaining({
           player1ReportedPoints1: 37,
           player1ReportedPoints2: 24,
-          player1ReportedRaces: null,
+          player1ReportedRaces: Prisma.DbNull,
         }),
       }));
       expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith(expect.objectContaining({
