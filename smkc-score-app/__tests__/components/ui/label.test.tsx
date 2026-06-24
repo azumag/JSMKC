@@ -40,6 +40,6 @@ describe('Label', () => {
   it('TC-2845: forwards additional HTML attributes', () => {
     render(<Label data-testid="my-label">Time</Label>);
     expect(screen.getByTestId('my-label')).toBeInTheDocument();
-    expect(screen.getByTestId('my-label').textContent).toBe('Time');
+    expect(screen.getByTestId('my-label')).toHaveTextContent('Time');
   });
 });
