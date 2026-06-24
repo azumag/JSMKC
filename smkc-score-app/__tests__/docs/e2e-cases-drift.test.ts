@@ -4859,6 +4859,27 @@ describe('E2E case drift coverage', () => {
       // TC-2919: Phase Complete banner
       expect(taElimTest).toContain('Phase Complete');
     });
+
+    it('documents TC-2920 through TC-2928 as recommendGroupCount / assignGroupsBySeeding unit tests', () => {
+      const groupSetupTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'group-setup-dialog.test.ts',
+      );
+      for (const tc of tcRange(2920, 2928)) {
+        expect(groupSetupTest).toContain(tc);
+      }
+      // TC-2920–TC-2923: recommendGroupCount
+      expect(groupSetupTest).toContain('recommendGroupCount');
+      // TC-2924–TC-2928: assignGroupsBySeeding
+      expect(groupSetupTest).toContain('assignGroupsBySeeding');
+      // TC-2924: serpentine pattern
+      expect(groupSetupTest).toContain('serpentine');
+      // TC-2928: immutability
+      expect(groupSetupTest).toContain('mutate');
+    });
   });
 });
 
