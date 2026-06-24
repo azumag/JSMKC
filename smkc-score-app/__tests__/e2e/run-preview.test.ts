@@ -127,10 +127,16 @@ describe('preview E2E runner', () => {
   });
 
   it('regenerates Prisma Client before Cloudflare builds used by preview deploys', () => {
-    // prebuild:cf delegates to scripts/prisma-generate.js, which applies
-    // PRISMA_*=/dev/null only when CI is detected. Local dev still uses the
-    // faster native engine path.
-    expect(packageJson.scripts['prebuild:cf']).toBe('node scripts/prisma-generate.js');
+    // prebuild:cf MUST always use the WASM-engine overrides (PRISMA_*=/dev/null)
+    // because the generated client is bundled into the Cloudflare Workers build.
+    // The native engine path would emit code that imports node: protocol modules
+    // (e.g. node:tty) which Cloudflare Workers does not support, breaking the
+    // production deployment with "No such module 'node:tty'".
+    // postinstall, on the other hand, runs at npm install time on developer
+    // machines, where the native engine is faster — so postinstall delegates to
+    // scripts/prisma-generate.js (CI-aware) instead.
+    expect(packageJson.scripts['prebuild:cf']).toContain('PRISMA_SCHEMA_ENGINE_BINARY=/dev/null');
+    expect(packageJson.scripts['prebuild:cf']).toContain('prisma generate');
     expect(packageJson.scripts['postinstall']).toBe('node scripts/prisma-generate.js');
     expect(packageJson.scripts['deploy:preview']).toContain('npm run build:cf');
   });
