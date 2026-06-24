@@ -4897,6 +4897,36 @@ describe('E2E case drift coverage', () => {
       // TC-2930: edit trigger text
       expect(groupSetupTest).toContain('Edit Groups');
     });
+
+    it('documents TC-2933 through TC-2942 as TASuddenDeathSection / useTaSuddenDeath unit tests', () => {
+      for (const tc of tcRange(2933, 2942)) {
+        expect(taSuddenDeathPanelTest).toContain(tc);
+      }
+      // TC-2933: isAdmin=false → renders nothing
+      expect(taSuddenDeathPanelTest).toContain('isAdmin={false}');
+      // TC-2937: all rounds resolved → pendingSuddenDeath undefined
+      expect(taSuddenDeathPanelTest).toContain('pendingSuddenDeath).toBeUndefined()');
+      // TC-2938: filtered by targetPlayerIds
+      expect(taSuddenDeathPanelTest).toContain('pendingSuddenDeathEntries).toHaveLength(1)');
+      // TC-2940: invalid time triggers setSaveError
+      expect(taSuddenDeathPanelTest).toContain('Invalid time for Mario');
+    });
+
+    it('documents TC-2943 and TC-2944 as CourseCycleStatusPanel edge case unit tests', () => {
+      const courseCycleTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'course-cycle-status-panel.test.tsx',
+      );
+      expect(courseCycleTest).toContain('TC-2943');
+      expect(courseCycleTest).toContain('TC-2944');
+      // TC-2943: zero available courses
+      expect(courseCycleTest).toContain('availableCoursesCount={0}');
+      // TC-2944: initial cycle state (cycle=1, playedInCycle=0)
+      expect(courseCycleTest).toContain('playedInCycle: 0');
+    });
   });
 });
 

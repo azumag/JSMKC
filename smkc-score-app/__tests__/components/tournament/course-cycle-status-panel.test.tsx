@@ -35,4 +35,40 @@ describe("CourseCycleStatusPanel", () => {
     expect(screen.getByText("13/20 courses")).toBeInTheDocument();
     expect(screen.getByText("27 total played")).toBeInTheDocument();
   });
+
+  it("TC-2943: availableCoursesCount=0 のとき count=0 が表示される", () => {
+    render(
+      <CourseCycleStatusPanel
+        t={translate}
+        status={{
+          cycleNumber: 1,
+          playedInCycle: 5,
+          totalCourses: 20,
+          totalPlayed: 5,
+        }}
+        availableCoursesCount={0}
+      />,
+    );
+
+    expect(screen.getByText("0/20 courses")).toBeInTheDocument();
+  });
+
+  it("TC-2944: cycle=1, playedInCycle=0 の初期状態が正しく表示される", () => {
+    render(
+      <CourseCycleStatusPanel
+        t={translate}
+        status={{
+          cycleNumber: 1,
+          playedInCycle: 0,
+          totalCourses: 20,
+          totalPlayed: 0,
+        }}
+        availableCoursesCount={20}
+      />,
+    );
+
+    expect(screen.getByText("Cycle 1 0/20")).toBeInTheDocument();
+    expect(screen.getByText("20/20 courses")).toBeInTheDocument();
+    expect(screen.getByText("0 total played")).toBeInTheDocument();
+  });
 });
