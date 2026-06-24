@@ -17,9 +17,6 @@
  */
 
 import { NextRequest } from "next/server";
-// Prisma.JsonNull and Prisma.NullableJsonNullValueInput were removed from the
-// Prisma namespace in v6; use objectEnumValues.instances.JsonNull directly.
-import { objectEnumValues } from "@prisma/client/runtime/library";
 import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
@@ -145,7 +142,8 @@ function validateDirectDriverPoints(points1: unknown, points2: unknown): Process
 }
 
 function toReportedRacesJson(races: ProcessedRace[] | null) {
-  return races ?? objectEnumValues.instances.JsonNull;
+  // Prisma v6 accepts plain null for nullable Json? fields
+  return races ?? null;
 }
 
 function processRaceReport(assignedCup: string | null | undefined, races: unknown): ProcessedReport {

@@ -64,41 +64,54 @@ jest.mock('@/lib/sanitize-error', () => ({
   }),
 }));
 
-// Mock Prisma module with custom classes that support instanceof checks.
-// The source uses `error instanceof Prisma.PrismaClientKnownRequestError`
-// so the mock classes must be the same ones the source gets via the mock.
-jest.mock('@prisma/client', () => {
-  // Use requireActual to get the real Prisma namespace as a base
-  const { Prisma } = jest.requireActual('@prisma/client');
+// error-handling.ts imports PrismaClientKnownRequestError and PrismaClientValidationError
+// from '@prisma/client/runtime/library' (Prisma v6 moved them out of the Prisma namespace).
+// To make `instanceof` checks work in tests, the mock classes must be the SAME objects
+// that both the source (via runtime/library import) and the test (via Prisma namespace)
+// reference. We define the canonical classes in the runtime/library mock and re-export
+// them from @prisma/client so both sides share the same class identity.
+jest.mock('@prisma/client/runtime/library', () => ({
+  __esModule: true,
+  PrismaClientKnownRequestError: class extends Error {
+    code: string;
+    constructor(message: string, { code }: { code: string; clientVersion: string }) {
+      super(message);
+      this.name = 'PrismaClientKnownRequestError';
+      this.code = code;
+    }
+  },
+  PrismaClientValidationError: class extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'PrismaClientValidationError';
+    }
+  },
+  // objectEnumValues is used by finals-phase-manager.ts but not error-handling.ts;
+  // stub it here so any transitive import doesn't throw.
+  objectEnumValues: { instances: { JsonNull: null } },
+  sqltag: jest.fn(),
+}));
 
+// @prisma/client Prisma namespace re-exports the same class instances from runtime/library
+// so that `new Prisma.PrismaClientKnownRequestError(...)` in tests and
+// `instanceof PrismaClientKnownRequestError` in the source resolve to the same class.
+jest.mock('@prisma/client', () => {
+  const lib = jest.requireMock('@prisma/client/runtime/library');
   return {
+    __esModule: true,
     Prisma: {
-      ...Prisma,
-      // PrismaClientInitializationError: the source does NOT specifically handle
-      // this type, so it falls through to the generic error handler (500 INTERNAL_ERROR).
+      // PrismaClientInitializationError: not imported from runtime/library; keep a local stub.
+      // The source does NOT specifically handle this type — it falls through to 500 INTERNAL_ERROR.
       PrismaClientInitializationError: class extends Error {
         constructor(message: Error) {
           super(message.message);
           this.name = 'PrismaClientInitializationError';
         }
       },
-      PrismaClientKnownRequestError: class extends Error {
-        constructor(message: string, { code }: { code: string; clientVersion: string }) {
-          super(message);
-          this.name = 'PrismaClientKnownRequestError';
-          this.code = code;
-        }
-        code: string;
-      },
-      // PrismaClientValidationError: the source checks for this with instanceof
-      PrismaClientValidationError: class extends Error {
-        constructor(message: string) {
-          super(message);
-          this.name = 'PrismaClientValidationError';
-        }
-      },
+      // Re-use the same class objects from runtime/library so instanceof works.
+      PrismaClientKnownRequestError: lib.PrismaClientKnownRequestError,
+      PrismaClientValidationError: lib.PrismaClientValidationError,
     },
-    __esModule: true,
   };
 });
 
