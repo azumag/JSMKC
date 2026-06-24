@@ -281,6 +281,58 @@ describe('randomlyAssignGroups (with groupCount)', () => {
 
     expect(result.every(p => ['A', 'B', 'C'].includes(p.group))).toBe(true);
   });
+
+  it('should return empty array for empty input', () => {
+    expect(randomlyAssignGroups([], 2)).toEqual([]);
+  });
+
+  it('should assign a group to a single player', () => {
+    const players: SetupPlayer[] = [{ playerId: 'only', group: 'X' }];
+    const result = randomlyAssignGroups(players, 2);
+
+    expect(result).toHaveLength(1);
+    expect(['A', 'B']).toContain(result[0].group);
+  });
+
+  it('should distribute players when count is not divisible by groupCount', () => {
+    // 5 players, 3 groups → groups not all same size, but all players assigned
+    const players: SetupPlayer[] = Array.from({ length: 5 }, (_, i) => ({
+      playerId: `p${i}`,
+      group: 'A',
+    }));
+
+    const result = randomlyAssignGroups(players, 3);
+
+    expect(result).toHaveLength(5);
+    expect(result.every(p => ['A', 'B', 'C'].includes(p.group))).toBe(true);
+    // Each group gets at least 1 player
+    expect(result.some(p => p.group === 'A')).toBe(true);
+    expect(result.some(p => p.group === 'B')).toBe(true);
+    expect(result.some(p => p.group === 'C')).toBe(true);
+  });
+
+  it('should not mutate the original array', () => {
+    const players: SetupPlayer[] = [
+      { playerId: 'p1', group: 'X' },
+      { playerId: 'p2', group: 'X' },
+    ];
+    const original = players.map(p => ({ ...p }));
+    randomlyAssignGroups(players, 2);
+
+    expect(players).toEqual(original);
+  });
+
+  it('should preserve all original player IDs in the result', () => {
+    const players: SetupPlayer[] = Array.from({ length: 6 }, (_, i) => ({
+      playerId: `player-${i}`,
+      group: 'A',
+    }));
+    const result = randomlyAssignGroups(players, 2);
+
+    const resultIds = result.map(p => p.playerId).sort();
+    const originalIds = players.map(p => p.playerId).sort();
+    expect(resultIds).toEqual(originalIds);
+  });
 });
 
 /**
@@ -330,5 +382,112 @@ describe('recommendGroupCount', () => {
 
   it('should handle negative input by returning 2', () => {
     expect(recommendGroupCount(-5)).toBe(2);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  TC-2920–TC-2928: canonical TC-numbered tests (moved from           */
+/*  group-setup-dialog.test.ts per issue #2714)                        */
+/* ------------------------------------------------------------------ */
+
+describe('recommendGroupCount (TC-2920–TC-2923)', () => {
+  it('TC-2920: returns 2 for 15 or fewer players', () => {
+    // §4.1: ≤15 players → 2 groups (4–8 per group)
+    expect(recommendGroupCount(1)).toBe(2);
+    expect(recommendGroupCount(15)).toBe(2);
+  });
+
+  it('TC-2921: returns 3 for 16–23 players', () => {
+    // §4.1: 16–23 players → 3 groups (5–8 per group)
+    expect(recommendGroupCount(16)).toBe(3);
+    expect(recommendGroupCount(23)).toBe(3);
+  });
+
+  it('TC-2922: returns 4 for 24 or more players', () => {
+    // §4.1: ≥24 players → 4 groups (6+ per group)
+    expect(recommendGroupCount(24)).toBe(4);
+    expect(recommendGroupCount(32)).toBe(4);
+  });
+
+  /* TC-2923 is intentionally distinct from TC-2920: tests invalid/boundary
+   * inputs (0 and negative) rather than the normal ≤15 range. */
+  it('TC-2923: returns 2 for zero and negative player counts (boundary/invalid input)', () => {
+    expect(recommendGroupCount(0)).toBe(2);
+    expect(recommendGroupCount(-1)).toBe(2);
+    expect(recommendGroupCount(-100)).toBe(2);
+  });
+});
+
+describe('assignGroupsBySeeding (TC-2924–TC-2928)', () => {
+  it('TC-2924: distributes 4 players across 2 groups in serpentine pattern', () => {
+    // §10.2: seed1→A, seed2→B, seed3→B, seed4→A (snake fold at group boundary)
+    const players: SetupPlayer[] = [
+      { playerId: 'p1', group: 'X', seeding: 1 },
+      { playerId: 'p2', group: 'X', seeding: 2 },
+      { playerId: 'p3', group: 'X', seeding: 3 },
+      { playerId: 'p4', group: 'X', seeding: 4 },
+    ];
+    const result = assignGroupsBySeeding(players, 2);
+
+    expect(result.find((p) => p.playerId === 'p1')?.group).toBe('A');
+    expect(result.find((p) => p.playerId === 'p2')?.group).toBe('B');
+    expect(result.find((p) => p.playerId === 'p3')?.group).toBe('B');
+    expect(result.find((p) => p.playerId === 'p4')?.group).toBe('A');
+  });
+
+  it('TC-2925: places players without seeding after seeded players', () => {
+    const players: SetupPlayer[] = [
+      { playerId: 'unseeded', group: 'X' },
+      { playerId: 'seeded', group: 'X', seeding: 1 },
+    ];
+    const result = assignGroupsBySeeding(players, 2);
+
+    // Seeded player must be assigned to group A (first slot = index 0 in sorted result)
+    expect(result.find((p) => p.playerId === 'seeded')?.group).toBe('A');
+    // Unseeded player must come after the seeded player in the result
+    const seededIndex = result.findIndex((p) => p.playerId === 'seeded');
+    const unseededIndex = result.findIndex((p) => p.playerId === 'unseeded');
+    expect(unseededIndex).toBeGreaterThan(seededIndex);
+  });
+
+  it('TC-2926: clamps groupCount=0 to minimum 2 and groupCount=10 to maximum 4', () => {
+    const players: SetupPlayer[] = [
+      { playerId: 'p1', group: 'X' },
+      { playerId: 'p2', group: 'X' },
+      { playerId: 'p3', group: 'X' },
+      { playerId: 'p4', group: 'X' },
+    ];
+
+    // Low clamp: 0 → 2 groups; result must only use A or B
+    const resultLow = assignGroupsBySeeding(players, 0);
+    expect(resultLow).toHaveLength(4);
+    const lowGroups = new Set(resultLow.map((p) => p.group));
+    expect([...lowGroups].every((g) => ['A', 'B'].includes(g))).toBe(true);
+    // Verify the clamp actually bound at 2 (not more groups used)
+    expect(lowGroups.size).toBeLessThanOrEqual(2);
+
+    // High clamp: 10 → 4 groups; result must not use groups E or beyond
+    const resultHigh = assignGroupsBySeeding(players, 10);
+    expect(resultHigh).toHaveLength(4);
+    const highGroups = new Set(resultHigh.map((p) => p.group));
+    expect([...highGroups].every((g) => ['A', 'B', 'C', 'D'].includes(g))).toBe(true);
+    // Verify the clamp actually bound at 4 (no group E or beyond)
+    expect(highGroups.has('E')).toBe(false);
+    expect(highGroups.size).toBeLessThanOrEqual(4);
+  });
+
+  it('TC-2927: returns empty array for empty input', () => {
+    expect(assignGroupsBySeeding([], 2)).toEqual([]);
+  });
+
+  it('TC-2928: does not mutate the original array', () => {
+    const players: SetupPlayer[] = [
+      { playerId: 'p1', group: 'A', seeding: 2 },
+      { playerId: 'p2', group: 'B', seeding: 1 },
+    ];
+    const original = players.map((p) => ({ ...p }));
+    assignGroupsBySeeding(players, 2);
+
+    expect(players).toEqual(original);
   });
 });

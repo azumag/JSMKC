@@ -45,7 +45,7 @@ const customJestConfig: Config = {
   // A root babel.config.js was previously used here but it interfered with
   // Next.js Turbopack builds, which also pick up project-level Babel configs.
   transformIgnorePatterns: [
-    'node_modules/(?!(html-encoding-sniffer|@exodus|next-intl|use-intl|@formatjs)/)',
+    'node_modules/(?!(html-encoding-sniffer|@exodus|next-intl|use-intl|@formatjs|lucide-react)/)',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
   modulePathIgnorePatterns: ['<rootDir>/.next/'],

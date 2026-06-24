@@ -4861,24 +4861,41 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2920 through TC-2928 as recommendGroupCount / assignGroupsBySeeding unit tests', () => {
+      // TC-2920–TC-2928 moved to group-utils.test.ts per issue #2714
+      const groupUtilsTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'lib',
+        'group-utils.test.ts',
+      );
+      for (const tc of tcRange(2920, 2928)) {
+        expect(groupUtilsTest).toContain(tc);
+      }
+      // TC-2920–TC-2923: recommendGroupCount
+      expect(groupUtilsTest).toContain('recommendGroupCount');
+      // TC-2924–TC-2928: assignGroupsBySeeding
+      expect(groupUtilsTest).toContain('assignGroupsBySeeding');
+      // TC-2924: serpentine pattern
+      expect(groupUtilsTest).toContain('serpentine');
+      // TC-2928: immutability
+      expect(groupUtilsTest).toContain('mutate');
+    });
+
+    it('documents TC-2929 through TC-2932 as GroupSetupDialog component tests', () => {
       const groupSetupTest = readRepoFile(
         'smkc-score-app',
         '__tests__',
         'components',
         'tournament',
-        'group-setup-dialog.test.ts',
+        'group-setup-dialog.test.tsx',
       );
-      for (const tc of tcRange(2920, 2928)) {
+      for (const tc of tcRange(2929, 2932)) {
         expect(groupSetupTest).toContain(tc);
       }
-      // TC-2920–TC-2923: recommendGroupCount
-      expect(groupSetupTest).toContain('recommendGroupCount');
-      // TC-2924–TC-2928: assignGroupsBySeeding
-      expect(groupSetupTest).toContain('assignGroupsBySeeding');
-      // TC-2924: serpentine pattern
-      expect(groupSetupTest).toContain('serpentine');
-      // TC-2928: immutability
-      expect(groupSetupTest).toContain('mutate');
+      // TC-2929: setup trigger text
+      expect(groupSetupTest).toContain('Setup Groups');
+      // TC-2930: edit trigger text
+      expect(groupSetupTest).toContain('Edit Groups');
     });
   });
 });
