@@ -4548,6 +4548,50 @@ describe('E2E case drift coverage', () => {
       expect(tabsTest).toContain('toBeDisabled');
     });
 
+    it('documents TC-2776 through TC-2785 as Badge unit tests', () => {
+      const badgeTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'badge.test.tsx',
+      );
+      for (const tc of tcRange(2776, 2785)) {
+        expect(badgeTest).toContain(tc);
+      }
+      // TC-2776: renders children
+      expect(badgeTest).toContain('getByText');
+      // TC-2777: default variant bg-primary
+      expect(badgeTest).toContain('bg-primary');
+      // TC-2778/2779/2780: secondary/destructive/outline variants
+      expect(badgeTest).toContain('bg-secondary');
+      expect(badgeTest).toContain('bg-destructive');
+      expect(badgeTest).toContain('border-foreground/70');
+      // TC-2781/2782/2783: flag variants
+      expect(badgeTest).toContain('flag-active');
+      expect(badgeTest).toContain('flag-draft');
+      expect(badgeTest).toContain('flag-completed');
+      // TC-2785: asChild renders child tag
+      expect(badgeTest).toContain("toBe('A')");
+    });
+
+    it('documents TC-2786 and TC-2787 as @prisma/client mock top-level export tests', () => {
+      const prismaTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'static',
+        'tc-2786-2787-prisma-mock-top-level-exports.test.ts',
+      );
+      expect(prismaTest).toContain('TC-2786');
+      expect(prismaTest).toContain('TC-2787');
+      // TC-2786: PrismaClientKnownRequestError at top-level
+      expect(prismaTest).toContain('PrismaClientKnownRequestError');
+      // TC-2787: PrismaClientValidationError at top-level
+      expect(prismaTest).toContain('PrismaClientValidationError');
+      // both must be constructable functions (not undefined)
+      expect(prismaTest).toContain("toBe('function')");
+    });
+
     it('documents TC-2788 through TC-2801 as Switch unit tests', () => {
       const switchTest = readRepoFile(
         'smkc-score-app',
@@ -4730,6 +4774,40 @@ describe('E2E case drift coverage', () => {
       expect(dialogTest).toContain('showCloseButton={false}');
       // TC-2866: dialog-trigger data-slot via toHaveAttribute
       expect(dialogTest).toContain("'data-slot', 'dialog-trigger'");
+    });
+
+    it('documents TC-2873 through TC-2902 as AlertDialog unit tests', () => {
+      const alertDialogTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'alert-dialog.test.tsx',
+      );
+      for (const tc of tcRange(2873, 2902)) {
+        expect(alertDialogTest).toContain(tc);
+      }
+      // TC-2876: overlay classes
+      expect(alertDialogTest).toContain('paddock-overlay');
+      // TC-2877: custom className on alertdialog role
+      expect(alertDialogTest).toContain("getByRole('alertdialog')");
+      // TC-2879: positioning classes
+      expect(alertDialogTest).toContain('left-[50%]');
+      // TC-2882: header layout classes
+      expect(alertDialogTest).toContain('gap-1.5');
+      // TC-2885: footer layout classes
+      expect(alertDialogTest).toContain('flex-col-reverse');
+      // TC-2888: title typography classes
+      expect(alertDialogTest).toContain('font-display');
+      expect(alertDialogTest).toContain('text-2xl');
+      // TC-2891: description typography classes
+      expect(alertDialogTest).toContain('font-mono');
+      expect(alertDialogTest).toContain('text-muted-foreground');
+      // TC-2898: cancel mobile margin
+      expect(alertDialogTest).toContain('mt-2');
+      expect(alertDialogTest).toContain('sm:mt-0');
+      // TC-2902: accessibility heading role
+      expect(alertDialogTest).toContain("getByRole('heading'");
     });
   });
 });
