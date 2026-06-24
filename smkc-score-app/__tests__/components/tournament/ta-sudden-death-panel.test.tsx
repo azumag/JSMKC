@@ -311,29 +311,48 @@ describe('useTaSuddenDeath', () => {
 });
 
 describe('TASuddenDeathSection', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  const defaultSectionProps = {
-    isAdmin: true,
-    isComplete: false,
-    pendingSuddenDeath: pendingSuddenDeath,
-    pendingSuddenDeathEntries: entries,
-    availableCourses: ['MC1'],
-    saveError: null,
-    suddenDeathTimes: { 'player-1': '1:00.00', 'player-2': '1:01.00' },
-    changingSuddenDeathCourse: false,
-    submittingSuddenDeath: false,
-    timeInputProps: {},
-    timeInputHelp: 'Enter M:SS.mm format.',
-    timePlaceholder: '1:23.45',
-    submittingLabel: 'Saving...',
-    onCourseChange: jest.fn(),
-    onTimeChange: jest.fn(),
-    onTimeBlur: jest.fn(),
-    onSubmit: jest.fn(),
+  // jest.fn() はテストごとに独立したインスタンスが必要なので beforeEach で生成する (#2722)
+  let defaultSectionProps: {
+    isAdmin: boolean;
+    isComplete: boolean;
+    pendingSuddenDeath: typeof pendingSuddenDeath;
+    pendingSuddenDeathEntries: typeof entries;
+    availableCourses: string[];
+    saveError: string | null;
+    suddenDeathTimes: Record<string, string>;
+    changingSuddenDeathCourse: boolean;
+    submittingSuddenDeath: boolean;
+    timeInputProps: Record<string, unknown>;
+    timeInputHelp: string;
+    timePlaceholder: string;
+    submittingLabel: string;
+    onCourseChange: jest.Mock;
+    onTimeChange: jest.Mock;
+    onTimeBlur: jest.Mock;
+    onSubmit: jest.Mock;
   };
+
+  beforeEach(() => {
+    defaultSectionProps = {
+      isAdmin: true,
+      isComplete: false,
+      pendingSuddenDeath: pendingSuddenDeath,
+      pendingSuddenDeathEntries: entries,
+      availableCourses: ['MC1'],
+      saveError: null,
+      suddenDeathTimes: { 'player-1': '1:00.00', 'player-2': '1:01.00' },
+      changingSuddenDeathCourse: false,
+      submittingSuddenDeath: false,
+      timeInputProps: {},
+      timeInputHelp: 'Enter M:SS.mm format.',
+      timePlaceholder: '1:23.45',
+      submittingLabel: 'Saving...',
+      onCourseChange: jest.fn(),
+      onTimeChange: jest.fn(),
+      onTimeBlur: jest.fn(),
+      onSubmit: jest.fn(),
+    };
+  });
 
   it('passes pending entries and submitting state through with matching prop names', () => {
     render(
