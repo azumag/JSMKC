@@ -312,25 +312,8 @@ describe('useTaSuddenDeath', () => {
 
 describe('TASuddenDeathSection', () => {
   // jest.fn() はテストごとに独立したインスタンスが必要なので beforeEach で生成する (#2722)
-  let defaultSectionProps: {
-    isAdmin: boolean;
-    isComplete: boolean;
-    pendingSuddenDeath: typeof pendingSuddenDeath;
-    pendingSuddenDeathEntries: typeof entries;
-    availableCourses: string[];
-    saveError: string | null;
-    suddenDeathTimes: Record<string, string>;
-    changingSuddenDeathCourse: boolean;
-    submittingSuddenDeath: boolean;
-    timeInputProps: Record<string, unknown>;
-    timeInputHelp: string;
-    timePlaceholder: string;
-    submittingLabel: string;
-    onCourseChange: jest.Mock;
-    onTimeChange: jest.Mock;
-    onTimeBlur: jest.Mock;
-    onSubmit: jest.Mock;
-  };
+  // コンポーネントの Props 型から直接導出し、手書き型注釈との乖離を防ぐ (#2726)
+  let defaultSectionProps: Parameters<typeof TASuddenDeathSection>[0];
 
   beforeEach(() => {
     defaultSectionProps = {
