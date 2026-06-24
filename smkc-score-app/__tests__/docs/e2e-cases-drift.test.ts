@@ -4811,6 +4811,54 @@ describe('E2E case drift coverage', () => {
       // TC-2902: accessibility heading role
       expect(alertDialogTest).toContain("getByRole('heading'");
     });
+
+    it('documents TC-2903 through TC-2912 as TaTimeEntryRow / TaParticipantTimeInputRow unit tests', () => {
+      const taTimeEntryTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'ta-time-entry-rows.test.tsx',
+      );
+      for (const tc of tcRange(2903, 2912)) {
+        expect(taTimeEntryTest).toContain(tc);
+      }
+      // TC-2903: isRetry=true disables time input
+      expect(taTimeEntryTest).toContain('isRetry={true}');
+      // TC-2904: isRetry=false enables time input callbacks
+      expect(taTimeEntryTest).toContain('isRetry={false}');
+      // TC-2905: isEditingDisabled disables retry button
+      expect(taTimeEntryTest).toContain('isEditingDisabled={true}');
+      // TC-2907: livesLabel renders when provided
+      expect(taTimeEntryTest).toContain('data-testid="lives"');
+      // TC-2911: TaParticipantTimeInputRow onChange called with courseAbbr
+      expect(taTimeEntryTest).toContain('TaParticipantTimeInputRow');
+      // TC-2912: disabled prop forwarded to input
+      expect(taTimeEntryTest).toContain('disabled={true}');
+    });
+
+    it('documents TC-2913 through TC-2919 as TAEliminationPhase unit tests', () => {
+      const taElimTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'tournament',
+        'ta-elimination-phase.test.tsx',
+      );
+      for (const tc of tcRange(2913, 2919)) {
+        expect(taElimTest).toContain(tc);
+      }
+      // TC-2913: loading skeleton animate-pulse
+      expect(taElimTest).toContain('animate-pulse');
+      // TC-2914: error message + Retry button
+      expect(taElimTest).toContain('Server unavailable');
+      // TC-2915: empty state "No Players"
+      expect(taElimTest).toContain('No Players');
+      // TC-2917: Back to Group Stage link
+      expect(taElimTest).toContain('Back to Group Stage');
+      // TC-2919: Phase Complete banner
+      expect(taElimTest).toContain('Phase Complete');
+    });
   });
 });
 
