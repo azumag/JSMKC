@@ -1,29 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-
-/**
- * @module Select Component Tests
- *
- * Tests for the Radix UI Select wrapper components.
- * Select allows users to choose a value from a list of options.
- *
- * Covers all subcomponents:
- * - Select: root rendering, placeholder, open state, prop passing
- * - SelectTrigger: children, ChevronDown icon, size variants (default, sm),
- *   custom className, data-slot attribute, focus styles, disabled state
- * - SelectValue: placeholder text, selected value display
- * - SelectContent: children rendering, portal rendering, custom className,
- *   positioning classes, position/align props
- * - SelectGroup: children rendering, data-slot attribute
- * - SelectLabel: label text, typography classes, custom className, data-slot
- * - SelectItem: item text, check icon for selected, data-slot attribute
- * - SelectSeparator: rendering, custom className, data-slot, border styling
- * - SelectScrollUpButton / SelectScrollDownButton: rendering, icons,
- *   custom className, data-slot
- * - Integration: complete Select with all subcomponents, multiple groups
- * - Accessibility: combobox role, disabled item ARIA attributes
- */
 import { render, screen } from '@testing-library/react';
 import {
   Select,
@@ -66,13 +43,13 @@ describe('Select Components', () => {
   };
 
   describe('Select', () => {
-    it('should render Select component', () => {
+    it('TC-2945: renders Select component (trigger is in DOM)', () => {
       renderSelect();
 
       expect(screen.getByTestId('trigger')).toBeInTheDocument();
     });
 
-    it('should render placeholder text when no value selected', () => {
+    it('TC-2946: renders placeholder text when no value selected', () => {
       render(
         <Select>
           <SelectTrigger>
@@ -87,7 +64,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Choose an option')).toBeInTheDocument();
     });
 
-    it('should pass props to Radix Select.Root', () => {
+    it('TC-2947: passes open/onOpenChange to Radix Select — listbox appears', () => {
       render(
         <Select open={true} onOpenChange={jest.fn()}>
           <SelectTrigger>
@@ -110,28 +87,28 @@ describe('Select Components', () => {
   });
 
   describe('SelectTrigger', () => {
-    it('should render trigger with children', () => {
+    it('TC-2948: SelectTrigger renders children (combobox in DOM)', () => {
       renderSelect();
 
       const trigger = screen.getByTestId('trigger');
       expect(trigger).toBeInTheDocument();
     });
 
-    it('should render ChevronDown icon', () => {
+    it('TC-2949: SelectTrigger renders ChevronDown icon (SVG present)', () => {
       const { container } = renderSelect();
 
       const icon = container.querySelector('svg');
       expect(icon).toBeInTheDocument();
     });
 
-    it('should apply default height class', () => {
+    it('TC-2950: SelectTrigger default size has data-[size=default]:h-10 class', () => {
       renderSelect();
 
       const trigger = screen.getByTestId('trigger');
       expect(trigger).toHaveClass('data-[size=default]:h-10');
     });
 
-    it('should apply sm size height class when size="sm"', () => {
+    it('TC-2951: SelectTrigger size="sm" applies data-size="sm" attribute', () => {
       render(
         <Select>
           <SelectTrigger size="sm">
@@ -147,7 +124,7 @@ describe('Select Components', () => {
       expect(trigger).toHaveAttribute('data-size', 'sm');
     });
 
-    it('should apply custom className', () => {
+    it('TC-2952: SelectTrigger accepts custom className', () => {
       render(
         <Select>
           <SelectTrigger className="custom-trigger">
@@ -163,21 +140,21 @@ describe('Select Components', () => {
       expect(trigger).toHaveClass('custom-trigger');
     });
 
-    it('should have data-slot attribute', () => {
+    it('TC-2953: SelectTrigger has data-slot="select-trigger" attribute', () => {
       renderSelect();
 
       const trigger = screen.getByTestId('trigger');
       expect(trigger).toHaveAttribute('data-slot', 'select-trigger');
     });
 
-    it('should have proper focus styles', () => {
+    it('TC-2954: SelectTrigger has focus-visible border and ring classes', () => {
       renderSelect();
 
       const trigger = screen.getByTestId('trigger');
       expect(trigger).toHaveClass('focus-visible:border-primary', 'focus-visible:ring-2');
     });
 
-    it('should be disabled when disabled prop is passed', () => {
+    it('TC-2955: SelectTrigger is disabled when Select has disabled prop', () => {
       render(
         <Select disabled>
           <SelectTrigger>
@@ -195,7 +172,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectValue', () => {
-    it('should render placeholder text', () => {
+    it('TC-2956: SelectValue renders placeholder text', () => {
       render(
         <Select>
           <SelectTrigger>
@@ -210,7 +187,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Placeholder text')).toBeInTheDocument();
     });
 
-    it('should render selected value when value is set', () => {
+    it('TC-2957: SelectValue renders the selected option as visible text', () => {
       renderSelect();
 
       const selectValue = screen.getByText('Apple');
@@ -225,7 +202,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectContent', () => {
-    it('should render content with children', () => {
+    it('TC-2958: SelectContent renders children when open', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -244,7 +221,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 2')).toBeInTheDocument();
     });
 
-    it('should render within portal', () => {
+    it('TC-2959: SelectContent renders content within portal', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -262,7 +239,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 1')).toBeInTheDocument();
     });
 
-    it('should accept custom className', () => {
+    it('TC-2960: SelectContent accepts custom className', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -280,7 +257,7 @@ describe('Select Components', () => {
         .toHaveClass('custom-content');
     });
 
-    it('should have proper positioning classes', () => {
+    it('TC-2961: SelectContent has positioning classes when open', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -301,7 +278,7 @@ describe('Select Components', () => {
     // Skipping data-slot test for SelectContent as it's rendered in a portal
     // and difficult to test with container.querySelector
 
-    it('should handle position prop', () => {
+    it('TC-2962: SelectContent handles position="popper" prop', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -318,7 +295,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 1')).toBeInTheDocument();
     });
 
-    it('should handle align prop', () => {
+    it('TC-2963: SelectContent handles align="start" prop', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -337,7 +314,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectGroup', () => {
-    it('should render group with children', () => {
+    it('TC-2964: SelectGroup renders children', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -356,7 +333,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 2')).toBeInTheDocument();
     });
 
-    it('should have data-slot attribute', () => {
+    it('TC-2965: SelectGroup renders (data-slot present via content)', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -376,7 +353,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectLabel', () => {
-    it('should render label text', () => {
+    it('TC-2966: SelectLabel renders label text', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -394,7 +371,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Fruits')).toBeInTheDocument();
     });
 
-    it('should have correct typography classes', () => {
+    it('TC-2967: SelectLabel has text-muted-foreground and text-xs classes', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -413,7 +390,7 @@ describe('Select Components', () => {
       expect(label).toHaveClass('text-muted-foreground', 'text-xs');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2968: SelectLabel accepts custom className', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -432,7 +409,7 @@ describe('Select Components', () => {
       expect(label).toHaveClass('custom-label');
     });
 
-    it('should have data-slot attribute', () => {
+    it('TC-2969: SelectLabel has data-slot attribute (content renders)', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -453,7 +430,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectItem', () => {
-    it('should render item text', () => {
+    it('TC-2970: SelectItem renders item text', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -470,7 +447,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 1')).toBeInTheDocument();
     });
 
-    it('should render check icon when selected', () => {
+    it('TC-2971: SelectItem renders check icon SVG for selected item', () => {
       renderSelect();
 
       const { container } = render(
@@ -494,7 +471,7 @@ describe('Select Components', () => {
     // Skipping custom className test for SelectItem as the className
     // is applied to elements within portals that are difficult to test
 
-    it('should have data-slot attribute', () => {
+    it('TC-2972: SelectItem has data-slot attribute (item renders)', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -517,7 +494,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectSeparator', () => {
-    it('should render separator', () => {
+    it('TC-2973: SelectSeparator renders without breaking surrounding items', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -540,7 +517,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 2')).toBeInTheDocument();
     });
 
-    it('should accept custom className', () => {
+    it('TC-2974: SelectSeparator accepts custom className', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -559,7 +536,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 1')).toBeInTheDocument();
     });
 
-    it('should have data-slot attribute', () => {
+    it('TC-2975: SelectSeparator has data-slot attribute (content renders)', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -578,7 +555,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 1')).toBeInTheDocument();
     });
 
-    it('should have correct border styling', () => {
+    it('TC-2976: SelectSeparator has correct border styling', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -599,7 +576,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectScrollUpButton', () => {
-    it('should render scroll up button', () => {
+    it('TC-2977: SelectScrollUpButton renders without breaking content', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -622,7 +599,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 10')).toBeInTheDocument();
     });
 
-    it('should render ChevronUp icon', () => {
+    it('TC-2978: SelectScrollUpButton renders with scrollable content', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -645,7 +622,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 10')).toBeInTheDocument();
     });
 
-    it('should accept custom className', () => {
+    it('TC-2979: SelectScrollUpButton accepts custom className', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -668,7 +645,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 10')).toBeInTheDocument();
     });
 
-    it('should have data-slot attribute', () => {
+    it('TC-2980: SelectScrollUpButton has data-slot attribute', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -693,7 +670,7 @@ describe('Select Components', () => {
   });
 
   describe('SelectScrollDownButton', () => {
-    it('should render scroll down button', () => {
+    it('TC-2981: SelectScrollDownButton renders without breaking content', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -716,7 +693,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 10')).toBeInTheDocument();
     });
 
-    it('should render ChevronDown icon', () => {
+    it('TC-2982: SelectScrollDownButton renders with scrollable content', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -739,7 +716,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 10')).toBeInTheDocument();
     });
 
-    it('should accept custom className', () => {
+    it('TC-2983: SelectScrollDownButton accepts custom className', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -762,7 +739,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Option 10')).toBeInTheDocument();
     });
 
-    it('should have data-slot attribute', () => {
+    it('TC-2984: SelectScrollDownButton has data-slot attribute', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -787,7 +764,7 @@ describe('Select Components', () => {
   });
 
   describe('Complete Select Integration', () => {
-    it('should render complete Select with all subcomponents', () => {
+    it('TC-2985: renders complete Select with all subcomponents', () => {
       render(
         <Select defaultValue="option1" open={true}>
           <SelectTrigger data-testid="trigger">
@@ -809,7 +786,7 @@ describe('Select Components', () => {
       expect(screen.getByText('Fruits', { selector: '[data-slot="select-label"]' })).toBeInTheDocument();
     });
 
-    it('should handle multiple SelectGroups', () => {
+    it('TC-2986: handles multiple SelectGroups with separator', () => {
       render(
         <Select open={true}>
           <SelectTrigger>
@@ -837,14 +814,14 @@ describe('Select Components', () => {
   });
 
   describe('Accessibility', () => {
-    it('should have correct role for trigger', () => {
+    it('TC-2987: SelectTrigger has combobox role', () => {
       renderSelect();
 
       const trigger = screen.getByRole('combobox');
       expect(trigger).toBeInTheDocument();
     });
 
-    it('should have correct aria attributes for disabled items', () => {
+    it('TC-2988: disabled SelectItem is rendered with disabled state', () => {
       render(
         <Select open={true}>
           <SelectTrigger>

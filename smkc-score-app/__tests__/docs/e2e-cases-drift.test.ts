@@ -4927,6 +4927,20 @@ describe('E2E case drift coverage', () => {
       // TC-2944: initial cycle state (cycle=1, playedInCycle=0)
       expect(courseCycleTest).toContain('playedInCycle: 0');
     });
+
+    it('documents TC-2945 through TC-2988 as Select UI component unit tests', () => {
+      const selectTest = readRepoFile(
+        'smkc-score-app',
+        '__tests__',
+        'components',
+        'ui',
+        'select.test.tsx',
+      );
+      // Spot-check a range of TC IDs
+      for (const tc of ['TC-2945', 'TC-2950', 'TC-2960', 'TC-2970', 'TC-2980', 'TC-2985', 'TC-2988']) {
+        expect(selectTest).toContain(tc);
+      }
+    });
   });
 });
 
