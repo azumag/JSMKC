@@ -86,9 +86,6 @@ jest.mock('@prisma/client/runtime/library', () => ({
       this.name = 'PrismaClientValidationError';
     }
   },
-  // objectEnumValues is used by finals-phase-manager.ts but not error-handling.ts;
-  // stub it here so any transitive import doesn't throw.
-  objectEnumValues: { instances: { JsonNull: null } },
   sqltag: jest.fn(),
 }));
 

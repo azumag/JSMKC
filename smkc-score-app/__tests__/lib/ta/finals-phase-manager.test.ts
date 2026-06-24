@@ -71,7 +71,6 @@ jest.mock('@prisma/client/runtime/library', () => ({
       this.code = code;
     }
   },
-  objectEnumValues: { instances: { JsonNull: null } },
 }));
 
 jest.mock('@prisma/client', () => {
@@ -80,6 +79,8 @@ jest.mock('@prisma/client', () => {
     __esModule: true,
     Prisma: {
       PrismaClientKnownRequestError: lib.PrismaClientKnownRequestError,
+      // DbNull sentinel for nullable Json? fields in update operations
+      DbNull: null,
     },
   };
 });

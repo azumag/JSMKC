@@ -16,6 +16,7 @@
  * - Mismatch detection for admin review
  */
 
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
@@ -142,8 +143,9 @@ function validateDirectDriverPoints(points1: unknown, points2: unknown): Process
 }
 
 function toReportedRacesJson(races: ProcessedRace[] | null) {
-  // Prisma v6 accepts plain null for nullable Json? fields
-  return races ?? null;
+  // For nullable Json? fields, use Prisma.DbNull to clear the column value.
+  // Plain null is rejected by Prisma's generated types (NullableJsonNullValueInput).
+  return races ?? Prisma.DbNull;
 }
 
 function processRaceReport(assignedCup: string | null | undefined, races: unknown): ProcessedReport {

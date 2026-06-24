@@ -26,28 +26,11 @@
  * - "qualification" -> "phase1" -> "phase2" -> "phase3"
  */
 
-import { PrismaClient } from "@prisma/client";
-// InputJsonValue, PrismaClientKnownRequestError, and objectEnumValues were moved out of
+import { Prisma, PrismaClient, type TTEntry } from "@prisma/client";
+// InputJsonValue and PrismaClientKnownRequestError were moved out of
 // the Prisma namespace in v6; import directly from runtime library.
 import type { InputJsonValue } from "@prisma/client/runtime/library";
-import { PrismaClientKnownRequestError, objectEnumValues } from "@prisma/client/runtime/library";
-
-// TTEntry is not exported by the stub client; define the shape from the schema fields.
-type TTEntry = {
-  id: string;
-  tournamentId: string;
-  playerId: string;
-  stage: string;
-  lives: number;
-  rank: number | null;
-  totalTime: number | null;
-  qualificationPoints: number | null;
-  eliminated: boolean;
-  times: unknown;
-  seeding: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
@@ -1135,7 +1118,7 @@ async function createSuddenDeathRound(
           sequence: count + 1,
           course,
           targetPlayerIds: targetPlayerIds as InputJsonValue,
-          results: objectEnumValues.instances.JsonNull,
+          results: Prisma.DbNull,
           resolved: false,
         },
       });
@@ -1475,7 +1458,7 @@ export async function submitRoundResults(
       where: { id: round.id },
       data: {
         results: storedResults,
-        eliminatedIds: objectEnumValues.instances.JsonNull,
+        eliminatedIds: Prisma.DbNull,
         livesReset: false,
         submittedAt: null,
       },
@@ -1515,7 +1498,7 @@ export async function submitRoundResults(
     where: { id: round.id },
     data: {
       results: storedResults,
-      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : objectEnumValues.instances.JsonNull,
+      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.DbNull,
       livesReset,
       submittedAt: new Date(),
     },
@@ -1687,7 +1670,7 @@ export async function submitSuddenDeathResults(
   await prisma.tTPhaseRound.update({
     where: { id: suddenDeathRound.phaseRoundId },
     data: {
-      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : objectEnumValues.instances.JsonNull,
+      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.DbNull,
       livesReset,
       submittedAt: new Date(),
     },
@@ -1822,7 +1805,7 @@ export async function undoLastPhaseRound(
     orderBy: { roundNumber: "asc" },
   });
 
-  const submittedRounds = (rounds as Array<{ roundNumber: number; results: unknown; [k: string]: unknown }>).filter((r) => {
+  const submittedRounds = rounds.filter((r) => {
     const results = r.results as unknown[];
     return Array.isArray(results) && results.length > 0;
   });
@@ -1838,10 +1821,10 @@ export async function undoLastPhaseRound(
   await prisma.tTPhaseRound.update({
     where: { id: lastRound.id },
     data: {
-      // Keep an empty array rather than JsonNull so client code can safely
+      // Keep an empty array rather than DbNull so client code can safely
       // treat the round as "open again" without null checks.
       results: [],
-      eliminatedIds: objectEnumValues.instances.JsonNull,
+      eliminatedIds: Prisma.DbNull,
       livesReset: false,
       submittedAt: null,
     },
