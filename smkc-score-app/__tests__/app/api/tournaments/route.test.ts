@@ -236,6 +236,45 @@ describe('GET /api/tournaments', () => {
         { status: 500 }
       );
     });
+
+    it('recovers from a single transient D1 failure via retryDbRead and returns success (issue #2735)', async () => {
+      // Issue #2735 reports the user occasionally sees "トーナメントの読み込みに失敗しました"
+      // on the /tournaments page. The root cause is a transient D1 read failure that
+      // exhausts the client-side fetchWithRetry. The route must retry the DB read once
+      // server-side so a single blip doesn't bubble up to the user.
+      let findManyCalls = 0;
+      (prisma.tournament.findMany as jest.Mock).mockImplementation(() => {
+        findManyCalls += 1;
+        return findManyCalls === 1
+          ? Promise.reject(new Error('D1 transient failure'))
+          : Promise.resolve([
+              { id: 't1', name: 'Recovered', date: '2024-01-01', publicModes: ['ta'] },
+            ]);
+      });
+      (prisma.tournament.count as jest.Mock).mockResolvedValue(1);
+      jest.mocked(auth).mockResolvedValue(null);
+
+      const request = new NextRequest('http://localhost:3000/api/tournaments', {
+        method: 'GET',
+      });
+
+      await tournamentsRoute.GET(request);
+
+      // retryDbRead's default is 2 attempts; the second attempt must hit Prisma.
+      expect(findManyCalls).toBe(2);
+      // Recovery means the route returns success, not the 500 error fallback.
+      // createSuccessResponse invokes NextResponse.json with a single body arg
+      // (no explicit status for the default 200), so we assert on that shape.
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true }),
+      );
+      // The retry path logs a warning, but the final-failure path's error log must NOT fire.
+      const loggerInstance = loggerMock.createLogger('test');
+      expect(loggerInstance.error).not.toHaveBeenCalledWith(
+        'Failed to fetch tournaments',
+        expect.any(Object),
+      );
+    });
   });
 });
 

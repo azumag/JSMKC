@@ -19,6 +19,7 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
+import { retryDbRead } from "@/lib/db-read-retry";
 import { isValidTournamentSlug, normalizeTournamentSlug } from "@/lib/tournament-identifier";
 import { readTournamentArchiveIndex } from "@/lib/tournament-archive";
 import {
@@ -64,14 +65,30 @@ export async function GET(request: NextRequest) {
 
     // Use the paginate utility for consistent pagination behavior.
     // Sort: newest tournaments first for relevance.
-    const result = await paginate(
+    //
+    // retryDbRead wraps the paginate call so that a single transient D1 read
+    // failure (issue #2735: user briefly saw "トーナメントの読み込みに失敗しました")
+    // does not bubble up to the client. Without the retry, a single D1 blip
+    // would survive the route's catch block (which only handles the final
+    // failure) and trigger the user-facing fetch error UI. One retry is
+    // enough — Cloudflare Workers D1 retries are already aggressive, so a
+    // second failure is unlikely to recover on a third attempt.
+    const result = await retryDbRead(
+      () => paginate(
+        {
+          findMany: prisma.tournament.findMany.bind(prisma.tournament),
+          count: prisma.tournament.count,
+        },
+        where,
+        { date: "desc" },
+        { page, limit }
+      ),
       {
-        findMany: prisma.tournament.findMany.bind(prisma.tournament),
-        count: prisma.tournament.count,
+        onRetry: ({ attempt, error }) => logger.warn("Retrying tournaments list fetch", {
+          attempt,
+          error: error instanceof Error ? error.message : error,
+        }),
       },
-      where,
-      { date: "desc" },
-      { page, limit }
     );
 
     return createSuccessResponse(result);
