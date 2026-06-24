@@ -185,29 +185,157 @@ describe('useTaSuddenDeath', () => {
     expect(fetchData).not.toHaveBeenCalled();
     expect(result.current.changingSuddenDeathCourse).toBe(false);
   });
+
+  it('TC-2937: 全ラウンドが resolved=true のとき pendingSuddenDeath が undefined になる', () => {
+    const resolvedRounds = [
+      {
+        id: 'round-1',
+        roundNumber: 3,
+        suddenDeathRounds: [
+          { id: 'sd-1', sequence: 1, course: 'GV1', targetPlayerIds: ['player-1'], resolved: true },
+        ],
+      },
+    ];
+    const hook = renderHook(() =>
+      useTaSuddenDeath({
+        tournamentId: 'tournament-1',
+        phase: 'phase3',
+        entries,
+        rounds: resolvedRounds,
+        fetchData: jest.fn(),
+        setSaveError: jest.fn(),
+        invalidTimeMessage: (name) => `Invalid time for ${name}`,
+      })
+    );
+
+    expect(hook.result.current.pendingSuddenDeath).toBeUndefined();
+  });
+
+  it('TC-2938: pendingSuddenDeathEntries が targetPlayerIds でフィルタリングされる', () => {
+    const partialRounds = [
+      {
+        id: 'round-1',
+        roundNumber: 3,
+        suddenDeathRounds: [
+          { id: 'sd-1', sequence: 1, course: 'GV1', targetPlayerIds: ['player-1'], resolved: false },
+        ],
+      },
+    ];
+    const hook = renderHook(() =>
+      useTaSuddenDeath({
+        tournamentId: 'tournament-1',
+        phase: 'phase3',
+        entries,
+        rounds: partialRounds,
+        fetchData: jest.fn(),
+        setSaveError: jest.fn(),
+        invalidTimeMessage: (name) => `Invalid time for ${name}`,
+      })
+    );
+
+    expect(hook.result.current.pendingSuddenDeathEntries).toHaveLength(1);
+    expect(hook.result.current.pendingSuddenDeathEntries[0].playerId).toBe('player-1');
+  });
+
+  it('TC-2939: setSuddenDeathTime が times ステートを更新する', () => {
+    const { result } = renderSuddenDeathHook();
+
+    act(() => {
+      result.current.setSuddenDeathTime('player-1', '1:23.45');
+    });
+
+    expect(result.current.suddenDeathTimes['player-1']).toBe('1:23.45');
+  });
+
+  it('TC-2940: 無効な時間で handleSubmitSuddenDeath を呼ぶと setSaveError が呼ばれ fetchData は呼ばれない', async () => {
+    const fetchData = jest.fn();
+    const setSaveError = jest.fn();
+    const { result } = renderSuddenDeathHook({ fetchData, setSaveError });
+
+    act(() => {
+      result.current.setSuddenDeathTime('player-1', 'invalid');
+      result.current.setSuddenDeathTime('player-2', '1:01.00');
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitSuddenDeath();
+    });
+
+    expect(setSaveError).toHaveBeenCalledWith('Invalid time for Mario');
+    expect(fetchData).not.toHaveBeenCalled();
+  });
+
+  it('TC-2941: pendingSuddenDeath が undefined のとき handleSubmitSuddenDeath は早期リターンする', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    const hook = renderHook(() =>
+      useTaSuddenDeath({
+        tournamentId: 'tournament-1',
+        phase: 'phase3',
+        entries,
+        rounds: [],
+        fetchData: jest.fn(),
+        setSaveError: jest.fn(),
+        invalidTimeMessage: (name) => `Invalid time for ${name}`,
+      })
+    );
+
+    await act(async () => {
+      await hook.result.current.handleSubmitSuddenDeath();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('TC-2942: pendingSuddenDeath が undefined のとき handleSuddenDeathCourseChange は早期リターンする', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    const hook = renderHook(() =>
+      useTaSuddenDeath({
+        tournamentId: 'tournament-1',
+        phase: 'phase3',
+        entries,
+        rounds: [],
+        fetchData: jest.fn(),
+        setSaveError: jest.fn(),
+        invalidTimeMessage: (name) => `Invalid time for ${name}`,
+      })
+    );
+
+    await act(async () => {
+      await hook.result.current.handleSuddenDeathCourseChange('MC1');
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('TASuddenDeathSection', () => {
+  const defaultSectionProps = {
+    isAdmin: true,
+    isComplete: false,
+    pendingSuddenDeath: pendingSuddenDeath,
+    pendingSuddenDeathEntries: entries,
+    availableCourses: ['MC1'],
+    saveError: null,
+    suddenDeathTimes: { 'player-1': '1:00.00', 'player-2': '1:01.00' },
+    changingSuddenDeathCourse: false,
+    submittingSuddenDeath: false,
+    timeInputProps: {},
+    timeInputHelp: 'Enter M:SS.mm format.',
+    timePlaceholder: '1:23.45',
+    submittingLabel: 'Saving...',
+    onCourseChange: jest.fn(),
+    onTimeChange: jest.fn(),
+    onTimeBlur: jest.fn(),
+    onSubmit: jest.fn(),
+  };
+
   it('passes pending entries and submitting state through with matching prop names', () => {
     render(
       <TASuddenDeathSection
-        isAdmin
-        isComplete={false}
-        pendingSuddenDeath={pendingSuddenDeath}
-        pendingSuddenDeathEntries={entries}
-        availableCourses={['MC1']}
-        saveError={null}
-        suddenDeathTimes={{ 'player-1': '1:00.00', 'player-2': '1:01.00' }}
-        changingSuddenDeathCourse={false}
+        {...defaultSectionProps}
         submittingSuddenDeath
         timeInputProps={{ 'aria-label': 'Sudden-death time' }}
-        timeInputHelp="Enter M:SS.mm format."
-        timePlaceholder="1:23.45"
         submittingLabel="Saving..."
-        onCourseChange={jest.fn()}
-        onTimeChange={jest.fn()}
-        onTimeBlur={jest.fn()}
-        onSubmit={jest.fn()}
       />,
     );
 
@@ -219,5 +347,37 @@ describe('TASuddenDeathSection', () => {
     expect(screen.getByDisplayValue('1:00.00')).toBeInTheDocument();
     expect(screen.getByDisplayValue('1:01.00')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Saving...' })).toBeDisabled();
+  });
+
+  it('TC-2933: isAdmin=false のとき何も描画しない', () => {
+    const { container } = render(
+      <TASuddenDeathSection {...defaultSectionProps} isAdmin={false} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('TC-2934: isComplete=true のとき何も描画しない', () => {
+    const { container } = render(
+      <TASuddenDeathSection {...defaultSectionProps} isComplete />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('TC-2935: pendingSuddenDeath=null のとき何も描画しない', () => {
+    const { container } = render(
+      <TASuddenDeathSection {...defaultSectionProps} pendingSuddenDeath={null} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('TC-2936: saveError があるときエラーメッセージが表示される', () => {
+    render(
+      <TASuddenDeathSection {...defaultSectionProps} saveError="API error" />,
+    );
+
+    expect(screen.getByText('API error')).toBeInTheDocument();
   });
 });
