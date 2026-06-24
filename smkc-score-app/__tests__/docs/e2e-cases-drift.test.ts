@@ -4803,6 +4803,8 @@ describe('E2E case drift coverage', () => {
       // TC-2891: description typography classes
       expect(alertDialogTest).toContain('font-mono');
       expect(alertDialogTest).toContain('text-muted-foreground');
+      // TC-2894/TC-2897: button role (accessibility-oriented assertion)
+      expect(alertDialogTest).toContain("getByRole('button'");
       // TC-2898: cancel mobile margin
       expect(alertDialogTest).toContain('mt-2');
       expect(alertDialogTest).toContain('sm:mt-0');

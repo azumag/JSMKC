@@ -99,7 +99,9 @@ describe('AlertDialog Components', () => {
       expect(overlay).toBeInTheDocument();
       expect(overlay).toHaveClass('fixed', 'inset-0', 'z-50', 'paddock-overlay');
     });
+  });
 
+  describe('AlertDialogContent', () => {
     it('TC-2877: AlertDialogContent にカスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
@@ -116,9 +118,7 @@ describe('AlertDialog Components', () => {
       const content = screen.getByRole('alertdialog');
       expect(content).toHaveClass('custom-content');
     });
-  });
 
-  describe('AlertDialogContent', () => {
     it('TC-2878: children をレンダリングする', () => {
       render(
         <AlertDialog open={true}>
@@ -385,21 +385,18 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Action Button')).toBeInTheDocument();
     });
 
-    it('TC-2894: button 要素としてレンダリングされる', () => {
+    it('TC-2894: button ロールを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
             <AlertDialogContent>
-              <AlertDialogAction data-testid="action">
-                Action
-              </AlertDialogAction>
+              <AlertDialogAction>Action</AlertDialogAction>
             </AlertDialogContent>
           </AlertDialogPortal>
         </AlertDialog>
       );
 
-      const action = screen.getByTestId('action');
-      expect(action.tagName).toBe('BUTTON');
+      expect(screen.getByRole('button', { name: 'Action' })).toBeInTheDocument();
     });
 
     it('TC-2895: カスタム className が転送される', () => {
@@ -435,21 +432,18 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Cancel Button')).toBeInTheDocument();
     });
 
-    it('TC-2897: button 要素としてレンダリングされる', () => {
+    it('TC-2897: button ロールを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
             <AlertDialogContent>
-              <AlertDialogCancel data-testid="cancel">
-                Cancel
-              </AlertDialogCancel>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
             </AlertDialogContent>
           </AlertDialogPortal>
         </AlertDialog>
       );
 
-      const cancel = screen.getByTestId('cancel');
-      expect(cancel.tagName).toBe('BUTTON');
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
     });
 
     it('TC-2898: mt-2/sm:mt-0 モバイルレイアウトクラスを持つ', () => {
