@@ -281,6 +281,58 @@ describe('randomlyAssignGroups (with groupCount)', () => {
 
     expect(result.every(p => ['A', 'B', 'C'].includes(p.group))).toBe(true);
   });
+
+  it('should return empty array for empty input', () => {
+    expect(randomlyAssignGroups([], 2)).toEqual([]);
+  });
+
+  it('should assign a group to a single player', () => {
+    const players: SetupPlayer[] = [{ playerId: 'only', group: 'X' }];
+    const result = randomlyAssignGroups(players, 2);
+
+    expect(result).toHaveLength(1);
+    expect(['A', 'B']).toContain(result[0].group);
+  });
+
+  it('should distribute players when count is not divisible by groupCount', () => {
+    // 5 players, 3 groups → groups not all same size, but all players assigned
+    const players: SetupPlayer[] = Array.from({ length: 5 }, (_, i) => ({
+      playerId: `p${i}`,
+      group: 'A',
+    }));
+
+    const result = randomlyAssignGroups(players, 3);
+
+    expect(result).toHaveLength(5);
+    expect(result.every(p => ['A', 'B', 'C'].includes(p.group))).toBe(true);
+    // Each group gets at least 1 player
+    expect(result.some(p => p.group === 'A')).toBe(true);
+    expect(result.some(p => p.group === 'B')).toBe(true);
+    expect(result.some(p => p.group === 'C')).toBe(true);
+  });
+
+  it('should not mutate the original array', () => {
+    const players: SetupPlayer[] = [
+      { playerId: 'p1', group: 'X' },
+      { playerId: 'p2', group: 'X' },
+    ];
+    const original = players.map(p => ({ ...p }));
+    randomlyAssignGroups(players, 2);
+
+    expect(players).toEqual(original);
+  });
+
+  it('should preserve all original player IDs in the result', () => {
+    const players: SetupPlayer[] = Array.from({ length: 6 }, (_, i) => ({
+      playerId: `player-${i}`,
+      group: 'A',
+    }));
+    const result = randomlyAssignGroups(players, 2);
+
+    const resultIds = result.map(p => p.playerId).sort();
+    const originalIds = players.map(p => p.playerId).sort();
+    expect(resultIds).toEqual(originalIds);
+  });
 });
 
 /**
@@ -390,23 +442,38 @@ describe('assignGroupsBySeeding (TC-2924–TC-2928)', () => {
     ];
     const result = assignGroupsBySeeding(players, 2);
 
-    // Seeded player must be assigned to group A (first slot)
+    // Seeded player must be assigned to group A (first slot = index 0 in sorted result)
     expect(result.find((p) => p.playerId === 'seeded')?.group).toBe('A');
+    // Unseeded player must come after the seeded player in the result
+    const seededIndex = result.findIndex((p) => p.playerId === 'seeded');
+    const unseededIndex = result.findIndex((p) => p.playerId === 'unseeded');
+    expect(unseededIndex).toBeGreaterThan(seededIndex);
   });
 
   it('TC-2926: clamps groupCount=0 to minimum 2 and groupCount=10 to maximum 4', () => {
     const players: SetupPlayer[] = [
       { playerId: 'p1', group: 'X' },
       { playerId: 'p2', group: 'X' },
+      { playerId: 'p3', group: 'X' },
+      { playerId: 'p4', group: 'X' },
     ];
 
+    // Low clamp: 0 → 2 groups; result must only use A or B
     const resultLow = assignGroupsBySeeding(players, 0);
-    expect(resultLow).toHaveLength(2);
-    resultLow.forEach((p) => expect(['A', 'B']).toContain(p.group));
+    expect(resultLow).toHaveLength(4);
+    const lowGroups = new Set(resultLow.map((p) => p.group));
+    expect([...lowGroups].every((g) => ['A', 'B'].includes(g))).toBe(true);
+    // Verify the clamp actually bound at 2 (not more groups used)
+    expect(lowGroups.size).toBeLessThanOrEqual(2);
 
+    // High clamp: 10 → 4 groups; result must not use groups E or beyond
     const resultHigh = assignGroupsBySeeding(players, 10);
-    expect(resultHigh).toHaveLength(2);
-    resultHigh.forEach((p) => expect(['A', 'B', 'C', 'D']).toContain(p.group));
+    expect(resultHigh).toHaveLength(4);
+    const highGroups = new Set(resultHigh.map((p) => p.group));
+    expect([...highGroups].every((g) => ['A', 'B', 'C', 'D'].includes(g))).toBe(true);
+    // Verify the clamp actually bound at 4 (no group E or beyond)
+    expect(highGroups.has('E')).toBe(false);
+    expect(highGroups.size).toBeLessThanOrEqual(4);
   });
 
   it('TC-2927: returns empty array for empty input', () => {

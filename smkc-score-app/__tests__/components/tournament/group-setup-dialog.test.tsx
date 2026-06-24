@@ -63,13 +63,13 @@ describe("GroupSetupDialog", () => {
     const { rerender } = render(
       <GroupSetupDialog {...defaultProps} existingAssignments={[]} />,
     );
-    const newBtn = screen.getByRole("button");
+    const newBtn = screen.getByRole("button", { name: /Setup Groups/i });
     // default variant has bg-primary class
     expect(newBtn.className).toMatch(/bg-primary/);
 
     const existing: SetupPlayer[] = [{ playerId: "p1", group: "A" }];
     rerender(<GroupSetupDialog {...defaultProps} existingAssignments={existing} />);
-    const editBtn = screen.getByRole("button");
+    const editBtn = screen.getByRole("button", { name: /Edit Groups/i });
     // outline variant has border-input or bg-background class (no bg-primary)
     expect(editBtn.className).not.toMatch(/\bbg-primary\b/);
   });
