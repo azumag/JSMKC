@@ -61,7 +61,7 @@ export function getTournamentUrlIdentifier(tournament: { id: string; slug?: stri
  * Returns null when no tournament matches; callers can decide whether to
  * 404 or fall back to the raw identifier.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export async function resolveTournament(
   identifier: string,
   select: Record<string, boolean>,
@@ -76,3 +76,4 @@ export async function resolveTournament(
   });
   return tournament;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
