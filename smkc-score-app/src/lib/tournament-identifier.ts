@@ -1,4 +1,3 @@
-import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export const TOURNAMENT_SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -62,17 +61,18 @@ export function getTournamentUrlIdentifier(tournament: { id: string; slug?: stri
  * Returns null when no tournament matches; callers can decide whether to
  * 404 or fall back to the raw identifier.
  */
-export async function resolveTournament<T extends Prisma.TournamentSelect>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function resolveTournament(
   identifier: string,
-  select: T,
-): Promise<Prisma.TournamentGetPayload<{ select: T }> | null> {
+  select: Record<string, boolean>,
+): Promise<any | null> {
   // The select must include `id` so the caller can keep using the resolved
   // id for downstream queries — but we don't override the caller's intent
   // when they've already opted in.
-  const finalSelect = ('id' in select ? select : { ...select, id: true }) as T;
+  const finalSelect = ('id' in select ? select : { ...select, id: true });
   const tournament = await prisma.tournament.findFirst({
     where: { OR: [{ id: identifier }, { slug: identifier }] },
     select: finalSelect,
   });
-  return tournament as Prisma.TournamentGetPayload<{ select: T }> | null;
+  return tournament;
 }

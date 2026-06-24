@@ -13,6 +13,13 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Overload: when operation returns `any` (e.g. Prisma stub client), pass `any` through
+// so callers don't get the degenerate `{}` or `unknown` inference from the generic constraint.
+// eslint-disable-next-line no-redeclare
+export async function retryDbRead(operation: () => Promise<any>, options?: RetryOptions): Promise<any>;
+// eslint-disable-next-line no-redeclare
+export async function retryDbRead<T>(operation: () => Promise<T>, options?: RetryOptions): Promise<T>;
+// eslint-disable-next-line no-redeclare
 export async function retryDbRead<T>(
   operation: () => Promise<T>,
   options: RetryOptions = {},

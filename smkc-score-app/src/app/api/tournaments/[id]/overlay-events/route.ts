@@ -601,7 +601,10 @@ async function handleGET(
       taParticipantsByPhase.set(entry.stage, participants);
     }
 
-    const phase3Entries = taActiveEntries.filter((entry) => entry.stage === "phase3");
+    // Promise.all with >10 elements can lose Prisma's narrow return type in some TS builds;
+    // cast here so filter callbacks have typed parameters instead of implicit any.
+    type _TaActiveEntry = { playerId: string; stage: string; lives: number; rank: number | null; eliminated: boolean; player: { nickname: string } };
+    const phase3Entries = (taActiveEntries as _TaActiveEntry[]).filter((entry) => entry.stage === "phase3");
     const phase3ActiveEntries = phase3Entries.filter((entry) => !entry.eliminated);
     const phase3FinalRound = taPhase3SubmittedRounds[0] ?? null;
     let championRoundId: string | null = null;
@@ -651,13 +654,13 @@ async function handleGET(
       mrMatches: mrMatches as unknown as OverlayMatchInput[],
       /* GP uses points1/points2 instead of score1/score2 — remap so the pure
          aggregator can stay mode-agnostic. */
-      gpMatches: gpMatches.map((m) => ({
+      gpMatches: (gpMatches as Array<{ points1: number | null; points2: number | null }>).map((m) => ({
         ...m,
         score1: m.points1,
         score2: m.points2,
       })) as unknown as OverlayMatchInput[],
       ttEntries,
-      ttPhaseRounds: ttPhaseRounds.map((round) => ({
+      ttPhaseRounds: (ttPhaseRounds as Array<{ id: string; phase: string; roundNumber: number; course: string; createdAt: Date; submittedAt?: Date | null; results?: unknown; eliminatedIds?: unknown; livesReset?: boolean }>).map((round) => ({
         ...round,
         participants: taParticipantsByPhase.get(round.phase) ?? [],
         playerNamesById: taPlayerNamesByPhase.get(round.phase) ?? {},

@@ -76,13 +76,14 @@ export async function GET(
     // Group logs by matchId for hierarchical display.
     // This allows the admin UI to show all score changes for a specific
     // match together, making it easy to spot anomalies or disputes.
-    const logsByMatch = logs.reduce((acc, log) => {
+    type LogEntry = (typeof logs)[number];
+    const logsByMatch = logs.reduce((acc: Record<string, LogEntry[]>, log: LogEntry) => {
       if (!acc[log.matchId]) {
         acc[log.matchId] = [];
       }
       acc[log.matchId].push(log);
       return acc;
-    }, {} as Record<string, typeof logs>);
+    }, {} as Record<string, LogEntry[]>);
 
     return createSuccessResponse({
       tournamentId,

@@ -23,7 +23,9 @@
  */
 
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
+// PrismaClientKnownRequestError and PrismaClientValidationError were moved
+// out of the Prisma namespace in v6 and are now direct named exports.
+import { PrismaClientKnownRequestError, PrismaClientValidationError } from '@prisma/client/runtime/library';
 import { createLogger } from '@/lib/logger';
 import { sanitizeDatabaseError } from '@/lib/sanitize-error';
 
@@ -186,7 +188,7 @@ export function handleDatabaseError(
 
   // Handle Prisma-specific known request errors with code-based mapping.
   // These errors have well-defined codes that map to specific HTTP statuses.
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+  if (error instanceof PrismaClientKnownRequestError) {
     switch (error.code) {
       case 'P2002': {
         // Unique constraint violation: the record already exists.
@@ -246,7 +248,7 @@ export function handleDatabaseError(
   }
 
   // Handle Prisma validation errors (invalid query structure)
-  if (error instanceof Prisma.PrismaClientValidationError) {
+  if (error instanceof PrismaClientValidationError) {
     return createErrorResponse(
       'Invalid database query parameters',
       400,

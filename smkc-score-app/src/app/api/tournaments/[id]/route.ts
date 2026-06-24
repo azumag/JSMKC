@@ -152,7 +152,8 @@ export async function GET(
     const isAdmin = session?.user?.role === 'admin';
     const isAuthenticated = Boolean(session?.user);
 
-    const publicModes = tournament.publicModes as string[] || [];
+    // Ternary select makes Prisma v6 infer {} for the result; cast to access the field.
+    const publicModes = (tournament as { publicModes?: unknown }).publicModes as string[] || [];
     if (!isAuthenticated && publicModes.length === 0) {
       return handleAuthzError("This tournament has no visible modes");
     }
@@ -162,13 +163,16 @@ export async function GET(
     // it's not visible to scrapers or curious users probing the public
     // summary endpoint. Admins still see the flag (used to render the
     // auto-fill button on qualification pages).
-    if (!isAdmin && 'debugMode' in tournament) {
-      const { debugMode: _hiddenDebugMode, ...rest } = tournament as { debugMode?: boolean } & Record<string, unknown>;
+    // Cast away the {} inferred by the ternary-select Prisma query so the
+    // 'in' operator and destructuring below are type-safe.
+    const t = tournament as Record<string, unknown>;
+    if (!isAdmin && 'debugMode' in t) {
+      const { debugMode: _hiddenDebugMode, ...rest } = t;
       void _hiddenDebugMode;
       return createSuccessResponse(rest);
     }
 
-    return createSuccessResponse(tournament);
+    return createSuccessResponse(t);
   } catch (error) {
     // Log with tournament ID for easy filtering in log aggregation
     logger.error("Failed to fetch tournament", { error, id: resolvedId });

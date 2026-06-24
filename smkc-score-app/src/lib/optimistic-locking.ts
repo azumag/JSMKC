@@ -22,7 +22,9 @@
  * each accessed through mode-specific exported functions.
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+// PrismaClientKnownRequestError was moved out of the Prisma namespace in v6
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 /**
  * Round data for a Battle Mode match.
@@ -171,7 +173,7 @@ export async function updateWithRetry<T>(
       // Only retry on optimistic lock errors (version mismatch).
       // Any other error (network, constraint violation, etc.) is re-thrown immediately
       // to avoid masking unrelated issues.
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      if (!(error instanceof PrismaClientKnownRequestError) ||
           !isOptimisticLockError(error)) {
         throw error;
       }
@@ -203,7 +205,7 @@ export async function updateWithRetry<T>(
  * @param error - A known Prisma request error
  * @returns True if the error indicates an optimistic lock conflict
  */
-function isOptimisticLockError(error: Prisma.PrismaClientKnownRequestError): boolean {
+function isOptimisticLockError(error: PrismaClientKnownRequestError): boolean {
   // P2025 is a generic "record not found" error that can mean either:
   // 1. The record genuinely doesn't exist
   // 2. The record exists but the version doesn't match (optimistic lock failure)
@@ -280,7 +282,7 @@ function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
       } catch (error) {
         // If the update failed because no row matched (P2025),
         // distinguish between "record doesn't exist" and "version mismatch"
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        if (error instanceof PrismaClientKnownRequestError && error.code === 'P2025') {
           const current = await model.findUnique({ where: { id } });
           if (!current) {
             throw new OptimisticLockError(defaultNotFoundError, -1);
