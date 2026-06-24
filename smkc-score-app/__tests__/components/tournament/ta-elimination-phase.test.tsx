@@ -68,6 +68,16 @@ function makeEntry(overrides: {
   };
 }
 
+let originalFetch: typeof global.fetch;
+
+beforeAll(() => {
+  originalFetch = global.fetch;
+});
+
+afterAll(() => {
+  global.fetch = originalFetch;
+});
+
 beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
@@ -84,9 +94,9 @@ afterEach(() => {
 describe('TAEliminationPhase — loading', () => {
   it('TC-2913: renders animated skeleton divs while fetch is pending', () => {
     global.fetch = jest.fn().mockReturnValue(new Promise(() => {}));
-    render(<TAEliminationPhase {...defaultProps} />);
+    const { container } = render(<TAEliminationPhase {...defaultProps} />);
     // Loading state renders animate-pulse placeholder divs before data arrives
-    expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
+    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
     // No h1 heading rendered during initial loading
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
   });
