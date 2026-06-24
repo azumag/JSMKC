@@ -2,26 +2,6 @@
  * @jest-environment jsdom
  */
 
-/**
- * @module AlertDialog Component Tests
- *
- * Tests for the Radix UI AlertDialog wrapper components.
- * AlertDialog is a modal dialog that interrupts the user with important content
- * and expects a response (action or cancel).
- *
- * Covers all subcomponents:
- * - AlertDialogTrigger: trigger element rendering
- * - AlertDialogPortal: portal rendering
- * - AlertDialogOverlay: overlay classes and custom className
- * - AlertDialogContent: content rendering, positioning, custom className
- * - AlertDialogHeader: header layout and custom className
- * - AlertDialogFooter: footer layout and custom className
- * - AlertDialogTitle: title typography and custom className
- * - AlertDialogDescription: description typography and custom className
- * - AlertDialogAction: action button styling and custom className
- * - AlertDialogCancel: cancel button styling, mobile layout, custom className
- * - Integration: complete dialog rendering, prop passing, accessibility (ARIA)
- */
 import { render, screen } from '@testing-library/react';
 import {
   AlertDialog,
@@ -38,9 +18,6 @@ import {
 } from '@/components/ui/alert-dialog';
 
 describe('AlertDialog Components', () => {
-  /**
-   * Helper component to render a complete AlertDialog
-   */
   const renderAlertDialog = (props = {}) => {
     return render(
       <AlertDialog {...props}>
@@ -67,7 +44,7 @@ describe('AlertDialog Components', () => {
   };
 
   describe('AlertDialogTrigger', () => {
-    it('should render trigger element', () => {
+    it('TC-2873: trigger element がレンダリングされる', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogTrigger asChild>
@@ -82,7 +59,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Trigger Button')).toBeInTheDocument();
     });
 
-    it('should render trigger with data-testid', () => {
+    it('TC-2874: data-testid でアクセスできる', () => {
       renderAlertDialog();
 
       expect(screen.getByTestId('trigger')).toBeInTheDocument();
@@ -90,7 +67,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogPortal', () => {
-    it('should render content in portal', () => {
+    it('TC-2875: portal 内にコンテンツをレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -106,7 +83,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogOverlay', () => {
-    it('should render overlay with correct classes', () => {
+    it('TC-2876: fixed/inset-0/z-50/paddock-overlay クラスを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -123,7 +100,7 @@ describe('AlertDialog Components', () => {
       expect(overlay).toHaveClass('fixed', 'inset-0', 'z-50', 'paddock-overlay');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2877: AlertDialogContent にカスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogContent className="custom-content">
@@ -142,7 +119,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogContent', () => {
-    it('should render content with children', () => {
+    it('TC-2878: children をレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -156,7 +133,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Dialog Content')).toBeInTheDocument();
     });
 
-    it('should have correct positioning classes', () => {
+    it('TC-2879: fixed/left-[50%]/top-[50%]/z-50 位置クラスを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -171,7 +148,7 @@ describe('AlertDialog Components', () => {
       expect(content).toHaveClass('fixed', 'left-[50%]', 'top-[50%]', 'z-50');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2880: カスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -188,7 +165,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogHeader', () => {
-    it('should render header with children', () => {
+    it('TC-2881: children をレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -204,7 +181,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Header Content')).toBeInTheDocument();
     });
 
-    it('should have correct flex layout classes', () => {
+    it('TC-2882: flex/flex-col/gap-1.5/pb-3 レイアウトクラスを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -221,7 +198,7 @@ describe('AlertDialog Components', () => {
       expect(header).toHaveClass('flex', 'flex-col', 'gap-1.5', 'pb-3');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2883: カスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -240,7 +217,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogFooter', () => {
-    it('should render footer with children', () => {
+    it('TC-2884: children をレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -258,7 +235,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Button 2')).toBeInTheDocument();
     });
 
-    it('should have correct flex layout classes', () => {
+    it('TC-2885: flex-col-reverse/sm:flex-row/sm:justify-end/sm:space-x-2 クラスを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -275,7 +252,7 @@ describe('AlertDialog Components', () => {
       expect(footer).toHaveClass('flex', 'flex-col-reverse', 'sm:flex-row', 'sm:justify-end', 'sm:space-x-2');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2886: カスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -294,7 +271,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogTitle', () => {
-    it('should render title text', () => {
+    it('TC-2887: テキストをレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -308,7 +285,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Alert Title')).toBeInTheDocument();
     });
 
-    it('should have correct typography classes', () => {
+    it('TC-2888: font-display/text-2xl タイポグラフィクラスを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -325,7 +302,7 @@ describe('AlertDialog Components', () => {
       expect(title).toHaveClass('font-display', 'text-2xl');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2889: カスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -344,7 +321,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogDescription', () => {
-    it('should render description text', () => {
+    it('TC-2890: テキストをレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -358,7 +335,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Description text')).toBeInTheDocument();
     });
 
-    it('should have correct typography classes', () => {
+    it('TC-2891: font-mono/text-xs/text-muted-foreground クラスを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -375,7 +352,7 @@ describe('AlertDialog Components', () => {
       expect(description).toHaveClass('font-mono', 'text-xs', 'text-muted-foreground');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2892: カスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -394,7 +371,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogAction', () => {
-    it('should render action button', () => {
+    it('TC-2893: ボタンをレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -408,7 +385,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Action Button')).toBeInTheDocument();
     });
 
-    it('should apply button variant styles', () => {
+    it('TC-2894: button 要素としてレンダリングされる', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -422,10 +399,10 @@ describe('AlertDialog Components', () => {
       );
 
       const action = screen.getByTestId('action');
-      expect(action).toBeInTheDocument();
+      expect(action.tagName).toBe('BUTTON');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2895: カスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -444,7 +421,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('AlertDialogCancel', () => {
-    it('should render cancel button', () => {
+    it('TC-2896: ボタンをレンダリングする', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -458,7 +435,7 @@ describe('AlertDialog Components', () => {
       expect(screen.getByText('Cancel Button')).toBeInTheDocument();
     });
 
-    it('should apply outline button variant styles', () => {
+    it('TC-2897: button 要素としてレンダリングされる', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -472,10 +449,10 @@ describe('AlertDialog Components', () => {
       );
 
       const cancel = screen.getByTestId('cancel');
-      expect(cancel).toBeInTheDocument();
+      expect(cancel.tagName).toBe('BUTTON');
     });
 
-    it('should apply margin top for mobile layout', () => {
+    it('TC-2898: mt-2/sm:mt-0 モバイルレイアウトクラスを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -492,7 +469,7 @@ describe('AlertDialog Components', () => {
       expect(cancel).toHaveClass('mt-2', 'sm:mt-0');
     });
 
-    it('should accept custom className', () => {
+    it('TC-2899: カスタム className が転送される', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
@@ -510,14 +487,14 @@ describe('AlertDialog Components', () => {
     });
   });
 
-  describe('Complete AlertDialog Integration', () => {
-    it('should render complete AlertDialog with all subcomponents', () => {
+  describe('Integration', () => {
+    it('TC-2900: 全サブコンポーネントを含む完全な AlertDialog をレンダリングする', () => {
       renderAlertDialog();
 
       expect(screen.getByTestId('trigger')).toBeInTheDocument();
     });
 
-    it('should pass additional props to AlertDialog root', () => {
+    it('TC-2901: AlertDialog root に追加 props を渡せる', () => {
       render(
         <AlertDialog open={true} defaultOpen={false}>
           <AlertDialogContent>
@@ -531,7 +508,7 @@ describe('AlertDialog Components', () => {
   });
 
   describe('Accessibility', () => {
-    it('should have correct ARIA attributes on title', () => {
+    it('TC-2902: AlertDialogTitle が heading ロールを持つ', () => {
       render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
