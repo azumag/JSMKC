@@ -379,9 +379,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       // winners_r1[0] slot1 is upper seed 1 -> B-position 1, typed into S5.
       expect(sheet.S5.v).toBe(1);
       // winners_r1[0] slot2 is a "Winner of B2,1" reverse-lookup FORMULA cell
-      // (S6 = XLOOKUP(T6,...)); the faithful path must leave it untouched, so its
-      // cached template value (17) survives — the exporter never typed it.
-      expect(sheet.S6.v).toBe(17);
+      // (S6 = XLOOKUP(T6,...)); the faithful path must leave the formula intact,
+      // while stripping the stale template cached value.
+      expect(sheet.S6).toBeUndefined();
       // winners_r1[0] is a completed 4-2: slot1 score in V5, slot2 score in V6.
       expect(sheet.V5.v).toBe(4);
       expect(sheet.V6.v).toBe(2);
@@ -563,11 +563,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(ttSheet.Z3).toBeUndefined();
       expect(ttSheet.G48).toBeUndefined();
       expect(ttSheet.Z48).toBeUndefined();
-      // The roster spill anchor E2 stays untouched: it still carries the
-      // template's cached SEQUENCE value 1 (formula retention itself is
-      // enforced by SheetXmlPatcher's formula guard and its unit tests; the
-      // value-level parser here can only observe the cached <v>).
-      expect(ttSheet.E2.v).toBe(1);
+      // The roster spill anchor E2 stays a formula cell, but its stale cached
+      // template value is stripped from touched sheets.
+      expect(ttSheet.E2).toBeUndefined();
     });
 
     it('should skip an unknown CDM finals round instead of using a fallback slot', async () => {

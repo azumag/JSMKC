@@ -10,7 +10,8 @@
  *  - a no-op patch changes ONLY xl/workbook.xml (calcPr), [Content_Types].xml
  *    (calcChain Override removed) and xl/_rels/workbook.xml.rels (calcChain
  *    Relationship removed); every other part is byte-identical.
- *  - xl/calcChain.xml is gone (Excel rebuilds it from fullCalcOnLoad).
+ *  - xl/calcChain.xml is gone and calcPr forces a full automatic recalculation.
+ *  - touched sheets keep formulas but drop stale cached formula values.
  *  - tables/table1.xml and richData/rdrichvalue.xml survive untouched.
  *  - real input cells (Main Hub) accept inlineString / number / clearValue and
  *    neighbouring bytes are unchanged.
@@ -94,9 +95,11 @@ describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
     }
   });
 
-  it("adds fullCalcOnLoad to calcPr in workbook.xml", () => {
+  it("adds full-recalculation attributes to calcPr in workbook.xml", () => {
     const wb = strFromU8(outParts["xl/workbook.xml"]);
+    expect(wb).toContain('calcMode="auto"');
     expect(wb).toContain('fullCalcOnLoad="1"');
+    expect(wb).toContain('forceFullCalc="1"');
     // The original calcId must be preserved.
     expect(wb).toContain('calcId="191028"');
   });
@@ -150,8 +153,21 @@ describe("patchCdmWorkbook — real cell writes", () => {
     const sheet1 = readSheet(out, "xl/worksheets/sheet1.xml");
     // B2 (the immediate left neighbour) must be reproduced exactly.
     expect(sheet1).toContain('<c r="B2" s="2" t="s"><v>13</v></c>');
-    // A2's formula cell is untouched too.
-    expect(sheet1).toContain('<c r="A2" s="40"><f>ROW()-1</f><v>1</v></c>');
+    // A2's formula is untouched, but its stale cached value is removed on
+    // touched sheets so generated files cannot display template-era results.
+    expect(sheet1).toContain('<c r="A2" s="40"><f>ROW()-1</f></c>');
+  });
+
+  it("drops cached values from formula cells on touched sheets", () => {
+    const writes: CdmCellWrite[] = [
+      { sheet: "BM Finals", ref: "H5", op: "number", value: 4 },
+    ];
+    const out = patchCdmWorkbook(loadTemplate(), writes);
+    const sheet7 = readSheet(out, "xl/worksheets/sheet7.xml");
+
+    expect(sheet7).toContain('<f>_xlfn.XLOOKUP(E5,A:A,B:B)</f>');
+    expect(sheet7).toContain('<c r="F5" s="13" t="str"><f>_xlfn.XLOOKUP(E5,A:A,B:B)</f></c>');
+    expect(sheet7).not.toContain('<f>_xlfn.XLOOKUP(E5,A:A,B:B)</f><v>Patrick</v>');
   });
 
   it("throws when a number is written over an ARRAY-formula cell (Overall Ranking B2)", () => {
