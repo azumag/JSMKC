@@ -1318,7 +1318,11 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       // createErrorResponse includes success: false and error message
       expect(result.data).toEqual(expect.objectContaining({ success: false, error: 'Failed to export tournament data' }));
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', expect.objectContaining({
+        errorMessage: 'Database error',
+        errorName: expect.any(String),
+        tournamentId: 't1',
+      }));
     });
 
     it('should handle invalid tournament ID gracefully', async () => {
@@ -1350,10 +1354,10 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(result.status).toBe(500);
       expect(result.data).toEqual(expect.objectContaining({ success: false }));
       // Logger should capture the error with the raw id as tournamentId fallback
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', {
-        error: expect.any(Error),
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', expect.objectContaining({
+        errorMessage: expect.any(String),
         tournamentId: badId,
-      });
+      }));
     });
 
     it('should handle tournament with all empty data', async () => {
@@ -1589,6 +1593,169 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
 
       expect(result.data).toContain('0');
       expect(result.data).toContain('No');
+    });
+  });
+
+  /*
+   * Regression coverage for the CDM Export HTTP 500 reported when the export
+   * encounters a row whose `player` / `player1` / `player2` relation came back
+   * null from Prisma. The schema declares those relations as non-nullable, but
+   * D1 can surface a null in production when a Player was hard-deleted while
+   * its child rows (qualifications, matches, TT entries) remained — the old
+   * exporter threw inside `member.player.id` and the route's catch block
+   * returned an opaque 500. The fix drops the offending rows with a warning and
+   * exports the rest. Each test verifies the export now succeeds and that the
+   * logger warns about the dropped rows.
+   */
+  describe('CDM export null-player tolerance', () => {
+    function setupRealTemplateMock() {
+      const templateBuf = readFileSync(CDM_TEMPLATE_PATH);
+      const assetFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(
+          templateBuf.buffer.slice(templateBuf.byteOffset, templateBuf.byteOffset + templateBuf.byteLength),
+        ),
+      });
+      (getCloudflareContext as jest.Mock).mockReturnValue({
+        env: { DB: {}, ASSETS: { fetch: assetFetch } },
+      });
+      return assetFetch;
+    }
+
+    it('should still export when a bmQualification row has player: null', async () => {
+      setupRealTemplateMock();
+      const mockTournament = {
+        id: 't-null-qual',
+        name: 'Null Qual Test',
+        date: new Date('2024-01-15'),
+        bmQualifications: [
+          { player: null, seeding: 1, group: 'A', points: 0, score: 0 },
+          { player: { id: 'p1', name: 'Alice', nickname: 'Alice' }, seeding: 2, group: 'A', points: 0, score: 0 },
+        ],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+      };
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t-null-qual/export?format=cdm');
+      const params = Promise.resolve({ id: 't-null-qual' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        'Dropped CDM export rows with missing/invalid player',
+        expect.objectContaining({ category: 'bmQualifications', droppedCount: 1 }),
+      );
+    });
+
+    it('should still export when a bmMatch has player1: null', async () => {
+      setupRealTemplateMock();
+      const mockTournament = {
+        id: 't-null-match',
+        name: 'Null Match Test',
+        date: new Date('2024-01-15'),
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [
+          {
+            matchNumber: 1,
+            stage: 'qualification',
+            player1: null,
+            player2: { id: 'p2', name: 'Bob', nickname: 'Bob' },
+            score1: 4,
+            score2: 2,
+            completed: true,
+          },
+        ],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+      };
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t-null-match/export?format=cdm');
+      const params = Promise.resolve({ id: 't-null-match' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        'Dropped CDM export match rows with missing/invalid players',
+        expect.objectContaining({ category: 'bmMatches', droppedCount: 1 }),
+      );
+    });
+
+    it('should still export when a ttEntry has player: null', async () => {
+      setupRealTemplateMock();
+      const mockTournament = {
+        id: 't-null-tt',
+        name: 'Null TT Entry Test',
+        date: new Date('2024-01-15'),
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [
+          { player: null, playerId: 'p1', stage: 'qualification', seeding: 1, lives: 3, eliminated: false, times: {} },
+          { player: { id: 'p2', name: 'Bob', nickname: 'Bob' }, playerId: 'p2', stage: 'qualification', seeding: 2, lives: 3, eliminated: false, times: {} },
+        ],
+        ttPhaseRounds: [],
+      };
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t-null-tt/export?format=cdm');
+      const params = Promise.resolve({ id: 't-null-tt' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        'Dropped CDM export rows with missing/invalid player',
+        expect.objectContaining({ category: 'ttEntries', droppedCount: 1 }),
+      );
+    });
+
+    it('should still export when a player object is missing required fields', async () => {
+      setupRealTemplateMock();
+      const mockTournament = {
+        id: 't-malformed-player',
+        name: 'Malformed Player Test',
+        date: new Date('2024-01-15'),
+        bmQualifications: [
+          // Missing id/name/nickname — would crash .id access downstream
+          { player: { country: 'JP' }, seeding: 1, group: 'A', points: 0, score: 0 },
+          { player: { id: 'p1', name: 'Alice', nickname: 'Alice' }, seeding: 2, group: 'A', points: 0, score: 0 },
+        ],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+      };
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t-malformed-player/export?format=cdm');
+      const params = Promise.resolve({ id: 't-malformed-player' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        'Dropped CDM export rows with missing/invalid player',
+        expect.objectContaining({ category: 'bmQualifications', droppedCount: 1 }),
+      );
     });
   });
 });
