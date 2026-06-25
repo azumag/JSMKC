@@ -1757,5 +1757,72 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         expect.objectContaining({ category: 'bmQualifications', droppedCount: 1 }),
       );
     });
+
+    it('should still export when a TT phase round contains an invalid timeMs', async () => {
+      setupRealTemplateMock();
+      const mockTournament = {
+        id: 't-invalid-tt-time',
+        name: 'Invalid TT Time Test',
+        date: new Date('2024-01-15'),
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [
+          {
+            player: { id: 'p1', name: 'Alice', nickname: 'Alice' },
+            playerId: 'p1',
+            stage: 'qualification',
+            seeding: 1,
+            lives: 0,
+            eliminated: false,
+            totalTime: 5000,
+            qualificationPoints: 2,
+            rank: 1,
+          },
+          {
+            player: { id: 'p2', name: 'Bob', nickname: 'Bob' },
+            playerId: 'p2',
+            stage: 'qualification',
+            seeding: 2,
+            lives: 0,
+            eliminated: false,
+            totalTime: 6000,
+            qualificationPoints: 1,
+            rank: 2,
+          },
+        ],
+        ttPhaseRounds: [
+          {
+            phase: 'phase1',
+            roundNumber: 1,
+            course: 'MC1',
+            results: [
+              { playerId: 'p1', timeMs: -1 },
+              { playerId: 'p2', timeMs: 6000 },
+            ],
+            eliminatedIds: ['p1'],
+            livesReset: false,
+          },
+        ],
+      };
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t-invalid-tt-time/export?format=cdm');
+      const params = Promise.resolve({ id: 't-invalid-tt-time' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(loggerMock.error).not.toHaveBeenCalledWith(
+        'Failed to export tournament',
+        expect.anything(),
+      );
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        'TT Finals phase1 round 1: invalid timeMs for player p1; treating as missing time',
+      );
+    });
   });
 });
