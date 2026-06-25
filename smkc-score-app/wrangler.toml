@@ -6,7 +6,12 @@
 # Note: DATABASE_URL is no longer needed — D1 uses the binding below
 
 name = "smkc"
-compatibility_date = "2026-03-01"
+# 2026-03-17 enables node:tty polyfill in nodejs_compat, which the bundled
+# @prisma/client/runtime/library requires for its color detection
+# (process.stdout.isTTY / process.stderr.isTTY). 2026-03-01 left node:tty
+# out of the polyfill set and the runtime failed to load with
+# "No such module 'node:tty'".
+compatibility_date = "2026-03-17"
 compatibility_flags = ["nodejs_compat"]
 main = ".open-next/worker.js"
 
