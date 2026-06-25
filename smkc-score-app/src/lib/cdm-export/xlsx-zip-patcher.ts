@@ -15,8 +15,9 @@
  *  2. patch ONLY the input cells of the touched worksheets via SheetXmlPatcher,
  *     which rewrites just the changed <c>/<row> regions and reproduces every
  *     other byte of the sheet verbatim;
- *  3. force a full recalculation on open (fullCalcOnLoad) and drop the now-stale
- *     calcChain so Excel rebuilds the dependency order itself;
+ *  3. drop formula cached values from touched sheets, force a full recalculation
+ *     on open and drop the now-stale calcChain so Excel rebuilds the dependency
+ *     order itself;
  *  4. pass through EVERY other part (tables, richData, media, styles, metadata,
  *     sharedStrings, printerSettings, customXml, docProps, ...) byte-for-byte,
  *     keeping the original zip entry order so a diff against the template shows
@@ -106,18 +107,30 @@ function decodeXmlEntities(value: string): string {
 }
 
 /**
- * Add fullCalcOnLoad="1" to <calcPr>, idempotently. With the calcChain gone,
- * this is what tells Excel to recompute the whole formula web on first open
- * (otherwise cached <v> values would show until an edit triggers calc).
+ * Set one attribute in an existing XML start-tag attribute string, preserving
+ * other attributes and their order.
  */
-function ensureFullCalcOnLoad(workbookXml: string): string {
+function upsertAttr(attrs: string, name: string, value: string): string {
+  const re = new RegExp(`\\b${name}="[^"]*"`);
+  if (re.test(attrs)) {
+    return attrs.replace(re, `${name}="${value}"`);
+  }
+  return `${attrs} ${name}="${value}"`;
+}
+
+/**
+ * Add the recalculation attributes to <calcPr>, idempotently. With the calcChain
+ * gone and touched-sheet formula caches removed, this tells Excel to rebuild
+ * the dynamic-array formula web on first open.
+ */
+function ensureFullRecalculation(workbookXml: string): string {
   const calcPrMatch = /<calcPr\b([^>]*)\/>/.exec(workbookXml);
   if (calcPrMatch) {
-    const attrs = calcPrMatch[1];
-    if (/\bfullCalcOnLoad="1"/.test(attrs)) {
-      return workbookXml; // already set — idempotent
-    }
-    const replacement = `<calcPr${attrs} fullCalcOnLoad="1"/>`;
+    let attrs = calcPrMatch[1];
+    attrs = upsertAttr(attrs, "calcMode", "auto");
+    attrs = upsertAttr(attrs, "fullCalcOnLoad", "1");
+    attrs = upsertAttr(attrs, "forceFullCalc", "1");
+    const replacement = `<calcPr${attrs}/>`;
     return workbookXml.replace(calcPrMatch[0], replacement);
   }
   // No <calcPr> at all: insert one right after </sheets>, the schema-valid slot
@@ -129,12 +142,27 @@ function ensureFullCalcOnLoad(workbookXml: string): string {
     const insertAt = sheetsClose + "</sheets>".length;
     return (
       workbookXml.slice(0, insertAt) +
-      '<calcPr calcId="0" fullCalcOnLoad="1"/>' +
+      '<calcPr calcId="0" calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/>' +
       workbookXml.slice(insertAt)
     );
   }
   // Last resort: a workbook without <sheets> is malformed for our purposes.
   throw new Error("patchCdmWorkbook: workbook.xml has neither <calcPr> nor <sheets>");
+}
+
+/**
+ * Remove stale cached formula values from a worksheet XML string while keeping
+ * formulas, styles and rich-value metadata intact. The CDM template ships with
+ * CDM2025 cached results in formula cells; generated workbooks must not show
+ * those names/scores while Excel is deciding when to recalculate.
+ */
+function stripFormulaCachedValues(sheetXml: string): string {
+  return sheetXml.replace(/<c\b[^>]*(?:\/>|>[\s\S]*?<\/c>)/g, (cell) => {
+    if (!cell.includes("<f")) return cell;
+    return cell
+      .replace(/<v(?:\s*\/|>[\s\S]*?<\/v>)/g, "")
+      .replace(/<is>[\s\S]*?<\/is>/g, "");
+  });
 }
 
 /**
@@ -221,7 +249,7 @@ export function patchCdmWorkbook(
       // are ignored by the discriminated-union switch).
       patcher.apply(write.ref, write);
     }
-    parts[path] = strToU8(patcher.serialize());
+    parts[path] = strToU8(stripFormulaCachedValues(patcher.serialize()));
   }
 
   // Force recalculation on open and remove the stale calc chain.
@@ -230,7 +258,7 @@ export function patchCdmWorkbook(
   // back to `parts[path]` for sheet paths only), so xl/workbook.xml cannot have
   // changed in between. If a future op kind ever mutates workbook.xml, re-read
   // parts[WORKBOOK_PART] here instead of reusing this string.
-  parts[WORKBOOK_PART] = strToU8(ensureFullCalcOnLoad(workbookXml));
+  parts[WORKBOOK_PART] = strToU8(ensureFullRecalculation(workbookXml));
   parts[CONTENT_TYPES_PART] = strToU8(
     removeCalcChainOverride(strFromU8(parts[CONTENT_TYPES_PART]))
   );

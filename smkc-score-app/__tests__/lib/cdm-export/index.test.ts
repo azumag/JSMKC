@@ -13,7 +13,8 @@
  *      (Main Hub player rows, TT Qualifications times, BM Finals seed/score),
  *  (b) xl/tables/table1.xml, xl/richData/rdrichvalue.xml and xl/metadata.xml are
  *      byte-identical to the template (the parts the old exporter dropped),
- *  (c) xl/calcChain.xml is gone and xl/workbook.xml carries fullCalcOnLoad.
+ *  (c) xl/calcChain.xml is gone, xl/workbook.xml carries recalculation flags,
+ *      and touched-sheet formula caches are removed.
  *
  * Two fixtures exercise the two realistic shapes: an 8-player single-round
  * tournament (BM qualification + finals winners_qf, the degraded-8 path) and a
@@ -185,11 +186,20 @@ describe("generateCdmWorkbook — untouched-part fidelity", () => {
     expect(bytesEqual(outParts["xl/metadata.xml"], originalParts["xl/metadata.xml"])).toBe(true);
   });
 
-  it("removes xl/calcChain.xml and adds fullCalcOnLoad to workbook.xml", () => {
+  it("removes xl/calcChain.xml and adds full recalculation flags to workbook.xml", () => {
     expect(originalParts["xl/calcChain.xml"]).toBeDefined();
     expect(outParts["xl/calcChain.xml"]).toBeUndefined();
     const wb = strFromU8(outParts["xl/workbook.xml"]);
+    expect(wb).toContain('calcMode="auto"');
     expect(wb).toContain('fullCalcOnLoad="1"');
+    expect(wb).toContain('forceFullCalc="1"');
+  });
+
+  it("removes stale cached values from formula cells on touched sheets", () => {
+    const bmFinals = readSheet(out, "BM Finals");
+    expect(bmFinals).toContain('<c r="BH3" s="13" t="str"><f>IF(COUNTA(AX19:AX20)');
+    expect(bmFinals).not.toContain("<v>Sami</v>");
+    expect(bmFinals).not.toContain("<v>Drew</v>");
   });
 });
 
