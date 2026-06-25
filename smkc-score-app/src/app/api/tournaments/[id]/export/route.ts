@@ -212,8 +212,35 @@ async function loadCDMTemplate(request: Request): Promise<
  * generator's fill maps pick the right pair per mode. Player objects come from
  * PLAYER_PUBLIC_SELECT, so password is never present here. The Overall Ranking
  * sheet is formula-driven, hence no playerScores mapping (design §3.6).
+ *
+ * Defensive null handling: the schema declares player relations as non-nullable,
+ * but D1's behaviour on hard-deleted Player rows whose FK references were left
+ * behind (cascade not applied, e.g. raw $executeRaw writes) can surface a null
+ * `player` / `player1` / `player2` field at read time. Without a guard, that
+ * throws inside a fill map's deep access path (`member.player.id`) and the route
+ * surfaces as an opaque HTTP 500. We filter the offending rows and log a single
+ * warning per category so the workbook still exports the rest of the data.
  */
+
+/** True when a player row carries the minimum fields the workbook needs. */
+function isPlayerUsable(player: CdmPlayerRow | null | undefined): player is CdmPlayerRow {
+  return Boolean(
+    player &&
+      typeof player.id === "string" &&
+      player.id.length > 0 &&
+      typeof player.name === "string" &&
+      typeof player.nickname === "string",
+  );
+}
+
 function mapPlayer(player: CdmPlayerRow): CdmTournamentData["bmQualifications"][number]["player"] {
+  // Caller is responsible for filtering non-usable players via isPlayerUsable;
+  // we still return a defensive placeholder here so a future caller bug cannot
+  // surface as a 500 (the fill maps require player.id, but a "" placeholder
+  // would simply sort that row to the top of its group by name ascending).
+  if (!isPlayerUsable(player)) {
+    return { id: "", name: "", nickname: "", country: null };
+  }
   return {
     id: player.id,
     name: player.name,
@@ -283,17 +310,95 @@ function mapTtPhaseRound(round: CdmTtPhaseRoundRow): CdmTTPhaseRound {
   };
 }
 
-function mapToCdmTournamentData(tournament: CdmTournamentRow): CdmTournamentData {
+/**
+ * Drop rows whose player relation is missing or malformed. BM/MR/GP matches also
+ * require BOTH player1 and player2 — without them, the qualifying-sheet block
+ * owner has no identity to render. We log a single summary so the operator can
+ * see which category of row was pruned without spamming the log per record.
+ */
+function dropIncompletePlayerRows<T extends { player?: CdmPlayerRow | null }>(
+  rows: T[],
+  category: string,
+  logger: ReturnType<typeof createLogger>,
+): T[] {
+  const dropped: unknown[] = [];
+  const kept = rows.filter((row) => {
+    if (isPlayerUsable(row.player)) return true;
+    dropped.push(row);
+    return false;
+  });
+  if (dropped.length > 0) {
+    logger.warn("Dropped CDM export rows with missing/invalid player", {
+      category,
+      droppedCount: dropped.length,
+    });
+  }
+  return kept;
+}
+
+function dropIncompleteMatchRows(
+  rows: CdmMatchRow[],
+  category: string,
+  logger: ReturnType<typeof createLogger>,
+): CdmMatchRow[] {
+  const dropped: unknown[] = [];
+  const kept = rows.filter((row) => {
+    if (isPlayerUsable(row.player1) && isPlayerUsable(row.player2)) return true;
+    dropped.push({ matchNumber: row.matchNumber, stage: row.stage, round: row.round });
+    return false;
+  });
+  if (dropped.length > 0) {
+    logger.warn("Dropped CDM export match rows with missing/invalid players", {
+      category,
+      droppedCount: dropped.length,
+      sample: dropped.slice(0, 3),
+    });
+  }
+  return kept;
+}
+
+function mapToCdmTournamentData(
+  tournament: CdmTournamentRow,
+  logger: ReturnType<typeof createLogger>,
+): CdmTournamentData {
   return {
     name: tournament.name,
     date: tournament.date,
-    bmQualifications: tournament.bmQualifications.map(mapQualification),
-    mrQualifications: tournament.mrQualifications.map(mapQualification),
-    gpQualifications: tournament.gpQualifications.map(mapQualification),
-    bmMatches: tournament.bmMatches.map(mapMatch),
-    mrMatches: tournament.mrMatches.map(mapMatch),
-    gpMatches: tournament.gpMatches.map(mapMatch),
-    ttEntries: tournament.ttEntries.map(mapTtEntry),
+    bmQualifications: dropIncompletePlayerRows(
+      tournament.bmQualifications,
+      "bmQualifications",
+      logger,
+    ).map(mapQualification),
+    mrQualifications: dropIncompletePlayerRows(
+      tournament.mrQualifications,
+      "mrQualifications",
+      logger,
+    ).map(mapQualification),
+    gpQualifications: dropIncompletePlayerRows(
+      tournament.gpQualifications,
+      "gpQualifications",
+      logger,
+    ).map(mapQualification),
+    bmMatches: dropIncompleteMatchRows(
+      tournament.bmMatches,
+      "bmMatches",
+      logger,
+    ).map(mapMatch),
+    mrMatches: dropIncompleteMatchRows(
+      tournament.mrMatches,
+      "mrMatches",
+      logger,
+    ).map(mapMatch),
+    gpMatches: dropIncompleteMatchRows(
+      tournament.gpMatches,
+      "gpMatches",
+      logger,
+    ).map(mapMatch),
+    ttEntries: dropIncompletePlayerRows(
+      tournament.ttEntries,
+      "ttEntries",
+      logger,
+    ).map(mapTtEntry),
     ttPhaseRounds: tournament.ttPhaseRounds.map(mapTtPhaseRound),
   };
 }
@@ -347,7 +452,10 @@ export async function GET(
       // The Prisma payload (player columns projected via PLAYER_PUBLIC_SELECT)
       // is structurally a CdmTournamentRow; cast through unknown because the
       // generated Prisma include type is wider/looser than our read-only shape.
-      const cdmData = mapToCdmTournamentData(tournament as unknown as CdmTournamentRow);
+      const cdmData = mapToCdmTournamentData(
+        tournament as unknown as CdmTournamentRow,
+        logger,
+      );
       // generateCdmWorkbook returns a Uint8Array over the zip's backing buffer.
       // Re-wrap it so the response body is a Uint8Array<ArrayBuffer> (BodyInit);
       // the patcher's declared return widens to ArrayBufferLike, which NextResponse
@@ -642,8 +750,23 @@ export async function GET(
       },
     });
   } catch (error) {
-    // Log error with tournament ID for debugging
-    logger.error("Failed to export tournament", { error, tournamentId });
+    // Log error with tournament ID and full diagnostic context for debugging.
+    // The previous `logger.error("Failed to export tournament", { error })` call
+    // emitted the whole error object, which Cloudflare's Workers Logs viewer
+    // truncates and renders as `{}`. Serialise manually so the message + stack
+    // actually surface in the dashboard — without this, the operator only ever
+    // sees the opaque 500 with no clue whether it was a DB hiccup, a malformed
+    // tournament row, or a CDM template-patching error.
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorName = error instanceof Error ? error.name : undefined;
+    logger.error("Failed to export tournament", {
+      errorMessage,
+      errorName,
+      errorStack,
+      tournamentId,
+      format: exportFormat,
+    });
     return createErrorResponse("Failed to export tournament data", 500);
   }
 }
