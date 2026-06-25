@@ -157,7 +157,11 @@ export function replayTTFinals(data: CdmTournamentData): TTFinalsReplayRound[] {
       break;
     }
 
-    const results = parseRoundResults(round.results);
+    const results = parseRoundResults(round.results, {
+      logger,
+      phase,
+      roundNumber: round.roundNumber,
+    });
     // Participants restricted to the known universe: a result for an unknown id
     // cannot be placed on the sheet, so it is ignored (and warned) rather than
     // silently shifting row positions.
@@ -421,7 +425,14 @@ function stableSort<T>(items: T[], key: (item: T) => number): T[] {
 }
 
 /** Parse a TTPhaseRound.results JSON value into typed rows (defensive). */
-function parseRoundResults(raw: unknown): ResultRow[] {
+function parseRoundResults(
+  raw: unknown,
+  context?: {
+    logger: ReturnType<typeof createLogger>;
+    phase: FinalsPhase;
+    roundNumber: number;
+  },
+): ResultRow[] {
   if (!Array.isArray(raw)) return [];
   const rows: ResultRow[] = [];
   for (const item of raw) {
@@ -429,9 +440,18 @@ function parseRoundResults(raw: unknown): ResultRow[] {
       const playerId = (item as { playerId: unknown }).playerId;
       const timeMs = (item as { timeMs?: unknown }).timeMs;
       if (typeof playerId === "string") {
+        const usableTime =
+          typeof timeMs === "number" && Number.isFinite(timeMs) && timeMs >= 0
+            ? timeMs
+            : null;
+        if (timeMs !== undefined && timeMs !== null && usableTime === null) {
+          context?.logger.warn(
+            `TT Finals ${context.phase} round ${context.roundNumber}: invalid timeMs for player ${playerId}; treating as missing time`,
+          );
+        }
         rows.push({
           playerId,
-          timeMs: typeof timeMs === "number" ? timeMs : null,
+          timeMs: usableTime,
         });
       }
     }
