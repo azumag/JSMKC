@@ -382,6 +382,11 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       // (S6 = XLOOKUP(T6,...)); the faithful path must leave the formula intact,
       // while stripping the stale template cached value.
       expect(sheet.S6).toBeUndefined();
+      // The visible bracket names are materialized from the match record so the
+      // export does not render an empty tournament table while waiting for Excel
+      // to recalculate stripped formula caches.
+      expect(sheet.T5.v).toBe('W1');
+      expect(sheet.T6.v).toBe('W2');
       // winners_r1[0] is a completed 4-2: slot1 score in V5, slot2 score in V6.
       expect(sheet.V5.v).toBe(4);
       expect(sheet.V6.v).toBe(2);
@@ -392,8 +397,10 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(typeof sheet.B3.v).toBe('string');
       // GP finals use the same geometry (driver points written as scores).
       expect(workbook.Sheets['GP Finals'].S5.v).toBe(1);
+      expect(workbook.Sheets['GP Finals'].T5.v).toBe('W1');
       expect(workbook.Sheets['GP Finals'].V5.v).toBe(4);
       expect(workbook.Sheets['MR Finals'].S5.v).toBe(1);
+      expect(workbook.Sheets['MR Finals'].T5.v).toBe('W1');
     });
 
     it('should write the Main Hub player rows for exactly 60 players', async () => {

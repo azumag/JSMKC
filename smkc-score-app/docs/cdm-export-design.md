@@ -165,8 +165,11 @@ UBF=AM(39), GF1=AT(46), GF2=BA(53)。下段 LB は R/Y/AF/AM/AT/BA の rows 41..
   - winners_r1: idx 0,2,4,6 は S{row} のみ（slot2 は `Winner of B2,k` 数式）、
     idx 1,3,5,7 は S{row},S{row+1}
 - スコアは **同一性解決**で書く（3.4.1）。
-- 名前列（F/M/T/AA/AH/AO/AV/BC）・進出数式・最終順位ブロック（BG/BH/BI）・
-  "First to"・Arena ヘッダ・B32/B33 は非接触。
+- 名前列（F/M/T/AA/AH/AO/AV/BC）はテンプレート上は数式だが、生成直後や
+  保護ビューなどで再計算が遅れてもトーナメント表が空欄にならないよう、
+  **実 match record の player1/player2 を同一性解決した現在値で書く**。スコアと同じく
+  losers_final の反転などテンプレートの slot 意味論に従う。
+- 進出数式・最終順位ブロック（BG/BH/BI）・"First to"・Arena ヘッダ・B32/B33 は非接触。
 - TV 番号はテンプレートに該当セルが無いため**書かない**。
 - GF reset 不要時はスコアをクリアするだけ（数式が空欄処理）。
 
