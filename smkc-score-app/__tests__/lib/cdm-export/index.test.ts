@@ -220,6 +220,64 @@ describe("generateCdmWorkbook — patched input cells (8-player)", () => {
   });
 });
 
+describe("generateCdmWorkbook — no CDM2025 template data renders anywhere", () => {
+  // Distinctive nicknames baked into the real template's CDM2025 roster (verified
+  // against xl/sharedStrings.xml). They reach the visible cells two ways: as
+  // dynamic-array spill children (t="str" cached values, no <f>) on the
+  // formula-driven sheets, and as static t="s" references in the BM/MR Finals
+  // seed list. A correct export must leave NONE of them as a rendered value.
+  const STALE_NICKNAMES = [
+    "Bluh", "Drew", "Sami", "Ale", "Zarkov", "Kasmo", "Jarmou",
+    "Patrick", "Geo", "Champix", "Onwa", "Moll", "Antistar",
+  ];
+
+  // Match one <c> element: self-closing form first + lazy attribute run so a
+  // self-closing cell cannot swallow the next cell up to its </c>.
+  const CELL_RE = /<c\b[^>]*?\/>|<c\b[^>]*?>[\s\S]*?<\/c>/g;
+
+  /** Collect any cell on any worksheet that renders a stale CDM2025 nickname. */
+  function staleNameOffenders(out: Uint8Array): string[] {
+    const outParts = parts(out);
+    // Resolve the shared-string table to dereference t="s" cells.
+    const ss = strFromU8(outParts["xl/sharedStrings.xml"]);
+    const sharedStrings = [...ss.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) =>
+      [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join(""),
+    );
+    const stale = new Set(STALE_NICKNAMES);
+    const offenders: string[] = [];
+    for (const path of Object.keys(outParts)) {
+      if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(path)) continue;
+      const xml = strFromU8(outParts[path]);
+      for (const cell of xml.match(CELL_RE) ?? []) {
+        if (cell.includes("<f")) continue; // formulas are kept; only values matter
+        const t = /\bt="([^"]*)"/.exec(cell)?.[1];
+        let text = "";
+        if (t === "s") {
+          const idx = Number(/<v>(\d+)<\/v>/.exec(cell)?.[1] ?? "-1");
+          text = sharedStrings[idx] ?? "";
+        } else if (t === "inlineStr") {
+          text = [...cell.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((m) => m[1]).join("");
+        } else if (t === "str") {
+          text = /<v>([\s\S]*?)<\/v>/.exec(cell)?.[1] ?? "";
+        }
+        if (stale.has(text)) {
+          offenders.push(`${path} ${/\br="([^"]*)"/.exec(cell)?.[1]}=${text}`);
+        }
+      }
+    }
+    return offenders;
+  }
+
+  // Both export shapes must be clean: the degraded-8 path (spill children +
+  // overwrite/strip) and the faithful-24 playoff path (typed seed list).
+  it.each([
+    ["8-player degraded", eightPlayerFixture],
+    ["24-player playoff", twentyFourPlayoffFixture],
+  ])("renders no CDM2025 roster nickname on any sheet (%s)", (_label, fixture) => {
+    expect(staleNameOffenders(generateCdmWorkbook(loadTemplate(), fixture()))).toEqual([]);
+  });
+});
+
 describe("generateCdmWorkbook — patched input cells (24-player playoff)", () => {
   const out = generateCdmWorkbook(loadTemplate(), twentyFourPlayoffFixture());
   const ttQual = readSheet(out, "TT Qualifications");
