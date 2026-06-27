@@ -4,8 +4,9 @@
  * The Finals sheet is a formula-driven 24-player double-elimination bracket. The
  * fill map reconstructs each slot's B-position from the app match records (no DB
  * seed column) using the canonical structures in double-elimination.ts, writes
- * only the typed seed cells + score cells in faithful mode, and value-overwrites
- * the degraded 16-/8-player brackets the template formulas cannot represent.
+ * typed seed cells + visible name/score cells in faithful mode, and
+ * value-overwrites the degraded 16-/8-player brackets the template formulas
+ * cannot represent.
  *
  * Ground truth for cell coordinates is the verified template dump
  * /tmp/cdm-analysis/sheet2025/sheet_BM_Finals.txt; the B-position map below was
@@ -193,10 +194,15 @@ describe("buildFinalsWrites — faithful 24-player bracket", () => {
     expectUntouched(map, "L6");
   });
 
-  it("never writes a name/advancement formula cell (faithful path)", () => {
-    for (const ref of ["F5", "T5", "T6", "M6", "AA7", "AV19", "BC47"]) {
-      expectUntouched(map, ref);
-    }
+  it("writes visible match names from the app record in faithful path", () => {
+    expect(map.get("F5")).toMatchObject({ op: "overwriteString", value: "B23" });
+    expect(map.get("F6")).toMatchObject({ op: "overwriteString", value: "B22" });
+    expect(map.get("M5")).toMatchObject({ op: "overwriteString", value: "B13" });
+    expect(map.get("M6")).toMatchObject({ op: "overwriteString", value: "B23" });
+    expect(map.get("T5")).toMatchObject({ op: "overwriteString", value: "B1" });
+    expect(map.get("T6")).toMatchObject({ op: "overwriteString", value: "B13" });
+    // Downstream matches that do not yet exist are still left alone.
+    for (const ref of ["AA7", "AV19", "BC47"]) expectUntouched(map, ref);
   });
 
   it("writes scores by identity resolution into the slot the template expects", () => {
@@ -240,6 +246,9 @@ describe("buildFinalsWrites — losers_final slot reversal (faithful)", () => {
       mk({ matchNumber: 29, stage: "finals", round: "losers_final", p1: 201, p2: 102, s1: 1, s2: 4 }),
     ];
     const map = indexWrites(buildFinalsWrites(emptyData({ bmMatches: matches }), "bm"), "BM Finals");
+    // Names are written under the same template slot order as the scores.
+    expect(map.get("BC47")).toMatchObject({ op: "overwriteString", value: "B102" });
+    expect(map.get("BC48")).toMatchObject({ op: "overwriteString", value: "B201" });
     // bp102 (WF loser, app player2, score 4) -> template slot1 score cell BE47.
     expectNumber(map, "BE47", 4);
     // bp201 (LSF winner, app player1, score 1) -> template slot2 score cell BE48.

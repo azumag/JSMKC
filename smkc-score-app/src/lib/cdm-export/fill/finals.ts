@@ -8,7 +8,9 @@
  *   - typed seed cells (offset +1 in each match block) — a B-position number.
  *   - score cells (offset +4) — the two players' scores for that match.
  * Everything else (name XLOOKUPs, "Winner of N" advancement, final standings) is
- * a formula the export must NOT touch on the faithful path. See
+ * a formula in the template, but the export writes the current match-record
+ * names into used bracket slots so downloaded workbooks show the correct
+ * tournament table even before or without an Excel recalculation. See
  * docs/cdm-export-design.md §3.4 and finals-slot-semantics.ts.
  *
  * The DB stores no seed column, so we reconstruct each slot's B-position by
@@ -514,6 +516,68 @@ function writeMatchScores(
   builder.setNumberOrClear(scoreRefs[1], scoreFor(match, mode, 1));
 }
 
+/**
+ * Write the visible player names for one app match. Faithful CDM templates can
+ * derive these cells by formula, but stripped template caches plus protected or
+ * delayed recalculation can otherwise render an empty bracket. We use the same
+ * slot semantics as score resolution so rows like losers_final still land under
+ * the template's expected slot order.
+ */
+function writeMatchNames(
+  builder: FinalsWriteBuilder,
+  round: string,
+  matchIndex: number,
+  match: CdmMatch,
+  byRound: Map<string, CdmMatch[]>,
+  mode: CdmVersusMode,
+  recon: Reconstruction,
+): void {
+  const nameRefs = [0, 1].map((slotIndex) =>
+    slotCells(round, matchIndex, slotIndex)?.nameRef ?? null,
+  );
+  if (!nameRefs[0] || !nameRefs[1]) {
+    logger.warn("Finals match has no slot geometry; skipping names", {
+      mode,
+      round,
+      matchIndex,
+    });
+    return;
+  }
+  const resolvedNameRefs = [nameRefs[0], nameRefs[1]] as const;
+
+  const expected: Array<CdmPlayer | null> = [null, null];
+  for (const slotIndex of [0, 1]) {
+    const semantics = getSlotSemantics(round, matchIndex, slotIndex);
+    expected[slotIndex] = semantics
+      ? resolveSlotPlayer(semantics, round, matchIndex, slotIndex, byRound, mode, recon)
+      : null;
+  }
+
+  const byPlayerId = new Map<string, number>();
+  let resolvedBoth = true;
+  for (const slotIndex of [0, 1]) {
+    const player = expected[slotIndex];
+    if (player && (player.id === match.player1.id || player.id === match.player2.id)) {
+      byPlayerId.set(player.id, slotIndex);
+    } else {
+      resolvedBoth = false;
+    }
+  }
+
+  if (resolvedBoth && byPlayerId.size === 2) {
+    for (const player of [match.player1, match.player2]) {
+      const targetSlot = byPlayerId.get(player.id)!;
+      builder.overwriteString(resolvedNameRefs[targetSlot], player.nickname);
+    }
+    return;
+  }
+
+  // Same fallback as score writes: preserve the app record's p1/p2 order when
+  // the computed slot semantics cannot be reconciled with manually edited data.
+  builder.overwriteString(resolvedNameRefs[0], match.player1.nickname);
+  builder.overwriteString(resolvedNameRefs[1], match.player2.nickname);
+}
+
 /* ------------------------------------------------------------------ *
  * Typed seed-cell writing (faithful 24).
  * ------------------------------------------------------------------ */
@@ -696,6 +760,7 @@ function buildFaithfulOr16(
     clearAllScores(builder, ALL_FINALS_ROUNDS);
     writeTypedSeedCells(builder, recon);
     writeSeedList(builder, recon.bPositionPlayers, FULL_SEED_COUNT, mode);
+    writeAllNames(builder, byRound, mode, recon);
     writeAllScores(builder, byRound, mode, recon);
     return builder.build();
   }
@@ -786,6 +851,22 @@ function writeAllScores(
   }
 }
 
+/** Write visible names for every resolvable match across all faithful rounds. */
+function writeAllNames(
+  builder: FinalsWriteBuilder,
+  byRound: Map<string, CdmMatch[]>,
+  mode: CdmVersusMode,
+  recon: Reconstruction,
+): void {
+  for (const [round, list] of byRound) {
+    if (!FINALS_BRACKET_SLOTS[round]) continue;
+    list.forEach((match, matchIndex) => {
+      if (matchIndex >= FINALS_BRACKET_SLOTS[round].length) return;
+      writeMatchNames(builder, round, matchIndex, match, byRound, mode, recon);
+    });
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Mode: degraded 16-player (no playoff).
  *
@@ -859,6 +940,7 @@ function build16Player(
     }
   });
 
+  writeAllNames(builder, byRound, mode, recon);
   writeAllScores(builder, byRound, mode, recon);
   return builder.build();
 }
