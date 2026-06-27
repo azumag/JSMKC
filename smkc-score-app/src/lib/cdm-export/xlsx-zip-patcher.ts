@@ -15,22 +15,27 @@
  *  2. patch ONLY the input cells of the touched worksheets via SheetXmlPatcher,
  *     which rewrites just the changed <c>/<row> regions and reproduces every
  *     other byte of the sheet verbatim;
- *  3. drop formula cached values from touched sheets, force a full recalculation
- *     on open and drop the now-stale calcChain so Excel rebuilds the dependency
- *     order itself;
+ *  3. drop stale cached results from EVERY worksheet (touched or not) — both
+ *     formula cells AND the dynamic-array spill children those formulas populate
+ *     (cells with no <f> of their own; see stripFormulaCachedValues) — then force
+ *     a full recalculation on open and drop the now-stale calcChain so Excel
+ *     rebuilds the dependency order and re-spills the values itself;
  *  4. pass through EVERY other part (tables, richData, media, styles, metadata,
  *     sharedStrings, printerSettings, customXml, docProps, ...) byte-for-byte,
  *     keeping the original zip entry order so a diff against the template shows
- *     only the three parts we intentionally edit.
+ *     only the worksheets plus the three calc-control parts we intentionally edit.
  *
- * The only parts that may differ from the template after a no-op patch are:
+ * The parts that may differ from the template after a no-op patch are:
+ *   - xl/worksheets/sheet*.xml (stale cached formula/spill values removed; the
+ *     formulas, styles and structure are otherwise byte-preserved)
  *   - xl/workbook.xml          (calcPr gains fullCalcOnLoad="1")
  *   - [Content_Types].xml      (calcChain Override removed)
  *   - xl/_rels/workbook.xml.rels (calcChain Relationship removed)
- * and xl/calcChain.xml is removed entirely.
+ * and xl/calcChain.xml is removed entirely. Every other (non-worksheet) part is
+ * byte-identical — that fidelity is what the old SheetJS exporter could not keep.
  */
 import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
-import type { CdmCellWrite, CdmSheetName } from "@/lib/cdm-export/types";
+import type { CdmCellWrite } from "@/lib/cdm-export/types";
 import { SheetXmlPatcher } from "@/lib/cdm-export/sheet-xml-patcher";
 
 /** OOXML part path of the worksheet relationship Content-Type filter. */
@@ -120,8 +125,8 @@ function upsertAttr(attrs: string, name: string, value: string): string {
 
 /**
  * Add the recalculation attributes to <calcPr>, idempotently. With the calcChain
- * gone and touched-sheet formula caches removed, this tells Excel to rebuild
- * the dynamic-array formula web on first open.
+ * gone and every sheet's formula and spill-child caches removed, this tells Excel
+ * to rebuild the dynamic-array formula web on first open.
  */
 function ensureFullRecalculation(workbookXml: string): string {
   const calcPrMatch = /<calcPr\b([^>]*)\/>/.exec(workbookXml);
@@ -150,15 +155,128 @@ function ensureFullRecalculation(workbookXml: string): string {
   throw new Error("patchCdmWorkbook: workbook.xml has neither <calcPr> nor <sheets>");
 }
 
+/** A rectangular cell range (1-based, inclusive on both corners). */
+interface CellRange {
+  minCol: number;
+  maxCol: number;
+  minRow: number;
+  maxRow: number;
+}
+
+/** Convert column letters ("A", "B", … "AA") to a 1-based column number. */
+function columnLettersToNumber(letters: string): number {
+  let col = 0;
+  for (let i = 0; i < letters.length; i++) {
+    col = col * 26 + (letters.charCodeAt(i) - 64);
+  }
+  return col;
+}
+
+/** Parse an A1 ref ("B12") into 1-based {col,row}, or undefined if malformed. */
+function parseA1(ref: string): { col: number; row: number } | undefined {
+  const m = /^([A-Za-z]+)(\d+)$/.exec(ref);
+  if (!m) return undefined;
+  return { col: columnLettersToNumber(m[1].toUpperCase()), row: Number(m[2]) };
+}
+
+/** Parse an A1 range ("B2:B48" or a bare single cell "B2") into a CellRange. */
+function parseRange(ref: string): CellRange | undefined {
+  const [a, b] = ref.split(":");
+  const start = parseA1(a);
+  const end = b ? parseA1(b) : start;
+  if (!start || !end) return undefined;
+  return {
+    minCol: Math.min(start.col, end.col),
+    maxCol: Math.max(start.col, end.col),
+    minRow: Math.min(start.row, end.row),
+    maxRow: Math.max(start.row, end.row),
+  };
+}
+
+/**
+ * Collect the spill range of every dynamic-array formula in a worksheet.
+ *
+ * A dynamic-array (spill) formula stores its `<f>` ONLY in its anchor cell, as
+ * `<c r="B2"…><f t="array" ref="B2:B48">…</f><v>…</v></c>`. The cells it spills
+ * into (B3..B48) are persisted as plain cached cells with NO `<f>` of their own,
+ * e.g. `<c r="B4" s="44" t="str"><v>Bluh</v></c>`. Those spill *children* are the
+ * ones that carry the CDM2025 names/scores (FILTER/SORT/UNIQUE of
+ * Registration[Nickname], cross-sheet XLOOKUPs, …), yet they hold no `<f>` and so
+ * escape a naïve "does the cell contain <f>?" strip. We collect the anchors' ref
+ * ranges here so {@link stripFormulaCachedValues} can clear the children too.
+ *
+ * Only `t="array"` formulas declare a spill (a stale value to drop). Shared
+ * formulas (`t="shared"`) also carry a `ref`, but their member cells each keep
+ * their own `<f t="shared" si=…>` and are already handled by the in-cell `<f>`
+ * test, so they are deliberately excluded here.
+ */
+function collectSpillRanges(sheetXml: string): CellRange[] {
+  const ranges: CellRange[] = [];
+  const fTagRe = /<f\b([^>]*)>/g;
+  let m: RegExpExecArray | null;
+  while ((m = fTagRe.exec(sheetXml)) !== null) {
+    const attrs = m[1];
+    if (!/\bt="array"/.test(attrs)) continue;
+    const refMatch = /\bref="([^"]*)"/.exec(attrs);
+    if (!refMatch) continue;
+    const range = parseRange(refMatch[1]);
+    if (range) ranges.push(range);
+  }
+  return ranges;
+}
+
+/** Is the A1 ref inside any of the given ranges? */
+function isWithinAnyRange(ref: string, ranges: CellRange[]): boolean {
+  if (ranges.length === 0) return false;
+  const cell = parseA1(ref);
+  if (!cell) return false;
+  for (const r of ranges) {
+    if (
+      cell.col >= r.minCol &&
+      cell.col <= r.maxCol &&
+      cell.row >= r.minRow &&
+      cell.row <= r.maxRow
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Remove stale cached formula values from a worksheet XML string while keeping
  * formulas, styles and rich-value metadata intact. The CDM template ships with
  * CDM2025 cached results in formula cells; generated workbooks must not show
- * those names/scores while Excel is deciding when to recalculate.
+ * those names/scores while Excel is deciding when to recalculate. Applied to
+ * every worksheet in the package — the never-written sheets (Overall Ranking,
+ * TT for Scoub, Parameters) carry just as much stale CDM2025 data as the ones
+ * we patch, so leaving their caches would let those template-era values render
+ * until the post-open recalculation catches up.
+ *
+ * Two kinds of cached values are dropped:
+ *  1. cells that contain an `<f>` (ordinary, shared or array-anchor formulas);
+ *  2. dynamic-array SPILL CHILDREN — cells with no `<f>` of their own that sit
+ *     inside an anchor's spill `ref` range. These hold the bulk of the visible
+ *     CDM2025 roster (the FILTER/SORT/UNIQUE spills) and, because a non-empty
+ *     spill range also blocks Excel from re-spilling fresh values on open, must
+ *     be cleared so the anchor can repopulate them. See {@link collectSpillRanges}.
  */
 function stripFormulaCachedValues(sheetXml: string): string {
-  return sheetXml.replace(/<c\b[^>]*(?:\/>|>[\s\S]*?<\/c>)/g, (cell) => {
-    if (!cell.includes("<f")) return cell;
+  const spillRanges = collectSpillRanges(sheetXml);
+  // Match one <c> element at a time. The self-closing form is listed FIRST and
+  // both forms use a lazy attribute run (`[^>]*?`); otherwise a self-closing cell
+  // (<c r=".." t="s"/>) would greedily swallow the following cells up to the next
+  // </c>, and the per-cell ref/spill test below would then key off only the
+  // leading cell — silently skipping any spill child caught inside that span.
+  return sheetXml.replace(/<c\b[^>]*?\/>|<c\b[^>]*?>[\s\S]*?<\/c>/g, (cell) => {
+    if (!cell.includes("<f")) {
+      // Not a formula cell. Only strip it when it is a spill child of some
+      // dynamic-array anchor; a true input/static cell must keep its value.
+      // The cell's own address is the first r="…" in the element (a `ref="…"`
+      // on a nested <f> is excluded by the \b word boundary before r).
+      const refMatch = /\br="([^"]*)"/.exec(cell);
+      if (!refMatch || !isWithinAnyRange(refMatch[1], spillRanges)) return cell;
+    }
     return cell
       .replace(/<v(?:\s*\/|>[\s\S]*?<\/v>)/g, "")
       .replace(/<is>[\s\S]*?<\/is>/g, "");
@@ -215,9 +333,11 @@ export function patchCdmWorkbook(
 
   const sheetPathByName = buildSheetPathResolver(workbookXml, workbookRelsXml);
 
-  // Group writes by sheet, preserving their relative order within a sheet so
-  // last-write-wins is honoured by SheetXmlPatcher.
-  const writesBySheet = new Map<CdmSheetName, CdmCellWrite[]>();
+  // Group writes by the resolved part PATH (not the sheet name), preserving
+  // their relative order within a sheet so last-write-wins is honoured by
+  // SheetXmlPatcher. Keying by path lets the single strip loop below find a
+  // sheet's writes without a separate "touched" bookkeeping set.
+  const writesByPath = new Map<string, CdmCellWrite[]>();
   for (const write of writes) {
     const path = sheetPathByName.get(write.sheet);
     if (!path) {
@@ -225,31 +345,69 @@ export function patchCdmWorkbook(
         `patchCdmWorkbook: unknown sheet name "${write.sheet}" — not present in workbook.xml`
       );
     }
-    const list = writesBySheet.get(write.sheet);
+    const list = writesByPath.get(path);
     if (list) {
       list.push(write);
     } else {
-      writesBySheet.set(write.sheet, [write]);
+      writesByPath.set(path, [write]);
     }
   }
 
-  // Patch each touched worksheet's XML in place within the parts map. The map
-  // still holds verbatim bytes for everything else, which is what guarantees
-  // byte-fidelity of the untouched parts.
-  for (const [sheet, sheetWrites] of writesBySheet) {
-    const path = sheetPathByName.get(sheet)!;
+  // Process EVERY worksheet the workbook declares, whether or not it receives
+  // cell writes. The CDM template ships with CDM2025 computed results cached
+  // inside formula cells AND inside their dynamic-array spill children, and on
+  // the sheets the exporter never writes to (Overall Ranking, TT for Scoub,
+  // Parameters — see design §3.6) those caches would otherwise survive
+  // unchanged. fullCalcOnLoad rebuilds the values once Excel recalculates, but
+  // until it does Excel renders the stale template-era names/scores — exactly
+  // the "only some sheets update" symptom. We therefore strip every worksheet's
+  // caches, touched or not, so nothing can show a pre-computed template value on
+  // open. A single pass over all paths keeps "stripped exactly once" structural.
+  for (const path of new Set(sheetPathByName.values())) {
     const sheetBytes = parts[path];
     if (!sheetBytes) {
       throw new Error(`patchCdmWorkbook: worksheet part "${path}" not found in package`);
     }
-    const patcher = new SheetXmlPatcher(strFromU8(sheetBytes));
-    for (const write of sheetWrites) {
-      // CdmCellWrite is CdmCellOp & { sheet, ref }; SheetXmlPatcher.apply takes
-      // the op shape, so we pass the write through (the extra sheet/ref fields
-      // are ignored by the discriminated-union switch).
-      patcher.apply(write.ref, write);
+    let sheetXml = strFromU8(sheetBytes);
+
+    const sheetWrites = writesByPath.get(path);
+    if (sheetWrites) {
+      // Symmetric drift guard: SheetXmlPatcher already throws when a value op
+      // lands on a formula ANCHOR (a cell with its own <f>). A value op aimed at
+      // a dynamic-array SPILL CHILD (no <f> of its own) would NOT throw there,
+      // yet the strip below clears that whole spill range — silently erasing the
+      // write. That is the same fill/template drift the anchor guard rejects, so
+      // we reject it here too rather than lose data quietly. Computed on the
+      // pre-patch XML because value ops never alter anchors (they would throw).
+      const spillRanges = collectSpillRanges(sheetXml);
+      for (const write of sheetWrites) {
+        if (
+          (write.op === "number" || write.op === "inlineString") &&
+          isWithinAnyRange(write.ref, spillRanges)
+        ) {
+          throw new Error(
+            `patchCdmWorkbook: refusing to write a value into the dynamic-array ` +
+              `spill cell ${write.sheet}!${write.ref}; the fill map disagrees with the template`
+          );
+        }
+      }
+
+      const patcher = new SheetXmlPatcher(sheetXml);
+      for (const write of sheetWrites) {
+        // CdmCellWrite is CdmCellOp & { sheet, ref }; SheetXmlPatcher.apply takes
+        // the op shape, so we pass the write through (the extra sheet/ref fields
+        // are ignored by the discriminated-union switch).
+        patcher.apply(write.ref, write);
+      }
+      sheetXml = patcher.serialize();
     }
-    parts[path] = strToU8(stripFormulaCachedValues(patcher.serialize()));
+
+    // Strip on the post-patch XML so spill ranges reflect any anchors an
+    // overwrite/strip op removed: a cell whose <f t="array"> was overwritten is
+    // no longer in a range, so its freshly written value is preserved. (The only
+    // anchors the degraded bracket modes strip are single-cell, so no multi-cell
+    // anchor is ever orphaned mid-spill; revisit this if that ever changes.)
+    parts[path] = strToU8(stripFormulaCachedValues(sheetXml));
   }
 
   // Force recalculation on open and remove the stale calc chain.

@@ -55,7 +55,7 @@ describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
   const out = patchCdmWorkbook(loadTemplate(), []);
   const outParts = parts(out);
 
-  it("preserves every part except workbook.xml, content types and workbook rels", () => {
+  it("preserves every non-worksheet part except workbook.xml, content types and workbook rels", () => {
     const allowedToDiffer = new Set([
       "xl/workbook.xml",
       "[Content_Types].xml",
@@ -66,6 +66,13 @@ describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
     for (const path of Object.keys(originalParts)) {
       if (removed.has(path)) continue; // expected to be gone
       if (allowedToDiffer.has(path)) continue; // checked individually below
+      // Worksheet XML is now expected to differ even on a no-op patch: stale
+      // CDM2025 cached formula AND dynamic-array spill-child values are stripped
+      // from EVERY sheet so no template-era data can render before recalc. The
+      // irreplaceable parts the old SheetJS exporter destroyed (tables, richData,
+      // media, styles, sharedStrings, metadata, …) must still pass through
+      // byte-for-byte, which is what this loop guards.
+      if (/^xl\/worksheets\/sheet\d+\.xml$/.test(path)) continue;
       expect(outParts[path]).toBeDefined();
       expect(bytesEqual(outParts[path], originalParts[path])).toBe(true);
     }
@@ -85,14 +92,24 @@ describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
     ).toBe(true);
   });
 
-  it("keeps all 12 worksheet xml parts byte-identical when nothing is written", () => {
+  it("keeps all 12 worksheet parts but strips their stale cached values", () => {
     const sheets = Object.keys(originalParts).filter((p) =>
       /^xl\/worksheets\/sheet\d+\.xml$/.test(p)
     );
     expect(sheets.length).toBe(12);
-    for (const sheet of sheets) {
-      expect(bytesEqual(outParts[sheet], originalParts[sheet])).toBe(true);
-    }
+    for (const sheet of sheets) expect(outParts[sheet]).toBeDefined();
+
+    // Overall Ranking (sheet12) is never written by the fill map, yet it must no
+    // longer carry the CDM2025 roster: the SORT(UNIQUE(Registration[Nickname]))
+    // anchor formula survives, but the names it spilled (B3..B61, t="str" cells
+    // with no <f>) are cleared so Excel re-spills the new tournament's players.
+    const overall = strFromU8(outParts["xl/worksheets/sheet12.xml"]);
+    expect(overall).toContain(
+      "_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))",
+    );
+    expect(overall).not.toContain("<v>Bluh</v>");
+    expect(overall).not.toContain("<v>Drew</v>");
+    expect(overall).not.toContain("<v>Sami</v>");
   });
 
   it("adds full-recalculation attributes to calcPr in workbook.xml", () => {
@@ -186,6 +203,51 @@ describe("patchCdmWorkbook — real cell writes", () => {
     // The B2 array formula text must be gone; a styled shell remains.
     expect(sheet12).not.toContain("_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))");
     expect(sheet12).toContain('<c r="B2" s="32"/>');
+  });
+
+  it("strips stale cached values from dynamic-array spill child cells", () => {
+    // Overall Ranking (sheet12) is never written by the fill map. Its B column is
+    // the spill of SORT(UNIQUE(Registration[Nickname])) anchored at B2; the
+    // template persists the CDM2025 spill children (B3..B61) as t="str" cells with
+    // NO <f> of their own, e.g. <c r="B7" s="32" t="str"><v>Bluh</v></c>. The old
+    // strip only touched cells containing <f>, so those names survived and Excel
+    // rendered the stale CDM2025 roster. A no-op patch must already remove them.
+    const out = patchCdmWorkbook(loadTemplate(), []);
+    const overall = readSheet(out, "xl/worksheets/sheet12.xml");
+    expect(overall).not.toContain("<v>Bluh</v>");
+    expect(overall).not.toContain("<v>Drew</v>");
+    expect(overall).not.toContain("<v>Sami</v>");
+    // The spill ANCHOR formula must remain intact — only its cached value is gone.
+    expect(overall).toContain(
+      "_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))",
+    );
+  });
+
+  it("strips spill children on a touched sheet too (TT Qualifications)", () => {
+    // TT Qualifications (sheet3) B2:B48 / F2:F48 spill FILTER/SORT of the roster.
+    // Writing an input cell makes the sheet "touched"; the spill children must be
+    // cleared on that path as well, not just on untouched sheets.
+    const out = patchCdmWorkbook(loadTemplate(), [
+      { sheet: "TT Qualifications", ref: "G2", op: "number", value: 11034 },
+    ]);
+    const ttQual = readSheet(out, "xl/worksheets/sheet3.xml");
+    expect(ttQual).not.toContain("<v>Bluh</v>");
+    expect(ttQual).not.toContain("<v>Drew</v>");
+    expect(ttQual).not.toContain("<v>Sami</v>");
+    // The input we wrote must OUTLIVE the strip — G2 is a plain input cell, not a
+    // spill child, so clearing spill ranges must not touch it.
+    expect(ttQual).toContain('<c r="G2" s="45"><v>11034</v></c>');
+  });
+
+  it("throws when a value is written into a dynamic-array spill cell", () => {
+    // Overall Ranking B2 anchors SORT(UNIQUE(Registration[Nickname])) with spill
+    // ref B2:B61, so B5 is a spill CHILD (no <f> of its own). Writing a value
+    // there is fill/template drift: it would be silently erased by the spill-range
+    // strip, so the patcher must reject it — symmetric with the anchor guard above.
+    const writes: CdmCellWrite[] = [
+      { sheet: "Overall Ranking", ref: "B5", op: "inlineString", value: "X" },
+    ];
+    expect(() => patchCdmWorkbook(loadTemplate(), writes)).toThrow(/B5/);
   });
 
   it("throws on an unknown sheet name", () => {
