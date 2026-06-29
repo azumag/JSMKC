@@ -54,6 +54,13 @@ const REGISTRATION_DATA_COLUMNS = [
   "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
 ] as const;
 
+/**
+ * The Country column. Special-cased everywhere because it is a rich-value cell
+ * (t="e" vm=… → a flag image in xl/richData): it must be STRIPPED, not cleared,
+ * when empty so its `vm` flag pointer cannot resolve to the stale CDM2025 flag.
+ */
+const COUNTRY_COLUMN = "D";
+
 /** Order column letters E,F,G,H indexed as [TT, BM, MR, GP]. */
 const ORDER_COLUMNS = ["E", "F", "G", "H"] as const;
 /** Participation Yes/No column letters I,J,K,L indexed as [TT, BM, MR, GP]. */
@@ -157,15 +164,16 @@ export function buildMainHubWrites(data: CdmTournamentData): CdmCellWrites {
 
     builder.setString(`B${row}`, player.name);
     builder.setString(`C${row}`, player.nickname);
-    // Country was a rich-value flag image; we write plain text and clear when
-    // absent (clearing keeps the styled cell and any XLOOKUP-on-image formulas
-    // elsewhere evaluating blank gracefully). XML detail: the template D cells
-    // are rich-value error shells (t="e" vm=..), and clearValue only drops the
-    // cached <v>, so a cleared cell keeps that typed-empty shell. Excel treats
-    // a value-less cell as blank regardless of its t attribute, and D is not
-    // referenced by any spill anchor, so the leftover shell is inert — accepted
-    // alongside the documented flag-image degradation (design doc §6).
-    builder.setStringOrClear(`D${row}`, player.country ?? null);
+    // Country was a rich-value flag image; we write plain text, or fully STRIP
+    // the cell when absent (also covers country===""). XML detail: the template
+    // D cells are rich-value shells (t="e" vm=N) where `vm` points into
+    // xl/richData at the CDM2025 flag. clearValue would drop only the cached <v>
+    // and KEEP `vm`, so Excel (or any licensed engine resolving
+    // _FV(Registration[Country],"image")) still renders that stale flag for a
+    // player who has no country — the "未入力なのに前の国が出る" bug. strip()
+    // removes t/cm/vm so the cell is truly blank and no old flag can resolve.
+    if (player.country) builder.setString(`${COUNTRY_COLUMN}${row}`, player.country);
+    else builder.strip(`${COUNTRY_COLUMN}${row}`);
 
     // E..H Orders: [TT, BM, MR, GP]. Absent participation -> clear (blank),
     // never 0, so the sheet's interleave/XLOOKUP treat the player as not in the
@@ -183,13 +191,19 @@ export function buildMainHubWrites(data: CdmTournamentData): CdmCellWrites {
     builder.setString(`${PARTICIPATION_COLUMNS[3]}${row}`, gpOrders.has(player.id) ? "Yes" : "No");
   });
 
-  // --- Spare rows: clear B..L from (players+2) through 61 ------------------
+  // --- Spare rows: clear B..L (strip D) from (players+2) through 61 --------
+  // Country (D) is stripped, not cleared, for the same rich-value reason as the
+  // player rows above: a cleared D keeps its `vm` flag pointer and renders a
+  // stale country on an otherwise-empty row.
   for (
     let row = MAIN_HUB_FIRST_PLAYER_ROW + players.length;
     row <= MAIN_HUB_LAST_PLAYER_ROW;
     row++
   ) {
-    for (const col of REGISTRATION_DATA_COLUMNS) builder.clear(`${col}${row}`);
+    for (const col of REGISTRATION_DATA_COLUMNS) {
+      if (col === COUNTRY_COLUMN) builder.strip(`${col}${row}`);
+      else builder.clear(`${col}${row}`);
+    }
   }
 
   // --- Qualifying counts O3..R3 -------------------------------------------

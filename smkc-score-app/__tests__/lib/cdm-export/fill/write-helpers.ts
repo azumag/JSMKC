@@ -57,6 +57,13 @@ export function expectClear(map: Map<string, CdmCellWrite>, ref: string): void {
   expect(w?.op).toBe("clearValue");
 }
 
+/** Assert a cell is stripped (value/formula AND t/cm/vm dropped, style kept). */
+export function expectStrip(map: Map<string, CdmCellWrite>, ref: string): void {
+  const w = map.get(ref);
+  expect(w).toBeDefined();
+  expect(w?.op).toBe("strip");
+}
+
 /** Assert no write at all targets a given cell. */
 export function expectUntouched(
   map: Map<string, CdmCellWrite>,

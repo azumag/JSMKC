@@ -222,6 +222,17 @@ describe("generateCdmWorkbook — patched input cells (8-player)", () => {
     // row 62, so the absent template cell stays absent in the output.
     expect(mainHub).not.toContain('r="B62"');
   });
+
+  it("leaves NO rich-value vm pointer on Main Hub (no stale CDM2025 country flag)", () => {
+    // The template's Country column D2:D61 and the UNIQUE(FILTER(Country)) spill
+    // helper T3:T12 are rich-value cells (t="e" vm=N) whose `vm` resolves to the
+    // CDM2025 flag in xl/richData. These fixture players have no country, so every
+    // such cell must be fully stripped — a single surviving vm renders a stale
+    // flag (the "未入力なのに前の国が出る" bug). End-to-end guard over the whole sheet.
+    expect(mainHub).not.toMatch(/vm="\d+"/);
+    // The Country cells themselves must be styled-empty shells, not t="e" shells.
+    expect(mainHub).not.toMatch(/<c r="D\d+"[^>]*t="e"/);
+  });
 });
 
 describe("generateCdmWorkbook — no CDM2025 template data renders anywhere", () => {
