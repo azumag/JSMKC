@@ -22,6 +22,7 @@ import {
   expectString,
   expectNumber,
   expectClear,
+  expectStrip,
   expectUntouched,
   writtenRefs,
 } from "./write-helpers";
@@ -74,7 +75,7 @@ describe("buildMainHubWrites — player rows", () => {
     expectString(map, "C2", "Z-nick");
   });
 
-  it("writes nickname, country text, and clears null country", () => {
+  it("writes nickname, country text, and STRIPS null country", () => {
     const a = player("p1", "Aaa", "Anick", "France");
     const b = player("p2", "Bbb", "Bnick", null);
     const data = emptyData({ bmQualifications: [qual(a, "A", 1), qual(b, "A", 2)] });
@@ -82,7 +83,10 @@ describe("buildMainHubWrites — player rows", () => {
     expectString(map, "C2", "Anick");
     expectString(map, "D2", "France");
     expectString(map, "C3", "Bnick");
-    expectClear(map, "D3"); // null country -> clearValue (was a rich image)
+    // null country -> STRIP (not clearValue): the template D cell is a rich-value
+    // shell whose `vm` points at the old CDM2025 flag; clearValue keeps `vm` and
+    // Excel renders the stale country, so the cell must be fully stripped.
+    expectStrip(map, "D3");
   });
 
   it("never writes the formula columns A, M, N or the spill columns T/U", () => {
@@ -241,15 +245,18 @@ describe("buildMainHubWrites — Qualifying counts O3..R3 and Groups O4..R4", ()
 });
 
 describe("buildMainHubWrites — spare rows and bounds", () => {
-  it("clears B..L on every row after the players (up to row 61)", () => {
+  it("clears B..L on every row after the players (up to row 61); strips D", () => {
     const a = player("p1", "Aaa", "An");
     const data = emptyData({ bmQualifications: [qual(a, "A", 1)] });
     const map = indexWrites(buildMainHubWrites(data), SHEET);
-    // 1 player on row 2; row 3 onward must clear B..L.
-    for (const col of ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]) {
+    // 1 player on row 2; row 3 onward must clear B..L — except D (the rich-value
+    // country shell) which is STRIPPED so no stale flag renders on an empty row.
+    for (const col of ["B", "C", "E", "F", "G", "H", "I", "J", "K", "L"]) {
       expectClear(map, `${col}3`);
       expectClear(map, `${col}61`);
     }
+    expectStrip(map, "D3");
+    expectStrip(map, "D61");
     // But never row 62 (out of the 60-row Registration table).
     expectUntouched(map, "B62");
   });
