@@ -277,9 +277,26 @@ function stripFormulaCachedValues(sheetXml: string): string {
       const refMatch = /\br="([^"]*)"/.exec(cell);
       if (!refMatch || !isWithinAnyRange(refMatch[1], spillRanges)) return cell;
     }
-    return cell
-      .replace(/<v(?:\s*\/|>[\s\S]*?<\/v>)/g, "")
-      .replace(/<is>[\s\S]*?<\/is>/g, "");
+    return (
+      cell
+        .replace(/<v(?:\s*\/|>[\s\S]*?<\/v>)/g, "")
+        .replace(/<is>[\s\S]*?<\/is>/g, "")
+        // Drop the now-stale cached-value type from the <c> opening tag. The `t`
+        // attribute records the type of the cached <v>/<is> we just removed; the
+        // alternation mirrors those value forms (t="str"/"e"/"b"/"s" pair with the
+        // <v> strip, "inlineStr" with the <is> strip). In this template only "str"
+        // and "e" actually occur on stripped cells — the rest are kept for symmetry
+        // so no value-form can ever leave a dangling type behind.
+        // Left dangling it is worse than wrong: on a dynamic-array ANCHOR cell
+        // Excel reads t="str" as "this formula returns a single string", loads
+        // the array as a SCALAR, and never spills it — so every ANCHORARRAY()/`#`
+        // reference to that anchor (the CDM sheets are whole webs of them) then
+        // resolves to #NAME?. Removing it lets Excel recompute the result type on
+        // open and re-establish the spill. Only the attribute run before the
+        // first '>' is touched, so the formula's own <f t="array"> marker — which
+        // lives after that '>' and is never in this alternation — is preserved.
+        .replace(/^(<c\b[^>]*?)\s+t="(?:str|e|b|s|inlineStr)"/, "$1")
+    );
   });
 }
 

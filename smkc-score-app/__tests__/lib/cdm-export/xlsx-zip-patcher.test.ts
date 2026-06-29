@@ -183,7 +183,12 @@ describe("patchCdmWorkbook — real cell writes", () => {
     const sheet7 = readSheet(out, "xl/worksheets/sheet7.xml");
 
     expect(sheet7).toContain('<f>_xlfn.XLOOKUP(E5,A:A,B:B)</f>');
-    expect(sheet7).toContain('<c r="F5" s="13" t="str"><f>_xlfn.XLOOKUP(E5,A:A,B:B)</f></c>');
+    // The cached <v>Patrick</v> AND the now-stale t="str" type marker must both be
+    // gone: a formula cell left as <c t="str"><f/></c> (string type, no value) is
+    // read by Excel as a scalar-string result, which stops a dynamic array from
+    // spilling and makes every ANCHORARRAY()/`#` reference to it resolve to #NAME?.
+    expect(sheet7).toContain('<c r="F5" s="13"><f>_xlfn.XLOOKUP(E5,A:A,B:B)</f></c>');
+    expect(sheet7).not.toContain('t="str"><f>_xlfn.XLOOKUP(E5,A:A,B:B)</f>');
     expect(sheet7).not.toContain('<f>_xlfn.XLOOKUP(E5,A:A,B:B)</f><v>Patrick</v>');
   });
 
@@ -237,6 +242,30 @@ describe("patchCdmWorkbook — real cell writes", () => {
     // The input we wrote must OUTLIVE the strip — G2 is a plain input cell, not a
     // spill child, so clearing spill ranges must not touch it.
     expect(ttQual).toContain('<c r="G2" s="45"><v>11034</v></c>');
+  });
+
+  it("removes the stale t=\"str\" type from stripped dynamic-array anchors so they spill", () => {
+    // Regression: the strip dropped a string anchor's cached <v> but LEFT t="str"
+    // on the <c>. Excel reads <c t="str"><f t="array">FILTER(...)</f></c> (string
+    // type, no value) as a SCALAR string result, so the array never spills and
+    // every ANCHORARRAY()/`#` reference to it resolves to #NAME? — which blanked
+    // the entire formula-driven TT Qualifications sheet. The type marker must go
+    // with the value so Excel recomputes it and re-establishes the spill.
+    const out = patchCdmWorkbook(loadTemplate(), [
+      { sheet: "TT Qualifications", ref: "G2", op: "number", value: 11034 },
+    ]);
+    const ttQual = readSheet(out, "xl/worksheets/sheet3.xml");
+    // B2 = FILTER(...) and F2 = SORT(ANCHORARRAY(B2)) are string-result anchors.
+    expect(ttQual).toContain(
+      '<c r="B2" s="44" cm="1"><f t="array" ref="B2:B48">_xlfn._xlws.FILTER(',
+    );
+    expect(ttQual).toContain(
+      '<c r="F2" s="44" cm="1"><f t="array" ref="F2:F48">_xlfn._xlws.SORT(',
+    );
+    // No formula cell may keep a dangling value-type t with no cached value.
+    expect(ttQual).not.toMatch(/t="(?:str|e|b)"><f/);
+    // The array marker on the <f> itself (t="array") must of course survive.
+    expect(ttQual).toContain('<f t="array" ref="B2:B48">');
   });
 
   it("throws when a value is written into a dynamic-array spill cell", () => {

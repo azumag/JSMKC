@@ -197,7 +197,11 @@ describe("generateCdmWorkbook — untouched-part fidelity", () => {
 
   it("removes stale cached values from formula cells on touched sheets", () => {
     const bmFinals = readSheet(out, "BM Finals");
-    expect(bmFinals).toContain('<c r="BH3" s="13" t="str"><f>IF(COUNTA(AX19:AX20)');
+    // Formula preserved, cached <v> dropped, and the stale t="str" type marker
+    // removed too (a dangling t="str" with no value makes Excel load the formula
+    // as a scalar string and breaks dynamic-array spilling — see xlsx-zip-patcher).
+    expect(bmFinals).toContain('<c r="BH3" s="13"><f>IF(COUNTA(AX19:AX20)');
+    expect(bmFinals).not.toContain('t="str"><f>IF(COUNTA(AX19:AX20)');
     expect(bmFinals).not.toContain("<v>Sami</v>");
     expect(bmFinals).not.toContain("<v>Drew</v>");
   });
