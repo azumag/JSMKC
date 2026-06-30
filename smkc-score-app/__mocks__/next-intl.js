@@ -15,4 +15,8 @@ const useTranslations = (namespace) => {
   };
 };
 
-export { useTranslations };
+// Locale hook used by components that render <CountryFlag> for tooltip text.
+// Tests render against the English message set, so report "en".
+const useLocale = () => 'en';
+
+export { useTranslations, useLocale };

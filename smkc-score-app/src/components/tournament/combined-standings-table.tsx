@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CountryFlag } from "@/components/ui/country-flag";
 
 export interface CombinedStandingsEntry {
   id: string;
@@ -26,6 +27,8 @@ export interface CombinedStandingsEntry {
   score: number;
   player: {
     nickname: string;
+    /** Stored country value (ISO code or legacy name); optional. */
+    country?: string | null;
   };
 }
 
@@ -50,6 +53,11 @@ interface CombinedStandingsTableProps<T extends CombinedStandingsEntry> {
   rankings: T[];
   getGroupLabel: (group: string) => string;
   getQualificationPoints: (entry: T) => number;
+  /**
+   * Active locale for the country-flag tooltip. Threaded from the client
+   * parent because this is a presentational component with no hook scope.
+   */
+  locale: string;
 }
 
 export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
@@ -57,6 +65,7 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
   rankings,
   getGroupLabel,
   getQualificationPoints,
+  locale,
 }: CombinedStandingsTableProps<T>) {
   return (
     <Card>
@@ -87,7 +96,12 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
               <TableRow key={entry.id}>
                 <TableCell className="font-semibold">{entry._autoRank}</TableCell>
                 <TableCell>{getGroupLabel(entry.group)}</TableCell>
-                <TableCell className="font-medium">{entry.player.nickname}</TableCell>
+                <TableCell className="font-medium">
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    <CountryFlag country={entry.player.country} locale={locale} />
+                    <span className="truncate">{entry.player.nickname}</span>
+                  </span>
+                </TableCell>
                 <TableCell className="text-center">{entry.mp}</TableCell>
                 <TableCell className="text-center">{entry.wins}</TableCell>
                 <TableCell className="text-center">{entry.ties}</TableCell>

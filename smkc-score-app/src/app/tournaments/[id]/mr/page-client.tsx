@@ -19,7 +19,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
@@ -27,6 +27,7 @@ import { QualificationPlayoffManager } from "@/components/tournament/qualificati
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
 import { CombinedStandingsTable } from "@/components/tournament/combined-standings-table";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { DebugFillButton } from "@/components/tournament/debug-fill-button";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import {
@@ -147,6 +148,7 @@ export default function MatchRacePageClient({
   const { data: session } = useSession();
   const t = useTranslations('mr');
   const tc = useTranslations('common');
+  const locale = useLocale();
 
   /** Admin role check: only admins can setup groups, enter results, and reset */
   const isAdmin = session?.user && session.user.role === 'admin';
@@ -727,7 +729,10 @@ export default function MatchRacePageClient({
                                     />
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    {q.player.nickname}
+                                    <span className="inline-flex items-center gap-1.5 min-w-0">
+                                      <CountryFlag country={q.player.country} locale={locale} />
+                                      <span className="truncate">{q.player.nickname}</span>
+                                    </span>
                                   </TableCell>
                                   <TableCell className="text-center">{q.mp}</TableCell>
                                   <TableCell className="text-center">{q.wins}</TableCell>
@@ -776,6 +781,7 @@ export default function MatchRacePageClient({
               rankings={combinedRankings}
               getGroupLabel={(group) => tc('groupLabel', { group })}
               getQualificationPoints={(q) => getQualificationPoints(q.mp, q.score)}
+              locale={locale}
             />
           </TabsContent>
 

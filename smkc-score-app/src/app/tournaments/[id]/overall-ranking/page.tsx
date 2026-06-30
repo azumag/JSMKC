@@ -26,7 +26,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -52,6 +53,8 @@ interface PlayerRanking {
   playerId: string;
   playerName: string;
   playerNickname: string;
+  /** Player country (ISO code or legacy name); rendered as an inline flag. */
+  playerCountry?: string | null;
   /* Qualification points (max 1000 each) */
   taQualificationPoints: number;
   bmQualificationPoints: number;
@@ -84,6 +87,7 @@ export default function OverallRankingPage({
   /* i18n translation hooks for overall ranking and common namespaces */
   const tOverall = useTranslations('overall');
   const tCommon = useTranslations('common');
+  const locale = useLocale();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
   const [error, setError] = useState<string | null>(null);
@@ -312,7 +316,10 @@ export default function OverallRankingPage({
                   </span>
                   <div className="mt-auto">
                     <p className="text-lg font-semibold leading-tight">
-                      {ranking.playerNickname}
+                      <span className="inline-flex items-center gap-1.5 min-w-0">
+                        <CountryFlag country={ranking.playerCountry} locale={locale} />
+                        <span className="truncate">{ranking.playerNickname}</span>
+                      </span>
                     </p>
                     <p className="text-xs opacity-80 mt-0.5">
                       {ranking.playerName}
@@ -362,7 +369,12 @@ export default function OverallRankingPage({
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{ranking.playerNickname}</div>
+                          <div className="font-medium">
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
+                              <CountryFlag country={ranking.playerCountry} locale={locale} />
+                              <span className="truncate">{ranking.playerNickname}</span>
+                            </span>
+                          </div>
                           <div className="text-sm text-muted-foreground">{ranking.playerName}</div>
                         </div>
                       </TableCell>
