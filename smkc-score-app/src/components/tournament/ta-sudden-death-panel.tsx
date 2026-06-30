@@ -7,8 +7,9 @@ import {
   type InputHTMLAttributes,
   type SetStateAction,
 } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,7 +36,7 @@ import {
 export interface TASuddenDeathEntry {
   id: string;
   playerId: string;
-  player: { nickname: string };
+  player: { nickname: string; country?: string | null };
 }
 
 export interface TASuddenDeathRound {
@@ -244,6 +245,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
   onSubmit,
 }: TASuddenDeathPanelProps<Entry>) {
   const tTaSuddenDeath = useTranslations("taSuddenDeath");
+  const locale = useLocale();
 
   return (
     <Card className="border-amber-500" data-testid="ta-sudden-death-panel">
@@ -288,7 +290,12 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
           <p className={TA_TIME_INPUT_HELP_CLASS}>{timeInputHelp}</p>
           {pendingSuddenDeathEntries.map((entry) => (
             <div key={entry.id} className="flex items-center gap-2">
-              <Label className="flex-1 truncate">{entry.player.nickname}</Label>
+              <Label className="flex-1 truncate">
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  <CountryFlag country={entry.player.country} locale={locale} />
+                  <span className="truncate">{entry.player.nickname}</span>
+                </span>
+              </Label>
               <Input
                 type="text"
                 {...timeInputProps}

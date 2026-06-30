@@ -623,6 +623,18 @@ async function main() {
   t = await vis(page);
   log('TC-008', (t.includes('Overall') || t.includes('総合')) ? 'PASS' : 'FAIL');
 
+  // TC-008F: country flags render next to players (international flag feature).
+  // The workflow players are created with country:'JP', so the /players roster
+  // must render the static flag image; a player without a country must not.
+  await nav(page, '/players');
+  await page.waitForTimeout(2000);
+  const jpFlags = await page.locator('img[src="/flags/jp.svg"]').count();
+  const badFlags = await page
+    .locator('img[src="/flags/undefined.svg"], img[src="/flags/null.svg"], img[src="/flags/.svg"]')
+    .count();
+  log('TC-008F', jpFlags > 0 && badFlags === 0 ? 'PASS' : 'FAIL',
+    jpFlags > 0 ? (badFlags ? `${badFlags} malformed flag src` : `${jpFlags} JP flag(s)`) : 'no /flags/jp.svg rendered');
+
   // TC-009
   log('TC-009', BASE.startsWith('https') ? 'PASS' : 'FAIL');
 

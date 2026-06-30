@@ -7,6 +7,7 @@ import { TASuddenDeathSection, useTaSuddenDeath } from '@/components/tournament/
 jest.mock('next-intl', () => ({
   useTranslations: () => (key: string, values?: Record<string, unknown>) =>
     values ? `${key}:${Object.values(values).join(':')}` : key,
+  useLocale: () => 'en',
 }));
 
 const entries = [

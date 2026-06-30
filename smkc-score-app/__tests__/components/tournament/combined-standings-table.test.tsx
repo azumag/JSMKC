@@ -44,12 +44,14 @@ describe("CombinedStandingsTable", () => {
     render(
       <CombinedStandingsTable
         labels={labels}
+        locale="en"
         rankings={[
           {
             id: "q1",
             _autoRank: 1,
             group: "A",
-            player: { nickname: "Mario" },
+            // Mario has a country, so an inline flag SVG must render in his row.
+            player: { nickname: "Mario", country: "JP" },
             mp: 3,
             wins: 2,
             ties: 1,
@@ -61,6 +63,7 @@ describe("CombinedStandingsTable", () => {
             id: "q2",
             _autoRank: 2,
             group: "B",
+            // Luigi has no country, so his row must not render a flag.
             player: { nickname: "Luigi" },
             mp: 3,
             wins: 1,
@@ -92,18 +95,26 @@ describe("CombinedStandingsTable", () => {
       "Qualification points (0-1000 normalized)",
     );
 
+    // A country renders an inline flag image (localized country name as its
+    // title/alt) immediately before the nickname.
+    expect(within(marioCells.Player).getByTitle("Japan")).toBeInTheDocument();
+    expect(marioCells.Player.querySelector("img")).not.toBeNull();
+
     const luigiRow = screen.getByText("Luigi").closest("tr");
     expect(luigiRow).not.toBeNull();
     const luigiCells = cellsByHeader(luigiRow!);
     expect(luigiCells.Group).toHaveTextContent("Group B");
     expect(luigiCells["+/-"]).toHaveTextContent("-3");
     expect(luigiCells.QP).toHaveTextContent("20");
+    // No country → no flag image rendered.
+    expect(luigiCells.Player.querySelector("img")).toBeNull();
   });
 
   it("renders zero points without a plus sign", () => {
     render(
       <CombinedStandingsTable
         labels={labels}
+        locale="en"
         rankings={[
           {
             id: "q-zero",
@@ -136,6 +147,7 @@ describe("CombinedStandingsTable", () => {
     const { container } = render(
       <CombinedStandingsTable
         labels={{ ...labels, playersCount: "0 players" }}
+        locale="en"
         rankings={[]}
         getGroupLabel={(group) => `Group ${group}`}
         getQualificationPoints={(entry) => entry.score}

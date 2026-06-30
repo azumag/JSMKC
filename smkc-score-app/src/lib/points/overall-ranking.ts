@@ -156,6 +156,12 @@ export interface PlayerTournamentScore {
   playerId: string;
   playerName: string;
   playerNickname: string;
+  /**
+   * Player country (ISO code or legacy name). Denormalized alongside the
+   * nickname so the overall-ranking UI can render an inline flag without a
+   * separate player lookup. Optional/nullable since it may be unset.
+   */
+  playerCountry?: string | null;
 
   // Qualification points (max 1000 each, from round-robin or time attack)
   taQualificationPoints: number;
@@ -820,7 +826,7 @@ export async function calculateOverallRankings(
 
   // Type aliases for database result shapes
   type PlayerIdEntry = { playerId: string };
-  type PlayerEntry = { id: string; name: string; nickname: string };
+  type PlayerEntry = { id: string; name: string; nickname: string; country?: string | null };
 
   // Gather players from TA qualification entries
   const taEntries = await prisma.tTEntry.findMany({
@@ -850,9 +856,12 @@ export async function calculateOverallRankings(
   });
   gpQuals.forEach((q: PlayerIdEntry) => allPlayerIds.add(q.playerId));
 
-  // Step 2: Fetch player display info (name, nickname) for the results
+  // Step 2: Fetch player display info (name, nickname, country) for the results.
+  // Scoped to PLAYER_PUBLIC_SELECT so the password hash and other unused columns
+  // never leave D1 into Worker memory (the prior wildcard fetched every column).
   const players = await prisma.player.findMany({
     where: { id: { in: Array.from(allPlayerIds) } },
+    select: PLAYER_PUBLIC_SELECT,
   });
   const playerMap = new Map<string, PlayerEntry>(
     players.map((p: PlayerEntry) => [p.id, p])
@@ -936,6 +945,7 @@ export async function calculateOverallRankings(
       playerId,
       playerName: player.name,
       playerNickname: player.nickname,
+      playerCountry: player.country,
       taQualificationPoints: taQual,
       bmQualificationPoints: bmQual,
       mrQualificationPoints: mrQual,
@@ -1031,7 +1041,7 @@ export async function saveOverallRankings(
  */
 interface StoredTournamentScore {
   playerId: string;
-  player: { name: string; nickname: string };
+  player: { name: string; nickname: string; country?: string | null };
   taQualificationPoints: number;
   bmQualificationPoints: number;
   mrQualificationPoints: number;
@@ -1072,6 +1082,7 @@ export async function getOverallRankings(
     playerId: s.playerId,
     playerName: s.player.name,
     playerNickname: s.player.nickname,
+    playerCountry: s.player.country,
     taQualificationPoints: s.taQualificationPoints,
     bmQualificationPoints: s.bmQualificationPoints,
     mrQualificationPoints: s.mrQualificationPoints,
