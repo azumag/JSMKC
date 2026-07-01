@@ -43,6 +43,27 @@ export function CountrySelect({
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const listboxId = `${React.useId()}-country-listbox`;
+  const listRef = React.useRef<HTMLUListElement>(null);
+
+  // Drive the list scroll from the wheel explicitly. Inside a portaled Popover
+  // the mouse wheel sometimes does not reach this inner scroll container (it
+  // scrolls the page, or nothing), so we scroll it ourselves and only let the
+  // event through at the top/bottom edges. A non-passive listener is required to
+  // call preventDefault, so we attach it imperatively rather than via onWheel.
+  React.useEffect(() => {
+    if (!open) return;
+    const el = listRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const atTop = el.scrollTop <= 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) return;
+      e.preventDefault();
+      el.scrollTop += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [open]);
 
   const code = resolveCountryCode(value);
   const selectedName = code ? getCountryName(code, locale) : value || "";
@@ -113,7 +134,12 @@ export function CountrySelect({
               className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <ul id={listboxId} role="listbox" className="max-h-60 overflow-y-auto py-1">
+          <ul
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            className="max-h-60 overflow-y-auto overscroll-contain py-1"
+          >
             {/* Clear option to unset the country. */}
             <li>
               <button
