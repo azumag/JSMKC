@@ -1010,6 +1010,87 @@ async function main() {
     log('TC-103', pr.data?.temporaryPassword ? 'PASS' : 'FAIL');
   } else { log('TC-103', 'SKIP'); }
 
+  /* TC-2996: Duplicate-nickname 409 on player add via the real /players UI
+   * must surface as a visible error, not be silently swallowed.
+   *
+   * Regression context: handleSubmit's POST retry loop treats a 409
+   * returned on a RETRY attempt (attempt > 0) as a "recovered success" —
+   * the earlier attempt actually created the player before a Workers 1101
+   * crash destroyed its response, so nickname's unique constraint makes the
+   * retry's 409 our own player. The bug was that the post-loop check used
+   * to re-derive "recovered success" from `response.status === 409` alone,
+   * which cannot distinguish that case from a 409 on the FIRST attempt (a
+   * genuine duplicate-nickname collision with a player that already
+   * existed). This TC drives the actual UI form (unlike TC-101, which uses
+   * the API directly) to catch a regression in that client-side branching.
+   * Reuses the `nick` player created by TC-101 as the pre-existing
+   * duplicate target; retry-count invariants are covered separately by the
+   * unit test __tests__/lib/create-player-retry.test.ts. */
+  if (pid) {
+    try {
+      await nav(page, '/players');
+      const openButton = page.getByRole('button', { name: /^(Add Player|プレイヤー追加)$/ }).first();
+      await openButton.click();
+
+      const formDialog = page.getByRole('dialog').filter({ has: page.locator('#nickname') }).first();
+      await formDialog.waitFor({ state: 'visible', timeout: 15000 });
+      await formDialog.locator('#name').fill('E2E Dup Nickname');
+      await formDialog.locator('#nickname').fill(nick);
+
+      const submitButton = formDialog.locator('button[type="submit"]').first();
+      const responsePromise = page.waitForResponse(
+        (r) => r.url().includes('/api/players') && r.request().method() === 'POST',
+        { timeout: 15000 },
+      );
+      await submitButton.click();
+      const response = await responsePromise;
+      const status = response.status();
+
+      /* The 409 response resolves before React re-renders with setError, so
+       * reading textContent immediately could race ahead of the error message
+       * and produce a false FAIL. Wait for the error text to become visible
+       * first; on timeout the .catch() lets a genuinely missing message flow
+       * into the hasErrorMessage=false FAIL diagnostics below instead of
+       * throwing out of the TC. */
+      await formDialog.getByText(/already exists/i).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+
+      const dialogStillOpen = await formDialog.isVisible().catch(() => false);
+      const errorText = await formDialog.evaluate((el) => el.textContent || '').catch(() => '');
+      const hasErrorMessage = /already exists/i.test(errorText);
+      const passwordDialogAppeared = await page.getByRole('dialog').filter({
+        hasText: /Temporary Password|一時パスワード/,
+      }).first().isVisible().catch(() => false);
+
+      /* Confirm the app did not insert a phantom local player and that no
+       * duplicate got created server-side despite the 409. */
+      const nicknameCount = await page.evaluate(async (targetNickname) => {
+        let count = 0;
+        for (let pageNumber = 1; pageNumber <= 5; pageNumber += 1) {
+          const r = await fetch(`/api/players?page=${pageNumber}&limit=100`);
+          const body = await r.json().catch(() => ({}));
+          const players = body.data ?? [];
+          count += players.filter((p) => p.nickname === targetNickname).length;
+          const totalPages = body.meta?.totalPages;
+          if (typeof totalPages === 'number' && pageNumber >= totalPages) break;
+          if (!totalPages && players.length < 100) break;
+        }
+        return count;
+      }, nick);
+
+      const pass = status === 409 && dialogStillOpen && hasErrorMessage &&
+        !passwordDialogAppeared && nicknameCount === 1;
+
+      log('TC-2996', pass ? 'PASS' : 'FAIL', pass ? '' :
+        `status=${status} dialogOpen=${dialogStillOpen} hasError=${hasErrorMessage} ` +
+        `passwordDialog=${passwordDialogAppeared} nicknameCount=${nicknameCount}`);
+
+      // Leave the UI in a clean state for subsequent TCs.
+      await page.keyboard.press('Escape').catch(() => {});
+    } catch (err) {
+      log('TC-2996', 'FAIL', err instanceof Error ? err.message : 'Duplicate nickname UI error test failed');
+    }
+  } else { log('TC-2996', 'SKIP'); }
+
   // TC-309: Password reset API format
   if (pid) {
     const pr2 = await page.evaluate(async u => {

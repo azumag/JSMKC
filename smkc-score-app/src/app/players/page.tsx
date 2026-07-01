@@ -56,6 +56,7 @@ import {
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
 import { extractArrayData, extractPaginationMeta, type PaginationMeta } from "@/lib/api-response";
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
+import { createPlayerWithRetry } from "@/lib/create-player-retry";
 import { createLogger } from "@/lib/client-logger";
 
 /**
@@ -206,33 +207,21 @@ export default function PlayersPage() {
 
     try {
       /**
-       * Retry on Workers 1101 crash (non-JSON 500 response).
-       * POST is idempotent here because nickname has a unique constraint:
-       * if the first attempt created the player but the response was lost,
-       * the retry returns 409 which we treat as success (minus password).
+       * Retry on Workers 1101 crash (non-JSON 500 response) plus correct
+       * classification of a 409 response — see createPlayerWithRetry's
+       * module comment for why a first-attempt 409 (real duplicate
+       * nickname) and a retry-attempt 409 (recovered success after a lost
+       * response) must NOT be collapsed into the same "treat as success"
+       * branch. That collapse was the root cause of duplicate-nickname
+       * submissions silently closing the dialog and inserting a fake
+       * local-only player instead of showing an error.
        */
-      let response: Response | null = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        response = await fetch("/api/players", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        if (response.ok) break;
-        // 409 on retry = player was created on a previous attempt that crashed
-        // before sending the response. Treat as success (but password is lost).
-        if (response.status === 409 && attempt > 0) break;
-        if (response.status < 500) break;
-        if (attempt < 2) await new Promise(r => setTimeout(r, 800));
-      }
+      const result = await createPlayerWithRetry(formData);
 
-      if (response!.ok || (response!.status === 409)) {
-        // 409 means the player was created but we lost the response.
-        // Skip the password dialog since the plaintext is unrecoverable.
-        const isLostResponse = response!.status === 409;
-        const rawJson = isLostResponse ? {} : await response!.json().catch(() => ({}));
-        /* Unwrap createSuccessResponse wrapper: { success, data: { player, temporaryPassword } } */
-        const data = rawJson.data ?? rawJson;
+      if (result.ok) {
+        // Recovered success (result.recovered) skips the password dialog
+        // since the plaintext is unrecoverable — we never saw that response.
+        const data = result.data as { player?: Player; temporaryPassword?: string };
 
         // Optimistic update: immediately add the new player to the list
         const newPlayer: Player = data.player ?? {
@@ -240,6 +229,7 @@ export default function PlayersPage() {
           name: formData.name,
           nickname: formData.nickname,
           country: formData.country || null,
+          noCamera: formData.noCamera,
           createdAt: new Date().toISOString(),
         };
         setPlayers(prev => [...prev, newPlayer]);
@@ -247,7 +237,7 @@ export default function PlayersPage() {
         setFormData({ name: "", nickname: "", country: "", noCamera: false });
         setIsAddDialogOpen(false);
 
-        if (!isLostResponse && data.temporaryPassword) {
+        if (!result.recovered && data.temporaryPassword) {
           setIsPasswordReset(false);
           setTemporaryPassword(data.temporaryPassword);
           setIsPasswordDialogOpen(true);
@@ -256,13 +246,14 @@ export default function PlayersPage() {
         // No fetchPlayers() here — the optimistic update is sufficient.
         // Background sync would overwrite it with stale/failed data.
       } else {
-        const text = await response!.text();
-        try {
-          const data = JSON.parse(text);
-          setError(data.error || t('failedToCreate'));
-        } catch {
-          setError(t('failedToCreate'));
-        }
+        // Genuine failure (including a first-attempt duplicate-nickname
+        // 409): surface the API's error string as-is, matching the
+        // existing convention for handleUpdate/handleDelete/handleResetPassword
+        // below, which also display `data.error` verbatim rather than
+        // mapping it through i18n. The API's fixed English error text
+        // ("A player with this nickname already exists") is intelligible
+        // regardless of locale, so no new i18n key was added for this case.
+        setError(result.error || t('failedToCreate'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
