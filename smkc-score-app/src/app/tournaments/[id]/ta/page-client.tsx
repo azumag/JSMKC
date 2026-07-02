@@ -67,7 +67,7 @@ import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
 import { canEditTaEntry } from "@/lib/ta/entry-access";
 import { calculateCourseFirstPlaceCounts } from "@/lib/ta/qualification-results";
 import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from "@/lib/ta/time-entry-layout";
-import { canShowTaPhasePromotion, shouldShowTaFinalsPhaseManagement, type TaPhaseStatus } from "@/lib/ta/phase-controls";
+import { canResetTaPhase, canShowTaPhasePromotion, shouldShowTaFinalsPhaseManagement, type TaPhaseStage, type TaPhaseStatus } from "@/lib/ta/phase-controls";
 import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -83,6 +83,22 @@ const logger = createLogger({ serviceName: 'tournaments-ta' });
 
 /** Unique cup names derived from course metadata, used for grouping course displays */
 const CUP_NAMES = [...new Set(COURSE_INFO.map((c) => c.cup))];
+
+/**
+ * Confirmation copy per promotion action, keyed by the same action string
+ * passed to handlePromoteToPhase. Promoting too early is the exact mistake
+ * that motivated the phase-reset feature (see phase-controls.ts /
+ * finals-phase-manager.ts's resetPhase doc comment): promoteToPhase2/3
+ * treat every still-active (not-yet-eliminated) player in the prior phase
+ * as a "survivor", so clicking these before the prior phase's rounds are
+ * actually finished promotes far more players than intended. Phase 1 has
+ * no such prior-phase dependency, so it only gets a plain confirmation.
+ */
+const PROMOTION_CONFIRM_KEYS: Record<string, string> = {
+  promote_phase1: "startPhase1Confirm",
+  promote_phase2: "startPhase2Confirm",
+  promote_phase3: "startPhase3Confirm",
+};
 
 /** Player data structure from the API */
 interface Player {
@@ -201,6 +217,22 @@ export default function TimeAttackPageClient({
   const [phaseStatus, setPhaseStatus] = useState<TaPhaseStatus>(null);
   const [phaseStatusLoaded, setPhaseStatusLoaded] = useState(false);
   const [promotingPhase, setPromotingPhase] = useState<string | null>(null);
+  // Phase reset (undo promotion) state — tracks which stage is currently being reset
+  const [resettingPhase, setResettingPhase] = useState<TaPhaseStage | null>(null);
+  /*
+   * Mutual exclusion between promote and reset: both mutate the same TTEntry
+   * rows for a stage (promote via createMany, reset via deleteMany) through
+   * separate, non-atomic requests — D1 has no interactive transaction support
+   * (see resetPhase's doc comment in finals-phase-manager.ts), so there is no
+   * database-level guard against the two racing each other. If an admin fires
+   * "Reset Phase 2" and "Start Phase 2" back-to-back, the promote's createMany
+   * and the reset's deleteMany can interleave and leave an orphaned roster
+   * (e.g. entries created after the delete but attributed to the pre-reset
+   * promotion, or a roster the reset never sees). Disabling every promote and
+   * reset button while *either* kind of request is in flight — not just the
+   * button for the same stage — closes that window at the UI layer.
+   */
+  const phaseActionInFlight = promotingPhase !== null || resettingPhase !== null;
 
   // === Data Fetching ===
   // Fetch tournament data and player list in parallel
@@ -453,6 +485,12 @@ export default function TimeAttackPageClient({
     phaseStatusLoaded,
     promotingPhase,
   });
+  // Reset (undo promotion) button visibility per phase: the stage must have
+  // entries, and no later stage must have been promoted from it yet (see
+  // canResetTaPhase's doc comment for the full rationale).
+  const canResetPhase1 = canResetTaPhase({ phaseStatus, stage: "phase1" });
+  const canResetPhase2 = canResetTaPhase({ phaseStatus, stage: "phase2" });
+  const canResetPhase3 = canResetTaPhase({ phaseStatus, stage: "phase3" });
 
   /* Sync polling errors to local error state for display */
   useEffect(() => {
@@ -494,6 +532,8 @@ export default function TimeAttackPageClient({
    * Used by Phase 1/2/3 promotion buttons.
    */
   const handlePromoteToPhase = async (action: string) => {
+    const confirmKey = PROMOTION_CONFIRM_KEYS[action];
+    if (confirmKey && !confirm(t(confirmKey))) return;
     setPromotingPhase(action);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
@@ -517,6 +557,38 @@ export default function TimeAttackPageClient({
       alert(errorMessage);
     } finally {
       setPromotingPhase(null);
+    }
+  };
+
+  /**
+   * Reset (undo) a phase promotion via the phases API's reset_phase action.
+   * Recovery path for the "promoted too early" mistake described above:
+   * deletes the target stage's entire roster and round history so the admin
+   * can re-promote once the prior phase's results are actually final. The
+   * button that triggers this is only shown when canResetTaPhase allows it
+   * (stage has entries, no later stage exists yet) — see the JSX below.
+   */
+  const handleResetPhase = async (stage: TaPhaseStage) => {
+    if (!confirm(t('resetPhaseConfirm', { phaseLabel: t(stage) }))) return;
+    setResettingPhase(stage);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset_phase", phase: stage }),
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json.error || t('failedResetPhase'));
+      }
+      // Refresh phase status so the reset stage's card and its promotion
+      // button reappear immediately.
+      await fetchPhaseStatus();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : t('failedResetPhase');
+      alert(errorMessage);
+    } finally {
+      setResettingPhase(null);
     }
   };
 
@@ -1056,7 +1128,7 @@ export default function TimeAttackPageClient({
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase1")}
-                      disabled={promotingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {promotingPhase === "promote_phase1" ? tc('promoting') : t('startPhase1')}
                     </Button>
@@ -1064,6 +1136,19 @@ export default function TimeAttackPageClient({
                   {phaseStatus?.phase1 && (
                     <Button size="sm" variant="outline" asChild>
                       <a href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</a>
+                    </Button>
+                  )}
+                  {/* Reset (undo promotion) button: admin-only, destructive.
+                   * Only shown while phase2 has not been promoted yet — see
+                   * canResetTaPhase for the full guard rationale. */}
+                  {isAdmin && canResetPhase1 && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleResetPhase("phase1")}
+                      disabled={phaseActionInFlight}
+                    >
+                      {resettingPhase === "phase1" ? t('resettingPhase') : t('resetPhase1')}
                     </Button>
                   )}
                 </div>
@@ -1093,7 +1178,7 @@ export default function TimeAttackPageClient({
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase2")}
-                      disabled={promotingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {promotingPhase === "promote_phase2" ? tc('promoting') : t('startPhase2')}
                     </Button>
@@ -1101,6 +1186,19 @@ export default function TimeAttackPageClient({
                   {phaseStatus?.phase2 && (
                     <Button size="sm" variant="outline" asChild>
                       <a href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</a>
+                    </Button>
+                  )}
+                  {/* Reset (undo promotion) button: admin-only, destructive.
+                   * This is the direct recovery path for the reported incident:
+                   * promoting to Phase 2 before Phase 1 results are final. */}
+                  {isAdmin && canResetPhase2 && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleResetPhase("phase2")}
+                      disabled={phaseActionInFlight}
+                    >
+                      {resettingPhase === "phase2" ? t('resettingPhase') : t('resetPhase2')}
                     </Button>
                   )}
                 </div>
@@ -1133,7 +1231,7 @@ export default function TimeAttackPageClient({
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase3")}
-                      disabled={promotingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {promotingPhase === "promote_phase3" ? tc('promoting') : t('startPhase3')}
                     </Button>
@@ -1141,6 +1239,19 @@ export default function TimeAttackPageClient({
                   {phaseStatus?.phase3 && (
                     <Button size="sm" variant="outline" asChild>
                       <a href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</a>
+                    </Button>
+                  )}
+                  {/* Reset (undo promotion) button: admin-only, destructive.
+                   * Phase 3 has no later phase, so canResetTaPhase only
+                   * requires that phase3 has entries. */}
+                  {isAdmin && canResetPhase3 && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleResetPhase("phase3")}
+                      disabled={phaseActionInFlight}
+                    >
+                      {resettingPhase === "phase3" ? t('resettingPhase') : t('resetPhase3')}
                     </Button>
                   )}
                 </div>

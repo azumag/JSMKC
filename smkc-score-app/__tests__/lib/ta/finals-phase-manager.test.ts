@@ -21,6 +21,8 @@ import {
   promoteToPhase1,
   promoteToPhase2,
   promoteToPhase3,
+  resetPhase,
+  PhaseResetConflictError,
 } from "@/lib/ta/finals-phase-manager";
 import { createAuditLog } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
@@ -37,6 +39,7 @@ const mockPrismaClient = {
     createMany: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
   tTPhaseRound: {
     findMany: jest.fn(),
@@ -45,6 +48,7 @@ const mockPrismaClient = {
     update: jest.fn(),
     count: jest.fn(),
     delete: jest.fn(),
+    deleteMany: jest.fn(),
   },
   tTPhaseSuddenDeathRound: {
     findFirst: jest.fn(),
@@ -52,6 +56,7 @@ const mockPrismaClient = {
     create: jest.fn(),
     update: jest.fn(),
     count: jest.fn(),
+    deleteMany: jest.fn(),
   },
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
@@ -91,6 +96,7 @@ jest.mock("@/lib/audit-log", () => ({
   AUDIT_ACTIONS: {
     CREATE_TA_ENTRY: "CREATE_TA_ENTRY",
     UPDATE_TA_ENTRY: "UPDATE_TA_ENTRY",
+    DELETE_TA_ENTRY: "DELETE_TA_ENTRY",
   },
 }));
 
@@ -1643,6 +1649,220 @@ describe("TA Finals Phase Manager", () => {
         expect.objectContaining({ error: expect.any(Error) }),
       );
       expect(result.entries).toHaveLength(1);
+    });
+  });
+
+  describe("resetPhase", () => {
+    const context = {
+      tournamentId: "t1",
+      userId: "admin1",
+      ipAddress: "127.0.0.1",
+      userAgent: "test",
+    };
+
+    const makeResetEntry = (playerId: string, nickname: string) => ({
+      id: `entry-${playerId}`,
+      playerId,
+      player: { nickname },
+    });
+
+    it("deletes sudden-death rounds, phase rounds, and the stage roster for phase1 when no later phase exists", async () => {
+      // Guard check: no phase2/phase3 entries exist, so phase1 can be reset.
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue(null);
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        makeResetEntry("p1", "Alice"),
+        makeResetEntry("p2", "Bob"),
+      ]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([{ id: "r1" }, { id: "r2" }]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany.mockResolvedValue({ count: 3 });
+      mockPrismaClient.tTPhaseRound.deleteMany.mockResolvedValue({ count: 2 });
+      mockPrismaClient.tTEntry.deleteMany.mockResolvedValue({ count: 2 });
+
+      const result = await resetPhase(mockPrismaClient as never, context, "phase1");
+
+      expect(result).toEqual({ stage: "phase1", deletedEntryCount: 2, deletedRoundCount: 2 });
+
+      // Guard queried both later stages in one round-trip.
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: { in: ["phase2", "phase3"] } },
+        select: { stage: true },
+      });
+
+      // Deletion order: sudden-death rounds -> phase rounds -> roster (see
+      // resetPhase's doc comment for why the roster is deleted last on D1).
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany).toHaveBeenCalledWith({
+        where: { phaseRoundId: { in: ["r1", "r2"] } },
+      });
+      expect(mockPrismaClient.tTPhaseRound.deleteMany).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", phase: "phase1" },
+      });
+      expect(mockPrismaClient.tTEntry.deleteMany).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: "phase1" },
+      });
+
+      const suddenDeathOrder = mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany.mock.invocationCallOrder[0];
+      const roundOrder = mockPrismaClient.tTPhaseRound.deleteMany.mock.invocationCallOrder[0];
+      const entryOrder = mockPrismaClient.tTEntry.deleteMany.mock.invocationCallOrder[0];
+      expect(suddenDeathOrder).toBeLessThan(roundOrder);
+      expect(roundOrder).toBeLessThan(entryOrder);
+    });
+
+    it("throws PhaseResetConflictError when resetting phase1 while phase2 entries exist", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue({ stage: "phase2" });
+
+      await expect(resetPhase(mockPrismaClient as never, context, "phase1")).rejects.toThrow(
+        PhaseResetConflictError
+      );
+      expect(mockPrismaClient.tTEntry.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("throws PhaseResetConflictError when resetting phase2 while phase3 entries exist", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue({ stage: "phase3" });
+
+      await expect(resetPhase(mockPrismaClient as never, context, "phase2")).rejects.toThrow(
+        PhaseResetConflictError
+      );
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: { in: ["phase3"] } },
+        select: { stage: true },
+      });
+      expect(mockPrismaClient.tTEntry.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("allows resetting phase3 without a later-phase guard query", async () => {
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([makeResetEntry("p1", "Alice")]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
+      mockPrismaClient.tTPhaseRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTEntry.deleteMany.mockResolvedValue({ count: 1 });
+
+      const result = await resetPhase(mockPrismaClient as never, context, "phase3");
+
+      expect(result).toEqual({ stage: "phase3", deletedEntryCount: 1, deletedRoundCount: 0 });
+      // phase3 has no later phase, so the conflict guard must not run at all.
+      expect(mockPrismaClient.tTEntry.findFirst).not.toHaveBeenCalled();
+      // No rounds existed, so the sudden-death cleanup query is skipped entirely.
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("throws when the stage has no entries to reset", async () => {
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([]);
+
+      await expect(resetPhase(mockPrismaClient as never, context, "phase3")).rejects.toThrow(
+        "No phase3 entries to reset"
+      );
+      // Should short-circuit before looking up round data.
+      expect(mockPrismaClient.tTPhaseRound.findMany).not.toHaveBeenCalled();
+    });
+
+    it("records an audit log describing the deleted roster", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue(null);
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([makeResetEntry("p1", "Alice")]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
+      mockPrismaClient.tTPhaseRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTEntry.deleteMany.mockResolvedValue({ count: 1 });
+
+      await resetPhase(mockPrismaClient as never, context, "phase1");
+
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "admin1",
+          action: "DELETE_TA_ENTRY",
+          targetId: "t1",
+          targetType: "Tournament",
+          details: expect.objectContaining({
+            tournamentId: "t1",
+            stage: "phase1",
+            deletedEntryCount: 1,
+            playerIds: ["p1"],
+            playerNicknames: ["Alice"],
+          }),
+        })
+      );
+    });
+
+    it("logs a warning when the audit log write rejects, without failing the reset", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue(null);
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([makeResetEntry("p1", "Alice")]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
+      mockPrismaClient.tTPhaseRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTEntry.deleteMany.mockResolvedValue({ count: 1 });
+      (createAuditLog as jest.Mock).mockRejectedValue(new Error("Audit failed"));
+
+      const result = await resetPhase(mockPrismaClient as never, context, "phase1");
+      await Promise.resolve();
+
+      const mockLogger = (createLogger as jest.Mock).mock.results.at(-1)!.value;
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "Failed to create audit log for phase reset",
+        expect.objectContaining({ error: expect.any(Error) }),
+      );
+      expect(result.deletedEntryCount).toBe(1);
+    });
+
+    it("recovers from an accidental premature promotion: resetting phase2 clears the bad 12-player field so re-promotion yields 8", async () => {
+      // Regression test for the reported incident: promoteToPhase2 was called
+      // before phase1 results were submitted, so all 8 phase1 entrants were
+      // still "active" and got combined with the 4 qualification ranks 13-16,
+      // producing 12 phase2 entries instead of the intended 4 + 4 = 8.
+
+      // Step 1: promoteToPhase2 runs while all 8 phase1 entries are still active.
+      const activePhase1 = Array.from({ length: 8 }, (_, i) => ({
+        playerId: `p1-${i}`,
+        totalTime: 60000 + i,
+        times: {},
+        rank: 17 + i,
+        player: { nickname: `P1-${i}` },
+      }));
+      const qualRanks13to16 = Array.from({ length: 4 }, (_, i) => ({
+        playerId: `q-${i}`,
+        totalTime: 50000 + i,
+        times: {},
+        rank: 13 + i,
+        player: { nickname: `Q-${i}` },
+      }));
+      (mockPrismaClient.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce(activePhase1) // phase1 survivors (bug: all 8, none eliminated yet)
+        .mockResolvedValueOnce(qualRanks13to16) // qualification ranks 13-16
+        .mockResolvedValueOnce([]) // existing phase2 entries check
+        .mockResolvedValueOnce(
+          [...activePhase1, ...qualRanks13to16].map((s) => ({ playerId: s.playerId, player: s.player }))
+        ); // created entries for audit loop
+      mockPrismaClient.tTEntry.createMany.mockResolvedValue({ count: 12 });
+
+      const buggyPromotion = await promoteToPhase2(mockPrismaClient as never, context);
+      expect(buggyPromotion.entries).toHaveLength(12); // confirms the bug reproduces
+
+      // Step 2: admin notices the mistake and resets phase2 before phase3 exists.
+      jest.clearAllMocks();
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue(null); // no phase3 entries
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue(
+        [...activePhase1, ...qualRanks13to16].map((s) => ({ playerId: s.playerId, player: s.player }))
+      );
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
+      mockPrismaClient.tTPhaseRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTEntry.deleteMany.mockResolvedValue({ count: 12 });
+
+      const reset = await resetPhase(mockPrismaClient as never, context, "phase2");
+      expect(reset.deletedEntryCount).toBe(12);
+      expect(mockPrismaClient.tTEntry.deleteMany).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: "phase2" },
+      });
+
+      // Step 3: phase1 is properly narrowed to its 4 intended survivors, then
+      // promoteToPhase2 is called again and now correctly yields 4 + 4 = 8.
+      jest.clearAllMocks();
+      const phase1Survivors = activePhase1.slice(0, 4);
+      (mockPrismaClient.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce(phase1Survivors) // phase1 survivors (now correctly 4)
+        .mockResolvedValueOnce(qualRanks13to16) // qualification ranks 13-16
+        .mockResolvedValueOnce([]) // existing phase2 entries check (cleared by reset)
+        .mockResolvedValueOnce(
+          [...phase1Survivors, ...qualRanks13to16].map((s) => ({ playerId: s.playerId, player: s.player }))
+        );
+      mockPrismaClient.tTEntry.createMany.mockResolvedValue({ count: 8 });
+
+      const correctPromotion = await promoteToPhase2(mockPrismaClient as never, context);
+      expect(correctPromotion.entries).toHaveLength(8);
     });
   });
 });

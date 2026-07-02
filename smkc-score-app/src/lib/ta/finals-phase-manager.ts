@@ -104,6 +104,24 @@ export interface PhaseContext {
 }
 
 /**
+ * Thrown by resetPhase() when the requested stage cannot be reset because a
+ * later-stage roster already exists and was built by reading this stage's
+ * survivors (see resetPhase's doc comment for the full rationale).
+ *
+ * Follows the same "custom Error subclass mapped by instanceof in the route
+ * handler" pattern already used by OptimisticLockError (src/lib/optimistic-
+ * locking.ts) and DebugFillLockedError (src/lib/debug/debug-fill.ts), so the
+ * API route can map this specific failure to HTTP 409 instead of the generic
+ * 400 used for other business-rule errors.
+ */
+export class PhaseResetConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PhaseResetConflictError";
+  }
+}
+
+/**
  * Result of a phase operation containing created entries,
  * skipped player names, and a descriptive message.
  */
@@ -1937,4 +1955,169 @@ export async function undoLastPhaseRound(
   }
 
   return { undoneRoundNumber: lastRound.roundNumber };
+}
+
+/**
+ * Ordered list of finals stages. Used by resetPhase to find which stages
+ * come "after" a given stage, both for the reset-order guard and for the
+ * D1 deletion sequencing rationale documented on resetPhase itself.
+ */
+const PHASE_ORDER: readonly PhaseStage[] = ["phase1", "phase2", "phase3"];
+
+/**
+ * Reset (undo) a phase promotion.
+ *
+ * Recovery mechanism for the "promoted too early" admin mistake: clicking
+ * "Start Phase 2" before Phase 1's results are finalized causes
+ * promoteToPhase2 to treat every still-active (not-yet-eliminated) Phase 1
+ * entrant as a "survivor". Instead of the intended 4 Phase 1 survivors + 4
+ * qualification ranks 13-16 = 8 players, all 8 Phase 1 entrants (none
+ * eliminated yet) get combined with the 4 qualification players, producing
+ * a 12-player Phase 2 field. Previously there was no way to undo a
+ * promotion — only undoLastPhaseRound, which undoes a submitted *round*,
+ * not the promotion that created the stage's roster in the first place.
+ * resetPhase deletes the entire stage roster (and its round history) so the
+ * admin can re-promote once the prior phase's results are actually final.
+ *
+ * Deletion is scoped to exactly the data a promotion call creates, or that
+ * accumulates while the phase is played, enumerated here in full:
+ *   1. TTPhaseSuddenDeathRound rows belonging to this phase's TTPhaseRound
+ *      rows (tie-break rounds, looked up by phaseRoundId).
+ *   2. TTPhaseRound rows for this phase (roundNumber / course / results /
+ *      eliminatedIds / livesReset — the per-round history written by
+ *      startPhaseRound, submitRoundResults, and submitSuddenDeathResults).
+ *   3. TTEntry rows with stage = the target phase (the roster itself —
+ *      lives / eliminated / times / totalTime / rank — created by
+ *      promoteToPhase1/2/3's createMany).
+ * Nothing else is keyed by phase name: qualification-stage TTEntry rows
+ * (stage="qualification") are never touched, so the ranks used to recompute
+ * the promotion afterward are preserved untouched.
+ *
+ * Guard — later phases must not already exist:
+ * Phase 2/3 rosters are built by *reading* the previous phase's survivors
+ * (getActivePhasePlayers). Deleting phase1 while phase2 entries already
+ * exist would silently orphan phase2's "phase1 survivors" half with no
+ * record of where those players came from, and phase2 would look valid
+ * while actually being unrecoverable. Resets must therefore happen in
+ * reverse promotion order: phase3 -> phase2 -> phase1. Attempting to reset
+ * a phase while any later phase still has entries throws
+ * PhaseResetConflictError, which the route handler maps to HTTP 409.
+ *
+ * D1 has no interactive transaction support (`prisma.$transaction(async
+ * (tx) => {...})` does not work against Cloudflare D1 — see project notes),
+ * so the deletes below run as sequential, non-atomic queries rather than
+ * inside a transaction. The order is deliberately "dependent data first,
+ * roster last": if a later step throws (e.g. a transient D1 error) after
+ * round data was already deleted but before the TTEntry roster is deleted,
+ * the phase is left looking like "promoted but no rounds played yet" — a
+ * valid, recoverable state that both getPhaseStatus and the UI's
+ * canResetTaPhase guard handle correctly, and the admin can simply retry
+ * resetPhase. The reverse order (deleting TTEntry first) would instead risk
+ * leaving orphaned TTPhaseRound rows with no roster behind them; those rows
+ * still count as "courses played in this phase" for the 20-course cycle
+ * (course-selection.ts), which would wrongly shrink the course pool on the
+ * next promotion attempt even though the roster is already gone.
+ * Note this "looks freshly promoted" description is only exact when the
+ * failure happens before any round in this phase was ever submitted. If it
+ * fails mid-reset *after* rounds were played and processed (i.e. round 2's
+ * deleteMany throws having already removed round history that
+ * submitRoundResults/processPhase3Result had used to set eliminated/lives on
+ * some TTEntry rows), those eliminated/lives values remain on the roster
+ * with the round history that produced them now gone — a slightly different
+ * intermediate state than "no rounds played", though still an inert one.
+ * Either intermediate state is fully recovered by simply re-invoking
+ * resetPhase: step 3 deletes the whole `stage` roster unconditionally by
+ * tournamentId, so it does not matter whether the surviving TTEntry rows
+ * still carry stale eliminated/lives values from before the interrupted
+ * reset.
+ *
+ * @param prisma - Prisma client
+ * @param context - Phase context with user/request info for audit logging
+ * @param stage - The phase to reset: "phase1", "phase2", or "phase3"
+ * @returns Object with the reset stage and counts of deleted entries/rounds
+ * @throws PhaseResetConflictError if a later phase already has entries
+ * @throws Error if the stage has no entries (nothing to reset)
+ */
+export async function resetPhase(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  stage: PhaseStage
+): Promise<{ stage: PhaseStage; deletedEntryCount: number; deletedRoundCount: number }> {
+  const logger = createLogger("ta-phase-manager");
+  const { tournamentId, userId, ipAddress, userAgent } = context;
+
+  // Guard: refuse to reset a stage while any later stage still has entries
+  // (see rationale above). phase3 has no later stage, so this query is
+  // skipped entirely for it.
+  const laterStages = PHASE_ORDER.slice(PHASE_ORDER.indexOf(stage) + 1);
+  if (laterStages.length > 0) {
+    const laterEntry = await prisma.tTEntry.findFirst({
+      where: { tournamentId, stage: { in: laterStages } },
+      select: { stage: true },
+    });
+    if (laterEntry) {
+      throw new PhaseResetConflictError(
+        `Cannot reset ${stage}: ${laterEntry.stage} already has entries. Reset ${laterEntry.stage} first.`
+      );
+    }
+  }
+
+  // Snapshot the roster before deleting anything — needed for the
+  // "nothing to reset" check below and for the audit log details.
+  const entries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
+  });
+  if (entries.length === 0) {
+    throw new Error(`No ${stage} entries to reset`);
+  }
+
+  // 1. Sudden-death rounds are children of this phase's TTPhaseRound rows
+  //    (FK: phaseRoundId). Look up the round ids first so they can be
+  //    targeted directly rather than relying on cascade delete behavior.
+  const rounds = await prisma.tTPhaseRound.findMany({
+    where: { tournamentId, phase: stage },
+    select: { id: true },
+  });
+  const roundIds = rounds.map((round) => round.id);
+  if (roundIds.length > 0) {
+    await prisma.tTPhaseSuddenDeathRound.deleteMany({
+      where: { phaseRoundId: { in: roundIds } },
+    });
+  }
+
+  // 2. Phase round history (course assignments, submitted results, etc.)
+  await prisma.tTPhaseRound.deleteMany({
+    where: { tournamentId, phase: stage },
+  });
+
+  // 3. The stage roster itself, deleted last (see D1 ordering rationale above).
+  await prisma.tTEntry.deleteMany({
+    where: { tournamentId, stage },
+  });
+
+  // Audit log for the reset (non-critical, fire-and-forget like the other
+  // audit calls in this module — a logging failure must not roll back or
+  // fail a reset that has already completed on the primary data path).
+  createAuditLog({
+    userId,
+    ipAddress,
+    userAgent,
+    action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
+    targetId: tournamentId,
+    targetType: "Tournament",
+    details: {
+      tournamentId,
+      stage,
+      action: "reset_phase",
+      deletedEntryCount: entries.length,
+      deletedRoundCount: roundIds.length,
+      playerIds: entries.map((entry) => entry.playerId),
+      playerNicknames: entries.map(
+        (entry) => (entry as TTEntry & { player: { nickname: string } }).player.nickname
+      ),
+    },
+  }).catch((err) => logger.warn("Failed to create audit log for phase reset", { error: err }));
+
+  return { stage, deletedEntryCount: entries.length, deletedRoundCount: roundIds.length };
 }
