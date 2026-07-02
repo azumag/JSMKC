@@ -1570,6 +1570,13 @@ async function uiPromoteTaPhase(page, tournamentId, action) {
   const button = page.getByRole('button', { name: pattern }).first();
   await button.waitFor({ state: 'visible', timeout: 15000 });
 
+  /* The promote button now triggers a native window.confirm() (added so admins
+   * are warned that promoting before the prior phase's results are final can
+   * promote the wrong number of players — see TC-3001). Without a listener,
+   * Playwright auto-dismisses confirm() dialogs, which would silently cancel
+   * the promotion and hang the waitForResponse below. */
+  page.once('dialog', (dialog) => dialog.accept());
+
   const responsePromise = page.waitForResponse((res) =>
     res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
     res.request().method() === 'POST', { timeout: 60000 });
@@ -1580,6 +1587,38 @@ async function uiPromoteTaPhase(page, tournamentId, action) {
   }
   /* Promotion triggers a page-level state refresh (SWR/polling); let it settle
    * before the next interaction. */
+  await page.waitForTimeout(1500);
+}
+
+/** Click the TA "Reset Phase N" button for the given stage, accepting the
+ *  native confirm() dialog it triggers. Recovery-path counterpart to
+ *  uiPromoteTaPhase: deletes the stage's entire roster and round history
+ *  (see resetPhase in finals-phase-manager.ts). Pre-conditions (stage has
+ *  entries, no later stage promoted yet) must already be met — the button
+ *  is not rendered otherwise. */
+async function uiResetTaPhase(page, tournamentId, stage) {
+  const buttonMap = {
+    phase1: /^(Reset Phase 1|フェーズ1をリセット)$/,
+    phase2: /^(Reset Phase 2|フェーズ2をリセット)$/,
+    phase3: /^(Reset Phase 3|フェーズ3をリセット)$/,
+  };
+  const pattern = buttonMap[stage];
+  if (!pattern) throw new Error(`uiResetTaPhase: unknown stage ${stage}`);
+
+  await nav(page, `/tournaments/${tournamentId}/ta`);
+  const button = page.getByRole('button', { name: pattern }).first();
+  await button.waitFor({ state: 'visible', timeout: 15000 });
+
+  page.once('dialog', (dialog) => dialog.accept());
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST', { timeout: 60000 });
+  await button.click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    throw new Error(`UI reset_phase ${stage} failed (${response.status()})`);
+  }
   await page.waitForTimeout(1500);
 }
 
@@ -2946,6 +2985,7 @@ module.exports = {
   uiActivateTournament,
   uiFreezeTaQualification,
   uiPromoteTaPhase,
+  uiResetTaPhase,
   uiPhaseStartRound,
   uiPhaseSubmitResults,
   uiPhaseCancelRound,

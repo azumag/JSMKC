@@ -40,6 +40,10 @@
  *           shared browser UI card.
  *   TC-2400 Phase1/2 sudden-death retie creates a continuation round; the
  *           continuation round with a unique-slowest player resolves normally.
+ *   TC-3001 Reset an accidentally-early Phase 2 promotion — promoting before
+ *           Phase 1 results are final creates a 12-player field (the
+ *           reported incident); the "Reset Phase 2" button deletes it so a
+ *           correct 8-player promotion can follow once Phase 1 is resolved.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-preview-profile by default).
@@ -60,6 +64,7 @@ const {
   uiSetTaEntryTimes,
   uiFreezeTaQualification,
   uiPromoteTaPhase,
+  uiResetTaPhase,
   uiPhaseStartRound, uiPhaseSubmitResults, uiPhaseCancelRound, uiPhaseUndoRound,
   uiCreateTournament, uiCreatePlayer,
   apiDeletePlayer,
@@ -2285,6 +2290,64 @@ async function runTc2400(adminPage) {
   }
 }
 
+/* ───────── TC-3001: Reset an accidentally-early Phase 2 promotion ─────────
+ * Reproduces the reported incident: promoting to Phase 2 before Phase 1
+ * results are submitted treats all 8 Phase 1 entrants as "survivors",
+ * combining them with the 4 qualification ranks 13-16 into a 12-player
+ * Phase 2 field instead of the intended 4 + 4 = 8. The "Reset Phase 2"
+ * button (admin-only, destructive) must delete that bad field so a correct
+ * promotion can follow once Phase 1 is actually resolved. Uses an isolated
+ * tournament since the shared fixture's Phase 1/2 chain must stay intact for
+ * TC-804/806/807/808. */
+async function runTc3001(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Reset Phase', sharedTaPlayers(24), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+
+    /* The mistake: promote to Phase 2 before any Phase 1 round has been
+     * played. All 8 Phase 1 entrants are still active (none eliminated),
+     * so promoteToPhase2 combines all 8 with the 4 qualification ranks
+     * 13-16 into 12 entries — this is the bug being regression-tested. */
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
+
+    const buggyPhase2 = await apiFetchTaPhase(adminPage, tournamentId, 'phase2');
+    const buggyEntries = buggyPhase2.b?.data?.entries ?? [];
+    const bugReproduced = buggyEntries.length === 12;
+
+    /* Admin notices the mistake and resets Phase 2 via the destructive UI
+     * button, which accepts a native confirm() dialog (see uiResetTaPhase). */
+    await uiResetTaPhase(adminPage, tournamentId, 'phase2');
+
+    const afterReset = await apiFetchTaPhase(adminPage, tournamentId, 'phase2');
+    const clearedEntries = afterReset.b?.data?.entries ?? [];
+    const resetCleared = clearedEntries.length === 0;
+
+    /* Resolve Phase 1 down to its intended 4 survivors, then re-promote —
+     * this time promoteToPhase2 should correctly yield 4 + 4 = 8 entries. */
+    await completeTaSingleEliminationPhaseByApi(adminPage, tournamentId, 'phase1', 4);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
+
+    const correctPhase2 = await apiFetchTaPhase(adminPage, tournamentId, 'phase2');
+    const correctEntries = correctPhase2.b?.data?.entries ?? [];
+    const correctCount = correctEntries.length === 8;
+
+    const ok = bugReproduced && resetCleared && correctCount;
+    log('TC-3001', ok ? 'PASS' : 'FAIL',
+      !bugReproduced ? `expected premature promote_phase2 to create 12 entries, got ${buggyEntries.length}`
+      : !resetCleared ? `expected reset_phase to clear phase2 entries, got ${clearedEntries.length}`
+      : !correctCount ? `expected re-promotion to yield 8 entries, got ${correctEntries.length}`
+      : '');
+  } catch (err) {
+    log('TC-3001', 'FAIL', err instanceof Error ? err.message : 'TA 3001 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -2362,6 +2425,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-1005', fn: runTc1005 },
       { name: 'TC-2293', fn: runTc2293 },
       { name: 'TC-2400', fn: runTc2400 },
+      { name: 'TC-3001', fn: runTc3001 },
     ],
   };
 }
@@ -2370,6 +2434,7 @@ module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
+  runTc3001,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,

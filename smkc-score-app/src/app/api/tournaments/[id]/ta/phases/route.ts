@@ -41,6 +41,8 @@ import {
   changeSuddenDeathCourse,
   cancelPhaseRound,
   undoLastPhaseRound,
+  resetPhase,
+  PhaseResetConflictError,
   type PhaseContext,
   type RoundResultInput,
 } from "@/lib/ta/finals-phase-manager";
@@ -328,6 +330,16 @@ const PostRequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("undo_round"),
     phase: PhaseSchema,
+  }),
+
+  // Reset (undo) a phase promotion: deletes the entire stage roster and its
+  // round history so the admin can re-promote after fixing the mistake that
+  // caused an incorrect promotion (see resetPhase's doc comment). The field
+  // is named `stage` (not `phase`, unlike the other actions above) to match
+  // the TTEntry.stage column that resetPhase operates on directly.
+  z.object({
+    action: z.literal("reset_phase"),
+    stage: PhaseSchema,
   }),
 
   // Submit results for a round: triggers elimination processing.
@@ -627,6 +639,16 @@ export async function POST(
       return createSuccessResponse(result);
     }
 
+    if (action === "reset_phase") {
+      const { stage } = parsed.data;
+      // Same frozen-stage guard as the other phase mutations above: a stage
+      // an admin has explicitly locked should not be resettable either.
+      const freezeError = await checkStageFrozen(prisma, tournamentId, stage);
+      if (freezeError) return freezeError;
+      const result = await resetPhase(prisma, context, stage);
+      return createSuccessResponse(result);
+    }
+
     if (action === "submit_results") {
       const { phase, roundNumber, results } = parsed.data;
       // Prevent submitting results in a frozen phase
@@ -681,6 +703,14 @@ export async function POST(
       tournamentId,
     });
 
+    // resetPhase's "reset while a later phase already exists" guard is a
+    // distinct conflict (409), not a generic 400 validation failure — mapped
+    // via instanceof (same pattern as OptimisticLockError / DebugFillLockedError)
+    // rather than string-matching, since the message is guard-specific.
+    if (err instanceof PhaseResetConflictError) {
+      return createErrorResponse(err.message, 409, "PHASE_RESET_CONFLICT");
+    }
+
     // Expose known business logic errors (thrown by our code with descriptive messages)
     // but hide unexpected/system errors to prevent information leakage.
     // Business logic errors (e.g., "Round 3 not found", "No active players")
@@ -705,7 +735,9 @@ export async function POST(
         // Manual course override validation errors (start_round with course param)
         internalMessage.startsWith("Invalid course abbreviation") ||
         internalMessage.startsWith('Course "') ||
-        internalMessage.startsWith("Course "));
+        internalMessage.startsWith("Course ") ||
+        // resetPhase: stage has no entries to reset (nothing to do)
+        internalMessage.includes("entries to reset"));
 
     return createErrorResponse(
       isBusinessError ? internalMessage : "Internal server error",

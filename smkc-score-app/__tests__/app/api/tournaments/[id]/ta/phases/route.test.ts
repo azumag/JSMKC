@@ -79,19 +79,32 @@ jest.mock('@/lib/logger', () => {
   };
 });
 
-// Mock finals-phase-manager: all exported functions
-jest.mock('@/lib/ta/finals-phase-manager', () => ({
-  getPhaseStatus: jest.fn(),
-  promoteToPhase1: jest.fn(),
-  promoteToPhase2: jest.fn(),
-  promoteToPhase3: jest.fn(),
-  startPhaseRound: jest.fn(),
-  submitRoundResults: jest.fn(),
-  submitSuddenDeathResults: jest.fn(),
-  changeSuddenDeathCourse: jest.fn(),
-  cancelPhaseRound: jest.fn(),
-  undoLastPhaseRound: jest.fn(),
-}));
+// Mock finals-phase-manager: all exported functions.
+// PhaseResetConflictError is kept as a real Error subclass (not jest.fn())
+// so that the route handler's `err instanceof PhaseResetConflictError` check
+// works when a test throws an instance of this same mocked class.
+jest.mock('@/lib/ta/finals-phase-manager', () => {
+  class PhaseResetConflictError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = 'PhaseResetConflictError';
+    }
+  }
+  return {
+    getPhaseStatus: jest.fn(),
+    promoteToPhase1: jest.fn(),
+    promoteToPhase2: jest.fn(),
+    promoteToPhase3: jest.fn(),
+    startPhaseRound: jest.fn(),
+    submitRoundResults: jest.fn(),
+    submitSuddenDeathResults: jest.fn(),
+    changeSuddenDeathCourse: jest.fn(),
+    cancelPhaseRound: jest.fn(),
+    undoLastPhaseRound: jest.fn(),
+    resetPhase: jest.fn(),
+    PhaseResetConflictError,
+  };
+});
 
 // Mock freeze-check: checkStageFrozen returns null (not frozen) by default
 jest.mock('@/lib/ta/freeze-check', () => ({
@@ -164,6 +177,8 @@ import {
   submitRoundResults,
   cancelPhaseRound,
   undoLastPhaseRound,
+  resetPhase,
+  PhaseResetConflictError,
 } from '@/lib/ta/finals-phase-manager';
 import { getPlayedCoursesWithSuddenDeath, getAvailableCourses } from '@/lib/ta/course-selection';
 import { checkStageFrozen } from '@/lib/ta/freeze-check';
@@ -1274,5 +1289,89 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
+  });
+
+  describe('reset_phase action', () => {
+    it('should call resetPhase and return success', async () => {
+      (resetPhase as jest.Mock).mockResolvedValue({
+        stage: 'phase2',
+        deletedEntryCount: 12,
+        deletedRoundCount: 3,
+      });
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'reset_phase', stage: 'phase2' }),
+        { params: mockParams }
+      );
+
+      expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase2');
+      expect(resetPhase).toHaveBeenCalledWith(
+        prisma,
+        expect.objectContaining({ tournamentId: 'tournament-1' }),
+        'phase2'
+      );
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: { stage: 'phase2', deletedEntryCount: 12, deletedRoundCount: 3 },
+      });
+    });
+
+    it('should return 409 when resetPhase throws PhaseResetConflictError', async () => {
+      (resetPhase as jest.Mock).mockRejectedValue(
+        new PhaseResetConflictError('Cannot reset phase1: phase2 already has entries. Reset phase2 first.')
+      );
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'reset_phase', stage: 'phase1' }),
+        { params: mockParams }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Cannot reset phase1: phase2 already has entries. Reset phase2 first.',
+          code: 'PHASE_RESET_CONFLICT',
+        }),
+        { status: 409 }
+      );
+    });
+
+    it('should return 400 business error when resetPhase throws "nothing to reset"', async () => {
+      (resetPhase as jest.Mock).mockRejectedValue(new Error('No phase3 entries to reset'));
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'reset_phase', stage: 'phase3' }),
+        { params: mockParams }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, error: 'No phase3 entries to reset' }),
+        { status: 400 }
+      );
+    });
+
+    it('should return freeze error when the target stage is frozen for reset_phase', async () => {
+      const frozenResponse = { status: 423, body: { success: false, error: 'Phase is frozen' } };
+      (checkStageFrozen as jest.Mock).mockResolvedValue(frozenResponse);
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'reset_phase', stage: 'phase1' }),
+        { params: mockParams }
+      );
+
+      expect(resetPhase).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for invalid stage in reset_phase', async () => {
+      await phasesRoute.POST(
+        createPostRequest({ action: 'reset_phase', stage: 'invalid_stage' }),
+        { params: mockParams }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, error: 'Invalid request', code: 'VALIDATION_ERROR' }),
+        { status: 400 }
+      );
+    });
   });
 });
