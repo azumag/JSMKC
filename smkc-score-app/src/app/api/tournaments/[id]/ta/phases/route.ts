@@ -335,11 +335,14 @@ const PostRequestSchema = z.discriminatedUnion("action", [
   // Reset (undo) a phase promotion: deletes the entire stage roster and its
   // round history so the admin can re-promote after fixing the mistake that
   // caused an incorrect promotion (see resetPhase's doc comment). The field
-  // is named `stage` (not `phase`, unlike the other actions above) to match
-  // the TTEntry.stage column that resetPhase operates on directly.
+  // is named `phase`, same as every other action above, even though
+  // resetPhase's own parameter is named `stage` internally (it maps 1:1 onto
+  // the TTEntry.stage column it operates on) — only the API's external
+  // request shape is unified here so callers don't have to remember a
+  // one-off field name for this action.
   z.object({
     action: z.literal("reset_phase"),
-    stage: PhaseSchema,
+    phase: PhaseSchema,
   }),
 
   // Submit results for a round: triggers elimination processing.
@@ -640,12 +643,12 @@ export async function POST(
     }
 
     if (action === "reset_phase") {
-      const { stage } = parsed.data;
+      const { phase } = parsed.data;
       // Same frozen-stage guard as the other phase mutations above: a stage
       // an admin has explicitly locked should not be resettable either.
-      const freezeError = await checkStageFrozen(prisma, tournamentId, stage);
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
-      const result = await resetPhase(prisma, context, stage);
+      const result = await resetPhase(prisma, context, phase);
       return createSuccessResponse(result);
     }
 

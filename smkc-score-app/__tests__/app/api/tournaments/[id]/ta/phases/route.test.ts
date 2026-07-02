@@ -1300,7 +1300,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       });
 
       await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', stage: 'phase2' }),
+        createPostRequest({ action: 'reset_phase', phase: 'phase2' }),
         { params: mockParams }
       );
 
@@ -1322,7 +1322,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       );
 
       await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', stage: 'phase1' }),
+        createPostRequest({ action: 'reset_phase', phase: 'phase1' }),
         { params: mockParams }
       );
 
@@ -1340,7 +1340,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       (resetPhase as jest.Mock).mockRejectedValue(new Error('No phase3 entries to reset'));
 
       await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', stage: 'phase3' }),
+        createPostRequest({ action: 'reset_phase', phase: 'phase3' }),
         { params: mockParams }
       );
 
@@ -1355,7 +1355,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       (checkStageFrozen as jest.Mock).mockResolvedValue(frozenResponse);
 
       await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', stage: 'phase1' }),
+        createPostRequest({ action: 'reset_phase', phase: 'phase1' }),
         { params: mockParams }
       );
 
@@ -1364,7 +1364,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     it('should return 400 for invalid stage in reset_phase', async () => {
       await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', stage: 'invalid_stage' }),
+        createPostRequest({ action: 'reset_phase', phase: 'invalid_stage' }),
         { params: mockParams }
       );
 

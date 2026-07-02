@@ -219,6 +219,20 @@ export default function TimeAttackPageClient({
   const [promotingPhase, setPromotingPhase] = useState<string | null>(null);
   // Phase reset (undo promotion) state — tracks which stage is currently being reset
   const [resettingPhase, setResettingPhase] = useState<TaPhaseStage | null>(null);
+  /*
+   * Mutual exclusion between promote and reset: both mutate the same TTEntry
+   * rows for a stage (promote via createMany, reset via deleteMany) through
+   * separate, non-atomic requests — D1 has no interactive transaction support
+   * (see resetPhase's doc comment in finals-phase-manager.ts), so there is no
+   * database-level guard against the two racing each other. If an admin fires
+   * "Reset Phase 2" and "Start Phase 2" back-to-back, the promote's createMany
+   * and the reset's deleteMany can interleave and leave an orphaned roster
+   * (e.g. entries created after the delete but attributed to the pre-reset
+   * promotion, or a roster the reset never sees). Disabling every promote and
+   * reset button while *either* kind of request is in flight — not just the
+   * button for the same stage — closes that window at the UI layer.
+   */
+  const phaseActionInFlight = promotingPhase !== null || resettingPhase !== null;
 
   // === Data Fetching ===
   // Fetch tournament data and player list in parallel
@@ -561,7 +575,7 @@ export default function TimeAttackPageClient({
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reset_phase", stage }),
+        body: JSON.stringify({ action: "reset_phase", phase: stage }),
       });
       const json = await response.json();
       if (!response.ok) {
@@ -1114,7 +1128,7 @@ export default function TimeAttackPageClient({
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase1")}
-                      disabled={promotingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {promotingPhase === "promote_phase1" ? tc('promoting') : t('startPhase1')}
                     </Button>
@@ -1132,7 +1146,7 @@ export default function TimeAttackPageClient({
                       size="sm"
                       variant="destructive"
                       onClick={() => handleResetPhase("phase1")}
-                      disabled={resettingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {resettingPhase === "phase1" ? t('resettingPhase') : t('resetPhase1')}
                     </Button>
@@ -1164,7 +1178,7 @@ export default function TimeAttackPageClient({
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase2")}
-                      disabled={promotingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {promotingPhase === "promote_phase2" ? tc('promoting') : t('startPhase2')}
                     </Button>
@@ -1182,7 +1196,7 @@ export default function TimeAttackPageClient({
                       size="sm"
                       variant="destructive"
                       onClick={() => handleResetPhase("phase2")}
-                      disabled={resettingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {resettingPhase === "phase2" ? t('resettingPhase') : t('resetPhase2')}
                     </Button>
@@ -1217,7 +1231,7 @@ export default function TimeAttackPageClient({
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase3")}
-                      disabled={promotingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {promotingPhase === "promote_phase3" ? tc('promoting') : t('startPhase3')}
                     </Button>
@@ -1235,7 +1249,7 @@ export default function TimeAttackPageClient({
                       size="sm"
                       variant="destructive"
                       onClick={() => handleResetPhase("phase3")}
-                      disabled={resettingPhase !== null}
+                      disabled={phaseActionInFlight}
                     >
                       {resettingPhase === "phase3" ? t('resettingPhase') : t('resetPhase3')}
                     </Button>

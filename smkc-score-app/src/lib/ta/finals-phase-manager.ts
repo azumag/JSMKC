@@ -2017,6 +2017,19 @@ const PHASE_ORDER: readonly PhaseStage[] = ["phase1", "phase2", "phase3"];
  * still count as "courses played in this phase" for the 20-course cycle
  * (course-selection.ts), which would wrongly shrink the course pool on the
  * next promotion attempt even though the roster is already gone.
+ * Note this "looks freshly promoted" description is only exact when the
+ * failure happens before any round in this phase was ever submitted. If it
+ * fails mid-reset *after* rounds were played and processed (i.e. round 2's
+ * deleteMany throws having already removed round history that
+ * submitRoundResults/processPhase3Result had used to set eliminated/lives on
+ * some TTEntry rows), those eliminated/lives values remain on the roster
+ * with the round history that produced them now gone — a slightly different
+ * intermediate state than "no rounds played", though still an inert one.
+ * Either intermediate state is fully recovered by simply re-invoking
+ * resetPhase: step 3 deletes the whole `stage` roster unconditionally by
+ * tournamentId, so it does not matter whether the surviving TTEntry rows
+ * still carry stale eliminated/lives values from before the interrupted
+ * reset.
  *
  * @param prisma - Prisma client
  * @param context - Phase context with user/request info for audit logging
