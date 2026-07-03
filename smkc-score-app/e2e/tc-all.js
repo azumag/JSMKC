@@ -3055,6 +3055,82 @@ async function main() {
     if (tc339TournamentId) await deleteTournament(page, tc339TournamentId);
   }
 
+  // TC-2996: Tournament status lifecycle — reopen (completed→active) + transition guard.
+  // The status API validates transitions against the current status
+  // (ALLOWED_STATUS_TRANSITIONS in api/tournaments/[id]/route.ts): draft→completed
+  // is rejected, completed→active reopens a closed tournament via the layout's
+  // Reopen button, and demotion to draft stays allowed (deletion path, issue #667).
+  let tc2996TournamentId = null;
+  try {
+    const tc2996Created = await page.evaluate(async () => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `E2E TC-2996 Reopen ${Date.now()}`, date: new Date().toISOString() }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    tc2996TournamentId = tc2996Created.body?.data?.id ?? null;
+    if (!tc2996TournamentId) throw new Error(`Tournament creation failed (${tc2996Created.status})`);
+
+    const putStatus = (status) => page.evaluate(async ({ tid, status: next }) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    }, { tid: tc2996TournamentId, status });
+
+    // draft→completed must be rejected: a tournament must be started first.
+    const jump = await putStatus('completed');
+    const jumpRejected = jump.status === 400;
+
+    // Unknown status values must be rejected outright.
+    const bogus = await putStatus('archived');
+    const bogusRejected = bogus.status === 400;
+
+    // Normal forward flow: start, then complete.
+    const started = await putStatus('active');
+    const completedResp = await putStatus('completed');
+    const forwardOk = started.status === 200 && completedResp.status === 200;
+
+    // Reopen via the UI button on the tournament page (admin only, completed only).
+    await nav(page, `/tournaments/${tc2996TournamentId}`);
+    const reopenButton = page.getByRole('button', { name: /Reopen Tournament|トーナメント再開/ });
+    const buttonVisible = await reopenButton.isVisible().catch(() => false);
+    let reopenedViaUi = false;
+    if (buttonVisible) {
+      await reopenButton.click();
+      /* updateStatus() PUTs then re-fetches the tournament; confirm via the API
+       * rather than the badge so the check doesn't depend on i18n/badge markup.
+       * Poll (up to 8s) instead of a fixed sleep so a slow preview PUT doesn't
+       * read a stale 'completed' and flake. */
+      for (let attempt = 0; attempt < 16 && !reopenedViaUi; attempt++) {
+        await page.waitForTimeout(500);
+        const after = await page.evaluate(async (tid) => {
+          const r = await fetch(`/api/tournaments/${tid}?fields=summary`);
+          const j = await r.json().catch(() => ({}));
+          return j?.data?.status ?? null;
+        }, tc2996TournamentId);
+        reopenedViaUi = after === 'active';
+      }
+    }
+
+    log('TC-2996',
+      jumpRejected && bogusRejected && forwardOk && buttonVisible && reopenedViaUi ? 'PASS' : 'FAIL',
+      !jumpRejected ? `draft→completed not rejected (status=${jump.status}, expected 400)` :
+      !bogusRejected ? `unknown status not rejected (status=${bogus.status}, expected 400)` :
+      !forwardOk ? `forward flow failed (start=${started.status}, complete=${completedResp.status})` :
+      !buttonVisible ? 'Reopen button not visible on completed tournament' :
+      !reopenedViaUi ? 'Reopen click did not set status back to active' : '');
+  } catch (err) {
+    log('TC-2996', 'FAIL', err instanceof Error ? err.message : 'Tournament reopen lifecycle test failed');
+  } finally {
+    /* deleteTournament demotes to draft first — the demotion path must stay allowed. */
+    if (tc2996TournamentId) await deleteTournament(page, tc2996TournamentId);
+  }
+
   // TC-340: Layout publish button — "Unpublished" badge disappears from tab after publishing TA
   // Verifies that the publicModesChanged event emitted by ModePublishSwitch causes the layout
   // to re-fetch tournament state and remove the "Unpublished" tab badge without a page reload.

@@ -187,6 +187,36 @@ export async function GET(
 }
 
 /**
+ * Tournament status lifecycle. Each key lists the statuses it may move to:
+ *
+ *   draft ──start──▶ active ──complete──▶ completed
+ *     ▲                │  ▲                  │  │
+ *     │◀───demote──────┘  └─────reopen──────┘  │
+ *     └◀────────────demote─────────────────────┘
+ *
+ * - "reopen" (completed -> active) lets admins fix scores after a
+ *   tournament was closed by mistake or results were disputed.
+ * - "demote" (back to draft) is the deletion path: DELETE only accepts
+ *   draft tournaments (issue #667), so admin tooling (e2e/cleanup.js,
+ *   e2e/tc-all.js deleteTournament) demotes first, then deletes. Removing
+ *   this path would make non-draft tournaments undeletable.
+ * - The only rejected transition is draft -> completed: a tournament must
+ *   be started before it can be completed, so a stray "complete" call on a
+ *   never-started tournament fails loudly instead of skipping activation.
+ * - Same-status updates are accepted as no-ops so clients can PUT their
+ *   current state without special-casing.
+ *
+ * Reopening deliberately leaves the persisted archive alone: the archive is
+ * only served as a fallback when the live row is missing (see GET above),
+ * and it is overwritten the next time the tournament is completed.
+ */
+const ALLOWED_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
+  draft: ["active"],
+  active: ["completed", "draft"],
+  completed: ["active", "draft"],
+};
+
+/**
  * PUT /api/tournaments/:id
  *
  * Updates tournament metadata (name, date, status). Requires admin authentication.
@@ -195,12 +225,13 @@ export async function GET(
  * Request body (all optional):
  *   - name   (string) - Tournament name
  *   - date   (string) - Tournament date in ISO format
- *   - status (string) - Tournament status (draft, active, completed, etc.)
+ *   - status (string) - Tournament status; must follow ALLOWED_STATUS_TRANSITIONS
  *
  * Response:
  *   200 - Updated tournament object
+ *   400 - Invalid status value or disallowed status transition
  *   403 - Not authorized (non-admin)
- *   404 - Tournament not found (Prisma P2025)
+ *   404 - Tournament not found (Prisma P2025, or status change on missing row)
  *   500 - Server error
  */
 export async function PUT(
@@ -260,6 +291,44 @@ export async function PUT(
         return handleValidationError(
           "publicModes must be an array of valid modes (ta, bm, mr, gp, overall) with no duplicates",
           "publicModes"
+        );
+      }
+    }
+
+    // Validate status changes against the lifecycle map. The transition is
+    // checked against the *current* status, so this costs one extra read —
+    // but only when `status` is part of the body (a rare admin operation).
+    // NOTE: the read and the update below are not atomic (D1 has no
+    // interactive transactions), so two concurrent admin PUTs can race past
+    // this check. Acceptable for a rare, admin-only operation.
+    if (status !== undefined) {
+      if (
+        typeof status !== "string" ||
+        // Object.hasOwn (not `in`): prototype keys like "toString" must not
+        // pass value validation and leak into the DB read below.
+        !Object.hasOwn(ALLOWED_STATUS_TRANSITIONS, status)
+      ) {
+        // Unknown value: reject before touching the database.
+        return handleValidationError(
+          `status must be one of: ${Object.keys(ALLOWED_STATUS_TRANSITIONS).join(", ")}`,
+          "status"
+        );
+      }
+
+      const current = await prisma.tournament.findUnique({
+        where: { id: resolvedId },
+        select: { status: true },
+      });
+      if (!current) {
+        return createErrorResponse("Tournament not found", 404);
+      }
+      if (
+        current.status !== status &&
+        !ALLOWED_STATUS_TRANSITIONS[current.status]?.includes(status)
+      ) {
+        return handleValidationError(
+          `Cannot change tournament status from "${current.status}" to "${status}"`,
+          "status"
         );
       }
     }

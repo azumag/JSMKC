@@ -64,6 +64,10 @@ async function createCompletedPublicBmArchive(page, prefix, caseName) {
     if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
     await apiPutAllBmQualScores(page, tournamentId, { score1: 3, score2: 1, randomize: false });
 
+    /* The status API validates lifecycle transitions (ALLOWED_STATUS_TRANSITIONS):
+     * draft cannot jump straight to completed, so activate first. */
+    const activated = await apiUpdateTournament(page, tournamentId, { status: 'active' });
+    if (activated.s !== 200) throw new Error(`activation update failed (${activated.s})`);
     const completed = await apiUpdateTournament(page, tournamentId, {
       status: 'completed',
       publicModes: ['bm', 'overall'],
@@ -210,6 +214,9 @@ async function tcArc07(page) {
   let tournamentDeleted = false;
   try {
     tournamentId = await apiCreateTournament(page, `E2E TC-ARC-07 ${Date.now()}`);
+    /* Lifecycle guard: draft -> completed is rejected, so activate first. */
+    const activated = await apiUpdateTournament(page, tournamentId, { status: 'active' });
+    if (activated.s !== 200) throw new Error(`activation update failed (${activated.s})`);
     const completed = await apiUpdateTournament(page, tournamentId, {
       status: 'completed',
       publicModes: ['ta'],
@@ -244,6 +251,9 @@ async function tcArc04(page) {
   let tournamentId = null;
   try {
     tournamentId = await apiCreateTournament(page, `E2E TC-ARC-04 ${Date.now()}`);
+    /* Lifecycle guard: draft -> completed is rejected, so activate first. */
+    const activated = await apiUpdateTournament(page, tournamentId, { status: 'active' });
+    if (activated.s !== 200) throw new Error(`activation update failed (${activated.s})`);
     const completed = await apiUpdateTournament(page, tournamentId, {
       status: 'completed',
       publicModes: [],

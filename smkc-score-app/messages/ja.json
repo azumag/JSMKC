@@ -289,6 +289,7 @@
     "customUrlHelp": "小文字英字・数字・ハイフンを使用できます。未入力なら自動IDが使われます。",
     "startTournament": "トーナメント開始",
     "completeTournament": "トーナメント完了",
+    "reopenTournament": "トーナメント再開",
     "backToList": "一覧に戻る",
     "makePublic": "公開する",
     "makePrivate": "非公開にする",
