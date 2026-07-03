@@ -3862,6 +3862,21 @@
 - **期待結果**: 誤って早期昇格した場合でも、対象フェーズのエントリとラウンド結果を「フェーズリセット」で削除し、前フェーズの結果確定後に正しい人数で再昇格できる。（後続フェーズ（フェーズ3など）が既に存在する場合にリセットが409で拒否される点は、上記の手順ではカバーしておらず、`finals-phase-manager.test.ts` / `route.test.ts` のユニットテストでカバーする。）
 - **スクリプト**: e2e/tc-ta.js TC-3001 (`node e2e/tc-ta.js`)
 
+## TC-3002: TA 決勝フェーズ — undo はサドンデス孤児レコードを削除し、cancel_last_round はコースをプールに戻す
+- **URL**: /api/tournaments/[temp-id]/ta/phases (POST `undo_round` / `cancel_last_round`)
+- **authRequired**: true (admin)
+- **背景**: 実プレイでのテストにより発見された2件の不具合(#2761)。①サドンデスタイブレークが解決済みのラウンドを`undo_round`で取り消しても、紐づく `TTPhaseSuddenDeathRound` レコードが孤児のまま残り、同じラウンドを再提出して再びタイになると「2回目のサドンデス」が要求されてしまう(1回目の結果は残っているが集計上は無視される)。②フェーズ全体をリセットせずに「最後の1コースだけ」を取り消してコースを20コースプールに戻す手段がなかった（`undo_round`は同じコースへの再入力を前提に温存する設計のため）。
+- **手順**:
+  1. TA予選24名を登録し、フェーズ1(8名)まで昇格する
+  2. ラウンド1で意図的にタイを発生させ、サドンデスタイブレークを解決する（`submit_sudden_death`）
+  3. `undo_round` を実行 → `GET .../ta/phases?phase=phase1` でラウンド1の `suddenDeathRounds` が空配列になっている（孤児レコードが削除されている）こと、かつラウンド自体は同じコースのまま残っている（`results`が空、`course`は変わらない）ことを確認
+  4. ラウンド1にタイなしの結果を再提出する
+  5. 再提出直後、そのコースがまだ利用可能コース一覧(`availableCourses`)に含まれていない(＝プールに戻っていない)ことを確認
+  6. `cancel_last_round` を実行 → レスポンスの `freedCourse` が該当コースと一致すること
+  7. `GET .../ta/phases?phase=phase1` でラウンド1が `rounds` から消えており、そのコースが `availableCourses` に戻っていることを確認
+- **期待結果**: `undo_round` は同一コースへの再入力用に丸ごとラウンドを残しつつ、孤児化したサドンデスレコードだけは削除する。`cancel_last_round` はラウンドを完全に削除し、コースを20コースプールに解放する。UI側には「フェーズ1/2」画面(`ta-elimination-phase.tsx`)と「決勝(フェーズ3)」画面(`ta/finals/page.tsx`)の両方に、既存の「直前ラウンドを取り消す」ボタンと並んで「直前ラウンドをキャンセル（コースを解放）」ボタン(destructive, 確認ダイアログ付き)が追加される。
+- **スクリプト**: e2e/tc-ta.js TC-3002 (`node e2e/tc-ta.js`)。ユニット: `finals-phase-manager.test.ts`(`cancelLastSubmittedPhaseRound` describe, undoの孤児削除テスト含む) / `route.test.ts`(`cancel_last_round` アクション) / `time-utils.test.ts`(`sortResultsByTime` — ラウンド履歴のサドンデス結果表示が未ソートだった不具合の修正)
+
 ## TC-336: TA フェーズ API 構造確認 — GET /api/tournaments/[id]/ta/phases
 - **URL**: /api/tournaments/[id]/ta/phases
 - **authRequired**: false (公開GETエンドポイント)

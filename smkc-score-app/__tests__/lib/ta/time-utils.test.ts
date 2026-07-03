@@ -19,6 +19,7 @@ import {
   calculateTotalTime,
   validateRequiredCourses,
   autoFormatTime,
+  sortResultsByTime,
 } from '@/lib/ta/time-utils';
 
 describe('TA Time Utils', () => {
@@ -227,6 +228,41 @@ describe('TA Time Utils', () => {
       const formatted = autoFormatTime('12345');
       expect(formatted).toBe('1:23.45');
       expect(timeToMs(formatted!)).toBe(83450);
+    });
+  });
+
+  describe('sortResultsByTime', () => {
+    it('should sort results ascending by timeMs (fastest first)', () => {
+      const results = [
+        { playerId: 'p1', timeMs: 90000 },
+        { playerId: 'p2', timeMs: 50000 },
+        { playerId: 'p3', timeMs: 70000 },
+      ];
+      expect(sortResultsByTime(results).map((r) => r.playerId)).toEqual(['p2', 'p3', 'p1']);
+    });
+
+    it('should not mutate the input array', () => {
+      const results = [
+        { playerId: 'p1', timeMs: 90000 },
+        { playerId: 'p2', timeMs: 50000 },
+      ];
+      const original = [...results];
+      sortResultsByTime(results);
+      expect(results).toEqual(original);
+    });
+
+    it('should preserve extra fields on each result', () => {
+      const results = [
+        { playerId: 'p1', timeMs: 90000, isRetry: true },
+        { playerId: 'p2', timeMs: 50000, isRetry: false },
+      ];
+      const sorted = sortResultsByTime(results);
+      expect(sorted[0]).toEqual({ playerId: 'p2', timeMs: 50000, isRetry: false });
+      expect(sorted[1]).toEqual({ playerId: 'p1', timeMs: 90000, isRetry: true });
+    });
+
+    it('should return an empty array for empty input', () => {
+      expect(sortResultsByTime([])).toEqual([]);
     });
   });
 });

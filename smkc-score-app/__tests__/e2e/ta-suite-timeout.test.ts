@@ -17,6 +17,7 @@ describe('TC-2078 TA E2E suite timeout contract', () => {
     expect(suite.tests.map((test) => test.name)).toContain('TC-2293');
     expect(suite.tests.map((test) => test.name)).toContain('TC-2400');
     expect(suite.tests.map((test) => test.name)).toContain('TC-3001');
-    expect(suite.tests).toHaveLength(32);
+    expect(suite.tests.map((test) => test.name)).toContain('TC-3002');
+    expect(suite.tests).toHaveLength(33);
   });
 });

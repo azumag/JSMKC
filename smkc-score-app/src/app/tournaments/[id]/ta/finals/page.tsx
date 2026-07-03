@@ -74,7 +74,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
-import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
+import { autoFormatTime, generateRandomTimeString, msToDisplayTime, sortResultsByTime, timeToMs } from "@/lib/ta/time-utils";
 import {
   TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
@@ -207,6 +207,8 @@ export default function TimeAttackFinals({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [undoingRound, setUndoingRound] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [cancellingLastRound, setCancellingLastRound] = useState(false);
+  const [showCancelLastRoundConfirm, setShowCancelLastRoundConfirm] = useState(false);
 
   // Show random-fill button when tournament debugMode is enabled (admin only).
   const isDebugMode = useTournamentDebugMode(tournamentId);
@@ -460,6 +462,47 @@ export default function TimeAttackFinals({
       setShowUndoConfirm(false);
     } finally {
       setUndoingRound(false);
+    }
+  };
+
+  /**
+   * Cancel the last submitted round entirely: restores player state (same
+   * as undo) but deletes the round record instead of clearing it in place,
+   * freeing its course back into the 20-course pool. Use this when the
+   * course/round itself was the mistake, not just the times entered for it
+   * (issue #2761 — undo alone can't free a course, only redo it in place).
+   */
+  const handleCancelLastRound = async () => {
+    setCancellingLastRound(true);
+    setSaveError(null);
+    try {
+      const response = await fetch(
+        `/api/tournaments/${tournamentId}/ta/phases`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "cancel_last_round", phase: "phase3" }),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to cancel round");
+      }
+      setShowCancelLastRoundConfirm(false);
+      setCurrentRound(null);
+      setCourseTimes({});
+      setRetryFlags({});
+      setTvAssignments({});
+      resetBroadcastStatus();
+      setIsEditing(false);
+      fetchData();
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to cancel round";
+      setSaveError(errorMessage);
+      setShowCancelLastRoundConfirm(false);
+    } finally {
+      setCancellingLastRound(false);
     }
   };
 
@@ -1045,9 +1088,21 @@ export default function TimeAttackFinals({
                     variant="outline"
                     className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
                     onClick={() => setShowUndoConfirm(true)}
-                    disabled={undoingRound || startingRound || hasOpenRound}
+                    disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
                   >
                     {tTaFinals('undoLastRound')}
+                  </Button>
+                )}
+                {/* Cancel last round: like undo, but frees the course instead of
+                    keeping it assigned for re-entry (issue #2761). */}
+                {completedRoundsCount > 0 && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-red-700 border-red-400 hover:bg-red-50"
+                    onClick={() => setShowCancelLastRoundConfirm(true)}
+                    disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+                  >
+                    {tTaFinals('cancelLastRound')}
                   </Button>
                 )}
               </div>
@@ -1074,6 +1129,33 @@ export default function TimeAttackFinals({
                       disabled={undoingRound}
                     >
                       {undoingRound ? tTaFinals('undoing') : tTaFinals('yesUndoRound')}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={showCancelLastRoundConfirm} onOpenChange={setShowCancelLastRoundConfirm}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{tTaFinals('cancelLastRoundTitle')}</DialogTitle>
+                    <DialogDescription>
+                      {tTaFinals('cancelLastRoundDesc')}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCancelLastRoundConfirm(false)}
+                      disabled={cancellingLastRound}
+                    >
+                      {tTaFinals('keepRound')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleCancelLastRound}
+                      disabled={cancellingLastRound}
+                    >
+                      {cancellingLastRound ? tTaFinals('cancellingLastRound') : tTaFinals('yesCancelLastRound')}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -1271,7 +1353,7 @@ export default function TimeAttackFinals({
                                   <span className="font-medium">{tTaSuddenDeath("suddenDeathRoundLabel", { sequence: sd.sequence })}</span>
                                   <Badge variant="outline" className="font-mono text-xs">{sd.course}</Badge>
                                 </div>
-                                {(sd.results || []).map((result) => (
+                                {sortResultsByTime(sd.results || []).map((result) => (
                                   <div key={result.playerId} className="flex justify-between text-muted-foreground">
                                     <span>{playerNames[result.playerId] || result.playerId}</span>
                                     <span className="font-mono">{msToDisplayTime(result.timeMs)}</span>

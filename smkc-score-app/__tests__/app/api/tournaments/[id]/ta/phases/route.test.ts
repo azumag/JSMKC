@@ -101,6 +101,7 @@ jest.mock('@/lib/ta/finals-phase-manager', () => {
     changeSuddenDeathCourse: jest.fn(),
     cancelPhaseRound: jest.fn(),
     undoLastPhaseRound: jest.fn(),
+    cancelLastSubmittedPhaseRound: jest.fn(),
     resetPhase: jest.fn(),
     PhaseResetConflictError,
   };
@@ -177,6 +178,7 @@ import {
   submitRoundResults,
   cancelPhaseRound,
   undoLastPhaseRound,
+  cancelLastSubmittedPhaseRound,
   resetPhase,
   PhaseResetConflictError,
 } from '@/lib/ta/finals-phase-manager';
@@ -1156,6 +1158,53 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       'phase3'
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { undoneRoundNumber: 5 } });
+  });
+
+  it('should call cancelLastSubmittedPhaseRound and return success', async () => {
+    (cancelLastSubmittedPhaseRound as jest.Mock).mockResolvedValue({ cancelledRoundNumber: 5, freedCourse: 'MC1' });
+
+    await phasesRoute.POST(
+      createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }),
+      { params: mockParams }
+    );
+
+    expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase3');
+    expect(cancelLastSubmittedPhaseRound).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase3'
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: { cancelledRoundNumber: 5, freedCourse: 'MC1' },
+    });
+  });
+
+  it('should return 400 with business error when cancelLastSubmittedPhaseRound throws "No submitted rounds"', async () => {
+    (cancelLastSubmittedPhaseRound as jest.Mock).mockRejectedValue(new Error('No submitted rounds found for phase3'));
+
+    await phasesRoute.POST(
+      createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }),
+      { params: mockParams }
+    );
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'No submitted rounds found for phase3' }),
+      { status: 400 }
+    );
+  });
+
+  it('should return the frozen-stage error and skip cancelLastSubmittedPhaseRound when the phase is frozen', async () => {
+    const frozenResponse = { status: 423, body: { success: false, error: 'Phase is frozen' } };
+    (checkStageFrozen as jest.Mock).mockResolvedValueOnce(frozenResponse);
+
+    const result = await phasesRoute.POST(
+      createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }),
+      { params: mockParams }
+    );
+
+    expect(result).toBe(frozenResponse);
+    expect(cancelLastSubmittedPhaseRound).not.toHaveBeenCalled();
   });
 
   it('should return 400 with business error when undoLastPhaseRound throws "No submitted rounds"', async () => {
