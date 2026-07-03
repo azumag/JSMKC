@@ -289,6 +289,7 @@
     "customUrlHelp": "Use lowercase letters, numbers, and hyphens. Leave blank to use the generated ID.",
     "startTournament": "Start Tournament",
     "completeTournament": "Complete Tournament",
+    "reopenTournament": "Reopen Tournament",
     "backToList": "Back to List",
     "makePublic": "Make Public",
     "makePrivate": "Make Private",

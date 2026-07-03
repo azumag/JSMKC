@@ -548,7 +548,7 @@ describe('PUT /api/tournaments/[id]', () => {
       );
     });
 
-    it('should update tournament status successfully', async () => {
+    it('should update tournament status successfully (active -> completed)', async () => {
       const mockTournament = {
         id: 't1',
         name: 'Test Tournament',
@@ -562,6 +562,10 @@ describe('PUT /api/tournaments/[id]', () => {
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         status: 'completed',
       });
+      // Status transitions are validated against the *current* status
+      // (see ALLOWED_STATUS_TRANSITIONS in route.ts), so PUT now reads the
+      // tournament before updating it whenever `status` is part of the body.
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: 'active' });
       (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -578,6 +582,198 @@ describe('PUT /api/tournaments/[id]', () => {
         success: true,
         data: mockTournament,
       });
+    });
+
+    it('should reopen a completed tournament back to active (completed -> active)', async () => {
+      const mockTournament = {
+        id: 't1',
+        name: 'Test Tournament',
+        status: 'active',
+      };
+
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: 'active' });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: 'completed' });
+      (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+
+      await tournamentRoute.PUT(
+        new NextRequest('http://localhost:3000/api/tournaments/t1', {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'active' }),
+        }),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(prisma.tournament.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'active' } })
+      );
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTournament,
+      });
+    });
+
+    it.each(['draft', 'active', 'completed'])(
+      'should accept a same-status no-op update (%s -> %s)',
+      async (status) => {
+        const mockTournament = { id: 't1', status };
+
+        jest.mocked(auth).mockResolvedValue({
+          user: { id: 'admin-1', role: 'admin' },
+        });
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status });
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status });
+        (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+        auditLogMock.createAuditLog.mockResolvedValue(undefined);
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+
+        await tournamentRoute.PUT(
+          new NextRequest('http://localhost:3000/api/tournaments/t1', {
+            method: 'PUT',
+            body: JSON.stringify({ status }),
+          }),
+          { params: Promise.resolve({ id: 't1' }) }
+        );
+
+        expect(prisma.tournament.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: { status } })
+        );
+        expect(NextResponse.json).toHaveBeenCalledWith({
+          success: true,
+          data: mockTournament,
+        });
+      }
+    );
+
+    it.each([
+      // Starting a tournament — the most common transition.
+      ['draft', 'active'],
+      // Demoting back to draft is the deletion path (issue #667): DELETE
+      // only accepts draft tournaments, so cleanup tooling demotes first.
+      ['active', 'draft'],
+      ['completed', 'draft'],
+    ])(
+      'should accept the allowed status transition (%s -> %s)',
+      async (current, next) => {
+        const mockTournament = { id: 't1', status: next };
+
+        jest.mocked(auth).mockResolvedValue({
+          user: { id: 'admin-1', role: 'admin' },
+        });
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: next });
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: current });
+        (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+        auditLogMock.createAuditLog.mockResolvedValue(undefined);
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+
+        await tournamentRoute.PUT(
+          new NextRequest('http://localhost:3000/api/tournaments/t1', {
+            method: 'PUT',
+            body: JSON.stringify({ status: next }),
+          }),
+          { params: Promise.resolve({ id: 't1' }) }
+        );
+
+        expect(prisma.tournament.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: { status: next } })
+        );
+        expect(NextResponse.json).toHaveBeenCalledWith({
+          success: true,
+          data: mockTournament,
+        });
+      }
+    );
+
+    it.each([
+      // Skipping activation: a tournament must be started before completion.
+      ['draft', 'completed'],
+    ])(
+      'should reject a disallowed status transition (%s -> %s) with 400',
+      async (current, next) => {
+        jest.mocked(auth).mockResolvedValue({
+          user: { id: 'admin-1', role: 'admin' },
+        });
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: next });
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: current });
+
+        await tournamentRoute.PUT(
+          new NextRequest('http://localhost:3000/api/tournaments/t1', {
+            method: 'PUT',
+            body: JSON.stringify({ status: next }),
+          }),
+          { params: Promise.resolve({ id: 't1' }) }
+        );
+
+        expect(prisma.tournament.update).not.toHaveBeenCalled();
+        expect(NextResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            success: false,
+            code: 'VALIDATION_ERROR',
+          }),
+          { status: 400 }
+        );
+      }
+    );
+
+    it.each([
+      // Plain unknown value.
+      ['archived'],
+      // Prototype key: `status in ALLOWED_STATUS_TRANSITIONS` would let this
+      // through — the route must use Object.hasOwn for value validation.
+      ['toString'],
+    ])('should reject an unknown status value (%p) with 400 before reading the database', async (status) => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status });
+
+      await tournamentRoute.PUT(
+        new NextRequest('http://localhost:3000/api/tournaments/t1', {
+          method: 'PUT',
+          body: JSON.stringify({ status }),
+        }),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      // Value validation must short-circuit: no current-status read, no update.
+      expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          code: 'VALIDATION_ERROR',
+        }),
+        { status: 400 }
+      );
+    });
+
+    it('should return 404 when changing status of a tournament that does not exist', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: 'active' });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await tournamentRoute.PUT(
+        new NextRequest('http://localhost:3000/api/tournaments/t1', {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'active' }),
+        }),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Tournament not found',
+        }),
+        { status: 404 }
+      );
     });
 
     it('should enable debugMode on an existing tournament (#746)', async () => {

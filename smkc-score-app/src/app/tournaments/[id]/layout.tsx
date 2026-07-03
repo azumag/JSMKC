@@ -195,9 +195,12 @@ export default function TournamentLayout({
 
   /**
    * Updates the tournament status via PUT request.
-   * Used for one-way status transitions:
+   * Used for the lifecycle transitions:
    * - "draft" -> "active" (Start Tournament)
    * - "active" -> "completed" (Complete Tournament)
+   * - "completed" -> "active" (Reopen Tournament — fix results after closing)
+   * The API validates transitions (ALLOWED_STATUS_TRANSITIONS in
+   * api/tournaments/[id]/route.ts); anything else is rejected with 400.
    */
   const updateStatus = async (status: string) => {
     try {
@@ -305,8 +308,9 @@ export default function TournamentLayout({
             </div>
             <div className="flex flex-wrap gap-2">
               {/*
-               * Status transition buttons (admin only). One-way: there
-               * is no revert mechanism — guarding lives in the API.
+               * Status transition buttons (admin only). Guarding lives in
+               * the API (ALLOWED_STATUS_TRANSITIONS): draft→active→completed,
+               * plus completed→active to reopen a tournament closed too early.
                */}
               {isAdmin && tournament.status === "draft" && (
                 <Button onClick={() => updateStatus("active")}>
@@ -316,6 +320,15 @@ export default function TournamentLayout({
               {isAdmin && tournament.status === "active" && (
                 <Button onClick={() => updateStatus("completed")}>
                   {t("completeTournament")}
+                </Button>
+              )}
+              {/*
+               * Reopen is rendered as an outline button so it reads as a
+               * corrective action, not the primary next step of the flow.
+               */}
+              {isAdmin && tournament.status === "completed" && (
+                <Button variant="outline" onClick={() => updateStatus("active")}>
+                  {t("reopenTournament")}
                 </Button>
               )}
               {isAdmin && (
