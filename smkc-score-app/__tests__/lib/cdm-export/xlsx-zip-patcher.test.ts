@@ -268,6 +268,30 @@ describe("patchCdmWorkbook — real cell writes", () => {
     expect(ttQual).toContain('<f t="array" ref="B2:B48">');
   });
 
+  it("strips the rich-value vm from stripped cells but keeps cm and the <f t=\"array\">", () => {
+    // Main Hub T2 anchors UNIQUE(FILTER(Registration[Country])) — a RICH-value
+    // formula: <c r="T2" .. t="e" cm="1" vm="1"><f t="array" ref="T2:T12">..</f>
+    // <v>#VALUE!</v></c>, with rich spill children T3:T12 (t="e" vm=N). The strip
+    // must drop the stale `vm` (it points at the CDM2025 country flag) AND the
+    // cached value/type, yet KEEP `cm` and the <f t="array"> so the array still
+    // spills on recalc. This is the exact contract the whole-sheet vm guard in
+    // index.test.ts cannot distinguish from "regex ate cm/<f>".
+    // patchCdmWorkbook alone runs stripFormulaCachedValues (which clears the T
+    // formula+spill cells) but NOT the Main Hub fill that strips the static D
+    // country cells, so we scope these asserts to the T column. The whole-sheet
+    // "no vm anywhere" guard (D + T together) lives in index.test.ts.
+    const out = patchCdmWorkbook(loadTemplate(), []);
+    const mainHub = readSheet(out, "xl/worksheets/sheet1.xml");
+    // Rich ANCHOR: vm gone, cm + array formula intact.
+    expect(mainHub).toContain(
+      '<c r="T2" s="15" cm="1"><f t="array" ref="T2:T12">_xlfn.UNIQUE(',
+    );
+    // Rich SPILL CHILD: reduced to a styled empty shell (no t, no vm, no value).
+    expect(mainHub).toContain('<c r="T3" s="15"></c>');
+    // No T cell may keep a vm pointer into the stale rich data (flag).
+    expect(mainHub).not.toMatch(/<c r="T\d+"[^>]*vm=/);
+  });
+
   it("throws when a value is written into a dynamic-array spill cell", () => {
     // Overall Ranking B2 anchors SORT(UNIQUE(Registration[Nickname])) with spill
     // ref B2:B61, so B5 is a spill CHILD (no <f> of its own). Writing a value

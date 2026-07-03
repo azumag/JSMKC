@@ -28,6 +28,8 @@ export interface ParticipantPlayer {
   id: string;
   name: string;
   nickname: string;
+  /** Stored country value (ISO code or legacy name); rendered as an inline flag. */
+  country?: string | null;
 }
 
 /** Shared tournament metadata */

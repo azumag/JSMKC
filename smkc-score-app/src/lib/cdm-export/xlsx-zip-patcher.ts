@@ -296,6 +296,14 @@ function stripFormulaCachedValues(sheetXml: string): string {
         // first '>' is touched, so the formula's own <f t="array"> marker — which
         // lives after that '>' and is never in this alternation — is preserved.
         .replace(/^(<c\b[^>]*?)\s+t="(?:str|e|b|s|inlineStr)"/, "$1")
+        // Drop `vm` (value metadata) too. On a rich-value cell `vm` points into
+        // xl/richData at the cached linked value (the CDM2025 country flags). The
+        // value we just removed is gone, but a surviving `vm` still resolves to
+        // that stale flag — e.g. the UNIQUE(FILTER(Registration[Country])) spill
+        // children on Main Hub (T3:T12). Stripping it makes the cell truly blank;
+        // a real recalc re-establishes `vm` from the recomputed result. `cm`
+        // (the dynamic-array marker) is intentionally KEPT so anchors still spill.
+        .replace(/^(<c\b[^>]*?)\s+vm="\d+"/, "$1")
     );
   });
 }

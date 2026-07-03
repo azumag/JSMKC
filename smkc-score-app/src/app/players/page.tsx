@@ -26,9 +26,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CountrySelect } from "@/components/ui/country-select";
+import { CountryFlag } from "@/components/ui/country-flag";
+import { getCountryName, resolveCountryCode } from "@/lib/countries";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -98,6 +101,7 @@ export default function PlayersPage() {
   const { data: session } = useSession();
   const t = useTranslations('players');
   const tc = useTranslations('common');
+  const locale = useLocale();
 
   /**
    * Admin role check: only sessions with the admin role can create,
@@ -216,7 +220,14 @@ export default function PlayersPage() {
        * submissions silently closing the dialog and inserting a fake
        * local-only player instead of showing an error.
        */
-      const result = await createPlayerWithRetry(formData);
+      const result = await createPlayerWithRetry({
+        ...formData,
+        // Normalize country to an ISO code on save (legacy/full names ->
+        // code; unrecognized free text -> "" -> server stores null) so the
+        // DB never accumulates un-flaggable garbage and legacy values
+        // migrate forward.
+        country: resolveCountryCode(formData.country) ?? "",
+      });
 
       if (result.ok) {
         // Recovered success (result.recovered) skips the password dialog
@@ -228,7 +239,7 @@ export default function PlayersPage() {
           id: crypto.randomUUID(),
           name: formData.name,
           nickname: formData.nickname,
-          country: formData.country || null,
+          country: resolveCountryCode(formData.country) ?? null,
           noCamera: formData.noCamera,
           createdAt: new Date().toISOString(),
         };
@@ -281,7 +292,12 @@ export default function PlayersPage() {
         response = await fetch(`/api/players/${editingPlayerId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          // See POST above: normalize country to an ISO code on save so a plain
+          // nickname edit also migrates a legacy free-text country to a code.
+          body: JSON.stringify({
+            ...formData,
+            country: resolveCountryCode(formData.country) ?? null,
+          }),
         });
         if (response.ok || response.status < 500) break;
         if (attempt === 0) await new Promise(r => setTimeout(r, 800));
@@ -291,7 +307,7 @@ export default function PlayersPage() {
         // Optimistic update: immediately reflect changes in the list
         setPlayers(prev => prev.map(p =>
           p.id === editingPlayerId
-            ? { ...p, name: formData.name, nickname: formData.nickname, country: formData.country || null, noCamera: formData.noCamera }
+            ? { ...p, name: formData.name, nickname: formData.nickname, country: resolveCountryCode(formData.country) ?? null, noCamera: formData.noCamera }
             : p
         ));
         setIsEditDialogOpen(false);
@@ -518,12 +534,13 @@ export default function PlayersPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="country">{t('countryOptional')}</Label>
-                  <Input
+                  <CountrySelect
                     id="country"
                     value={formData.country}
-                    onChange={(e) =>
-                      setFormData({ ...formData, country: e.target.value })
+                    onChange={(country) =>
+                      setFormData({ ...formData, country })
                     }
+                    locale={locale}
                     placeholder={t('countryPlaceholder')}
                   />
                 </div>
@@ -591,7 +608,14 @@ export default function PlayersPage() {
                         {player.nickname}
                       </TableCell>
                       <TableCell>{player.name}</TableCell>
-                      <TableCell>{player.country || "-"}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1.5">
+                          <CountryFlag country={player.country} locale={locale} />
+                          {getCountryName(resolveCountryCode(player.country), locale) ||
+                            player.country ||
+                            "-"}
+                        </span>
+                      </TableCell>
                       <TableCell>{player.noCamera ? "✗" : "-"}</TableCell>
                       {/* Admin-only action buttons: Edit and Delete */}
                       {isAdmin && (
@@ -698,12 +722,13 @@ export default function PlayersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-country">{t('countryOptional')}</Label>
-                <Input
+                <CountrySelect
                   id="edit-country"
                   value={formData.country}
-                  onChange={(e) =>
-                    setFormData({ ...formData, country: e.target.value })
+                  onChange={(country) =>
+                    setFormData({ ...formData, country })
                   }
+                  locale={locale}
                 />
               </div>
               <div className="flex items-center gap-2">

@@ -94,3 +94,41 @@ describe("PlayoffBracket winner resolver", () => {
     expect(screen.getByText("Alice").closest("div")?.className).not.toContain("bg-primary/10");
   });
 });
+
+describe("PlayoffBracket country flags", () => {
+  it("renders a flag for a determined player and none for a TBD slot", () => {
+    const alice = { id: "p1", name: "Alice A", nickname: "Alice", country: "JP" };
+    const { container } = render(
+      <PlayoffBracket
+        // player2Seed: null + player1Id === player2Id (not completed) makes
+        // slot 2 TBD while slot 1 (Alice) is determined.
+        playoffMatches={[{
+          id: "m1",
+          matchNumber: 1,
+          round: "playoff_r1",
+          stage: "playoff",
+          player1Id: alice.id,
+          player2Id: alice.id,
+          score1: 0,
+          score2: 0,
+          completed: false,
+          player1: alice,
+          player2: alice,
+        }]}
+        // player2Seed omitted (undefined) + player1Id === player2Id (not
+        // completed) makes slot 2 TBD while slot 1 (Alice) is determined.
+        playoffStructure={[
+          { matchNumber: 1, round: "playoff_r1", bracket: "winners", player1Seed: 1 },
+        ]}
+        roundNames={{ playoff_r1: "Round 1" }}
+      />,
+    );
+
+    // Exactly one flag image: Alice's. The TBD slot must not render a flag,
+    // and the gate must not suppress the determined player's flag.
+    const flags = container.querySelectorAll('img[src^="/flags/"]');
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toHaveAttribute("src", "/flags/jp.svg");
+    expect(flags[0]).toHaveAttribute("title", "Japan");
+  });
+});

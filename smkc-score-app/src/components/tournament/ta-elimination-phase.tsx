@@ -22,7 +22,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,6 +49,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { CountryFlag } from "@/components/ui/country-flag";
 import {
   Select,
   SelectContent,
@@ -138,6 +139,7 @@ export default function TAEliminationPhase({
   const tElim = useTranslations('taElimination');
   const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const tCommon = useTranslations('common');
+  const locale = useLocale();
   // Input is a native element, so this does not skip rendering by reference equality.
   // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(tElim('timeInputTitle')), [tElim]);
@@ -779,7 +781,10 @@ export default function TAEliminationPhase({
             <div className="mt-2 space-y-1">
               {activeEntries.map((e) => (
                 <p key={e.id} className="font-medium">
-                  {e.player.nickname}
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    <CountryFlag country={e.player.country} locale={locale} />
+                    <span className="truncate">{e.player.nickname}</span>
+                  </span>
                 </p>
               ))}
             </div>
@@ -1125,7 +1130,10 @@ export default function TAEliminationPhase({
                 >
                   <TableCell className="font-bold">{index + 1}</TableCell>
                   <TableCell className="font-medium">
-                    {entry.player.nickname}
+                    <span className="inline-flex items-center gap-1.5 min-w-0">
+                      <CountryFlag country={entry.player.country} locale={locale} />
+                      <span className="truncate">{entry.player.nickname}</span>
+                    </span>
                     {entry.eliminated && (
                       <Badge variant="destructive" className="ml-2 text-xs">
                         {tElim('eliminated')}

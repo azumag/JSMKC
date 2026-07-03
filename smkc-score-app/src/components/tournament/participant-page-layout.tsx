@@ -14,11 +14,12 @@
 "use client";
 
 import { ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   LogIn, Trophy, Users, Clock, CheckCircle, AlertTriangle,
@@ -80,6 +81,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
 }: ParticipantPageLayoutProps<TMatch>) {
   const tPart = useTranslations("participant");
   const tMode = useTranslations(mode);
+  const locale = useLocale();
 
   /* Loading state */
   if (sessionStatus === "loading" || loading) {
@@ -279,6 +281,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                               className={`p-3 rounded-lg border ${isYou ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"}`}
                             >
                               <div className="font-medium flex items-center gap-1 min-w-0">
+                                <CountryFlag country={player.country} locale={locale} />
                                 <span className="truncate min-w-0">{player.nickname}</span>
                                 {isYou && (
                                   <Badge variant="default" className="shrink-0 bg-blue-600">

@@ -64,6 +64,18 @@ export class SheetWriteBuilder {
   }
 
   /**
+   * Reduce a cell to a styled empty shell: drop value, formula AND the
+   * t/cm/vm attributes. Unlike {@link clear} this removes `vm` (value
+   * metadata), which is mandatory for rich-value cells — a cleared-but-not
+   * stripped rich value keeps its `vm` pointer into xl/richData, so Excel
+   * still renders the stale linked value (e.g. the template's old country
+   * flag) even with no cached <v>. See main-hub.ts Country handling.
+   */
+  strip(ref: string): void {
+    this.ops.set(ref, { sheet: this.sheet, ref, op: "strip" });
+  }
+
+  /**
    * Write either a number or, when the value is null/undefined, clear the cell.
    * Centralises the "absent input becomes a blank, never a bogus 0" rule that
    * every CDM input column relies on (0 would rank as fastest time / a real

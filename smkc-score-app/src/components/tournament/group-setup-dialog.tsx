@@ -23,8 +23,9 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -58,6 +59,8 @@ export interface Player {
   id: string;
   name: string;
   nickname: string;
+  /** Stored country value (ISO code or legacy name); rendered as an inline flag. */
+  country?: string | null;
 }
 
 /* Re-export for consumers that import from here */
@@ -102,6 +105,7 @@ export function GroupSetupDialog({
   /* Resolve translations internally using mode prop - avoids props drilling */
   const t = useTranslations(mode);
   const tc = useTranslations("common");
+  const locale = useLocale();
 
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
@@ -287,7 +291,10 @@ export function GroupSetupDialog({
                         htmlFor={`player-${player.id}`}
                         className="cursor-pointer flex-1"
                       >
-                        {player.nickname} ({player.name})
+                        <span className="inline-flex items-center gap-1.5 min-w-0">
+                          <CountryFlag country={player.country} locale={locale} />
+                          <span className="truncate">{player.nickname} ({player.name})</span>
+                        </span>
                       </Label>
                     </div>
                   ))
@@ -384,8 +391,11 @@ export function GroupSetupDialog({
                             className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
                           />
                           {/* Player name with fallback for missing data */}
-                          <span className="flex-1 text-sm truncate">
-                            {player?.nickname ?? `ID: ${sp.playerId.slice(0, 8)}`}
+                          <span className="flex-1 text-sm min-w-0 inline-flex items-center gap-1.5">
+                            <CountryFlag country={player?.country} locale={locale} />
+                            <span className="truncate">
+                              {player?.nickname ?? `ID: ${sp.playerId.slice(0, 8)}`}
+                            </span>
                           </span>
                           {/* Group selector: only shows groups available for current groupCount */}
                           <Select

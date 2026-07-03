@@ -23,9 +23,10 @@
 
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { cn } from "@/lib/utils";
 import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { resolveBracketWinnerFlags, type BracketWinnerResolver } from "@/lib/bracket-winner-flags";
@@ -106,6 +107,7 @@ function MatchCard<TMatch extends BMMatch>({
   onTvNumberChange?: (match: TMatch, tvNumber: number | null) => void;
 }) {
   const tc = useTranslations("common");
+  const locale = useLocale();
   /* Look up seeded players for displaying names and qualification rank labels. */
   const seededEntry1 = bracketMatch.player1Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)
@@ -200,6 +202,7 @@ function MatchCard<TMatch extends BMMatch>({
               [{seedLabel1}]
             </span>
           )}
+          {!showTBD1 && <CountryFlag country={player1?.country} locale={locale} />}
           <span className={showTBD1 ? "text-muted-foreground" : ""}>
             {showTBD1 ? tc("tbd") : player1?.nickname || tc("tbd")}
           </span>
@@ -222,6 +225,7 @@ function MatchCard<TMatch extends BMMatch>({
               [{seedLabel2}]
             </span>
           )}
+          {!showTBD2 && <CountryFlag country={player2?.country} locale={locale} />}
           <span className={showTBD2 ? "text-muted-foreground" : ""}>
             {showTBD2 ? tc("tbd") : player2?.nickname || tc("tbd")}
           </span>

@@ -29,8 +29,9 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -105,6 +106,8 @@ interface Player {
   id: string;
   name: string;
   nickname: string;
+  /** Stored country value (ISO code or legacy name); rendered as an inline flag. */
+  country?: string | null;
 }
 
 /** Time Trial entry data structure from the API */
@@ -138,6 +141,7 @@ export default function TimeAttackPageClient({
   const { data: session } = useSession();
   const t = useTranslations('ta');
   const tc = useTranslations('common');
+  const locale = useLocale();
   // Input is a native element, so this does not skip rendering by reference equality.
   // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(t('timeInputTitle')), [t]);
@@ -1317,7 +1321,10 @@ export default function TimeAttackPageClient({
                             {entry.rank || "-"}
                           </TableCell>
                           <TableCell className="font-medium">
-                            {entry.player.nickname}
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
+                              <CountryFlag country={entry.player.country} locale={locale} />
+                              <span className="truncate">{entry.player.nickname}</span>
+                            </span>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {entry.partnerId
@@ -1417,7 +1424,10 @@ export default function TimeAttackPageClient({
                     {entries.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell className="font-medium">
-                          {entry.player.nickname}
+                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                            <CountryFlag country={entry.player.country} locale={locale} />
+                            <span className="truncate">{entry.player.nickname}</span>
+                          </span>
                         </TableCell>
                         {isAdmin && (
                           <TableCell className="text-center">
@@ -1538,7 +1548,10 @@ export default function TimeAttackPageClient({
                                           {idx + 1}
                                         </TableCell>
                                         <TableCell className="font-medium">
-                                          {entry.player.nickname}
+                                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                                            <CountryFlag country={entry.player.country} locale={locale} />
+                                            <span className="truncate">{entry.player.nickname}</span>
+                                          </span>
                                         </TableCell>
                                         <TableCell className="text-right font-mono">
                                           {entry.times![course.abbr]}

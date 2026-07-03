@@ -623,6 +623,70 @@ async function main() {
   t = await vis(page);
   log('TC-008', (t.includes('Overall') || t.includes('総合')) ? 'PASS' : 'FAIL');
 
+  // TC-008F: country flags render next to players (international flag feature).
+  // The workflow players are created with country:'JP', so the /players roster
+  // must render the static flag image; a player without a country must not.
+  await nav(page, '/players');
+  await page.waitForTimeout(2000);
+  const jpFlags = await page.locator('img[src="/flags/jp.svg"]').count();
+  const badFlags = await page
+    .locator('img[src="/flags/undefined.svg"], img[src="/flags/null.svg"], img[src="/flags/.svg"]')
+    .count();
+  log('TC-008F', jpFlags > 0 && badFlags === 0 ? 'PASS' : 'FAIL',
+    jpFlags > 0 ? (badFlags ? `${badFlags} malformed flag src` : `${jpFlags} JP flag(s)`) : 'no /flags/jp.svg rendered');
+
+  // TC-2997: CountrySelect searchable pulldown — open, search by name, pick an
+  // option, submit, and confirm the chosen country's flag renders after the
+  // page re-fetches the player list. Exercises the interactive picker (#2752
+  // follow-up: datalist -> searchable pulldown), not just static flag rendering.
+  let tc2997PlayerId = null;
+  try {
+    await nav(page, '/players');
+    await page.getByRole('button', { name: /^(Add Player|プレイヤー追加)$/ }).first().click();
+    const tc2997Dialog = page.getByRole('dialog').filter({ has: page.locator('#nickname') }).first();
+    await tc2997Dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    const tc2997Nickname = `E2E-Flag-${Date.now()}`;
+    await tc2997Dialog.locator('#name').fill('E2E Country Picker');
+    await tc2997Dialog.locator('#nickname').fill(tc2997Nickname);
+
+    const countryTrigger = tc2997Dialog.getByRole('combobox').first();
+    await countryTrigger.click();
+    const searchBox = page.getByRole('textbox', { name: 'Search countries' });
+    await searchBox.waitFor({ state: 'visible', timeout: 5000 });
+    await searchBox.fill('Germany');
+    const germanyOption = page.getByRole('option', { name: /Germany/ });
+    await germanyOption.waitFor({ state: 'visible', timeout: 5000 });
+    await germanyOption.click();
+
+    // Trigger now shows the selected flag + name instead of the placeholder.
+    const triggerFlagAfterSelect = await countryTrigger.locator('img[src="/flags/de.svg"]').count();
+
+    const submitPromise = page.waitForResponse((res) =>
+      res.url().includes('/api/players') && res.request().method() === 'POST', { timeout: 30000 });
+    await tc2997Dialog.locator('button[type="submit"]').first().click();
+    const submitResponse = await submitPromise;
+    const submitBody = await submitResponse.json().catch(() => ({}));
+    tc2997PlayerId = submitBody?.data?.player?.id ?? null;
+
+    // Dismiss the temporary-password dialog if it appeared, then confirm the
+    // roster re-fetch renders the DE flag for this player.
+    await page.getByRole('button', { name: /I've Saved It|保存しました/ }).click({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(1500);
+    const rosterRow = page.getByRole('row', { name: new RegExp(tc2997Nickname) });
+    const rosterFlag = await rosterRow.locator('img[src="/flags/de.svg"]').count().catch(() => 0);
+
+    log('TC-2997',
+      submitResponse.status() === 201 && triggerFlagAfterSelect > 0 && rosterFlag > 0 ? 'PASS' : 'FAIL',
+      submitResponse.status() !== 201 ? `POST status=${submitResponse.status()}`
+        : triggerFlagAfterSelect === 0 ? 'trigger did not show DE flag after picking Germany'
+        : rosterFlag === 0 ? 'roster row did not show DE flag after save' : '');
+  } catch (err) {
+    log('TC-2997', 'FAIL', err instanceof Error ? err.message : 'country picker search flow failed');
+  } finally {
+    if (tc2997PlayerId) await deletePlayer(page, tc2997PlayerId);
+  }
+
   // TC-009
   log('TC-009', BASE.startsWith('https') ? 'PASS' : 'FAIL');
 
@@ -3055,23 +3119,23 @@ async function main() {
     if (tc339TournamentId) await deleteTournament(page, tc339TournamentId);
   }
 
-  // TC-2996: Tournament status lifecycle — reopen (completed→active) + transition guard.
+  // TC-2998: Tournament status lifecycle — reopen (completed→active) + transition guard.
   // The status API validates transitions against the current status
   // (ALLOWED_STATUS_TRANSITIONS in api/tournaments/[id]/route.ts): draft→completed
   // is rejected, completed→active reopens a closed tournament via the layout's
   // Reopen button, and demotion to draft stays allowed (deletion path, issue #667).
-  let tc2996TournamentId = null;
+  let tc2998TournamentId = null;
   try {
-    const tc2996Created = await page.evaluate(async () => {
+    const tc2998Created = await page.evaluate(async () => {
       const r = await fetch('/api/tournaments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `E2E TC-2996 Reopen ${Date.now()}`, date: new Date().toISOString() }),
+        body: JSON.stringify({ name: `E2E TC-2998 Reopen ${Date.now()}`, date: new Date().toISOString() }),
       });
       return { status: r.status, body: await r.json().catch(() => ({})) };
     });
-    tc2996TournamentId = tc2996Created.body?.data?.id ?? null;
-    if (!tc2996TournamentId) throw new Error(`Tournament creation failed (${tc2996Created.status})`);
+    tc2998TournamentId = tc2998Created.body?.data?.id ?? null;
+    if (!tc2998TournamentId) throw new Error(`Tournament creation failed (${tc2998Created.status})`);
 
     const putStatus = (status) => page.evaluate(async ({ tid, status: next }) => {
       const r = await fetch(`/api/tournaments/${tid}`, {
@@ -3080,7 +3144,7 @@ async function main() {
         body: JSON.stringify({ status: next }),
       });
       return { status: r.status, body: await r.json().catch(() => ({})) };
-    }, { tid: tc2996TournamentId, status });
+    }, { tid: tc2998TournamentId, status });
 
     // draft→completed must be rejected: a tournament must be started first.
     const jump = await putStatus('completed');
@@ -3096,7 +3160,7 @@ async function main() {
     const forwardOk = started.status === 200 && completedResp.status === 200;
 
     // Reopen via the UI button on the tournament page (admin only, completed only).
-    await nav(page, `/tournaments/${tc2996TournamentId}`);
+    await nav(page, `/tournaments/${tc2998TournamentId}`);
     const reopenButton = page.getByRole('button', { name: /Reopen Tournament|トーナメント再開/ });
     const buttonVisible = await reopenButton.isVisible().catch(() => false);
     let reopenedViaUi = false;
@@ -3112,12 +3176,12 @@ async function main() {
           const r = await fetch(`/api/tournaments/${tid}?fields=summary`);
           const j = await r.json().catch(() => ({}));
           return j?.data?.status ?? null;
-        }, tc2996TournamentId);
+        }, tc2998TournamentId);
         reopenedViaUi = after === 'active';
       }
     }
 
-    log('TC-2996',
+    log('TC-2998',
       jumpRejected && bogusRejected && forwardOk && buttonVisible && reopenedViaUi ? 'PASS' : 'FAIL',
       !jumpRejected ? `draft→completed not rejected (status=${jump.status}, expected 400)` :
       !bogusRejected ? `unknown status not rejected (status=${bogus.status}, expected 400)` :
@@ -3125,10 +3189,10 @@ async function main() {
       !buttonVisible ? 'Reopen button not visible on completed tournament' :
       !reopenedViaUi ? 'Reopen click did not set status back to active' : '');
   } catch (err) {
-    log('TC-2996', 'FAIL', err instanceof Error ? err.message : 'Tournament reopen lifecycle test failed');
+    log('TC-2998', 'FAIL', err instanceof Error ? err.message : 'Tournament reopen lifecycle test failed');
   } finally {
     /* deleteTournament demotes to draft first — the demotion path must stay allowed. */
-    if (tc2996TournamentId) await deleteTournament(page, tc2996TournamentId);
+    if (tc2998TournamentId) await deleteTournament(page, tc2998TournamentId);
   }
 
   // TC-340: Layout publish button — "Unpublished" badge disappears from tab after publishing TA
