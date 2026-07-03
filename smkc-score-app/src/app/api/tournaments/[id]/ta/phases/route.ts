@@ -41,6 +41,7 @@ import {
   changeSuddenDeathCourse,
   cancelPhaseRound,
   undoLastPhaseRound,
+  cancelLastSubmittedPhaseRound,
   resetPhase,
   PhaseResetConflictError,
   type PhaseContext,
@@ -329,6 +330,16 @@ const PostRequestSchema = z.discriminatedUnion("action", [
   // Undo the last submitted round: clears results and restores player state
   z.object({
     action: z.literal("undo_round"),
+    phase: PhaseSchema,
+  }),
+
+  // Cancel the last submitted round entirely: restores player state (same as
+  // undo_round) but deletes the round record so its course returns to the
+  // 20-course pool, instead of keeping it open for re-submission. Use this
+  // when the last course/round itself was the mistake, not just the times
+  // entered for it — see cancelLastSubmittedPhaseRound's doc comment.
+  z.object({
+    action: z.literal("cancel_last_round"),
     phase: PhaseSchema,
   }),
 
@@ -639,6 +650,15 @@ export async function POST(
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
       const result = await undoLastPhaseRound(prisma, context, phase);
+      return createSuccessResponse(result);
+    }
+
+    if (action === "cancel_last_round") {
+      const { phase } = parsed.data;
+      // Prevent cancelling rounds in a frozen phase
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
+      if (freezeError) return freezeError;
+      const result = await cancelLastSubmittedPhaseRound(prisma, context, phase);
       return createSuccessResponse(result);
     }
 

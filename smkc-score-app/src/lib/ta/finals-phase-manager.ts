@@ -1809,15 +1809,19 @@ export async function cancelPhaseRound(
  * @returns Object with the undone round number
  * @throws Error if no submitted round exists or undo is not possible
  */
-export async function undoLastPhaseRound(
+/**
+ * Find the most recently submitted round for a phase, split from the rounds
+ * before it. Shared by undoLastPhaseRound and cancelLastSubmittedPhaseRound,
+ * which differ only in what they do with the round record afterward (clear
+ * vs delete).
+ *
+ * @throws Error if no submitted round exists
+ */
+async function findLastSubmittedRound(
   prisma: PrismaClient,
-  context: PhaseContext,
+  tournamentId: string,
   phase: "phase1" | "phase2" | "phase3"
-): Promise<{ undoneRoundNumber: number }> {
-  const logger = createLogger("ta-phase-manager");
-  const { tournamentId, userId, ipAddress, userAgent } = context;
-
-  // Find the last submitted round (highest roundNumber with non-empty results)
+) {
   const rounds = await prisma.tTPhaseRound.findMany({
     where: { tournamentId, phase },
     orderBy: { roundNumber: "asc" },
@@ -1832,8 +1836,129 @@ export async function undoLastPhaseRound(
     throw new Error(`No submitted rounds found for ${phase}`);
   }
 
-  const lastRound = submittedRounds[submittedRounds.length - 1];
-  const previousRounds = submittedRounds.slice(0, submittedRounds.length - 1);
+  return {
+    lastRound: submittedRounds[submittedRounds.length - 1],
+    previousRounds: submittedRounds.slice(0, submittedRounds.length - 1),
+  };
+}
+
+/**
+ * Restore player elimination/lives state to what it was before `lastRound`
+ * was submitted, using only `previousRounds` (everything before it).
+ *
+ * For Phase 1 / Phase 2 (simple elimination): un-eliminates the players
+ * `lastRound` eliminated.
+ *
+ * For Phase 3 (life-based): resets ALL entries to initial state, then
+ * replays `previousRounds` in memory to reconstruct lives/eliminated — the
+ * same "replay-from-scratch" approach used for undo, since lives can only
+ * be derived by re-playing the full history up to that point.
+ *
+ * Shared by undoLastPhaseRound and cancelLastSubmittedPhaseRound: both need
+ * to reverse `lastRound`'s effect on the roster before touching the round
+ * record itself (one clears it in place, the other deletes it).
+ */
+async function restorePhaseStateBeforeRound(
+  prisma: PrismaClient,
+  tournamentId: string,
+  phase: "phase1" | "phase2" | "phase3",
+  lastRound: { eliminatedIds: unknown },
+  previousRounds: Array<{ results: unknown; livesReset: boolean }>
+): Promise<void> {
+  if (phase === "phase1" || phase === "phase2") {
+    // Simple undo: restore eliminated players from this round
+    const eliminatedIds = lastRound.eliminatedIds as string[] | null;
+    if (eliminatedIds && eliminatedIds.length > 0) {
+      await prisma.tTEntry.updateMany({
+        where: { tournamentId, stage: phase, playerId: { in: eliminatedIds } },
+        data: { eliminated: false },
+      });
+    }
+    return;
+  }
+
+  // Phase 3: replay all previous rounds from initial state to reconstruct lives
+  const config = PHASE_CONFIG.phase3;
+
+  // Reset ALL phase3 entries to initial state
+  await prisma.tTEntry.updateMany({
+    where: { tournamentId, stage: "phase3" },
+    data: { lives: config.initialLives, eliminated: false },
+  });
+
+  // Replay each previous round's effects in memory, then apply as a batch
+  // playerId -> { lives, eliminated }
+  const allEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase3" },
+    select: { playerId: true },
+  });
+  const playerState = new Map<string, { lives: number; eliminated: boolean }>(
+    (allEntries as Array<{ playerId: string }>).map((e) => [e.playerId, { lives: config.initialLives, eliminated: false }])
+  );
+
+  for (const round of previousRounds) {
+    const results = round.results as Array<{ playerId: string; timeMs: number }>;
+    if (!Array.isArray(results) || results.length === 0) continue;
+
+    // Only process active (non-eliminated) players
+    const activeResults = results.filter((r) => {
+      const state = playerState.get(r.playerId);
+      return state && !state.eliminated;
+    });
+
+    // Sort by time ascending (fastest first); bottom half loses a life
+    const sorted = [...activeResults].sort((a, b) => a.timeMs - b.timeMs);
+    const halfwayPoint = Math.ceil(sorted.length / 2);
+    const bottomHalf = sorted.slice(halfwayPoint);
+
+    for (const result of bottomHalf) {
+      const state = playerState.get(result.playerId);
+      if (!state || state.eliminated) continue;
+      const newLives = state.lives - 1;
+      state.lives = Math.max(0, newLives);
+      if (state.lives <= 0) {
+        state.eliminated = true;
+      }
+    }
+
+    // Apply lives reset if it happened after this round
+    if (round.livesReset) {
+      for (const [, state] of playerState) {
+        if (!state.eliminated) {
+          state.lives = config.initialLives;
+        }
+      }
+    }
+  }
+
+  // Write reconstructed state to database using batched updateMany per unique state.
+  // Groups players by (lives, eliminated) to reduce round-trips vs O(N) individual updates.
+  // Players with identical state share one updateMany call.
+  const stateGroups = new Map<string, { lives: number; eliminated: boolean; playerIds: string[] }>();
+  for (const [playerId, state] of playerState) {
+    const key = `${state.lives}:${state.eliminated}`;
+    if (!stateGroups.has(key)) {
+      stateGroups.set(key, { lives: state.lives, eliminated: state.eliminated, playerIds: [] });
+    }
+    stateGroups.get(key)!.playerIds.push(playerId);
+  }
+  for (const { lives, eliminated, playerIds } of stateGroups.values()) {
+    await prisma.tTEntry.updateMany({
+      where: { tournamentId, stage: "phase3", playerId: { in: playerIds } },
+      data: { lives, eliminated },
+    });
+  }
+}
+
+export async function undoLastPhaseRound(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  phase: "phase1" | "phase2" | "phase3"
+): Promise<{ undoneRoundNumber: number }> {
+  const logger = createLogger("ta-phase-manager");
+  const { tournamentId, userId, ipAddress, userAgent } = context;
+
+  const { lastRound, previousRounds } = await findLastSubmittedRound(prisma, tournamentId, phase);
 
   // Clear the last round's results and eliminatedIds while keeping the course
   await prisma.tTPhaseRound.update({
@@ -1848,88 +1973,16 @@ export async function undoLastPhaseRound(
     },
   });
 
-  if (phase === "phase1" || phase === "phase2") {
-    // Simple undo: restore eliminated players from this round
-    const eliminatedIds = lastRound.eliminatedIds as string[] | null;
-    if (eliminatedIds && eliminatedIds.length > 0) {
-      await prisma.tTEntry.updateMany({
-        where: { tournamentId, stage: phase, playerId: { in: eliminatedIds } },
-        data: { eliminated: false },
-      });
-    }
-  } else {
-    // Phase 3: replay all previous rounds from initial state to reconstruct lives
-    const config = PHASE_CONFIG.phase3;
+  // Bug #2761: a resolved TTPhaseSuddenDeathRound tied to this round used to
+  // survive the undo. Re-submitting and hitting another tie then counted
+  // that leftover row and created "sequence 2" — the admin was asked to
+  // resolve a second tiebreak even though the first one's data was already
+  // being ignored. Deleting it here means a fresh tie starts at sequence 1.
+  await prisma.tTPhaseSuddenDeathRound.deleteMany({
+    where: { phaseRoundId: lastRound.id },
+  });
 
-    // Reset ALL phase3 entries to initial state
-    await prisma.tTEntry.updateMany({
-      where: { tournamentId, stage: "phase3" },
-      data: { lives: config.initialLives, eliminated: false },
-    });
-
-    // Replay each previous round's effects in memory, then apply as a batch
-    // playerId -> { lives, eliminated }
-    const allEntries = await prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "phase3" },
-      select: { playerId: true },
-    });
-    const playerState = new Map<string, { lives: number; eliminated: boolean }>(
-      (allEntries as Array<{ playerId: string }>).map((e) => [e.playerId, { lives: config.initialLives, eliminated: false }])
-    );
-
-    for (const round of previousRounds) {
-      const results = round.results as Array<{ playerId: string; timeMs: number }>;
-      if (!Array.isArray(results) || results.length === 0) continue;
-
-      // Only process active (non-eliminated) players
-      const activeResults = results.filter((r) => {
-        const state = playerState.get(r.playerId);
-        return state && !state.eliminated;
-      });
-
-      // Sort by time ascending (fastest first); bottom half loses a life
-      const sorted = [...activeResults].sort((a, b) => a.timeMs - b.timeMs);
-      const halfwayPoint = Math.ceil(sorted.length / 2);
-      const bottomHalf = sorted.slice(halfwayPoint);
-
-      for (const result of bottomHalf) {
-        const state = playerState.get(result.playerId);
-        if (!state || state.eliminated) continue;
-        const newLives = state.lives - 1;
-        state.lives = Math.max(0, newLives);
-        if (state.lives <= 0) {
-          state.eliminated = true;
-        }
-      }
-
-      // Apply lives reset if it happened after this round
-      if (round.livesReset) {
-        for (const [, state] of playerState) {
-          if (!state.eliminated) {
-            state.lives = config.initialLives;
-          }
-        }
-      }
-    }
-
-    // Write reconstructed state to database using batched updateMany per unique state.
-    // Groups players by (lives, eliminated) to reduce round-trips vs O(N) individual updates.
-    // Players with identical state share one updateMany call.
-    const stateGroups = new Map<string, { lives: number; eliminated: boolean; playerIds: string[] }>();
-    for (const [playerId, state] of playerState) {
-      const key = `${state.lives}:${state.eliminated}`;
-      if (!stateGroups.has(key)) {
-        stateGroups.set(key, { lives: state.lives, eliminated: state.eliminated, playerIds: [] });
-      }
-      stateGroups.get(key)!.playerIds.push(playerId);
-    }
-    for (const { lives, eliminated, playerIds } of stateGroups.values()) {
-      await prisma.tTEntry.updateMany({
-        where: { tournamentId, stage: "phase3", playerId: { in: playerIds } },
-        data: { lives, eliminated },
-      });
-    }
-  }
+  await restorePhaseStateBeforeRound(prisma, tournamentId, phase, lastRound, previousRounds);
 
   // Audit log for undo operation (non-critical)
   try {
@@ -1955,6 +2008,75 @@ export async function undoLastPhaseRound(
   }
 
   return { undoneRoundNumber: lastRound.roundNumber };
+}
+
+/**
+ * Cancel the last submitted round entirely, freeing its course back into
+ * the 20-course pool.
+ *
+ * Unlike undoLastPhaseRound (which keeps the TTPhaseRound record so the
+ * SAME course can be re-submitted in place — e.g. a data-entry typo), this
+ * deletes the record outright. getPlayedCoursesWithSuddenDeath only counts
+ * existing TTPhaseRound rows, so deleting it makes the course selectable
+ * again on the next startPhaseRound call. Use this when the mistake was the
+ * course/round itself (#2761), not just the times entered for it.
+ *
+ * Player state (elimination / lives) is restored the same way undo does —
+ * see restorePhaseStateBeforeRound.
+ *
+ * Only the most recent submitted round can be cancelled this way, for the
+ * same reason undo is last-round-only: phase3 state is reconstructed by
+ * replaying round history in order, so removing a round from the middle
+ * would leave the recorded history inconsistent with the roster.
+ *
+ * @throws Error if no submitted round exists for the phase
+ */
+export async function cancelLastSubmittedPhaseRound(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  phase: "phase1" | "phase2" | "phase3"
+): Promise<{ cancelledRoundNumber: number; freedCourse: string }> {
+  const logger = createLogger("ta-phase-manager");
+  const { tournamentId, userId, ipAddress, userAgent } = context;
+
+  const { lastRound, previousRounds } = await findLastSubmittedRound(prisma, tournamentId, phase);
+
+  await restorePhaseStateBeforeRound(prisma, tournamentId, phase, lastRound, previousRounds);
+
+  // Dependent data first, same ordering rationale as resetPhase: D1 has no
+  // interactive transactions, so these run as sequential non-atomic queries
+  // rather than a schema-level cascade delete.
+  await prisma.tTPhaseSuddenDeathRound.deleteMany({
+    where: { phaseRoundId: lastRound.id },
+  });
+  await prisma.tTPhaseRound.delete({
+    where: { id: lastRound.id },
+  });
+
+  // Audit log for cancellation (non-critical)
+  try {
+    void createAuditLog({
+      userId,
+      ipAddress,
+      userAgent,
+      action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+      targetId: tournamentId,
+      targetType: "Tournament",
+      details: {
+        tournamentId,
+        phase,
+        action: "cancel_last_round",
+        roundNumber: lastRound.roundNumber,
+        course: lastRound.course,
+      },
+    });
+  } catch (logError) {
+    logger.error("Failed to create audit log for last-round cancellation", {
+      error: logError instanceof Error ? logError.message : logError,
+    });
+  }
+
+  return { cancelledRoundNumber: lastRound.roundNumber, freedCourse: lastRound.course };
 }
 
 /**

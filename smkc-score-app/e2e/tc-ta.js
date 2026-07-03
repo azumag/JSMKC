@@ -2348,6 +2348,96 @@ async function runTc3001(adminPage) {
   }
 }
 
+/* ───────── TC-3002: undo_round clears orphaned sudden death; cancel_last_round frees the course ─────────
+ * Regression for #2761 (found via manual testing after #2758's phase-reset fix):
+ *   1. undo_round on a round that had a resolved sudden-death tiebreak used to
+ *      leave the TTPhaseSuddenDeathRound row behind. Re-submitting a tie for
+ *      the same round then counted the leftover row and asked for a second,
+ *      spurious tiebreak. Fixed by deleting sudden-death rows on undo.
+ *   2. There was no way to fully cancel just the last course of a phase
+ *      without resetting the whole phase — undo only clears results in place
+ *      (same course, for redoing a data-entry typo). cancel_last_round is the
+ *      new action that deletes the round outright, freeing its course back
+ *      into the 20-course pool. */
+async function runTc3002(adminPage) {
+  let fixture = null;
+  try {
+    fixture = await setupIsolatedPhase1SuddenDeath(adminPage, `Cancel Last Round ${Date.now()}`);
+    const { tournamentId } = fixture;
+    const phase = 'phase1';
+
+    // Create and resolve a sudden-death tiebreak on round 1.
+    const { roundNumber, sudden, targets } = await createPendingSuddenDeathByApi(adminPage, tournamentId, phase);
+    const sdSubmit = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      results: [
+        { playerId: targets[0], timeMs: 90000 },
+        { playerId: targets[1], timeMs: 91000 },
+      ],
+    });
+    if (sdSubmit.s !== 200) throw new Error(`submit_sudden_death failed (${sdSubmit.s})`);
+
+    const beforeUndo = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const roundBeforeUndo = (beforeUndo.rounds ?? []).find((r) => r.roundNumber === roundNumber);
+    const resolvedCourse = roundBeforeUndo?.course;
+    const sdResolvedBeforeUndo = (roundBeforeUndo?.suddenDeathRounds ?? []).length === 1;
+
+    // undo_round: round 1's results clear, but the resolved sudden-death row
+    // must be gone too (bug #2761 part 1) — not left as an orphan.
+    const undo = await apiPostTaPhase(adminPage, tournamentId, { action: 'undo_round', phase });
+    if (undo.s !== 200) throw new Error(`undo_round failed (${undo.s})`);
+
+    const afterUndo = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const roundAfterUndo = (afterUndo.rounds ?? []).find((r) => r.roundNumber === roundNumber);
+    const sdClearedAfterUndo = (roundAfterUndo?.suddenDeathRounds ?? []).length === 0;
+    // The round itself must still exist (undo keeps it open for re-entry on
+    // the same course) — this is what distinguishes undo from cancel below.
+    const roundKeptOpen = !!roundAfterUndo && (roundAfterUndo.results ?? []).length === 0
+      && roundAfterUndo.course === resolvedCourse;
+
+    // Re-submit round 1 without a tie this time, so it becomes the "last
+    // submitted round" again for the cancel_last_round assertion below.
+    const entries = (afterUndo.entries ?? []).filter((e) => !e.eliminated);
+    const resubmit = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase,
+      roundNumber,
+      results: entries.map((entry, index) => ({ playerId: entry.playerId, timeMs: 80000 + index * 1000 })),
+    });
+    if (resubmit.s !== 200) throw new Error(`re-submit_results failed (${resubmit.s}): ${JSON.stringify(resubmit.b).slice(0, 200)}`);
+
+    const beforeCancel = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const courseFreedYet = (beforeCancel.availableCourses ?? []).includes(resolvedCourse);
+
+    // cancel_last_round: unlike undo, the round must be gone entirely and
+    // its course must return to the pool (bug #2761 part 2).
+    const cancel = await apiPostTaPhase(adminPage, tournamentId, { action: 'cancel_last_round', phase });
+    if (cancel.s !== 200) throw new Error(`cancel_last_round failed (${cancel.s}): ${JSON.stringify(cancel.b).slice(0, 200)}`);
+    const freedCourseMatches = cancel.b?.data?.freedCourse === resolvedCourse;
+
+    const afterCancel = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const roundGoneAfterCancel = !(afterCancel.rounds ?? []).some((r) => r.roundNumber === roundNumber);
+    const courseFreedAfterCancel = (afterCancel.availableCourses ?? []).includes(resolvedCourse);
+
+    const ok = sdResolvedBeforeUndo && sdClearedAfterUndo && roundKeptOpen &&
+      !courseFreedYet && freedCourseMatches && roundGoneAfterCancel && courseFreedAfterCancel;
+    log('TC-3002', ok ? 'PASS' : 'FAIL',
+      !sdResolvedBeforeUndo ? 'sudden death round not resolved before undo'
+      : !sdClearedAfterUndo ? 'orphaned sudden-death round survived undo_round'
+      : !roundKeptOpen ? `undo_round did not keep round open on same course (got ${JSON.stringify(roundAfterUndo)})`
+      : courseFreedYet ? 'course was freed before cancel_last_round was called'
+      : !freedCourseMatches ? `cancel_last_round returned unexpected freedCourse (${cancel.b?.data?.freedCourse})`
+      : !roundGoneAfterCancel ? 'round still present after cancel_last_round'
+      : !courseFreedAfterCancel ? 'course not returned to pool after cancel_last_round' : '');
+  } catch (err) {
+    log('TC-3002', 'FAIL', err instanceof Error ? err.message : 'TA 3002 failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -2426,6 +2516,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-2293', fn: runTc2293 },
       { name: 'TC-2400', fn: runTc2400 },
       { name: 'TC-3001', fn: runTc3001 },
+      { name: 'TC-3002', fn: runTc3002 },
     ],
   };
 }
@@ -2434,7 +2525,7 @@ module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
-  runTc3001,
+  runTc3001, runTc3002,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,

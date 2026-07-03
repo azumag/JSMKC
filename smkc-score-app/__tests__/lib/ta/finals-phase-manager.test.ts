@@ -15,6 +15,7 @@ import {
   processPhase3Result,
   getPhaseStatus,
   undoLastPhaseRound,
+  cancelLastSubmittedPhaseRound,
   startPhaseRound,
   submitRoundResults,
   submitSuddenDeathResults,
@@ -615,6 +616,35 @@ describe("TA Finals Phase Manager", () => {
       ).rejects.toThrow("No submitted rounds found for phase1");
     });
 
+    it("should delete orphaned sudden-death rounds tied to the undone round (#2761)", async () => {
+      // Bug: undoing a round that had a resolved sudden-death tiebreak left the
+      // TTPhaseSuddenDeathRound row behind. Re-submitting the round and hitting
+      // another tie then created "sequence 2" (looked like a second tiebreak was
+      // required) because createSuddenDeathRound counts existing rows for the
+      // same phaseRoundId. Undo must clear those rows so a fresh tie starts at
+      // sequence 1 again.
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase1",
+          course: "MC1",
+          results: [{ playerId: "p1", timeMs: 80000 }, { playerId: "p2", timeMs: 90000 }],
+          eliminatedIds: ["p2"],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany.mockResolvedValue({ count: 1 });
+
+      await undoLastPhaseRound(mockPrismaClient as any, context, "phase1");
+
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany).toHaveBeenCalledWith({
+        where: { phaseRoundId: "round1" },
+      });
+    });
+
     it("should replay phase3 rounds and reconstruct lives for undo", async () => {
       // Two submitted rounds: first round has bottom half (p3,p4) lose 1 life,
       // second round is the one being undone
@@ -739,6 +769,134 @@ describe("TA Finals Phase Manager", () => {
           data: { lives: 3, eliminated: false },
         })
       );
+    });
+  });
+
+  describe("cancelLastSubmittedPhaseRound", () => {
+    // Recovery for the "wrong last course" mistake (#2761): unlike
+    // undoLastPhaseRound (which keeps the round row so the SAME course can be
+    // re-submitted in place), this deletes the round entirely so its course
+    // returns to the 20-course pool and a different course can be picked next.
+    const context = {
+      tournamentId: "t1",
+      userId: "admin1",
+      ipAddress: "127.0.0.1",
+      userAgent: "test",
+    };
+
+    it("should delete the last submitted phase1 round, restore the eliminated player, and free the course", async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase1",
+          course: "MC1",
+          results: [{ playerId: "p1", timeMs: 80000 }, { playerId: "p2", timeMs: 90000 }],
+          eliminatedIds: ["p2"],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTPhaseRound.delete.mockResolvedValue({});
+
+      const result = await cancelLastSubmittedPhaseRound(mockPrismaClient as any, context, "phase1");
+
+      expect(result).toEqual({ cancelledRoundNumber: 1, freedCourse: "MC1" });
+      // Restores the player eliminated by this round, same as undo.
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: ["p2"] } }),
+          data: { eliminated: false },
+        })
+      );
+      // Sudden-death rows must be deleted before the round row (D1 has no
+      // interactive transactions; dependent data first, same order as resetPhase).
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany).toHaveBeenCalledWith({
+        where: { phaseRoundId: "round1" },
+      });
+      // Deletes (not clears) the round so it drops out of the played-courses pool.
+      expect(mockPrismaClient.tTPhaseRound.delete).toHaveBeenCalledWith({
+        where: { id: "round1" },
+      });
+      expect(mockPrismaClient.tTPhaseRound.update).not.toHaveBeenCalled();
+    });
+
+    it("should throw if no submitted rounds exist", async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase1",
+          course: "MC1",
+          results: [],
+          eliminatedIds: null,
+          livesReset: false,
+        },
+      ]);
+
+      await expect(
+        cancelLastSubmittedPhaseRound(mockPrismaClient as any, context, "phase1")
+      ).rejects.toThrow("No submitted rounds found for phase1");
+      expect(mockPrismaClient.tTPhaseRound.delete).not.toHaveBeenCalled();
+    });
+
+    it("should replay phase3 rounds to reconstruct lives before deleting the cancelled round", async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase3",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 50000 },
+            { playerId: "p2", timeMs: 60000 },
+            { playerId: "p3", timeMs: 70000 },
+            { playerId: "p4", timeMs: 80000 },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+        },
+        {
+          id: "round2",
+          roundNumber: 2,
+          phase: "phase3",
+          course: "DP1",
+          results: [
+            { playerId: "p1", timeMs: 55000 },
+            { playerId: "p2", timeMs: 65000 },
+            { playerId: "p3", timeMs: 75000 },
+            { playerId: "p4", timeMs: 85000 },
+          ],
+          eliminatedIds: ["p3", "p4"],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 4 });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1" }, { playerId: "p2" }, { playerId: "p3" }, { playerId: "p4" },
+      ]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTPhaseRound.delete.mockResolvedValue({});
+
+      const result = await cancelLastSubmittedPhaseRound(mockPrismaClient as any, context, "phase3");
+
+      expect(result).toEqual({ cancelledRoundNumber: 2, freedCourse: "DP1" });
+      // After replaying round1 only (round2 is the one being cancelled): p1,p2 keep
+      // 3 lives; p3,p4 drop to 2 — same reconstruction undoLastPhaseRound performs.
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: expect.arrayContaining(["p1", "p2"]) } }),
+          data: { lives: 3, eliminated: false },
+        })
+      );
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: expect.arrayContaining(["p3", "p4"]) } }),
+          data: { lives: 2, eliminated: false },
+        })
+      );
+      expect(mockPrismaClient.tTPhaseRound.delete).toHaveBeenCalledWith({ where: { id: "round2" } });
     });
   });
 

@@ -227,3 +227,18 @@ export function validateRequiredCourses(times: Record<string, string> | null, re
 
   return true;
 }
+
+/**
+ * Sort a list of round results ascending by timeMs (fastest first).
+ *
+ * Round History displays use this for both normal-round results and
+ * sudden-death results. Normal rounds already sorted inline at each call
+ * site; sudden-death results were rendered in raw submission order, which
+ * doesn't match the fastest-first convention used everywhere else in the
+ * UI (issue: TA finals sudden-death round history not sorted by time).
+ *
+ * Returns a new array — the input is never mutated.
+ */
+export function sortResultsByTime<T extends { timeMs: number }>(results: T[]): T[] {
+  return [...results].sort((a, b) => a.timeMs - b.timeMs);
+}
