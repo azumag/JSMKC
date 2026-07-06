@@ -2360,21 +2360,21 @@
   7. クリーンアップ
 - **期待結果**: ブラケット生成後は「View Tournament」のみ、予選ロック中の直接 API リセットは拒否され、予選ロック解除後だけ「Reset Bracket」が表示され、リセット後は再ロックまで生成ボタンも出ない
 
-## TC-812: TA 予選同着解決 — 同タイムで average 課題ポイント
+## TC-812: TA 予選同着解決 — 同タイムは最小順位のポイントを共有
 - **URL**: /tournaments/[temp-id]/ta
 - **authRequired**: true (admin)
-- **背景** (issue #575): TA は BM/MR/GP と異なり `rankOverride` フローを持たない。代わりに `calculateCourseScores`（`src/lib/ta/qualification-scoring.ts`）が同タイムのプレイヤーに平均化された課題ポイントを配布する。§4.1 の「同着は平均で分ける」ルールを実装レベルで保証する回帰テスト。
+- **背景** (issue #575, #2768): TA は BM/MR/GP と異なり `rankOverride` フローを持たない。代わりに `calculateCourseScores`（`src/lib/ta/qualification-scoring.ts`）が同タイムのプレイヤーに同着グループ最上位の順位ポイントを配布する（CDM Excel の `RANK()` と同じ競技順位方式。issue #2768 で平均按分方式から変更）。同着が自動解決されることを実装レベルで保証する回帰テスト。
 - **手順**:
   1. テスト用プレイヤー3名 + トーナメントを作成
   2. `setupTaQualViaUi(…, { seedTimes: false })` で TA エントリーを作成
   3. P1 / P2 に **20 コース全て同一タイム**（`makeTaTimesForRank(1)`）を PUT
   4. P3 に **20 コース全てより遅いタイム**（`makeTaTimesForRank(3)`）を PUT
   5. `/api/tournaments/[id]/ta` で `qualificationPoints` と `rank` を取得し次を確認:
-     - N=3 のスコアテーブル [50, 25, 0] で P1/P2 が rank 1-2 で tied → 平均 (50 + 25) / 2 = 37.5 pt × 20 courses = **750 pt** を両者に割り当て
-     - P3 は rank 3 で 0 pt
+     - N=3 のスコアテーブル [50, 25, 0] で P1/P2 が rank 1 で tied → 両者とも rank 1 のスコア 50 pt × 20 courses = **1000 pt** を割り当て
+     - P3 は rank 3（rank 2 はスキップ）で 0 pt
      - サーバ rank は P1/P2 のどちらかが 1、もう一方が 2、P3 は 3
   6. クリーンアップ
-- **期待結果**: TA は手動操作なしで同着が平均ポイントで解決され、TC-324/TC-620/TC-713 と同じ同着回帰カバレッジを持つ
+- **期待結果**: TA は手動操作なしで同着が Excel RANK 方式（最小順位共有）で解決され、TC-324/TC-620/TC-713 と同じ同着回帰カバレッジを持つ
 
 ## TC-813: TA 予選エントリー削除後のランク再計算 (issue #710/#959)
 - **URL**: /api/tournaments/[temp-id]/ta (DELETE), /api/tournaments/[temp-id]/ta (GET)
@@ -3474,8 +3474,8 @@
 - **エントリー数**: 28名（TA はグループ分けなし、全員が同一プールでタイムを競う）
 - **コース数**: 1 ラウンド = 20 コース（cycle、no-repeat until all used）
 - **フェーズ**: 予選 → Phase 1 (17〜24位の8→4) → Phase 2 (1〜16位の16→4) → Phase 3 (決勝、最大16名のノックアウト)
-- **タイ処理**: 同タイムは平均ポイント按分、per-course 線形補間（50pt 上限）
-- **スコア**: `qualification-scoring.ts` で算出（合計値だけ floor、per-course は double-floor しない）
+- **タイ処理**: 同タイムは同着グループ最小順位のポイントを共有（CDM Excel の RANK 方式、issue #2768）、per-course 線形補間（50pt 上限）
+- **スコア**: `qualification-scoring.ts` で算出（per-course は生 float、合計値のみ四捨五入。CDM Excel の整数表示と一致）
 
 ## TC-801: TA予選フルフロー（28名、20コース）
 - **URL**: /tournaments/[temp-id]/ta
@@ -3483,8 +3483,8 @@
 - **手順**:
   1. 一時トーナメント + プレイヤー28名 + TA 予選 entry 作成
   2. 各プレイヤーに 20 コース分の time を API でランダム入力
-  3. 順位表が `qualification-scoring.ts` の per-course 線形補間 + 平均按分で算出されていること
-  4. floor は合計値のみ（per-course の double-floor になっていないこと）
+  3. 順位表が `qualification-scoring.ts` の per-course 線形補間 + 最小順位共有の同着処理で算出されていること
+  4. 丸めは合計値の四捨五入のみ（per-course の丸めや double-floor になっていないこと）
   5. クリーンアップ
 - **期待結果**: 28名のTA予選順位がスコア式どおりに集計される
 

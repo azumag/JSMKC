@@ -13,7 +13,7 @@
  *   TC-806  Phase 2 page renders and shows correct entries (8 players).
  *   TC-807  Phase 3 page renders and shows correct entries (8 players).
  *   TC-808  TA Finals page renders with champion banner on completion.
- *   TC-812  TA qualification tie resolution — identical times yield averaged
+ *   TC-812  TA qualification tie resolution — identical times share min-rank
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
  *           are re-compacted using qualificationPoints order after removing
@@ -1431,22 +1431,22 @@ async function runTc808(adminPage) {
   }
 }
 
-/* ───────── TC-812: TA qualification tie resolution (averaged course points) ─────────
+/* ───────── TC-812: TA qualification tie resolution (shared min-rank points) ─────────
  * TA does NOT use the rankOverride flow used by BM/MR/GP — ties are resolved
  * automatically inside `calculateCourseScores` (src/lib/ta/qualification-scoring.ts):
- * players with identical course times share the same rank and receive the
- * averaged score across the tied positions. When overall totals remain equal,
- * the TA standings sort uses totalTime as the tiebreaker.
+ * players with identical course times share the tie group's best rank and all
+ * receive that rank's score, matching the CDM Excel workbook's RANK() semantics
+ * (issue #2768). When overall totals remain equal, the TA standings sort uses
+ * totalTime as the tiebreaker.
  *
  * This test mirrors TC-324 (BM) and TC-713 (GP) but validates TA's numeric
  * tie handling instead of a UI banner:
  *   1. Three players, where P1 and P2 submit identical times on all 20 courses
  *      and P3 submits strictly slower times.
  *   2. Expect `qualificationPoints` for P1 and P2 to be exactly equal (tied),
- *      and for their shared value to match the averaged score table
- *      (score table for N=3 is [50, 25, 0]; P1/P2 tie at ranks 1-2 → each
- *      receives (50 + 25) / 2 = 37.5 pts per course × 20 courses = 750 pts,
- *      floor(750) = 750).
+ *      and for their shared value to match the min-rank score
+ *      (score table for N=3 is [50, 25, 0]; P1/P2 tie at rank 1 → each
+ *      receives 50 pts per course × 20 courses = 1000 pts).
  *   3. P3 must receive 0 points overall (rank 3 in N=3).
  *   4. Server-assigned ranks: P1/P2 compare equal on (points, totalTime) and
  *      must appear before P3.
@@ -1496,9 +1496,9 @@ async function runTc812(adminPage) {
 
     const allPresent = !!p1Row && !!p2Row && !!p3Row;
     const pointsTied = allPresent && p1Row.qualificationPoints === p2Row.qualificationPoints;
-    /* For N=3, tied at ranks 1-2, the expected per-course score is 37.5.
-     * floor(37.5 * 20) = 750. */
-    const expectedTiedPoints = 750;
+    /* For N=3, tied at rank 1 (shared min rank, Excel RANK semantics), the
+     * expected per-course score is 50. round(50 * 20) = 1000. */
+    const expectedTiedPoints = 1000;
     const pointsMatchExpected = allPresent && p1Row.qualificationPoints === expectedTiedPoints;
     const p3HasZero = allPresent && p3Row.qualificationPoints === 0;
     /* P1 and P2 must outrank P3; server assigns ranks sequentially by (points

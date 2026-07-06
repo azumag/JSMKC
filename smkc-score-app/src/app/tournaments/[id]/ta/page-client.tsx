@@ -126,7 +126,7 @@ interface TTEntry {
   rank: number | null;
   /** Per-course scores from qualification scoring system */
   courseScores: Record<string, number> | null;
-  /** Total qualification points: floor(sum of per-course scores) */
+  /** Total qualification points: round(sum of courseScores), CDM Excel semantics */
   qualificationPoints: number | null;
   player: Player;
 }

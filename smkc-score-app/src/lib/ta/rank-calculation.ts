@@ -45,7 +45,7 @@ export interface EntryWithTotal {
   stage: string;
   /** Per-course scores for qualification (e.g., {"MC1": 42.86, "DP1": 50}) */
   courseScores: Record<string, number>;
-  /** Total qualification points: floor(sum of courseScores) */
+  /** Total qualification points: round(sum of courseScores), CDM Excel semantics */
   qualificationPoints: number;
 }
 

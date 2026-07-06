@@ -6,7 +6,11 @@
  * Covers:
  * - generateScoreTable: linear interpolation of points from 50 (1st) to 0 (last)
  * - calculateCourseScores: per-course scoring with tie handling and missing times
- * - calculateAllCourseScores: full 20-course scoring pipeline with floor rounding
+ * - calculateAllCourseScores: full 20-course scoring pipeline with rounded totals
+ *
+ * Tie handling and rounding follow the CDM Excel workbook semantics (issue #2768):
+ * ties share the best rank's score (Excel RANK), and the total is rounded to the
+ * nearest integer (Excel integer cell format), not floored.
  */
 
 import {
@@ -93,7 +97,7 @@ describe('TA Qualification Scoring', () => {
       expect(scores.get('d')).toBe(0);
     });
 
-    it('should handle ties by averaging scores across tied positions', () => {
+    it('should give tied players the best rank score (Excel RANK semantics)', () => {
       const entries = [
         { id: 'a', times: { MC1: '1:00.000' } },
         { id: 'b', times: { MC1: '1:00.000' } }, // Same time as 'a'
@@ -101,10 +105,27 @@ describe('TA Qualification Scoring', () => {
       ];
       const scores = calculateCourseScores(entries, 'MC1');
       // N=3, score table = [50, 25, 0]
-      // a and b tie at rank 1-2, so they average positions 0 and 1: (50 + 25) / 2 = 37.5
-      expect(scores.get('a')).toBe(37.5);
-      expect(scores.get('b')).toBe(37.5);
+      // a and b tie at rank 1 (competition ranking, like Excel RANK): both get 50.
+      // c is rank 3 (rank 2 is skipped): 0 points.
+      expect(scores.get('a')).toBe(50);
+      expect(scores.get('b')).toBe(50);
       expect(scores.get('c')).toBe(0);
+    });
+
+    it('should give mid-table tied players the score of their shared min rank', () => {
+      const entries = [
+        { id: 'a', times: { MC1: '1:00.000' } },
+        { id: 'b', times: { MC1: '1:15.000' } },
+        { id: 'c', times: { MC1: '1:15.000' } }, // Same time as 'b'
+        { id: 'd', times: { MC1: '1:30.000' } },
+      ];
+      const scores = calculateCourseScores(entries, 'MC1');
+      // N=4, score table = [50, 100/3, 50/3, 0]
+      // b and c tie at rank 2: both get the rank-2 score (100/3); d stays rank 4.
+      expect(scores.get('a')).toBe(50);
+      expect(scores.get('b')).toBeCloseTo(100 / 3, 10);
+      expect(scores.get('c')).toBeCloseTo(100 / 3, 10);
+      expect(scores.get('d')).toBe(0);
     });
 
     it('should handle all players tied', () => {
@@ -114,10 +135,10 @@ describe('TA Qualification Scoring', () => {
         { id: 'c', times: { MC1: '1:00.000' } },
       ];
       const scores = calculateCourseScores(entries, 'MC1');
-      // N=3, score table = [50, 25, 0], average = (50+25+0)/3 = 25
-      expect(scores.get('a')).toBe(25);
-      expect(scores.get('b')).toBe(25);
-      expect(scores.get('c')).toBe(25);
+      // All tie at rank 1: everyone receives the rank-1 score (50), as Excel RANK would.
+      expect(scores.get('a')).toBe(50);
+      expect(scores.get('b')).toBe(50);
+      expect(scores.get('c')).toBe(50);
     });
 
     it('should give sole participant 50 points', () => {
@@ -179,10 +200,9 @@ describe('TA Qualification Scoring', () => {
       expect(resultB.qualificationPoints).toBe(0);
     });
 
-    it('should floor the total qualification points', () => {
-      // 3 players with times on 1 course: scores will be [50, 25, 0]
-      // If player B has times on 2 courses: 25 + 25 = 50 (integer, no floor needed)
-      // Let's construct a case where floor matters
+    it('should keep integer totals intact', () => {
+      // 3 players with times on 3 courses: per-course scores are [50, 25, 0],
+      // so every total is already an integer and rounding must not change it.
       const entries = [
         { id: 'a', times: { MC1: '1:00.000', DP1: '1:00.000', GV1: '1:00.000' } },
         { id: 'b', times: { MC1: '1:15.000', DP1: '1:15.000', GV1: '1:15.000' } },
@@ -200,9 +220,11 @@ describe('TA Qualification Scoring', () => {
       expect(results.get('c')!.qualificationPoints).toBe(0);
     });
 
-    it('should floor decimal totals correctly', () => {
+    it('should round decimal totals to the nearest integer (Excel display rounding)', () => {
       // 8 players on 1 course: rank 2 gets 50*(6/7) ≈ 42.857
-      // If same result on 2 courses: 42.857 * 2 = 85.714, floor = 85
+      // If same result on 2 courses: 42.857 * 2 = 85.714 → round = 86.
+      // (The old floor() behavior yielded 85; Excel's integer cell format
+      //  rounds, so the app must round too — issue #2768.)
       const entries = Array.from({ length: 8 }, (_, i) => ({
         id: `p${i}`,
         times: {
@@ -213,8 +235,8 @@ describe('TA Qualification Scoring', () => {
 
       const results = calculateAllCourseScores(entries);
 
-      // Player p1 (rank 2 on both courses): 42.857 * 2 = 85.714 → floor = 85
-      expect(results.get('p1')!.qualificationPoints).toBe(85);
+      // Player p1 (rank 2 on both courses): 42.857 * 2 = 85.714 → round = 86
+      expect(results.get('p1')!.qualificationPoints).toBe(86);
 
       // Player p0 (rank 1 on both courses): 50 * 2 = 100
       expect(results.get('p0')!.qualificationPoints).toBe(100);
@@ -247,9 +269,9 @@ describe('TA Qualification Scoring', () => {
     /* Regression for issue #575 — E2E mirror TC-812.
      *
      * TA has no manual rankOverride: when two players submit identical times on
-     * every course, the per-course averaged-points rule is the ONLY mechanism
-     * that keeps their totals equal. If `calculateCourseScores` ever regressed
-     * into assigning the deterministic rank-1 score to the "first" tied entry,
+     * every course, the shared-min-rank tie rule is the ONLY mechanism that
+     * keeps their totals equal. If `calculateCourseScores` ever regressed into
+     * assigning the deterministic rank-1 score to only the "first" tied entry,
      * the resulting qualificationPoints would diverge by 20 * (50 - 25) = 500
      * points with N=3, producing a false ordering in TA standings. */
     it('returns identical qualificationPoints across all 20 courses when two entries tie on every course', () => {
@@ -270,20 +292,62 @@ describe('TA Qualification Scoring', () => {
       ];
       const results = calculateAllCourseScores(entries);
 
-      // N=3, table [50, 25, 0]. Tied at ranks 1-2 ⇒ (50 + 25)/2 = 37.5 pts per course.
-      // 37.5 * 20 = 750 — already an integer, so floor leaves it intact.
-      expect(results.get('tiedA')!.qualificationPoints).toBe(750);
-      expect(results.get('tiedB')!.qualificationPoints).toBe(750);
+      // N=3, table [50, 25, 0]. Tied at rank 1 ⇒ both receive 50 pts per course
+      // (Excel RANK semantics), 50 * 20 = 1000 for both.
+      expect(results.get('tiedA')!.qualificationPoints).toBe(1000);
+      expect(results.get('tiedB')!.qualificationPoints).toBe(1000);
       expect(results.get('tiedA')!.qualificationPoints)
         .toBe(results.get('tiedB')!.qualificationPoints);
       expect(results.get('slow')!.qualificationPoints).toBe(0);
 
-      // Spot-check that per-course scores themselves are averaged, not just the
-      // total. A course-level regression could otherwise cancel out across the
-      // 20 courses by coincidence.
-      expect(results.get('tiedA')!.courseScores['MC1']).toBe(37.5);
-      expect(results.get('tiedB')!.courseScores['RR']).toBe(37.5);
+      // Spot-check that per-course scores share the min-rank score, not just
+      // the total. A course-level regression could otherwise cancel out across
+      // the 20 courses by coincidence.
+      expect(results.get('tiedA')!.courseScores['MC1']).toBe(50);
+      expect(results.get('tiedB')!.courseScores['RR']).toBe(50);
       expect(results.get('slow')!.courseScores['MC1']).toBe(0);
+    });
+
+    /* Regression for issue #2768 — CDM Excel score mismatch.
+     *
+     * In CDM 2025, Moll and Leyla finished with the same sum of per-course
+     * ranks over all 20 tracks, so the Excel workbook (which derives points
+     * as (Σ(N - rank) / 20) / (N - 1) * 1000 and displays them rounded)
+     * showed 811 for both. The app gave 810/809 because (a) ties were
+     * averaged across positions and (b) totals were floored. With Excel
+     * semantics, any two players whose rank multisets coincide must receive
+     * identical rounded totals. */
+    it('gives identical rounded totals to players with equal rank sums (issue #2768)', () => {
+      // 4 players, 2 courses. 'x' and 'y' swap ranks 2 and 3 between the two
+      // courses, so their rank multisets are equal ({2,3}) while their times
+      // differ. 'fast' and 'slow' pin ranks 1 and 4 on both courses.
+      const entries = [
+        { id: 'fast', times: { MC1: '1:00.000', DP1: '1:00.000' } },
+        { id: 'x',    times: { MC1: '1:10.000', DP1: '1:20.000' } },
+        { id: 'y',    times: { MC1: '1:20.000', DP1: '1:10.000' } },
+        { id: 'slow', times: { MC1: '1:30.000', DP1: '1:30.000' } },
+      ];
+      const results = calculateAllCourseScores(entries);
+
+      // N=4 per course: rank2 = 100/3 ≈ 33.33, rank3 = 50/3 ≈ 16.67.
+      // Both x and y total 100/3 + 50/3 = 50 exactly.
+      expect(results.get('x')!.qualificationPoints).toBe(50);
+      expect(results.get('y')!.qualificationPoints).toBe(50);
+      expect(results.get('x')!.qualificationPoints)
+        .toBe(results.get('y')!.qualificationPoints);
+    });
+
+    it('rounds totals up like the Excel integer display, where floor would diverge (issue #2768)', () => {
+      // A player at rank 2 on both courses (N=4) totals 100/3 + 100/3 =
+      // 66.67 → round = 67. The previous floor() gave 66 and diverged from
+      // the workbook, which shows the raw float through a "0" cell format.
+      const results = calculateAllCourseScores([
+        { id: 'fast', times: { MC1: '1:00.000', DP1: '1:00.000' } },
+        { id: 'p2',   times: { MC1: '1:10.000', DP1: '1:10.000' } },
+        { id: 'p3',   times: { MC1: '1:20.000', DP1: '1:20.000' } },
+        { id: 'slow', times: { MC1: '1:30.000', DP1: '1:30.000' } },
+      ]);
+      expect(results.get('p2')!.qualificationPoints).toBe(67);
     });
   });
 });
