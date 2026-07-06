@@ -802,6 +802,94 @@ export default function TimeAttackFinals({
     );
   }
 
+  // === Round-correction controls (shared) ===
+  // Extracted so the same undo / cancel-last-round controls can appear both in
+  // the active round-management card AND in a standalone card after the phase
+  // is complete (champion decided) — the latter lets an admin fix a mistake in
+  // the final round without a full phase reset. Buttons render only when at
+  // least one round has been submitted; dialogs are rendered once at top level.
+  const roundCorrectionButtons = completedRoundsCount > 0 ? (
+    <>
+      {/* Undo last round: clears results, keeps the course assigned for re-entry. */}
+      <Button
+        variant="outline"
+        className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
+        onClick={() => setShowUndoConfirm(true)}
+        disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+      >
+        {tTaFinals('undoLastRound')}
+      </Button>
+      {/* Cancel last round: like undo, but frees the course instead of keeping
+          it assigned for re-entry (issue #2761). */}
+      <Button
+        variant="outline"
+        className="w-full text-red-700 border-red-400 hover:bg-red-50"
+        onClick={() => setShowCancelLastRoundConfirm(true)}
+        disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+      >
+        {tTaFinals('cancelLastRound')}
+      </Button>
+    </>
+  ) : null;
+
+  const roundCorrectionDialogs = (
+    <>
+      <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tTaFinals('undoRoundTitle')}</DialogTitle>
+            <DialogDescription>
+              {tTaFinals('undoRoundDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUndoConfirm(false)}
+              disabled={undoingRound}
+            >
+              {tTaFinals('keepRound')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleUndoRound}
+              disabled={undoingRound}
+            >
+              {undoingRound ? tTaFinals('undoing') : tTaFinals('yesUndoRound')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCancelLastRoundConfirm} onOpenChange={setShowCancelLastRoundConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tTaFinals('cancelLastRoundTitle')}</DialogTitle>
+            <DialogDescription>
+              {tTaFinals('cancelLastRoundDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelLastRoundConfirm(false)}
+              disabled={cancellingLastRound}
+            >
+              {tTaFinals('keepRound')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelLastRound}
+              disabled={cancellingLastRound}
+            >
+              {cancellingLastRound ? tTaFinals('cancellingLastRound') : tTaFinals('yesCancelLastRound')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
   // === Main Render ===
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1083,87 +1171,33 @@ export default function TimeAttackFinals({
                       ? tTaFinals('completeOpenRound')
                       : tTaFinals('startRound', { number: rounds.length + 1 })}
                 </Button>
-                {completedRoundsCount > 0 && (
-                  <Button
-                    variant="outline"
-                    className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
-                    onClick={() => setShowUndoConfirm(true)}
-                    disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-                  >
-                    {tTaFinals('undoLastRound')}
-                  </Button>
-                )}
-                {/* Cancel last round: like undo, but frees the course instead of
-                    keeping it assigned for re-entry (issue #2761). */}
-                {completedRoundsCount > 0 && (
-                  <Button
-                    variant="outline"
-                    className="w-full text-red-700 border-red-400 hover:bg-red-50"
-                    onClick={() => setShowCancelLastRoundConfirm(true)}
-                    disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-                  >
-                    {tTaFinals('cancelLastRound')}
-                  </Button>
-                )}
+                {roundCorrectionButtons}
               </div>
-
-              <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{tTaFinals('undoRoundTitle')}</DialogTitle>
-                    <DialogDescription>
-                      {tTaFinals('undoRoundDesc')}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowUndoConfirm(false)}
-                      disabled={undoingRound}
-                    >
-                      {tTaFinals('keepRound')}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleUndoRound}
-                      disabled={undoingRound}
-                    >
-                      {undoingRound ? tTaFinals('undoing') : tTaFinals('yesUndoRound')}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              <Dialog open={showCancelLastRoundConfirm} onOpenChange={setShowCancelLastRoundConfirm}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{tTaFinals('cancelLastRoundTitle')}</DialogTitle>
-                    <DialogDescription>
-                      {tTaFinals('cancelLastRoundDesc')}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowCancelLastRoundConfirm(false)}
-                      disabled={cancellingLastRound}
-                    >
-                      {tTaFinals('keepRound')}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleCancelLastRound}
-                      disabled={cancellingLastRound}
-                    >
-                      {cancellingLastRound ? tTaFinals('cancellingLastRound') : tTaFinals('yesCancelLastRound')}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </CardContent>
           </Card>
         )
       )}
+
+      {/* Final-round corrections (admin-only): once the champion is decided the
+          round-management card above is hidden, but a mistake in the final
+          round must still be fixable without resetting the whole phase
+          (reported issue). Undoing restores the eliminated player, reopening
+          the phase and bringing back the normal controls. */}
+      {isAdmin && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && (
+        <Card className="border-amber-400">
+          <CardHeader>
+            <CardTitle>{tTaFinals('correctFinalRoundTitle')}</CardTitle>
+            <CardDescription>{tTaFinals('correctFinalRoundDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {roundCorrectionButtons}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Round-correction confirmation dialogs (rendered once; opened from the
+          buttons in whichever card is currently visible). */}
+      {isAdmin && roundCorrectionDialogs}
 
       {/* === Standings Section ===
        * Always visible so admin can monitor player lives at all times,
