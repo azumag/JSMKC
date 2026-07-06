@@ -206,6 +206,13 @@ export default function TAEliminationPhase({
   const [cancellingLastRound, setCancellingLastRound] = useState(false);
   const [showCancelLastRoundConfirm, setShowCancelLastRoundConfirm] = useState(false);
 
+  // Whether a LATER phase has already been promoted from this one. When true,
+  // this phase's rounds can no longer be undone/cancelled (the server rejects
+  // it with 409 because the later phase's roster was built from this phase's
+  // survivors — issue #2779). We hide the final-round corrections controls so
+  // the admin is guided to reset the later phase first instead.
+  const [laterPhaseStarted, setLaterPhaseStarted] = useState(false);
+
   // Map of playerId → nickname for display in round history
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
 
@@ -235,6 +242,12 @@ export default function TAEliminationPhase({
       setRounds(fetchedRounds);
       setAvailableCourses(data.availableCourses || []);
       setPlayedCourses(data.playedCourses || []);
+
+      // A later phase "started" once it has entries (phaseStatus[stage] is
+      // non-null). phase1's later stages are phase2/phase3; phase2's is phase3.
+      const phaseStatus = data.phaseStatus ?? {};
+      const laterStages = phase === "phase1" ? ["phase2", "phase3"] : ["phase3"];
+      setLaterPhaseStarted(laterStages.some((stage) => phaseStatus[stage] != null));
 
       // Build player name map from entries for round history display
       const nameMap: Record<string, string> = {};
@@ -1121,7 +1134,7 @@ export default function TAEliminationPhase({
           FINAL round must still be fixable without resetting the whole phase
           (reported issue). Undoing restores the eliminated player, which makes
           the phase incomplete again and brings back the normal controls. */}
-      {isAdmin && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && (
+      {isAdmin && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && !laterPhaseStarted && (
         <Card className="border-amber-400">
           <CardHeader>
             <CardTitle>{tElim('correctFinalRoundTitle')}</CardTitle>

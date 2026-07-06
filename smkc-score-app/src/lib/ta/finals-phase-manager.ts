@@ -2133,6 +2133,11 @@ export async function undoLastPhaseRound(
   const logger = createLogger("ta-phase-manager");
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
+  // Guard (issue #2779 / case B): once this phase has been promoted, undoing
+  // its last round would restore a survivor the later phase's roster was built
+  // from, silently desyncing that roster. Reset the later phase first.
+  await assertNoLaterPhaseEntries(prisma, tournamentId, phase, "undo the last round of");
+
   const { lastRound, previousRounds } = await findLastSubmittedRound(prisma, tournamentId, phase);
 
   // Clear the last round's results and eliminatedIds while keeping the course
@@ -2214,6 +2219,11 @@ export async function cancelLastSubmittedPhaseRound(
   const logger = createLogger("ta-phase-manager");
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
+  // Guard (issue #2779 / case B): once this phase has been promoted, cancelling
+  // its last round would restore a survivor the later phase's roster was built
+  // from, silently desyncing that roster. Reset the later phase first.
+  await assertNoLaterPhaseEntries(prisma, tournamentId, phase, "cancel the last round of");
+
   const { lastRound, previousRounds } = await findLastSubmittedRound(prisma, tournamentId, phase);
 
   await restorePhaseStateBeforeRound(prisma, tournamentId, phase, lastRound, previousRounds);
@@ -2260,6 +2270,38 @@ export async function cancelLastSubmittedPhaseRound(
  * D1 deletion sequencing rationale documented on resetPhase itself.
  */
 const PHASE_ORDER: readonly PhaseStage[] = ["phase1", "phase2", "phase3"];
+
+/**
+ * Guard: a phase's rounds must not be mutated once a LATER phase has been
+ * promoted from it. Promotion builds the next phase's roster by reading this
+ * phase's surviving players, so undoing / cancelling / resetting a round of
+ * this phase afterwards would silently desync that already-built roster.
+ *
+ * The safe recovery order is therefore "reset the later phase first, then edit
+ * this one" — so all three mutating entry points (reset, undo, cancel) share
+ * this same guard. phase3 has no later stage, so the check is skipped for it.
+ *
+ * Throws {@link PhaseResetConflictError}, which the phases route maps to HTTP
+ * 409. `verb` is spliced into the message (e.g. "reset", "undo the last round of").
+ */
+async function assertNoLaterPhaseEntries(
+  prisma: PrismaClient,
+  tournamentId: string,
+  stage: PhaseStage,
+  verb: string
+): Promise<void> {
+  const laterStages = PHASE_ORDER.slice(PHASE_ORDER.indexOf(stage) + 1);
+  if (laterStages.length === 0) return;
+  const laterEntry = await prisma.tTEntry.findFirst({
+    where: { tournamentId, stage: { in: laterStages } },
+    select: { stage: true },
+  });
+  if (laterEntry) {
+    throw new PhaseResetConflictError(
+      `Cannot ${verb} ${stage}: ${laterEntry.stage} already has entries. Reset ${laterEntry.stage} first.`
+    );
+  }
+}
 
 /**
  * Reset (undo) a phase promotion.
@@ -2343,21 +2385,8 @@ export async function resetPhase(
   const logger = createLogger("ta-phase-manager");
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
-  // Guard: refuse to reset a stage while any later stage still has entries
-  // (see rationale above). phase3 has no later stage, so this query is
-  // skipped entirely for it.
-  const laterStages = PHASE_ORDER.slice(PHASE_ORDER.indexOf(stage) + 1);
-  if (laterStages.length > 0) {
-    const laterEntry = await prisma.tTEntry.findFirst({
-      where: { tournamentId, stage: { in: laterStages } },
-      select: { stage: true },
-    });
-    if (laterEntry) {
-      throw new PhaseResetConflictError(
-        `Cannot reset ${stage}: ${laterEntry.stage} already has entries. Reset ${laterEntry.stage} first.`
-      );
-    }
-  }
+  // Guard: refuse to reset a stage while any later stage still has entries.
+  await assertNoLaterPhaseEntries(prisma, tournamentId, stage, "reset");
 
   // Snapshot the roster before deleting anything — needed for the
   // "nothing to reset" check below and for the audit log details.

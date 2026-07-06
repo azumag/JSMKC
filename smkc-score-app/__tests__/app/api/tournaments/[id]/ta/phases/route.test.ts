@@ -1180,6 +1180,46 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     });
   });
 
+  it('should return 409 when undoLastPhaseRound throws PhaseResetConflictError (later phase exists, #2779)', async () => {
+    (undoLastPhaseRound as jest.Mock).mockRejectedValue(
+      new PhaseResetConflictError('Cannot undo the last round of phase1: phase2 already has entries. Reset phase2 first.')
+    );
+
+    await phasesRoute.POST(
+      createPostRequest({ action: 'undo_round', phase: 'phase1' }),
+      { params: mockParams }
+    );
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'Cannot undo the last round of phase1: phase2 already has entries. Reset phase2 first.',
+        code: 'PHASE_RESET_CONFLICT',
+      }),
+      { status: 409 }
+    );
+  });
+
+  it('should return 409 when cancelLastSubmittedPhaseRound throws PhaseResetConflictError (later phase exists, #2779)', async () => {
+    (cancelLastSubmittedPhaseRound as jest.Mock).mockRejectedValue(
+      new PhaseResetConflictError('Cannot cancel the last round of phase1: phase2 already has entries. Reset phase2 first.')
+    );
+
+    await phasesRoute.POST(
+      createPostRequest({ action: 'cancel_last_round', phase: 'phase1' }),
+      { params: mockParams }
+    );
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'Cannot cancel the last round of phase1: phase2 already has entries. Reset phase2 first.',
+        code: 'PHASE_RESET_CONFLICT',
+      }),
+      { status: 409 }
+    );
+  });
+
   it('should return 400 with business error when cancelLastSubmittedPhaseRound throws "No submitted rounds"', async () => {
     (cancelLastSubmittedPhaseRound as jest.Mock).mockRejectedValue(new Error('No submitted rounds found for phase3'));
 

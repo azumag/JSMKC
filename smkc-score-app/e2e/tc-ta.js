@@ -36,6 +36,8 @@
  *           the shared 20-course pool untouched (issue #2773).
  *   TC-2773B Top-4 simultaneous last-life loss runs a bronze sudden death on a
  *           fresh (pool-consumed) course to decide 3rd place (issue #2773).
+ *   TC-2779  undo/cancel of a phase's last round is rejected (409) once a later
+ *           phase has been promoted from it; allowed again after reset (#2779).
  *   TC-1033 Sudden-death API payload exposes only the actionable target ids,
  *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
@@ -2539,6 +2541,48 @@ async function runTc3001(adminPage) {
   }
 }
 
+/* ───────── TC-2779: undo/cancel of a promoted phase is rejected (case B) ─────────
+ * Once phase1 has been promoted to phase2, undoing or cancelling phase1's last
+ * round would restore a survivor the phase2 roster was built from, silently
+ * desyncing that roster. The server must reject both with 409
+ * PHASE_RESET_CONFLICT (same guard as resetPhase). The admin's recovery path is
+ * to reset phase2 first; afterwards undo on phase1 works again. */
+async function runTc2779(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Undo Guard', sharedTaPlayers(24), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+    // Resolve phase1 down to its 4 survivors, then promote to phase2.
+    await completeTaSingleEliminationPhaseByApi(adminPage, tournamentId, 'phase1', 4);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
+
+    // With phase2 present, undo/cancel of phase1's last round must be rejected.
+    const undoBlocked = await apiPostTaPhase(adminPage, tournamentId, { action: 'undo_round', phase: 'phase1' });
+    const cancelBlocked = await apiPostTaPhase(adminPage, tournamentId, { action: 'cancel_last_round', phase: 'phase1' });
+    const undoRejected = undoBlocked.s === 409 && undoBlocked.b?.code === 'PHASE_RESET_CONFLICT';
+    const cancelRejected = cancelBlocked.s === 409 && cancelBlocked.b?.code === 'PHASE_RESET_CONFLICT';
+
+    // Recovery: after resetting phase2, undo on phase1 is allowed again.
+    await uiResetTaPhase(adminPage, tournamentId, 'phase2');
+    const undoAllowed = await apiPostTaPhase(adminPage, tournamentId, { action: 'undo_round', phase: 'phase1' });
+    const undoNowOk = undoAllowed.s === 200;
+
+    const ok = undoRejected && cancelRejected && undoNowOk;
+    log('TC-2779', ok ? 'PASS' : 'FAIL',
+      !undoRejected ? `undo not rejected while phase2 exists: s=${undoBlocked.s} code=${undoBlocked.b?.code}`
+      : !cancelRejected ? `cancel not rejected while phase2 exists: s=${cancelBlocked.s} code=${cancelBlocked.b?.code}`
+      : !undoNowOk ? `undo not allowed after phase2 reset: s=${undoAllowed.s} body=${JSON.stringify(undoAllowed.b).slice(0, 200)}`
+      : '');
+  } catch (err) {
+    log('TC-2779', 'FAIL', err instanceof Error ? err.message : 'TA 2779 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
 /* ───────── TC-3002: undo_round clears orphaned sudden death; cancel_last_round frees the course ─────────
  * Regression for #2761 (found via manual testing after #2758's phase-reset fix):
  *   1. undo_round on a round that had a resolved sudden-death tiebreak used to
@@ -2710,6 +2754,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-2400', fn: runTc2400 },
       { name: 'TC-3001', fn: runTc3001 },
       { name: 'TC-3002', fn: runTc3002 },
+      { name: 'TC-2779', fn: runTc2779 },
     ],
   };
 }
@@ -2718,7 +2763,7 @@ module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
-  runTc2773a, runTc2773b,
+  runTc2773a, runTc2773b, runTc2779,
   runTc3001, runTc3002,
   TA_SUITE_TIMEOUT_MS,
   getSuite,

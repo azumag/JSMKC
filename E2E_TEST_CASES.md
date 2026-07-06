@@ -3888,6 +3888,21 @@
 - **期待結果**: `undo_round` は同一コースへの再入力用に丸ごとラウンドを残しつつ、孤児化したサドンデスレコードだけは削除する。`cancel_last_round` はラウンドを完全に削除し、コースを20コースプールに解放する。UI側には「フェーズ1/2」画面(`ta-elimination-phase.tsx`)と「決勝(フェーズ3)」画面(`ta/finals/page.tsx`)の両方に、既存の「直前ラウンドを取り消す」ボタンと並んで「直前ラウンドをキャンセル（コースを解放）」ボタン(destructive, 確認ダイアログ付き)が追加される。
 - **スクリプト**: e2e/tc-ta.js TC-3002 (`node e2e/tc-ta.js`)。ユニット: `finals-phase-manager.test.ts`(`cancelLastSubmittedPhaseRound` describe, undoの孤児削除テスト含む) / `route.test.ts`(`cancel_last_round` アクション) / `time-utils.test.ts`(`sortResultsByTime` — ラウンド履歴のサドンデス結果表示が未ソートだった不具合の修正)
 
+## TC-2779: TA 決勝フェーズ — 昇格後の前フェーズ undo/cancel は 409 で拒否（ケースB）
+- **URL**: /api/tournaments/[temp-id]/ta/phases (POST `undo_round` / `cancel_last_round` / `reset_phase`)
+- **authRequired**: true (admin)
+- **背景** (issue #2779): `promoteToPhase2` は phase1 の**生存者**から phase2 の名簿を作る。PR #2776 で完了後も undo/cancel できるようにしたが、`undoLastPhaseRound` / `cancelLastSubmittedPhaseRound` には `resetPhase` が持つ「後続フェーズに entries があれば拒否」ガードが無かったため、phase2 昇格後に phase1 の最終ラウンドを undo/cancel すると phase1 生存者と phase2 名簿がサイレントに不整合になった。正規手順は「phase2 をリセット → phase1 を undo/再入力 → 再昇格」。
+- **手順**:
+  1. TA予選24名を登録し、フェーズ1(8名)まで昇格する
+  2. `completeTaSingleEliminationPhaseByApi(…, 'phase1', 4)` で phase1 を4名まで解決し、phase2 に昇格する
+  3. `POST .../ta/phases { action: 'undo_round', phase: 'phase1' }` が **409** で `code: 'PHASE_RESET_CONFLICT'` を返すことを確認
+  4. `POST .../ta/phases { action: 'cancel_last_round', phase: 'phase1' }` も同様に **409** `PHASE_RESET_CONFLICT` を返すことを確認
+  5. `uiResetTaPhase(…, 'phase2')` で phase2 をリセットする
+  6. 再度 `undo_round phase: 'phase1'` が **200** で成功することを確認（後続フェーズが消えたのでガードを通過）
+  7. クリーンアップ
+- **期待結果**: 後続フェーズが存在する間は前フェーズの undo/cancel を 409 で拒否し、次フェーズをリセットしてからのみ許可される。UI側（`ta-elimination-phase.tsx`）も `phaseStatus` を見て、後続フェーズが始まっていれば「最終ラウンドの修正」カードを表示しない。
+- **スクリプト**: e2e/tc-ta.js TC-2779 (`node e2e/tc-ta.js`)。ユニット: `finals-phase-manager.test.ts`(undo/cancel の `PhaseResetConflictError` ガード、phase3 はガード非実行) / `route.test.ts`(`undo_round`/`cancel_last_round` の 409 マッピング) / `ta-elimination-phase.test.tsx`(後続フェーズ開始時に修正カード非表示)
+
 ## TC-336: TA フェーズ API 構造確認 — GET /api/tournaments/[id]/ta/phases
 - **URL**: /api/tournaments/[id]/ta/phases
 - **authRequired**: false (公開GETエンドポイント)
