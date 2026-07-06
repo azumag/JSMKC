@@ -115,6 +115,12 @@ jest.mock("@/lib/logger", () => ({
 describe("TA Finals Phase Manager", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: no later-phase entries, so the reset/undo/cancel later-phase
+    // guard (assertNoLaterPhaseEntries) passes. clearAllMocks() does not reset
+    // mockResolvedValue, so without this a leftover findFirst mock from an
+    // earlier test would otherwise leak in and trip the guard. Tests that
+    // exercise the guard override this explicitly.
+    mockPrismaClient.tTEntry.findFirst.mockResolvedValue(null);
   });
 
   describe("PHASE_CONFIG", () => {
@@ -566,6 +572,45 @@ describe("TA Finals Phase Manager", () => {
       userAgent: "test",
     };
 
+    // Case B (issue #2779): once phase1 has been promoted, undoing its last
+    // round would restore a survivor the phase2 roster was built from. Undo
+    // must refuse (PhaseResetConflictError → 409) so the admin resets phase2
+    // first, exactly like resetPhase.
+    it("throws PhaseResetConflictError when undoing phase1 while phase2 entries exist", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue({ stage: "phase2" });
+
+      await expect(undoLastPhaseRound(mockPrismaClient as any, context, "phase1")).rejects.toThrow(
+        PhaseResetConflictError
+      );
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: { in: ["phase2", "phase3"] } },
+        select: { stage: true },
+      });
+      // Guard runs before any mutation.
+      expect(mockPrismaClient.tTPhaseRound.update).not.toHaveBeenCalled();
+    });
+
+    it("does not run the later-phase guard query for phase3 (no later stage)", async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase3",
+          course: "MC1",
+          results: [{ playerId: "p1", timeMs: 80000 }],
+          eliminatedIds: [],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([{ playerId: "p1" }]);
+
+      await undoLastPhaseRound(mockPrismaClient as any, context, "phase3");
+
+      expect(mockPrismaClient.tTEntry.findFirst).not.toHaveBeenCalled();
+    });
+
     it("should undo the last submitted phase1 round and restore eliminated player", async () => {
       mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
         {
@@ -785,6 +830,23 @@ describe("TA Finals Phase Manager", () => {
       ipAddress: "127.0.0.1",
       userAgent: "test",
     };
+
+    // Case B (issue #2779): mirrors the undo guard — cancelling a promoted
+    // phase's last round would desync the later phase's roster, so it must be
+    // refused until that later phase is reset.
+    it("throws PhaseResetConflictError when cancelling phase1 while phase2 entries exist", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue({ stage: "phase2" });
+
+      await expect(
+        cancelLastSubmittedPhaseRound(mockPrismaClient as any, context, "phase1")
+      ).rejects.toThrow(PhaseResetConflictError);
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: { in: ["phase2", "phase3"] } },
+        select: { stage: true },
+      });
+      // Guard runs before any deletion.
+      expect(mockPrismaClient.tTPhaseRound.delete).not.toHaveBeenCalled();
+    });
 
     it("should delete the last submitted phase1 round, restore the eliminated player, and free the course", async () => {
       mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
