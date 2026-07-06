@@ -692,19 +692,20 @@ export async function processPhase3Result(
   prisma: PrismaClient,
   context: PhaseContext,
   courseResults: CourseResult[],
-  resolvedOrder?: Phase3ResolvedOrder
+  resolvedOrder?: Phase3ResolvedOrder,
+  preloadedActivePlayers?: TTEntry[]
 ): Promise<{ eliminated: string[]; livesReset: boolean }> {
   // Logger created inside function for proper test mocking
   const logger = createLogger("ta-phase-manager");
   const { tournamentId, userId, ipAddress, userAgent } = context;
   const config = PHASE_CONFIG.phase3;
 
-  // Get current active players in phase 3
-  const activePlayers = await getActivePhasePlayers(
-    prisma,
-    tournamentId,
-    "phase3"
-  );
+  // Get current active players in phase 3. Callers that already fetched the
+  // roster (sudden-death resolution needs it for the bronze check) pass it in
+  // so the same round does not read the table twice.
+  const activePlayers =
+    preloadedActivePlayers ??
+    (await getActivePhasePlayers(prisma, tournamentId, "phase3"));
 
   // Only 1 player left = winner, no more processing needed
   if (activePlayers.length <= 1) {
@@ -972,8 +973,59 @@ export interface SuddenDeathResultInput {
   isRetry?: boolean;
 }
 
+/**
+ * Why a sudden-death round is being run. The kind decides its course rules
+ * (issue #2773, confirmed against CDM/ASMKC event practice):
+ * - "elimination" (phase1/2 slowest tie): fresh course from the unused pool,
+ *   consumed from the 20-course cycle (current behavior; rulebook wording for
+ *   this phase is still unconfirmed with the organizers).
+ * - "revival" (phase3 zero-life overflow at a reset threshold — decides who
+ *   survives into the top 8/4): fresh course, consumed from the cycle.
+ * - "life_loss" (phase3 tie across the life-loss boundary — decides who loses
+ *   a life): the SAME course as the base round is re-run a second time, and
+ *   the course pool is unaffected.
+ * - "bronze" (top-4 only: both bottom-half players lose their last life in the
+ *   same round): fresh course, consumed from the cycle; the sudden death only
+ *   orders the two eliminated players to decide 3rd place (bronze medal).
+ */
+type SuddenDeathKind = "elimination" | "revival" | "life_loss" | "bronze";
+
 interface TieBreakDecision {
   targetPlayerIds: string[];
+  kind: SuddenDeathKind;
+}
+
+/**
+ * Detect the bronze-medal sudden death (issue #2773): at the top-4 stage,
+ * when BOTH bottom-half players are on their last life they would be
+ * eliminated simultaneously and 3rd/4th place would stay undecided. The pair
+ * must race a fresh course; its outcome orders them (faster = 3rd place).
+ * Unlike the other tiebreaks this does not require equal times.
+ *
+ * @param orderedResults - Round results in final order (time-sorted, or
+ *   sudden-death-resolved order when called after a tiebreak)
+ * @param activePlayers  - Active phase3 entries (for lives lookup)
+ * @returns The two player IDs to race for bronze, or null
+ */
+function detectPhase3BronzeTargets(
+  orderedResults: CourseResult[],
+  activePlayers: TTEntry[]
+): string[] | null {
+  const activeCount = activePlayers.length || orderedResults.length;
+  // Only the top-4 stage awards a medal to the eliminated pair; larger
+  // simultaneous culls (e.g. 8→4) do not run a placement sudden death.
+  if (activeCount !== 4 || orderedResults.length !== 4) return null;
+
+  const halfwayPoint = Math.ceil(orderedResults.length / 2);
+  const bottomHalf = orderedResults.slice(halfwayPoint);
+  const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
+  const allOnLastLife =
+    bottomHalf.length === 2 &&
+    bottomHalf.every(
+      (result) =>
+        (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0
+    );
+  return allOnLastLife ? bottomHalf.map((result) => result.playerId) : null;
 }
 
 function detectTieBreakRequired(
@@ -991,7 +1043,7 @@ function detectTieBreakRequired(
     const maxTime = Math.max(...courseResults.map((result) => result.timeMs));
     const tiedSlowest = courseResults.filter((result) => result.timeMs === maxTime);
     return tiedSlowest.length > 1
-      ? { targetPlayerIds: tiedSlowest.map((result) => result.playerId) }
+      ? { targetPlayerIds: tiedSlowest.map((result) => result.playerId), kind: "elimination" }
       : null;
   }
 
@@ -1011,20 +1063,30 @@ function detectTieBreakRequired(
       // partially ordering only the slowest players can still drop the active field below the reset size.
       return {
         targetPlayerIds: eliminationCandidates.map((result) => result.playerId),
+        kind: "revival",
       };
     }
   }
 
   const boundarySafe = sorted[halfwayPoint - 1];
   const boundaryUnsafe = sorted[halfwayPoint];
-  if (boundarySafe.timeMs !== boundaryUnsafe.timeMs) return null;
+  if (boundarySafe.timeMs === boundaryUnsafe.timeMs) {
+    const boundaryTime = boundarySafe.timeMs;
+    return {
+      targetPlayerIds: sorted
+        .filter((result) => result.timeMs === boundaryTime)
+        .map((result) => result.playerId),
+      kind: "life_loss",
+    };
+  }
 
-  const boundaryTime = boundarySafe.timeMs;
-  return {
-    targetPlayerIds: sorted
-      .filter((result) => result.timeMs === boundaryTime)
-      .map((result) => result.playerId),
-  };
+  // No unresolved tie: check for the top-4 simultaneous last-life scenario.
+  const bronzeTargets = detectPhase3BronzeTargets(sorted, activePlayers);
+  if (bronzeTargets) {
+    return { targetPlayerIds: bronzeTargets, kind: "bronze" };
+  }
+
+  return null;
 }
 
 function applySuddenDeathOrder(
@@ -1038,6 +1100,39 @@ function applySuddenDeathOrder(
     if (aSudden !== undefined && bSudden !== undefined) {
       if (aSudden !== bSudden) return aSudden - bSudden;
       return a.timeMs - b.timeMs;
+    }
+    return a.timeMs - b.timeMs;
+  });
+}
+
+/**
+ * Order base-round results using the FULL chain of resolved sudden-death
+ * rounds for that base round.
+ *
+ * A single base round can accumulate several sudden deaths (a life-loss tie
+ * resolved first, then a bronze race between the two last-life losers —
+ * issue #2773; or a re-tied sudden death continued at the next sequence).
+ * Ordering by only the latest sudden death would forget who won the earlier
+ * ones: a pair whose base times are equal but whose order was decided by
+ * sudden death #1 must keep that order when sudden death #2 (between other
+ * players) resolves. For each pair, the LATEST sudden death both players
+ * participated in wins; pairs never raced together fall back to base times.
+ */
+function orderResultsWithSuddenDeathChain(
+  baseResults: CourseResult[],
+  resolvedSuddenDeathResults: CourseResult[][]
+): CourseResult[] {
+  // Latest sequence first, so the most recent shared race decides each pair.
+  const timesBySequence = resolvedSuddenDeathResults
+    .map((results) => new Map(results.map((result) => [result.playerId, result.timeMs])))
+    .reverse();
+  return [...baseResults].sort((a, b) => {
+    for (const times of timesBySequence) {
+      const aTime = times.get(a.playerId);
+      const bTime = times.get(b.playerId);
+      if (aTime !== undefined && bTime !== undefined && aTime !== bTime) {
+        return aTime - bTime;
+      }
     }
     return a.timeMs - b.timeMs;
   });
@@ -1108,7 +1203,8 @@ async function createSuddenDeathRound(
   tournamentId: string,
   phase: "phase1" | "phase2" | "phase3",
   phaseRoundId: string,
-  targetPlayerIds: string[]
+  targetPlayerIds: string[],
+  options: { course?: string } = {}
 ) {
   const logger = createLogger("ta-phase-manager");
   const MAX_SUDDEN_DEATH_CREATE_ATTEMPTS = 3;
@@ -1124,8 +1220,16 @@ async function createSuddenDeathRound(
     const count = await prisma.tTPhaseSuddenDeathRound.count({
       where: { phaseRoundId },
     });
-    const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
-    const course = selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
+    /*
+     * Life-loss tiebreaks pass the base round's course explicitly (issue #2773):
+     * the tied players re-run the same course, and the pool/cycle accounting is
+     * untouched. All other kinds draw a fresh course from the unused pool.
+     */
+    let course = options.course;
+    if (!course) {
+      const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
+      course = selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
+    }
 
     try {
       return await prisma.tTPhaseSuddenDeathRound.create({
@@ -1470,7 +1574,9 @@ export async function submitRoundResults(
       tournamentId,
       phase,
       round.id,
-      tieBreak.targetPlayerIds
+      tieBreak.targetPlayerIds,
+      // Life-loss ties re-run the base round's course (issue #2773).
+      tieBreak.kind === "life_loss" ? { course: round.course } : {}
     );
     await prisma.tTPhaseRound.update({
       where: { id: round.id },
@@ -1564,6 +1670,7 @@ export async function changeSuddenDeathCourse(
   }
   const suddenDeathRound = await prisma.tTPhaseSuddenDeathRound.findUnique({
     where: { id: suddenDeathRoundId },
+    include: { phaseRound: { select: { course: true } } },
   });
   if (!suddenDeathRound || suddenDeathRound.tournamentId !== tournamentId || suddenDeathRound.phase !== phase) {
     throw new Error(`Sudden-death round ${suddenDeathRoundId} not found for ${phase}`);
@@ -1571,12 +1678,22 @@ export async function changeSuddenDeathCourse(
   if (suddenDeathRound.resolved || Array.isArray(suddenDeathRound.results)) {
     throw new Error("Sudden-death course cannot be changed after results are submitted");
   }
-  const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase, {
-    excludeSuddenDeathRoundId: suddenDeathRoundId,
-  });
-  const available = getAvailableCourses(playedCourses);
-  if (!available.includes(course as CourseAbbr)) {
-    throw new Error(`Course "${course}" has already been played in the current cycle. Available courses: ${available.join(", ")}`);
+  /*
+   * In phase3 the base round's own course is a legal choice: a life-loss
+   * tiebreak re-runs it by rule (issue #2773), and reverting a manual change
+   * back to the re-run course must not be blocked by the played-course check.
+   * This bypass is intentionally phase3-only — phase1/2 elimination ties always
+   * use a fresh course, so their base course stays (correctly) unavailable.
+   */
+  const baseCourseAllowed = phase === "phase3" && course === suddenDeathRound.phaseRound.course;
+  if (!baseCourseAllowed) {
+    const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase, {
+      excludeSuddenDeathRoundId: suddenDeathRoundId,
+    });
+    const available = getAvailableCourses(playedCourses);
+    if (!available.includes(course as CourseAbbr)) {
+      throw new Error(`Course "${course}" has already been played in the current cycle. Available courses: ${available.join(", ")}`);
+    }
   }
   return prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRoundId },
@@ -1636,6 +1753,12 @@ export async function submitSuddenDeathResults(
   const baseResults = Array.isArray(suddenDeathRound.phaseRound.results)
     ? (suddenDeathRound.phaseRound.results as unknown as CourseResult[])
     : [];
+  /*
+   * A sudden death that shares the base round's course is a life-loss re-run
+   * (issue #2773): random selection never repeats a course already played in
+   * the current cycle, so equality can only come from the life-loss path.
+   */
+  const isLifeLossRerun = suddenDeathRound.course === suddenDeathRound.phaseRound.course;
   const continuationTargetIds = getSuddenDeathContinuationTargets(phase, baseResults, processedResults);
   await prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRound.id },
@@ -1651,7 +1774,9 @@ export async function submitSuddenDeathResults(
       tournamentId,
       phase,
       suddenDeathRound.phaseRoundId,
-      continuationTargetIds
+      continuationTargetIds,
+      // A re-tied life-loss re-run races the same course again.
+      isLifeLossRerun ? { course: suddenDeathRound.phaseRound.course } : {}
     );
     return {
       eliminatedIds: [],
@@ -1662,7 +1787,6 @@ export async function submitSuddenDeathResults(
     };
   }
 
-  const orderedResults = applySuddenDeathOrder(baseResults, processedResults);
   let eliminatedIds: string[] = [];
   let livesReset = false;
   if (phase === "phase1" || phase === "phase2") {
@@ -1679,8 +1803,59 @@ export async function submitSuddenDeathResults(
     });
     eliminatedIds = [slowest.playerId];
   } else {
+    // Order with the FULL chain of resolved sudden deaths for this base round
+    // (earlier sequences + the one just submitted), so earlier tiebreak
+    // outcomes are not forgotten when a later sudden death resolves
+    // (issue #2773: a life-loss re-run followed by a bronze race).
+    const priorResolvedRounds = await prisma.tTPhaseSuddenDeathRound.findMany({
+      where: {
+        phaseRoundId: suddenDeathRound.phaseRoundId,
+        resolved: true,
+        id: { not: suddenDeathRound.id },
+      },
+      orderBy: { sequence: "asc" },
+      select: { results: true },
+    });
+    const resolvedResultsChain = priorResolvedRounds
+      .map((round) => (Array.isArray(round.results) ? (round.results as unknown as CourseResult[]) : []))
+      .filter((results) => results.length > 0)
+      .concat([processedResults]);
+    const orderedResults = orderResultsWithSuddenDeathChain(baseResults, resolvedResultsChain);
+
+    /*
+     * Bronze chaining (issue #2773): resolving a life-loss tie at the top-4
+     * stage can reveal that both bottom-half players are on their last life.
+     * They must race a fresh course for 3rd place before eliminations are
+     * finalized. Guard: if the just-resolved sudden death already raced this
+     * exact pair, it WAS the bronze race — finalize instead of looping.
+     */
+    const activePlayers = await getActivePhasePlayers(prisma, tournamentId, "phase3");
+    const bronzeTargets = detectPhase3BronzeTargets(orderedResults, activePlayers);
+    if (bronzeTargets && !hasSameTargetPlayers(suddenDeathRound.targetPlayerIds, bronzeTargets)) {
+      const nextRound = await createSuddenDeathRound(
+        prisma,
+        tournamentId,
+        phase,
+        suddenDeathRound.phaseRoundId,
+        bronzeTargets
+      );
+      return {
+        eliminatedIds: [],
+        livesReset: false,
+        course: suddenDeathRound.phaseRound.course,
+        tieBreakRequired: true,
+        suddenDeathRound: nextRound,
+      };
+    }
+
     const resolvedOrder = new Map(orderedResults.map((result, index) => [result.playerId, index]));
-    const phase3Result = await processPhase3Result(prisma, context, orderedResults, resolvedOrder);
+    const phase3Result = await processPhase3Result(
+      prisma,
+      context,
+      orderedResults,
+      resolvedOrder,
+      activePlayers
+    );
     eliminatedIds = phase3Result.eliminated;
     livesReset = phase3Result.livesReset;
   }

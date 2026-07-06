@@ -322,4 +322,34 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
     expect(played).toEqual(["MC1", "KB1"]);
     expect(played).not.toContain("DP1");
   });
+
+  /* Regression for issue #2773: a life-loss tiebreak re-runs the base round's
+   * course. That re-run must not be double-counted, or the duplicated entry
+   * would shift the 20-course cycle boundary in getAvailableCourses (the cycle
+   * is derived from list length) and retire a course one round too early. */
+  it("does not double-count a life-loss sudden death that re-runs the base course", async () => {
+    const prisma = {
+      tTPhaseRound: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "p3-r1",
+            phase: "phase3",
+            roundNumber: 1,
+            course: "MC1",
+            // Life-loss re-run on the same course, then a bronze race on DP1.
+            suddenDeathRounds: [
+              { id: "sd-rerun", course: "MC1" },
+              { id: "sd-bronze", course: "DP1" },
+            ],
+          },
+        ]),
+      },
+    };
+
+    const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase3");
+
+    // MC1 appears exactly once (base round); the fresh bronze course counts.
+    expect(played).toEqual(["MC1", "DP1"]);
+    expect(getAvailableCourses(played)).toHaveLength(18);
+  });
 });
