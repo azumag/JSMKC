@@ -19,6 +19,7 @@ import {
   startPhaseRound,
   submitRoundResults,
   submitSuddenDeathResults,
+  changeSuddenDeathCourse,
   promoteToPhase1,
   promoteToPhase2,
   promoteToPhase3,
@@ -54,6 +55,7 @@ const mockPrismaClient = {
   tTPhaseSuddenDeathRound: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     count: jest.fn(),
@@ -1029,6 +1031,10 @@ describe("TA Finals Phase Manager", () => {
         { playerId: "p3", eliminated: false },
       ]);
       mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(0);
+      // No earlier resolved sudden deaths for the base round by default; the
+      // chain-ordering query in submitSuddenDeathResults sees only the round
+      // being resolved (issue #2773).
+      mockPrismaClient.tTPhaseSuddenDeathRound.findMany.mockResolvedValue([]);
       mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
         id: "sd1",
         phaseRoundId: "round1",
@@ -1641,6 +1647,381 @@ describe("TA Finals Phase Manager", () => {
       );
     });
 
+    /* ───────── issue #2773: scenario-aware sudden-death courses ───────── */
+
+    it("creates a phase3 life-loss tiebreak on the SAME course as the base round", async () => {
+      mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
+        id: "round1",
+        tournamentId: "t1",
+        phase: "phase3",
+        roundNumber: 1,
+        course: "MC1",
+        results: [],
+      });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false, lives: 3 },
+        { playerId: "p2", eliminated: false, lives: 3 },
+        { playerId: "p3", eliminated: false, lives: 3 },
+        { playerId: "p4", eliminated: false, lives: 3 },
+      ]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd1",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "MC1",
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+      });
+
+      // p2/p3 tie across the life-loss boundary (positions 2-3 of 4).
+      const result = await submitRoundResults(mockPrismaClient as any, context, "phase3", 1, [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 90000 },
+        { playerId: "p3", timeMs: 90000 },
+        { playerId: "p4", timeMs: 95000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      // Same course re-run: no pool lookup, course comes from the base round.
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            course: "MC1",
+            targetPlayerIds: ["p2", "p3"],
+          }),
+        })
+      );
+      expect(mockPrismaClient.tTPhaseRound.findMany).not.toHaveBeenCalled();
+    });
+
+    it("keeps drawing a fresh pool course for phase1 elimination ties", async () => {
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false },
+        { playerId: "p2", eliminated: false },
+        { playerId: "p3", eliminated: false },
+        { playerId: "p4", eliminated: false },
+        { playerId: "p5", eliminated: false },
+      ]);
+      // Pool lookup sees the base round; its course must not be re-drawn.
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        { id: "round1", phase: "phase1", roundNumber: 1, course: "MC1", suddenDeathRounds: [] },
+      ]);
+
+      await submitRoundResults(mockPrismaClient as any, context, "phase1", 1, [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 81000 },
+        { playerId: "p3", timeMs: 82000 },
+        { playerId: "p4", timeMs: 90000 },
+        { playerId: "p5", timeMs: 90000 },
+      ]);
+
+      const createdCourse = mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data.course;
+      expect(createdCourse).not.toBe("MC1");
+      expect(mockPrismaClient.tTPhaseRound.findMany).toHaveBeenCalled();
+    });
+
+    it("re-runs the same course again when a life-loss sudden death re-ties", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "MC1", // same as base round → life-loss re-run
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 90000 },
+            { playerId: "p3", timeMs: 90000 },
+            { playerId: "p4", timeMs: 95000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(1);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd2",
+        phaseRoundId: "round1",
+        sequence: 2,
+        course: "MC1",
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+      });
+
+      // Both tied players post the same time again → continuation round.
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd1", [
+        { playerId: "p2", timeMs: 91000 },
+        { playerId: "p3", timeMs: 91000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ course: "MC1", sequence: 2 }),
+        })
+      );
+    });
+
+    /* ───────── issue #2773: bronze-medal sudden death at top 4 ───────── */
+
+    it("defers elimination to a bronze sudden death when both top-4 bottom players lose their last life", async () => {
+      mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
+        id: "round1",
+        tournamentId: "t1",
+        phase: "phase3",
+        roundNumber: 5,
+        course: "MC1",
+        results: [],
+      });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false, lives: 2 },
+        { playerId: "p2", eliminated: false, lives: 2 },
+        { playerId: "p3", eliminated: false, lives: 1 },
+        { playerId: "p4", eliminated: false, lives: 1 },
+      ]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        { id: "round1", phase: "phase3", roundNumber: 5, course: "MC1", suddenDeathRounds: [] },
+      ]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd-bronze",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "DP1",
+        targetPlayerIds: ["p3", "p4"],
+        resolved: false,
+      });
+
+      // Distinct times — the bronze race triggers WITHOUT a tie.
+      const result = await submitRoundResults(mockPrismaClient as any, context, "phase3", 5, [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 81000 },
+        { playerId: "p3", timeMs: 82000 },
+        { playerId: "p4", timeMs: 83000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      const createData = mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data;
+      expect(createData.targetPlayerIds).toEqual(["p3", "p4"]);
+      // Bronze races use a fresh course, consumed from the pool.
+      expect(createData.course).not.toBe("MC1");
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+    });
+
+    it("does not run a bronze race when only one top-4 bottom player is on the last life", async () => {
+      mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
+        id: "round1",
+        tournamentId: "t1",
+        phase: "phase3",
+        roundNumber: 5,
+        course: "MC1",
+        results: [],
+      });
+      const roster = [
+        { playerId: "p1", eliminated: false, lives: 2 },
+        { playerId: "p2", eliminated: false, lives: 2 },
+        { playerId: "p3", eliminated: false, lives: 2 },
+        { playerId: "p4", eliminated: false, lives: 1 },
+      ];
+      mockPrismaClient.tTEntry.findMany
+        .mockResolvedValueOnce(roster) // submitRoundResults validation + tie detection
+        .mockResolvedValueOnce(roster) // processPhase3Result active players
+        .mockResolvedValueOnce(roster.slice(0, 3)); // remaining players after elimination
+      const livesByPlayer = new Map(roster.map((entry) => [entry.playerId, entry.lives]));
+      mockPrismaClient.tTEntry.findUnique.mockImplementation(({ where }) => {
+        const playerId = where.tournamentId_playerId_stage.playerId;
+        return Promise.resolve({
+          id: `entry-${playerId}`,
+          playerId,
+          eliminated: false,
+          lives: livesByPlayer.get(playerId) ?? 3,
+        });
+      });
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+
+      const result = await submitRoundResults(mockPrismaClient as any, context, "phase3", 5, [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 81000 },
+        { playerId: "p3", timeMs: 82000 },
+        { playerId: "p4", timeMs: 83000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBeUndefined();
+      expect(result.eliminatedIds).toEqual(["p4"]);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).not.toHaveBeenCalled();
+    });
+
+    it("finalizes both eliminations after the bronze race and orders 3rd place by its times", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd-bronze",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "DP1", // fresh course ≠ base course
+        targetPlayerIds: ["p3", "p4"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 81000 },
+            { playerId: "p3", timeMs: 82000 },
+            { playerId: "p4", timeMs: 83000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      const roster = [
+        { playerId: "p1", eliminated: false, lives: 2 },
+        { playerId: "p2", eliminated: false, lives: 2 },
+        { playerId: "p3", eliminated: false, lives: 1 },
+        { playerId: "p4", eliminated: false, lives: 1 },
+      ];
+      mockPrismaClient.tTEntry.findMany
+        .mockResolvedValueOnce(roster) // bronze check + processPhase3Result (preloaded)
+        .mockResolvedValueOnce(roster.slice(0, 2)); // remaining players → threshold 2
+      const livesByPlayer = new Map(roster.map((entry) => [entry.playerId, entry.lives]));
+      mockPrismaClient.tTEntry.findUnique.mockImplementation(({ where }) => {
+        const playerId = where.tournamentId_playerId_stage.playerId;
+        return Promise.resolve({
+          id: `entry-${playerId}`,
+          playerId,
+          eliminated: false,
+          lives: livesByPlayer.get(playerId) ?? 3,
+        });
+      });
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 2 });
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+
+      // p4 wins the bronze race despite the slower base-round time.
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd-bronze", [
+        { playerId: "p3", timeMs: 92000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      // The pair was already the bronze target set — no second bronze race.
+      expect(result.tieBreakRequired).toBeUndefined();
+      expect([...result.eliminatedIds].sort()).toEqual(["p3", "p4"]);
+      expect(result.livesReset).toBe(true);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).not.toHaveBeenCalled();
+    });
+
+    it("re-races a bronze tie on a fresh course when both bronze racers post equal times", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd-bronze",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "DP1", // fresh course ≠ base course (bronze race)
+        targetPlayerIds: ["p3", "p4"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 81000 },
+            { playerId: "p3", timeMs: 82000 },
+            { playerId: "p4", timeMs: 83000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(1);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd-bronze-2",
+        phaseRoundId: "round1",
+        sequence: 2,
+        course: "GV1",
+        targetPlayerIds: ["p3", "p4"],
+        resolved: false,
+      });
+      // Pool lookup for the fresh continuation course (bronze, not a re-run).
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        { id: "round1", phase: "phase3", roundNumber: 1, course: "MC1", suddenDeathRounds: [
+          { id: "sd-bronze", course: "DP1" },
+        ] },
+      ]);
+
+      // Both bronze racers tie again → continuation bronze race required.
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd-bronze", [
+        { playerId: "p3", timeMs: 91000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      const createData = mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data;
+      expect(createData.targetPlayerIds).toEqual(["p3", "p4"]);
+      // Continuation of a bronze race stays on a fresh course (not a re-run of MC1).
+      expect(createData.course).not.toBe("MC1");
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+    });
+
+    it("chains a life-loss tiebreak into a bronze race when its outcome leaves both bottom players eliminated", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "MC1", // life-loss re-run (same course as base round)
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 90000 },
+            { playerId: "p3", timeMs: 90000 },
+            { playerId: "p4", timeMs: 95000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      // p2 keeps 3 lives; p3/p4 are on their last life.
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false, lives: 3 },
+        { playerId: "p2", eliminated: false, lives: 3 },
+        { playerId: "p3", eliminated: false, lives: 1 },
+        { playerId: "p4", eliminated: false, lives: 1 },
+      ]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        { id: "round1", phase: "phase3", roundNumber: 1, course: "MC1", suddenDeathRounds: [
+          { id: "sd1", course: "MC1" },
+        ] },
+      ]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(1);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd-bronze",
+        phaseRoundId: "round1",
+        sequence: 2,
+        course: "DP1",
+        targetPlayerIds: ["p3", "p4"],
+        resolved: false,
+      });
+
+      // p2 beats p3 in the life-loss re-run → p3 falls into the bottom half
+      // next to p4; both are on their last life → bronze race required.
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd1", [
+        { playerId: "p2", timeMs: 90500 },
+        { playerId: "p3", timeMs: 91000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      const createData = mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data;
+      expect(createData.targetPlayerIds).toEqual(["p3", "p4"]);
+      expect(createData.course).not.toBe("MC1");
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+    });
+
     it("keeps non-sudden players from becoming an unintended elimination target in phase3", async () => {
       mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
         id: "sd1",
@@ -1705,6 +2086,58 @@ describe("TA Finals Phase Manager", () => {
           }),
         })
       );
+    });
+  });
+
+  describe("changeSuddenDeathCourse", () => {
+    const context = {
+      tournamentId: "t1",
+      userId: "admin-1",
+      ipAddress: "127.0.0.1",
+      userAgent: "jest",
+    };
+
+    it("allows selecting the base round's course even though it was already played (issue #2773)", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        resolved: false,
+        results: null,
+        phaseRound: { course: "MC1" },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({ id: "sd1", course: "MC1" });
+
+      await changeSuddenDeathCourse(mockPrismaClient as any, context, "phase3", "sd1", "MC1");
+
+      // Base-course selection skips the played-course validation entirely.
+      expect(mockPrismaClient.tTPhaseRound.findMany).not.toHaveBeenCalled();
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.update).toHaveBeenCalledWith({
+        where: { id: "sd1" },
+        data: { course: "MC1" },
+      });
+    });
+
+    it("still rejects other already-played courses", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        resolved: false,
+        results: null,
+        phaseRound: { course: "MC1" },
+      });
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        { id: "round0", phase: "phase3", roundNumber: 1, course: "DP1", suddenDeathRounds: [] },
+        { id: "round1", phase: "phase3", roundNumber: 2, course: "MC1", suddenDeathRounds: [] },
+      ]);
+
+      await expect(
+        changeSuddenDeathCourse(mockPrismaClient as any, context, "phase3", "sd1", "DP1")
+      ).rejects.toThrow('Course "DP1" has already been played in the current cycle');
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.update).not.toHaveBeenCalled();
     });
   });
 

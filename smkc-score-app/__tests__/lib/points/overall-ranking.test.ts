@@ -73,6 +73,7 @@ function getMockGetFinalsPoints() {
 const mockPrisma = {
   tTEntry: { findMany: jest.fn() },
   tTPhaseRound: { findMany: jest.fn() },
+  tTPhaseSuddenDeathRound: { findMany: jest.fn() },
   bMQualification: { findMany: jest.fn() },
   mRQualification: { findMany: jest.fn() },
   gPQualification: { findMany: jest.fn() },
@@ -80,7 +81,6 @@ const mockPrisma = {
   bMMatch: { findMany: jest.fn() },
   mRMatch: { findMany: jest.fn() },
   gPMatch: { findMany: jest.fn() },
-  tTPhaseRound: { findMany: jest.fn() },
   player: { findMany: jest.fn() },
   tournamentPlayerScore: {
     findMany: jest.fn(),
@@ -108,6 +108,7 @@ describe('Overall Ranking module', () => {
     mockPrisma.bMMatch.findMany.mockResolvedValue([]);
     mockPrisma.mRMatch.findMany.mockResolvedValue([]);
     mockPrisma.gPMatch.findMany.mockResolvedValue([]);
+    mockPrisma.tTPhaseSuddenDeathRound.findMany.mockResolvedValue([]);
   });
 
   // =========================================================================
@@ -444,6 +445,52 @@ describe('Overall Ranking module', () => {
         { playerId: 'b', position: 2 },
         { playerId: 'c', position: 3 },
         { playerId: 'd', position: 4 },
+      ]);
+    });
+
+    /* Regression for issue #2773: when both top-4 bottom players lose their
+     * last life in the same round, a bronze sudden death on a fresh course
+     * decides 3rd place. Its times — not the base-round times — must order
+     * the two same-round eliminations. */
+    it('orders same-round phase3 eliminations by the resolved bronze sudden death, not base times', async () => {
+      mockPrisma.tTEntry.findMany.mockResolvedValueOnce([
+        { playerId: 'p1', stage: 'phase3', eliminated: false, lives: 3, totalTime: 500000 },
+        { playerId: 'p2', stage: 'phase3', eliminated: false, lives: 3, totalTime: 510000 },
+        { playerId: 'p3', stage: 'phase3', eliminated: true, lives: 0, totalTime: 520000 },
+        { playerId: 'p4', stage: 'phase3', eliminated: true, lives: 0, totalTime: 530000 },
+      ]);
+      mockPrisma.tTPhaseRound.findMany.mockResolvedValueOnce([
+        {
+          id: 'round-5',
+          phase: 'phase3',
+          roundNumber: 5,
+          eliminatedIds: ['p3', 'p4'],
+          results: [
+            { playerId: 'p1', timeMs: 60000, isRetry: false },
+            { playerId: 'p2', timeMs: 61000, isRetry: false },
+            { playerId: 'p3', timeMs: 62000, isRetry: false }, // faster base time...
+            { playerId: 'p4', timeMs: 63000, isRetry: false },
+          ],
+        },
+      ]);
+      mockPrisma.tTPhaseSuddenDeathRound.findMany.mockResolvedValueOnce([
+        {
+          phaseRoundId: 'round-5',
+          sequence: 1,
+          results: [
+            { playerId: 'p3', timeMs: 92000, isRetry: false },
+            { playerId: 'p4', timeMs: 91000, isRetry: false }, // ...but p4 wins bronze
+          ],
+        },
+      ]);
+
+      const positions = await getTAFinalsPositions(mockPrisma as any, TOURNAMENT_ID);
+
+      expect(positions).toEqual([
+        { playerId: 'p1', position: 1 },
+        { playerId: 'p2', position: 2 },
+        { playerId: 'p4', position: 3 },
+        { playerId: 'p3', position: 4 },
       ]);
     });
 

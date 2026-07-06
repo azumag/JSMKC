@@ -139,10 +139,17 @@ interface TTEntryRecord {
 }
 
 interface TTPhaseRoundRecord {
+  id: string;
   phase: string;
   roundNumber: number;
   results: unknown;
   eliminatedIds: unknown;
+}
+
+interface TTSuddenDeathRecord {
+  phaseRoundId: string;
+  sequence: number;
+  results: unknown;
 }
 
 /**
@@ -406,8 +413,35 @@ export async function getTAFinalsPositions(
       { phase: "asc" },
       { roundNumber: "asc" },
     ],
-    select: { phase: true, roundNumber: true, eliminatedIds: true, results: true },
+    select: { id: true, phase: true, roundNumber: true, eliminatedIds: true, results: true },
   });
+
+  /*
+   * Resolved sudden-death rounds refine same-round ordering (issue #2773): when
+   * two players are eliminated in the same round after racing a sudden death
+   * together (bronze race at top-4, or a revival tiebreak), the sudden-death
+   * times — not the base-round times — decide who places higher. Keyed by
+   * "phase:roundNumber" with time maps in sequence order.
+   */
+  const suddenDeathRounds = await prisma.tTPhaseSuddenDeathRound.findMany({
+    where: { tournamentId, resolved: true },
+    orderBy: [{ sequence: "asc" }],
+    select: { phaseRoundId: true, sequence: true, results: true },
+  });
+  const roundKeyById = new Map(
+    (phaseRounds as TTPhaseRoundRecord[]).map((round) => [round.id, `${round.phase}:${round.roundNumber}`])
+  );
+  const suddenDeathChainByRoundKey = new Map<string, Array<Map<string, number>>>();
+  for (const suddenDeath of suddenDeathRounds as TTSuddenDeathRecord[]) {
+    const roundKey = roundKeyById.get(suddenDeath.phaseRoundId);
+    if (!roundKey || !Array.isArray(suddenDeath.results)) continue;
+    const times = new Map(
+      (suddenDeath.results as PhaseRoundResultRecord[]).map((result) => [result.playerId, result.timeMs])
+    );
+    const chain = suddenDeathChainByRoundKey.get(roundKey) ?? [];
+    chain.push(times);
+    suddenDeathChainByRoundKey.set(roundKey, chain);
+  }
 
   const eliminationByPhase = new Map<
     string,
@@ -467,6 +501,17 @@ export async function getTAFinalsPositions(
       if (!bData) return -1;
 
       if (aData.round !== bData.round) return bData.round - aData.round;
+      // Same round: the latest resolved sudden death both players raced in
+      // decides their order (bronze race, revival tiebreak — issue #2773).
+      const phase3Key = phaseFilter === "finals" ? "finals" : "phase3";
+      const chain = suddenDeathChainByRoundKey.get(`${phase3Key}:${aData.round}`) ?? [];
+      for (let i = chain.length - 1; i >= 0; i--) {
+        const aSudden = chain[i].get(a.playerId);
+        const bSudden = chain[i].get(b.playerId);
+        if (aSudden !== undefined && bSudden !== undefined && aSudden !== bSudden) {
+          return aSudden - bSudden;
+        }
+      }
       if (aData.timeMs !== bData.timeMs) return aData.timeMs - bData.timeMs;
       return a.playerId.localeCompare(b.playerId);
     });

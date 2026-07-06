@@ -73,9 +73,15 @@ export async function getPlayedCoursesWithSuddenDeath(
   for (const round of orderedRounds) {
     courses.push(round.course);
     for (const suddenDeathRound of round.suddenDeathRounds ?? []) {
-      if (suddenDeathRound.id !== options.excludeSuddenDeathRoundId) {
-        courses.push(suddenDeathRound.course);
-      }
+      if (suddenDeathRound.id === options.excludeSuddenDeathRoundId) continue;
+      /*
+       * Life-loss tiebreaks re-run the base round's course (issue #2773). That
+       * course is already counted by the base round; pushing the duplicate would
+       * inflate the played-course count and shift the 20-course cycle boundary
+       * in getAvailableCourses (the cycle is derived from list length).
+       */
+      if (suddenDeathRound.course === round.course) continue;
+      courses.push(suddenDeathRound.course);
     }
   }
   return courses;

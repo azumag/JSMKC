@@ -32,6 +32,10 @@
  *           phase status is still loading.
  *   TC-1032 Phase 3 revival race targets every zero-life candidate when a
  *           reset threshold would otherwise be crossed.
+ *   TC-2773A Phase 3 life-loss tie re-runs the base round's course and leaves
+ *           the shared 20-course pool untouched (issue #2773).
+ *   TC-2773B Top-4 simultaneous last-life loss runs a bronze sudden death on a
+ *           fresh (pool-consumed) course to decide 3rd place (issue #2773).
  *   TC-1033 Sudden-death API payload exposes only the actionable target ids,
  *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
@@ -1970,6 +1974,193 @@ async function runTc815(adminPage) {
   }
 }
 
+/* ───────── TC-2773A: Phase3 life-loss sudden death re-runs the base course ─────────
+ * Issue #2773: a tie across the life-loss boundary is broken by re-running the
+ * SAME course a second time, leaving the shared 20-course pool untouched. The
+ * previous behavior drew a fresh course and consumed it from the cycle. */
+async function runTc2773a(adminPage) {
+  let fixture = null;
+  try {
+    const stamp = Date.now();
+    const players = [];
+    for (let i = 1; i <= 4; i++) {
+      players.push(await uiCreatePlayer(adminPage, `E2E TA LLSD ${i} ${stamp}`, `e2e_ta_llsd_${i}_${stamp}`));
+    }
+    const baseFixture = await createIsolatedTaQualification(adminPage, `LifeLoss SD ${stamp}`, players, { seedTimes: false });
+    fixture = {
+      ...baseFixture,
+      cleanup: async () => {
+        await baseFixture.cleanup();
+        for (const player of players) await apiDeletePlayer(adminPage, player.id);
+      },
+    };
+    const { tournamentId } = fixture;
+    await seedTaQualificationRanks(adminPage, tournamentId, fixture.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+    const phase = 'phase3';
+    const entries = orderTaEntriesForDeterministicResultSlots(
+      (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [],
+    );
+    if (entries.length !== 4) throw new Error(`phase3 entries=${entries.length}, expected 4`);
+    const [p1, p2, p3, p4] = entries;
+
+    /* Boundary tie at positions 2-3 of 4 on a manually pinned course. */
+    const submit = await submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase, 'MC1', [
+      { playerId: p1.playerId, timeMs: 80000 },
+      { playerId: p2.playerId, timeMs: 90000 },
+      { playerId: p3.playerId, timeMs: 90000 },
+      { playerId: p4.playerId, timeMs: 100000 },
+    ]);
+    const sudden = submit.data.suddenDeathRound;
+    if (submit.data.tieBreakRequired !== true || !sudden?.id) {
+      log('TC-2773A', 'FAIL', `expected life-loss sudden death, got ${JSON.stringify(submit.data).slice(0, 220)}`);
+      return;
+    }
+    if (sudden.course !== 'MC1') {
+      log('TC-2773A', 'FAIL', `life-loss sudden death course=${sudden.course}, expected base course MC1`);
+      return;
+    }
+
+    /* The same-course re-run must not consume anything from the 20-course pool:
+     * only the base round's MC1 is gone. */
+    const availableDuring = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.availableCourses ?? [];
+    if (availableDuring.length !== 19 || availableDuring.includes('MC1')) {
+      log('TC-2773A', 'FAIL', `pool during SD: len=${availableDuring.length} (expected 19 without MC1)`);
+      return;
+    }
+
+    const resolved = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      results: [
+        { playerId: p2.playerId, timeMs: 87000 },
+        { playerId: p3.playerId, timeMs: 89000 },
+      ],
+    });
+    if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired) {
+      throw new Error(`sudden death did not resolve (${resolved.s}): ${JSON.stringify(resolved.b).slice(0, 220)}`);
+    }
+
+    const finalData = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const finalEntries = finalData.entries ?? [];
+    const livesOk =
+      finalEntries.find((e) => e.playerId === p2.playerId)?.lives === 3 &&
+      finalEntries.find((e) => e.playerId === p3.playerId)?.lives === 2 &&
+      finalEntries.find((e) => e.playerId === p4.playerId)?.lives === 2;
+    const availableAfter = finalData.availableCourses ?? [];
+    const poolOk = availableAfter.length === 19 && !availableAfter.includes('MC1');
+    log('TC-2773A', livesOk && poolOk ? 'PASS' : 'FAIL',
+      !livesOk ? `lives wrong after same-course rerun: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.lives]))}`
+      : !poolOk ? `pool after SD: len=${availableAfter.length} (expected 19 without MC1)`
+      : '');
+  } catch (err) {
+    log('TC-2773A', 'FAIL', err instanceof Error ? err.message : 'TA life-loss same-course sudden death failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
+/* ───────── TC-2773B: Top-4 simultaneous last-life loss runs a bronze race ─────────
+ * Issue #2773: when both bottom-half players of the top 4 lose their final life
+ * in the same round (no time tie required), they race a FRESH course to decide
+ * 3rd place; that course is consumed from the pool. The two survivors advance
+ * to the top 2 with reset lives. */
+async function runTc2773b(adminPage) {
+  let fixture = null;
+  try {
+    const stamp = Date.now();
+    const players = [];
+    for (let i = 1; i <= 4; i++) {
+      players.push(await uiCreatePlayer(adminPage, `E2E TA Bronze ${i} ${stamp}`, `e2e_ta_bronze_${i}_${stamp}`));
+    }
+    const baseFixture = await createIsolatedTaQualification(adminPage, `Bronze SD ${stamp}`, players, { seedTimes: false });
+    fixture = {
+      ...baseFixture,
+      cleanup: async () => {
+        await baseFixture.cleanup();
+        for (const player of players) await apiDeletePlayer(adminPage, player.id);
+      },
+    };
+    const { tournamentId } = fixture;
+    await seedTaQualificationRanks(adminPage, tournamentId, fixture.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+    const phase = 'phase3';
+    const entries = orderTaEntriesForDeterministicResultSlots(
+      (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [],
+    );
+    if (entries.length !== 4) throw new Error(`phase3 entries=${entries.length}, expected 4`);
+    const [p1, p2, p3, p4] = entries;
+
+    /* Drop the two designated losers to their last life (3 → 1). */
+    for (const entry of [p3, p4]) {
+      const lifeUpdate = await apiUpdateTaLives(adminPage, tournamentId, entry.id, -2);
+      if (lifeUpdate.s !== 200) throw new Error(`update_lives failed (${lifeUpdate.s}) for ${entry.playerId}`);
+    }
+
+    /* Distinct times — the bronze race must trigger WITHOUT a tie. */
+    const submit = await submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase, 'MC1', [
+      { playerId: p1.playerId, timeMs: 80000 },
+      { playerId: p2.playerId, timeMs: 81000 },
+      { playerId: p3.playerId, timeMs: 82000 },
+      { playerId: p4.playerId, timeMs: 83000 },
+    ]);
+    const sudden = submit.data.suddenDeathRound;
+    const targets = [...(sudden?.targetPlayerIds ?? [])].sort();
+    const expectedTargets = [p3.playerId, p4.playerId].sort();
+    if (submit.data.tieBreakRequired !== true || !sudden?.id) {
+      log('TC-2773B', 'FAIL', `expected bronze sudden death, got ${JSON.stringify(submit.data).slice(0, 220)}`);
+      return;
+    }
+    if (JSON.stringify(targets) !== JSON.stringify(expectedTargets) || sudden.course === 'MC1') {
+      log('TC-2773B', 'FAIL', `bronze race wrong: targets=${targets.join(',')} expected=${expectedTargets.join(',')} course=${sudden.course} (must be a fresh course)`);
+      return;
+    }
+
+    /* p4 wins the bronze race despite the slower base-round time. */
+    const resolved = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      results: [
+        { playerId: p3.playerId, timeMs: 92000 },
+        { playerId: p4.playerId, timeMs: 91000 },
+      ],
+    });
+    if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired) {
+      throw new Error(`bronze race did not resolve (${resolved.s}): ${JSON.stringify(resolved.b).slice(0, 220)}`);
+    }
+    const eliminatedIds = [...(resolved.b?.data?.eliminatedIds ?? [])].sort();
+
+    const finalData = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const finalEntries = finalData.entries ?? [];
+    const byId = new Map(finalEntries.map((e) => [e.playerId, e]));
+    const eliminationOk =
+      JSON.stringify(eliminatedIds) === JSON.stringify(expectedTargets) &&
+      byId.get(p3.playerId)?.eliminated === true &&
+      byId.get(p4.playerId)?.eliminated === true;
+    /* Survivors advance to the top 2 with reset lives (threshold 2). */
+    const survivorsOk =
+      byId.get(p1.playerId)?.eliminated === false && byId.get(p1.playerId)?.lives === 3 &&
+      byId.get(p2.playerId)?.eliminated === false && byId.get(p2.playerId)?.lives === 3;
+    /* Base course + fresh bronze course are both consumed from the pool. */
+    const availableAfter = finalData.availableCourses ?? [];
+    const poolOk = availableAfter.length === 18 &&
+      !availableAfter.includes('MC1') && !availableAfter.includes(sudden.course);
+    log('TC-2773B', eliminationOk && survivorsOk && poolOk ? 'PASS' : 'FAIL',
+      !eliminationOk ? `eliminations wrong: eliminatedIds=${eliminatedIds.join(',')}`
+      : !survivorsOk ? `survivors wrong: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.eliminated, e.lives]))}`
+      : !poolOk ? `pool after bronze race: len=${availableAfter.length} (expected 18 without MC1/${sudden.course})`
+      : '');
+  } catch (err) {
+    log('TC-2773B', 'FAIL', err instanceof Error ? err.message : 'TA bronze sudden death failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* ───────── TC-817: Phase1 sudden-death courses consume the shared cycle ───────── */
 async function runTc817(adminPage) {
   let fixture = null;
@@ -2509,6 +2700,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
       { name: 'TC-815', fn: runTc815 },
+      { name: 'TC-2773A', fn: runTc2773a },
+      { name: 'TC-2773B', fn: runTc2773b },
       { name: 'TC-1032', fn: runTc1032 },
       { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-817', fn: runTc817 },
@@ -2525,6 +2718,7 @@ module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
+  runTc2773a, runTc2773b,
   runTc3001, runTc3002,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
