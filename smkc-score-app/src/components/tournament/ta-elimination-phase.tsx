@@ -750,6 +750,96 @@ export default function TAEliminationPhase({
     );
   }
 
+  // === Round-correction controls (shared) ===
+  // Extracted so the same undo / cancel-last-round controls can appear both in
+  // the active round-management card AND in a standalone card after the phase
+  // is complete — the latter is what lets an admin fix a mistake in a phase's
+  // final round without a full phase reset. Buttons render only when at least
+  // one round has been submitted; dialogs are rendered once at the top level.
+  const roundCorrectionButtons = completedRoundsCount > 0 ? (
+    <>
+      {/* Undo last round: clears results, keeps the course assigned for re-entry. */}
+      <Button
+        variant="outline"
+        className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
+        onClick={() => setShowUndoConfirm(true)}
+        disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+      >
+        {tElim('undoLastRound')}
+      </Button>
+      {/* Cancel last round: like undo, but frees the course instead of keeping
+          it assigned for re-entry (issue #2761). */}
+      <Button
+        variant="outline"
+        className="w-full text-red-700 border-red-400 hover:bg-red-50"
+        onClick={() => setShowCancelLastRoundConfirm(true)}
+        disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+      >
+        {tElim('cancelLastRound')}
+      </Button>
+    </>
+  ) : null;
+
+  const roundCorrectionDialogs = (
+    <>
+      {/* Undo confirmation dialog */}
+      <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tElim('undoRoundTitle')}</DialogTitle>
+            <DialogDescription>
+              {tElim('undoRoundDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUndoConfirm(false)}
+              disabled={undoingRound}
+            >
+              {tElim('keepRound')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleUndoRound}
+              disabled={undoingRound}
+            >
+              {undoingRound ? tElim('undoing') : tElim('yesUndoRound')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel-last-round confirmation dialog */}
+      <Dialog open={showCancelLastRoundConfirm} onOpenChange={setShowCancelLastRoundConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tElim('cancelLastRoundTitle')}</DialogTitle>
+            <DialogDescription>
+              {tElim('cancelLastRoundDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelLastRoundConfirm(false)}
+              disabled={cancellingLastRound}
+            >
+              {tElim('keepRound')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelLastRound}
+              disabled={cancellingLastRound}
+            >
+              {cancellingLastRound ? tElim('cancellingLastRound') : tElim('yesCancelLastRound')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
   // === Main Render ===
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1019,90 +1109,33 @@ export default function TAEliminationPhase({
                       ? tElim('completeOpenRound')
                       : tElim('startRound', { number: rounds.length + 1 })}
                 </Button>
-                {/* Undo last round: only shown when there are completed rounds */}
-                {completedRoundsCount > 0 && (
-                  <Button
-                    variant="outline"
-                    className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
-                    onClick={() => setShowUndoConfirm(true)}
-                    disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-                  >
-                    {tElim('undoLastRound')}
-                  </Button>
-                )}
-                {/* Cancel last round: like undo, but frees the course instead of
-                    keeping it assigned for re-entry (issue #2761). */}
-                {completedRoundsCount > 0 && (
-                  <Button
-                    variant="outline"
-                    className="w-full text-red-700 border-red-400 hover:bg-red-50"
-                    onClick={() => setShowCancelLastRoundConfirm(true)}
-                    disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-                  >
-                    {tElim('cancelLastRound')}
-                  </Button>
-                )}
+                {roundCorrectionButtons}
               </div>
-
-              {/* Undo confirmation dialog */}
-              <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{tElim('undoRoundTitle')}</DialogTitle>
-                    <DialogDescription>
-                      {tElim('undoRoundDesc')}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowUndoConfirm(false)}
-                      disabled={undoingRound}
-                    >
-                      {tElim('keepRound')}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleUndoRound}
-                      disabled={undoingRound}
-                    >
-                      {undoingRound ? tElim('undoing') : tElim('yesUndoRound')}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              {/* Cancel-last-round confirmation dialog */}
-              <Dialog open={showCancelLastRoundConfirm} onOpenChange={setShowCancelLastRoundConfirm}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{tElim('cancelLastRoundTitle')}</DialogTitle>
-                    <DialogDescription>
-                      {tElim('cancelLastRoundDesc')}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowCancelLastRoundConfirm(false)}
-                      disabled={cancellingLastRound}
-                    >
-                      {tElim('keepRound')}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleCancelLastRound}
-                      disabled={cancellingLastRound}
-                    >
-                      {cancellingLastRound ? tElim('cancellingLastRound') : tElim('yesCancelLastRound')}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </CardContent>
           </Card>
         )
       )}
+
+      {/* Final-round corrections (admin-only): once a phase is complete the
+          round-management card above is hidden, but a mistake in the phase's
+          FINAL round must still be fixable without resetting the whole phase
+          (reported issue). Undoing restores the eliminated player, which makes
+          the phase incomplete again and brings back the normal controls. */}
+      {isAdmin && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && (
+        <Card className="border-amber-400">
+          <CardHeader>
+            <CardTitle>{tElim('correctFinalRoundTitle')}</CardTitle>
+            <CardDescription>{tElim('correctFinalRoundDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {roundCorrectionButtons}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Round-correction confirmation dialogs (rendered once; opened from the
+          buttons in whichever card is currently visible). */}
+      {isAdmin && roundCorrectionDialogs}
 
       {/* === Standings Section ===
        * Always visible so admin can monitor player status at all times. */}

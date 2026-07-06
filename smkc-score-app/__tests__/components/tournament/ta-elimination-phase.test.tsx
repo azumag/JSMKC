@@ -7,11 +7,14 @@
  * TA (Time Attack) single-elimination phase component (Phase 1 / Phase 2).
  */
 import { render, screen, waitFor } from '@testing-library/react';
+import { useSession } from 'next-auth/react';
 import TAEliminationPhase from '@/components/tournament/ta-elimination-phase';
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(() => ({ data: null })),
 }));
+
+const mockUseSession = useSession as jest.MockedFunction<typeof useSession>;
 
 jest.mock('@/lib/hooks/use-tournament-debug-mode', () => ({
   useTournamentDebugMode: jest.fn(() => false),
@@ -81,6 +84,8 @@ afterAll(() => {
 beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
+  // Default to a signed-out (non-admin) session; admin tests override this.
+  mockUseSession.mockReturnValue({ data: null } as ReturnType<typeof useSession>);
 });
 
 afterEach(() => {
@@ -224,5 +229,63 @@ describe('TAEliminationPhase — main render', () => {
     await waitFor(() => {
       expect(screen.getByText('Phase Complete')).toBeInTheDocument();
     });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Final-round undo remains available after a phase completes         */
+  /*  (reported issue: the only fix for a final-round mistake was a      */
+  /*  full phase reset because the undo button was hidden once complete) */
+  /* ------------------------------------------------------------------ */
+
+  const completePhasePayload = {
+    ok: true,
+    json: jest.fn().mockResolvedValue({
+      data: {
+        entries: [
+          makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario' }),
+          makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi' }),
+          makeEntry({ id: 'e-3', playerId: 'p-3', nickname: 'Yoshi' }),
+          makeEntry({ id: 'e-4', playerId: 'p-4', nickname: 'Toad' }),
+          makeEntry({ id: 'e-5', playerId: 'p-5', nickname: 'Bowser', eliminated: true }),
+        ],
+        rounds: [{
+          id: 'r-1', phase: 'phase1', roundNumber: 1, course: 'GV1',
+          results: [{ playerId: 'p-5', timeMs: 99990, isRetry: false }],
+          eliminatedIds: ['p-5'], livesReset: false, manualOverride: false,
+        }],
+        availableCourses: ['GV2'],
+        playedCourses: ['GV1'],
+      },
+    }),
+  };
+
+  it('exposes the final-round undo control to admins after the phase is complete', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(completePhasePayload);
+
+    render(<TAEliminationPhase {...defaultProps} />);
+
+    // The phase is complete, so the corrections card + undo button must be
+    // reachable even though the normal round-management card is hidden.
+    await waitFor(() => {
+      expect(screen.getByText('Correct the final round')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Undo Last Round' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel Last Round (Free Course)' })).toBeInTheDocument();
+    // Start-round control stays hidden while the phase is complete.
+    expect(screen.queryByRole('button', { name: /Start Round/ })).not.toBeInTheDocument();
+  });
+
+  it('hides the final-round corrections card from non-admins', async () => {
+    mockUseSession.mockReturnValue({ data: null } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(completePhasePayload);
+
+    render(<TAEliminationPhase {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Phase Complete')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Correct the final round')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo Last Round' })).not.toBeInTheDocument();
   });
 });

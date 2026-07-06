@@ -791,6 +791,8 @@
     "cancelLastRoundDesc": "This will delete the last submitted round entirely and restore player status to before that round. Unlike Undo, the course will NOT remain assigned — it returns to the pool so a different course can be picked next.",
     "yesCancelLastRound": "Yes, Cancel Round",
     "cancellingLastRound": "Cancelling...",
+    "correctFinalRoundTitle": "Correct the final round",
+    "correctFinalRoundDesc": "This phase is complete. If the last round had a mistake, undo it to reopen the phase and re-enter results — no need to reset the whole phase.",
     "courseOverrideLabel": "Course Selection (optional)",
     "randomCourse": "Random (default)",
     "manualCourseOverride": "Manual",
@@ -912,6 +914,8 @@
     "cancelLastRoundDesc": "This will delete the last submitted round entirely and restore player status to before that round. Unlike Undo, the course will NOT remain assigned — it returns to the pool so a different course can be picked next.",
     "yesCancelLastRound": "Yes, Cancel Round",
     "cancellingLastRound": "Cancelling...",
+    "correctFinalRoundTitle": "Correct the final round",
+    "correctFinalRoundDesc": "This phase is complete. If the last round had a mistake, undo it to reopen the phase and re-enter results — no need to reset the whole phase.",
     "courseOverrideLabel": "Course Selection (optional)",
     "randomCourse": "Random (default)",
     "manualCourseOverride": "Manual"

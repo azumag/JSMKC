@@ -791,6 +791,8 @@
     "cancelLastRoundDesc": "直前に提出したラウンドを完全に削除し、プレイヤーの状態をそのラウンド前に戻します。「取り消す」と違い、コースの割り当ても解除されるため、次回は別のコースを選択できます。",
     "yesCancelLastRound": "はい、キャンセルする",
     "cancellingLastRound": "キャンセル中...",
+    "correctFinalRoundTitle": "最終ラウンドの修正",
+    "correctFinalRoundDesc": "このフェーズは完了しています。最終ラウンドに誤りがあった場合は「直前ラウンドを取り消す」で修正できます（フェーズ全体をリセットする必要はありません）。",
     "courseOverrideLabel": "コース選択（任意）",
     "randomCourse": "ランダム（デフォルト）",
     "manualCourseOverride": "手動選択",
@@ -912,6 +914,8 @@
     "cancelLastRoundDesc": "直前に提出したラウンドを完全に削除し、プレイヤーの状態をそのラウンド前に戻します。「取り消す」と違い、コースの割り当ても解除されるため、次回は別のコースを選択できます。",
     "yesCancelLastRound": "はい、キャンセルする",
     "cancellingLastRound": "キャンセル中...",
+    "correctFinalRoundTitle": "最終ラウンドの修正",
+    "correctFinalRoundDesc": "このフェーズは完了しています。最終ラウンドに誤りがあった場合は「直前ラウンドを取り消す」で修正できます（フェーズ全体をリセットする必要はありません）。",
     "courseOverrideLabel": "コース選択（任意）",
     "randomCourse": "ランダム（デフォルト）",
     "manualCourseOverride": "手動選択"
