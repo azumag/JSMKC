@@ -209,7 +209,8 @@ export async function calculateTAQualificationPointsFromDB(
 
   // Use the same scoring algorithm as the TA qualification page (qualification-scoring.ts)
   // to ensure consistent points between the TA page and overall ranking.
-  // This uses single-floor-at-total approach (raw floats per course, Math.floor only on sum).
+  // Raw floats per course; the total is rounded once at the end, matching the
+  // CDM Excel workbook's integer display (issue #2768).
   const scoringEntries = (entries as Array<{ id: string; times: unknown; playerId: string }>).map((e) => ({
     id: e.id,
     times: e.times as Record<string, string> | null,

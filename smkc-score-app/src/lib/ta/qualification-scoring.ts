@@ -4,16 +4,26 @@
  * Implements a point-based scoring system for the Time Attack qualification stage.
  * Instead of ranking players solely by total time, each course is scored independently:
  *
- * Scoring rules:
+ * Scoring rules (aligned with the CDM Excel workbook — issue #2768):
  * - For each course, players are ranked by time (fastest first)
  * - 1st place receives 50 points, last place receives 0 points
  * - Intermediate ranks receive linearly interpolated points:
  *     points(rank) = 50 * (N - rank) / (N - 1)  where N = number of participants
  * - If only 1 participant, they receive 50 points
- * - Players who tied (same time) share the same rank and receive the same points
+ * - Players who tied (same time) share the best rank of the tie group and all
+ *   receive that rank's points, exactly like Excel's RANK() competition ranking
+ *   (e.g. two players tied fastest are both rank 1 and both get 50; the next
+ *   player is rank 3). The CDM workbook computes per-track position scores as
+ *   COUNTA(roster) - RANK(time), so averaging tied positions (the previous app
+ *   behavior) diverged from the workbook whenever a tie occurred.
  * - Players without a time for a course receive 0 points for that course
  *
- * The total qualification score is the floor of the sum of all course scores.
+ * The total qualification score is the sum of all course scores rounded to the
+ * nearest integer. The workbook keeps the raw float and displays it through an
+ * integer cell format ("0"), which rounds — so rounding (not flooring) is what
+ * reproduces the published CDM point totals. Because tied players share the
+ * min-rank score, two players with the same multiset of ranks across all 20
+ * courses are guaranteed the same total, matching the workbook.
  * Qualification ranking is determined by total qualification points (descending),
  * with total time as a tiebreaker (ascending).
  */
@@ -62,7 +72,8 @@ export interface ScoringEntry {
  * Process:
  * 1. Extract valid times for this course from all entries
  * 2. Sort by time ascending (fastest first)
- * 3. Handle ties: players with identical times share the same rank and score
+ * 3. Handle ties: players with identical times share the tie group's best rank
+ *    and all receive that rank's score (Excel RANK competition ranking)
  * 4. Generate score table based on participant count
  * 5. Assign scores; entries without a valid time receive 0 points
  *
@@ -101,7 +112,10 @@ export function calculateCourseScores(
   const scoreTable = generateScoreTable(validEntries.length);
 
   // Assign scores handling ties:
-  // Players with the same time receive the same score (averaged over tied positions)
+  // Players with the same time share the tie group's best (minimum) rank and
+  // all receive that rank's score. This mirrors Excel's RANK(), which the CDM
+  // workbook uses for its per-track position scores (issue #2768) — averaging
+  // the tied positions instead would make totals diverge from the workbook.
   let i = 0;
   while (i < validEntries.length) {
     // Find the range of entries with the same time (tie group)
@@ -110,14 +124,9 @@ export function calculateCourseScores(
       j++;
     }
 
-    // Average the scores across the tied positions for fair distribution
-    let tiedScoreSum = 0;
-    for (let k = i; k < j; k++) {
-      tiedScoreSum += scoreTable[k];
-    }
-    const tiedScore = tiedScoreSum / (j - i);
-
-    // Assign the averaged score to all tied entries
+    // scoreTable[i] is the score of the tie group's best rank (rank i+1);
+    // subsequent ranks up to j are skipped, like competition ranking.
+    const tiedScore = scoreTable[i];
     for (let k = i; k < j; k++) {
       scores.set(validEntries[k].id, tiedScore);
     }
@@ -154,7 +163,7 @@ export interface TAQualificationPointsResult {
 export interface EntryScoreResult {
   /** Per-course scores: {"MC1": 42.86, "DP1": 50, ...} */
   courseScores: Record<string, number>;
-  /** Total qualification points: floor(sum of courseScores) */
+  /** Total qualification points: round(sum of courseScores) */
   qualificationPoints: number;
 }
 
@@ -162,7 +171,7 @@ export interface EntryScoreResult {
  * Calculate scores for all 20 courses and compute total qualification points.
  *
  * Iterates through every course defined in COURSES, calculates per-course scores,
- * then sums them per entry and applies floor() to get the final qualification points.
+ * then sums them per entry and rounds to get the final qualification points.
  *
  * @param entries - All qualification entries with their times
  * @returns Map of entry ID to { courseScores, qualificationPoints }
@@ -192,10 +201,18 @@ export function calculateAllCourseScores(
     }
   }
 
-  // Compute total qualification points as floor of sum of all course scores
+  // Compute total qualification points as the rounded sum of all course scores.
+  // The CDM Excel workbook keeps the raw float total and displays it through an
+  // integer cell format, which rounds to the nearest integer; flooring here
+  // (the previous behavior) produced totals 1 point below the published Excel
+  // results whenever the raw sum had a fractional part >= 0.5 (issue #2768).
+  // Note: the workbook computes the total as (Σ(N−rank)/20)/(N−1)×1000 in one
+  // expression while we add 20 per-course floats, so bit-level float identity
+  // with Excel is not structurally guaranteed for raw sums within ~1e-12 of a
+  // .5 boundary — verified to agree on the full CDM 2025 dataset.
   for (const [entryId, result] of results) {
     const totalScore = Object.values(result.courseScores).reduce((sum, s) => sum + s, 0);
-    result.qualificationPoints = Math.floor(totalScore);
+    result.qualificationPoints = Math.round(totalScore);
     results.set(entryId, result);
   }
 
