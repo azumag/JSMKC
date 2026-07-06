@@ -3903,6 +3903,22 @@
 - **期待結果**: 後続フェーズが存在する間は前フェーズの undo/cancel を 409 で拒否し、次フェーズをリセットしてからのみ許可される。UI側（`ta-elimination-phase.tsx`）も `phaseStatus` を見て、後続フェーズが始まっていれば「最終ラウンドの修正」カードを表示しない。
 - **スクリプト**: e2e/tc-ta.js TC-2779 (`node e2e/tc-ta.js`)。ユニット: `finals-phase-manager.test.ts`(undo/cancel の `PhaseResetConflictError` ガード、phase3 はガード非実行) / `route.test.ts`(`undo_round`/`cancel_last_round` の 409 マッピング) / `ta-elimination-phase.test.tsx`(後続フェーズ開始時に修正カード非表示)
 
+## TC-3003: TA 決勝フェーズ — フェーズ完了後の「最終ラウンドの修正」カード (PR #2776, issue #2761)
+- **URL**: /tournaments/[temp-id]/ta/phase1
+- **authRequired**: true (admin)
+- **背景** (issue #2761): PR #2776 以前は、フェーズが目標人数まで解決される(`isComplete`)と、ラウンド管理カード（undo/cancelボタンを含む）が丸ごと非表示になり、最終ラウンドの入力ミスを直すには #2758 の「フェーズリセット」でフェーズ全体を消すしかなかった。#2776 は完了後専用の「最終ラウンドの修正」カードを追加し、同じ undo/cancel コントロールをそこに残す。
+- **手順**:
+  1. TA予選24名を登録し、フェーズ1(8名)まで昇格する
+  2. `completeTaSingleEliminationPhaseByApi(…, 'phase1', 4)` で phase1 を4名(生存者)まで解決する（`isComplete` が true になる）
+  3. `/tournaments/[id]/ta/phase1` を開き、通常のラウンド管理カードの「Start Round N / ラウンドN開始」ボタンが**存在しない**ことを確認する
+  4. 代わりに「Correct the final round / 最終ラウンドの修正」カードが表示されることを確認する
+  5. そのカードの「直前ラウンドを取り消す」ボタン（`uiPhaseUndoRound` 共通ヘルパー、ロール/名前で検索するためカードの位置に依存しない）を押して undo する
+  6. API で脱落者が1名復活（active entries が+1）していることを確認する
+  7. ページを再読み込みし、フェーズが再び未完了になったため「最終ラウンドの修正」カードが消えていることを確認する
+  8. クリーンアップ
+- **期待結果**: フェーズ完了後は通常のラウンド管理カードが消え、代わりに「最終ラウンドの修正」カードが同じ undo/cancel ボタンを提供する。undo するとフェーズが未完了に戻り、修正カードも消える。
+- **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-3003 (`node e2e/tc-ta.js`)。ユニット: `ta-elimination-phase.test.tsx`(admin へのカード表示 / 非adminへの非表示、PR #2776 で追加済み)
+
 ## TC-336: TA フェーズ API 構造確認 — GET /api/tournaments/[id]/ta/phases
 - **URL**: /api/tournaments/[id]/ta/phases
 - **authRequired**: false (公開GETエンドポイント)

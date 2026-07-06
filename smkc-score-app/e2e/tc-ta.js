@@ -38,6 +38,10 @@
  *           fresh (pool-consumed) course to decide 3rd place (issue #2773).
  *   TC-2779  undo/cancel of a phase's last round is rejected (409) once a later
  *           phase has been promoted from it; allowed again after reset (#2779).
+ *   TC-3003 Once a phase completes, its round-management "Start Round" card
+ *           is replaced by a dedicated "Correct the final round" card
+ *           exposing the same undo/cancel controls (#2776, closes #2761);
+ *           undoing from it restores the phase to incomplete.
  *   TC-1033 Sudden-death API payload exposes only the actionable target ids,
  *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
@@ -2673,6 +2677,63 @@ async function runTc3002(adminPage) {
   }
 }
 
+/* ───────── TC-3003: "Correct the final round" card after phase completion (#2776, closes #2761) ─────────
+ * Before this feature, the round-management card — and its undo/cancel
+ * buttons — disappeared entirely once a phase reached its target survivor
+ * count, forcing a full phase reset (#2758) to fix a mistake in the final
+ * round. This adds a dedicated post-completion card that exposes the same
+ * undo/cancel controls so the final round alone can be corrected. */
+async function runTc3003(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Final Round Correction', sharedTaPlayers(24), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+
+    // Resolve phase1 down to its 4 survivors so isComplete flips true.
+    await completeTaSingleEliminationPhaseByApi(adminPage, tournamentId, 'phase1', 4);
+    const completedPhase = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const activeBeforeUndo = (completedPhase.b?.data?.entries ?? []).filter((e) => !e.eliminated).length;
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/phase1`);
+
+    // The dedicated post-completion card must be visible in place of the
+    // normal round-management controls.
+    const correctionCard = adminPage.getByText(/Correct the final round|最終ラウンドの修正/).first();
+    const correctionCardVisible = await correctionCard.isVisible({ timeout: 15000 }).catch(() => false);
+
+    // The normal "Start Round N" control belongs to the pre-completion card
+    // and must be gone now that the phase is complete.
+    const startRoundGone = (await adminPage.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ }).count()) === 0;
+
+    // Use the shared undo helper — it locates "Undo Last Round" by role/name
+    // regardless of which card currently wraps it.
+    await uiPhaseUndoRound(adminPage, tournamentId, 'phase1');
+
+    const afterUndo = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const activeAfterUndo = (afterUndo.b?.data?.entries ?? []).filter((e) => !e.eliminated).length;
+    const playerRestored = activeAfterUndo === activeBeforeUndo + 1;
+
+    // Undoing the final round makes the phase incomplete again, so the
+    // correction card must disappear on a fresh load.
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/phase1`);
+    const correctionCardGone = await correctionCard.isVisible({ timeout: 5000 }).then((visible) => !visible).catch(() => true);
+
+    const ok = correctionCardVisible && startRoundGone && playerRestored && correctionCardGone;
+    log('TC-3003', ok ? 'PASS' : 'FAIL',
+      !correctionCardVisible ? 'final-round correction card not visible on a complete phase'
+      : !startRoundGone ? 'round-management Start Round control still visible on a complete phase'
+      : !playerRestored ? `undo did not restore eliminated player (active before=${activeBeforeUndo}, after=${activeAfterUndo})`
+      : !correctionCardGone ? 'correction card still visible after phase became incomplete again' : '');
+  } catch (err) {
+    log('TC-3003', 'FAIL', err instanceof Error ? err.message : 'TA 3003 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -2755,6 +2816,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-3001', fn: runTc3001 },
       { name: 'TC-3002', fn: runTc3002 },
       { name: 'TC-2779', fn: runTc2779 },
+      { name: 'TC-3003', fn: runTc3003 },
     ],
   };
 }
@@ -2764,7 +2826,7 @@ module.exports = {
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
   runTc2773a, runTc2773b, runTc2779,
-  runTc3001, runTc3002,
+  runTc3001, runTc3002, runTc3003,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,
