@@ -143,7 +143,13 @@
     "broadcastReflect": "Broadcast",
     "broadcastReflected": "Broadcast updated",
     "broadcastError": "Broadcast failed",
-    "broadcastTv12Only": "TV3/TV4 players are not reflected in the broadcast"
+    "broadcastTv12Only": "TV3/TV4 players are not reflected in the broadcast",
+    "roundCorrectionHelpLabel": "Explain the difference between Undo and Cancel",
+    "roundCorrectionHelpTitle": "Undo vs. Cancel — what's the difference?",
+    "roundCorrectionHelpUndoLabel": "Undo Last Round",
+    "roundCorrectionHelpUndoDesc": "Clears the results but keeps the same course assigned, so you can re-enter times after a typo. Use this when the mistake was in the times you entered.",
+    "roundCorrectionHelpCancelLabel": "Cancel Last Round",
+    "roundCorrectionHelpCancelDesc": "Deletes the round entirely and returns its course to the pool, so the next round can pick a different course. Use this when the course or round itself was the mistake."
   },
   "home": {
     "tagline": "SMKC Score Management",

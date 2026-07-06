@@ -3717,13 +3717,16 @@
 ## TC-808: TA Finals チャンピオン決定時にチャンピオンバナーが表示される
 - **URL**: /tournaments/[temp-id]/ta/finals
 - **authRequired**: true (admin)
-- **背景**: TA Finals でチャンピオンが決まったとき、ページに成功メッセージとチャンピオン名が表示されることを確認
+- **背景**: TA Finals でチャンピオンが決まったとき、ページに成功メッセージとチャンピオン名が表示されることを確認。`ta/finals/page.tsx` は `ta-elimination-phase.tsx`(phase1/2)と同じ「最終ラウンドの修正」カード＋Undo-vs-Cancel説明ポップオーバー配線を独自に複製しているが、以前はこのルートに触れるE2E/ユニットテストが皆無だったため、本セッションでチャンピオン決定後の説明ポップオーバー表示を read-only（undo/cancelは押さない）で確認するよう拡張した。
+  - **併せて発見・修正した既存の不具合**: このテストのラウンド送信ループ（rankベースの決め打ちタイム）は、#2774 のシナリオ対応サドンデス（例: 上位4名中2名が同時に最終ライフを失う「銅メダルレース」— タイムの完全一致とは無関係にライフ境界だけで発生しうる）を想定しておらず、サドンデス発生時に次の `start_round` が 400(`Unresolved sudden-death round exists`) で失敗しフレーキーになっていた（#2774マージ後に潜在化していた既存のテストギャップ、本機能追加とは無関係）。ループ内で `submit_results` 後に `tieBreakRequired` を検知したら即座に相異なるタイムで `submit_sudden_death` して解消するよう修正。
 - **手順**:
-  1. TC-806/TC-807 同様に Phase 3 を開始し、全プレイヤーが脱落するまでラウンドを入力
+  1. TC-806/TC-807 同様に Phase 3 を開始し、全プレイヤーが脱落するまでラウンドを入力（サドンデスが発生したら都度、相異なるタイムで即時解決してから次ラウンドへ進む）
   2. 最後のプレイヤーが残った時点で `/ta/finals` ページを更新
   3. 「Champion」バナーまたはテキストが表示されていることを確認
-  4. クリーンアップ
-- **期待結果**: チャンピオン決定時に Champion バナー/テキストがページに表示される
+  4. 説明アイコンボタン(`Explain the difference between Undo and Cancel` / 「取り消す」と「キャンセル」の違いを説明)が表示されクリックでポップオーバーが開くことを確認（read-only。共有フィクスチャの状態を壊さないため undo/cancel は押さない）
+  5. クリーンアップ
+- **期待結果**: チャンピオン決定時に Champion バナー/テキストがページに表示され、Undo-vs-Cancel説明ポップオーバーも開く
+- **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-808 (`node e2e/tc-ta.js`)
 
 ## TC-TA-FLOW-24: 24名 TA full lifecycle
 - **URL**: /tournaments/[temp-id]/ta, /ta/phase1, /ta/phase2, /ta/finals
@@ -3906,18 +3909,19 @@
 ## TC-3003: TA 決勝フェーズ — フェーズ完了後の「最終ラウンドの修正」カード (PR #2776, issue #2761)
 - **URL**: /tournaments/[temp-id]/ta/phase1
 - **authRequired**: true (admin)
-- **背景** (issue #2761): PR #2776 以前は、フェーズが目標人数まで解決される(`isComplete`)と、ラウンド管理カード（undo/cancelボタンを含む）が丸ごと非表示になり、最終ラウンドの入力ミスを直すには #2758 の「フェーズリセット」でフェーズ全体を消すしかなかった。#2776 は完了後専用の「最終ラウンドの修正」カードを追加し、同じ undo/cancel コントロールをそこに残す。
+- **背景** (issue #2761): PR #2776 以前は、フェーズが目標人数まで解決される(`isComplete`)と、ラウンド管理カード（undo/cancelボタンを含む）が丸ごと非表示になり、最終ラウンドの入力ミスを直すには #2758 の「フェーズリセット」でフェーズ全体を消すしかなかった。#2776 は完了後専用の「最終ラウンドの修正」カードを追加し、同じ undo/cancel コントロールをそこに残す。さらに本セッションで、「取り消す」と「キャンセル」の違いが分かりにくいというフィードバックを受け、両ボタンの横に説明ポップオーバー(`RoundCorrectionHelp`, info アイコン)を追加した(誤クリック防止のため、破壊的操作のボタンとは別行・別スタイルで独立させている)。
 - **手順**:
   1. TA予選24名を登録し、フェーズ1(8名)まで昇格する
   2. `completeTaSingleEliminationPhaseByApi(…, 'phase1', 4)` で phase1 を4名(生存者)まで解決する（`isComplete` が true になる）
   3. `/tournaments/[id]/ta/phase1` を開き、通常のラウンド管理カードの「Start Round N / ラウンドN開始」ボタンが**存在しない**ことを確認する
   4. 代わりに「Correct the final round / 最終ラウンドの修正」カードが表示されることを確認する
-  5. そのカードの「直前ラウンドを取り消す」ボタン（`uiPhaseUndoRound` 共通ヘルパー、ロール/名前で検索するためカードの位置に依存しない）を押して undo する
-  6. API で脱落者が1名復活（active entries が+1）していることを確認する
-  7. ページを再読み込みし、フェーズが再び未完了になったため「最終ラウンドの修正」カードが消えていることを確認する
-  8. クリーンアップ
-- **期待結果**: フェーズ完了後は通常のラウンド管理カードが消え、代わりに「最終ラウンドの修正」カードが同じ undo/cancel ボタンを提供する。undo するとフェーズが未完了に戻り、修正カードも消える。
-- **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-3003 (`node e2e/tc-ta.js`)。ユニット: `ta-elimination-phase.test.tsx`(admin へのカード表示 / 非adminへの非表示、PR #2776 で追加済み)
+  5. 説明アイコンボタン(`Explain the difference between Undo and Cancel` / 「取り消す」と「キャンセル」の違いを説明)をクリックし、Undo/Cancelの違いを説明するポップオーバーが開くことを確認する
+  6. そのカードの「直前ラウンドを取り消す」ボタン（`uiPhaseUndoRound` 共通ヘルパー、ロール/名前で検索するためカードの位置に依存しない）を押して undo する
+  7. API で脱落者が1名復活（active entries が+1）していることを確認する
+  8. ページを再読み込みし、フェーズが再び未完了になったため「最終ラウンドの修正」カードが消えていることを確認する
+  9. クリーンアップ
+- **期待結果**: フェーズ完了後は通常のラウンド管理カードが消え、代わりに「最終ラウンドの修正」カードが同じ undo/cancel ボタン＋説明ポップオーバーを提供する。undo するとフェーズが未完了に戻り、修正カードも消える。
+- **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-3003 (`node e2e/tc-ta.js`)。ユニット: `ta-elimination-phase.test.tsx`(admin へのカード表示 / 非adminへの非表示、PR #2776 で追加済み。説明アイコンの表示は本セッションで追加)、`round-correction-help.test.tsx`(トリガー/ポップオーバー内容、本セッションで新規追加)
 
 ## TC-336: TA フェーズ API 構造確認 — GET /api/tournaments/[id]/ta/phases
 - **URL**: /api/tournaments/[id]/ta/phases

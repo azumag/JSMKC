@@ -143,7 +143,13 @@
     "broadcastReflect": "配信に反映",
     "broadcastReflected": "配信に反映しました",
     "broadcastError": "配信に失敗しました",
-    "broadcastTv12Only": "TV3/TV4 のプレイヤーは配信に反映されません"
+    "broadcastTv12Only": "TV3/TV4 のプレイヤーは配信に反映されません",
+    "roundCorrectionHelpLabel": "「取り消す」と「キャンセル」の違いを説明",
+    "roundCorrectionHelpTitle": "「取り消す」と「キャンセル」の違い",
+    "roundCorrectionHelpUndoLabel": "直前ラウンドを取り消す",
+    "roundCorrectionHelpUndoDesc": "結果だけを消去し、同じコースの割り当てはそのまま残します。入力ミスを訂正して同じコースでタイムを入力し直したい場合に使います。",
+    "roundCorrectionHelpCancelLabel": "直前ラウンドをキャンセル",
+    "roundCorrectionHelpCancelDesc": "ラウンドを完全に削除し、コースをプールに戻します。次のラウンドで別のコースを選び直せます。コースやラウンド自体が間違いだった場合に使います。"
   },
   "home": {
     "tagline": "SMKC スコア管理",
