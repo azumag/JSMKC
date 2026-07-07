@@ -59,6 +59,10 @@ import {
   compareQualificationRankOrder,
   type EntryWithTotal,
 } from "@/lib/ta/rank-calculation";
+import {
+  orderResultsWithSuddenDeathChain,
+  type CourseResult,
+} from "@/lib/ta/finals-phase-manager";
 import { createLogger } from "@/lib/logger";
 import { TT_FINALS_MAX_ROUNDS, TT_FINALS_MAX_FINALISTS } from "../cdm-constants";
 
@@ -191,8 +195,19 @@ export function replayTTFinals(data: CdmTournamentData): TTFinalsReplayRound[] {
       }
     }
 
+    // --- This round's fully resolved order (raw time, overridden by any
+    // sudden-death chain tied to it) — feeds ONLY the phase-3 bottom-half
+    // determination below, never row/display order (see assignRowOrders for
+    // why: the template's own formulas recompute row order from raw time
+    // independently and cannot see this).
+    const resolvedOrder = buildResolvedOrder(results, round.suddenDeathRounds, {
+      logger,
+      phase,
+      roundNumber: round.roundNumber,
+    });
+
     // --- Who lost a life this round. ---
-    const lostLife = computeLostLife(phase, round, participants, results);
+    const lostLife = computeLostLife(phase, round, participants, results, resolvedOrder);
 
     // --- Detect a life reset for this round (phase-3 only, after the loss). ---
     const isResetRound = phase === "phase3" && detectLivesReset(round);
@@ -320,25 +335,27 @@ function orderPhaseRounds(phaseRounds: CdmTTPhaseRound[]): OrderedRound[] {
  * was eliminated) nobody loses a life.
  *
  * Phase 3: the entire bottom half of the round's runners loses a life,
- * replicating processPhase3Result's `sorted.slice(Math.ceil(n/2))` selection by
- * time ascending. `eliminatedIds` is the engine's capped *elimination* set,
- * which is a subset of the life-losers, so it cannot be used here.
+ * replicating processPhase3Result's `sorted.slice(Math.ceil(n/2))` selection —
+ * by the round's fully resolved order (raw time, overridden by any
+ * sudden-death chain tied to the round; see buildResolvedOrder), exactly as
+ * processPhase3Result itself sorts via comparePhase3CourseResults(resolvedOrder).
+ * `eliminatedIds` is the engine's capped *elimination* set, which is a subset
+ * of the life-losers, so it cannot be used here.
  */
 function computeLostLife(
   phase: FinalsPhase,
   round: CdmTTPhaseRound,
   participants: Map<string, number | null>,
   results: ResultRow[],
+  resolvedOrder: Map<string, number>,
 ): Set<string> {
   if (phase === "phase1" || phase === "phase2") {
     const eliminated = parseStringArray(round.eliminatedIds);
     return new Set(eliminated.filter((id) => participants.has(id)));
   }
 
-  // Phase 3: bottom half by ascending time. Only runners present in the
-  // universe participate in the ranking; a runner with no time (null) is
-  // treated as slowest (Number.POSITIVE_INFINITY), matching how a missing time
-  // would sort last and how the retry penalty pushes a runner to the bottom.
+  // Phase 3: bottom half by the round's resolved order. Only runners present
+  // in the universe participate in the ranking.
   const runners = results.filter((r) => participants.has(r.playerId));
   if (runners.length < 2) {
     // With 0 or 1 runner there is no bottom half to penalise (mirrors the
@@ -346,7 +363,7 @@ function computeLostLife(
     return new Set();
   }
   const sorted = [...runners].sort(
-    (a, b) => timeForSort(a.timeMs) - timeForSort(b.timeMs),
+    (a, b) => (resolvedOrder.get(a.playerId) ?? 0) - (resolvedOrder.get(b.playerId) ?? 0),
   );
   const halfwayPoint = Math.ceil(sorted.length / 2);
   return new Set(sorted.slice(halfwayPoint).map((r) => r.playerId));
@@ -402,6 +419,21 @@ function assignRowOrders(
     round.inputRowOrder = inputOrder;
 
     // --- display order: stable sort of input order by this round's Time ASC ---
+    // Deliberately raw time, NOT resolvedOrder: the template's own row/name
+    // formula (sheet4.xml H3/U3 etc: SORTBY(names, rawTimeColumn)) recomputes
+    // this independently from the raw Time cell every time the workbook
+    // opens — it has no way to read this array's order. Sorting rows here by
+    // anything other than raw time would desync this replay's bookkeeping
+    // (lostLife → row position, round r+1's inputRowOrder) from what Excel
+    // will actually display, which is strictly worse than not fixing the
+    // display order at all (verified: for an exact-time tie it flips which
+    // *name* Excel renders on the row the sudden-death-aware Lost flag was
+    // written to). The sudden-death outcome cannot move a player between
+    // rows here; only computeLostLife's set membership uses it. See
+    // docs/cdm-export-design.md §3.5's accepted limitation: final-block
+    // order among tied-lives eliminated players is an approximation by
+    // template design, and the app (not the sheet) is authoritative for
+    // confirmed placement.
     round.displayRowOrder = stableSort(inputOrder, (id) => {
       const t = round.participants.get(id);
       // Non-runner (absent from participants) → Time 0 (sheet writes 0).
@@ -463,4 +495,70 @@ function parseRoundResults(
 function parseStringArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((x): x is string => typeof x === "string");
+}
+
+/** Parse a resolved TTPhaseSuddenDeathRound.results JSON value (defensive). */
+function parseSuddenDeathResults(
+  raw: unknown,
+  context?: { logger: ReturnType<typeof createLogger>; phase: FinalsPhase; roundNumber: number; sequence: number },
+): CourseResult[] {
+  if (!Array.isArray(raw)) return [];
+  const rows: CourseResult[] = [];
+  for (const item of raw) {
+    const playerId = item && typeof item === "object" && "playerId" in item
+      ? (item as { playerId: unknown }).playerId
+      : undefined;
+    const timeMs = item && typeof item === "object" && "timeMs" in item
+      ? (item as { timeMs: unknown }).timeMs
+      : undefined;
+    if (typeof playerId === "string" && typeof timeMs === "number" && Number.isFinite(timeMs)) {
+      rows.push({ playerId, timeMs });
+    } else {
+      context?.logger.warn(
+        `TT Finals ${context.phase} round ${context.roundNumber}: malformed sudden-death result at sequence ${context.sequence}; ignoring entry`,
+      );
+    }
+  }
+  return rows;
+}
+
+/**
+ * Build this round's fully resolved finishing order: the base results
+ * reordered by any sudden-death chain tied to the round (life-loss/bronze/
+ * revival ties, issue #2773), oldest sequence first — matching exactly how
+ * submitSuddenDeathResults (finals-phase-manager.ts) itself orders a base
+ * round once its tiebreak(s) resolve. Degrades to plain ascending-time order
+ * when the round has no sudden-death rounds (the common case), since
+ * orderResultsWithSuddenDeathChain falls back to raw time for any pair that
+ * never raced together.
+ *
+ * Used ONLY for the phase-3 bottom-half (lostLife) determination — NOT for
+ * row/display order (assignRowOrders), because the template's own row/name
+ * formula (sheet4.xml: SORTBY(names, rawTimeColumn)) recomputes row order
+ * from the raw Time cell independently every time the workbook opens; it has
+ * no way to read this resolved order, so using it for display order would
+ * only desync this replay's bookkeeping from what Excel actually renders
+ * (verified empirically: for an exact-time tie it flips which name lands on
+ * the row the Lost flag was written to — worse than the original bug).
+ * Fixes the real, ID-keyed part of the bug reported via manual CDM replica
+ * testing: a sudden death can move a player across the elimination boundary,
+ * not just reorder them within an already-fixed bottom half. The reported
+ * *display* order for tied-lives eliminated players remains an accepted
+ * template limitation (docs/cdm-export-design.md §3.5).
+ */
+function buildResolvedOrder(
+  results: ResultRow[],
+  suddenDeathRounds: { sequence: number; results: unknown }[] | undefined,
+  context: { logger: ReturnType<typeof createLogger>; phase: FinalsPhase; roundNumber: number },
+): Map<string, number> {
+  const chain = [...(suddenDeathRounds ?? [])]
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((sd) => parseSuddenDeathResults(sd.results, { ...context, sequence: sd.sequence }))
+    .filter((sdResults) => sdResults.length > 0);
+  const baseResults: CourseResult[] = results.map((r) => ({
+    playerId: r.playerId,
+    timeMs: timeForSort(r.timeMs),
+  }));
+  const ordered = orderResultsWithSuddenDeathChain(baseResults, chain);
+  return new Map(ordered.map((r, i) => [r.playerId, i]));
 }

@@ -121,6 +121,19 @@ export interface CdmTTPhaseRound {
   results: unknown; // [{playerId, timeMs, isRetry}]
   eliminatedIds?: unknown; // playerId[]
   livesReset: boolean;
+  /**
+   * Resolved sudden-death rounds tied to this base round, oldest first
+   * (TTPhaseSuddenDeathRound.sequence ascending). A base round can accumulate
+   * more than one (e.g. a life-loss tie followed by a bronze race, issue
+   * #2773) — the replay must use the full chain, not just the latest, or it
+   * mis-ranks pairs the later sudden death never raced against each other.
+   */
+  suddenDeathRounds?: CdmTTPhaseSuddenDeathRound[];
+}
+
+export interface CdmTTPhaseSuddenDeathRound {
+  sequence: number;
+  results: unknown; // CourseResult[] once resolved: [{playerId, timeMs}]
 }
 
 /** Everything the generator needs; assembled by the export route from prisma. */

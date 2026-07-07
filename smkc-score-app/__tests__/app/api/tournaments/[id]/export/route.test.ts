@@ -300,7 +300,15 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
           ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
           mrQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
           gpQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-          ttPhaseRounds: true,
+          ttPhaseRounds: {
+            include: {
+              suddenDeathRounds: {
+                where: { resolved: true },
+                orderBy: { sequence: 'asc' },
+                select: { sequence: true, results: true },
+              },
+            },
+          },
         },
       });
       expect(global.fetch).toBeUndefined();

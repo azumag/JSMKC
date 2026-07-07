@@ -98,6 +98,11 @@ type CdmTtEntryRow = {
   rank?: number | null;
 };
 
+type CdmTtSuddenDeathRoundRow = {
+  sequence: number;
+  results: unknown;
+};
+
 type CdmTtPhaseRoundRow = {
   phase: string;
   roundNumber: number;
@@ -105,6 +110,7 @@ type CdmTtPhaseRoundRow = {
   results: unknown;
   eliminatedIds?: unknown;
   livesReset: boolean;
+  suddenDeathRounds?: CdmTtSuddenDeathRoundRow[];
 };
 
 type CdmTournamentRow = {
@@ -171,7 +177,23 @@ const CDM_EXPORT_INCLUDE = {
   ...BASE_EXPORT_INCLUDE,
   mrQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
   gpQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-  ttPhaseRounds: true,
+  ttPhaseRounds: {
+    include: {
+      /*
+       * Resolved sudden-death outcomes for the base round (life-loss/bronze/
+       * revival ties, #2773/#2774): without these, the TT Finals replay
+       * (tt-lives-replay.ts) falls back to the base round's raw time, which
+       * can disagree with the actual tiebreak result and mis-rank a player
+       * who lost a sudden death but happened to be faster on the main
+       * course that round (issue reported via manual CDM replica testing).
+       */
+      suddenDeathRounds: {
+        where: { resolved: true },
+        orderBy: { sequence: "asc" as const },
+        select: { sequence: true, results: true },
+      },
+    },
+  },
 };
 
 async function loadCDMTemplate(request: Request): Promise<
@@ -307,6 +329,10 @@ function mapTtPhaseRound(round: CdmTtPhaseRoundRow): CdmTTPhaseRound {
     results: round.results,
     eliminatedIds: round.eliminatedIds,
     livesReset: round.livesReset,
+    suddenDeathRounds: round.suddenDeathRounds?.map((sd) => ({
+      sequence: sd.sequence,
+      results: sd.results,
+    })),
   };
 }
 
