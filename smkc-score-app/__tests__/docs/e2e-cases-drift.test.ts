@@ -1203,7 +1203,12 @@ describe('E2E case drift coverage', () => {
     expect(exportRoute).toContain('include: BASE_EXPORT_INCLUDE');
     expect(exportRouteTest).toContain('should export tournament data with summary section');
     expect(exportRouteTest).toContain('should export a populated CDM macro workbook when requested');
-    expect(exportRouteTest).toContain('ttPhaseRounds: true');
+    // ttPhaseRounds gained a nested suddenDeathRounds include (issue: CDM
+    // export ignored sudden-death outcomes when replaying TT Finals life
+    // loss) — was a bare `ttPhaseRounds: true`, now fetches the resolved
+    // sudden-death chain the replay needs.
+    expect(exportRoute).toContain('suddenDeathRounds:');
+    expect(exportRouteTest).toContain('suddenDeathRounds:');
     // The CDM include carries MR/GP qualification seeds and TT phase rounds, but
     // NOT playerScores: the Overall Ranking sheet is formula-driven and the
     // rewritten exporter never writes it (design §3.6).
