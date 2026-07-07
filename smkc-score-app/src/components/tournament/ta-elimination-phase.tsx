@@ -1126,7 +1126,11 @@ export default function TAEliminationPhase({
                       ? tElim('completeOpenRound')
                       : tElim('startRound', { number: rounds.length + 1 })}
                 </Button>
-                {roundCorrectionButtons}
+                {/* Hide undo/cancel once a later phase has been promoted (issue
+                    #2781): the server-side assertNoLaterPhaseEntries guard already
+                    rejects this, but the in-progress-phase card lacked the same
+                    UI-level defense that the completed-phase card below has. */}
+                {!laterPhaseStarted && roundCorrectionButtons}
               </div>
             </CardContent>
           </Card>

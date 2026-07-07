@@ -76,6 +76,24 @@ describe('createPlayerWithRetry', () => {
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 800);
   });
 
+  // Issue #2756: the FINAL retry attempt (attempt=2, the 3rd and last call
+  // before exhaustion) recovering via a 409 was untested. Confirms the
+  // recovered-success behavior holds at the retry-count boundary, not just
+  // on the second-attempt case above.
+  it('treats a 409 on the FINAL retry attempt as a recovered success', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse(500, { success: false, error: 'worker crashed' }))
+      .mockResolvedValueOnce(jsonResponse(500, { success: false, error: 'worker crashed again' }))
+      .mockResolvedValueOnce(
+        jsonResponse(409, { success: false, error: 'A player with this nickname already exists' }),
+      );
+
+    const result = await createPlayerWithRetry(FORM);
+
+    expect(result).toEqual({ ok: true, recovered: true, data: {} });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
   it('returns the created player and temporary password on a normal 201 success', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse(201, {

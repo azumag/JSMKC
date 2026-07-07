@@ -23,6 +23,7 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
 import { createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
+import { resolveCountryCode } from "@/lib/countries";
 
 /**
  * GET /api/players
@@ -236,11 +237,20 @@ export async function POST(request: NextRequest) {
     // Create the player record in the database.
     // Omit password hash from the returned object — the plaintext is
     // returned separately and the hash must never leave the server.
+    // Normalize to an ISO alpha-2 code server-side (issue #2766): the
+    // players form already does this client-side via resolveCountryCode(),
+    // but a direct API call bypassing the UI could otherwise persist an
+    // arbitrary free-form string. Anything that doesn't resolve is dropped
+    // to null rather than stored as-is — CountryFlag already hides
+    // unresolvable codes, so this only prevents bad data from reaching
+    // country-based aggregation/export features.
+    const normalizedCountry = resolveCountryCode(country) ?? null;
+
     const player = await prisma.player.create({
       data: {
         name,
         nickname,
-        country: country || null,
+        country: normalizedCountry,
         noCamera: noCamera === true,
         password: hashedPassword,
       },
@@ -257,7 +267,7 @@ export async function POST(request: NextRequest) {
         action: AUDIT_ACTIONS.CREATE_PLAYER,
         targetId: player.id,
         targetType: 'Player',
-        details: { name, nickname, country, passwordGenerated: true },
+        details: { name, nickname, country: normalizedCountry, passwordGenerated: true },
       }).catch((err) => logger.warn('Failed to create audit log', {
         error: err,
         playerId: player.id,

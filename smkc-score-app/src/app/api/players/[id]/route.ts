@@ -16,6 +16,7 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 import { createSuccessResponse, createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
+import { resolveCountryCode } from "@/lib/countries";
 
 /**
  * GET /api/players/:id
@@ -104,6 +105,11 @@ export async function PUT(
       return handleValidationError("Name and nickname are required");
     }
 
+    // Normalize to an ISO alpha-2 code server-side (issue #2766) — see the
+    // matching comment in POST /api/players for why this can't be trusted
+    // to client-side resolveCountryCode() alone.
+    const normalizedCountry = resolveCountryCode(country) ?? null;
+
     // Update the player record in the database.
     // Omit password hash from the returned object.
     const player = await prisma.player.update({
@@ -111,7 +117,7 @@ export async function PUT(
       data: {
         name,
         nickname,
-        country: country || null,
+        country: normalizedCountry,
         noCamera: noCamera === true,
       },
     });
@@ -130,7 +136,7 @@ export async function PUT(
         details: {
           name,
           nickname,
-          country,
+          country: normalizedCountry,
         },
       }).catch((err) => logger.warn('Failed to create audit log', {
         error: err,

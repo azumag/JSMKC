@@ -199,12 +199,17 @@ export function replayTTFinals(data: CdmTournamentData): TTFinalsReplayRound[] {
     // sudden-death chain tied to it) — feeds ONLY the phase-3 bottom-half
     // determination below, never row/display order (see assignRowOrders for
     // why: the template's own formulas recompute row order from raw time
-    // independently and cannot see this).
-    const resolvedOrder = buildResolvedOrder(results, round.suddenDeathRounds, {
-      logger,
-      phase,
-      roundNumber: round.roundNumber,
-    });
+    // independently and cannot see this). Phase 1/2 use eliminatedIds instead
+    // (computeLostLife's early branch), so skip the computation there — it
+    // would otherwise be built and discarded on every phase1/phase2 round
+    // (issue #2784).
+    const resolvedOrder = phase === "phase3"
+      ? buildResolvedOrder(results, round.suddenDeathRounds, {
+          logger,
+          phase,
+          roundNumber: round.roundNumber,
+        })
+      : new Map<string, number>();
 
     // --- Who lost a life this round. ---
     const lostLife = computeLostLife(phase, round, participants, results, resolvedOrder);

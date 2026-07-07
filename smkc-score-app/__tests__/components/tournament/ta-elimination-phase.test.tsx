@@ -331,4 +331,47 @@ describe('TAEliminationPhase — main render', () => {
     expect(screen.queryByText('Correct the final round')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Undo Last Round' })).not.toBeInTheDocument();
   });
+
+  /* Issue #2781: the completed-phase card above already hides its undo/cancel
+   * buttons once a later phase is promoted, but the round-management card
+   * shown while the phase is still IN PROGRESS (isComplete=false — e.g. an
+   * admin promoted phase2 early, before phase1 actually finished) rendered
+   * the same buttons unguarded. The server still rejects the request with a
+   * 409, but the UI-level defense-in-depth was missing on this branch. */
+  it('hides the round-management undo/cancel buttons once a later phase has started, even while the phase is still in progress', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          entries: [
+            makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario' }),
+            makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi' }),
+            makeEntry({ id: 'e-3', playerId: 'p-3', nickname: 'Yoshi' }),
+            makeEntry({ id: 'e-4', playerId: 'p-4', nickname: 'Toad' }),
+            makeEntry({ id: 'e-5', playerId: 'p-5', nickname: 'Bowser' }),
+          ],
+          // One completed round but all 5 players still active (targetSurvivors=4)
+          // so isComplete is false and the round-management card renders.
+          rounds: [{
+            id: 'r-1', phase: 'phase1', roundNumber: 1, course: 'GV1',
+            results: [{ playerId: 'p-1', timeMs: 60000, isRetry: false }],
+            eliminatedIds: null, livesReset: false, manualOverride: false,
+          }],
+          availableCourses: ['GV2'],
+          playedCourses: ['GV1'],
+          // phase2 has already been promoted (early promotion scenario).
+          phaseStatus: { phase1: { total: 5, active: 5, eliminated: 0 }, phase2: { total: 8, active: 8, eliminated: 0 }, phase3: null },
+        },
+      }),
+    });
+
+    render(<TAEliminationPhase {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Start Round/ })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Undo Last Round' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel Last Round (Free Course)' })).not.toBeInTheDocument();
+  });
 });

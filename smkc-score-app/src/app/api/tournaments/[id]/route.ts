@@ -295,39 +295,17 @@ export async function PUT(
       }
     }
 
-    // Validate status changes against the lifecycle map. The transition is
-    // checked against the *current* status, so this costs one extra read —
-    // but only when `status` is part of the body (a rare admin operation).
-    // NOTE: the read and the update below are not atomic (D1 has no
-    // interactive transactions), so two concurrent admin PUTs can race past
-    // this check. Acceptable for a rare, admin-only operation.
+    // Validate the requested status value itself (pure, no DB read) against
+    // the lifecycle map before touching the database.
     if (status !== undefined) {
       if (
         typeof status !== "string" ||
         // Object.hasOwn (not `in`): prototype keys like "toString" must not
-        // pass value validation and leak into the DB read below.
+        // pass value validation and leak into the DB query below.
         !Object.hasOwn(ALLOWED_STATUS_TRANSITIONS, status)
       ) {
-        // Unknown value: reject before touching the database.
         return handleValidationError(
           `status must be one of: ${Object.keys(ALLOWED_STATUS_TRANSITIONS).join(", ")}`,
-          "status"
-        );
-      }
-
-      const current = await prisma.tournament.findUnique({
-        where: { id: resolvedId },
-        select: { status: true },
-      });
-      if (!current) {
-        return createErrorResponse("Tournament not found", 404);
-      }
-      if (
-        current.status !== status &&
-        !ALLOWED_STATUS_TRANSITIONS[current.status]?.includes(status)
-      ) {
-        return handleValidationError(
-          `Cannot change tournament status from "${current.status}" to "${status}"`,
           "status"
         );
       }
@@ -336,34 +314,81 @@ export async function PUT(
     // Use spread conditionals to only update fields that were provided.
     // This prevents accidentally nullifying fields that weren't included
     // in the request body.
-    const tournament = await prisma.tournament.update({
-      where: { id: resolvedId },
-      data: {
-        ...(name && { name }),
-        ...(slug !== undefined && { slug }),
-        ...(date && { date: new Date(date) }),
-        ...(status && { status }),
-        ...(frozenStages !== undefined && { frozenStages }),
-        ...(taPlayerSelfEdit !== undefined && { taPlayerSelfEdit: taPlayerSelfEdit === true }),
-        // Per-mode qualification confirmed flags (issue #696).
-        // qualificationConfirmedAt is updated whenever any mode is confirmed so the
-        // overlay event system (overlay-events/route.ts) continues to fire correctly.
-        ...(bmQualificationConfirmed !== undefined && {
-          bmQualificationConfirmed: bmQualificationConfirmed === true,
-          ...(bmQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
-        }),
-        ...(mrQualificationConfirmed !== undefined && {
-          mrQualificationConfirmed: mrQualificationConfirmed === true,
-          ...(mrQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
-        }),
-        ...(gpQualificationConfirmed !== undefined && {
-          gpQualificationConfirmed: gpQualificationConfirmed === true,
-          ...(gpQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
-        }),
-        ...(publicModes !== undefined && { publicModes }),
-        ...(debugMode !== undefined && { debugMode: debugMode === true }),
-      },
-    });
+    const updateData = {
+      ...(name && { name }),
+      ...(slug !== undefined && { slug }),
+      ...(date && { date: new Date(date) }),
+      ...(status && { status }),
+      ...(frozenStages !== undefined && { frozenStages }),
+      ...(taPlayerSelfEdit !== undefined && { taPlayerSelfEdit: taPlayerSelfEdit === true }),
+      // Per-mode qualification confirmed flags (issue #696).
+      // qualificationConfirmedAt is updated whenever any mode is confirmed so the
+      // overlay event system (overlay-events/route.ts) continues to fire correctly.
+      ...(bmQualificationConfirmed !== undefined && {
+        bmQualificationConfirmed: bmQualificationConfirmed === true,
+        ...(bmQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
+      }),
+      ...(mrQualificationConfirmed !== undefined && {
+        mrQualificationConfirmed: mrQualificationConfirmed === true,
+        ...(mrQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
+      }),
+      ...(gpQualificationConfirmed !== undefined && {
+        gpQualificationConfirmed: gpQualificationConfirmed === true,
+        ...(gpQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
+      }),
+      ...(publicModes !== undefined && { publicModes }),
+      ...(debugMode !== undefined && { debugMode: debugMode === true }),
+    };
+
+    let tournament;
+    if (status !== undefined) {
+      // Fold the "is this transition allowed from the CURRENT status" check
+      // into the write itself via a conditional updateMany, instead of a
+      // separate findUnique-then-update (issue #2761): D1 has no interactive
+      // transactions, so a read-then-write pair leaves a window where a
+      // concurrent PUT can change the status in between, letting a
+      // since-invalidated transition slip through. Scoping the WHERE clause
+      // to the set of statuses this transition is valid from makes the guard
+      // atomic with the write — count===0 means either the row doesn't exist
+      // or its status raced away from under us, exactly like the DELETE
+      // handler's deleteMany-then-disambiguate pattern below.
+      const allowedSourceStatuses = new Set<string>([status]);
+      for (const [from, tos] of Object.entries(ALLOWED_STATUS_TRANSITIONS)) {
+        if (tos.includes(status)) allowedSourceStatuses.add(from);
+      }
+
+      const updateResult = await prisma.tournament.updateMany({
+        where: { id: resolvedId, status: { in: [...allowedSourceStatuses] } },
+        data: updateData,
+      });
+
+      if (updateResult.count === 0) {
+        const current = await prisma.tournament.findUnique({
+          where: { id: resolvedId },
+          select: { status: true },
+        });
+        if (!current) {
+          return createErrorResponse("Tournament not found", 404);
+        }
+        return handleValidationError(
+          `Cannot change tournament status from "${current.status}" to "${status}"`,
+          "status"
+        );
+      }
+
+      tournament = await prisma.tournament.findUnique({ where: { id: resolvedId } });
+      if (!tournament) {
+        // Row vanished between the successful updateMany and this read
+        // (e.g. a concurrent delete). Vanishingly unlikely, but report it
+        // as "not found" rather than crashing on a null response body.
+        return createErrorResponse("Tournament not found", 404);
+      }
+    } else {
+      tournament = await prisma.tournament.update({
+        where: { id: resolvedId },
+        data: updateData,
+      });
+    }
 
     if (status === "completed") {
       try {
