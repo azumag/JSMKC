@@ -62,7 +62,7 @@ function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unkno
   };
 }
 
-type PhaseEntryForDisplay = {
+export type PhaseEntryForDisplay = {
   playerId: string;
   eliminated: boolean;
   lives: number;
@@ -70,7 +70,7 @@ type PhaseEntryForDisplay = {
   totalTime: number | null;
 };
 
-type PhaseRoundForDisplay = {
+export type PhaseRoundForDisplay = {
   roundNumber: number;
   results: Array<{ playerId: string; timeMs: number }>;
   eliminatedIds: string[];
@@ -83,7 +83,7 @@ function compareNullableNumber(a: number | null, b: number | null) {
   return a - b;
 }
 
-function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
+export function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
   entries: T[],
   rounds: PhaseRoundForDisplay[]
 ): T[] {
@@ -117,12 +117,22 @@ function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
     const aRound = aMeta?.roundNumber ?? -1;
     const bRound = bMeta?.roundNumber ?? -1;
     if (aRound !== bRound) return bRound - aRound;
-    if ((aMeta?.timeMs ?? Number.POSITIVE_INFINITY) !== (bMeta?.timeMs ?? Number.POSITIVE_INFINITY)) {
-      return (aMeta?.timeMs ?? Number.POSITIVE_INFINITY) - (bMeta?.timeMs ?? Number.POSITIVE_INFINITY);
-    }
-    // eliminatedIds preserves the authoritative same-round display order when timeMs is tied.
+    // eliminatedIds is the authoritative same-round order: processPhase3Result
+    // (finals-phase-manager.ts) builds it by iterating results already sorted
+    // through comparePhase3CourseResults/resolvedOrder — the full sudden-death
+    // chain (life-loss/bronze/revival ties, issue #2773) when one resolved this
+    // round. This MUST be checked before raw time: a bronze race's two
+    // contestants need not have equal times (detectPhase3BronzeTargets doesn't
+    // require it), so falling back to raw time first — as this used to — silently
+    // discards the resolved outcome whenever the pair's main-course times merely
+    // happen to differ, which is the common case, not an edge case (reported via
+    // manual replica testing: a bronze-race loser who was faster on the main
+    // course still showed 3rd, ahead of the winner).
     if ((aMeta?.index ?? Number.POSITIVE_INFINITY) !== (bMeta?.index ?? Number.POSITIVE_INFINITY)) {
       return (aMeta?.index ?? Number.POSITIVE_INFINITY) - (bMeta?.index ?? Number.POSITIVE_INFINITY);
+    }
+    if ((aMeta?.timeMs ?? Number.POSITIVE_INFINITY) !== (bMeta?.timeMs ?? Number.POSITIVE_INFINITY)) {
+      return (aMeta?.timeMs ?? Number.POSITIVE_INFINITY) - (bMeta?.timeMs ?? Number.POSITIVE_INFINITY);
     }
     const rankCompare = compareNullableNumber(a.rank, b.rank);
     if (rankCompare !== 0) return rankCompare;

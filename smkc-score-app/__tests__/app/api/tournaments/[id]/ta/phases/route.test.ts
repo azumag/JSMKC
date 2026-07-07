@@ -1464,3 +1464,66 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     });
   });
 });
+
+/**
+ * Unit tests for sortPhaseEntriesForDisplay (TC-3007–TC-3008).
+ *
+ * Reported via manual "CDM 2025 replica" testing (ASMKC 2025 top-4 replay):
+ * a phase-3 bronze-medal sudden-death race LOSER was still shown ranked 3rd,
+ * ahead of the winner, on the live TA Standings tables (ta/finals/page.tsx
+ * and ta-elimination-phase.tsx both derive their row order from this GET
+ * endpoint's response). Root cause: this function compared same-round-
+ * eliminated pairs by raw course time BEFORE consulting eliminatedIds' array
+ * order — but a bronze race need not tie on raw time (detectPhase3BronzeTargets,
+ * finals-phase-manager.ts, doesn't require it), so the correctly sudden-death-
+ * resolved eliminatedIds order was silently discarded whenever the pair's
+ * main-course times merely differed, which is the common case.
+ */
+describe('sortPhaseEntriesForDisplay', () => {
+  function makeDisplayEntry(playerId, overrides = {}) {
+    return {
+      playerId,
+      eliminated: true,
+      lives: 0,
+      rank: null,
+      totalTime: null,
+      ...overrides,
+    };
+  }
+
+  it('TC-3007: phase3 bronze race — the sudden-death-resolved eliminatedIds order wins even though the bronze pair\'s raw main-course times differ', () => {
+    // p3 (Antistar-equivalent) is faster than p4 on the round's main course,
+    // but LOSES the bronze sudden death — processPhase3Result already builds
+    // eliminatedIds in the resolved order ([p4, p3]: winner-of-bottom-half
+    // first), so p4 must display ahead of p3 despite p3's faster raw time.
+    const entries = [makeDisplayEntry('p3'), makeDisplayEntry('p4')];
+    const rounds = [
+      {
+        roundNumber: 5,
+        results: [
+          { playerId: 'p3', timeMs: 7000 },
+          { playerId: 'p4', timeMs: 8000 },
+        ],
+        eliminatedIds: ['p4', 'p3'],
+      },
+    ];
+
+    const sorted = phasesRoute.sortPhaseEntriesForDisplay(entries, rounds);
+
+    expect(sorted.map((e) => e.playerId)).toEqual(['p4', 'p3']);
+  });
+
+  it('TC-3008: different rounds still rank the later elimination ahead, unaffected by raw time', () => {
+    // Baseline regression guard: round recency must still win outright,
+    // independent of the within-round ordering change above.
+    const entries = [makeDisplayEntry('early'), makeDisplayEntry('late')];
+    const rounds = [
+      { roundNumber: 1, results: [{ playerId: 'early', timeMs: 1000 }], eliminatedIds: ['early'] },
+      { roundNumber: 2, results: [{ playerId: 'late', timeMs: 99000 }], eliminatedIds: ['late'] },
+    ];
+
+    const sorted = phasesRoute.sortPhaseEntriesForDisplay(entries, rounds);
+
+    expect(sorted.map((e) => e.playerId)).toEqual(['late', 'early']);
+  });
+});

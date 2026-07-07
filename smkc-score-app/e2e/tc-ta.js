@@ -37,7 +37,12 @@
  *   TC-2773A Phase 3 life-loss tie re-runs the base round's course and leaves
  *           the shared 20-course pool untouched (issue #2773).
  *   TC-2773B Top-4 simultaneous last-life loss runs a bronze sudden death on a
- *           fresh (pool-consumed) course to decide 3rd place (issue #2773).
+ *           fresh (pool-consumed) course to decide 3rd place (issue #2773);
+ *           the winner must also rank ahead of the loser in the phase's
+ *           displayed standings, not just internally — regression guard for
+ *           sortPhaseEntriesForDisplay preferring raw main-course time over
+ *           the resolved eliminatedIds order (reported via manual replica
+ *           testing).
  *   TC-2779  undo/cancel of a phase's last round is rejected (409) once a later
  *           phase has been promoted from it; allowed again after reset (#2779).
  *   TC-3003 Once a phase completes, its round-management "Start Round" card
@@ -2202,10 +2207,22 @@ async function runTc2773b(adminPage) {
     const availableAfter = finalData.availableCourses ?? [];
     const poolOk = availableAfter.length === 18 &&
       !availableAfter.includes('MC1') && !availableAfter.includes(sudden.course);
-    log('TC-2773B', eliminationOk && survivorsOk && poolOk ? 'PASS' : 'FAIL',
+    /* Regression guard for the reported "順位表で3位表示" bug: the live
+     * Standings table (ta/finals/page.tsx) renders `entries` in this exact
+     * order (array index + 1 = displayed rank). sortPhaseEntriesForDisplay
+     * (ta/phases/route.ts) must list the bronze winner (p4, faster in the
+     * tiebreak) ahead of the loser (p3), even though p3 was faster on the
+     * round's raw main-course time (82000 < 83000) — that main-course time is
+     * exactly what caused the reported mis-ranking before the fix. */
+    const p3Index = finalEntries.findIndex((e) => e.playerId === p3.playerId);
+    const p4Index = finalEntries.findIndex((e) => e.playerId === p4.playerId);
+    const standingsOrderOk = p4Index !== -1 && p3Index !== -1 && p4Index < p3Index;
+    const ok = eliminationOk && survivorsOk && poolOk && standingsOrderOk;
+    log('TC-2773B', ok ? 'PASS' : 'FAIL',
       !eliminationOk ? `eliminations wrong: eliminatedIds=${eliminatedIds.join(',')}`
       : !survivorsOk ? `survivors wrong: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.eliminated, e.lives]))}`
       : !poolOk ? `pool after bronze race: len=${availableAfter.length} (expected 18 without MC1/${sudden.course})`
+      : !standingsOrderOk ? `standings order wrong: bronze winner p4 at index ${p4Index}, loser p3 at index ${p3Index} (winner must come first)`
       : '');
   } catch (err) {
     log('TC-2773B', 'FAIL', err instanceof Error ? err.message : 'TA bronze sudden death failed');
