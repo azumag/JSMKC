@@ -562,11 +562,13 @@ describe('PUT /api/tournaments/[id]', () => {
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         status: 'completed',
       });
-      // Status transitions are validated against the *current* status
-      // (see ALLOWED_STATUS_TRANSITIONS in route.ts), so PUT now reads the
-      // tournament before updating it whenever `status` is part of the body.
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: 'active' });
-      (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+      // Status transitions are validated atomically via a conditional
+      // updateMany (issue #2761: closes the TOCTOU window a separate
+      // findUnique-then-update would leave open) — a matched row means the
+      // transition was legal, and the tournament is re-read afterward to
+      // return the fresh record.
+      (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
@@ -578,6 +580,15 @@ describe('PUT /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
+      // The WHERE clause folds the transition-validity check into the write
+      // itself: only rows currently in a status this target is reachable
+      // from get updated, closing the race a separate read+write would leave.
+      expect(prisma.tournament.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 't1', status: { in: expect.arrayContaining(['completed', 'active']) } },
+          data: expect.objectContaining({ status: 'completed' }),
+        })
+      );
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
         data: mockTournament,
@@ -595,8 +606,8 @@ describe('PUT /api/tournaments/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: 'active' });
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: 'completed' });
-      (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
@@ -608,8 +619,8 @@ describe('PUT /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(prisma.tournament.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { status: 'active' } })
+      expect(prisma.tournament.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'active' }) })
       );
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
@@ -626,8 +637,8 @@ describe('PUT /api/tournaments/[id]', () => {
           user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status });
-        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status });
-        (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+        (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
@@ -639,8 +650,8 @@ describe('PUT /api/tournaments/[id]', () => {
           { params: Promise.resolve({ id: 't1' }) }
         );
 
-        expect(prisma.tournament.update).toHaveBeenCalledWith(
-          expect.objectContaining({ data: { status } })
+        expect(prisma.tournament.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ status }) })
         );
         expect(NextResponse.json).toHaveBeenCalledWith({
           success: true,
@@ -665,10 +676,11 @@ describe('PUT /api/tournaments/[id]', () => {
           user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: next });
-        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: current });
-        (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+        (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+        void current; // documents the scenario; the mock doesn't model per-row filtering
 
         await tournamentRoute.PUT(
           new NextRequest('http://localhost:3000/api/tournaments/t1', {
@@ -678,8 +690,8 @@ describe('PUT /api/tournaments/[id]', () => {
           { params: Promise.resolve({ id: 't1' }) }
         );
 
-        expect(prisma.tournament.update).toHaveBeenCalledWith(
-          expect.objectContaining({ data: { status: next } })
+        expect(prisma.tournament.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ status: next }) })
         );
         expect(NextResponse.json).toHaveBeenCalledWith({
           success: true,
@@ -698,6 +710,11 @@ describe('PUT /api/tournaments/[id]', () => {
           user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: next });
+        // The conditional updateMany's WHERE clause excludes rows whose
+        // current status isn't a valid source for `next`, so a disallowed
+        // transition always reports as a 0-row match — exactly like a
+        // concurrent request having raced the status out from under us.
+        (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: current });
 
         await tournamentRoute.PUT(
@@ -719,6 +736,37 @@ describe('PUT /api/tournaments/[id]', () => {
       }
     );
 
+    it('should reject a status transition that raced away concurrently, without ever writing (issue #2761)', async () => {
+      // Simulates: request read/validated against a stale "active" status,
+      // but another admin's request already moved the row to "draft" before
+      // this write landed. The atomic conditional updateMany must observe
+      // the CURRENT row status, not any status this request assumed.
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: 'completed' });
+      (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status: 'draft' });
+
+      await tournamentRoute.PUT(
+        new NextRequest('http://localhost:3000/api/tournaments/t1', {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'completed' }),
+        }),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Cannot change tournament status from "draft" to "completed"',
+          code: 'VALIDATION_ERROR',
+        }),
+        { status: 400 }
+      );
+    });
+
     it.each([
       // Plain unknown value.
       ['archived'],
@@ -739,8 +787,9 @@ describe('PUT /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      // Value validation must short-circuit: no current-status read, no update.
+      // Value validation must short-circuit: no database access at all.
       expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
+      expect(prisma.tournament.updateMany).not.toHaveBeenCalled();
       expect(prisma.tournament.update).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -756,6 +805,7 @@ describe('PUT /api/tournaments/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: 'active' });
+      (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
 
       await tournamentRoute.PUT(

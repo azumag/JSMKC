@@ -286,7 +286,14 @@ function stripFormulaCachedValues(sheetXml: string): string {
         // alternation mirrors those value forms (t="str"/"e"/"b"/"s" pair with the
         // <v> strip, "inlineStr" with the <is> strip). In this template only "str"
         // and "e" actually occur on stripped cells — the rest are kept for symmetry
-        // so no value-form can ever leave a dangling type behind.
+        // so no value-form can ever leave a dangling type behind. "s" (shared-string
+        // index) in particular should never occur here in practice: a genuine
+        // static/authored cell has no <f> and sits outside every spill range, so it
+        // returns early two lines above this block; a formula/spill-child cell's
+        // cached type is always "str"/"e"/"b"/"inlineStr", never "s" (Excel doesn't
+        // route computed results through the shared-string table). It is kept in
+        // the alternation only as a defensive fallback, not because some other
+        // check filters it out.
         // Left dangling it is worse than wrong: on a dynamic-array ANCHOR cell
         // Excel reads t="str" as "this formula returns a single string", loads
         // the array as a SCALAR, and never spills it — so every ANCHORARRAY()/`#`

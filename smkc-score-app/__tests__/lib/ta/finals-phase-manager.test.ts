@@ -590,6 +590,23 @@ describe("TA Finals Phase Manager", () => {
       expect(mockPrismaClient.tTPhaseRound.update).not.toHaveBeenCalled();
     });
 
+    // Issue #2782: the phase1->phase2 guard case above was covered, but the
+    // shared assertNoLaterPhaseEntries helper's phase2->phase3 case (mirrored
+    // by resetPhase's own "resetting phase2 while phase3 entries exist" test)
+    // had no equivalent coverage here or in cancelLastSubmittedPhaseRound.
+    it("throws PhaseResetConflictError when undoing phase2 while phase3 entries exist", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue({ stage: "phase3" });
+
+      await expect(undoLastPhaseRound(mockPrismaClient as any, context, "phase2")).rejects.toThrow(
+        PhaseResetConflictError
+      );
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: { in: ["phase3"] } },
+        select: { stage: true },
+      });
+      expect(mockPrismaClient.tTPhaseRound.update).not.toHaveBeenCalled();
+    });
+
     it("does not run the later-phase guard query for phase3 (no later stage)", async () => {
       mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
         {
@@ -845,6 +862,22 @@ describe("TA Finals Phase Manager", () => {
         select: { stage: true },
       });
       // Guard runs before any deletion.
+      expect(mockPrismaClient.tTPhaseRound.delete).not.toHaveBeenCalled();
+    });
+
+    // Issue #2782: mirrors the phase2->phase3 case added to undoLastPhaseRound
+    // above and to resetPhase's own test — the shared assertNoLaterPhaseEntries
+    // helper needs equivalent coverage here too.
+    it("throws PhaseResetConflictError when cancelling phase2 while phase3 entries exist", async () => {
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue({ stage: "phase3" });
+
+      await expect(
+        cancelLastSubmittedPhaseRound(mockPrismaClient as any, context, "phase2")
+      ).rejects.toThrow(PhaseResetConflictError);
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: { in: ["phase3"] } },
+        select: { stage: true },
+      });
       expect(mockPrismaClient.tTPhaseRound.delete).not.toHaveBeenCalled();
     });
 

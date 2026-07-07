@@ -13,6 +13,7 @@ const mockPrisma = {
   },
   tournament: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
     findUnique: jest.fn(),

@@ -509,6 +509,52 @@ describe('POST /api/players', () => {
       );
     });
 
+    // Issue #2766: the client already normalizes country to an ISO alpha-2
+    // code via resolveCountryCode() before submitting, but a caller hitting
+    // the API directly (bypassing the UI) must not be able to persist an
+    // arbitrary free-form string.
+    it('normalizes a country name to its ISO alpha-2 code server-side', async () => {
+      auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      sanitizeMock.sanitizeInput.mockReturnValue({
+        name: 'Test Player',
+        nickname: 'test',
+        country: 'Japan',
+      });
+      prisma.player.create.mockResolvedValue(mockPlayer);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+
+      await playerRoute.POST(new NextRequest('http://localhost:3000/api/players', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test Player', nickname: 'test', country: 'Japan' }),
+      }));
+
+      expect(prisma.player.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ country: 'JP' }) })
+      );
+    });
+
+    it('stores null for a country value that cannot be resolved to a known country', async () => {
+      auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      sanitizeMock.sanitizeInput.mockReturnValue({
+        name: 'Test Player',
+        nickname: 'test',
+        country: 'not-a-real-country',
+      });
+      prisma.player.create.mockResolvedValue(mockPlayer);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+
+      await playerRoute.POST(new NextRequest('http://localhost:3000/api/players', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test Player', nickname: 'test', country: 'not-a-real-country' }),
+      }));
+
+      expect(prisma.player.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ country: null }) })
+      );
+    });
+
     it('should log error when player creation fails in database', async () => {
       // This test verifies that logger.error is called when prisma.player.create throws
       auth.mockResolvedValue({

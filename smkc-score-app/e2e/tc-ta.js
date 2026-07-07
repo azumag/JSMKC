@@ -45,6 +45,9 @@
  *           testing).
  *   TC-2779  undo/cancel of a phase's last round is rejected (409) once a later
  *           phase has been promoted from it; allowed again after reset (#2779).
+ *   TC-2781  Undo/Cancel on the round-management card of an IN-PROGRESS phase
+ *           (isComplete=false) are hidden once a later phase is promoted early,
+ *           mirroring the completed-phase card's guard (#2781).
  *   TC-3003 Once a phase completes, its round-management "Start Round" card
  *           is replaced by a dedicated "Correct the final round" card
  *           exposing the same undo/cancel controls (#2776, closes #2761);
@@ -2651,6 +2654,58 @@ async function runTc2779(adminPage) {
   }
 }
 
+/* ───────── TC-2781: in-progress-phase Undo/Cancel hidden once a later phase starts early ─────────
+ * TC-2779 covers the server-side 409 guard and the completed-phase card
+ * (TC-3003) hiding its undo/cancel buttons once a later phase is promoted.
+ * This covers the THIRD render branch: the round-management card shown while
+ * the phase is still IN PROGRESS (isComplete=false — an admin promoted phase2
+ * early, before phase1 actually reached its 4-survivor target). Before #2781
+ * this card's Undo/Cancel buttons had no laterPhaseStarted guard, so they
+ * rendered enabled even though clicking them would 409. */
+async function runTc2781(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Early Promotion Guard', sharedTaPlayers(24), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+
+    // Submit exactly ONE phase1 round (8 -> 7 active) — far from the 4-survivor
+    // target, so isComplete stays false and the round-management card renders.
+    const phase1Before = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const activeBefore = (phase1Before.b?.data?.entries ?? []).filter((e) => !e.eliminated);
+    await submitTaPhaseRoundByApi(adminPage, tournamentId, 'phase1', activeBefore);
+
+    // Early promotion (admin mistake): start phase2 while phase1 is still
+    // mid-flight. The server allows this (promoteToPhase2 has no minimum
+    // survivor-count guard) — it is exactly the scenario #2781 protects against.
+    const promote2 = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
+    if (promote2.s !== 200) throw new Error(`promote_phase2 failed (${promote2.s}): ${JSON.stringify(promote2.b).slice(0, 300)}`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/phase1`);
+
+    // Round-management card must still be showing (phase1 is not complete).
+    const startRoundVisible = await adminPage.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ })
+      .isVisible({ timeout: 15000 }).catch(() => false);
+
+    // ...but its Undo/Cancel buttons must now be hidden, since undoing/cancelling
+    // phase1's last round would desync the already-promoted phase2 roster.
+    const undoHidden = (await adminPage.getByRole('button', { name: /Undo Last Round|前のラウンドを取り消す/ }).count()) === 0;
+    const cancelHidden = (await adminPage.getByRole('button', { name: /Cancel Last Round|前のラウンドをキャンセル/ }).count()) === 0;
+
+    const ok = startRoundVisible && undoHidden && cancelHidden;
+    log('TC-2781', ok ? 'PASS' : 'FAIL',
+      !startRoundVisible ? 'round-management card (Start Round) not visible on an in-progress phase'
+      : !undoHidden ? 'Undo Last Round still visible after an early phase2 promotion'
+      : !cancelHidden ? 'Cancel Last Round still visible after an early phase2 promotion' : '');
+  } catch (err) {
+    log('TC-2781', 'FAIL', err instanceof Error ? err.message : 'TA 2781 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
 /* ───────── TC-3002: undo_round clears orphaned sudden death; cancel_last_round frees the course ─────────
  * Regression for #2761 (found via manual testing after #2758's phase-reset fix):
  *   1. undo_round on a round that had a resolved sudden-death tiebreak used to
@@ -2890,6 +2945,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-3001', fn: runTc3001 },
       { name: 'TC-3002', fn: runTc3002 },
       { name: 'TC-2779', fn: runTc2779 },
+      { name: 'TC-2781', fn: runTc2781 },
       { name: 'TC-3003', fn: runTc3003 },
     ],
   };
@@ -2899,7 +2955,7 @@ module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
-  runTc2773a, runTc2773b, runTc2779,
+  runTc2773a, runTc2773b, runTc2779, runTc2781,
   runTc3001, runTc3002, runTc3003,
   TA_SUITE_TIMEOUT_MS,
   getSuite,

@@ -278,6 +278,21 @@ describe("buildFinalsWrites — identity fallback", () => {
       expect.objectContaining({ round: "winners_qf" }),
     );
   });
+
+  // Issue #2749: writeMatchNames' resolvedBoth=false fallback path (name
+  // cells, as opposed to the score cells asserted above) had no direct
+  // coverage even though the same match fixture exercises it — the fallback
+  // must preserve the app record's p1/p2 order (AA7<-player1, AA8<-player2),
+  // matching writeMatchScores' positional fallback for the same match.
+  it("falls back to positional name mapping when the record disagrees", () => {
+    const matches: CdmMatch[] = [
+      ...build24WinnersAndPlayoff(),
+      mk({ matchNumber: 13, stage: "finals", round: "winners_qf", p1: 97, p2: 98, s1: 4, s2: 3 }),
+    ];
+    const map = indexWrites(buildFinalsWrites(emptyData({ bmMatches: matches }), "bm"), "BM Finals");
+    expect(map.get("AA7")).toMatchObject({ op: "overwriteString", value: "B97" });
+    expect(map.get("AA8")).toMatchObject({ op: "overwriteString", value: "B98" });
+  });
 });
 
 /* ----------------------------------------------------------------- *

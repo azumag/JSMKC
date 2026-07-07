@@ -1956,35 +1956,6 @@ export async function cancelPhaseRound(
 }
 
 /**
- * Undo the last submitted round in a phase.
- *
- * This is the recovery mechanism for incorrect time entry: when a round's
- * results have already been submitted but contain errors, an admin can undo
- * the last submitted round to restore the previous state and re-submit.
- *
- * For Phase 1 / Phase 2 (simple elimination):
- * - Clears the round's results and eliminatedIds
- * - Restores eliminated players to active (eliminated = false)
- *
- * For Phase 3 (life-based):
- * - Clears the round's results and eliminatedIds
- * - Resets ALL phase3 entries to initial state
- * - Replays all previous rounds in memory to reconstruct lives/eliminated state
- * - This "replay-from-scratch" approach handles life resets correctly
- *
- * The round record itself (course assignment) is preserved so the admin
- * can re-submit times for the same course without needing to start a new round.
- *
- * Only the most recent submitted round can be undone. Trying to undo an
- * earlier round or a non-existent round throws an error.
- *
- * @param prisma - Prisma client
- * @param context - Phase context with user/request info
- * @param phase - The phase to undo the last round for
- * @returns Object with the undone round number
- * @throws Error if no submitted round exists or undo is not possible
- */
-/**
  * Find the most recently submitted round for a phase, split from the rounds
  * before it. Shared by undoLastPhaseRound and cancelLastSubmittedPhaseRound,
  * which differ only in what they do with the round record afterward (clear
@@ -2125,6 +2096,35 @@ async function restorePhaseStateBeforeRound(
   }
 }
 
+/**
+ * Undo the last submitted round in a phase.
+ *
+ * This is the recovery mechanism for incorrect time entry: when a round's
+ * results have already been submitted but contain errors, an admin can undo
+ * the last submitted round to restore the previous state and re-submit.
+ *
+ * For Phase 1 / Phase 2 (simple elimination):
+ * - Clears the round's results and eliminatedIds
+ * - Restores eliminated players to active (eliminated = false)
+ *
+ * For Phase 3 (life-based):
+ * - Clears the round's results and eliminatedIds
+ * - Resets ALL phase3 entries to initial state
+ * - Replays all previous rounds in memory to reconstruct lives/eliminated state
+ * - This "replay-from-scratch" approach handles life resets correctly
+ *
+ * The round record itself (course assignment) is preserved so the admin
+ * can re-submit times for the same course without needing to start a new round.
+ *
+ * Only the most recent submitted round can be undone. Trying to undo an
+ * earlier round or a non-existent round throws an error.
+ *
+ * @param prisma - Prisma client
+ * @param context - Phase context with user/request info
+ * @param phase - The phase to undo the last round for
+ * @returns Object with the undone round number
+ * @throws Error if no submitted round exists or undo is not possible
+ */
 export async function undoLastPhaseRound(
   prisma: PrismaClient,
   context: PhaseContext,

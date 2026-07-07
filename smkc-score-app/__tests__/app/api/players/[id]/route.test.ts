@@ -337,6 +337,59 @@ describe('PUT /api/players/[id]', () => {
       );
     });
 
+    // Issue #2766: server-side normalization must also apply on update, not
+    // just create — otherwise editing an existing player through a direct
+    // API call could still persist an arbitrary free-form country string.
+    it('normalizes a country name to its ISO alpha-2 code server-side', async () => {
+      const normalizedMockPlayer = { id: 'player-1', name: 'Updated Name', nickname: 'updated', country: 'US' };
+      sanitizeMock.sanitizeInput.mockReturnValue({
+        name: 'Updated Name',
+        nickname: 'updated',
+        country: 'United States of America',
+      });
+      prisma.player.update.mockResolvedValue(normalizedMockPlayer);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+
+      const route = (await import('@/app/api/players/[id]/route')).PUT;
+      await route(
+        new NextRequest('http://localhost:3000/api/players/player-1', {
+          method: 'PUT',
+          body: JSON.stringify({ name: 'Updated Name', nickname: 'updated', country: 'United States of America' }),
+        }),
+        { params: Promise.resolve({ id: 'player-1' }) }
+      );
+
+      expect(prisma.player.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ country: 'US' }) })
+      );
+    });
+
+    it('stores null for a country value that cannot be resolved to a known country', async () => {
+      const nullCountryMockPlayer = { id: 'player-1', name: 'Updated Name', nickname: 'updated', country: null };
+      sanitizeMock.sanitizeInput.mockReturnValue({
+        name: 'Updated Name',
+        nickname: 'updated',
+        country: 'not-a-real-country',
+      });
+      prisma.player.update.mockResolvedValue(nullCountryMockPlayer);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+
+      const route = (await import('@/app/api/players/[id]/route')).PUT;
+      await route(
+        new NextRequest('http://localhost:3000/api/players/player-1', {
+          method: 'PUT',
+          body: JSON.stringify({ name: 'Updated Name', nickname: 'updated', country: 'not-a-real-country' }),
+        }),
+        { params: Promise.resolve({ id: 'player-1' }) }
+      );
+
+      expect(prisma.player.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ country: null }) })
+      );
+    });
+
     it('should create audit log on successful update', async () => {
       sanitizeMock.sanitizeInput.mockReturnValue({
         name: 'Updated Name',
