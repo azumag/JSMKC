@@ -12,7 +12,9 @@
  *   TC-811  Frozen qualification blocks player-side time re-edits.
  *   TC-806  Phase 2 page renders and shows correct entries (8 players).
  *   TC-807  Phase 3 page renders and shows correct entries (8 players).
- *   TC-808  TA Finals page renders with champion banner on completion.
+ *   TC-808  TA Finals page renders with champion banner on completion; its
+ *           Undo-vs-Cancel info popover opens on click (read-only check —
+ *           this test reuses the shared fixture's champion-decided state).
  *   TC-812  TA qualification tie resolution — identical times share min-rank
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
@@ -35,9 +37,19 @@
  *   TC-2773A Phase 3 life-loss tie re-runs the base round's course and leaves
  *           the shared 20-course pool untouched (issue #2773).
  *   TC-2773B Top-4 simultaneous last-life loss runs a bronze sudden death on a
- *           fresh (pool-consumed) course to decide 3rd place (issue #2773).
+ *           fresh (pool-consumed) course to decide 3rd place (issue #2773);
+ *           the winner must also rank ahead of the loser in the phase's
+ *           displayed standings, not just internally — regression guard for
+ *           sortPhaseEntriesForDisplay preferring raw main-course time over
+ *           the resolved eliminatedIds order (reported via manual replica
+ *           testing).
  *   TC-2779  undo/cancel of a phase's last round is rejected (409) once a later
  *           phase has been promoted from it; allowed again after reset (#2779).
+ *   TC-3003 Once a phase completes, its round-management "Start Round" card
+ *           is replaced by a dedicated "Correct the final round" card
+ *           exposing the same undo/cancel controls (#2776, closes #2761);
+ *           its Undo-vs-Cancel info popover opens on click; undoing from it
+ *           restores the phase to incomplete.
  *   TC-1033 Sudden-death API payload exposes only the actionable target ids,
  *           not the removed internal tie-break reason.
  *   TC-817  Phase 1 sudden-death courses remain consumed when Phase 2 starts.
@@ -1420,7 +1432,31 @@ async function runTc808(adminPage) {
       const entries = phase3.b?.data?.entries ?? [];
       const active = entries.filter((e) => !e.eliminated);
       if (active.length <= 1) break;
-      await submitTaPhaseRoundByApi(adminPage, tournamentId, 'phase3', active);
+      /* Rank-based times are unique, so this loop shouldn't manufacture a
+       * plain time tie — but #2774's scenario-aware phase3 sudden death also
+       * fires on genuine game-state boundaries (e.g. a "bronze race": two
+       * players losing their last life in the same round), independent of
+       * exact time equality. start_round refuses while one is pending, so
+       * resolve it here before continuing — and keep resolving, since
+       * resolving one tie (e.g. a top-4 life-loss/revival tie) can chain
+       * straight into a *different* tie (e.g. the resulting bronze race)
+       * in the same response. Bounded guard avoids an infinite loop if a
+       * resolution keeps producing fresh ties unexpectedly. */
+      let pending = await submitTaPhaseRoundByApi(adminPage, tournamentId, 'phase3', active);
+      for (let guard = 0; pending?.tieBreakRequired && pending.suddenDeathRound?.id && guard < 5; guard++) {
+        const targets = pending.suddenDeathRound.targetPlayerIds ?? [];
+        if (targets.length < 2) break;
+        const resolve = await apiPostTaPhase(adminPage, tournamentId, {
+          action: 'submit_sudden_death',
+          phase: 'phase3',
+          suddenDeathRoundId: pending.suddenDeathRound.id,
+          results: targets.map((playerId, index) => ({ playerId, timeMs: 90000 + index * 1000 })),
+        });
+        if (resolve.s !== 200) {
+          throw new Error(`submit_sudden_death phase3 failed (${resolve.s}): ${JSON.stringify(resolve.b).slice(0, 300)}`);
+        }
+        pending = resolve.b?.data;
+      }
     }
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
@@ -1429,8 +1465,28 @@ async function runTc808(adminPage) {
       bodyText.includes('チャンピオン') ||
       bodyText.includes('優勝');
 
-    log('TC-808', championShown ? 'PASS' : 'FAIL',
+    /* The finals page (ta/finals/page.tsx) carries its own copy of the
+     * "final-round corrections" wiring (#2776) and Undo-vs-Cancel info
+     * popover, otherwise untested — ta-elimination-phase.tsx's phase1/2
+     * version is covered by TC-3003, but that test never visits this route.
+     * Read-only check only (click the info button, don't undo/cancel):
+     * this tournament is the shared fixture other TCs (TC-806/807/1005/2293)
+     * depend on staying in its champion-decided state. */
+    const helpButton = adminPage.getByRole('button', { name: /Explain the difference between Undo and Cancel|「取り消す」と「キャンセル」の違いを説明/ });
+    const helpButtonVisible = await helpButton.isVisible({ timeout: 5000 }).catch(() => false);
+    let helpPopoverVisible = false;
+    if (helpButtonVisible) {
+      await helpButton.click();
+      helpPopoverVisible = await adminPage.getByText(/Undo vs\. Cancel|「取り消す」と「キャンセル」の違い/).first()
+        .isVisible({ timeout: 5000 }).catch(() => false);
+      await adminPage.keyboard.press('Escape');
+    }
+
+    const ok = championShown && helpButtonVisible && helpPopoverVisible;
+    log('TC-808', ok ? 'PASS' : 'FAIL',
       !championShown ? 'champion banner not found on TA finals page'
+      : !helpButtonVisible ? 'Undo-vs-Cancel info button not visible on the completed finals page'
+      : !helpPopoverVisible ? 'Undo-vs-Cancel explainer popover did not open from its info button on the finals page'
       : '');
   } catch (err) {
     log('TC-808', 'FAIL', err instanceof Error ? err.message : 'TA 808 failed');
@@ -2151,10 +2207,22 @@ async function runTc2773b(adminPage) {
     const availableAfter = finalData.availableCourses ?? [];
     const poolOk = availableAfter.length === 18 &&
       !availableAfter.includes('MC1') && !availableAfter.includes(sudden.course);
-    log('TC-2773B', eliminationOk && survivorsOk && poolOk ? 'PASS' : 'FAIL',
+    /* Regression guard for the reported "順位表で3位表示" bug: the live
+     * Standings table (ta/finals/page.tsx) renders `entries` in this exact
+     * order (array index + 1 = displayed rank). sortPhaseEntriesForDisplay
+     * (ta/phases/route.ts) must list the bronze winner (p4, faster in the
+     * tiebreak) ahead of the loser (p3), even though p3 was faster on the
+     * round's raw main-course time (82000 < 83000) — that main-course time is
+     * exactly what caused the reported mis-ranking before the fix. */
+    const p3Index = finalEntries.findIndex((e) => e.playerId === p3.playerId);
+    const p4Index = finalEntries.findIndex((e) => e.playerId === p4.playerId);
+    const standingsOrderOk = p4Index !== -1 && p3Index !== -1 && p4Index < p3Index;
+    const ok = eliminationOk && survivorsOk && poolOk && standingsOrderOk;
+    log('TC-2773B', ok ? 'PASS' : 'FAIL',
       !eliminationOk ? `eliminations wrong: eliminatedIds=${eliminatedIds.join(',')}`
       : !survivorsOk ? `survivors wrong: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.eliminated, e.lives]))}`
       : !poolOk ? `pool after bronze race: len=${availableAfter.length} (expected 18 without MC1/${sudden.course})`
+      : !standingsOrderOk ? `standings order wrong: bronze winner p4 at index ${p4Index}, loser p3 at index ${p3Index} (winner must come first)`
       : '');
   } catch (err) {
     log('TC-2773B', 'FAIL', err instanceof Error ? err.message : 'TA bronze sudden death failed');
@@ -2673,6 +2741,73 @@ async function runTc3002(adminPage) {
   }
 }
 
+/* ───────── TC-3003: "Correct the final round" card after phase completion (#2776, closes #2761) ─────────
+ * Before this feature, the round-management card — and its undo/cancel
+ * buttons — disappeared entirely once a phase reached its target survivor
+ * count, forcing a full phase reset (#2758) to fix a mistake in the final
+ * round. This adds a dedicated post-completion card that exposes the same
+ * undo/cancel controls so the final round alone can be corrected. */
+async function runTc3003(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Final Round Correction', sharedTaPlayers(24), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+
+    // Resolve phase1 down to its 4 survivors so isComplete flips true.
+    await completeTaSingleEliminationPhaseByApi(adminPage, tournamentId, 'phase1', 4);
+    const completedPhase = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const activeBeforeUndo = (completedPhase.b?.data?.entries ?? []).filter((e) => !e.eliminated).length;
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/phase1`);
+
+    // The dedicated post-completion card must be visible in place of the
+    // normal round-management controls.
+    const correctionCard = adminPage.getByText(/Correct the final round|最終ラウンドの修正/).first();
+    const correctionCardVisible = await correctionCard.isVisible({ timeout: 15000 }).catch(() => false);
+
+    // The normal "Start Round N" control belongs to the pre-completion card
+    // and must be gone now that the phase is complete.
+    const startRoundGone = (await adminPage.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ }).count()) === 0;
+
+    // The Undo-vs-Cancel explainer travels with the correction buttons; it
+    // must open on click (without triggering either destructive action) and
+    // show the comparison text.
+    const helpButton = adminPage.getByRole('button', { name: /Explain the difference between Undo and Cancel|「取り消す」と「キャンセル」の違いを説明/ });
+    await helpButton.click();
+    const helpPopoverVisible = await adminPage.getByText(/Undo vs\. Cancel|「取り消す」と「キャンセル」の違い/).first()
+      .isVisible({ timeout: 5000 }).catch(() => false);
+    await adminPage.keyboard.press('Escape');
+
+    // Use the shared undo helper — it locates "Undo Last Round" by role/name
+    // regardless of which card currently wraps it.
+    await uiPhaseUndoRound(adminPage, tournamentId, 'phase1');
+
+    const afterUndo = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const activeAfterUndo = (afterUndo.b?.data?.entries ?? []).filter((e) => !e.eliminated).length;
+    const playerRestored = activeAfterUndo === activeBeforeUndo + 1;
+
+    // Undoing the final round makes the phase incomplete again, so the
+    // correction card must disappear on a fresh load.
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/phase1`);
+    const correctionCardGone = await correctionCard.isVisible({ timeout: 5000 }).then((visible) => !visible).catch(() => true);
+
+    const ok = correctionCardVisible && startRoundGone && helpPopoverVisible && playerRestored && correctionCardGone;
+    log('TC-3003', ok ? 'PASS' : 'FAIL',
+      !correctionCardVisible ? 'final-round correction card not visible on a complete phase'
+      : !startRoundGone ? 'round-management Start Round control still visible on a complete phase'
+      : !helpPopoverVisible ? 'Undo-vs-Cancel explainer popover did not open from its info button'
+      : !playerRestored ? `undo did not restore eliminated player (active before=${activeBeforeUndo}, after=${activeAfterUndo})`
+      : !correctionCardGone ? 'correction card still visible after phase became incomplete again' : '');
+  } catch (err) {
+    log('TC-3003', 'FAIL', err instanceof Error ? err.message : 'TA 3003 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -2755,6 +2890,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-3001', fn: runTc3001 },
       { name: 'TC-3002', fn: runTc3002 },
       { name: 'TC-2779', fn: runTc2779 },
+      { name: 'TC-3003', fn: runTc3003 },
     ],
   };
 }
@@ -2764,7 +2900,7 @@ module.exports = {
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
   runTc2773a, runTc2773b, runTc2779,
-  runTc3001, runTc3002,
+  runTc3001, runTc3002, runTc3003,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,

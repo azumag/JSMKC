@@ -72,6 +72,7 @@ import { createLogger } from "@/lib/client-logger";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
+import { RoundCorrectionHelp } from "@/components/tournament/round-correction-help";
 import {
   TASuddenDeathSection,
   useTaSuddenDeath,
@@ -771,6 +772,9 @@ export default function TAEliminationPhase({
   // one round has been submitted; dialogs are rendered once at the top level.
   const roundCorrectionButtons = completedRoundsCount > 0 ? (
     <>
+      {/* Explains Undo vs. Cancel — its own row, muted style, so it can't be
+          misclicked as a third destructive action. */}
+      <RoundCorrectionHelp />
       {/* Undo last round: clears results, keeps the course assigned for re-entry. */}
       <Button
         variant="outline"

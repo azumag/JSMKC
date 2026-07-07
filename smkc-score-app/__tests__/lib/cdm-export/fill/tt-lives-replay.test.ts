@@ -1,5 +1,5 @@
 /**
- * Unit tests for replayTTFinals (TC-2557–TC-2566).
+ * Unit tests for replayTTFinals (TC-2557–TC-2566, TC-3004–TC-3005).
  *
  * replayTTFinals is a pure function that reconstructs the TT Finals CDM
  * spreadsheet life-ledger from persisted tournament data. It performs no
@@ -11,6 +11,7 @@ import type {
   CdmTournamentData,
   CdmTTEntry,
   CdmTTPhaseRound,
+  CdmTTPhaseSuddenDeathRound,
 } from '@/lib/cdm-export/types';
 
 function makeData(
@@ -55,6 +56,7 @@ function makePhaseRound(
   results: Array<{ playerId: string; timeMs: number | null }>,
   eliminatedIds: string[] = [],
   livesReset = false,
+  suddenDeathRounds: CdmTTPhaseSuddenDeathRound[] = [],
 ): CdmTTPhaseRound {
   return {
     phase,
@@ -63,7 +65,16 @@ function makePhaseRound(
     results,
     eliminatedIds,
     livesReset,
+    suddenDeathRounds,
   };
+}
+
+/** A single resolved sudden-death round, in the shape TTPhaseSuddenDeathRound.results persists. */
+function makeSuddenDeath(
+  sequence: number,
+  results: Array<{ playerId: string; timeMs: number }>,
+): CdmTTPhaseSuddenDeathRound {
+  return { sequence, results };
 }
 
 describe('replayTTFinals', () => {
@@ -250,5 +261,85 @@ describe('replayTTFinals', () => {
     expect(result[0].gains.has('unknown')).toBe(false);
     // p1 is present
     expect(result[0].participants.get('p1')).toBe(5000);
+  });
+
+  it('TC-3004: phase3 bronze race — displayRowOrder stays raw-time order (template limitation), lostLife membership is unaffected either way', () => {
+    // Manually-tested ASMKC 2025 replica report: the bronze-race LOSER
+    // happened to be faster on the round's main course, so the *sheet*
+    // visually shows them ahead of the winner. Traced to the template
+    // itself: sheet4.xml's row/name formula is
+    // `SORTBY(ANCHORARRAY(names), rawTimeColumn)` — Excel recomputes row
+    // order from the raw Time cell every time the workbook opens, and has no
+    // way to read this replay's displayRowOrder/resolvedOrder. Nudging
+    // displayRowOrder here does not change what Excel renders; it only
+    // desyncs this replay's own bookkeeping (round r+1's inputRowOrder,
+    // lostLife → row position) from what the sheet will actually show,
+    // which is worse than doing nothing (verified empirically in review:
+    // for an exact-time tie it flips which *name* renders on the row the
+    // Lost flag was written to). This is a documented, accepted template
+    // limitation (docs/cdm-export-design.md §3.5: 既知の限界 — 脱落済み選手の
+    // 最終ブロック内序列はライフ同値のため概算、確定順位の正はアプリ側), not a bug
+    // this replay can fix without a materially different, riskier design
+    // (e.g. writing a synthetic/nudged Time value, which would also affect
+    // any other formula reading that same cell).
+    const entries = [
+      makeQualEntry('p1', 1), makeQualEntry('p2', 2),
+      makeQualEntry('p3', 3), makeQualEntry('p4', 4),
+    ];
+    const rounds = [
+      makePhaseRound(
+        'phase3', 1,
+        [
+          { playerId: 'p1', timeMs: 5000 }, { playerId: 'p2', timeMs: 6000 },
+          { playerId: 'p3', timeMs: 7000 }, { playerId: 'p4', timeMs: 8000 },
+        ],
+        [], false,
+        [makeSuddenDeath(1, [{ playerId: 'p3', timeMs: 9000 }, { playerId: 'p4', timeMs: 8500 }])],
+      ),
+    ];
+    const result = replayTTFinals(makeData(entries, rounds));
+
+    // Bottom-half membership (who loses a life) is unaffected — p3/p4 are
+    // unambiguously the slower half either way, so the sudden death doesn't
+    // change lostLife's content for this scenario.
+    expect(result[0].lostLife).toEqual(new Set(['p3', 'p4']));
+    // displayRowOrder intentionally stays raw-time order (p3 before p4) —
+    // matching what Excel's own formula will independently compute.
+    expect(result[0].displayRowOrder).toEqual(['p1', 'p2', 'p3', 'p4']);
+  });
+
+  it('TC-3005: phase3 life-loss tie — the sudden death decides who crosses into the bottom half (lostLife), not raw-time stable-sort insertion order', () => {
+    // p3 and p4 are tied at 4000ms — the exact elimination boundary for 6
+    // active players (halfway = ceil(6/2) = 3). A naive stable sort on raw
+    // time keeps insertion order (p3 before p4), wrongly treating p3 as
+    // safe. The life-loss sudden death says p4 is faster (9000 < 9500), so
+    // p4 must be safe and p3 must lose a life instead — this is a genuine,
+    // ID-keyed fix (lostLife is a Set, not a row position) with no row-
+    // alignment risk, unlike displayRowOrder (see TC-3004).
+    const entries = [
+      makeQualEntry('p1', 1), makeQualEntry('p2', 2), makeQualEntry('p3', 3),
+      makeQualEntry('p4', 4), makeQualEntry('p5', 5), makeQualEntry('p6', 6),
+    ];
+    const rounds = [
+      makePhaseRound(
+        'phase3', 1,
+        [
+          { playerId: 'p1', timeMs: 1000 }, { playerId: 'p2', timeMs: 2000 },
+          { playerId: 'p3', timeMs: 4000 }, { playerId: 'p4', timeMs: 4000 },
+          { playerId: 'p5', timeMs: 5000 }, { playerId: 'p6', timeMs: 6000 },
+        ],
+        [], false,
+        [makeSuddenDeath(1, [{ playerId: 'p3', timeMs: 9500 }, { playerId: 'p4', timeMs: 9000 }])],
+      ),
+    ];
+    const result = replayTTFinals(makeData(entries, rounds));
+
+    expect(result[0].lostLife).toEqual(new Set(['p3', 'p5', 'p6']));
+    // displayRowOrder stays raw-time/insertion order (p3 before p4, tied) —
+    // matching what Excel's own SORTBY(names, rawTime) will independently
+    // render, so the Lost flag this replay writes for p3's row lands on the
+    // row Excel actually names "p3" (see TC-3004 for why this must not use
+    // the sudden-death-resolved order).
+    expect(result[0].displayRowOrder).toEqual(['p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
   });
 });

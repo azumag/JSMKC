@@ -272,6 +272,10 @@ describe('TAEliminationPhase — main render', () => {
     });
     expect(screen.getByRole('button', { name: 'Undo Last Round' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel Last Round (Free Course)' })).toBeInTheDocument();
+    // The Undo-vs-Cancel explainer travels with the correction buttons.
+    expect(
+      screen.getByRole('button', { name: 'Explain the difference between Undo and Cancel' }),
+    ).toBeInTheDocument();
     // Start-round control stays hidden while the phase is complete.
     expect(screen.queryByRole('button', { name: /Start Round/ })).not.toBeInTheDocument();
   });

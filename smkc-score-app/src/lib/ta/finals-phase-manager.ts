@@ -1118,7 +1118,7 @@ function applySuddenDeathOrder(
  * players) resolves. For each pair, the LATEST sudden death both players
  * participated in wins; pairs never raced together fall back to base times.
  */
-function orderResultsWithSuddenDeathChain(
+export function orderResultsWithSuddenDeathChain(
   baseResults: CourseResult[],
   resolvedSuddenDeathResults: CourseResult[][]
 ): CourseResult[] {
