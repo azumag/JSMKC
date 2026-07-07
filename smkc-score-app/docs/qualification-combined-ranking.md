@@ -1,5 +1,7 @@
 # 2Pモード（BM/MR/GP）予選 — 合算順位・決勝進出ライン 仕様書
 
+*(English translation: [`qualification-combined-ranking.en.md`](./qualification-combined-ranking.en.md). This Japanese document is the source of truth.)*
+
 対象: グループ予選が3グループ以上に分かれた場合の「合算順位」（全グループを横断した1本の順位）の決定ルール、および決勝進出ライン（直接勝ち上がり／バラージ／敗退）の3グループ以上への一般化。
 
 **本書は仕様の整理のみを目的とし、コード変更は含まない。** 現状コードは3グループ以上のグループ分けをUI（`group-setup-dialog.tsx`）・API（`qualification-route.ts`）の両方で明示的にロックしており、決勝進出ロジック（`finals-group-selection.ts`）も3グループ以上は「ラウンドロビン式の仮並べ」のままで、コード内コメントに「combined-ranking rules for 3+ groups are a separate follow-up」と明記されている。本書はその保留部分を定義する。
