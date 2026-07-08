@@ -634,7 +634,7 @@ describe('Qualification Route Factory', () => {
       expect(json.error).toBe('Players array is required');
     });
 
-    it('should return 400 when a player is assigned outside groups A/B', async () => {
+    it('should return 400 when a player is assigned outside groups A/B/C', async () => {
       const config = createMockConfig();
       const { POST } = createQualificationHandlers(config);
 
@@ -643,7 +643,7 @@ describe('Qualification Route Factory', () => {
         body: JSON.stringify({
           players: [
             { playerId: 'player-1', group: 'A' },
-            { playerId: 'player-2', group: 'C' },
+            { playerId: 'player-2', group: 'D' },
           ],
         }),
       });
@@ -653,9 +653,45 @@ describe('Qualification Route Factory', () => {
 
       expect(response.status).toBe(400);
       const json = await response.json();
-      expect(json.error).toBe('Only groups A and B are currently supported');
+      expect(json.error).toBe('Only groups A, B, C are currently supported');
       expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
       expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('should accept group C and generate its round-robin matches, now that 3-group setup is supported', async () => {
+      /* docs/qualification-combined-ranking.md §7: 2 and 3 groups confirmed
+       * with tournament operations; group C was rejected before this change. */
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+        { playerId: 'player-3', group: 'B', seeding: 1 },
+        { playerId: 'player-4', group: 'B', seeding: 2 },
+        { playerId: 'player-5', group: 'C', seeding: 1 },
+        { playerId: 'player-6', group: 'C', seeding: 2 },
+      ];
+
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 6 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 3 });
+
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      // Each 2-player group is 1 round-robin match: A(1v2), B(3v4), C(5v6) = 3 total.
+      const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      expect(matchCall.data).toHaveLength(3);
+      const matchedPlayerIds = new Set(matchCall.data.flatMap((m: { player1Id: string; player2Id: string }) => [m.player1Id, m.player2Id]));
+      expect(matchedPlayerIds.has('player-5')).toBe(true);
+      expect(matchedPlayerIds.has('player-6')).toBe(true);
     });
 
     it('should log warning when audit log creation fails (non-critical)', async () => {

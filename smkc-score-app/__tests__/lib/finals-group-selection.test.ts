@@ -124,32 +124,44 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(3);
     });
 
-    it('directSeeds[] is Top1-4 from each group, interleaved', () => {
+    // Seed numbers are NOT sequential 1-12: seeds 10/12/14/16 are reserved for
+    // barrage-playoff winners (mirroring the 2-group Top-24 layout), so the 12
+    // direct advancers fill the gapped sequence 1,2,3,4,5,6,7,8,9,11,13,15.
+    // Placement is via anti-collision seeding (assignAntiCollisionSeeds): the
+    // top 4 overall (bucket 1's 3 + bucket 2's first) get the "solo" seeds
+    // (1,3,5,7 -- face a not-yet-known barrage survivor in round 1), and the
+    // remaining 8 are greedily paired from different groups into the 4 known
+    // round-1 pairs (2,15)/(4,13)/(6,11)/(8,9).
+    it('directSeeds[] fills the gapped seed sequence via anti-collision placement', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [1, 'A1'], [2, 'B1'], [3, 'C1'],
-        [4, 'A2'], [5, 'B2'], [6, 'C2'],
-        [7, 'A3'], [8, 'B3'], [9, 'C3'],
-        [10, 'A4'], [11, 'B4'], [12, 'C4'],
+        [1, 'A1'], [2, 'B2'], [3, 'B1'], [4, 'A3'],
+        [5, 'C1'], [6, 'C3'], [7, 'A2'], [8, 'B4'],
+        [9, 'C4'], [11, 'A4'], [13, 'B3'], [15, 'C2'],
       ]);
     });
 
     it('does not expose legacy direct[] because callers should use directSeeds[]', () => {
       expect('direct' in result).toBe(false);
-      expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
-        'A1', 'B1', 'C1',
-        'A2', 'B2', 'C2',
-        'A3', 'B3', 'C3',
-        'A4', 'B4', 'C4',
+    });
+
+    it('no round-1 direct-vs-direct pair shares a qualifying group', () => {
+      const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
+      }
+    });
+
+    it('barrage[] fills playoff seeds 1-12 via anti-collision placement (BYE seeds 1-4 first)', () => {
+      expect(result.barrage.map(q => q.playerId)).toEqual([
+        'A5', 'B5', 'C5', 'A6', 'B6', 'A7', 'B7', 'C6', 'C7', 'B8', 'C8', 'A8',
       ]);
     });
 
-    it('barrage[] is Top5-8 from each group, interleaved', () => {
-      expect(result.barrage.map(q => q.playerId)).toEqual([
-        'A5', 'B5', 'C5',
-        'A6', 'B6', 'C6',
-        'A7', 'B7', 'C7',
-        'A8', 'B8', 'C8',
-      ]);
+    it('no round-1 barrage pair shares a qualifying group', () => {
+      const groupBySeed = new Map(result.barrage.map((q, i) => [i + 1, q.group]));
+      for (const [a, b] of [[5, 8], [6, 7], [9, 12], [10, 11]] as const) {
+        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
+      }
     });
   });
 
@@ -169,13 +181,17 @@ describe('selectFinalsEntrantsByGroup', () => {
       rank === 1 ? rank1Stats[playerId] : { score: 1000 - rank, points: 0 });
     const result = selectFinalsEntrantsByGroup(quals);
 
-    it('orders bucket 0 by score (B1 > C1 > A1) instead of alphabetically', () => {
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [1, 'B1'], [2, 'C1'], [3, 'A1'],
-        [4, 'A2'], [5, 'B2'], [6, 'C2'],
-        [7, 'A3'], [8, 'B3'], [9, 'C3'],
-        [10, 'A4'], [11, 'B4'], [12, 'C4'],
-      ]);
+    it('gives the top 4 overall (B1 > C1 > A1 > A2) the protected solo seeds 1/3/5/7', () => {
+      const soloSeeds = [1, 3, 5, 7];
+      const bySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]));
+      expect(soloSeeds.map((s) => bySeed.get(s))).toEqual(['B1', 'C1', 'A1', 'A2']);
+    });
+
+    it('still avoids same-group round-1 pairs after the tiebreak reshuffles bucket 0', () => {
+      const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
+      }
     });
   });
 
@@ -187,29 +203,38 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(4);
     });
 
-    it('directSeeds[] is Top1-3 from each group, interleaved', () => {
+    it('directSeeds[] fills the gapped seed sequence via anti-collision placement', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [1, 'A1'], [2, 'B1'], [3, 'C1'], [4, 'D1'],
-        [5, 'A2'], [6, 'B2'], [7, 'C2'], [8, 'D2'],
-        [9, 'A3'], [10, 'B3'], [11, 'C3'], [12, 'D3'],
+        [1, 'A1'], [2, 'A2'], [3, 'B1'], [4, 'C2'],
+        [5, 'C1'], [6, 'A3'], [7, 'D1'], [8, 'C3'],
+        [9, 'D3'], [11, 'B3'], [13, 'D2'], [15, 'B2'],
       ]);
     });
 
     it('does not expose legacy direct[] because callers should use directSeeds[]', () => {
       expect('direct' in result).toBe(false);
-      expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
-        'A1', 'B1', 'C1', 'D1',
-        'A2', 'B2', 'C2', 'D2',
-        'A3', 'B3', 'C3', 'D3',
+    });
+
+    it('no round-1 direct-vs-direct pair shares a qualifying group', () => {
+      const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
+      }
+    });
+
+    it('barrage[] is Top4-6 from each group, unaffected by anti-collision reordering when all ranks tie', () => {
+      expect(result.barrage.map(q => q.playerId)).toEqual([
+        'A4', 'B4', 'C4', 'D4',
+        'A5', 'C5', 'D5', 'B5',
+        'A6', 'C6', 'D6', 'B6',
       ]);
     });
 
-    it('barrage[] is Top4-6 from each group, interleaved', () => {
-      expect(result.barrage.map(q => q.playerId)).toEqual([
-        'A4', 'B4', 'C4', 'D4',
-        'A5', 'B5', 'C5', 'D5',
-        'A6', 'B6', 'C6', 'D6',
-      ]);
+    it('no round-1 barrage pair shares a qualifying group', () => {
+      const groupBySeed = new Map(result.barrage.map((q, i) => [i + 1, q.group]));
+      for (const [a, b] of [[5, 8], [6, 7], [9, 12], [10, 11]] as const) {
+        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
+      }
     });
   });
 

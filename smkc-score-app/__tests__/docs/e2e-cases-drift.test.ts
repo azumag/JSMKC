@@ -1371,6 +1371,7 @@ describe('E2E case drift coverage', () => {
     const followupSection = e2eCaseSection('TC-1678');
     const disabledButtonSection = e2eCaseSection('TC-1680');
     const secondaryButtonSection = e2eCaseSection('TC-1682');
+    const selectorReturnSection = e2eCaseSection('TC-3010');
     const helperAliasSection = e2eCaseSection('TC-1980-1982');
     const helperAliasGuardSection = e2eCaseSection('TC-2012');
     const helperAliasCallGuardSection = e2eCaseSection('TC-2014');
@@ -1390,6 +1391,9 @@ describe('E2E case drift coverage', () => {
     expect(disabledButtonSection).toContain('disabled');
     expect(secondaryButtonSection).toContain('issue #1682');
     expect(secondaryButtonSection).toContain('variant="secondary"');
+    // TC-1680/1682 explicitly anticipated this reversal ("将来...selectable UIに戻す場合はguard更新が必要になる").
+    expect(selectorReturnSection).toContain('issue #1007/#1678/#1680/#1682');
+    expect(selectorReturnSection).toContain('GROUP_COUNT_OPTIONS');
     expect(helperAliasSection).toContain('issue #1980 / #1982');
     expect(helperAliasSection).toContain('EXPECTED_PAGE_ROLE_LOOKUPS');
     expect(helperAliasGuardSection).toContain('issue #2012');
@@ -1408,8 +1412,9 @@ describe('E2E case drift coverage', () => {
     expect(guard).toContain("e2eCaseSection('TC-1678')");
     expect(guard).toContain("not.toContain('groupCount={groupCount}')");
     expect(guard).toContain("not.toContain('setGroupCount={setGroupCount}')");
-    expect(guard).toContain("expect(groupCountButton).toContain('disabled')");
-    expect(guard).toContain('expect(groupCountButton).toContain(\'variant="secondary"\')');
+    // TC-3010 replaced the disabled/secondary read-only display with a real 2/3 selector.
+    expect(guard).toContain("expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}')");
+    expect(guard).toContain("expect(groupCountButton).not.toContain('disabled')");
   });
 
   it('keeps TC-1004 aligned with the CourseCycleStatus YAGNI guard', () => {

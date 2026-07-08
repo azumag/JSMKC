@@ -38,6 +38,11 @@ import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
 const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
 
+/* 2 or 3 groups only (docs/qualification-combined-ranking.md §7: 4+ groups
+ * are out of scope for now). Group setup UI is likewise limited to 2/3
+ * (group-setup-dialog.tsx). */
+const SUPPORTED_QUALIFICATION_GROUPS = ['A', 'B', 'C'] as const;
+
 /**
  * Shuffle an array using the Fisher-Yates algorithm.
  * Returns a new array (does not mutate the original).
@@ -440,11 +445,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       const invalidGroup = players.find(
-        (p: { group?: string }) => p.group !== 'A' && p.group !== 'B',
+        (p: { group?: string }) => !SUPPORTED_QUALIFICATION_GROUPS.includes(p.group as typeof SUPPORTED_QUALIFICATION_GROUPS[number]),
       );
       if (invalidGroup) {
         return handleValidationError(
-          'Only groups A and B are currently supported',
+          `Only groups ${SUPPORTED_QUALIFICATION_GROUPS.join(', ')} are currently supported`,
           'players',
         );
       }
