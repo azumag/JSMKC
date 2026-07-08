@@ -12,8 +12,13 @@
  * For 2 groups, placement is fixed by group-internal rank and the CDM two-group
  * Top-24 layout. A/B are not merged into a global ranking.
  *
- * 3+ group ordering intentionally keeps the existing round-robin group interleave;
- * combined-ranking rules for 3+ groups are a separate follow-up.
+ * For 3+ groups, per docs/qualification-combined-ranking.md §2-§3 (confirmed by
+ * tournament operations, §7 Q2/Q4): entries are stacked bucket by bucket (bucket
+ * k = every group's (k+1)-th-ranked player), tie-broken within a bucket by WDL
+ * score -> point differential -- no seeding. Seed *placement* within the bracket
+ * (avoiding same-group early matchups, like the 2-group TWO_GROUP_*_SEED_TOKENS
+ * maps below) remains a separate follow-up; seeds are assigned sequentially in
+ * bucket order for now.
  *
  * Example (2 groups, A=14, B=13):
  *   direct seeds: 1:A1, 2:B3, 3:B1, 4:A3, 5:B2, 6:A4,
@@ -29,9 +34,10 @@
  */
 
 import { GROUPS } from './group-utils';
+import { compareByScoreThenPoints, groupBy, type ScorePointsEntry } from './ranking-utils';
 
 /** Minimum shape required from a qualification record. */
-export interface FinalsQualInput<TPlayer = unknown> {
+export interface FinalsQualInput<TPlayer = unknown> extends ScorePointsEntry {
   playerId: string;
   group: string;
   player: TPlayer;
@@ -83,12 +89,7 @@ export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
   }
 
   /* Bucket preserving caller-provided order within each group. */
-  const byGroup = new Map<string, FinalsQualInput<TPlayer>[]>();
-  for (const q of allQualifications) {
-    const bucket = byGroup.get(q.group);
-    if (bucket) bucket.push(q);
-    else byGroup.set(q.group, [q]);
-  }
+  const byGroup = groupBy(allQualifications, (q) => q.group);
 
   const groupCount = byGroup.size;
   if (groupCount < 2 || groupCount > 4 || TOTAL_FINALS_SLOTS % groupCount !== 0) {
@@ -148,16 +149,17 @@ export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
     };
   }
 
-  /* Interleave round-robin for 3+ groups until the combined-ranking rule lands:
-   * for slot k in [0, perGroup), take each group's k-th player.
-   *   3 groups: [A0,B0,C0,A1,B1,C1,...] */
+  /* Bucket-stack for 3+ groups (qualification-combined-ranking.md §2-§3): for
+   * slot k in [0, perGroup), bucket k = every group's k-th player, tie-broken
+   * within the bucket by WDL score -> point differential (no seeding). Every
+   * group is guaranteed a k-th player here by the perGroup*2 validation above. */
   const direct: FinalsQualInput<TPlayer>[] = [];
   const barrage: FinalsQualInput<TPlayer>[] = [];
   for (let k = 0; k < perGroup; k++) {
-    for (const bucket of buckets) direct.push(bucket[k]);
+    direct.push(...buckets.map(bucket => bucket[k]).sort(compareByScoreThenPoints));
   }
   for (let k = perGroup; k < perGroup * 2; k++) {
-    for (const bucket of buckets) barrage.push(bucket[k]);
+    barrage.push(...buckets.map(bucket => bucket[k]).sort(compareByScoreThenPoints));
   }
 
   return {

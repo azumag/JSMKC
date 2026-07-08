@@ -27,6 +27,11 @@ interface Entry {
   _rank?: number;
 }
 
+// computeCombinedRanks additionally requires a group label to bucket by.
+interface GroupedEntry extends Entry {
+  group: string;
+}
+
 /** Standard BM/MR comparator: score desc, points desc */
 const bmCompareFn: (a: Entry, b: Entry) => number = compareByScoreThenPoints;
 
@@ -136,6 +141,11 @@ describe("computeTieAwareRanks", () => {
 // ── computeCombinedRanks ─────────────────────────────────────────────────────
 
 describe("computeCombinedRanks", () => {
+  // docs/qualification-combined-ranking.md §2: entries are stacked bucket by
+  // bucket (bucket N = every group's Nth-place finisher); a bucket always
+  // outranks the next one in full, and only ties *within* a bucket are broken
+  // by the comparator (WDL score -> points). No seed ranking is ever consulted.
+
   it("shares the standard score-then-points comparator across qualification modes", () => {
     const entries: Entry[] = [
       { id: "low-score", score: 6, points: 99, rankOverride: null },
@@ -150,36 +160,108 @@ describe("computeCombinedRanks", () => {
     ]);
   });
 
-  it("assigns 1224 ranks across all entries using only the comparator", () => {
-    const entries: Entry[] = [
-      { id: "a", score: 10, points: 2, rankOverride: null },
-      { id: "b", score: 10, points: 2, rankOverride: null },
-      { id: "c", score: 8, points: 1, rankOverride: null },
+  it("stacks bucket 1 (every group's rank-1 finisher) entirely above bucket 2, regardless of stats", () => {
+    // a2 (bucket 2, group A) outscores everyone in bucket 1 by a wide margin,
+    // but bucket is the absolute primary key -- it must still land last.
+    // Group-internal rank is pinned via _rank so it doesn't need to agree
+    // with the raw score used for the cross-bucket tiebreak (mirrors a
+    // server-resolved H2H rank that overrides the naive score ordering).
+    const entries: GroupedEntry[] = [
+      { id: "a1", group: "A", score: 1, points: 0, rankOverride: null, _rank: 1 },
+      { id: "b1", group: "B", score: 1, points: 0, rankOverride: null, _rank: 1 },
+      { id: "a2", group: "A", score: 99, points: 99, rankOverride: null, _rank: 2 },
+    ];
+    const result = computeCombinedRanks(entries, bmCompareFn);
+    expect(result.map((e) => e.id)).toEqual(["a1", "b1", "a2"]);
+  });
+
+  it("breaks a same-bucket tie by WDL score then points -- not by group letter", () => {
+    // This is the fix for the bug found in the CDM Excel template: its 2-group
+    // formula has no real tiebreak and always resolves ties as "group A wins",
+    // which silently misranks a genuinely-better group-B player (see
+    // docs/qualification-combined-ranking.md §3, rows 7-8 / 29-30). Here group B's
+    // bucket-1 entry has the better record and must rank first despite group A
+    // sorting first alphabetically.
+    const entries: GroupedEntry[] = [
+      { id: "a1", group: "A", score: 10, points: 2, rankOverride: null },
+      { id: "b1", group: "B", score: 10, points: 5, rankOverride: null },
+    ];
+    const result = computeCombinedRanks(entries, bmCompareFn);
+    expect(result.map((e) => e.id)).toEqual(["b1", "a1"]);
+  });
+
+  it("matches the 3-group worked example from qualification-combined-ranking.md §2.3", () => {
+    // Group-internal rank (_rank, e.g. from server H2H resolution) is pinned
+    // independently of the score/points shown, exactly like the doc's table
+    // -- group B's rank-1 finisher (B1) has a lower raw score than its own
+    // rank-2 finisher (B2), which is possible when group rank came from a
+    // tiebreak the raw score/points columns don't capture (H2H, admin override).
+    const entries: GroupedEntry[] = [
+      { id: "A1", group: "A", score: 8, points: 20, rankOverride: null, _rank: 1 },
+      { id: "B1", group: "B", score: 6, points: 10, rankOverride: null, _rank: 1 },
+      { id: "C1", group: "C", score: 8, points: 15, rankOverride: null, _rank: 1 },
+      { id: "A2", group: "A", score: 7, points: 8, rankOverride: null, _rank: 2 },
+      { id: "B2", group: "B", score: 7, points: 12, rankOverride: null, _rank: 2 },
+      { id: "C2", group: "C", score: 5, points: 5, rankOverride: null, _rank: 2 },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
     expect(result.map((e) => [e.id, e._autoRank])).toEqual([
-      ["a", 1],
-      ["b", 1],
-      ["c", 3],
+      ["A1", 1],
+      ["C1", 2],
+      ["B1", 3],
+      ["B2", 4],
+      ["A2", 5],
+      ["C2", 6],
     ]);
   });
 
-  it("ignores group-scoped rankOverride and server _rank in combined display", () => {
-    const entries: Entry[] = [
-      { id: "a", score: 10, points: 2, rankOverride: null, _rank: 3 },
-      { id: "b", score: 8, points: 1, rankOverride: 1, _rank: 1 },
+  it("leaves a bucket with only some groups present when group sizes are uneven", () => {
+    // Group A has a 3rd-place finisher; group B does not. Bucket 3 (and any
+    // further bucket) simply contains only group A's entry -- no error, no
+    // auto-lowest-rank fabrication (§2.3/§2.4).
+    const entries: GroupedEntry[] = [
+      { id: "a1", group: "A", score: 9, points: 0, rankOverride: null },
+      { id: "b1", group: "B", score: 8, points: 0, rankOverride: null },
+      { id: "a2", group: "A", score: 7, points: 0, rankOverride: null },
+      { id: "b2", group: "B", score: 6, points: 0, rankOverride: null },
+      { id: "a3", group: "A", score: 5, points: 0, rankOverride: null },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
-    expect(result.map((e) => [e.id, e._autoRank])).toEqual([
-      ["a", 1],
-      ["b", 2],
-    ]);
+    expect(result.map((e) => e.id)).toEqual(["a1", "b1", "a2", "b2", "a3"]);
+    expect(result[4]._autoRank).toBe(5);
+  });
+
+  it("resolves bucket membership from the group-scoped rankOverride, not raw score", () => {
+    // Admin has overridden group A's ranking: b (lower raw score) is set to
+    // rank 1, a (higher raw score) is demoted to rank 2 (e.g. a sudden-death
+    // playoff result). Bucket assignment must follow that *final* group rank
+    // (§1), not the raw score -- so despite having the best score of all
+    // three entries, a is confined to bucket 2 and finishes last.
+    const entries: GroupedEntry[] = [
+      { id: "a", group: "A", score: 10, points: 2, rankOverride: 2 },
+      { id: "b", group: "A", score: 3, points: 0, rankOverride: 1 },
+      { id: "c", group: "B", score: 9, points: 9, rankOverride: null },
+    ];
+    const result = computeCombinedRanks(entries, bmCompareFn);
+    // bucket 1 = {b, c}; c's score(9) beats b's(3). a is alone in bucket 2.
+    expect(result.map((e) => e.id)).toEqual(["c", "b", "a"]);
+  });
+
+  it("resolves bucket membership from server-computed _rank (H2H) when present", () => {
+    const entries: GroupedEntry[] = [
+      { id: "a", group: "A", score: 10, points: 2, rankOverride: null, _rank: 2 },
+      { id: "b", group: "A", score: 10, points: 2, rankOverride: null, _rank: 1 },
+      { id: "c", group: "B", score: 20, points: 20, rankOverride: null, _rank: 1 },
+    ];
+    const result = computeCombinedRanks(entries, bmCompareFn);
+    // b and c share bucket 1; c's score wins the tiebreak. a is bucket 2, always last.
+    expect(result.map((e) => e.id)).toEqual(["c", "b", "a"]);
   });
 
   it("uses the GP comparator for combined GP standings", () => {
-    const entries: Entry[] = [
-      { id: "a", score: 10, points: 6, rankOverride: null },
-      { id: "b", score: 8, points: 9, rankOverride: null },
+    const entries: GroupedEntry[] = [
+      { id: "a", group: "A", score: 10, points: 6, rankOverride: null },
+      { id: "b", group: "B", score: 8, points: 9, rankOverride: null },
     ];
     const result = computeCombinedRanks(entries, gpCompareFn);
     expect(result[0].id).toBe("a");

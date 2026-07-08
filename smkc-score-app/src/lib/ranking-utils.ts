@@ -36,6 +36,23 @@ export function compareByScoreThenPoints(a: ScorePointsEntry, b: ScorePointsEntr
   return b.score - a.score || b.points - a.points;
 }
 
+/** Shape required by computeCombinedRanks: a group label to bucket entries by. */
+export interface GroupedRankableEntry extends RankableEntry {
+  group: string;
+}
+
+/** Groups entries by a derived key, preserving each group's relative input order. */
+export function groupBy<T>(entries: T[], keyFn: (entry: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const entry of entries) {
+    const key = keyFn(entry);
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
+  }
+  return groups;
+}
+
 /**
  * Assign 1224 competition ranks to entries, then sort by effective rank.
  *
@@ -99,27 +116,47 @@ export function computeTieAwareRanks<T extends RankableEntry>(
 }
 
 /**
- * Assign display-only 1224 competition ranks across a combined standings pool.
+ * Assign 1224 competition ranks across a combined (cross-group) standings pool
+ * using the "rank-within-group bucket" rule from
+ * docs/qualification-combined-ranking.md §2: all groups' Nth-place finishers
+ * form "bucket N"; bucket N always outranks bucket N+1 in full regardless of
+ * any individual's stats, and only ties *within* a bucket fall back to
+ * `compareFn` (WDL score -> point differential). Seeding is never consulted
+ * (§7 Q1/Q2, confirmed by tournament operations: no seed-based tiebreak).
  *
- * Unlike computeTieAwareRanks, this intentionally ignores server-provided
- * `_rank` and `rankOverride` because those values are scoped to each group.
- * The combined 2P view is a cross-group reference table, not the source of
- * finals seeding or playoff resolution.
+ * A group's "rank within group" is its *final* resolved rank -- i.e. it goes
+ * through computeTieAwareRanks first, so a group-scoped `rankOverride` or
+ * server-computed `_rank` (H2H, sudden death) determines bucket membership,
+ * per §1 ("グループ内最終順位...を入力として使う"). Groups of uneven size
+ * simply have no entry in a bucket past their last player -- no special-casing
+ * needed (§2.3/§2.4).
  */
-export function computeCombinedRanks<T extends RankableEntry>(
+export function computeCombinedRanks<T extends GroupedRankableEntry>(
   entries: T[],
   compareFn: (a: T, b: T) => number
 ): EntryWithAutoRank<T>[] {
   if (entries.length === 0) return [];
 
-  const sorted = [...entries].sort(compareFn);
-  const withAutoRank: EntryWithAutoRank<T>[] = [];
+  const bucketById = new Map<string, number>();
+  for (const groupEntries of groupBy(entries, (entry) => entry.group).values()) {
+    for (const ranked of computeTieAwareRanks(groupEntries, compareFn)) {
+      bucketById.set(ranked.id, ranked.rankOverride ?? ranked._autoRank);
+    }
+  }
 
+  // Single comparator shared by the sort and the tie-check below, so the two
+  // can never drift apart: bucket is the absolute primary key, compareFn only
+  // breaks ties within the same bucket.
+  const combinedCompare = (a: T, b: T) => {
+    const bucketDiff = bucketById.get(a.id)! - bucketById.get(b.id)!;
+    return bucketDiff !== 0 ? bucketDiff : compareFn(a, b);
+  };
+  const sorted = [...entries].sort(combinedCompare);
+
+  const withAutoRank: EntryWithAutoRank<T>[] = [];
   for (let i = 0; i < sorted.length; i++) {
-    const autoRank =
-      i > 0 && compareFn(sorted[i - 1], sorted[i]) === 0
-        ? withAutoRank[i - 1]._autoRank
-        : i + 1;
+    const tiedWithPrevious = i > 0 && combinedCompare(sorted[i - 1], sorted[i]) === 0;
+    const autoRank = tiedWithPrevious ? withAutoRank[i - 1]._autoRank : i + 1;
     withAutoRank.push({ ...sorted[i], _autoRank: autoRank });
   }
 

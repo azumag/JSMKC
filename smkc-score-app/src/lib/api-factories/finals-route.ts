@@ -21,6 +21,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
+import type { ScorePointsEntry } from '@/lib/ranking-utils';
 import { getGpFinalsMaxCups, getMrFinalsMaxRounds } from '@/lib/finals-target-wins';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
@@ -93,7 +94,10 @@ interface Top24FinalsPreviewMatch extends Record<string, unknown> {
   completed?: boolean;
 }
 
-interface Top24FinalsQualification extends QualificationRankLabelInput {
+/* score/points (ScorePointsEntry) are present on the underlying Prisma row for
+ * all of BM/MR/GP; declared here so selectFinalsEntrantsByGroup's 3+-group
+ * bucket tiebreak can read them. See qualification-combined-ranking.md §2-§3. */
+interface Top24FinalsQualification extends QualificationRankLabelInput, ScorePointsEntry {
   group: string;
   player: PublicFinalsPlayer | null;
 }
