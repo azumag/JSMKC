@@ -60,7 +60,7 @@ export async function getPlayedCoursesWithSuddenDeath(
       roundNumber: true,
       suddenDeathRounds: {
         orderBy: { sequence: "asc" },
-        select: { id: true, course: true },
+        select: { id: true, course: true, kind: true },
       },
     },
   });
@@ -79,8 +79,13 @@ export async function getPlayedCoursesWithSuddenDeath(
        * course is already counted by the base round; pushing the duplicate would
        * inflate the played-course count and shift the 20-course cycle boundary
        * in getAvailableCourses (the cycle is derived from list length).
+       *
+       * Gated on the persisted `kind` (issue #2775) rather than course
+       * equality: a revival/bronze sudden death that coincidentally draws the
+       * same course as the base round (possible right at a 20-course cycle
+       * reset) must still be counted, not silently dropped.
        */
-      if (suddenDeathRound.course === round.course) continue;
+      if (suddenDeathRound.kind === "life_loss" && suddenDeathRound.course === round.course) continue;
       courses.push(suddenDeathRound.course);
     }
   }

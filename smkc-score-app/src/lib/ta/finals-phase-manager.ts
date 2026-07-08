@@ -988,7 +988,7 @@ export interface SuddenDeathResultInput {
  *   same round): fresh course, consumed from the cycle; the sudden death only
  *   orders the two eliminated players to decide 3rd place (bronze medal).
  */
-type SuddenDeathKind = "elimination" | "revival" | "life_loss" | "bronze";
+export type SuddenDeathKind = "elimination" | "revival" | "life_loss" | "bronze";
 
 interface TieBreakDecision {
   targetPlayerIds: string[];
@@ -1204,6 +1204,7 @@ async function createSuddenDeathRound(
   phase: "phase1" | "phase2" | "phase3",
   phaseRoundId: string,
   targetPlayerIds: string[],
+  kind: SuddenDeathKind,
   options: { course?: string } = {}
 ) {
   const logger = createLogger("ta-phase-manager");
@@ -1239,6 +1240,7 @@ async function createSuddenDeathRound(
           phaseRoundId,
           sequence: count + 1,
           course,
+          kind,
           targetPlayerIds: targetPlayerIds as InputJsonValue,
           results: Prisma.DbNull,
           resolved: false,
@@ -1575,6 +1577,7 @@ export async function submitRoundResults(
       phase,
       round.id,
       tieBreak.targetPlayerIds,
+      tieBreak.kind,
       // Life-loss ties re-run the base round's course (issue #2773).
       tieBreak.kind === "life_loss" ? { course: round.course } : {}
     );
@@ -1679,13 +1682,18 @@ export async function changeSuddenDeathCourse(
     throw new Error("Sudden-death course cannot be changed after results are submitted");
   }
   /*
-   * In phase3 the base round's own course is a legal choice: a life-loss
-   * tiebreak re-runs it by rule (issue #2773), and reverting a manual change
-   * back to the re-run course must not be blocked by the played-course check.
-   * This bypass is intentionally phase3-only — phase1/2 elimination ties always
-   * use a fresh course, so their base course stays (correctly) unavailable.
+   * In phase3 the base round's own course is a legal choice ONLY for a
+   * life_loss re-run (issue #2773 rule; issue #2775 fix): reverting a manual
+   * change back to the re-run course must not be blocked by the
+   * played-course check. Gating on the persisted `kind` (rather than
+   * inferring it from course equality) prevents a revival/bronze sudden
+   * death from being redirected onto the base course, which the elimination
+   * rules never allow for those kinds.
    */
-  const baseCourseAllowed = phase === "phase3" && course === suddenDeathRound.phaseRound.course;
+  const baseCourseAllowed =
+    phase === "phase3" &&
+    suddenDeathRound.kind === "life_loss" &&
+    course === suddenDeathRound.phaseRound.course;
   if (!baseCourseAllowed) {
     const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase, {
       excludeSuddenDeathRoundId: suddenDeathRoundId,
@@ -1753,12 +1761,9 @@ export async function submitSuddenDeathResults(
   const baseResults = Array.isArray(suddenDeathRound.phaseRound.results)
     ? (suddenDeathRound.phaseRound.results as unknown as CourseResult[])
     : [];
-  /*
-   * A sudden death that shares the base round's course is a life-loss re-run
-   * (issue #2773): random selection never repeats a course already played in
-   * the current cycle, so equality can only come from the life-loss path.
-   */
-  const isLifeLossRerun = suddenDeathRound.course === suddenDeathRound.phaseRound.course;
+  // The persisted kind (issue #2775) replaces inferring a life-loss re-run
+  // from course equality, which could misfire at a 20-course cycle boundary.
+  const isLifeLossRerun = suddenDeathRound.kind === "life_loss";
   const continuationTargetIds = getSuddenDeathContinuationTargets(phase, baseResults, processedResults);
   await prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRound.id },
@@ -1775,6 +1780,8 @@ export async function submitSuddenDeathResults(
       phase,
       suddenDeathRound.phaseRoundId,
       continuationTargetIds,
+      // A continuation keeps the same kind as the round it re-ties.
+      suddenDeathRound.kind as SuddenDeathKind,
       // A re-tied life-loss re-run races the same course again.
       isLifeLossRerun ? { course: suddenDeathRound.phaseRound.course } : {}
     );
@@ -1837,7 +1844,8 @@ export async function submitSuddenDeathResults(
         tournamentId,
         phase,
         suddenDeathRound.phaseRoundId,
-        bronzeTargets
+        bronzeTargets,
+        "bronze"
       );
       return {
         eliminatedIds: [],

@@ -338,8 +338,8 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
             course: "MC1",
             // Life-loss re-run on the same course, then a bronze race on DP1.
             suddenDeathRounds: [
-              { id: "sd-rerun", course: "MC1" },
-              { id: "sd-bronze", course: "DP1" },
+              { id: "sd-rerun", course: "MC1", kind: "life_loss" },
+              { id: "sd-bronze", course: "DP1", kind: "bronze" },
             ],
           },
         ]),
@@ -351,5 +351,32 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
     // MC1 appears exactly once (base round); the fresh bronze course counts.
     expect(played).toEqual(["MC1", "DP1"]);
     expect(getAvailableCourses(played)).toHaveLength(18);
+  });
+
+  /* Regression for issue #2775: before the `kind` field was persisted, a
+   * life-loss re-run was inferred purely from "sudden-death course === base
+   * round course". A revival/bronze sudden death that coincidentally draws
+   * the same course as the base round (possible right at a 20-course cycle
+   * reset) would be misclassified as a life-loss re-run and silently dropped
+   * from the played-course count, shifting the cycle boundary. */
+  it("still counts a revival/bronze sudden death that coincidentally draws the base round's course", async () => {
+    const prisma = {
+      tTPhaseRound: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "p3-r1",
+            phase: "phase3",
+            roundNumber: 1,
+            course: "MC1",
+            suddenDeathRounds: [{ id: "sd-revival", course: "MC1", kind: "revival" }],
+          },
+        ]),
+      },
+    };
+
+    const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase3");
+
+    expect(played).toEqual(["MC1", "MC1"]);
+    expect(getAvailableCourses(played)).toHaveLength(19);
   });
 });

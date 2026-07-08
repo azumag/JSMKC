@@ -43,6 +43,10 @@
  *           sortPhaseEntriesForDisplay preferring raw main-course time over
  *           the resolved eliminatedIds order (reported via manual replica
  *           testing).
+ *   TC-2775 change_sudden_death_course rejects redirecting a bronze sudden
+ *           death onto the base round's already-played course; the phase3
+ *           base-course bypass is life_loss-only, gated on the persisted
+ *           `kind` rather than `phase === "phase3"` alone (issue #2775).
  *   TC-2779  undo/cancel of a phase's last round is rejected (409) once a later
  *           phase has been promoted from it; allowed again after reset (#2779).
  *   TC-2781  Undo/Cancel on the round-management card of an IN-PROGRESS phase
@@ -2234,6 +2238,79 @@ async function runTc2773b(adminPage) {
   }
 }
 
+/* ───────── TC-2775: change_sudden_death_course rejects redirecting a
+ * non-life_loss (bronze/revival) sudden death onto the base round's course.
+ * Issue #2775: the phase3 base-course bypass in changeSuddenDeathCourse used
+ * to check only `phase === "phase3"`, not the sudden death's kind, so a
+ * bronze/revival sudden death (which must always draw a fresh course) could
+ * be redirected onto the already-played base course via a direct API call. */
+async function runTc2775(adminPage) {
+  let fixture = null;
+  try {
+    const stamp = Date.now();
+    const players = [];
+    for (let i = 1; i <= 4; i++) {
+      players.push(await uiCreatePlayer(adminPage, `E2E TA KindGuard ${i} ${stamp}`, `e2e_ta_kindguard_${i}_${stamp}`));
+    }
+    const baseFixture = await createIsolatedTaQualification(adminPage, `KindGuard SD ${stamp}`, players, { seedTimes: false });
+    fixture = {
+      ...baseFixture,
+      cleanup: async () => {
+        await baseFixture.cleanup();
+        for (const player of players) await apiDeletePlayer(adminPage, player.id);
+      },
+    };
+    const { tournamentId } = fixture;
+    await seedTaQualificationRanks(adminPage, tournamentId, fixture.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+    const phase = 'phase3';
+    const entries = orderTaEntriesForDeterministicResultSlots(
+      (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [],
+    );
+    if (entries.length !== 4) throw new Error(`phase3 entries=${entries.length}, expected 4`);
+    const [p1, p2, p3, p4] = entries;
+
+    /* Drop the two designated losers to their last life (3 → 1), same as
+     * TC-2773B, to trigger a bronze (non-life_loss) sudden death. */
+    for (const entry of [p3, p4]) {
+      const lifeUpdate = await apiUpdateTaLives(adminPage, tournamentId, entry.id, -2);
+      if (lifeUpdate.s !== 200) throw new Error(`update_lives failed (${lifeUpdate.s}) for ${entry.playerId}`);
+    }
+
+    const submit = await submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase, 'MC1', [
+      { playerId: p1.playerId, timeMs: 80000 },
+      { playerId: p2.playerId, timeMs: 81000 },
+      { playerId: p3.playerId, timeMs: 82000 },
+      { playerId: p4.playerId, timeMs: 83000 },
+    ]);
+    const sudden = submit.data.suddenDeathRound;
+    if (submit.data.tieBreakRequired !== true || !sudden?.id || sudden.course === 'MC1') {
+      log('TC-2775', 'FAIL', `expected a fresh-course bronze sudden death, got ${JSON.stringify(submit.data).slice(0, 220)}`);
+      return;
+    }
+
+    /* The bug: redirecting this bronze sudden death onto the base round's
+     * course (MC1) must be REJECTED — only a life_loss sudden death may
+     * legally reuse the base course. */
+    const redirected = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'change_sudden_death_course',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      course: 'MC1',
+    });
+    const rejectedOk = redirected.s === 400 &&
+      typeof redirected.b?.error === 'string' &&
+      redirected.b.error.includes('already been played');
+    log('TC-2775', rejectedOk ? 'PASS' : 'FAIL',
+      rejectedOk ? '' : `expected 400 rejection redirecting bronze SD onto base course, got ${redirected.s}: ${JSON.stringify(redirected.b).slice(0, 220)}`);
+  } catch (err) {
+    log('TC-2775', 'FAIL', err instanceof Error ? err.message : 'TA sudden-death kind guard failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* ───────── TC-817: Phase1 sudden-death courses consume the shared cycle ───────── */
 async function runTc817(adminPage) {
   let fixture = null;
@@ -2936,6 +3013,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-815', fn: runTc815 },
       { name: 'TC-2773A', fn: runTc2773a },
       { name: 'TC-2773B', fn: runTc2773b },
+      { name: 'TC-2775', fn: runTc2775 },
       { name: 'TC-1032', fn: runTc1032 },
       { name: 'TC-1033', fn: runTc1033 },
       { name: 'TC-817', fn: runTc817 },

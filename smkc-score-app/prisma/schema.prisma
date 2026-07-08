@@ -502,6 +502,12 @@ model TTPhaseSuddenDeathRound {
   phase           String
   sequence        Int
   course          String
+  // Why this sudden death was run: "elimination" | "revival" | "life_loss" | "bronze"
+  // (see SuddenDeathKind in finals-phase-manager.ts). Persisted so course-pool
+  // accounting and the "same course as base round" guard don't have to infer
+  // the kind from course equality, which can misclassify a coincidental
+  // same-course draw at a 20-course cycle boundary (issue #2775).
+  kind            String       @default("elimination")
   targetPlayerIds Json
   results         Json?
   resolved        Boolean      @default(false)

@@ -20,8 +20,8 @@
 
 1. **WDLスコア（勝点 = 勝×2＋分×1）** 降順
 2. **得失点差（BM/MR）／ドライバーズポイント累計（GP）** 降順
-   - BM/MR: `winRounds - lossRounds`（`bm-config.ts:123`, `mr-config.ts:135`）
-   - GP: レースごとの獲得ポイント累計、差分ではない（`gp-config.ts:7-8, 188-189`）
+   - BM/MR: `winRounds - lossRounds`（`src/lib/event-types/bm-config.ts:123`, `src/lib/event-types/mr-config.ts:135`）
+   - GP: レースごとの獲得ポイント累計、差分ではない（`src/lib/event-types/gp-config.ts:7-8, 188-189`）
 3. **直接対決（H2H）**: 上記までで同点のグループ内選手同士の対戦結果のみで再ソート（`server-ranking.ts:59-137`）
 4. **管理者によるサドンデス結果の手動確定**（`rankOverride`。UI上は「サドンデスプレーオフ」。`qualification-playoff-manager.tsx`）
 
