@@ -13,7 +13,8 @@
  * - Player search filtering by name/nickname
  * - Select All / deselect for filtered results
  * - Seeding number input per player (for §10 qualification flow)
- * - Qualification group count is temporarily locked to 2
+ * - Qualification group count is selectable (2 or 3; see docs/finals-entrant-selection.{ja,en}.md
+ *   for how finals entrant selection differs between the two)
  * - Group A-D assignment per player
  * - Auto-distribute by seeding (snake pattern per §10.2)
  * - Random group assignment button (development mode only)
@@ -52,7 +53,30 @@ import {
   type SetupPlayer,
 } from "@/lib/group-utils";
 
-const LOCKED_GROUP_COUNT = 2;
+/**
+ * Selectable group counts (docs/qualification-combined-ranking.md §7: 4+
+ * groups are out of scope for now). This is internal component state, not a
+ * prop -- see issue #1007/#1678, which removed a `groupCount`/`setGroupCount`
+ * prop pair that the dialog never actually needed the parent for.
+ */
+const GROUP_COUNT_OPTIONS = [2, 3] as const;
+const DEFAULT_GROUP_COUNT: number = GROUP_COUNT_OPTIONS[0];
+const MIN_GROUPS: number = GROUP_COUNT_OPTIONS[0];
+
+/**
+ * Reassigns any player whose current group isn't in `availableGroups` to the
+ * last available group (e.g. group C players when switching 3 groups -> 2).
+ * Shared by handleOpenChange's edit-mode load and handleGroupCountChange's
+ * live toggle, which both need this same remap.
+ */
+function remapToAvailableGroups<T extends { group: string }>(
+  players: T[],
+  availableGroups: readonly string[],
+): T[] {
+  return players.map((p) =>
+    availableGroups.includes(p.group) ? p : { ...p, group: availableGroups[availableGroups.length - 1] },
+  );
+}
 
 /** Player data structure matching the API response */
 export interface Player {
@@ -108,13 +132,13 @@ export function GroupSetupDialog({
   const locale = useLocale();
 
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  const [groupCount, setGroupCount] = useState<number>(DEFAULT_GROUP_COUNT);
 
   const hasExistingQualifications = existingAssignments.length > 0;
 
-  /* Group count is temporarily locked to 2 while 3+ group rules are clarified. */
-  const availableGroups = GROUPS.slice(0, LOCKED_GROUP_COUNT);
+  const availableGroups = GROUPS.slice(0, groupCount);
 
-  const minGroups = LOCKED_GROUP_COUNT;
+  const minGroups = MIN_GROUPS;
 
   /**
    * Handle dialog open/close with automatic state management.
@@ -123,18 +147,36 @@ export function GroupSetupDialog({
    */
   const handleOpenChange = (open: boolean) => {
     if (open && hasExistingQualifications) {
-      /* Edit mode: load existing player-group assignments into the form */
-      setSetupPlayers(existingAssignments.map((assignment) =>
-        (availableGroups as readonly string[]).includes(assignment.group)
-          ? assignment
-          : { ...assignment, group: availableGroups[availableGroups.length - 1] },
-      ));
+      /* Edit mode: infer the group count already in use from the existing
+       * assignments (rather than resetting to the default), so editing a
+       * 3-group tournament re-opens showing 3 groups selected. */
+      const distinctGroupCount = new Set(existingAssignments.map((a) => a.group)).size;
+      const inferredGroupCount =
+        GROUP_COUNT_OPTIONS.find((n) => n >= distinctGroupCount) ??
+        GROUP_COUNT_OPTIONS[GROUP_COUNT_OPTIONS.length - 1];
+      const inferredGroups = GROUPS.slice(0, inferredGroupCount) as readonly string[];
+      setGroupCount(inferredGroupCount);
+      setSetupPlayers(remapToAvailableGroups(existingAssignments, inferredGroups));
     } else if (!open) {
       /* Close: reset all form state */
       setSetupPlayers([]);
       setPlayerSearchQuery("");
+      setGroupCount(DEFAULT_GROUP_COUNT);
     }
     setIsOpen(open);
+  };
+
+  /**
+   * Handle the admin changing the group count via the selector buttons.
+   * Any player whose current group no longer exists under the new count
+   * (e.g. group C players when switching 3 -> 2) is reassigned to the last
+   * remaining group, mirroring the edit-mode remap in handleOpenChange.
+   */
+  const handleGroupCountChange = (nextCount: number) => {
+    if (nextCount === groupCount) return;
+    const nextGroups = GROUPS.slice(0, nextCount) as readonly string[];
+    setGroupCount(nextCount);
+    setSetupPlayers(remapToAvailableGroups(setupPlayers, nextGroups));
   };
 
   /** Add a player to the setup list with a default group */
@@ -152,7 +194,7 @@ export function GroupSetupDialog({
   /** Handle random group assignment for all selected players */
   const handleRandomAssign = () => {
     if (setupPlayers.length === 0) return;
-    setSetupPlayers(randomlyAssignGroups(setupPlayers, LOCKED_GROUP_COUNT, minGroups));
+    setSetupPlayers(randomlyAssignGroups(setupPlayers, groupCount, minGroups));
   };
 
   /**
@@ -161,7 +203,7 @@ export function GroupSetupDialog({
    */
   const handleAutoDistribute = () => {
     if (setupPlayers.length === 0 || !allHaveSeeding) return;
-    setSetupPlayers(assignGroupsBySeeding(setupPlayers, LOCKED_GROUP_COUNT, minGroups));
+    setSetupPlayers(assignGroupsBySeeding(setupPlayers, groupCount, minGroups));
   };
 
   /* Filter players by search query (name or nickname) */
@@ -310,16 +352,16 @@ export function GroupSetupDialog({
                   {tc("selectedPlayers", { count: setupPlayers.length })}
                 </h4>
                 <div className="flex-1" />
-                {/* Group count is temporarily fixed to 2 while 3+ group rules are deferred. */}
+                {/* Group count selector: 2 or 3 groups (4+ groups out of scope, docs/qualification-combined-ranking.md §7) */}
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground">{tc("groupCount")}:</span>
-                  {[LOCKED_GROUP_COUNT].map((n) => (
+                  {GROUP_COUNT_OPTIONS.map((n) => (
                     <Button
                       key={n}
-                      variant="secondary"
+                      variant={n === groupCount ? "default" : "outline"}
                       size="sm"
                       className="h-7 w-7 p-0 text-xs"
-                      disabled
+                      onClick={() => handleGroupCountChange(n)}
                     >
                       {n}
                     </Button>

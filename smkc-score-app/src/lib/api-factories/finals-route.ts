@@ -50,7 +50,7 @@ const BRACKET_SIZE_THRESHOLD = 20;
 const TOP24_QUALIFIER_COUNT = 24;
 const PLAYOFF_ENTRANT_COUNT = 12;
 const PLAYOFF_R2_UPPER_SEED_COUNT = 4;
-const TOP24_SUPPORTED_GROUP_COUNT = 2;
+const TOP24_SUPPORTED_GROUP_COUNT = 3;
 
 type QualificationConfirmedField =
   | 'bmQualificationConfirmed'
@@ -1659,11 +1659,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
         );
       }
       if (selection.groupCount > TOP24_SUPPORTED_GROUP_COUNT) {
-        /* The current Top-24 paper layout reserves Upper Bracket seeds 10/12/14/16
-         * for playoff_r2 winners. The legacy 3+ group interleave assigns direct
-         * advancers to seeds 1..12, which overlaps those reserved barrage slots.
-         * Rejecting the unsupported shape at the API boundary keeps bracket
-         * seeding one-to-one until a real 3+ group Top-24 layout is specified. */
+        /* 3-group selection uses assignAntiCollisionSeeds() (finals-group-selection.ts),
+         * which correctly places direct advancers on the gapped seed sequence
+         * 1,2,3,4,5,6,7,8,9,11,13,15 (never colliding with the barrage-reserved
+         * 10/12/14/16) and guarantees no same-group round-1 matchup. Only 2 and 3
+         * groups are exposed at this API boundary (docs/qualification-combined-ranking.md
+         * §7: 4+ groups are out of scope for now) -- selectFinalsEntrantsByGroup()
+         * itself also supports 4 groups and has dedicated tests for it, but nothing
+         * upstream (UI, qualification-route.ts) can create a 4-group tournament, so
+         * this gate rejects groupCount=4 the same as groupCount>=5. */
         return handleValidationError(
           `Top-24 playoff currently supports at most ${TOP24_SUPPORTED_GROUP_COUNT} qualification groups; found ${selection.groupCount}`,
           'qualifications',
@@ -1708,8 +1712,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
           ? createBmRoundStartingCourses(playoffStructure)
           : undefined;
 
-        /* Playoff-local seeds 1-12 are the barrage entrants. For 2 groups,
-         * their seed order creates the handwritten A/B barrage blocks. */
+        /* Playoff-local seeds 1-12 are the barrage entrants, already in seed
+         * order from selection.barrage: for 2 groups this is the handwritten
+         * A/B barrage block layout; for 3 groups it's assignAntiCollisionSeeds()'s
+         * algorithmic placement (finals-group-selection.ts). Either way this
+         * code just consumes the array position as the seed number. */
         const playoffSeededPlayers = selection.barrage.map((q, index) => ({
           seed: index + 1,
           playerId: q.playerId,
@@ -1825,7 +1832,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
 
       /* Build the 16 seeded players: direct advancers use their actual Upper
-       * Bracket seed numbers (2 groups: fixed CDM paper layout), and playoff
+       * Bracket seed numbers (2 groups: fixed CDM paper layout; 3 groups:
+       * assignAntiCollisionSeeds() in finals-group-selection.ts), and playoff
        * winners fill the barrage slots declared by generatePlayoffStructure. */
       const directPlayers = buildDirectSeededPlayers(
         selection.directSeeds,
