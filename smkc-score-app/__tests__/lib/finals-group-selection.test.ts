@@ -14,18 +14,29 @@
 
 import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 
-type TestQual = { playerId: string; group: string; player: unknown };
+type TestQual = { playerId: string; group: string; player: unknown; score: number; points: number };
 
 /**
  * Build an ordered qualification list: grouped alphabetically, and within each group
  * ordered by rank (rank 1 first). Player ID encodes group+rank (e.g. "A1", "B7").
+ *
+ * score/points default to being *tied across groups at the same rank*
+ * (score = 1000 - rank, points = 0 for everyone), so the within-bucket
+ * WDL-score tiebreak is a no-op and stable-sort preserves the canonical
+ * group order (A, B, C, D) -- this keeps every pre-existing "interleaved by
+ * group" assertion valid unchanged. Pass `statsFor` to give specific players
+ * a distinguishing score/points and exercise the real tiebreak.
  */
-function buildQuals(groupSizes: Record<string, number>): TestQual[] {
+function buildQuals(
+  groupSizes: Record<string, number>,
+  statsFor?: (playerId: string, rank: number) => { score: number; points: number },
+): TestQual[] {
   const out: TestQual[] = [];
   for (const group of Object.keys(groupSizes).sort()) {
     for (let rank = 1; rank <= groupSizes[group]; rank++) {
       const playerId = `${group}${rank}`;
-      out.push({ playerId, group, player: { id: playerId, name: playerId } });
+      const stats = statsFor?.(playerId, rank) ?? { score: 1000 - rank, points: 0 };
+      out.push({ playerId, group, player: { id: playerId, name: playerId }, ...stats });
     }
   }
   return out;
@@ -142,6 +153,32 @@ describe('selectFinalsEntrantsByGroup', () => {
     });
   });
 
+  describe('3-group bucket tiebreak (WDL score -> points, not group letter)', () => {
+    // Regression test for the bug found in the CDM Excel template's 2-group
+    // formula (docs/qualification-combined-ranking.md §3): a naive per-group
+    // interleave always resolves a same-bucket tie as "earliest group letter
+    // wins", silently misranking a genuinely-better later-lettered group's
+    // player. Rank-1 (bucket 0) scores are set so B1 > C1 > A1; every other
+    // rank keeps the tied default so the rest of the interleave is unaffected.
+    const rank1Stats: Record<string, { score: number; points: number }> = {
+      A1: { score: 5, points: 0 },
+      B1: { score: 9, points: 0 },
+      C1: { score: 7, points: 0 },
+    };
+    const quals = buildQuals({ A: 9, B: 9, C: 9 }, (playerId, rank) =>
+      rank === 1 ? rank1Stats[playerId] : { score: 1000 - rank, points: 0 });
+    const result = selectFinalsEntrantsByGroup(quals);
+
+    it('orders bucket 0 by score (B1 > C1 > A1) instead of alphabetically', () => {
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [1, 'B1'], [2, 'C1'], [3, 'A1'],
+        [4, 'A2'], [5, 'B2'], [6, 'C2'],
+        [7, 'A3'], [8, 'B3'], [9, 'C3'],
+        [10, 'A4'], [11, 'B4'], [12, 'C4'],
+      ]);
+    });
+  });
+
   describe('4-group case (A=B=C=D=6)', () => {
     const quals = buildQuals({ A: 6, B: 6, C: 6, D: 6 });
     const result = selectFinalsEntrantsByGroup(quals);
@@ -173,6 +210,25 @@ describe('selectFinalsEntrantsByGroup', () => {
         'A5', 'B5', 'C5', 'D5',
         'A6', 'B6', 'C6', 'D6',
       ]);
+    });
+  });
+
+  describe('4-group barrage bucket tiebreak (WDL score -> points, not group letter)', () => {
+    // Same regression coverage as the 3-group direct-seed case, but for the
+    // barrage range, mirroring docs/qualification-combined-ranking.md §3's
+    // "B4(24) should outrank A4(23)" example -- here with a 4th group too.
+    const rank4Stats: Record<string, { score: number; points: number }> = {
+      A4: { score: 23, points: 0 },
+      B4: { score: 24, points: 0 },
+      C4: { score: 20, points: 0 },
+      D4: { score: 22, points: 0 },
+    };
+    const quals = buildQuals({ A: 6, B: 6, C: 6, D: 6 }, (playerId, rank) =>
+      rank === 4 ? rank4Stats[playerId] : { score: 1000 - rank, points: 0 });
+    const result = selectFinalsEntrantsByGroup(quals);
+
+    it('orders the barrage bucket by score (B4 > A4 > D4 > C4) instead of alphabetically', () => {
+      expect(result.barrage.slice(0, 4).map(q => q.playerId)).toEqual(['B4', 'A4', 'D4', 'C4']);
     });
   });
 
@@ -219,7 +275,7 @@ describe('selectFinalsEntrantsByGroup', () => {
       const quals: TestQual[] = [];
       for (const g of ['A', 'B', 'C', 'D', 'E']) {
         for (let r = 1; r <= 6; r++) {
-          quals.push({ playerId: `${g}${r}`, group: g, player: { id: `${g}${r}` } });
+          quals.push({ playerId: `${g}${r}`, group: g, player: { id: `${g}${r}` }, score: 1000 - r, points: 0 });
         }
       }
       expect(() => selectFinalsEntrantsByGroup(quals)).toThrow(/Unsupported group count/);
@@ -235,7 +291,7 @@ describe('selectFinalsEntrantsByGroup', () => {
       // Caller provides interleaved A/B (out-of-group order). The function should still
       // bucket by group while preserving per-group relative order.
       const mk = (g: string, r: number): TestQual => ({
-        playerId: `${g}${r}`, group: g, player: { id: `${g}${r}` },
+        playerId: `${g}${r}`, group: g, player: { id: `${g}${r}` }, score: 1000 - r, points: 0,
       });
       const quals: TestQual[] = [];
       for (let r = 1; r <= 12; r++) {
