@@ -1,6 +1,10 @@
 /**
  * Finals entrant selection with per-group Top-N + bracket seeding.
  *
+ * See docs/finals-entrant-selection.{ja,en}.md for a walkthrough of the
+ * 2-group (current production) vs. 3-group (implemented, not yet unlocked)
+ * selection rules with worked examples.
+ *
  * Spec (Issue #454, Top-24 → Top-16 flow):
  *   - 12 direct advancers fill Upper Bracket non-barrage seeds.
  *   - 12 barrage entrants fill Playoff seeds 1-12 (single-elim R1+R2 → 4 winners → Upper barrage slots).
