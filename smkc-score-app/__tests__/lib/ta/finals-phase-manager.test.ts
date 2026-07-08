@@ -1375,6 +1375,9 @@ describe("TA Finals Phase Manager", () => {
           data: expect.objectContaining({
             phase: "phase2",
             targetPlayerIds: ["p4", "p5"],
+            // Issue #2775: the kind driving the tiebreak is persisted, not
+            // inferred later from course equality.
+            kind: "elimination",
           }),
         })
       );
@@ -1604,6 +1607,7 @@ describe("TA Finals Phase Manager", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             targetPlayerIds: expect.arrayContaining(["p6", "p7", "p8", "p9"]),
+            kind: "revival",
           }),
         })
       );
@@ -1823,6 +1827,7 @@ describe("TA Finals Phase Manager", () => {
         phaseRoundId: "round1",
         sequence: 1,
         course: "MC1", // same as base round → life-loss re-run
+        kind: "life_loss",
         targetPlayerIds: ["p2", "p3"],
         resolved: false,
         phaseRound: {
@@ -1856,7 +1861,9 @@ describe("TA Finals Phase Manager", () => {
       expect(result.tieBreakRequired).toBe(true);
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ course: "MC1", sequence: 2 }),
+          // Issue #2775: the continuation carries the parent's kind forward
+          // instead of re-deriving it from course equality.
+          data: expect.objectContaining({ course: "MC1", sequence: 2, kind: "life_loss" }),
         })
       );
     });
@@ -1903,6 +1910,7 @@ describe("TA Finals Phase Manager", () => {
       expect(createData.targetPlayerIds).toEqual(["p3", "p4"]);
       // Bronze races use a fresh course, consumed from the pool.
       expect(createData.course).not.toBe("MC1");
+      expect(createData.kind).toBe("bronze");
       expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
     });
 
@@ -2198,6 +2206,7 @@ describe("TA Finals Phase Manager", () => {
         tournamentId: "t1",
         phase: "phase3",
         phaseRoundId: "round1",
+        kind: "life_loss",
         resolved: false,
         results: null,
         phaseRound: { course: "MC1" },
@@ -2234,6 +2243,35 @@ describe("TA Finals Phase Manager", () => {
       ).rejects.toThrow('Course "DP1" has already been played in the current cycle');
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.update).not.toHaveBeenCalled();
     });
+
+    /* Regression for issue #2775: the base-course bypass is a life_loss-only
+     * rule (issue #2773). Before `kind` was persisted, the guard only checked
+     * `phase === "phase3"`, so a revival or bronze sudden death — which must
+     * always draw a fresh course — could be redirected onto the already-used
+     * base round course via a direct API call. */
+    it.each(["revival", "bronze"] as const)(
+      "rejects redirecting a %s sudden death onto the base round's course",
+      async (kind) => {
+        mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+          id: "sd1",
+          tournamentId: "t1",
+          phase: "phase3",
+          phaseRoundId: "round1",
+          kind,
+          resolved: false,
+          results: null,
+          phaseRound: { course: "MC1" },
+        });
+        mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+          { id: "round1", phase: "phase3", roundNumber: 1, course: "MC1", suddenDeathRounds: [] },
+        ]);
+
+        await expect(
+          changeSuddenDeathCourse(mockPrismaClient as any, context, "phase3", "sd1", "MC1")
+        ).rejects.toThrow('Course "MC1" has already been played in the current cycle');
+        expect(mockPrismaClient.tTPhaseSuddenDeathRound.update).not.toHaveBeenCalled();
+      }
+    );
   });
 
   // === AUDIT LOG .catch() ERROR PATH (#779) ===
