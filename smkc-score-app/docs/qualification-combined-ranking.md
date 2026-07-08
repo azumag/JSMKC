@@ -190,14 +190,14 @@ perGroup = 12 / 3 = 4
 
 ## 6. 実装時の影響範囲（参考・本書では変更しない）
 
-将来この仕様を実装する際に変更が想定される箇所:
+将来この仕様を実装する際に変更が想定される箇所として当初列挙したもの。以下4点は7.1の改訂で実装済み（打ち消し線）、残り2点は未着手のまま:
 
-- `src/lib/ranking-utils.ts` の `computeCombinedRanks()` — 現状はグループ内順位（バケット）を考慮しない素点・得失点差のみの簡易ソートで、本書のルールに未対応。7章質問1の決定により、実装目標は「バケット昇順→WDLスコア降順→得失点差降順」（シードは使わない）に確定
-- `src/lib/finals-group-selection.ts` の `selectFinalsEntrantsByGroup()` — 3〜4グループが仮のラウンドロビン式並べのまま
-- `src/components/tournament/group-setup-dialog.tsx` の `LOCKED_GROUP_COUNT = 2` — 3グループ以上のロック解除
-- `src/lib/api-factories/qualification-route.ts:442-449` — グループA/B限定バリデーションの解除
-- `src/lib/points/qualification-points.ts` の `aggregateGroupQualificationPoints()` — 現状未使用（テストのみで参照）。グループサイズ差の正規化という別アプローチをすでに内包しており、本書のバケット方式と役割が重複するため、実装時にどちらを採用するか改めて整理が必要
-- `public/templates/cdm-2025-template.xlsm` の `BM/MR/GP Qualifications` シート — アプリ側の合算順位ルールを新たに定めた場合、CDM Excel側の`SORTBY`数式（2.1参照）もそれに合わせて改修するか、あるいは意図的に不一致のまま運用するか要判断（7章の質問事項）
+- ~~`src/lib/ranking-utils.ts` の `computeCombinedRanks()` — 現状はグループ内順位（バケット）を考慮しない素点・得失点差のみの簡易ソートで、本書のルールに未対応。7章質問1の決定により、実装目標は「バケット昇順→WDLスコア降順→得失点差降順」（シードは使わない）に確定~~ → **実装済み**（`computeCombinedRanks()` はバケット→WDLスコア→得失点差で比較する）
+- ~~`src/lib/finals-group-selection.ts` の `selectFinalsEntrantsByGroup()` — 3〜4グループが仮のラウンドロビン式並べのまま~~ → **実装済み**（7.1参照、バケット方式＋`assignAntiCollisionSeeds()`）
+- ~~`src/components/tournament/group-setup-dialog.tsx` の `LOCKED_GROUP_COUNT = 2` — 3グループ以上のロック解除~~ → **実装済み**（7.1参照、`GROUP_COUNT_OPTIONS = [2, 3]` に置換）
+- ~~`src/lib/api-factories/qualification-route.ts:442-449` — グループA/B限定バリデーションの解除~~ → **実装済み**（7.1参照、`SUPPORTED_QUALIFICATION_GROUPS = ['A', 'B', 'C']`）
+- `src/lib/points/qualification-points.ts` の `aggregateGroupQualificationPoints()` — 現状未使用（テストのみで参照）。グループサイズ差の正規化という別アプローチをすでに内包しており、本書のバケット方式と役割が重複するため、実装時にどちらを採用するか改めて整理が必要（**未着手**）
+- `public/templates/cdm-2025-template.xlsm` の `BM/MR/GP Qualifications` シート — アプリ側の合算順位ルールを新たに定めた場合、CDM Excel側の`SORTBY`数式（2.1参照）もそれに合わせて改修するか、あるいは意図的に不一致のまま運用するか要判断（7章質問6の決定により**今回は変更しない**、別タスクとして先送り）
 
 ## 7. 質問事項（大会運営確認済み）
 
