@@ -39,6 +39,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -66,8 +76,9 @@ const MIN_GROUPS: number = GROUP_COUNT_OPTIONS[0];
 /**
  * Reassigns any player whose current group isn't in `availableGroups` to the
  * last available group (e.g. group C players when switching 3 groups -> 2).
- * Shared by handleOpenChange's edit-mode load and handleGroupCountChange's
- * live toggle, which both need this same remap.
+ * Used for edit-mode loading. Live group-count reductions are confirmed before
+ * this transformation is applied so an accidental selector click cannot
+ * silently overwrite an operator's visible assignment choices.
  */
 function remapToAvailableGroups<T extends { group: string }>(
   players: T[],
@@ -133,6 +144,7 @@ export function GroupSetupDialog({
 
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
   const [groupCount, setGroupCount] = useState<number>(DEFAULT_GROUP_COUNT);
+  const [pendingGroupCount, setPendingGroupCount] = useState<number | null>(null);
 
   const hasExistingQualifications = existingAssignments.length > 0;
 
@@ -168,15 +180,27 @@ export function GroupSetupDialog({
 
   /**
    * Handle the admin changing the group count via the selector buttons.
-   * Any player whose current group no longer exists under the new count
-   * (e.g. group C players when switching 3 -> 2) is reassigned to the last
-   * remaining group, mirroring the edit-mode remap in handleOpenChange.
+   * Reductions with affected players require explicit confirmation before the
+   * remap. Increasing the count, and reductions with no affected assignments,
+   * can safely apply immediately.
    */
   const handleGroupCountChange = (nextCount: number) => {
     if (nextCount === groupCount) return;
     const nextGroups = GROUPS.slice(0, nextCount) as readonly string[];
+    const hasAssignmentsToRemap = setupPlayers.some((player) => !nextGroups.includes(player.group));
+    if (hasAssignmentsToRemap) {
+      setPendingGroupCount(nextCount);
+      return;
+    }
     setGroupCount(nextCount);
+  };
+
+  const confirmGroupCountReduction = () => {
+    if (pendingGroupCount === null) return;
+    const nextGroups = GROUPS.slice(0, pendingGroupCount) as readonly string[];
+    setGroupCount(pendingGroupCount);
     setSetupPlayers(remapToAvailableGroups(setupPlayers, nextGroups));
+    setPendingGroupCount(null);
   };
 
   /** Add a player to the setup list with a default group */
@@ -228,8 +252,9 @@ export function GroupSetupDialog({
     );
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
+    <>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
         <Button
           variant={hasExistingQualifications ? "outline" : "default"}
           data-variant={hasExistingQualifications ? "outline" : "default"}
@@ -237,11 +262,11 @@ export function GroupSetupDialog({
           {hasExistingQualifications ? tc("editGroups") : tc("setupGroups")}
         </Button>
       </DialogTrigger>
-      {/*
+        {/*
        * Wide dialog with responsive width and max-h constraint.
        * Mobile-first approach with progressive enhancement per breakpoint.
        */}
-      <DialogContent className="w-[calc(100vw-2rem)] sm:w-[calc(100vw-4rem)] md:w-[max-content] lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-5 md:p-6">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-[calc(100vw-4rem)] md:w-[max-content] lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-5 md:p-6">
         <DialogHeader>
           <DialogTitle>
             {hasExistingQualifications
@@ -492,7 +517,22 @@ export function GroupSetupDialog({
                 : t("createGroupsAndMatches")}
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={pendingGroupCount !== null} onOpenChange={(open) => !open && setPendingGroupCount(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tc("confirmGroupCountReductionTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{tc("confirmGroupCountReductionDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmGroupCountReduction}>
+              {tc("confirmGroupCountReductionAction")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

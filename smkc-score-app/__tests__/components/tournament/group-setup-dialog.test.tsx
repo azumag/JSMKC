@@ -110,7 +110,7 @@ describe("GroupSetupDialog", () => {
     expect(threeBtn).not.toBeDisabled();
   });
 
-  it("TC-3010: clicking group count 3 selects it, and switching back to 2 reassigns group-C players", () => {
+  it("TC-3010: reducing group count confirms before reassigning group-C players", () => {
     const setSetupPlayers = jest.fn();
     render(
       <GroupSetupDialog
@@ -124,13 +124,37 @@ describe("GroupSetupDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "3" }));
     expect(screen.getByRole("button", { name: "3" })).toHaveAttribute("data-variant", "default");
     expect(screen.getByRole("button", { name: "2" })).toHaveAttribute("data-variant", "outline");
-    // Group C is valid under 3 groups, so no remapping needed yet.
-    expect(setSetupPlayers).toHaveBeenLastCalledWith([{ playerId: "p1", group: "C" }]);
+    // Group C is valid under 3 groups, so no assignment changes are made.
+    expect(setSetupPlayers).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "2" }));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(setSetupPlayers).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Reassign Players/i }));
     expect(screen.getByRole("button", { name: "2" })).toHaveAttribute("data-variant", "default");
-    // Group C no longer exists under 2 groups -- reassigned to the last remaining group (B).
+    // Group C no longer exists under 2 groups -- it is reassigned only after confirmation.
     expect(setSetupPlayers).toHaveBeenLastCalledWith([{ playerId: "p1", group: "B" }]);
+  });
+
+  it("TC-3010: cancelling a group-count reduction preserves the assignments", () => {
+    const setSetupPlayers = jest.fn();
+    render(
+      <GroupSetupDialog
+        {...defaultProps}
+        isOpen={true}
+        setupPlayers={[{ playerId: "p1", group: "C" }]}
+        setSetupPlayers={setSetupPlayers}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "3" })).toHaveAttribute("data-variant", "default");
+    expect(setSetupPlayers).not.toHaveBeenCalled();
   });
 
   it("TC-3010: edit mode infers group count 3 from existing assignments spanning A/B/C", () => {
