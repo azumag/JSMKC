@@ -157,6 +157,27 @@ describe("GroupSetupDialog", () => {
     expect(setSetupPlayers).not.toHaveBeenCalled();
   });
 
+  it("TC-3010: closing the dialog clears a pending group-count reduction", () => {
+    render(
+      <ControlledGroupSetupDialog
+        {...defaultProps}
+        isOpen={true}
+        setupPlayers={[{ playerId: "p1", group: "C" }]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+
+    const closeButton = document.querySelector('[data-slot="dialog-close"]');
+    expect(closeButton).not.toBeNull();
+    fireEvent.click(closeButton!);
+    fireEvent.click(screen.getByRole("button", { name: /Setup Groups/i }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
   it("TC-3010: edit mode infers group count 3 from existing assignments spanning A/B/C", () => {
     const existing: SetupPlayer[] = [
       { playerId: "p1", group: "A" },

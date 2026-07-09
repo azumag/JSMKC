@@ -174,6 +174,7 @@ export function GroupSetupDialog({
       setSetupPlayers([]);
       setPlayerSearchQuery("");
       setGroupCount(DEFAULT_GROUP_COUNT);
+      setPendingGroupCount(null);
     }
     setIsOpen(open);
   };
