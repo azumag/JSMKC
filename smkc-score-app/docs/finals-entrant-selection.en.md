@@ -1,8 +1,8 @@
-# Finals Entrant Selection (2-Group vs. 3-Group)
+# Finals Entrant Selection (2, 3, and 4 Groups)
 
 Scope: the logic in `selectFinalsEntrantsByGroup()` (`src/lib/finals-group-selection.ts`) that picks finals entrants (direct advancers / barrage / eliminated) from the qualification groups.
 
-**Current status**: both the UI and API support 2 and 3 groups (the group-count selector in `group-setup-dialog.tsx`, `qualification-route.ts`, and `TOP24_SUPPORTED_GROUP_COUNT` in `finals-route.ts`). 4+ groups remain out of scope per the decision in `docs/qualification-combined-ranking.md` §7.
+**Current status**: both the UI and API support 2 and 3 groups (the group-count selector in `group-setup-dialog.tsx`, `qualification-route.ts`, and `TOP24_SUPPORTED_GROUP_COUNT` in `finals-route.ts`). The internal `selectFinalsEntrantsByGroup()` logic and its tests also cover 4 groups, but creating 4+ groups through the UI or API remains out of scope per the decision in `docs/qualification-combined-ranking.md` §7.
 
 ## 1. Shared framework
 
@@ -100,23 +100,29 @@ Direct advancers (seed -> player):
 
 Every round-1 pair with a known opponent (seeds 2/15, 4/13, 6/11, 8/9) is between different groups (B2/C2, A3/B3, C3/A4, B4/C4).
 
-## 4. Comparison table
+## 4. The 4-group case (internal logic)
 
-| | 2 groups (current) | 3 groups |
+`perGroup = 3`. Each group's places 1-3 advance directly (12 total), places 4-6 go to barrage (12 total), and 7th place onward is eliminated. Selection uses the same bucket method as the 3-group case: bundle equal group ranks, then order within each bucket by WDL score -> point differential. `assignAntiCollisionSeeds()` uses the same general algorithm to place known round-one pairs in different groups.
+
+This remains covered by the existing logic and tests, but cannot currently be selected through the UI or API.
+
+## 5. Comparison table
+
+| | 2 groups (current) | 3 groups | 4 groups (internal logic) |
 |---|---|---|
-| perGroup | 6 | 4 |
-| Direct-advancer selection | Each group's places 1-6 (group-internal rank as-is) | Buckets 1-4 (each group's Nth place, stacked and tie-broken by match points -> point differential) |
-| Barrage selection | Each group's places 7-12 | Buckets 5-8 |
-| Cross-group comparison needed? | No | Yes (within-bucket tiebreak by WDL score -> point differential) |
-| Seed placement (avoiding same-group matchups) | Handwritten fixed token map | General algorithm (`assignAntiCollisionSeeds()`) |
-| Usable from the UI? | Yes | Yes |
+| perGroup | 6 | 4 | 3 |
+| Direct-advancer selection | Each group's places 1-6 (group-internal rank as-is) | Buckets 1-4 (each group's Nth place, stacked and tie-broken by match points -> point differential) | Buckets 1-3 |
+| Barrage selection | Each group's places 7-12 | Buckets 5-8 | Buckets 4-6 |
+| Cross-group comparison needed? | No | Yes (within-bucket tiebreak by match points -> point differential) | Yes (same) |
+| Seed placement (avoiding same-group matchups) | Handwritten fixed token map | General algorithm (`assignAntiCollisionSeeds()`) | General algorithm (same) |
+| Usable from the UI? | Yes | Yes | No |
 
-## 5. Out of scope / known limitations
+## 6. Out of scope / known limitations
 
-- **4+ groups**: out of scope per the decision in `docs/qualification-combined-ranking.md` §7. The underlying logic still exists, but it's unreachable from the UI (`group-setup-dialog.tsx`) or API (`qualification-route.ts`, `finals-route.ts`).
+- **4+ groups through the UI/API**: out of scope per the decision in `docs/qualification-combined-ranking.md` §7. The existing 4-group internal logic remains, but it is unreachable from the UI (`group-setup-dialog.tsx`) or API (`qualification-route.ts`, `finals-route.ts`). Five or more groups are outside the internal logic's scope as well.
 - **The CDM Excel template's own formulas**: `cdm-2025-template.xlsm`'s `SORTBY` formula was not changed (§7 Q6 of that same doc). The app's combined-ranking/finals-selection logic and the CDM Excel template's display may disagree for a period.
 
-## 6. Related files
+## 7. Related files
 
 - Implementation: `src/lib/finals-group-selection.ts`
 - Tests: `__tests__/lib/finals-group-selection.test.ts`
