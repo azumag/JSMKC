@@ -347,16 +347,16 @@ function dropIncompletePlayerRows<T extends { player?: CdmPlayerRow | null }>(
   category: string,
   logger: ReturnType<typeof createLogger>,
 ): T[] {
-  const dropped: unknown[] = [];
+  let droppedCount = 0;
   const kept = rows.filter((row) => {
     if (isPlayerUsable(row.player)) return true;
-    dropped.push(row);
+    droppedCount += 1;
     return false;
   });
-  if (dropped.length > 0) {
+  if (droppedCount > 0) {
     logger.warn("Dropped CDM export rows with missing/invalid player", {
       category,
-      droppedCount: dropped.length,
+      droppedCount,
     });
   }
   return kept;
