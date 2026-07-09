@@ -1,8 +1,8 @@
-# 決勝進出者の選び方（2グループ／3グループ）
+# 決勝進出者の選び方（2・3・4グループ）
 
 対象: `selectFinalsEntrantsByGroup()`（`src/lib/finals-group-selection.ts`）が行う、予選グループから決勝進出者（直接勝ち上がり／バラージ／敗退）を選ぶロジック。
 
-**現状**: UI・APIとも2グループ・3グループの両方をサポートしている（`group-setup-dialog.tsx` のグループ数セレクタ、`qualification-route.ts`、`finals-route.ts` の `TOP24_SUPPORTED_GROUP_COUNT`）。4グループ以上は `docs/qualification-combined-ranking.md` §7の決定によりスコープ外。
+**現状**: UI・APIとも2グループ・3グループの両方をサポートしている（`group-setup-dialog.tsx` のグループ数セレクタ、`qualification-route.ts`、`finals-route.ts` の `TOP24_SUPPORTED_GROUP_COUNT`）。内部の `selectFinalsEntrantsByGroup()` は4グループも扱い、対応テストを維持しているが、4グループ以上をUI/APIから作成することは `docs/qualification-combined-ranking.md` §7の決定によりスコープ外である。
 
 ## 1. 共通の枠組み
 
@@ -100,23 +100,29 @@ A2 vs バラージ    B3 vs A6
 
 1回戦で対戦が決まっている組（シード2/15, 4/13, 6/11, 8/9）はすべて異なるグループどうしになる（B2/C2、A3/B3、C3/A4、B4/C4）。
 
-## 4. 比較表
+## 4. 4グループの場合（内部ロジック）
 
-| | 2グループ（現行） | 3グループ |
+`perGroup = 3`。各グループの1〜3位が直接進出（計12人）、4〜6位がバラージ（計12人）、7位以降は敗退となる。選定は3グループと同じバケット方式で、同じグループ内順位の選手を束ね、WDLスコア→得失点差で並べる。`assignAntiCollisionSeeds()` も同じ一般アルゴリズムで、既知の1回戦ペアを異なるグループに配置する。
+
+これは既存ロジックとテストの適用範囲であり、現在のUI/APIでは選択できない。
+
+## 5. 比較表
+
+| | 2グループ（現行） | 3グループ | 4グループ（内部ロジック） |
 |---|---|---|
-| perGroup | 6 | 4 |
-| 直接進出の選定 | 各グループの1〜6位（グループ内順位そのまま） | バケット1〜4（各グループのk位を束ねて勝点→得失点差で並べる） |
-| バラージの選定 | 各グループの7〜12位 | バケット5〜8 |
-| グループ間の成績比較 | 不要 | 必要（同バケット内でWDLスコア→得失点差により比較） |
-| シード配置（同グループ対決回避） | 手動設計の固定トークンマップ | 一般アルゴリズム（`assignAntiCollisionSeeds()`） |
-| UIから利用可能か | 可能 | 可能 |
+| perGroup | 6 | 4 | 3 |
+| 直接進出の選定 | 各グループの1〜6位（グループ内順位そのまま） | バケット1〜4（各グループのk位を束ねて勝点→得失点差で並べる） | バケット1〜3 |
+| バラージの選定 | 各グループの7〜12位 | バケット5〜8 | バケット4〜6 |
+| グループ間の成績比較 | 不要 | 必要（同バケット内でWDLスコア→得失点差により比較） | 必要（同左） |
+| シード配置（同グループ対決回避） | 手動設計の固定トークンマップ | 一般アルゴリズム（`assignAntiCollisionSeeds()`） | 一般アルゴリズム（同左） |
+| UIから利用可能か | 可能 | 可能 | 不可 |
 
-## 5. スコープ外・既知の制約
+## 6. スコープ外・既知の制約
 
-- **4グループ以上**: `docs/qualification-combined-ranking.md` §7の決定によりスコープ外。内部ロジック自体は既存のまま残っているが、UI（`group-setup-dialog.tsx`）・API（`qualification-route.ts`、`finals-route.ts`）のいずれからも選択・作成できない。
+- **UI/APIからの4グループ以上**: `docs/qualification-combined-ranking.md` §7の決定によりスコープ外。4グループの内部ロジックは既存のまま残っているが、UI（`group-setup-dialog.tsx`）・API（`qualification-route.ts`、`finals-route.ts`）のいずれからも選択・作成できない。5グループ以上は内部ロジックも対象外である。
 - **CDM Excelテンプレート側の数式**: `cdm-2025-template.xlsm` の `SORTBY` 数式は今回変更していない（同§7 質問6の決定）。アプリ側の合算順位・決勝進出ロジックとCDM Excel側の表示が一致しない期間が生じうる。
 
-## 6. 関連ファイル
+## 7. 関連ファイル
 
 - 実装: `src/lib/finals-group-selection.ts`
 - テスト: `__tests__/lib/finals-group-selection.test.ts`
