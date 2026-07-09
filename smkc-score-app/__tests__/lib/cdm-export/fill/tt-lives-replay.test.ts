@@ -6,6 +6,14 @@
  * database access and can be fully covered by unit tests with inline fixtures.
  */
 
+jest.mock('@/lib/logger', () => {
+  const warn = jest.fn();
+  return {
+    createLogger: () => ({ warn, info: jest.fn(), error: jest.fn(), debug: jest.fn() }),
+  };
+});
+
+import { createLogger } from '@/lib/logger';
 import { replayTTFinals } from '@/lib/cdm-export/fill/tt-lives-replay';
 import type {
   CdmTournamentData,
@@ -13,6 +21,8 @@ import type {
   CdmTTPhaseRound,
   CdmTTPhaseSuddenDeathRound,
 } from '@/lib/cdm-export/types';
+
+const warnMock = (createLogger('tt-lives-replay-test') as unknown as { warn: jest.Mock }).warn;
 
 function makeData(
   ttEntries: CdmTTEntry[] = [],
@@ -78,6 +88,10 @@ function makeSuddenDeath(
 }
 
 describe('replayTTFinals', () => {
+  beforeEach(() => {
+    warnMock.mockClear();
+  });
+
   it('TC-2557: empty data returns empty array', () => {
     expect(replayTTFinals(makeData())).toEqual([]);
   });
@@ -261,6 +275,32 @@ describe('replayTTFinals', () => {
     expect(result[0].gains.has('unknown')).toBe(false);
     // p1 is present
     expect(result[0].participants.get('p1')).toBe(5000);
+  });
+
+  it('TC-2743: treats invalid timeMs values as missing while preserving zero and warning only for malformed values', () => {
+    const entries = Array.from({ length: 7 }, (_, index) => makeQualEntry(`p${index + 1}`, index + 1));
+    const malformedResults = [
+      { playerId: 'p1', timeMs: Number.NaN },
+      { playerId: 'p2', timeMs: Number.POSITIVE_INFINITY },
+      { playerId: 'p3', timeMs: Number.NEGATIVE_INFINITY },
+      { playerId: 'p4', timeMs: '5000' },
+      { playerId: 'p5', timeMs: undefined },
+      { playerId: 'p6', timeMs: null },
+      { playerId: 'p7', timeMs: 0 },
+    ] as unknown as Array<{ playerId: string; timeMs: number | null }>;
+
+    const [round] = replayTTFinals(makeData(entries, [makePhaseRound('phase1', 1, malformedResults)]));
+
+    for (const playerId of ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']) {
+      expect(round.participants.get(playerId)).toBeNull();
+    }
+    expect(round.participants.get('p7')).toBe(0);
+    expect(warnMock).toHaveBeenCalledTimes(4);
+    for (const playerId of ['p1', 'p2', 'p3', 'p4']) {
+      expect(warnMock).toHaveBeenCalledWith(
+        `TT Finals phase1 round 1: invalid timeMs for player ${playerId}; treating as missing time`,
+      );
+    }
   });
 
   it('TC-3004: phase3 bronze race — displayRowOrder stays raw-time order (template limitation), lostLife membership is unaffected either way', () => {
