@@ -25,6 +25,7 @@
  *   TC-530  BM finals/playoff legacy null repair on GET (#728)
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
+ *   TC-3009 BM combined standings ranks same-bucket entrants by WDL score then point differential
  *   TC-535  BM Top-24 playoff seed labels use group-rank labels
  *   TC-1010 BM 16-player finals uses rankOverride seeding and standard points
  *   TC-1046 BM Top-24 preview uses a qualifier-count constant, not barrage count
@@ -695,6 +696,100 @@ async function runTc533(adminPage) {
     log('TC-533', 'FAIL', err instanceof Error ? err.message : 'BM 533 failed');
   } finally {
     if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-3009: BM combined standings same-bucket tiebreak ─────────
+ * Creates two four-player groups through the real setup dialog, then scores
+ * every qualification match so B4 remains fourth in group B but has one WDL
+ * point while A4 finishes fourth in group A with none. The Combined tab must
+ * therefore render B4 above A4 rather than retaining group-letter order. */
+async function runTc3009(adminPage) {
+  let tournamentId = null;
+  const players = [];
+  try {
+    const stamp = Date.now();
+    for (let index = 1; index <= 8; index++) {
+      const player = await uiCreatePlayer(adminPage, `E2E TC-3009 P${index}`, `e2e_tc3009_${stamp}_${index}`);
+      players.push(player);
+    }
+
+    tournamentId = await uiCreateTournament(adminPage, `E2E TC-3009 ${stamp}`);
+    await uiActivateTournament(adminPage, tournamentId);
+    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players, { groupCount: 2 });
+
+    const setup = await apiFetchBm(adminPage, tournamentId);
+    const qualifications = setup.qualifications || [];
+    const groups = new Map(['A', 'B'].map((group) => [
+      group,
+      qualifications
+        .filter((qualification) => qualification.group === group)
+        .sort((a, b) => Number(a.seeding) - Number(b.seeding)),
+    ]));
+    const groupA = groups.get('A') || [];
+    const groupB = groups.get('B') || [];
+    if (groupA.length !== 4 || groupB.length !== 4) {
+      throw new Error(`expected two groups of four, got A=${groupA.length} B=${groupB.length}`);
+    }
+
+    const groupForPlayer = new Map(qualifications.map((qualification) => [qualification.playerId, qualification.group]));
+    const rankForPlayer = new Map([
+      ...groupA.map((qualification, index) => [qualification.playerId, index]),
+      ...groupB.map((qualification, index) => [qualification.playerId, index]),
+    ]);
+    const nicknameForPlayer = new Map(players.map((player) => [player.id, player.nickname]));
+
+    for (const match of setup.matches || []) {
+      if (match.isBye || match.completed) continue;
+      const group = groupForPlayer.get(match.player1Id);
+      const player2Group = groupForPlayer.get(match.player2Id);
+      const rank1 = rankForPlayer.get(match.player1Id);
+      const rank2 = rankForPlayer.get(match.player2Id);
+      if (!group || group !== player2Group || rank1 === undefined || rank2 === undefined) {
+        throw new Error(`unexpected qualification match ${match.id}`);
+      }
+
+      let score1;
+      let score2;
+      if (group === 'B' && new Set([rank1, rank2]).size === 2 && rank1 >= 2 && rank2 >= 2) {
+        // B3/B4 draw: B4 earns one WDL point but remains below B3 on differential.
+        [score1, score2] = [2, 2];
+      } else if (rank1 < rank2) {
+        [score1, score2] = group === 'B' && rank2 === 3 ? [4, 0] : [3, 1];
+      } else {
+        [score1, score2] = group === 'B' && rank1 === 3 ? [0, 4] : [1, 3];
+      }
+
+      const score = await apiPutBmQualScore(adminPage, tournamentId, match.id, score1, score2);
+      if (score.s !== 200) throw new Error(`qualification score PUT failed (${score.s})`);
+    }
+
+    const scored = await apiFetchBm(adminPage, tournamentId);
+    const scoredQualifications = scored.qualifications || [];
+    const aFourth = scoredQualifications.find((qualification) => qualification.playerId === groupA[3].playerId);
+    const bFourth = scoredQualifications.find((qualification) => qualification.playerId === groupB[3].playerId);
+    if (!aFourth || !bFourth || !(bFourth.score > aFourth.score)) {
+      throw new Error(`expected B4 score > A4, got B4=${bFourth?.score} A4=${aFourth?.score}`);
+    }
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm`);
+    const combinedTab = adminPage.getByRole('tab', { name: /^(合算順位|Combined)$/ });
+    await combinedTab.click();
+    const rows = adminPage.locator('[role="tabpanel"][data-state="active"] tbody tr');
+    await rows.first().waitFor({ state: 'visible', timeout: 15000 });
+    const renderedRows = await rows.allTextContents();
+    const aFourthNickname = nicknameForPlayer.get(groupA[3].playerId);
+    const bFourthNickname = nicknameForPlayer.get(groupB[3].playerId);
+    const aFourthIndex = renderedRows.findIndex((row) => row.includes(aFourthNickname));
+    const bFourthIndex = renderedRows.findIndex((row) => row.includes(bFourthNickname));
+    const ok = aFourthIndex >= 0 && bFourthIndex >= 0 && bFourthIndex < aFourthIndex;
+    log('TC-3009', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `combined rows: A4=${aFourthNickname}@${aFourthIndex} B4=${bFourthNickname}@${bFourthIndex}`);
+  } catch (err) {
+    log('TC-3009', 'FAIL', err instanceof Error ? err.message : 'TC-3009 failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+    for (const player of players) await apiDeletePlayer(adminPage, player.id);
   }
 }
 
@@ -2527,6 +2622,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-513', fn: runTc513 },
       { name: 'TC-503', fn: runTc503 },
       { name: 'TC-533', fn: runTc533 },
+      { name: 'TC-3009', fn: runTc3009 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
       { name: 'TC-1010', fn: runTc1010 },
@@ -2556,7 +2652,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc1010, runTc2334, runTc1046, runTc1052,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc3009, runTc1010, runTc2334, runTc1046, runTc1052,
   bmFinalsTargetWinsForMatch,
   getSuite,
   results,
