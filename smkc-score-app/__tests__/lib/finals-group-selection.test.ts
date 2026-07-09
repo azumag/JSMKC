@@ -283,6 +283,57 @@ describe('selectFinalsEntrantsByGroup', () => {
     });
   });
 
+  describe('anti-collision fuzz coverage', () => {
+    /* A deterministic LCG makes failures reproducible while exercising many
+     * score/point permutations and uneven valid group sizes. This is kept
+     * dependency-free deliberately: the invariant belongs in the ordinary
+     * Jest suite and must run wherever the project test suite runs. */
+    const random = (seed: number) => {
+      let state = seed >>> 0;
+      return () => {
+        state = (state * 1664525 + 1013904223) >>> 0;
+        return state / 0x1_0000_0000;
+      };
+    };
+
+    const assertNoKnownRoundOneCollision = (result: ReturnType<typeof selectFinalsEntrantsByGroup>) => {
+      const directGroupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+        expect(directGroupBySeed.get(a)).not.toBe(directGroupBySeed.get(b));
+      }
+
+      const barrageGroupBySeed = new Map(result.barrage.map((qualification, index) => [index + 1, qualification.group]));
+      for (const [a, b] of [[5, 8], [6, 7], [9, 12], [10, 11]] as const) {
+        expect(barrageGroupBySeed.get(a)).not.toBe(barrageGroupBySeed.get(b));
+      }
+    };
+
+    it('keeps all 2/3/4-group direct and barrage round-one pairs cross-group across random valid inputs', () => {
+      const groupKeys = ['A', 'B', 'C', 'D'];
+      const next = random(0x2799);
+      const totalFinalsSlots = 12;
+
+      for (const groupCount of [2, 3, 4] as const) {
+        const minimumSize = (totalFinalsSlots / groupCount) * 2;
+        for (let sample = 0; sample < 100; sample++) {
+          const groupSizes = Object.fromEntries(
+            groupKeys.slice(0, groupCount).map((group) => [group, minimumSize + Math.floor(next() * 9)]),
+          );
+          const qualifications = buildQuals(groupSizes, () => ({
+            score: Math.floor(next() * 31),
+            points: Math.floor(next() * 101) - 50,
+          }));
+
+          expect(() => selectFinalsEntrantsByGroup(qualifications)).not.toThrow();
+          const result = selectFinalsEntrantsByGroup(qualifications);
+          expect(result.directSeeds).toHaveLength(12);
+          expect(result.barrage).toHaveLength(12);
+          assertNoKnownRoundOneCollision(result);
+        }
+      }
+    });
+  });
+
   describe('error cases', () => {
     it('throws when a group has fewer than perGroup*2 players (2 groups, B=11)', () => {
       const quals = buildQuals({ A: 14, B: 11 });
