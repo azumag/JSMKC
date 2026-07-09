@@ -1706,6 +1706,43 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       );
     });
 
+    it.each([
+      ['mrQualification', 'mrQualifications', { player: null, seeding: 1, group: 'A', points: 0, score: 0 }, 'Dropped CDM export rows with missing/invalid player'],
+      ['gpQualification', 'gpQualifications', { player: null, seeding: 1, group: 'A', points: 0, score: 0 }, 'Dropped CDM export rows with missing/invalid player'],
+      ['bmMatch player2', 'bmMatches', { matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Alice', nickname: 'Alice' }, player2: null, score1: 4, score2: 2, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
+      ['mrMatch player1', 'mrMatches', { matchNumber: 1, stage: 'qualification', player1: null, player2: { id: 'p2', name: 'Bob', nickname: 'Bob' }, score1: 3, score2: 1, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
+      ['mrMatch player2', 'mrMatches', { matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Alice', nickname: 'Alice' }, player2: null, score1: 3, score2: 1, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
+      ['gpMatch player1', 'gpMatches', { matchNumber: 1, stage: 'qualification', player1: null, player2: { id: 'p2', name: 'Bob', nickname: 'Bob' }, points1: 45, points2: 0, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
+      ['gpMatch player2', 'gpMatches', { matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Alice', nickname: 'Alice' }, player2: null, points1: 45, points2: 0, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
+    ])('should still export when a %s row has a missing player relation', async (_label, category, row, warning) => {
+      setupRealTemplateMock();
+      const mockTournament = {
+        id: 't-null-extra',
+        name: 'Null Relation Test',
+        date: new Date('2024-01-15'),
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+        [category]: [row],
+      };
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      const request = new MockNextRequest(`http://localhost:3000/api/tournaments/${mockTournament.id}/export?format=cdm`);
+      const result = await GET(request, { params: Promise.resolve({ id: mockTournament.id }) });
+
+      expect(result.status).toBe(200);
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        warning,
+        expect.objectContaining({ category, droppedCount: 1 }),
+      );
+    });
+
     it('should still export when a ttEntry has player: null', async () => {
       setupRealTemplateMock();
       const mockTournament = {
