@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import formatChangedUtils from './format-changed-utils.cjs';
 
-const { collectChangedAppFiles, resolveBaseRevision, resolveComparisonBase } = formatChangedUtils;
+const { buildGitErrorMessage, collectChangedAppFiles, resolveBaseRevision, resolveComparisonBase } = formatChangedUtils;
 
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const repositoryRoot = path.resolve(appRoot, '..');
@@ -19,37 +19,56 @@ function git(args) {
 
 function main() {
   const headRevision = process.env.FORMAT_HEAD_SHA;
-  let diffOutput;
-  let untrackedOutput;
+  let baseRevision;
   try {
-    const baseRevision = resolveBaseRevision(
+    baseRevision = resolveBaseRevision(
       process.env.FORMAT_BASE_SHA,
       () => git(['merge-base', 'origin/main', 'HEAD']),
       () => git(['rev-parse', 'HEAD^']),
     );
+  } catch (error) {
+    const requestedBase = /^0+$/.test(process.env.FORMAT_BASE_SHA ?? '')
+      ? 'HEAD^'
+      : (process.env.FORMAT_BASE_SHA ?? 'origin/main (fallback: HEAD^)');
+    throw new Error(buildGitErrorMessage(`Unable to resolve formatting base revision: ${requestedBase}`, error), {
+      cause: error,
+    });
+  }
+
+  let comparisonBase;
+  try {
     // A PR's base branch may advance after the feature branch was created. Diff
     // from the common ancestor so newly merged base-branch files are not mistaken
     // for changes made by this PR.
-    const comparisonBase = resolveComparisonBase(baseRevision, headRevision, (base, head) =>
-      git(['merge-base', base, head]),
-    );
-    const diffArguments = ['diff', '--name-only', '--diff-filter=ACMR', '-z', comparisonBase];
-    if (headRevision) diffArguments.push(headRevision);
-
-    diffOutput = execFileSync('git', diffArguments, { cwd: repositoryRoot, encoding: 'utf8' });
-    // CI checks committed revisions. Locally, include untracked files as well so a
-    // newly created source file cannot bypass the same check before its first commit.
-    untrackedOutput = headRevision
-      ? ''
-      : execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
-          cwd: repositoryRoot,
-          encoding: 'utf8',
-        });
+    comparisonBase = resolveComparisonBase(baseRevision, headRevision, (base, head) => git(['merge-base', base, head]));
   } catch (error) {
-    const requestedBase = process.env.FORMAT_BASE_SHA || 'origin/main';
-    const clearMessage = `Unable to resolve formatting base revision: ${requestedBase}`;
-    if (error instanceof Error && error.message.startsWith(clearMessage)) throw error;
-    throw new Error(clearMessage, { cause: error });
+    const context =
+      error instanceof Error ? error.message : `Unable to resolve formatting base revision: ${baseRevision}`;
+    throw new Error(buildGitErrorMessage(context, error), { cause: error });
+  }
+
+  const diffArguments = ['diff', '--name-only', '--diff-filter=ACMR', '-z', comparisonBase];
+  if (headRevision) diffArguments.push(headRevision);
+  let diffOutput;
+  try {
+    diffOutput = execFileSync('git', diffArguments, { cwd: repositoryRoot, encoding: 'utf8' });
+  } catch (error) {
+    const range = headRevision ? `${comparisonBase}..${headRevision}` : `${comparisonBase}..working tree`;
+    throw new Error(buildGitErrorMessage(`Unable to list changed files for ${range}.`, error), { cause: error });
+  }
+
+  // CI checks committed revisions. Locally, include untracked files as well so a
+  // newly created source file cannot bypass the same check before its first commit.
+  let untrackedOutput = '';
+  if (!headRevision) {
+    try {
+      untrackedOutput = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+      });
+    } catch (error) {
+      throw new Error(buildGitErrorMessage('Unable to list untracked files.', error), { cause: error });
+    }
   }
   const changedFiles = collectChangedAppFiles(diffOutput, untrackedOutput, !headRevision, appPrefix);
 

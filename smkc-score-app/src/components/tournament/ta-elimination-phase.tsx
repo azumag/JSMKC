@@ -713,19 +713,7 @@ export default function TAEliminationPhase({
   const roundCorrectionControls =
     completedRoundsCount > 0 ? (
       <RoundCorrectionControls
-        labels={{
-          undoLastRound: tElim('undoLastRound'),
-          cancelLastRound: tElim('cancelLastRound'),
-          undoRoundTitle: tElim('undoRoundTitle'),
-          undoRoundDesc: tElim('undoRoundDesc'),
-          cancelLastRoundTitle: tElim('cancelLastRoundTitle'),
-          cancelLastRoundDesc: tElim('cancelLastRoundDesc'),
-          keepRound: tElim('keepRound'),
-          undoing: tElim('undoing'),
-          yesUndoRound: tElim('yesUndoRound'),
-          cancellingLastRound: tElim('cancellingLastRound'),
-          yesCancelLastRound: tElim('yesCancelLastRound'),
-        }}
+        translate={tElim}
         actionsDisabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
         undoingRound={undoingRound}
         cancellingLastRound={cancellingLastRound}
