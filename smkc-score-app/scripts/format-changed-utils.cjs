@@ -34,8 +34,23 @@ function collectChangedAppFiles(diffOutput, untrackedOutput, includeUntracked, a
     .map((file) => file.slice(appPrefix.length));
 }
 
+function findGitStderr(error) {
+  if (!error || typeof error !== 'object') return '';
+  const stderr = error.stderr;
+  if (typeof stderr === 'string') return stderr.trim();
+  if (Buffer.isBuffer(stderr)) return stderr.toString('utf8').trim();
+  return findGitStderr(error.cause);
+}
+
+function buildGitErrorMessage(context, error) {
+  const detail = findGitStderr(error);
+  return detail ? `${context}\n${detail}` : context;
+}
+
 module.exports = {
+  buildGitErrorMessage,
   collectChangedAppFiles,
+  findGitStderr,
   resolveBaseRevision,
   resolveComparisonBase,
 };

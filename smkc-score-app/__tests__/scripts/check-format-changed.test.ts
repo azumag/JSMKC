@@ -1,5 +1,7 @@
 import {
+  buildGitErrorMessage,
   collectChangedAppFiles,
+  findGitStderr,
   resolveBaseRevision,
   resolveComparisonBase,
 } from '../../scripts/format-changed-utils.cjs';
@@ -64,5 +66,23 @@ describe('format-changed utilities', () => {
 
   it('returns an empty list when no supported app files changed', () => {
     expect(collectChangedAppFiles('docs/readme.txt\0', '', false, 'smkc-score-app/')).toEqual([]);
+  });
+
+  it('extracts git stderr through a wrapped error cause', () => {
+    const gitError = Object.assign(new Error('git failed'), {
+      stderr: Buffer.from('fatal: bad revision\n'),
+    });
+    const wrapped = new Error('wrapped', { cause: gitError });
+
+    expect(findGitStderr(wrapped)).toBe('fatal: bad revision');
+    expect(buildGitErrorMessage('Unable to list changed files.', wrapped)).toBe(
+      'Unable to list changed files.\nfatal: bad revision',
+    );
+  });
+
+  it('keeps the operation-specific context when git provides no stderr', () => {
+    expect(buildGitErrorMessage('Unable to list untracked files.', new Error('failure'))).toBe(
+      'Unable to list untracked files.',
+    );
   });
 });
