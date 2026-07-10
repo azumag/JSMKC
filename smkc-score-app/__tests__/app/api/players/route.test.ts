@@ -610,6 +610,7 @@ describe('POST /api/players', () => {
         expect.objectContaining({
           success: false,
           error: 'A player with this nickname already exists',
+          code: 'DUPLICATE_NICKNAME',
         }),
         { status: 409 }
       );

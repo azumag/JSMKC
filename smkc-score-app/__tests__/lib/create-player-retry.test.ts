@@ -47,12 +47,20 @@ describe('createPlayerWithRetry', () => {
     // This is the bug under test: a real duplicate collision must surface as
     // an error, not be silently swallowed as a "recovered success".
     fetchSpy.mockResolvedValueOnce(
-      jsonResponse(409, { success: false, error: 'A player with this nickname already exists' }),
+      jsonResponse(409, {
+        success: false,
+        error: 'A player with this nickname already exists',
+        code: 'DUPLICATE_NICKNAME',
+      }),
     );
 
     const result = await createPlayerWithRetry(FORM);
 
-    expect(result).toEqual({ ok: false, error: 'A player with this nickname already exists' });
+    expect(result).toEqual({
+      ok: false,
+      error: 'A player with this nickname already exists',
+      code: 'DUPLICATE_NICKNAME',
+    });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     // A genuine 409 is a client error — must not trigger the retry delay.
     expect(setTimeoutSpy).not.toHaveBeenCalled();
@@ -134,7 +142,7 @@ describe('createPlayerWithRetry', () => {
 
     const result = await createPlayerWithRetry(FORM);
 
-    expect(result).toEqual({ ok: false, error: 'still crashed' });
+    expect(result).toEqual({ ok: false, error: 'still crashed', code: null });
     expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
@@ -143,6 +151,6 @@ describe('createPlayerWithRetry', () => {
 
     const result = await createPlayerWithRetry(FORM);
 
-    expect(result).toEqual({ ok: false, error: null });
+    expect(result).toEqual({ ok: false, error: null, code: null });
   });
 });

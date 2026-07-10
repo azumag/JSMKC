@@ -456,6 +456,7 @@ describe('PUT /api/players/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'A player with this nickname already exists',
+          code: 'DUPLICATE_NICKNAME',
         }),
         { status: 409 }
       );

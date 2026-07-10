@@ -17,6 +17,7 @@ import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 import { createSuccessResponse, createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
 import { resolveCountryCode } from "@/lib/countries";
+import { PLAYER_ERROR_CODES } from "@/lib/player-error-codes";
 
 /**
  * GET /api/players/:id
@@ -174,7 +175,11 @@ export async function PUT(
       "code" in error &&
       error.code === "P2002"
     ) {
-      return createErrorResponse("A player with this nickname already exists", 409);
+      return createErrorResponse(
+        "A player with this nickname already exists",
+        409,
+        PLAYER_ERROR_CODES.DUPLICATE_NICKNAME,
+      );
     }
 
     return createErrorResponse("Failed to update player", 500);

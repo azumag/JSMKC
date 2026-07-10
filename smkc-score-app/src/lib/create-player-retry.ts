@@ -26,7 +26,7 @@ export interface CreatePlayerFormData {
 
 export type CreatePlayerResult =
   | { ok: true; recovered: boolean; data: Record<string, unknown> }
-  | { ok: false; error: string | null };
+  | { ok: false; error: string | null; code: string | null };
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 800;
@@ -88,8 +88,8 @@ export async function createPlayerWithRetry(
   const text = await finalResponse.text();
   try {
     const parsed = JSON.parse(text);
-    return { ok: false, error: parsed?.error ?? null };
+    return { ok: false, error: parsed?.error ?? null, code: parsed?.code ?? null };
   } catch {
-    return { ok: false, error: null };
+    return { ok: false, error: null, code: null };
   }
 }
