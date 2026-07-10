@@ -101,9 +101,13 @@ interface GroupSetupDialogProps {
   /** Callback to set dialog open/close state */
   setIsOpen: (open: boolean) => void;
   /** Save handler - called when user clicks save */
-  onSave: () => void;
-  /** Whether a save operation is in progress (disables button, shows spinner) */
+  onSave: () => void | Promise<void>;
+  /** Whether a save operation is in progress (disables all form controls). */
   saving?: boolean;
+  /** Localized setup error shown without closing or resetting the dialog. */
+  error?: string | null;
+  /** Clears a stale setup error when the administrator closes the dialog. */
+  onClearError?: () => void;
   /**
    * Existing player-group assignments from qualification data.
    * When the dialog opens in edit mode, these are loaded into the form.
@@ -121,6 +125,8 @@ export function GroupSetupDialog({
   setIsOpen,
   onSave,
   saving = false,
+  error = null,
+  onClearError,
   existingAssignments,
 }: GroupSetupDialogProps) {
   /* Resolve translations internally using mode prop - avoids props drilling */
@@ -144,6 +150,7 @@ export function GroupSetupDialog({
    * On close: resets the setup state and search query.
    */
   const handleOpenChange = (open: boolean) => {
+    if (!open && saving) return;
     if (open && hasExistingQualifications) {
       /* Edit mode: infer the group count already in use from the existing
        * assignments (rather than resetting to the default), so editing a
@@ -160,6 +167,7 @@ export function GroupSetupDialog({
       setPlayerSearchQuery('');
       setGroupCount(DEFAULT_GROUP_COUNT);
       setPendingGroupCount(null);
+      onClearError?.();
     }
     setIsOpen(open);
   };
@@ -238,6 +246,7 @@ export function GroupSetupDialog({
           <Button
             variant={hasExistingQualifications ? 'outline' : 'default'}
             data-variant={hasExistingQualifications ? 'outline' : 'default'}
+            disabled={saving}
           >
             {hasExistingQualifications ? tc('editGroups') : tc('setupGroups')}
           </Button>
@@ -254,6 +263,16 @@ export function GroupSetupDialog({
             </DialogDescription>
           </DialogHeader>
 
+          {error && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              {error}
+            </div>
+          )}
+
           {/*
            * Two-column layout:
            * - Left: player checkbox list with search
@@ -268,6 +287,7 @@ export function GroupSetupDialog({
                 <Input
                   placeholder={t('searchPlayers')}
                   value={playerSearchQuery}
+                  disabled={saving}
                   onChange={(e) => setPlayerSearchQuery(e.target.value)}
                   className="mb-2"
                 />
@@ -277,6 +297,7 @@ export function GroupSetupDialog({
                     <Checkbox
                       id="select-all"
                       checked={allFilteredSelected}
+                      disabled={saving}
                       onCheckedChange={(checked) => {
                         if (checked) {
                           const newPlayers = filteredPlayers
@@ -308,6 +329,7 @@ export function GroupSetupDialog({
                         <Checkbox
                           id={`player-${player.id}`}
                           checked={selectedIds.has(player.id)}
+                          disabled={saving}
                           onCheckedChange={(checked) => {
                             if (checked) {
                               addPlayerToSetup(player.id, availableGroups[0]);
@@ -346,6 +368,7 @@ export function GroupSetupDialog({
                         size="sm"
                         className="h-7 w-7 p-0 text-xs"
                         onClick={() => handleGroupCountChange(n)}
+                        disabled={saving}
                       >
                         {n}
                       </Button>
@@ -360,13 +383,19 @@ export function GroupSetupDialog({
                       variant="outline"
                       size="sm"
                       onClick={handleAutoDistribute}
-                      disabled={!allHaveSeeding}
+                      disabled={saving || !allHaveSeeding}
                       title={allHaveSeeding ? tc('autoDistributeDesc') : tc('enterSeedingFirst')}
                     >
                       {tc('autoDistribute')}
                     </Button>
                     {/* Random assignment button - shuffle players across groups */}
-                    <Button variant="outline" size="sm" onClick={handleRandomAssign} title={tc('randomAssignDesc')}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRandomAssign}
+                      disabled={saving}
+                      title={tc('randomAssignDesc')}
+                    >
                       {tc('randomAssign')}
                     </Button>
                   </div>
@@ -387,6 +416,7 @@ export function GroupSetupDialog({
                               min={1}
                               placeholder="#"
                               value={sp.seeding ?? ''}
+                              disabled={saving}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 const parsed = parseInt(val, 10);
@@ -408,6 +438,7 @@ export function GroupSetupDialog({
                             {/* Group selector: only shows groups available for current groupCount */}
                             <Select
                               value={sp.group}
+                              disabled={saving}
                               onValueChange={(group) => {
                                 setSetupPlayers(
                                   setupPlayers.map((p) => (p.playerId === sp.playerId ? { ...p, group } : p)),
@@ -430,6 +461,7 @@ export function GroupSetupDialog({
                               variant="ghost"
                               size="sm"
                               onClick={() => removePlayerFromSetup(sp.playerId)}
+                              disabled={saving}
                               className="min-h-[44px] md:min-h-[32px]"
                             >
                               {tc('remove')}

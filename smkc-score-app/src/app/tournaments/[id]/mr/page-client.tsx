@@ -57,6 +57,7 @@ import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
+import { useQualificationSetup } from '@/lib/hooks/useQualificationSetup';
 import { UpdateIndicator } from '@/components/ui/update-indicator';
 import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
 import { createLogger } from '@/lib/client-logger';
@@ -144,7 +145,6 @@ export default function MatchRacePageClient({
     Array.from({ length: TOTAL_MR_RACES }, () => ({ course: '', winner: null })),
   );
   const [setupPlayers, setSetupPlayers] = useState<{ playerId: string; group: string; seeding?: number }[]>([]);
-  const [setupSaving, setSetupSaving] = useState(false);
   const [generatingBracket, setGeneratingBracket] = useState(false);
   const [resettingBracket, setResettingBracket] = useState(false);
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
@@ -268,6 +268,12 @@ export default function MatchRacePageClient({
     handleBroadcastReflect,
   } = useQualificationActions({ tournamentId, mode: 'mr', refetch });
 
+  const { submitSetup, setupSaving, setupError, clearSetupError } = useQualificationSetup({
+    tournamentId,
+    mode: 'mr',
+    refetch,
+  });
+
   /**
    * Toggle qualification confirmed state.
    * When confirmed, all score edits (admin and player) are locked.
@@ -327,41 +333,14 @@ export default function MatchRacePageClient({
     return null;
   };
 
-  /**
-   * Submit group setup with player assignments.
-   * Creates qualification records and round-robin matches.
-   */
+  /** Submit group setup while preserving dialog input on failure. */
   const handleSetup = async () => {
-    if (setupPlayers.length === 0) {
-      setIsSetupDialogOpen(false);
-      return;
-    }
+    const result = await submitSetup(setupPlayers);
+    if (!result.ok) return;
 
-    setSetupSaving(true);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/mr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ players: setupPlayers }),
-      });
-
-      if (response.ok) {
-        setIsSetupDialogOpen(false);
-        setSetupPlayers([]);
-        refetch();
-      } else {
-        setIsSetupDialogOpen(false);
-        const errorData = await response.json().catch(() => ({}));
-        const msg = errorData.error || `Setup failed (${response.status})`;
-        alert(msg);
-      }
-    } catch (err) {
-      logger.error('Failed to setup:', { error: err, tournamentId });
-      setIsSetupDialogOpen(false);
-      alert(tc('networkError'));
-    } finally {
-      setSetupSaving(false);
-    }
+    clearSetupError();
+    setSetupPlayers([]);
+    setIsSetupDialogOpen(false);
   };
 
   const openMatchDialog = (match: MRMatch) => {
@@ -583,6 +562,8 @@ export default function MatchRacePageClient({
               setIsOpen={setIsSetupDialogOpen}
               onSave={handleSetup}
               saving={setupSaving}
+              error={setupError?.message ?? null}
+              onClearError={clearSetupError}
               existingAssignments={qualifications.map((q) => ({
                 playerId: q.playerId,
                 group: q.group,

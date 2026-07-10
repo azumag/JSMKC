@@ -1469,7 +1469,7 @@ describe('E2E case drift coverage', () => {
     expect(guard).toContain("not.toContain('setGroupCount={setGroupCount}')");
     // TC-3010 replaced the disabled/secondary read-only display with a real 2/3 selector.
     expect(guard).toContain("expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}')");
-    expect(guard).toContain("expect(groupCountButton).not.toContain('disabled')");
+    expect(guard).toContain("expect(groupCountButton).toContain('disabled={saving}')");
   });
 
   it('keeps TC-1004 aligned with the CourseCycleStatus YAGNI guard', () => {

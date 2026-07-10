@@ -45,7 +45,7 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
 
     const groupCountButton = sectionBetween(source, '{GROUP_COUNT_OPTIONS.map((n) => (', '</Button>');
     expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}');
-    expect(groupCountButton).not.toContain('disabled');
+    expect(groupCountButton).toContain('disabled={saving}');
     // default/outline (selected/unselected) signals an actionable toggle, not a read-only display
     expect(groupCountButton).toMatch(/variant={n === groupCount \? ['"]default['"] : ['"]outline['"]}/);
   });
