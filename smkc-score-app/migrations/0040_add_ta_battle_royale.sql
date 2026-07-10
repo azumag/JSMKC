@@ -1,0 +1,2 @@
+ALTER TABLE "Player" ADD COLUMN "taHandicapSeconds" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Tournament" ADD COLUMN "taBattleRoyaleMode" BOOLEAN NOT NULL DEFAULT false;

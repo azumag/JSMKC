@@ -94,7 +94,6 @@ describe('GET /api/tournaments', () => {
     (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
     sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
-
   });
 
   afterEach(() => {
@@ -107,9 +106,7 @@ describe('GET /api/tournaments', () => {
       // Tournaments with publicModes: [] are excluded to prevent metadata leakage.
       jest.mocked(auth).mockResolvedValue(null);
 
-      const mockTournaments = [
-        { id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta', 'bm'] },
-      ];
+      const mockTournaments = [{ id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta', 'bm'] }];
 
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
       (prisma.tournament.count as jest.Mock).mockResolvedValue(1);
@@ -167,9 +164,7 @@ describe('GET /api/tournaments', () => {
         user: { id: 'user-1', role: 'user' },
       });
 
-      const mockTournaments = [
-        { id: 't1', name: 'Public Tournament', publicModes: ['ta'] },
-      ];
+      const mockTournaments = [{ id: 't1', name: 'Public Tournament', publicModes: ['ta'] }];
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
       (prisma.tournament.count as jest.Mock).mockResolvedValue(1);
 
@@ -179,16 +174,14 @@ describe('GET /api/tournaments', () => {
       expect(prisma.tournament.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { NOT: { publicModes: { equals: [] } } },
-        })
+        }),
       );
     });
 
     it('should use default pagination and apply non-admin filter when no params', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
-      const mockTournaments = [
-        { id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta'] },
-      ];
+      const mockTournaments = [{ id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta'] }];
 
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
       (prisma.tournament.count as jest.Mock).mockResolvedValue(1);
@@ -223,17 +216,14 @@ describe('GET /api/tournaments', () => {
 
       // Verify the shared logger instance logged the error
       const loggerInstance = loggerMock.createLogger('test');
-      expect(loggerInstance.error).toHaveBeenCalledWith(
-        'Failed to fetch tournaments',
-        expect.any(Object)
-      );
+      expect(loggerInstance.error).toHaveBeenCalledWith('Failed to fetch tournaments', expect.any(Object));
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
           error: 'Failed to fetch tournaments',
         }),
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -247,9 +237,7 @@ describe('GET /api/tournaments', () => {
         findManyCalls += 1;
         return findManyCalls === 1
           ? Promise.reject(new Error('D1 transient failure'))
-          : Promise.resolve([
-              { id: 't1', name: 'Recovered', date: '2024-01-01', publicModes: ['ta'] },
-            ]);
+          : Promise.resolve([{ id: 't1', name: 'Recovered', date: '2024-01-01', publicModes: ['ta'] }]);
       });
       (prisma.tournament.count as jest.Mock).mockResolvedValue(1);
       jest.mocked(auth).mockResolvedValue(null);
@@ -265,15 +253,10 @@ describe('GET /api/tournaments', () => {
       // Recovery means the route returns success, not the 500 error fallback.
       // createSuccessResponse invokes NextResponse.json with a single body arg
       // (no explicit status for the default 200), so we assert on that shape.
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true }),
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       // The retry path logs a warning, but the final-failure path's error log must NOT fire.
       const loggerInstance = loggerMock.createLogger('test');
-      expect(loggerInstance.error).not.toHaveBeenCalledWith(
-        'Failed to fetch tournaments',
-        expect.any(Object),
-      );
+      expect(loggerInstance.error).not.toHaveBeenCalledWith('Failed to fetch tournaments', expect.any(Object));
     });
   });
 });
@@ -310,7 +293,7 @@ describe('POST /api/tournaments', () => {
           error: 'Forbidden',
           code: 'FORBIDDEN',
         }),
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -332,7 +315,7 @@ describe('POST /api/tournaments', () => {
           error: 'Forbidden',
           code: 'FORBIDDEN',
         }),
-        { status: 403 }
+        { status: 403 },
       );
     });
   });
@@ -355,7 +338,7 @@ describe('POST /api/tournaments', () => {
         expect.objectContaining({
           error: expect.any(String),
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -376,7 +359,7 @@ describe('POST /api/tournaments', () => {
         expect.objectContaining({
           error: expect.any(String),
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -401,7 +384,7 @@ describe('POST /api/tournaments', () => {
         expect.objectContaining({
           error: 'Slug must contain only lowercase letters, numbers, and hyphens',
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
   });
@@ -423,6 +406,7 @@ describe('POST /api/tournaments', () => {
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Tournament',
         date: '2024-01-01',
+        taBattleRoyaleMode: true,
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
@@ -447,10 +431,11 @@ describe('POST /api/tournaments', () => {
             status: 'draft',
             dualReportEnabled: false,
             taPlayerSelfEdit: true,
+            taBattleRoyaleMode: true,
             debugMode: false,
             publicModes: [],
           },
-        })
+        }),
       );
 
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
@@ -461,13 +446,10 @@ describe('POST /api/tournaments', () => {
           action: 'CREATE_TOURNAMENT',
           targetId: 't1',
           targetType: 'Tournament',
-        })
+        }),
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: true, data: mockTournament },
-        { status: 201 }
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: mockTournament }, { status: 201 });
     });
 
     it('should create audit log on successful tournament creation', async () => {
@@ -521,16 +503,10 @@ describe('POST /api/tournaments', () => {
 
       // The shared logger singleton should have logged the warning
       const loggerInstance = loggerMock.createLogger('test');
-      expect(loggerInstance.warn).toHaveBeenCalledWith(
-        'Failed to create audit log',
-        expect.any(Object)
-      );
+      expect(loggerInstance.warn).toHaveBeenCalledWith('Failed to create audit log', expect.any(Object));
 
       // Tournament should still be returned successfully despite audit log failure
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: true, data: mockTournament },
-        { status: 201 }
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: mockTournament }, { status: 201 });
     });
 
     it('should normalize and persist slug when provided', async () => {
@@ -565,7 +541,7 @@ describe('POST /api/tournaments', () => {
           data: expect.objectContaining({
             slug: 'jsmkc2026',
           }),
-        })
+        }),
       );
     });
   });
@@ -593,17 +569,14 @@ describe('POST /api/tournaments', () => {
 
       // The shared logger singleton should have logged the error
       const loggerInstance = loggerMock.createLogger('test');
-      expect(loggerInstance.error).toHaveBeenCalledWith(
-        'Failed to create tournament',
-        expect.any(Object)
-      );
+      expect(loggerInstance.error).toHaveBeenCalledWith('Failed to create tournament', expect.any(Object));
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
           error: 'Failed to create tournament',
         }),
-        { status: 500 }
+        { status: 500 },
       );
     });
   });

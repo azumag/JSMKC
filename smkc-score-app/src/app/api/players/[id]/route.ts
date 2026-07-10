@@ -8,16 +8,22 @@
  * All mutation operations (PUT, DELETE) require admin authentication and
  * create audit log entries for accountability.
  */
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
-import { getServerSideIdentifier } from "@/lib/rate-limit";
-import { sanitizeInput } from "@/lib/sanitize";
-import { createLogger } from "@/lib/logger";
-import { createSuccessResponse, createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
-import { resolveCountryCode } from "@/lib/countries";
-import { PLAYER_ERROR_CODES } from "@/lib/player-error-codes";
+import { NextRequest } from 'next/server';
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
+import { getServerSideIdentifier } from '@/lib/rate-limit';
+import { sanitizeInput } from '@/lib/sanitize';
+import { createLogger } from '@/lib/logger';
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleValidationError,
+  handleAuthzError,
+} from '@/lib/error-handling';
+import { resolveCountryCode } from '@/lib/countries';
+import { isTaHandicapSeconds } from '@/lib/ta/battle-royale';
+import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
 
 /**
  * GET /api/players/:id
@@ -31,10 +37,7 @@ import { PLAYER_ERROR_CODES } from "@/lib/player-error-codes";
  *   404 - Player not found
  *   500 - Server error
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
 
@@ -49,7 +52,7 @@ export async function GET(
     });
 
     if (!player) {
-      return createErrorResponse("Player not found", 404);
+      return createErrorResponse('Player not found', 404);
     }
 
     return createSuccessResponse(player);
@@ -57,8 +60,8 @@ export async function GET(
     // Await params again in catch block since it may not have been resolved
     // before the error occurred. This ensures we can log the player ID.
     const { id } = await params;
-    logger.error("Failed to fetch player", { error, playerId: id });
-    return createErrorResponse("Failed to fetch player", 500);
+    logger.error('Failed to fetch player', { error, playerId: id });
+    return createErrorResponse('Failed to fetch player', 500);
   }
 }
 
@@ -80,10 +83,7 @@ export async function GET(
  *   409 - Duplicate nickname (Prisma P2002)
  *   500 - Server error
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
 
@@ -99,11 +99,14 @@ export async function PUT(
 
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country, noCamera } = body;
+    const { name, nickname, country, noCamera, taHandicapSeconds = 0 } = body;
 
     // Validate required fields
     if (!name || !nickname) {
-      return handleValidationError("Name and nickname are required");
+      return handleValidationError('Name and nickname are required');
+    }
+    if (!isTaHandicapSeconds(taHandicapSeconds)) {
+      return handleValidationError('TA handicap must be 0, -1, -3, or -5 seconds', 'taHandicapSeconds');
     }
 
     // Normalize to an ISO alpha-2 code server-side (issue #2766) — see the
@@ -120,6 +123,7 @@ export async function PUT(
         nickname,
         country: normalizedCountry,
         noCamera: noCamera === true,
+        taHandicapSeconds,
       },
     });
 
@@ -138,12 +142,15 @@ export async function PUT(
           name,
           nickname,
           country: normalizedCountry,
+          taHandicapSeconds,
         },
-      }).catch((err) => logger.warn('Failed to create audit log', {
-        error: err,
-        playerId: id,
-        action: 'update_player',
-      }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          playerId: id,
+          action: 'update_player',
+        }),
+      );
     } catch (logError) {
       // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
@@ -156,33 +163,23 @@ export async function PUT(
     return createSuccessResponse(player);
   } catch (error: unknown) {
     // Log error with structured metadata for debugging
-    logger.error("Failed to update player", { error, playerId: id });
+    logger.error('Failed to update player', { error, playerId: id });
 
     // P2025: Record not found - the player ID doesn't exist
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2025"
-    ) {
-      return createErrorResponse("Player not found", 404);
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+      return createErrorResponse('Player not found', 404);
     }
 
     // P2002: Unique constraint violation - nickname already taken by another player
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return createErrorResponse(
-        "A player with this nickname already exists",
+        'A player with this nickname already exists',
         409,
         PLAYER_ERROR_CODES.DUPLICATE_NICKNAME,
       );
     }
 
-    return createErrorResponse("Failed to update player", 500);
+    return createErrorResponse('Failed to update player', 500);
   }
 }
 
@@ -197,10 +194,7 @@ export async function PUT(
  *   404 - Player not found (Prisma P2025)
  *   500 - Server error
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
 
@@ -236,11 +230,8 @@ export async function DELETE(
       prisma.tournamentPlayerScore.count({ where: { playerId: id } }),
     ]);
 
-    if (tournamentCounts.some(count => count > 0)) {
-      return createErrorResponse(
-        "Cannot delete a player who is registered in a tournament",
-        409
-      );
+    if (tournamentCounts.some((count) => count > 0)) {
+      return createErrorResponse('Cannot delete a player who is registered in a tournament', 409);
     }
 
     /*
@@ -259,7 +250,7 @@ export async function DELETE(
 
     // Delete the player record from the database
     await prisma.player.delete({
-      where: { id }
+      where: { id },
     });
 
     // Create audit log for the deletion — fire-and-forget via .catch()
@@ -276,11 +267,13 @@ export async function DELETE(
         details: {
           playerId: id,
         },
-      }).catch((err) => logger.warn('Failed to create audit log', {
-        error: err,
-        playerId: id,
-        action: 'delete_player',
-      }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          playerId: id,
+          action: 'delete_player',
+        }),
+      );
     } catch (logError) {
       // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
@@ -291,22 +284,17 @@ export async function DELETE(
     }
 
     return createSuccessResponse({
-      message: "Player deleted successfully",
+      message: 'Player deleted successfully',
     });
   } catch (error: unknown) {
     // Log error with structured metadata for debugging
-    logger.error("Failed to delete player", { error, playerId: id });
+    logger.error('Failed to delete player', { error, playerId: id });
 
     // P2025: Record not found - cannot delete a non-existent player
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2025"
-    ) {
-      return createErrorResponse("Player not found", 404);
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+      return createErrorResponse('Player not found', 404);
     }
 
-    return createErrorResponse("Failed to delete player", 500);
+    return createErrorResponse('Failed to delete player', 500);
   }
 }

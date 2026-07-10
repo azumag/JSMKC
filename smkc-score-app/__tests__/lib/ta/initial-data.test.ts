@@ -46,10 +46,24 @@ describe('fetchTaInitialData', () => {
   });
 
   it('returns TaInitialData with qualificationRegistrationLocked=false when no knockout entries exist', async () => {
-    mockResolveTournament.mockResolvedValue({ id: 'tid-1', frozenStages: [], taPlayerSelfEdit: false });
+    mockResolveTournament.mockResolvedValue({
+      id: 'tid-1',
+      frozenStages: [],
+      taPlayerSelfEdit: false,
+      taBattleRoyaleMode: true,
+    });
 
     const mockEntries = [{ id: 'e1', stage: 'qualification' }];
-    const mockPlayers = [{ id: 'p1', name: 'Alice', nickname: 'alice', country: null, noCamera: false }];
+    const mockPlayers = [
+      {
+        id: 'p1',
+        name: 'Alice',
+        nickname: 'alice',
+        country: null,
+        noCamera: false,
+        taHandicapSeconds: -3,
+      },
+    ];
 
     // findMany is called once for qualification entries.
     // hasKnockoutStageStarted uses findFirst (not findMany), so no second findMany call needed.
@@ -67,10 +81,16 @@ describe('fetchTaInitialData', () => {
     expect(result!.qualificationRegistrationLocked).toBe(false);
     expect(result!.frozenStages).toEqual([]);
     expect(result!.taPlayerSelfEdit).toBe(false);
+    expect(result!.taBattleRoyaleMode).toBe(true);
   });
 
   it('returns qualificationRegistrationLocked=true when a phase1 entry exists', async () => {
-    mockResolveTournament.mockResolvedValue({ id: 'tid-2', frozenStages: ['phase1'], taPlayerSelfEdit: true });
+    mockResolveTournament.mockResolvedValue({
+      id: 'tid-2',
+      frozenStages: ['phase1'],
+      taPlayerSelfEdit: true,
+      taBattleRoyaleMode: false,
+    });
 
     jest.mocked(prisma.tTEntry.findMany).mockResolvedValue([] as unknown as TTEntry[]);
     jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue({ id: 'phase-entry' } as unknown as TTEntry);

@@ -11,23 +11,23 @@
  * New tournaments are created in "draft" status and must be explicitly
  * activated before players can submit scores.
  */
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
-import { getServerSideIdentifier } from "@/lib/rate-limit";
-import { sanitizeInput } from "@/lib/sanitize";
-import { paginate } from "@/lib/pagination";
-import { createLogger } from "@/lib/logger";
-import { retryDbRead } from "@/lib/db-read-retry";
-import { isValidTournamentSlug, normalizeTournamentSlug } from "@/lib/tournament-identifier";
-import { readTournamentArchiveIndex } from "@/lib/tournament-archive";
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
+import { getServerSideIdentifier } from '@/lib/rate-limit';
+import { sanitizeInput } from '@/lib/sanitize';
+import { paginate } from '@/lib/pagination';
+import { createLogger } from '@/lib/logger';
+import { retryDbRead } from '@/lib/db-read-retry';
+import { isValidTournamentSlug, normalizeTournamentSlug } from '@/lib/tournament-identifier';
+import { readTournamentArchiveIndex } from '@/lib/tournament-archive';
 import {
   createSuccessResponse,
   createErrorResponse,
   handleAuthzError,
   handleValidationError,
-} from "@/lib/error-handling";
+} from '@/lib/error-handling';
 
 /**
  * GET /api/tournaments
@@ -59,9 +59,11 @@ export async function GET(request: NextRequest) {
     // server-side in GET /api/tournaments/[id].
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
-    const where: Record<string, unknown> = isAdmin ? {} : {
-      NOT: { publicModes: { equals: [] } },
-    };
+    const where: Record<string, unknown> = isAdmin
+      ? {}
+      : {
+          NOT: { publicModes: { equals: [] } },
+        };
 
     // Use the paginate utility for consistent pagination behavior.
     // Sort: newest tournaments first for relevance.
@@ -74,27 +76,29 @@ export async function GET(request: NextRequest) {
     // enough — Cloudflare Workers D1 retries are already aggressive, so a
     // second failure is unlikely to recover on a third attempt.
     const result = await retryDbRead(
-      () => paginate(
-        {
-          findMany: prisma.tournament.findMany.bind(prisma.tournament),
-          count: prisma.tournament.count,
-        },
-        where,
-        { date: "desc" },
-        { page, limit }
-      ),
+      () =>
+        paginate(
+          {
+            findMany: prisma.tournament.findMany.bind(prisma.tournament),
+            count: prisma.tournament.count,
+          },
+          where,
+          { date: 'desc' },
+          { page, limit },
+        ),
       {
-        onRetry: ({ attempt, error }) => logger.warn("Retrying tournaments list fetch", {
-          attempt,
-          error: error instanceof Error ? error.message : error,
-        }),
+        onRetry: ({ attempt, error }) =>
+          logger.warn('Retrying tournaments list fetch', {
+            attempt,
+            error: error instanceof Error ? error.message : error,
+          }),
       },
     );
 
     return createSuccessResponse(result);
   } catch (error) {
     // Log error with structured metadata for monitoring
-    logger.error("Failed to fetch tournaments", { error });
+    logger.error('Failed to fetch tournaments', { error });
     const archived = await readTournamentArchiveIndex();
     if (archived.length > 0) {
       return createSuccessResponse({
@@ -108,7 +112,7 @@ export async function GET(request: NextRequest) {
         archived: true,
       });
     }
-    return createErrorResponse("Failed to fetch tournaments", 500);
+    return createErrorResponse('Failed to fetch tournaments', 500);
   }
 }
 
@@ -142,16 +146,16 @@ export async function POST(request: NextRequest) {
   try {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, dualReportEnabled, taPlayerSelfEdit, debugMode } = body;
+    const { name, date, dualReportEnabled, taPlayerSelfEdit, taBattleRoyaleMode, debugMode } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     // Validate required fields
     if (!name || !date) {
-      return handleValidationError("Name and date are required");
+      return handleValidationError('Name and date are required');
     }
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
-      return handleValidationError("Slug must contain only lowercase letters, numbers, and hyphens", "slug");
+      return handleValidationError('Slug must contain only lowercase letters, numbers, and hyphens', 'slug');
     }
 
     // Create the tournament with initial "draft" status and no public modes.
@@ -163,9 +167,10 @@ export async function POST(request: NextRequest) {
         name,
         ...(slug !== undefined && { slug }),
         date: new Date(date),
-        status: "draft",
+        status: 'draft',
         dualReportEnabled: dualReportEnabled === true,
         taPlayerSelfEdit: taPlayerSelfEdit !== false,
+        taBattleRoyaleMode: taBattleRoyaleMode === true,
         debugMode: debugMode === true,
         publicModes: [],
       },
@@ -188,11 +193,13 @@ export async function POST(request: NextRequest) {
           date,
           debugMode: debugMode === true,
         },
-      }).catch((err) => logger.warn('Failed to create audit log', {
-        error: err,
-        tournamentId: tournament.id,
-        action: 'create_tournament',
-      }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          tournamentId: tournament.id,
+          action: 'create_tournament',
+        }),
+      );
     } catch (logError) {
       // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
@@ -203,22 +210,14 @@ export async function POST(request: NextRequest) {
     }
 
     /* Use standard { success, data } wrapper. 201 status set explicitly. */
-    return NextResponse.json(
-      { success: true, data: tournament },
-      { status: 201 }
-    );
+    return NextResponse.json({ success: true, data: tournament }, { status: 201 });
   } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
-      return createErrorResponse("Tournament slug already exists", 409, "CONFLICT");
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return createErrorResponse('Tournament slug already exists', 409, 'CONFLICT');
     }
 
     // Log error with structured metadata for monitoring
-    logger.error("Failed to create tournament", { error });
-    return createErrorResponse("Failed to create tournament", 500);
+    logger.error('Failed to create tournament', { error });
+    return createErrorResponse('Failed to create tournament', 500);
   }
 }

@@ -252,7 +252,13 @@
     "passwordResetSuccess": "パスワードのリセットに成功しました",
     "failedToResetPassword": "パスワードのリセットに失敗しました",
     "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。",
-    "noCamera": "カメラなし"
+    "noCamera": "カメラなし",
+    "taHandicap": "TAバトルロワイヤル ハンデ",
+    "taHandicap0": "0秒 — オフラインTop 8／NTSCランク30位以内",
+    "taHandicapMinus1": "-1秒 — オフラインTop 16／NTSCランク60位以内",
+    "taHandicapMinus3": "-3秒 — グループステージ通過",
+    "taHandicapMinus5": "-5秒 — グループステージ敗退／オフライン参加なし",
+    "taHandicapHelp": "TAバトルロワイヤル専用トーナメントでのみ適用されます。"
   },
   "profile": {
     "title": "プロフィール",
@@ -275,6 +281,7 @@
     "createTournament": "トーナメント作成",
     "dualReportEnabled": "二重報告を有効にする（両プレイヤーがスコアを確認）",
     "taPlayerSelfEdit": "プレイヤーが自分のTAタイムを編集可能にする（無効時はパートナーのみ入力）",
+    "taBattleRoyaleMode": "TAバトルロワイヤルのみ（10ライフ・ライフ回復なし）",
     "debugMode": "デバッグモード（テスト用の予選スコア自動入力ボタンを有効化）",
     "loadingTournaments": "トーナメントを読み込み中...",
     "createNewTournament": "新規トーナメント作成",

@@ -22,31 +22,20 @@
  * The API may return either legacy list payloads or the standardized
  * success wrapper, so the fetch handler normalizes both formats.
  */
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
-import { useTranslations, useLocale } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { CountrySelect } from "@/components/ui/country-select";
-import { CountryFlag } from "@/components/ui/country-flag";
-import { getCountryName, resolveCountryCode } from "@/lib/countries";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import { useTranslations, useLocale } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { CountrySelect } from '@/components/ui/country-select';
+import { CountryFlag } from '@/components/ui/country-flag';
+import { getCountryName, resolveCountryCode } from '@/lib/countries';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -55,13 +44,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { TableSkeleton } from "@/components/ui/loading-skeleton";
-import { extractArrayData, extractPaginationMeta, type PaginationMeta } from "@/lib/api-response";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
-import { createPlayerWithRetry } from "@/lib/create-player-retry";
-import { PLAYER_ERROR_CODES } from "@/lib/player-error-codes";
-import { createLogger } from "@/lib/client-logger";
+} from '@/components/ui/dialog';
+import { TableSkeleton } from '@/components/ui/loading-skeleton';
+import { extractArrayData, extractPaginationMeta, type PaginationMeta } from '@/lib/api-response';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { createPlayerWithRetry } from '@/lib/create-player-retry';
+import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
+import { createLogger } from '@/lib/client-logger';
 
 /**
  * Client-side logger for the players page.
@@ -86,6 +75,7 @@ interface Player {
   nickname: string;
   country: string | null;
   noCamera: boolean;
+  taHandicapSeconds: 0 | -1 | -3 | -5;
   createdAt: string;
   /** Set by the API for admin users: true if the player is registered in any tournament. */
   hasTournamentData?: boolean;
@@ -131,21 +121,22 @@ export default function PlayersPage() {
    * dialog and must be saved by the admin before closing, as it
    * cannot be retrieved again (passwords are hashed in the database).
    */
-  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState('');
 
   /* Shared form data used by both add and edit dialogs */
   const [formData, setFormData] = useState({
-    name: "",
-    nickname: "",
-    country: "",
+    name: '',
+    nickname: '',
+    country: '',
     noCamera: false,
+    taHandicapSeconds: 0 as 0 | -1 | -3 | -5,
   });
 
   /* Currently editing player ID (null when adding a new player) */
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
 
   /* Form validation error message */
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   /* Prevents double-submit on add/edit/delete operations */
   const [submitting, setSubmitting] = useState(false);
@@ -160,7 +151,7 @@ export default function PlayersPage() {
     try {
       setFetchError(false);
       const response = await fetchWithRetry(
-        `/api/players?page=${currentPage}&limit=${PLAYERS_PAGE_SIZE}&includeTournamentData=1`
+        `/api/players?page=${currentPage}&limit=${PLAYERS_PAGE_SIZE}&includeTournamentData=1`,
       );
       if (response.ok) {
         const result = await response.json();
@@ -182,12 +173,12 @@ export default function PlayersPage() {
         setPaginationMeta(meta);
       } else {
         setFetchError(true);
-        logger.error("API returned error status", { status: response.status });
+        logger.error('API returned error status', { status: response.status });
       }
     } catch (err) {
       setFetchError(true);
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to fetch players:", metadata);
+      logger.error('Failed to fetch players:', metadata);
     } finally {
       setLoading(false);
     }
@@ -207,7 +198,7 @@ export default function PlayersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    setError("");
+    setError('');
     setSubmitting(true);
 
     try {
@@ -227,7 +218,7 @@ export default function PlayersPage() {
         // code; unrecognized free text -> "" -> server stores null) so the
         // DB never accumulates un-flaggable garbage and legacy values
         // migrate forward.
-        country: resolveCountryCode(formData.country) ?? "",
+        country: resolveCountryCode(formData.country) ?? '',
       });
 
       if (result.ok) {
@@ -242,11 +233,12 @@ export default function PlayersPage() {
           nickname: formData.nickname,
           country: resolveCountryCode(formData.country) ?? null,
           noCamera: formData.noCamera,
+          taHandicapSeconds: formData.taHandicapSeconds,
           createdAt: new Date().toISOString(),
         };
-        setPlayers(prev => [...prev, newPlayer]);
+        setPlayers((prev) => [...prev, newPlayer]);
 
-        setFormData({ name: "", nickname: "", country: "", noCamera: false });
+        setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 });
         setIsAddDialogOpen(false);
 
         if (!result.recovered && data.temporaryPassword) {
@@ -266,7 +258,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create player:", metadata);
+      logger.error('Failed to create player:', metadata);
       setError(t('failedToCreate'));
     } finally {
       setSubmitting(false);
@@ -281,15 +273,15 @@ export default function PlayersPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    setError("");
+    setError('');
     setSubmitting(true);
 
     try {
       let response: Response | null = null;
       for (let attempt = 0; attempt < 2; attempt++) {
         response = await fetch(`/api/players/${editingPlayerId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
           // See POST above: normalize country to an ISO code on save so a plain
           // nickname edit also migrates a legacy free-text country to a code.
           body: JSON.stringify({
@@ -298,19 +290,28 @@ export default function PlayersPage() {
           }),
         });
         if (response.ok || response.status < 500) break;
-        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
       }
 
       if (response!.ok) {
         // Optimistic update: immediately reflect changes in the list
-        setPlayers(prev => prev.map(p =>
-          p.id === editingPlayerId
-            ? { ...p, name: formData.name, nickname: formData.nickname, country: resolveCountryCode(formData.country) ?? null, noCamera: formData.noCamera }
-            : p
-        ));
+        setPlayers((prev) =>
+          prev.map((p) =>
+            p.id === editingPlayerId
+              ? {
+                  ...p,
+                  name: formData.name,
+                  nickname: formData.nickname,
+                  country: resolveCountryCode(formData.country) ?? null,
+                  noCamera: formData.noCamera,
+                  taHandicapSeconds: formData.taHandicapSeconds,
+                }
+              : p,
+          ),
+        );
         setIsEditDialogOpen(false);
         setEditingPlayerId(null);
-        setFormData({ name: "", nickname: "", country: "", noCamera: false });
+        setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 });
       } else {
         const text = await response!.text();
         try {
@@ -326,7 +327,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update player:", metadata);
+      logger.error('Failed to update player:', metadata);
       setError(t('failedToUpdate'));
     } finally {
       setSubmitting(false);
@@ -345,16 +346,16 @@ export default function PlayersPage() {
     try {
       let response: Response | null = null;
       for (let attempt = 0; attempt < 2; attempt++) {
-        response = await fetch(`/api/players/${id}`, { method: "DELETE" });
+        response = await fetch(`/api/players/${id}`, { method: 'DELETE' });
         if (response.ok || response.status < 500) break;
-        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
       }
 
       if (response!.ok) {
         // Optimistic update: immediately remove from list, then re-fetch so
         // paginationMeta (total, totalPages) stays accurate and we bounce
         // back a page if the delete emptied the current one.
-        setPlayers(prev => prev.filter(p => p.id !== id));
+        setPlayers((prev) => prev.filter((p) => p.id !== id));
         fetchPlayers();
       } else {
         const text = await response!.text();
@@ -367,7 +368,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to delete player:", metadata);
+      logger.error('Failed to delete player:', metadata);
       alert(t('failedToDelete'));
     } finally {
       setSubmitting(false);
@@ -390,7 +391,7 @@ export default function PlayersPage() {
           method: 'POST',
         });
         if (response.ok || response.status < 500) break;
-        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
       }
 
       if (response!.ok) {
@@ -427,11 +428,12 @@ export default function PlayersPage() {
     setFormData({
       name: player.name,
       nickname: player.nickname,
-      country: player.country || "",
+      country: player.country || '',
       noCamera: player.noCamera,
+      taHandicapSeconds: player.taHandicapSeconds ?? 0,
     });
     setEditingPlayerId(player.id);
-    setError("");
+    setError('');
     setIsEditDialogOpen(true);
   };
 
@@ -443,7 +445,7 @@ export default function PlayersPage() {
     setIsEditDialogOpen(open);
     if (!open) {
       setEditingPlayerId(null);
-      setFormData({ name: "", nickname: "", country: "", noCamera: false });
+      setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 });
     }
   };
 
@@ -483,96 +485,99 @@ export default function PlayersPage() {
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-foreground/15 pb-5">
         <div>
-          <h1 className="font-display text-3xl sm:text-4xl tracking-wide leading-none">
-            {t('title')}
-          </h1>
-          <p className="text-muted-foreground text-sm mt-2">
-            {isAdmin ? t('subtitleAdmin') : t('subtitleView')}
-          </p>
+          <h1 className="font-display text-3xl sm:text-4xl tracking-wide leading-none">{t('title')}</h1>
+          <p className="text-muted-foreground text-sm mt-2">{isAdmin ? t('subtitleAdmin') : t('subtitleView')}</p>
         </div>
         {/* Add Player dialog - only rendered for admin users */}
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", nickname: "", country: "", noCamera: false })}>
+              <Button
+                onClick={() =>
+                  setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 })
+                }
+              >
                 {tc('addPlayer')}
               </Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('addNewPlayer')}</DialogTitle>
-              <DialogDescription>
-                {t('enterPlayerInfo')}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
-                {error && (
-                  <div className="text-red-500 text-sm">{error}</div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('fullName')}</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder={t('fullNamePlaceholder')}
-                    required
-                  />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t('addNewPlayer')}</DialogTitle>
+                <DialogDescription>{t('enterPlayerInfo')}</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-4 py-4">
+                  {error && <div className="text-red-500 text-sm">{error}</div>}
+                  <div className="space-y-2">
+                    <Label htmlFor="name">{t('fullName')}</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder={t('fullNamePlaceholder')}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nickname">{t('nickname')}</Label>
+                    <Input
+                      id="nickname"
+                      value={formData.nickname}
+                      onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
+                      placeholder={t('nicknamePlaceholder')}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="country">{t('countryOptional')}</Label>
+                    <CountrySelect
+                      id="country"
+                      value={formData.country}
+                      onChange={(country) => setFormData({ ...formData, country })}
+                      locale={locale}
+                      placeholder={t('countryPlaceholder')}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="noCamera"
+                      checked={formData.noCamera}
+                      onCheckedChange={(checked) => setFormData({ ...formData, noCamera: checked === true })}
+                    />
+                    <Label htmlFor="noCamera">{t('noCamera')}</Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="taHandicapSeconds">{t('taHandicap')}</Label>
+                    <select
+                      id="taHandicapSeconds"
+                      value={formData.taHandicapSeconds}
+                      onChange={(e) =>
+                        setFormData({ ...formData, taHandicapSeconds: Number(e.target.value) as 0 | -1 | -3 | -5 })
+                      }
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value={0}>{t('taHandicap0')}</option>
+                      <option value={-1}>{t('taHandicapMinus1')}</option>
+                      <option value={-3}>{t('taHandicapMinus3')}</option>
+                      <option value={-5}>{t('taHandicapMinus5')}</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">{t('taHandicapHelp')}</p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nickname">{t('nickname')}</Label>
-                  <Input
-                    id="nickname"
-                    value={formData.nickname}
-                    onChange={(e) =>
-                      setFormData({ ...formData, nickname: e.target.value })
-                    }
-                    placeholder={t('nicknamePlaceholder')}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country">{t('countryOptional')}</Label>
-                  <CountrySelect
-                    id="country"
-                    value={formData.country}
-                    onChange={(country) =>
-                      setFormData({ ...formData, country })
-                    }
-                    locale={locale}
-                    placeholder={t('countryPlaceholder')}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="noCamera"
-                    checked={formData.noCamera}
-                    onCheckedChange={(checked) =>
-                      setFormData({ ...formData, noCamera: checked === true })
-                    }
-                  />
-                  <Label htmlFor="noCamera">{t('noCamera')}</Label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? tc('saving') : tc('addPlayer')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? tc('saving') : tc('addPlayer')}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </header>
 
       <section className="space-y-3">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-base font-semibold">
-            {t('playerList')}
-          </h2>
+          <h2 className="text-base font-semibold">{t('playerList')}</h2>
           <p className="text-xs text-muted-foreground font-mono tabular">
             {t('playersRegistered', { count: totalPlayers })}
           </p>
@@ -581,7 +586,14 @@ export default function PlayersPage() {
           {fetchError ? (
             <div className="text-center py-12 space-y-3 border border-foreground/15">
               <p className="text-destructive">{t('fetchError')}</p>
-              <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchPlayers(); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLoading(true);
+                  fetchPlayers();
+                }}
+              >
                 {tc('retry')}
               </Button>
             </div>
@@ -592,66 +604,58 @@ export default function PlayersPage() {
           ) : (
             <div className="space-y-4">
               <div className="border border-foreground/15">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('nickname')}</TableHead>
-                    <TableHead>{t('fullName')}</TableHead>
-                    <TableHead>{t('country')}</TableHead>
-                    <TableHead>{t('noCamera')}</TableHead>
-                    {/* Actions column only visible to admins */}
-                    {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {players.map((player) => (
-                    <TableRow key={player.id}>
-                      <TableCell className="font-medium">
-                        {player.nickname}
-                      </TableCell>
-                      <TableCell>{player.name}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-1.5">
-                          <CountryFlag country={player.country} locale={locale} />
-                          {getCountryName(resolveCountryCode(player.country), locale) ||
-                            player.country ||
-                            "-"}
-                        </span>
-                      </TableCell>
-                      <TableCell>{player.noCamera ? "✗" : "-"}</TableCell>
-                      {/* Admin-only action buttons: Edit and Delete */}
-                      {isAdmin && (
-                        <TableCell className="text-right space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openEditDialog(player)}
-                          >
-                            {tc('edit')}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={submitting}
-                            onClick={() => handleResetPassword(player.id)}
-                          >
-                            {t('resetPassword')}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={submitting || !!player.hasTournamentData}
-                            title={player.hasTournamentData ? t('cannotDeleteTournamentPlayer') : undefined}
-                            onClick={() => handleDelete(player.id)}
-                          >
-                            {tc('delete')}
-                          </Button>
-                        </TableCell>
-                      )}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('nickname')}</TableHead>
+                      <TableHead>{t('fullName')}</TableHead>
+                      <TableHead>{t('country')}</TableHead>
+                      <TableHead>{t('noCamera')}</TableHead>
+                      {/* Actions column only visible to admins */}
+                      {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {players.map((player) => (
+                      <TableRow key={player.id}>
+                        <TableCell className="font-medium">{player.nickname}</TableCell>
+                        <TableCell>{player.name}</TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1.5">
+                            <CountryFlag country={player.country} locale={locale} />
+                            {getCountryName(resolveCountryCode(player.country), locale) || player.country || '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell>{player.noCamera ? '✗' : '-'}</TableCell>
+                        {/* Admin-only action buttons: Edit and Delete */}
+                        {isAdmin && (
+                          <TableCell className="text-right space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => openEditDialog(player)}>
+                              {tc('edit')}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={submitting}
+                              onClick={() => handleResetPassword(player.id)}
+                            >
+                              {t('resetPassword')}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={submitting || !!player.hasTournamentData}
+                              title={player.hasTournamentData ? t('cannotDeleteTournamentPlayer') : undefined}
+                              onClick={() => handleDelete(player.id)}
+                            >
+                              {tc('delete')}
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
 
               {totalPages > 1 && (
@@ -693,9 +697,7 @@ export default function PlayersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('editPlayer')}</DialogTitle>
-            <DialogDescription>
-              {t('updatePlayerInfo')}
-            </DialogDescription>
+            <DialogDescription>{t('updatePlayerInfo')}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdate}>
             <div className="space-y-4 py-4">
@@ -705,9 +707,7 @@ export default function PlayersPage() {
                 <Input
                   id="edit-name"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
               </div>
@@ -716,9 +716,7 @@ export default function PlayersPage() {
                 <Input
                   id="edit-nickname"
                   value={formData.nickname}
-                  onChange={(e) =>
-                    setFormData({ ...formData, nickname: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
                   required
                 />
               </div>
@@ -727,9 +725,7 @@ export default function PlayersPage() {
                 <CountrySelect
                   id="edit-country"
                   value={formData.country}
-                  onChange={(country) =>
-                    setFormData({ ...formData, country })
-                  }
+                  onChange={(country) => setFormData({ ...formData, country })}
                   locale={locale}
                 />
               </div>
@@ -737,17 +733,32 @@ export default function PlayersPage() {
                 <Checkbox
                   id="edit-noCamera"
                   checked={formData.noCamera}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, noCamera: checked === true })
-                  }
+                  onCheckedChange={(checked) => setFormData({ ...formData, noCamera: checked === true })}
                 />
                 <Label htmlFor="edit-noCamera">{t('noCamera')}</Label>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-taHandicapSeconds">{t('taHandicap')}</Label>
+                <select
+                  id="edit-taHandicapSeconds"
+                  value={formData.taHandicapSeconds}
+                  onChange={(e) =>
+                    setFormData({ ...formData, taHandicapSeconds: Number(e.target.value) as 0 | -1 | -3 | -5 })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value={0}>{t('taHandicap0')}</option>
+                  <option value={-1}>{t('taHandicapMinus1')}</option>
+                  <option value={-3}>{t('taHandicapMinus3')}</option>
+                  <option value={-5}>{t('taHandicapMinus5')}</option>
+                </select>
+                <p className="text-xs text-muted-foreground">{t('taHandicapHelp')}</p>
               </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={submitting}>
-                  {submitting ? tc('saving') : t('saveChanges')}
-                </Button>
+                {submitting ? tc('saving') : t('saveChanges')}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -760,26 +771,23 @@ export default function PlayersPage() {
        * Admin must copy and share it with the player, as it cannot
        * be retrieved again (stored as a hash in the database).
        */}
-      <Dialog open={isPasswordDialogOpen} onOpenChange={(open) => {
-        setIsPasswordDialogOpen(open);
-        if (!open) setTemporaryPassword("");
-      }}>
+      <Dialog
+        open={isPasswordDialogOpen}
+        onOpenChange={(open) => {
+          setIsPasswordDialogOpen(open);
+          if (!open) setTemporaryPassword('');
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{isPasswordReset ? t('passwordResetSuccess') : t('createdSuccess')}</DialogTitle>
-            <DialogDescription>
-              {t('savePasswordWarning')}
-            </DialogDescription>
+            <DialogDescription>{t('savePasswordWarning')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>{t('temporaryPassword')}</Label>
               <div className="flex gap-2">
-                <Input
-                  value={temporaryPassword}
-                  readOnly
-                  className="font-mono"
-                />
+                <Input value={temporaryPassword} readOnly className="font-mono" />
                 <Button
                   type="button"
                   variant="outline"
@@ -791,14 +799,10 @@ export default function PlayersPage() {
                 </Button>
               </div>
             </div>
-            <div className="text-sm text-muted-foreground">
-              {t('passwordNote')}
-            </div>
+            <div className="text-sm text-muted-foreground">{t('passwordNote')}</div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setIsPasswordDialogOpen(false)}>
-              {t('savedIt')}
-            </Button>
+            <Button onClick={() => setIsPasswordDialogOpen(false)}>{t('savedIt')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

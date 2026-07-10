@@ -57,7 +57,8 @@ jest.mock('@/lib/logger', () => {
 });
 
 // Get reference to the shared logger instance for assertions
-const mockLoggerInstance = (jest.requireMock('@/lib/logger') as { __mockLoggerInstance: Record<string, jest.Mock> }).__mockLoggerInstance;
+const mockLoggerInstance = (jest.requireMock('@/lib/logger') as { __mockLoggerInstance: Record<string, jest.Mock> })
+  .__mockLoggerInstance;
 
 jest.mock('@/lib/password-utils', () => ({
   generateSecurePassword: jest.fn(() => 'generated-password'),
@@ -95,7 +96,10 @@ jest.mock('next/server', () => {
           return h[key] || null;
         },
         forEach: (cb) => {
-          if (h instanceof Headers) { h.forEach(cb); return; }
+          if (h instanceof Headers) {
+            h.forEach(cb);
+            return;
+          }
           Object.entries(h).forEach(([k, v]) => cb(v, k));
         },
       };
@@ -183,7 +187,7 @@ describe('GET /api/players', () => {
             limit: 50,
             totalPages: 1,
           },
-        })
+        }),
       );
     });
 
@@ -193,9 +197,7 @@ describe('GET /api/players', () => {
       prisma.player.findMany.mockResolvedValue(mockPlayers);
       prisma.player.count.mockResolvedValue(25);
 
-      await playerRoute.GET(
-        new NextRequest('http://localhost:3000/api/players?page=2&limit=10')
-      );
+      await playerRoute.GET(new NextRequest('http://localhost:3000/api/players?page=2&limit=10'));
 
       // With page=2, limit=10, skip should be (2-1)*10 = 10
       expect(prisma.player.findMany).toHaveBeenCalledWith({
@@ -216,7 +218,7 @@ describe('GET /api/players', () => {
             limit: 10,
             totalPages: 3,
           },
-        })
+        }),
       );
     });
 
@@ -227,9 +229,7 @@ describe('GET /api/players', () => {
       prisma.player.findMany.mockResolvedValue(mockPlayers);
       prisma.player.count.mockResolvedValue(1);
 
-      await playerRoute.GET(
-        new NextRequest('http://localhost:3000/api/players?limit=100')
-      );
+      await playerRoute.GET(new NextRequest('http://localhost:3000/api/players?limit=100'));
 
       expect(auth).not.toHaveBeenCalled();
       expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
@@ -237,7 +237,7 @@ describe('GET /api/players', () => {
         expect.objectContaining({
           success: true,
           data: mockPlayers,
-        })
+        }),
       );
     });
 
@@ -259,9 +259,7 @@ describe('GET /api/players', () => {
       prisma.tTEntry.findMany.mockResolvedValue([]);
       prisma.tournamentPlayerScore.findMany.mockResolvedValue([]);
 
-      await playerRoute.GET(
-        new NextRequest('http://localhost:3000/api/players?limit=100&includeTournamentData=1')
-      );
+      await playerRoute.GET(new NextRequest('http://localhost:3000/api/players?limit=100&includeTournamentData=1'));
 
       expect(auth).toHaveBeenCalled();
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
@@ -275,7 +273,7 @@ describe('GET /api/players', () => {
             expect.objectContaining({ id: 'p1', hasTournamentData: true }),
             expect.objectContaining({ id: 'p2', hasTournamentData: false }),
           ],
-        })
+        }),
       );
     });
 
@@ -285,9 +283,7 @@ describe('GET /api/players', () => {
       prisma.player.findMany.mockResolvedValue(mockPlayers);
       prisma.player.count.mockResolvedValue(1);
 
-      await playerRoute.GET(
-        new NextRequest('http://localhost:3000/api/players')
-      );
+      await playerRoute.GET(new NextRequest('http://localhost:3000/api/players'));
 
       // Verify that an empty where clause is passed (no filters)
       expect(prisma.player.count).toHaveBeenCalledWith({
@@ -297,7 +293,7 @@ describe('GET /api/players', () => {
       expect(prisma.player.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: { not: '__BREAK__' } },
-        })
+        }),
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
@@ -310,7 +306,7 @@ describe('GET /api/players', () => {
             limit: 50,
             totalPages: 1,
           },
-        })
+        }),
       );
     });
   });
@@ -321,23 +317,18 @@ describe('GET /api/players', () => {
       prisma.player.findMany.mockRejectedValue(new Error('Database error'));
       prisma.player.count.mockRejectedValue(new Error('Database error'));
 
-      await playerRoute.GET(
-        new NextRequest('http://localhost:3000/api/players')
-      );
+      await playerRoute.GET(new NextRequest('http://localhost:3000/api/players'));
 
       // After the route runs, the logger instance (shared mockLoggerInstance)
       // should have received the error call from the route's catch block.
-      expect(mockLoggerInstance.error).toHaveBeenCalledWith(
-        'Failed to fetch players',
-        expect.any(Object)
-      );
+      expect(mockLoggerInstance.error).toHaveBeenCalledWith('Failed to fetch players', expect.any(Object));
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
           error: 'Failed to fetch players',
         }),
-        { status: 500 }
+        { status: 500 },
       );
     });
   });
@@ -374,7 +365,7 @@ describe('POST /api/players', () => {
         expect.objectContaining({
           error: 'Forbidden',
         }),
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -397,12 +388,34 @@ describe('POST /api/players', () => {
         expect.objectContaining({
           error: 'Forbidden',
         }),
-        { status: 403 }
+        { status: 403 },
       );
     });
   });
 
   describe('Validation', () => {
+    it('rejects an unsupported TA handicap', async () => {
+      auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      sanitizeMock.sanitizeInput.mockReturnValue({
+        name: 'Test Player',
+        nickname: 'test',
+        taHandicapSeconds: -2,
+      });
+
+      await playerRoute.POST(
+        new NextRequest('http://localhost:3000/api/players', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Test Player', nickname: 'test', taHandicapSeconds: -2 }),
+        }),
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.stringContaining('0, -1, -3, or -5') }),
+        { status: 400 },
+      );
+      expect(prisma.player.create).not.toHaveBeenCalled();
+    });
+
     it('should return 400 when name is missing', async () => {
       auth.mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
@@ -419,7 +432,7 @@ describe('POST /api/players', () => {
         expect.objectContaining({
           error: expect.any(String),
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -439,7 +452,7 @@ describe('POST /api/players', () => {
         expect.objectContaining({
           error: expect.any(String),
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
   });
@@ -463,6 +476,7 @@ describe('POST /api/players', () => {
         name: 'Test Player',
         nickname: 'test',
         country: 'JP',
+        taHandicapSeconds: -3,
       });
       prisma.player.create.mockResolvedValue(mockPlayer);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
@@ -486,9 +500,10 @@ describe('POST /api/players', () => {
             name: 'Test Player',
             nickname: 'test',
             country: 'JP',
+            taHandicapSeconds: -3,
             password: 'hashed-password',
           }),
-        })
+        }),
       );
 
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
@@ -499,13 +514,13 @@ describe('POST /api/players', () => {
           action: auditLogMock.AUDIT_ACTIONS.CREATE_PLAYER,
           targetId: 'player-1',
           targetType: 'Player',
-        })
+        }),
       );
 
       /* Player POST now uses standard { success, data } wrapper with 201 status */
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: true, data: { player: mockPlayer, temporaryPassword: 'generated-password' } },
-        { status: 201 }
+        { status: 201 },
       );
     });
 
@@ -524,13 +539,15 @@ describe('POST /api/players', () => {
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
-      await playerRoute.POST(new NextRequest('http://localhost:3000/api/players', {
-        method: 'POST',
-        body: JSON.stringify({ name: 'Test Player', nickname: 'test', country: 'Japan' }),
-      }));
+      await playerRoute.POST(
+        new NextRequest('http://localhost:3000/api/players', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Test Player', nickname: 'test', country: 'Japan' }),
+        }),
+      );
 
       expect(prisma.player.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ country: 'JP' }) })
+        expect.objectContaining({ data: expect.objectContaining({ country: 'JP' }) }),
       );
     });
 
@@ -545,13 +562,15 @@ describe('POST /api/players', () => {
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
-      await playerRoute.POST(new NextRequest('http://localhost:3000/api/players', {
-        method: 'POST',
-        body: JSON.stringify({ name: 'Test Player', nickname: 'test', country: 'not-a-real-country' }),
-      }));
+      await playerRoute.POST(
+        new NextRequest('http://localhost:3000/api/players', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Test Player', nickname: 'test', country: 'not-a-real-country' }),
+        }),
+      );
 
       expect(prisma.player.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ country: null }) })
+        expect.objectContaining({ data: expect.objectContaining({ country: null }) }),
       );
     });
 
@@ -575,10 +594,7 @@ describe('POST /api/players', () => {
 
       // Verify the shared logger instance received the error call
       // from the route's catch block
-      expect(mockLoggerInstance.error).toHaveBeenCalledWith(
-        'Failed to create player',
-        expect.any(Object)
-      );
+      expect(mockLoggerInstance.error).toHaveBeenCalledWith('Failed to create player', expect.any(Object));
     });
 
     it('should handle unique constraint violation (P2002) with 409 status', async () => {
@@ -601,10 +617,7 @@ describe('POST /api/players', () => {
       await playerRoute.POST(request);
 
       // Logger should still be called with the error
-      expect(mockLoggerInstance.error).toHaveBeenCalledWith(
-        'Failed to create player',
-        expect.any(Object)
-      );
+      expect(mockLoggerInstance.error).toHaveBeenCalledWith('Failed to create player', expect.any(Object));
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -612,7 +625,7 @@ describe('POST /api/players', () => {
           error: 'A player with this nickname already exists',
           code: 'DUPLICATE_NICKNAME',
         }),
-        { status: 409 }
+        { status: 409 },
       );
     });
   });
