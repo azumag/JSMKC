@@ -18,7 +18,13 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier, getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError, handleAuthzError } from '@/lib/error-handling';
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleValidationError,
+  handleRateLimitError,
+  handleAuthzError,
+} from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
 import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
@@ -28,11 +34,7 @@ import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks, type RankableMatch, type RankableQualification } from '@/lib/server-ranking';
 import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
-import {
-  generateRoundRobinSchedule,
-  getByeMatchData,
-  BREAK_PLAYER_ID,
-} from '@/lib/round-robin';
+import { generateRoundRobinSchedule, getByeMatchData, BREAK_PLAYER_ID } from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 
 export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
@@ -100,8 +102,7 @@ function generateShuffledCupList(
     if (previousCup && deck[0] === previousCup) {
       const firstNonRepeatingIndex = deck.findIndex((cup) => cup !== previousCup);
       if (firstNonRepeatingIndex > 0) {
-        const swapIndex = firstNonRepeatingIndex
-          + Math.floor(Math.random() * (deck.length - firstNonRepeatingIndex));
+        const swapIndex = firstNonRepeatingIndex + Math.floor(Math.random() * (deck.length - firstNonRepeatingIndex));
         [deck[0], deck[swapIndex]] = [deck[swapIndex], deck[0]];
       } else if (firstNonRepeatingIndex === -1 && !warnedUnavoidableRepeat) {
         logger?.warn('GP qualification cup deck cannot avoid adjacent repeated cups', {
@@ -131,8 +132,9 @@ export function getAssignedCoursesForRound(shuffled: string[], roundNumber: numb
     throw new Error(`MR qualification roundNumber must be a positive integer: ${roundNumber}`);
   }
   const roundIndex = roundNumber - 1;
-  return Array.from({ length: TOTAL_MR_RACES }, (_, i) =>
-    shuffled[(roundIndex * TOTAL_MR_RACES + i) % shuffled.length]
+  return Array.from(
+    { length: TOTAL_MR_RACES },
+    (_, i) => shuffled[(roundIndex * TOTAL_MR_RACES + i) % shuffled.length],
   );
 }
 
@@ -301,11 +303,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
   /**
    * GET handler: Fetch qualification standings and matches for a tournament.
    */
-  async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-    ) {
-      const logger = createLogger(config.loggerName);
+  async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const logger = createLogger(config.loggerName);
     const { id } = await params;
     // Pre-declared so the catch block below can include it in error logs
     // even when resolveTournament throws before assigning the resolved id.
@@ -316,9 +315,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       // qualificationConfirmed flag in a single findFirst. Each mode has
       // its own flag so confirming one mode does not lock the others (#696).
       const modeField = `${config.eventTypeCode}QualificationConfirmed` as
-        | 'bmQualificationConfirmed'
-        | 'mrQualificationConfirmed'
-        | 'gpQualificationConfirmed';
+        'bmQualificationConfirmed' | 'mrQualificationConfirmed' | 'gpQualificationConfirmed';
       // Select all three flags explicitly to avoid computed-key type inference issues with Prisma generics.
       const tournament = await resolveTournament(id, {
         id: true,
@@ -366,7 +363,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         matches,
         // Return the mode-specific flag under the generic key so the frontend
         // polling hook (useParticipantMatches / page state) needs no changes.
-        qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
+        qualificationConfirmed: ((tournament as Record<string, unknown>)[modeField] as boolean) ?? false,
       };
       const etag = generateETag([responseBody]);
       const ifNoneMatch = request.headers.get('if-none-match');
@@ -409,10 +406,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
    * Auth is always checked when postRequiresAuth is true.
    * Audit logging is performed when auditAction is configured.
    */
-  async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
 
     /* Auth check - uses let for proper scoping (not var) */
@@ -445,7 +439,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       const invalidGroup = players.find(
-        (p: { group?: string }) => !SUPPORTED_QUALIFICATION_GROUPS.includes(p.group as typeof SUPPORTED_QUALIFICATION_GROUPS[number]),
+        (p: { group?: string }) =>
+          !SUPPORTED_QUALIFICATION_GROUPS.includes(p.group as (typeof SUPPORTED_QUALIFICATION_GROUPS)[number]),
       );
       if (invalidGroup) {
         return handleValidationError(
@@ -480,14 +475,12 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * createMany doesn't return inserted rows on SQLite/D1, so we follow
        * up with one findMany() to recover IDs for the response payload.
        */
-      const qualData = players.map(
-        (p: { playerId: string; group: string; seeding?: number }) => ({
-          tournamentId,
-          playerId: p.playerId,
-          group: p.group,
-          seeding: p.seeding,
-        }),
-      );
+      const qualData = players.map((p: { playerId: string; group: string; seeding?: number }) => ({
+        tournamentId,
+        playerId: p.playerId,
+        group: p.group,
+        seeding: p.seeding,
+      }));
       // D1 bound-parameter limit is ~100 per SQL statement (#736).
       // qualData rows have 4 columns each → chunk at 24 rows (96 params) to stay safely under the limit.
       // Sequential insertion: if a chunk is retried due to D1 "Network connection lost", only that
@@ -539,9 +532,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * repeat the same cup.
        * Only applies when config.assignCupRandomly is true (GP only).
        */
-      const shuffledCups = config.assignCupRandomly && config.cupList
-        ? generateShuffledCupList(config.cupList, logger)
-        : null;
+      const shuffledCups =
+        config.assignCupRandomly && config.cupList ? generateShuffledCupList(config.cupList, logger) : null;
       // matchSequenceIndex tracks the overall real-match number across all groups
       // for consistent GP cup assignment from the shared list.
       let matchSequenceIndex = 0;
@@ -583,9 +575,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
            * The round-robin module already guarantees this, but we enforce it
            * here as a safety check for correct score assignment.
            */
-          const p1Id = m.isBye
-            ? (m.player1Id === BREAK_PLAYER_ID ? m.player2Id : m.player1Id)
-            : m.player1Id;
+          const p1Id = m.isBye ? (m.player1Id === BREAK_PLAYER_ID ? m.player2Id : m.player1Id) : m.player1Id;
           const p2Id = m.isBye ? BREAK_PLAYER_ID : m.player2Id;
 
           /*
@@ -599,16 +589,16 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           const shouldAssignPlayableCourse = isRealMatch || isScoreableGpBye;
           // MR: random per-round course draw shared by every match in that round
           // BM: fixed battle-course list (same for every real match)
-          const assignedCourses = shuffledCourses && shouldAssignPlayableCourse
-            ? getAssignedCoursesForRound(shuffledCourses, m.day)
-            : fixedCourses && shouldAssignPlayableCourse
-              ? fixedCourses
-              : undefined;
+          const assignedCourses =
+            shuffledCourses && shouldAssignPlayableCourse
+              ? getAssignedCoursesForRound(shuffledCourses, m.day)
+              : fixedCourses && shouldAssignPlayableCourse
+                ? fixedCourses
+                : undefined;
 
           /* §7.4: Pick a cup from the shuffled list for this round (GP only) */
-          const assignedCup = shuffledCups && shouldAssignPlayableCourse
-            ? getAssignedCupForRound(shuffledCups, m.day)
-            : undefined;
+          const assignedCup =
+            shuffledCups && shouldAssignPlayableCourse ? getAssignedCupForRound(shuffledCups, m.day) : undefined;
           const autoCompleteBye = m.isBye && !isScoreableGpBye;
 
           matchData.push({
@@ -682,10 +672,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             tournamentId,
             stage: 'qualification',
             completed: true,
-            OR: [
-              { player1Id: { in: byeRecipientList } },
-              { player2Id: { in: byeRecipientList } },
-            ],
+            OR: [{ player1Id: { in: byeRecipientList } }, { player2Id: { in: byeRecipientList } }],
           },
         });
 
@@ -694,11 +681,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (m: any) => m.player1Id === playerId || m.player2Id === playerId,
           );
-          const stats = config.aggregatePlayerStats(
-            playerByeMatches,
-            playerId,
-            config.calculateMatchResult,
-          );
+          const stats = config.aggregatePlayerStats(playerByeMatches, playerId, config.calculateMatchResult);
           return { playerId, ...stats.qualificationData };
         });
         await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, byeUpdates);
@@ -718,11 +701,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             targetId: tournamentId,
             targetType: 'Tournament',
             details: { mode: 'qualification', playerCount: players.length },
-          }).catch((err) => logger.warn('Failed to create audit log', {
-            error: err,
-            tournamentId,
-            action: config.auditAction,
-          }));
+          }).catch((err) =>
+            logger.warn('Failed to create audit log', {
+              error: err,
+              tournamentId,
+              action: config.auditAction,
+            }),
+          );
         } catch (logError) {
           logger.warn('Failed to create audit log', {
             error: logError,
@@ -750,7 +735,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return createSuccessResponse(
         { message: config.setupCompleteMessage, qualifications },
         config.setupCompleteMessage,
-        { status: 201 }
+        { status: 201 },
       );
     } catch (error) {
       logger.error(`Failed to setup ${config.eventDisplayName}`, { error, tournamentId });
@@ -761,10 +746,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
   /**
    * PUT handler: Update a match score and recalculate both players' standings.
    */
-  async function PUT(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
 
     /* Auth check for PUT endpoint */
@@ -813,22 +795,21 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             OR: [{ player1Id: match.player1Id }, { player2Id: match.player1Id }],
           },
         }),
-        match.isBye ? Promise.resolve(null) : matchModel(prisma).findMany({
-          where: {
-            tournamentId,
-            stage: 'qualification',
-            completed: true,
-            OR: [{ player1Id: match.player2Id }, { player2Id: match.player2Id }],
-          },
-        }),
+        match.isBye
+          ? Promise.resolve(null)
+          : matchModel(prisma).findMany({
+              where: {
+                tournamentId,
+                stage: 'qualification',
+                completed: true,
+                OR: [{ player1Id: match.player2Id }, { player2Id: match.player2Id }],
+              },
+            }),
       ]);
 
-      const p1 = config.aggregatePlayerStats(
-        player1Matches, match.player1Id, config.calculateMatchResult,
-      );
-      const p2 = player2Matches && config.aggregatePlayerStats(
-        player2Matches, match.player2Id, config.calculateMatchResult,
-      );
+      const p1 = config.aggregatePlayerStats(player1Matches, match.player1Id, config.calculateMatchResult);
+      const p2 =
+        player2Matches && config.aggregatePlayerStats(player2Matches, match.player2Id, config.calculateMatchResult);
 
       /* Update both players' qualification records with one D1 round-trip. */
       const updates = [{ playerId: match.player1Id, ...p1.qualificationData }];
@@ -868,16 +849,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
    *    Assigns a broadcast TV stream number to a qualification match.
    *    Used by commentators/admin to designate which matches appear on air.
    *
-   * 2. Rank override (qualificationId + rankOverride):
+   * 2. Rank override (qualificationId + rankOverride/combinedRankOverride):
    *    Manually overrides the automatic rank for a qualification entry.
    *    Used for emergency adjustments (player withdrawal, equipment failure).
    *    Stores audit trail (rankOverrideBy, rankOverrideAt) for accountability.
    *    Passing rankOverride=null clears a previously set override.
    */
-  async function PATCH(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
 
     const session = await auth();
@@ -897,7 +875,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     try {
       const body = sanitizeInput(await request.json());
-      const { matchId, tvNumber, qualificationId, rankOverride } = body;
+      const { matchId, tvNumber, qualificationId, rankOverride, combinedRankOverride } = body;
 
       /*
        * Reject ambiguous requests that supply both qualificationId and matchId.
@@ -914,26 +892,39 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           return handleValidationError('qualificationId is required', 'qualificationId');
         }
 
-        /*
-         * rankOverride must be a positive integer or null (null clears the override).
-         * Fractional ranks are rejected because standings use integer positions (1, 2, 3...).
-         */
-        if (rankOverride !== null && rankOverride !== undefined &&
-            (typeof rankOverride !== 'number' || rankOverride < 1 || !Number.isInteger(rankOverride))) {
-          return handleValidationError('rankOverride must be a positive integer or null', 'rankOverride');
+        const hasGroupOverride = Object.prototype.hasOwnProperty.call(body, 'rankOverride');
+        const hasCombinedOverride = Object.prototype.hasOwnProperty.call(body, 'combinedRankOverride');
+        if (hasGroupOverride === hasCombinedOverride) {
+          return handleValidationError('Provide exactly one of rankOverride or combinedRankOverride', 'body');
+        }
+        const overrideField = hasCombinedOverride ? 'combinedRankOverride' : 'rankOverride';
+        const overrideValue = hasCombinedOverride ? combinedRankOverride : rankOverride;
+        if (
+          overrideValue !== null &&
+          (typeof overrideValue !== 'number' || overrideValue < 1 || !Number.isInteger(overrideValue))
+        ) {
+          return handleValidationError(`${overrideField} must be a positive integer or null`, overrideField);
         }
 
         /*
          * Verify the qualification entry belongs to this tournament before updating.
          * Prevents IDOR: without this check an admin could modify records in other tournaments.
          */
+        const auditTimestamp = overrideValue != null ? new Date() : null;
+        const overrideData = hasCombinedOverride
+          ? {
+              combinedRankOverride: overrideValue ?? null,
+              combinedRankOverrideBy: overrideValue != null ? session.user.id : null,
+              combinedRankOverrideAt: auditTimestamp,
+            }
+          : {
+              rankOverride: overrideValue ?? null,
+              rankOverrideBy: overrideValue != null ? session.user.id : null,
+              rankOverrideAt: auditTimestamp,
+            };
         const qualification = await qualModel(prisma).update({
           where: { id: qualificationId, tournamentId },
-          data: {
-            rankOverride: rankOverride ?? null,
-            rankOverrideBy: rankOverride != null ? session.user.id : null,
-            rankOverrideAt: rankOverride != null ? new Date() : null,
-          },
+          data: overrideData,
         });
 
         // Invalidate standings cache + overall-rankings cache so the rank
@@ -944,7 +935,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         logger.info('Rank override updated', {
           tournamentId,
           qualificationId,
-          rankOverride,
+          overrideField,
+          overrideValue,
           adminId: session.user.id,
         });
 
@@ -957,8 +949,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       /* tvNumber must be between 1 and the supported TV count, or null to clear it. */
-      if (tvNumber !== null && tvNumber !== undefined &&
-          (typeof tvNumber !== 'number' || tvNumber < 1 || tvNumber > MAX_TV_NUMBER || !Number.isInteger(tvNumber))) {
+      if (
+        tvNumber !== null &&
+        tvNumber !== undefined &&
+        (typeof tvNumber !== 'number' || tvNumber < 1 || tvNumber > MAX_TV_NUMBER || !Number.isInteger(tvNumber))
+      ) {
         return handleValidationError(`tvNumber must be an integer between 1 and ${MAX_TV_NUMBER}, or null`, 'tvNumber');
       }
 

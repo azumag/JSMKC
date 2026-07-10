@@ -2,56 +2,63 @@
  * @jest-environment jsdom
  */
 
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within } from '@testing-library/react';
 import {
   CombinedStandingsTable,
   type CombinedStandingsTableLabels,
-} from "@/components/tournament/combined-standings-table";
+} from '@/components/tournament/combined-standings-table';
 
-describe("CombinedStandingsTable", () => {
+describe('CombinedStandingsTable', () => {
+  const combinedTieProps = {
+    isAdmin: false,
+    onCombinedRankOverrideSave: jest.fn(async () => true),
+  };
   const labels = {
-    title: "Combined standings",
-    playersCount: "2 players",
-    rank: "#",
-    group: "Group",
-    player: "Player",
-    mp: "MP",
-    wins: "W",
-    ties: "T",
-    losses: "L",
-    plusMinus: "+/-",
-    points: "Pts",
-    qualificationPoints: "QP",
-    qualificationPointsTooltip: "Qualification points (0-1000 normalized)",
+    title: 'Combined standings',
+    playersCount: '2 players',
+    rank: '#',
+    group: 'Group',
+    player: 'Player',
+    mp: 'MP',
+    wins: 'W',
+    ties: 'T',
+    losses: 'L',
+    plusMinus: '+/-',
+    points: 'Pts',
+    qualificationPoints: 'QP',
+    qualificationPointsTooltip: 'Qualification points (0-1000 normalized)',
   } satisfies CombinedStandingsTableLabels;
 
   function cellsByHeader(row: HTMLTableRowElement) {
-    const table = row.closest("table");
+    const table = row.closest('table');
     expect(table).not.toBeNull();
 
-    const headers = within(table!).getAllByRole("columnheader").map((header) => {
-      const text = header.textContent?.trim();
-      expect(text).toBeTruthy();
-      return text!;
-    });
-    const cells = within(row).getAllByRole("cell");
+    const headers = within(table!)
+      .getAllByRole('columnheader')
+      .map((header) => {
+        const text = header.textContent?.trim();
+        expect(text).toBeTruthy();
+        return text!;
+      });
+    const cells = within(row).getAllByRole('cell');
     expect(cells).toHaveLength(headers.length);
 
     return Object.fromEntries(headers.map((header, index) => [header, cells[index]]));
   }
 
-  it("renders shared BM/MR combined standings rows", () => {
+  it('renders shared BM/MR combined standings rows', () => {
     render(
       <CombinedStandingsTable
         labels={labels}
         locale="en"
         rankings={[
           {
-            id: "q1",
+            id: 'q1',
             _autoRank: 1,
-            group: "A",
+            combinedRankOverride: null,
+            group: 'A',
             // Mario has a country, so an inline flag SVG must render in his row.
-            player: { nickname: "Mario", country: "JP" },
+            player: { nickname: 'Mario', country: 'JP' },
             mp: 3,
             wins: 2,
             ties: 1,
@@ -60,11 +67,12 @@ describe("CombinedStandingsTable", () => {
             score: 5,
           },
           {
-            id: "q2",
+            id: 'q2',
             _autoRank: 2,
-            group: "B",
+            combinedRankOverride: null,
+            group: 'B',
             // Luigi has no country, so his row must not render a flag.
-            player: { nickname: "Luigi" },
+            player: { nickname: 'Luigi' },
             mp: 3,
             wins: 1,
             ties: 0,
@@ -75,52 +83,54 @@ describe("CombinedStandingsTable", () => {
         ]}
         getGroupLabel={(group) => `Group ${group}`}
         getQualificationPoints={(entry) => entry.score * 10}
+        {...combinedTieProps}
       />,
     );
 
-    expect(screen.getByText("Combined standings")).toBeInTheDocument();
-    expect(screen.getByText("2 players")).toBeInTheDocument();
+    expect(screen.getByText('Combined standings')).toBeInTheDocument();
+    expect(screen.getByText('2 players')).toBeInTheDocument();
 
-    const marioRow = screen.getByText("Mario").closest("tr");
+    const marioRow = screen.getByText('Mario').closest('tr');
     expect(marioRow).not.toBeNull();
     const marioCells = cellsByHeader(marioRow!);
-    expect(marioCells["#"]).toHaveTextContent("1");
-    expect(marioCells["W"]).toHaveTextContent("2");
-    expect(marioCells["T"]).toHaveTextContent("1");
-    expect(marioCells.Group).toHaveTextContent("Group A");
-    expect(marioCells["+/-"]).toHaveTextContent("+5");
-    expect(marioCells.QP).toHaveTextContent("50");
-    expect(screen.getByRole("columnheader", { name: "QP" })).toHaveAttribute(
-      "title",
-      "Qualification points (0-1000 normalized)",
+    expect(marioCells['#']).toHaveTextContent('1');
+    expect(marioCells['W']).toHaveTextContent('2');
+    expect(marioCells['T']).toHaveTextContent('1');
+    expect(marioCells.Group).toHaveTextContent('Group A');
+    expect(marioCells['+/-']).toHaveTextContent('+5');
+    expect(marioCells.QP).toHaveTextContent('50');
+    expect(screen.getByRole('columnheader', { name: 'QP' })).toHaveAttribute(
+      'title',
+      'Qualification points (0-1000 normalized)',
     );
 
     // A country renders an inline flag image (localized country name as its
     // title/alt) immediately before the nickname.
-    expect(within(marioCells.Player).getByTitle("Japan")).toBeInTheDocument();
-    expect(marioCells.Player.querySelector("img")).not.toBeNull();
+    expect(within(marioCells.Player).getByTitle('Japan')).toBeInTheDocument();
+    expect(marioCells.Player.querySelector('img')).not.toBeNull();
 
-    const luigiRow = screen.getByText("Luigi").closest("tr");
+    const luigiRow = screen.getByText('Luigi').closest('tr');
     expect(luigiRow).not.toBeNull();
     const luigiCells = cellsByHeader(luigiRow!);
-    expect(luigiCells.Group).toHaveTextContent("Group B");
-    expect(luigiCells["+/-"]).toHaveTextContent("-3");
-    expect(luigiCells.QP).toHaveTextContent("20");
+    expect(luigiCells.Group).toHaveTextContent('Group B');
+    expect(luigiCells['+/-']).toHaveTextContent('-3');
+    expect(luigiCells.QP).toHaveTextContent('20');
     // No country → no flag image rendered.
-    expect(luigiCells.Player.querySelector("img")).toBeNull();
+    expect(luigiCells.Player.querySelector('img')).toBeNull();
   });
 
-  it("renders zero points without a plus sign", () => {
+  it('renders zero points without a plus sign', () => {
     render(
       <CombinedStandingsTable
         labels={labels}
         locale="en"
         rankings={[
           {
-            id: "q-zero",
+            id: 'q-zero',
             _autoRank: 1,
-            group: "A",
-            player: { nickname: "Peach" },
+            combinedRankOverride: null,
+            group: 'A',
+            player: { nickname: 'Peach' },
             mp: 0,
             wins: 0,
             ties: 0,
@@ -131,31 +141,33 @@ describe("CombinedStandingsTable", () => {
         ]}
         getGroupLabel={(group) => `Group ${group}`}
         getQualificationPoints={(entry) => entry.score}
+        {...combinedTieProps}
       />,
     );
 
-    const peachRow = screen.getByText("Peach").closest("tr");
+    const peachRow = screen.getByText('Peach').closest('tr');
     expect(peachRow).not.toBeNull();
-    expect(within(peachRow!).queryByText("+0")).not.toBeInTheDocument();
+    expect(within(peachRow!).queryByText('+0')).not.toBeInTheDocument();
     const peachCells = cellsByHeader(peachRow!);
-    expect(peachCells["+/-"]).toHaveTextContent("0");
-    expect(peachCells.Pts).toHaveTextContent("0");
-    expect(peachCells.QP).toHaveTextContent("0");
+    expect(peachCells['+/-']).toHaveTextContent('0');
+    expect(peachCells.Pts).toHaveTextContent('0');
+    expect(peachCells.QP).toHaveTextContent('0');
   });
 
-  it("renders no data rows when rankings is empty", () => {
+  it('renders no data rows when rankings is empty', () => {
     const { container } = render(
       <CombinedStandingsTable
-        labels={{ ...labels, playersCount: "0 players" }}
+        labels={{ ...labels, playersCount: '0 players' }}
         locale="en"
         rankings={[]}
         getGroupLabel={(group) => `Group ${group}`}
         getQualificationPoints={(entry) => entry.score}
+        {...combinedTieProps}
       />,
     );
 
-    expect(screen.getByText("Combined standings")).toBeInTheDocument();
-    expect(screen.getByText("0 players")).toBeInTheDocument();
-    expect(container.querySelectorAll("tbody tr")).toHaveLength(0);
+    expect(screen.getByText('Combined standings')).toBeInTheDocument();
+    expect(screen.getByText('0 players')).toBeInTheDocument();
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(0);
   });
 });

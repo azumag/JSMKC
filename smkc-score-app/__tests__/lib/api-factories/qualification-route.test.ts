@@ -51,7 +51,9 @@ jest.mock('@/lib/audit-log');
 jest.mock('@/lib/qualification-confirmed-check', () => ({
   checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
 }));
-jest.mock('@/lib/rate-limit', () => ({ checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }),
+}));
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
 /* PATCH's rank-override branch calls standings-cache.invalidate after a
@@ -88,10 +90,18 @@ describe('Qualification Route Factory', () => {
     putRequiresAuth: false,
     auditAction: 'SETUP_QUALIFICATION',
     setupCompleteMessage: 'Qualification setup complete',
-    parsePutBody: jest.fn().mockReturnValue({ valid: true, data: { matchId: 'match-1', score1: 3, score2: 1, completed: true } }),
+    parsePutBody: jest
+      .fn()
+      .mockReturnValue({ valid: true, data: { matchId: 'match-1', score1: 3, score2: 1, completed: true } }),
     // match must include player1Id/player2Id because the source uses them to fetch
     // completed matches and update qualification records for both players
-    updateMatch: jest.fn().mockResolvedValue({ match: { id: 'match-1', player1Id: 'player-1', player2Id: 'player-2' }, score1OrPoints1: 3, score2OrPoints2: 1 }),
+    updateMatch: jest
+      .fn()
+      .mockResolvedValue({
+        match: { id: 'match-1', player1Id: 'player-1', player2Id: 'player-2' },
+        score1OrPoints1: 3,
+        score2OrPoints2: 1,
+      }),
     calculateMatchResult: jest.fn().mockReturnValue({ result1: 'win', result2: 'loss' }),
     aggregatePlayerStats: jest.fn().mockReturnValue({ qualificationData: { wins: 1, losses: 0, points: 3 } }),
     ...overrides,
@@ -116,9 +126,7 @@ describe('Qualification Route Factory', () => {
     mockSanitizeInput.mockImplementation((input) => input);
     mockCreateAuditLog.mockResolvedValue(undefined);
     /* resolveAuditUserId returns the session user's id for admin sessions */
-    (resolveAuditUserId as jest.Mock).mockImplementation(
-      (s: { user?: { id?: string } } | null) => s?.user?.id,
-    );
+    (resolveAuditUserId as jest.Mock).mockImplementation((s: { user?: { id?: string } } | null) => s?.user?.id);
     mockGetServerSideIdentifier.mockResolvedValue('192.168.1.1');
 
     // Default tournament for resolveTournament(); individual tests override
@@ -273,15 +281,17 @@ describe('Qualification Route Factory', () => {
       const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
       expect(matchCall.data).toHaveLength(2);
       // Verify match generation includes round-robin fields (roundNumber, player1Side, etc.)
-      expect(matchCall.data[0]).toEqual(expect.objectContaining({
-        tournamentId: 'tournament-123',
-        matchNumber: 1,
-        stage: 'qualification',
-        roundNumber: 1,
-        isBye: false,
-        player1Side: 1,
-        player2Side: 2,
-      }));
+      expect(matchCall.data[0]).toEqual(
+        expect.objectContaining({
+          tournamentId: 'tournament-123',
+          matchNumber: 1,
+          stage: 'qualification',
+          roundNumber: 1,
+          isBye: false,
+          player1Side: 1,
+          player2Side: 2,
+        }),
+      );
     });
 
     it('should handle multiple groups and generate round-robin matches within each', async () => {
@@ -689,7 +699,9 @@ describe('Qualification Route Factory', () => {
       // Each 2-player group is 1 round-robin match: A(1v2), B(3v4), C(5v6) = 3 total.
       const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
       expect(matchCall.data).toHaveLength(3);
-      const matchedPlayerIds = new Set(matchCall.data.flatMap((m: { player1Id: string; player2Id: string }) => [m.player1Id, m.player2Id]));
+      const matchedPlayerIds = new Set(
+        matchCall.data.flatMap((m: { player1Id: string; player2Id: string }) => [m.player1Id, m.player2Id]),
+      );
       expect(matchedPlayerIds.has('player-5')).toBe(true);
       expect(matchedPlayerIds.has('player-6')).toBe(true);
     });
@@ -778,7 +790,15 @@ describe('Qualification Route Factory', () => {
        * Return a BYE match for each player (simplified - same data for all 3 calls).
        */
       (prisma.bMMatch as any).findMany.mockResolvedValue([
-        { id: 'bye-1', player1Id: 'player-1', player2Id: '__BREAK__', score1: 4, score2: 0, completed: true, isBye: true },
+        {
+          id: 'bye-1',
+          player1Id: 'player-1',
+          player2Id: '__BREAK__',
+          score1: 4,
+          score2: 0,
+          completed: true,
+          isBye: true,
+        },
       ]);
       (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
 
@@ -835,11 +855,13 @@ describe('Qualification Route Factory', () => {
 
       // player-1 (seeding:1) must be player1 even though player-2 was listed first.
       const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
-      expect(matchCall.data[0]).toEqual(expect.objectContaining({
-        matchNumber: 1,
-        player1Id: 'player-1',
-        player2Id: 'player-2',
-      }));
+      expect(matchCall.data[0]).toEqual(
+        expect.objectContaining({
+          matchNumber: 1,
+          player1Id: 'player-1',
+          player2Id: 'player-2',
+        }),
+      );
     });
 
     // Course assignment tests (§10.5)
@@ -883,9 +905,11 @@ describe('Qualification Route Factory', () => {
 
       // Each match must have assignedCourses: array of 4 course abbreviations
       const createCall = (prisma.mRMatch as any).createMany.mock.calls[0];
-      expect(createCall[0].data[0]).toEqual(expect.objectContaining({
-        assignedCourses: expect.arrayContaining([expect.any(String)]),
-      }));
+      expect(createCall[0].data[0]).toEqual(
+        expect.objectContaining({
+          assignedCourses: expect.arrayContaining([expect.any(String)]),
+        }),
+      );
       expect(createCall[0].data[0].assignedCourses).toHaveLength(4);
     });
 
@@ -934,9 +958,9 @@ describe('Qualification Route Factory', () => {
         const firstMatchByRound = [...payload]
           .filter((row: any) => !row.isBye)
           .sort((a: any, b: any) => a.roundNumber - b.roundNumber || a.matchNumber - b.matchNumber)
-          .filter((row: any, index: number, rows: any[]) => (
-            index === 0 || row.roundNumber !== rows[index - 1].roundNumber
-          ));
+          .filter(
+            (row: any, index: number, rows: any[]) => index === 0 || row.roundNumber !== rows[index - 1].roundNumber,
+          );
         const assignedSequence = firstMatchByRound.flatMap((row: any) => row.assignedCourses ?? []);
         const firstDeck = assignedSequence.slice(0, COURSES.length);
         const secondDeck = assignedSequence.slice(COURSES.length, COURSES.length * 2);
@@ -1123,9 +1147,19 @@ describe('Qualification Route Factory', () => {
       (prisma.gPMatch as any) = {
         createMany: jest.fn().mockResolvedValue({ count: 6 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-        findMany: jest.fn().mockResolvedValue([
-          { id: 'bye-1', player1Id: 'player-1', player2Id: '__BREAK__', score1: 45, score2: 0, completed: true, isBye: true },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            {
+              id: 'bye-1',
+              player1Id: 'player-1',
+              player2Id: '__BREAK__',
+              score1: 45,
+              score2: 0,
+              completed: true,
+              isBye: true,
+            },
+          ]),
       };
 
       const config = createMockConfig({
@@ -1161,9 +1195,7 @@ describe('Qualification Route Factory', () => {
           cupByRound.set(row.roundNumber, row.cup);
         }
       }
-      const roundCups = [...cupByRound.entries()]
-        .sort(([a], [b]) => a - b)
-        .map(([, cup]) => cup);
+      const roundCups = [...cupByRound.entries()].sort(([a], [b]) => a - b).map(([, cup]) => cup);
       for (let i = 1; i < roundCups.length; i++) {
         expect(roundCups[i]).not.toBe(roundCups[i - 1]);
       }
@@ -1171,10 +1203,12 @@ describe('Qualification Route Factory', () => {
       const byeMatches = createCall[0].data.filter((m: any) => m.isBye);
       expect(byeMatches).toHaveLength(3);
       byeMatches.forEach((match: any) => {
-        expect(match).toEqual(expect.objectContaining({
-          player2Id: '__BREAK__',
-          cup: expect.any(String),
-        }));
+        expect(match).toEqual(
+          expect.objectContaining({
+            player2Id: '__BREAK__',
+            cup: expect.any(String),
+          }),
+        );
         expect(match).not.toHaveProperty('completed');
         expect(match).not.toHaveProperty('points1');
         expect(match).not.toHaveProperty('points2');
@@ -1187,10 +1221,22 @@ describe('Qualification Route Factory', () => {
       try {
         const randomValues = [
           ...Array(3).fill(0),
-          0.25, 0.5, 0.5, 0.5,
-          0.25, 0.5, 0.5, 0.5,
-          0.25, 0.5, 0.5, 0.5,
-          0.25, 0.5, 0.5, 0.5,
+          0.25,
+          0.5,
+          0.5,
+          0.5,
+          0.25,
+          0.5,
+          0.5,
+          0.5,
+          0.25,
+          0.5,
+          0.5,
+          0.5,
+          0.25,
+          0.5,
+          0.5,
+          0.5,
         ];
         randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
 
@@ -1298,15 +1344,13 @@ describe('Qualification Route Factory', () => {
 
       expect(response.status).toBe(201);
       expect(mockLogger.warn).toHaveBeenCalledTimes(1);
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'GP qualification cup deck cannot avoid adjacent repeated cups',
-        { cup: 'Mushroom', cupListLength: 1 },
-      );
+      expect(mockLogger.warn).toHaveBeenCalledWith('GP qualification cup deck cannot avoid adjacent repeated cups', {
+        cup: 'Mushroom',
+        cupListLength: 1,
+      });
 
       const createCall = (prisma.gPMatch as any).createMany.mock.calls[0];
-      const realMatchCups = createCall[0].data
-        .filter((match: any) => !match.isBye)
-        .map((match: any) => match.cup);
+      const realMatchCups = createCall[0].data.filter((match: any) => !match.isBye).map((match: any) => match.cup);
       expect(realMatchCups).toEqual(Array(realMatchCups.length).fill('Mushroom'));
     });
 
@@ -1466,7 +1510,7 @@ describe('Qualification Route Factory', () => {
           matchId: 'match-1',
           score1: 3,
           score2: 1,
-        })
+        }),
       );
       expect(config.calculateMatchResult).toHaveBeenCalledWith(3, 1);
       expect(response.status).toBe(200);
@@ -1525,8 +1569,16 @@ describe('Qualification Route Factory', () => {
 
       expect(response.status).toBe(200);
       expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(2);
-      expect(config.aggregatePlayerStats).toHaveBeenCalledWith(mockPlayer1Matches, 'player-1', config.calculateMatchResult);
-      expect(config.aggregatePlayerStats).toHaveBeenCalledWith(mockPlayer2Matches, 'player-2', config.calculateMatchResult);
+      expect(config.aggregatePlayerStats).toHaveBeenCalledWith(
+        mockPlayer1Matches,
+        'player-1',
+        config.calculateMatchResult,
+      );
+      expect(config.aggregatePlayerStats).toHaveBeenCalledWith(
+        mockPlayer2Matches,
+        'player-2',
+        config.calculateMatchResult,
+      );
     });
 
     it('should update both players qualification records', async () => {
@@ -1710,14 +1762,14 @@ describe('Qualification Route Factory', () => {
        */
       expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(1);
       expect(config.aggregatePlayerStats).toHaveBeenCalledWith(
-        expect.anything(), 'player-1', config.calculateMatchResult,
+        expect.anything(),
+        'player-1',
+        config.calculateMatchResult,
       );
       expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
       const [, payload, tournamentId] = (prisma as any).$executeRawUnsafe.mock.calls[0];
       expect(tournamentId).toBe('tournament-123');
-      expect(JSON.parse(payload)).toEqual([
-        expect.objectContaining({ playerId: 'player-1' }),
-      ]);
+      expect(JSON.parse(payload)).toEqual([expect.objectContaining({ playerId: 'player-1' })]);
     });
   });
 
@@ -1832,8 +1884,8 @@ describe('Qualification Route Factory', () => {
        * the update path runs. The second findFirst is the TV# uniqueness check;
        * null means no conflict. */
       (prisma.bMMatch as any).findFirst
-        .mockResolvedValueOnce(mockMatch)  // IDOR check: match found
-        .mockResolvedValueOnce(null);       // uniqueness check: no conflict
+        .mockResolvedValueOnce(mockMatch) // IDOR check: match found
+        .mockResolvedValueOnce(null); // uniqueness check: no conflict
       (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
 
       const config = createMockConfig();
@@ -1869,9 +1921,7 @@ describe('Qualification Route Factory', () => {
         player2: { id: 'p2', nickname: 'Bob' },
       };
       /* Two findFirst calls: IDOR check (returns match) + uniqueness check (null = no conflict) */
-      (prisma.bMMatch as any).findFirst
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce(null);
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(mockMatch).mockResolvedValueOnce(null);
       (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
 
       const config = createMockConfig();
@@ -2018,6 +2068,47 @@ describe('Qualification Route Factory', () => {
           rankOverrideAt: null,
         },
       });
+    });
+
+    it('should persist the cross-group playoff order with separate audit fields', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      const mockQual = { id: 'qual-1', combinedRankOverride: 4, combinedRankOverrideBy: 'admin-1' };
+      (prisma.bMQualification as any).update = jest.fn().mockResolvedValue(mockQual);
+      const { PATCH } = createQualificationHandlers(createMockConfig());
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({ qualificationId: 'qual-1', combinedRankOverride: 4 }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMQualification as any).update).toHaveBeenCalledWith({
+        where: { id: 'qual-1', tournamentId: 'tournament-123' },
+        data: {
+          combinedRankOverride: 4,
+          combinedRankOverrideBy: 'admin-1',
+          combinedRankOverrideAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('rejects ambiguous group and combined rank overrides in one request', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      const { PATCH } = createQualificationHandlers(createMockConfig());
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({ qualificationId: 'qual-1', rankOverride: 1, combinedRankOverride: 2 }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect((prisma.bMQualification as any).update).not.toHaveBeenCalled();
     });
 
     it('should return 400 when rankOverride is fractional', async () => {

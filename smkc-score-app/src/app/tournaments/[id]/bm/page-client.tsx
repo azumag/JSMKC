@@ -53,7 +53,7 @@ import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
-  compareByScoreThenPoints,
+  compareByScoreThenPointsAndCombinedOverride,
   computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
@@ -90,6 +90,7 @@ interface BMQualification {
   points: number; // Round differential (winRounds - lossRounds)
   score: number; // Match points (wins*2 + ties)
   rankOverride: number | null; // 管理者手動順位 (null = 自動計算)
+  combinedRankOverride: number | null; // グループ横断の同率決着順位
   player: Player;
 }
 
@@ -210,7 +211,7 @@ export default function BattleModePageClient({
   const matches: BMMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const combinedRankings = useMemo(
-    () => computeCombinedRanks(qualifications, compareByScoreThenPoints),
+    () => computeCombinedRanks(qualifications, compareByScoreThenPointsAndCombinedOverride),
     [qualifications],
   );
   /* Whether qualification scores are locked by admin confirmation */
@@ -269,8 +270,13 @@ export default function BattleModePageClient({
   }, [pollData]);
 
   /* Shared handlers for rank override, TV assignment, and broadcast reflect */
-  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
-    useQualificationActions({ tournamentId, mode: 'bm', refetch });
+  const {
+    handleRankOverrideSave,
+    handleBulkRankOverrideSave,
+    handleBulkCombinedRankOverrideSave,
+    handleTvAssign,
+    handleBroadcastReflect,
+  } = useQualificationActions({ tournamentId, mode: 'bm', refetch });
 
   /**
    * Handle group setup submission.
@@ -699,6 +705,9 @@ export default function BattleModePageClient({
               getGroupLabel={(group) => tc('groupLabel', { group })}
               getQualificationPoints={(q) => getQualificationPoints(q.mp, q.score)}
               locale={locale}
+              isAdmin={!!isAdmin}
+              onCombinedRankOverrideSave={handleBulkCombinedRankOverrideSave}
+              onBroadcast={handleBroadcastReflect}
             />
           </TabsContent>
 

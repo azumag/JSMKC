@@ -36,6 +36,31 @@ export function compareByScoreThenPoints(a: ScorePointsEntry, b: ScorePointsEntr
   return b.score - a.score || b.points - a.points;
 }
 
+export interface CombinedOverrideEntry extends ScorePointsEntry {
+  combinedRankOverride?: number | null;
+}
+
+/**
+ * Cross-group bucket tiebreak: actual results remain authoritative, and the
+ * admin-recorded playoff order is consulted only when score and points are
+ * both equal. Entries with a recorded result sort before unresolved entries;
+ * the UI writes every member of a playoff block together.
+ */
+export function compareByScoreThenPointsAndCombinedOverride(
+  a: CombinedOverrideEntry,
+  b: CombinedOverrideEntry,
+): number {
+  const resultDifference = compareByScoreThenPoints(a, b);
+  if (resultDifference !== 0) return resultDifference;
+
+  const aOverride = a.combinedRankOverride;
+  const bOverride = b.combinedRankOverride;
+  if (aOverride == null && bOverride == null) return 0;
+  if (aOverride == null) return 1;
+  if (bOverride == null) return -1;
+  return aOverride - bOverride;
+}
+
 /** Shape required by computeCombinedRanks: a group label to bucket entries by. */
 export interface GroupedRankableEntry extends RankableEntry {
   group: string;
@@ -65,7 +90,7 @@ export function groupBy<T>(entries: T[], keyFn: (entry: T) => string): Map<strin
  */
 export function computeTieAwareRanks<T extends RankableEntry>(
   entries: T[],
-  compareFn: (a: T, b: T) => number
+  compareFn: (a: T, b: T) => number,
 ): EntryWithAutoRank<T>[] {
   if (entries.length === 0) return [];
 
@@ -133,7 +158,7 @@ export function computeTieAwareRanks<T extends RankableEntry>(
  */
 export function computeCombinedRanks<T extends GroupedRankableEntry>(
   entries: T[],
-  compareFn: (a: T, b: T) => number
+  compareFn: (a: T, b: T) => number,
 ): EntryWithAutoRank<T>[] {
   if (entries.length === 0) return [];
 
@@ -175,9 +200,7 @@ export function computeCombinedRanks<T extends GroupedRankableEntry>(
  *
  * Returns a Set<id> for O(1) membership testing in render loops.
  */
-export function findUnresolvedTies<T extends RankableEntry & { _autoRank: number }>(
-  entries: T[]
-): Set<string> {
+export function findUnresolvedTies<T extends RankableEntry & { _autoRank: number }>(entries: T[]): Set<string> {
   // Group entries by effective rank to detect any collision
   const effectiveRankGroups = new Map<number, T[]>();
   for (const entry of entries) {
@@ -213,10 +236,7 @@ export function findUnresolvedTies<T extends RankableEntry & { _autoRank: number
  * @param entries  Raw qualification records for the group (must include `mp`)
  * @returns        Subset of tiedIds where the player has mp > 0
  */
-export function filterActiveTiedIds(
-  tiedIds: Set<string>,
-  entries: Array<{ id: string; mp: number }>
-): Set<string> {
+export function filterActiveTiedIds(tiedIds: Set<string>, entries: Array<{ id: string; mp: number }>): Set<string> {
   const mpById = new Map(entries.map((e) => [e.id, e.mp]));
   return new Set([...tiedIds].filter((id) => (mpById.get(id) ?? 0) > 0));
 }
@@ -231,7 +251,7 @@ export function filterActiveTiedIds(
  */
 export function collectPlayoffGroups<T extends RankableEntry & { _autoRank: number }>(
   entries: T[],
-  activeTiedIds: Set<string>
+  activeTiedIds: Set<string>,
 ): T[][] {
   if (entries.length === 0 || activeTiedIds.size === 0) return [];
 
@@ -256,7 +276,7 @@ export function collectPlayoffGroups<T extends RankableEntry & { _autoRank: numb
  * ordering for that tie block.
  */
 export function buildPlayoffRankAssignments<T extends RankableEntry & { _autoRank: number }>(
-  entries: T[]
+  entries: T[],
 ): RankAssignment[] {
   if (entries.length === 0) return [];
 
