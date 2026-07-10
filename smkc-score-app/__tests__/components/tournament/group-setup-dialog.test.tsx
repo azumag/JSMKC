@@ -266,5 +266,3 @@ describe("GroupSetupDialog", () => {
     expect(onClearError).toHaveBeenCalledTimes(1);
   });
 });
-
-});
