@@ -1,0 +1,647 @@
+
+> smkc-score-app@0.1.0 test
+> SKIP_OPENNEXT_CLOUDFLARE_DEV=1 NODE_ENV=test NODE_OPTIONS='--max-old-space-size=4096' jest --ci --forceExit
+
+PASS __tests__/lib/api-factories/finals-route.test.ts
+PASS __tests__/lib/ta/finals-phase-manager.test.ts
+FAIL __tests__/docs/e2e-cases-drift.test.ts
+  ● E2E case drift coverage › keeps TC-1007 aligned with the GroupSetupDialog static guard
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "expect(groupCountButton).not.toContain('disabled')"
+    Received string:    "import { e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';·
+    const modeClients = [
+      ['BM', ['src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx']],
+      ['MR', ['src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx']],
+      ['GP', ['src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx']],
+    ] as const;·
+    describe('TC-1007 GroupSetupDialog prop contract', () => {
+      it('documents the unused groupCount prop removal scenario', () => {
+        const section = e2eCaseSection('TC-1007');
+        const followupSection = e2eCaseSection('TC-1678');
+        const disabledButtonSection = e2eCaseSection('TC-1680');
+        const secondaryButtonSection = e2eCaseSection('TC-1682');·
+        expect(section).toContain('issue #1007');
+        expect(section).toContain('GroupSetupDialog');
+        expect(section).toContain('groupCount');
+        expect(followupSection).toContain('issue #1678');
+        expect(followupSection).toContain('setGroupCount');
+        expect(disabledButtonSection).toContain('issue #1680');
+        expect(disabledButtonSection).toContain('disabled');
+        expect(secondaryButtonSection).toContain('issue #1682');
+        expect(secondaryButtonSection).toContain('variant=\"secondary\"');
+        expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
+      });·
+      it(\"TC-3010: keeps GroupSetupDialog's group count as its own internal state, not a prop, while making it selectable (2/3)\", () => {
+        // Issue #1007/#1678 removed a `groupCount`/`setGroupCount` prop pair the
+        // dialog never needed the parent for; that part of the contract still
+        // holds. TC-1680/1682's \"disabled read-only display\" was explicitly
+        // scoped to \"while 3+ groups are deferred\" (see its own expected-results
+        // note that a guard update would be needed if selectable UI came back) --
+        // TC-3010 is that return, so this test now asserts the selector IS
+        // clickable and toggles between 2 and 3, not the old disabled/secondary contract.
+        const source = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'group-setup-dialog.tsx');
+        const props = sectionBetween(source, 'interface GroupSetupDialogProps {', 'export function GroupSetupDialog');
+        const signature = sectionBetween(source, 'export function GroupSetupDialog({', '}: GroupSetupDialogProps)');·
+        expect(source).toContain('const GROUP_COUNT_OPTIONS = [2, 3] as const');
+        expect(props).not.toContain('groupCount: number');
+        expect(props).not.toContain('setGroupCount');
+        expect(signature).not.toMatch(/\\bgroupCount\\b/);
+        expect(signature).not.toMatch(/\\bsetGroupCount\\b/);·
+        const groupCountButton = sectionBetween(source, '{GROUP_COUNT_OPTIONS.map((n) => (', '</Button>');
+        expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}');
+        expect(groupCountButton).toContain('disabled={saving}');
+        // default/outline (selected/unselected) signals an actionable toggle, not a read-only display
+        expect(groupCountButton).toMatch(/variant={n === groupCount \\? ['\"]default['\"] : ['\"]outline['\"]}/);
+      });·
+      it.each(modeClients)('does not pass the removed groupCount prop from %s', (_mode, path) => {
+        const source = readRepoFile('smkc-score-app', ...path);
+        const dialogUsage = sectionBetween(source, '<GroupSetupDialog', '/>');·
+        expect(dialogUsage).not.toContain('groupCount={groupCount}');
+        expect(dialogUsage).not.toContain('setGroupCount={setGroupCount}');
+        expect(source).not.toMatch(/\\bsetGroupCount\\b/);
+      });
+    });
+    "
+
+    [0m [90m 1470 |[39m     [90m// TC-3010 replaced the disabled/secondary read-only display with a real 2/3 selector.[39m
+     [90m 1471 |[39m     expect(guard)[33m.[39mtoContain([32m"expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}')"[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 1472 |[39m     expect(guard)[33m.[39mtoContain([32m"expect(groupCountButton).not.toContain('disabled')"[39m)[33m;[39m
+     [90m      |[39m                   [31m[1m^[22m[39m
+     [90m 1473 |[39m   })[33m;[39m
+     [90m 1474 |[39m
+     [90m 1475 |[39m   it([32m'keeps TC-1004 aligned with the CourseCycleStatus YAGNI guard'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toContain (__tests__/docs/e2e-cases-drift.test.ts:1472:19)
+
+PASS __tests__/lib/api-factories/qualification-route.test.ts
+PASS __tests__/app/api/tournaments/[id]/gp/finals/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/ta/phases/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/gp/match/[matchId]/report/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/ta/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/finals/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/route.test.ts
+PASS __tests__/lib/cdm-export/fill/tt-finals.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/finals/route.test.ts
+PASS __tests__/lib/points/overall-ranking.test.ts
+PASS __tests__/app/api/tournaments/[id]/gp/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/tt/entries/[entryId]/route.test.ts
+PASS __tests__/lib/hooks/usePolling.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/route.test.ts
+PASS __tests__/lib/cdm-export/fill/finals.test.ts
+PASS __tests__/lib/api-factories/standings-route.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/match/[matchId]/report/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/match/[matchId]/report/route.test.ts
+PASS __tests__/lib/api-factories/match-detail-route.test.ts
+PASS __tests__/components/ui/select.test.tsx
+PASS __tests__/app/api/tournaments/[id]/mr/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/finals/matches/route.test.ts
+PASS __tests__/lib/ranking-utils.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/match/[matchId]/route.test.ts
+PASS __tests__/lib/double-elimination.test.ts
+PASS __tests__/lib/overlay/events.test.ts
+PASS __tests__/app/api/players/[id]/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/match/[matchId]/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/finals/bracket/route.test.ts
+PASS __tests__/e2e/run-preview.test.ts
+PASS __tests__/e2e/preview-schema-preflight.test.ts
+PASS __tests__/app/api/tournaments/route.test.ts
+PASS __tests__/app/api/players/route.test.ts
+PASS __tests__/lib/optimistic-locking.test.ts
+PASS __tests__/lib/finals-group-selection.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/standings/route.test.ts
+PASS __tests__/lib/sanitize-error.test.ts
+PASS __tests__/lib/error-handling.test.ts
+PASS __tests__/lib/api-factories/score-report-helpers.test.ts
+PASS __tests__/proxy.test.ts
+PASS __tests__/app/api/tournaments/[id]/gp/match/[matchId]/route.test.ts
+PASS __tests__/lib/ta/rank-calculation.test.ts
+PASS __tests__/lib/cdm-export/fill/qualifications.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/finals/bracket/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/finals/matches/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/standings/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/gp/standings/route.test.ts
+PASS __tests__/lib/score-validation.test.ts
+PASS __tests__/lib/group-utils.test.ts
+PASS __tests__/app/api/tournaments/[id]/export/route.test.ts (10.025 s)
+PASS __tests__/lib/e2e-browser-launch.test.ts
+PASS __tests__/lib/sanitize.test.ts
+PASS __tests__/components/ui/alert-dialog.test.tsx
+PASS __tests__/components/tournament/ta-elimination-phase.test.tsx
+PASS __tests__/lib/cdm-export/sheet-xml-patcher.test.ts
+PASS __tests__/lib/cdm-export/fill/tt-lives-replay.test.ts
+PASS __tests__/lib/ta/qualification-scoring.test.ts
+PASS __tests__/lib/standings-cache.test.ts
+PASS __tests__/components/overlay/dashboard-timeline.test.tsx
+PASS __tests__/lib/excel.test.ts
+PASS __tests__/app/api/tournaments/[id]/ta/standings/route.test.ts
+PASS __tests__/lib/api-factories/finals-matches-route.test.ts
+PASS __tests__/app/api/tournaments/[id]/bm/matches/route.test.ts
+PASS __tests__/components/tournament/double-elimination-bracket.test.tsx
+PASS __tests__/lib/cdm-export/xlsx-zip-patcher.test.ts
+PASS __tests__/app/api/tournaments/[id]/overlay-events/route.test.ts
+PASS __tests__/app/api/players/[id]/character-stats/route.test.ts
+PASS __tests__/lib/debug/debug-fill.test.ts
+PASS __tests__/lib/ta/course-selection.test.ts
+PASS __tests__/components/tournament/ta-sudden-death-panel.test.tsx
+PASS __tests__/app/api/tournaments/[id]/broadcast/route.test.ts
+PASS __tests__/lib/api-factories/finals-bracket-route.test.ts
+PASS __tests__/lib/tournament-archive.test.ts
+PASS __tests__/lib/hooks/useParticipantMatches.test.ts
+PASS __tests__/components/tournament/rank-cell.test.tsx
+PASS __tests__/hooks/use-mode-publish.test.ts
+PASS __tests__/lib/hooks/use-broadcast-reflect.test.ts
+PASS __tests__/e2e/tc-archive-fixtures.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/matches/route.test.ts
+PASS __tests__/lib/round-robin.test.ts
+PASS __tests__/lib/cdm-export/fill/main-hub.test.ts
+PASS __tests__/lib/cdm-export/index.test.ts
+PASS __tests__/components/tournament/participant-page-layout.test.tsx
+PASS __tests__/lib/audit-log.test.ts
+PASS __tests__/components/ErrorBoundary.test.tsx
+PASS __tests__/components/tournament/export-button.test.tsx
+PASS __tests__/lib/api-factories/matches-polling-route.test.ts
+PASS __tests__/lib/tournament/double-elimination.test.ts
+PASS __tests__/components/tournament/group-setup-dialog.test.tsx
+PASS __tests__/app/api/tournaments/[id]/overall-ranking/route.test.ts
+PASS __tests__/components/tournament/ta-time-entry-rows.test.tsx
+PASS __tests__/helpers/e2e-cases.test.ts
+PASS __tests__/lib/pagination.test.ts
+PASS __tests__/app/api/tournaments/[id]/gp/matches/route.test.ts
+PASS __tests__/lib/ta/time-utils.test.ts
+PASS __tests__/e2e/group-setup-helper.test.ts
+PASS __tests__/lib/auth.test.ts
+PASS __tests__/lib/overlay/phase.test.ts
+PASS __tests__/lib/hooks/useQualificationActions.test.ts
+PASS __tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts
+PASS __tests__/app/api/players/[id]/reset-password/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/archive/route.test.ts
+PASS __tests__/lib/points/qualification-points.test.ts
+PASS __tests__/middleware.test.ts
+PASS __tests__/lib/points/finals-points.test.ts
+PASS __tests__/lib/cdm-export/fill/tt-qualifications.test.ts
+PASS __tests__/components/ui/table.test.tsx
+PASS __tests__/lib/hooks/useQualificationSetup.test.ts
+PASS __tests__/e2e/tc-all-registration.test.ts
+PASS __tests__/lib/api-factories/qual-initial-data.test.ts
+PASS __tests__/lib/logger.test.ts
+PASS __tests__/lib/cdm-export/fill/finals-slot-semantics.test.ts
+PASS __tests__/lib/cdm-export/fill/sheet-player-order.test.ts
+PASS __tests__/lib/event-types/bm-config.test.ts
+PASS __tests__/lib/hooks/useParticipantScoreInput.test.ts
+PASS __tests__/app/api/auth/[...nextauth]/route.test.ts
+PASS __tests__/lib/server-ranking.test.ts
+PASS __tests__/app/api/auth/session-status/route.test.ts
+PASS __tests__/lib/utils.test.ts
+PASS __tests__/lib/create-player-retry.test.ts
+FAIL __tests__/docs/ci-config.test.ts
+  ● CI workflow configuration › has npm audit step with --audit-level=high in lint-and-test job (TC-2460)
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › runs npm audit inside the smkc-score-app working-directory job
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › runs unit tests after the audit step in the same job steps array
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › runs lint before the security audit step
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › uses Node.js 22 in setup-node step
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › passes --ci and --forceExit flags to npm test
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › sets SKIP_OPENNEXT_CLOUDFLARE_DEV env var in npm test step
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+PASS __tests__/e2e/login-preview-admin.test.ts
+PASS __tests__/lib/password-utils.test.ts
+PASS __tests__/lib/hooks/useMatchReportAuth.test.ts
+PASS __tests__/components/tournament/combined-standings-table.test.tsx
+PASS __tests__/components/tournament/round-correction-controls.test.tsx
+(node:2683) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS __tests__/docs/prisma-migrations.test.ts
+PASS __tests__/components/tournament/debug-fill-button.test.tsx
+PASS __tests__/app/tournaments/ta-finals-page.test.tsx
+PASS __tests__/app/api/locale/route.test.ts
+PASS __tests__/e2e/tc-2088-cdm-main-hub-boundary.test.ts
+PASS __tests__/app/api/monitor/polling-stats/route.test.ts
+PASS __tests__/lib/perf/query-counter.test.ts
+PASS __tests__/e2e/tc-816a-cdm-finals-fixture.test.ts
+PASS __tests__/components/AuthHeader.test.tsx
+PASS __tests__/components/tournament/playoff-bracket.test.tsx
+PASS __tests__/app/tournaments/gp-finals-page-wiring.test.tsx
+PASS __tests__/lib/perf/api-timing.test.ts
+PASS __tests__/components/ui/button.test.tsx
+PASS __tests__/lib/ta/pair-utils.test.ts
+PASS __tests__/e2e/ui-create-player.test.ts
+PASS __tests__/static/tc-1024-qualification-points-helper.test.ts
+PASS __tests__/components/tournament/ta-participant-time-input-row.test.tsx
+PASS __tests__/components/ui/card.test.tsx
+PASS __tests__/components/ui/switch.test.tsx
+PASS __tests__/e2e/ta-flow-rank-assertions.test.ts
+PASS __tests__/lib/debug/score-generators.test.ts
+PASS __tests__/lib/qualification-confirmed-check.test.ts
+PASS __tests__/lib/overlay/layout.test.ts
+PASS __tests__/i18n/messages.test.ts
+PASS __tests__/docs/e2e-archive-cases.test.ts
+PASS __tests__/components/ui/update-indicator.test.tsx
+PASS __tests__/lib/event-types/mr-config.test.ts
+PASS __tests__/static/tc-1082-shared-score-input.test.ts
+PASS __tests__/lib/hooks/use-tournament-debug-mode.test.ts
+PASS __tests__/e2e/ta-phase-submit-helper.test.ts
+PASS __tests__/scripts/check-format-changed.test.ts
+PASS __tests__/static/tc-1578-qualification-points-tooltip-source.test.ts
+PASS __tests__/components/tournament/mode-publish-switch.test.tsx
+PASS __tests__/lib/ta/phase-controls.test.ts
+PASS __tests__/components/ui/tabs.test.tsx
+PASS __tests__/lib/ta/initial-data.test.ts
+PASS __tests__/lib/finals-target-wins.test.ts
+PASS __tests__/components/ui/dialog.test.tsx
+PASS __tests__/scripts/prisma-generate.test.ts
+PASS __tests__/lib/fetch-with-retry.test.ts
+PASS __tests__/lib/db-read-retry.test.ts
+PASS __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts
+PASS __tests__/lib/ta/freeze-check.test.ts
+PASS __tests__/static/ta-time-input-props-usememo.test.ts
+PASS __tests__/lib/public-modes.test.ts
+PASS __tests__/lib/request-utils.test.ts
+PASS __tests__/lib/api-auth.test.ts
+PASS __tests__/components/ui/country-select.test.tsx
+PASS __tests__/e2e/click-diagnostics.test.ts
+PASS __tests__/components/LocaleSwitcher.test.tsx
+PASS __tests__/e2e/tc-1073-16p-lr2-slots.test.ts
+PASS __tests__/components/ui/loading-skeleton.test.tsx
+PASS __tests__/static/tc-1063-combined-rankings-usememo.test.ts
+PASS __tests__/e2e/tc-gp-assigned-cups.test.ts
+PASS __tests__/lib/gp-utils.test.ts
+PASS __tests__/static/tc-2786-2787-prisma-mock-top-level-exports.test.ts
+PASS __tests__/static/tc-939-tournament-tabs-link.test.ts
+PASS __tests__/components/ui/badge.test.tsx
+PASS __tests__/types/bracket.test.ts
+PASS __tests__/e2e/tc-1017-mr-course-deck-repeats.test.ts
+PASS __tests__/lib/participant-report-message.test.ts
+PASS __tests__/components/overlay/overlay-toast-stack.test.tsx
+PASS __tests__/lib/bracket-winner-flags.test.ts
+PASS __tests__/components/ui/player-name.test.tsx
+PASS __tests__/lib/event-types/gp-config.test.ts
+PASS __tests__/components/tournament/playoff-complete-card.test.tsx
+PASS __tests__/lib/gp-finals-score-form.test.ts
+PASS __tests__/lib/ta/time-entry-layout.test.ts
+PASS __tests__/lib/cdm-export/time-format.test.ts
+PASS __tests__/components/tournament/course-cycle-status-panel.test.tsx
+PASS __tests__/static/qualification-setup-contract.test.ts
+PASS __tests__/app/api/internal/vitals/route.test.ts
+PASS __tests__/lib/countries.test.ts
+PASS __tests__/docs/broadcast-admin-manual.test.ts
+PASS __tests__/e2e/mr-standings-assertions.test.ts
+PASS __tests__/lib/gp-ranking.test.ts
+PASS __tests__/lib/tc939-reporting.test.ts
+PASS __tests__/components/ui/alert.test.tsx
+PASS __tests__/components/ui/input.test.tsx
+PASS __tests__/docs/operation-finals-target-wins.test.ts
+PASS __tests__/e2e/tc-1398-1399-bracket-contract.test.ts
+PASS __tests__/components/tournament/combined-tie-resolution.test.tsx
+PASS __tests__/lib/parse-manual-score.test.ts
+PASS __tests__/static/tc-1579-combined-standings-tooltip-contract.test.ts
+PASS __tests__/lib/finals-action-availability.test.ts
+PASS __tests__/lib/client-logger.test.ts
+PASS __tests__/e2e/tc-2196-overlay-phase-format.test.ts
+PASS __tests__/static/tc-1064-combined-standings-table.test.ts
+PASS __tests__/components/overlay/dashboard-footer.test.tsx
+PASS __tests__/components/ui/loading-spinner.test.tsx
+PASS __tests__/static/tc-1004-course-cycle-status-contract.test.ts
+PASS __tests__/components/overlay/dashboard-progress-bar.test.tsx
+PASS __tests__/components/tournament/tie-warning-banner.test.tsx
+PASS __tests__/lib/shared-match-access-state.test.ts
+PASS __tests__/lib/api-response.test.ts
+PASS __tests__/static/tc-1015-participant-report-message.test.ts
+PASS __tests__/e2e/qualification-points-labels.test.ts
+PASS __tests__/lib/e2e-reset-api-helper.test.ts
+PASS __tests__/components/ui/loading-overlay.test.tsx
+PASS __tests__/lib/broadcast-input.test.ts
+PASS __tests__/e2e/tc-349-listener-cleanup.test.ts
+PASS __tests__/static/tc-938-ta-phases-sequential-read-comment.test.ts
+PASS __tests__/static/tc-2040-ta-phases-comment-history.test.ts
+PASS __tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts
+PASS __tests__/components/ui/checkbox.test.tsx
+PASS __tests__/components/tournament/round-correction-help.test.tsx
+PASS __tests__/app/api/tournaments/[id]/bm/debug-fill/route.test.ts
+PASS __tests__/lib/gp-finals-match-winner.test.ts
+PASS __tests__/lib/ta/entry-access.test.ts
+PASS __tests__/docs/pr-template.test.ts
+PASS __tests__/components/tournament/qualification-playoff-manager.test.tsx
+PASS __tests__/static/tc-1563-combined-standings-test-selectors.test.ts
+PASS __tests__/components/ui/country-flag.test.tsx
+PASS __tests__/lib/tournament-identifier.test.ts
+PASS __tests__/static/tc-1005-course-cycle-panel-contract.test.ts
+PASS __tests__/e2e/standings-assertions.test.ts
+PASS __tests__/docs/operation-tournament.test.ts
+PASS __tests__/lib/gp-driver-points-input.test.ts
+PASS __tests__/e2e/ta-suite-timeout.test.ts
+PASS __tests__/app/api/tournaments/[id]/ta/debug-fill/route.test.ts
+PASS __tests__/lib/e2e-runner-timeout.test.ts
+PASS __tests__/app/api/tournaments/[id]/mr/debug-fill/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/gp/debug-fill/route.test.ts
+PASS __tests__/static/tc-1100-1085-finals-target-naming.test.ts
+PASS __tests__/components/ui/label.test.tsx
+PASS __tests__/lib/qualification-page-data.test.ts
+PASS __tests__/static/qualification-i18n-fallbacks.test.ts
+PASS __tests__/e2e/tc-1033-deterministic-entry-order.test.ts
+PASS __tests__/lib/ta/qualification-results.test.ts
+PASS __tests__/components/overlay/overlay-toast.test.tsx
+PASS __tests__/static/tc-1080-qualification-route-comment.test.ts
+PASS __tests__/lib/prisma-selects.test.ts
+PASS __tests__/e2e/tc-2200-overlay-phase-input.test.ts
+PASS __tests__/static/tc-1463-1464-mr-correction-followups.test.ts
+PASS __tests__/lib/participant-score-entry-access.test.ts
+PASS __tests__/static/tc-1088-qualification-route-comment.test.ts
+PASS __tests__/lib/ta/course-cycle-status.test.ts
+PASS __tests__/config/wrangler-r2-buckets.test.ts
+PASS __tests__/static/tc-1090-1091-overall-ranking.test.ts
+PASS __tests__/static/tc-1047-top24-preview-logging.test.ts
+PASS __tests__/e2e/ta-helper-runtime-require.test.ts
+PASS __tests__/static/tc-1062-qualification-playoff-label.test.ts
+PASS __tests__/static/tc-1032-phase3-revival-comment.test.ts
+PASS __tests__/static/tc-1011-finals-h2h-guard.test.ts
+PASS __tests__/static/tc-1637-1638-ta-tc1033-stability.test.ts
+PASS __tests__/e2e/overlay-toast-assertions.test.ts
+PASS __tests__/static/tc-1002-overlay-toast-require-contract.test.ts
+PASS __tests__/e2e/ta-phase-assertions.test.ts
+PASS __tests__/lib/gp-finals-assigned-cups.test.ts
+PASS __tests__/lib/tournament-tab-hydration.test.ts
+PASS __tests__/e2e/layout-assertions.test.ts
+PASS __tests__/e2e/e2e-env.test.ts
+PASS __tests__/static/tc-1046-top24-qualifier-count.test.ts
+PASS __tests__/docs/e2e-debug-fill-cases.test.ts
+PASS __tests__/lib/gp-finals-simple-score.test.ts
+PASS __tests__/static/tc-2136-finals-route-dead-helper.test.ts
+PASS __tests__/e2e/tc-gp-suite-order.test.ts
+PASS __tests__/static/tc-2145-qualification-route-mock-match-name.test.ts
+PASS __tests__/docs/readme-migrations.test.ts
+PASS __tests__/static/tc-1053-playoff-upper-seeds-guard.test.ts
+PASS __tests__/components/NavLabel.test.tsx
+PASS __tests__/static/tc-1561-combined-standings-table-edge-cases.test.ts
+PASS __tests__/lib/gp-driver-points-limit.test.ts
+PASS __tests__/static/course-selection-dead-export.test.ts
+PASS __tests__/lib/bracket-tabs.test.ts
+
+Summary of all failing tests
+FAIL __tests__/docs/e2e-cases-drift.test.ts
+  ● E2E case drift coverage › keeps TC-1007 aligned with the GroupSetupDialog static guard
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "expect(groupCountButton).not.toContain('disabled')"
+    Received string:    "import { e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';·
+    const modeClients = [
+      ['BM', ['src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx']],
+      ['MR', ['src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx']],
+      ['GP', ['src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx']],
+    ] as const;·
+    describe('TC-1007 GroupSetupDialog prop contract', () => {
+      it('documents the unused groupCount prop removal scenario', () => {
+        const section = e2eCaseSection('TC-1007');
+        const followupSection = e2eCaseSection('TC-1678');
+        const disabledButtonSection = e2eCaseSection('TC-1680');
+        const secondaryButtonSection = e2eCaseSection('TC-1682');·
+        expect(section).toContain('issue #1007');
+        expect(section).toContain('GroupSetupDialog');
+        expect(section).toContain('groupCount');
+        expect(followupSection).toContain('issue #1678');
+        expect(followupSection).toContain('setGroupCount');
+        expect(disabledButtonSection).toContain('issue #1680');
+        expect(disabledButtonSection).toContain('disabled');
+        expect(secondaryButtonSection).toContain('issue #1682');
+        expect(secondaryButtonSection).toContain('variant=\"secondary\"');
+        expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
+      });·
+      it(\"TC-3010: keeps GroupSetupDialog's group count as its own internal state, not a prop, while making it selectable (2/3)\", () => {
+        // Issue #1007/#1678 removed a `groupCount`/`setGroupCount` prop pair the
+        // dialog never needed the parent for; that part of the contract still
+        // holds. TC-1680/1682's \"disabled read-only display\" was explicitly
+        // scoped to \"while 3+ groups are deferred\" (see its own expected-results
+        // note that a guard update would be needed if selectable UI came back) --
+        // TC-3010 is that return, so this test now asserts the selector IS
+        // clickable and toggles between 2 and 3, not the old disabled/secondary contract.
+        const source = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'group-setup-dialog.tsx');
+        const props = sectionBetween(source, 'interface GroupSetupDialogProps {', 'export function GroupSetupDialog');
+        const signature = sectionBetween(source, 'export function GroupSetupDialog({', '}: GroupSetupDialogProps)');·
+        expect(source).toContain('const GROUP_COUNT_OPTIONS = [2, 3] as const');
+        expect(props).not.toContain('groupCount: number');
+        expect(props).not.toContain('setGroupCount');
+        expect(signature).not.toMatch(/\\bgroupCount\\b/);
+        expect(signature).not.toMatch(/\\bsetGroupCount\\b/);·
+        const groupCountButton = sectionBetween(source, '{GROUP_COUNT_OPTIONS.map((n) => (', '</Button>');
+        expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}');
+        expect(groupCountButton).toContain('disabled={saving}');
+        // default/outline (selected/unselected) signals an actionable toggle, not a read-only display
+        expect(groupCountButton).toMatch(/variant={n === groupCount \\? ['\"]default['\"] : ['\"]outline['\"]}/);
+      });·
+      it.each(modeClients)('does not pass the removed groupCount prop from %s', (_mode, path) => {
+        const source = readRepoFile('smkc-score-app', ...path);
+        const dialogUsage = sectionBetween(source, '<GroupSetupDialog', '/>');·
+        expect(dialogUsage).not.toContain('groupCount={groupCount}');
+        expect(dialogUsage).not.toContain('setGroupCount={setGroupCount}');
+        expect(source).not.toMatch(/\\bsetGroupCount\\b/);
+      });
+    });
+    "
+
+    [0m [90m 1470 |[39m     [90m// TC-3010 replaced the disabled/secondary read-only display with a real 2/3 selector.[39m
+     [90m 1471 |[39m     expect(guard)[33m.[39mtoContain([32m"expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}')"[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 1472 |[39m     expect(guard)[33m.[39mtoContain([32m"expect(groupCountButton).not.toContain('disabled')"[39m)[33m;[39m
+     [90m      |[39m                   [31m[1m^[22m[39m
+     [90m 1473 |[39m   })[33m;[39m
+     [90m 1474 |[39m
+     [90m 1475 |[39m   it([32m'keeps TC-1004 aligned with the CourseCycleStatus YAGNI guard'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toContain (__tests__/docs/e2e-cases-drift.test.ts:1472:19)
+
+FAIL __tests__/docs/ci-config.test.ts
+  ● CI workflow configuration › has npm audit step with --audit-level=high in lint-and-test job (TC-2460)
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › runs npm audit inside the smkc-score-app working-directory job
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › runs unit tests after the audit step in the same job steps array
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › runs lint before the security audit step
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › uses Node.js 22 in setup-node step
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › passes --ci and --forceExit flags to npm test
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+  ● CI workflow configuration › sets SKIP_OPENNEXT_CLOUDFLARE_DEV env var in npm test step
+
+    ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。
+
+    [0m [90m 33 |[39m     [90m// steps が undefined/空の場合も同様に早期エラーとする (#2464)[39m
+     [90m 34 |[39m     [36mif[39m ([33m![39mworkflow[33m?[39m[33m.[39mjobs[33m?[39m[33m.[39m[[32m'lint-and-test'[39m][33m?[39m[33m.[39msteps[33m?[39m[33m.[39mlength) {
+    [31m[1m>[22m[39m[90m 35 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 36 |[39m         [32m`ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`[39m
+     [90m 37 |[39m       )[33m;[39m
+     [90m 38 |[39m     }[0m
+
+      at Object.<anonymous> (__tests__/docs/ci-config.test.ts:35:13)
+
+
+Test Suites: 2 failed, 1 skipped, 292 passed, 294 of 295 total
+Tests:       8 failed, 27 skipped, 4195 passed, 4230 total
+Snapshots:   0 total
+Time:        33.075 s
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?
+jest_status=1

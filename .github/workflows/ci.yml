@@ -1,27 +1,30 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "smkc-score-app/**"
   pull_request:
     paths:
       - "smkc-score-app/**"
-      - ".github/workflows/ci.yml"
-
-permissions:
-  contents: write
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  format-validate-commit:
-    name: Format, Validate & Diagnose
+  lint-and-test:
+    name: Lint & Test
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: smkc-score-app
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -32,54 +35,24 @@ jobs:
           cache-dependency-path: smkc-score-app/package-lock.json
 
       - name: Install dependencies
-        working-directory: smkc-score-app
         run: npm ci
 
-      - name: Format changed files
-        working-directory: smkc-score-app
-        run: |
-          npx prettier --write \
-            src/lib/hooks/useQualificationSetup.ts \
-            src/components/tournament/group-setup-dialog.tsx \
-            'src/app/tournaments/[id]/bm/page-client.tsx' \
-            'src/app/tournaments/[id]/mr/page-client.tsx' \
-            'src/app/tournaments/[id]/gp/page-client.tsx' \
-            messages/en.json messages/ja.json \
-            __tests__/lib/hooks/useQualificationSetup.test.ts \
-            __tests__/components/tournament/group-setup-dialog.test.tsx \
-            __tests__/static/qualification-i18n-fallbacks.test.ts \
-            __tests__/static/qualification-setup-contract.test.ts \
-            __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts
-
       - name: Lint
-        working-directory: smkc-score-app
         run: npm run lint
 
+      - name: Check formatting of changed files
+        run: npm run format:check
+        env:
+          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Security audit
-        working-directory: smkc-score-app
+        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
         run: npm audit --audit-level=high
 
-      - name: Run unit tests and capture diagnostics
-        working-directory: smkc-score-app
-        shell: bash
+      - name: Unit tests
+        run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
-        run: |
-          set +e
-          npm test -- --ci --forceExit 2>&1 | tee ../.github/pr-2861-test.log
-          status=${PIPESTATUS[0]}
-          echo "jest_status=$status" >> ../.github/pr-2861-test.log
-          exit 0
-
-      - name: Restore CI definition and commit formatting plus diagnostics
-        shell: bash
-        run: |
-          git checkout origin/main -- .github/workflows/ci.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "test: capture qualification setup validation diagnostics"
-          git push origin HEAD:${{ github.head_ref }}
