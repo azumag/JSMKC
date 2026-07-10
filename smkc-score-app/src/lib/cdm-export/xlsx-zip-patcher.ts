@@ -163,6 +163,11 @@ interface CellRange {
   maxRow: number;
 }
 
+interface SpillRange extends CellRange {
+  anchorCol: number;
+  anchorRow: number;
+}
+
 /** Convert column letters ("A", "B", … "AA") to a 1-based column number. */
 function columnLettersToNumber(letters: string): number {
   let col = 0;
@@ -210,8 +215,8 @@ function parseRange(ref: string): CellRange | undefined {
  * their own `<f t="shared" si=…>` and are already handled by the in-cell `<f>`
  * test, so they are deliberately excluded here.
  */
-function collectSpillRanges(sheetXml: string): CellRange[] {
-  const ranges: CellRange[] = [];
+function collectSpillRanges(sheetXml: string): SpillRange[] {
+  const ranges: SpillRange[] = [];
   const fTagRe = /<f\b([^>]*)>/g;
   let m: RegExpExecArray | null;
   while ((m = fTagRe.exec(sheetXml)) !== null) {
@@ -220,9 +225,43 @@ function collectSpillRanges(sheetXml: string): CellRange[] {
     const refMatch = /\bref="([^"]*)"/.exec(attrs);
     if (!refMatch) continue;
     const range = parseRange(refMatch[1]);
-    if (range) ranges.push(range);
+    const anchor = parseA1(refMatch[1].split(":")[0]);
+    if (range && anchor) {
+      ranges.push({ ...range, anchorCol: anchor.col, anchorRow: anchor.row });
+    }
   }
   return ranges;
+}
+
+/** True only for a spill child; the array-formula anchor itself is excluded. */
+function isWithinAnySpillChild(ref: string, ranges: SpillRange[]): boolean {
+  const cell = parseA1(ref);
+  if (!cell) return false;
+  return ranges.some((range) =>
+    cell.col >= range.minCol &&
+    cell.col <= range.maxCol &&
+    cell.row >= range.minRow &&
+    cell.row <= range.maxRow &&
+    (cell.col !== range.anchorCol || cell.row !== range.anchorRow)
+  );
+}
+
+/** Exhaustive classification: adding a future value op must update this guard. */
+function writesCellValue(op: CdmCellWrite["op"]): boolean {
+  switch (op) {
+    case "number":
+    case "inlineString":
+    case "overwriteNumber":
+    case "overwriteString":
+      return true;
+    case "clearValue":
+    case "strip":
+      return false;
+    default: {
+      const exhaustive: never = op;
+      return exhaustive;
+    }
+  }
 }
 
 /** Is the A1 ref inside any of the given ranges? */
@@ -261,8 +300,10 @@ function isWithinAnyRange(ref: string, ranges: CellRange[]): boolean {
  *     spill range also blocks Excel from re-spilling fresh values on open, must
  *     be cleared so the anchor can repopulate them. See {@link collectSpillRanges}.
  */
-function stripFormulaCachedValues(sheetXml: string): string {
-  const spillRanges = collectSpillRanges(sheetXml);
+function stripFormulaCachedValues(
+  sheetXml: string,
+  spillRanges: SpillRange[] = collectSpillRanges(sheetXml),
+): string {
   // Match one <c> element at a time. The self-closing form is listed FIRST and
   // both forms use a lazy attribute run (`[^>]*?`); otherwise a self-closing cell
   // (<c r=".." t="s"/>) would greedily swallow the following cells up to the next
@@ -401,6 +442,7 @@ export function patchCdmWorkbook(
       throw new Error(`patchCdmWorkbook: worksheet part "${path}" not found in package`);
     }
     let sheetXml = strFromU8(sheetBytes);
+    let reusableSpillRanges: SpillRange[] | undefined;
 
     const sheetWrites = writesByPath.get(path);
     if (sheetWrites) {
@@ -412,10 +454,11 @@ export function patchCdmWorkbook(
       // we reject it here too rather than lose data quietly. Computed on the
       // pre-patch XML because value ops never alter anchors (they would throw).
       const spillRanges = collectSpillRanges(sheetXml);
+      reusableSpillRanges = spillRanges;
       for (const write of sheetWrites) {
         if (
-          (write.op === "number" || write.op === "inlineString") &&
-          isWithinAnyRange(write.ref, spillRanges)
+          writesCellValue(write.op) &&
+          isWithinAnySpillChild(write.ref, spillRanges)
         ) {
           throw new Error(
             `patchCdmWorkbook: refusing to write a value into the dynamic-array ` +
@@ -432,6 +475,17 @@ export function patchCdmWorkbook(
         patcher.apply(write.ref, write);
       }
       sheetXml = patcher.serialize();
+
+      /* Formula-altering ops may remove an array anchor, so only ordinary
+       * input/cache writes can safely reuse the pre-patch spill analysis.
+       * Degraded bracket writes deliberately recompute from post-patch XML. */
+      if (sheetWrites.some((write) =>
+        write.op === "overwriteNumber" ||
+        write.op === "overwriteString" ||
+        write.op === "strip"
+      )) {
+        reusableSpillRanges = undefined;
+      }
     }
 
     // Strip on the post-patch XML so spill ranges reflect any anchors an
@@ -439,7 +493,7 @@ export function patchCdmWorkbook(
     // no longer in a range, so its freshly written value is preserved. (The only
     // anchors the degraded bracket modes strip are single-cell, so no multi-cell
     // anchor is ever orphaned mid-spill; revisit this if that ever changes.)
-    parts[path] = strToU8(stripFormulaCachedValues(sheetXml));
+    parts[path] = strToU8(stripFormulaCachedValues(sheetXml, reusableSpillRanges));
   }
 
   // Force recalculation on open and remove the stale calc chain.

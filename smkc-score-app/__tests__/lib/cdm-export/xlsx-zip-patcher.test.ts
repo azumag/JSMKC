@@ -303,6 +303,13 @@ describe("patchCdmWorkbook — real cell writes", () => {
     expect(() => patchCdmWorkbook(loadTemplate(), writes)).toThrow(/B5/);
   });
 
+  it.each([
+    ["overwriteNumber", { sheet: "Overall Ranking", ref: "B5", op: "overwriteNumber", value: 42 }],
+    ["overwriteString", { sheet: "Overall Ranking", ref: "B5", op: "overwriteString", value: "X" }],
+  ] satisfies Array<[string, CdmCellWrite]>)("also rejects %s writes into a spill child", (_label, write) => {
+    expect(() => patchCdmWorkbook(loadTemplate(), [write])).toThrow(/B5/);
+  });
+
   it("throws on an unknown sheet name", () => {
     const writes = [
       { sheet: "Nonexistent Sheet", ref: "A1", op: "number", value: 1 },
