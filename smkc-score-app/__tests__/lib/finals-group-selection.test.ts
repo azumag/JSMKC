@@ -12,7 +12,7 @@
  *   4 groups: A1, B1, C1, D1, A2, B2, C2, D2, A3, B3, C3, D3
  */
 
-import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
+import { reseedDirectEntrantsAgainstPlayoffWinners, selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 
 type TestQual = { playerId: string; group: string; player: unknown; score: number; points: number };
 
@@ -212,6 +212,64 @@ describe('selectFinalsEntrantsByGroup', () => {
         [10, 11],
       ] as const) {
         expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
+      }
+    });
+
+    it('re-seeds direct entrants against resolved barrage winners without changing the field', () => {
+      const winnerGroupByUpperSeed = new Map([
+        [16, 'A'],
+        [12, 'A'],
+        [14, 'C'],
+        [10, 'B'],
+      ]);
+      const reseeded = reseedDirectEntrantsAgainstPlayoffWinners(result.directSeeds, winnerGroupByUpperSeed);
+      expect(reseeded.map(({ qualification }) => qualification.playerId).sort()).toEqual(
+        result.directSeeds.map(({ qualification }) => qualification.playerId).sort(),
+      );
+
+      const directGroupBySeed = new Map(reseeded.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [directSeed, playoffSeed] of [
+        [1, 16],
+        [5, 12],
+        [3, 14],
+        [7, 10],
+      ] as const) {
+        expect(directGroupBySeed.get(directSeed)).not.toBe(winnerGroupByUpperSeed.get(playoffSeed));
+      }
+      for (const [seed1, seed2] of [
+        [8, 9],
+        [4, 13],
+        [6, 11],
+        [2, 15],
+      ] as const) {
+        expect(directGroupBySeed.get(seed1)).not.toBe(directGroupBySeed.get(seed2));
+      }
+    });
+
+    it('finds a collision-free layout even when all four barrage winners are from one group', () => {
+      const winnerGroupByUpperSeed = new Map([
+        [16, 'A'],
+        [12, 'A'],
+        [14, 'A'],
+        [10, 'A'],
+      ]);
+      const reseeded = reseedDirectEntrantsAgainstPlayoffWinners(result.directSeeds, winnerGroupByUpperSeed);
+      const directGroupBySeed = new Map(reseeded.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [directSeed, playoffSeed] of [
+        [1, 16],
+        [5, 12],
+        [3, 14],
+        [7, 10],
+      ] as const) {
+        expect(directGroupBySeed.get(directSeed)).not.toBe(winnerGroupByUpperSeed.get(playoffSeed));
+      }
+      for (const [seed1, seed2] of [
+        [8, 9],
+        [4, 13],
+        [6, 11],
+        [2, 15],
+      ] as const) {
+        expect(directGroupBySeed.get(seed1)).not.toBe(directGroupBySeed.get(seed2));
       }
     });
   });

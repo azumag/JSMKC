@@ -85,6 +85,7 @@ For 3 groups, which specific bracket seed an entrant is placed into (the equival
 1. For both the 16-player finals bracket and the 12-player barrage/playoff bracket, derive which round-1 seeds are already paired against a _known_ opponent (i.e., two direct-advancer seeds whose groups we already know) versus which round-1 seeds face a _not-yet-determined_ opponent (a barrage survivor) — computed directly from the real bracket-generation logic (`generateBracketStructure`/`generatePlayoffStructure`), not a hardcoded copy, so it can't drift if the bracket structure changes.
 2. The "opponent not yet known" seeds (ranks 1/3/5/7 for the direct bracket; the 4 BYE slots for barrage) go to the top-ranked entrants overall (by bucket, then tiebreak order).
 3. For the seeds whose round-1 opponent is another entrant from this same batch, take the remaining entrants two at a time from the top of the ranking, pairing each with the next-best entrant **from a different group** — repeating down the ranking.
+4. After barrage completes, Phase 2 knows all four winners' groups. `reseedDirectEntrantsAgainstPlayoffWinners()` then rearranges the same 12 direct advancers within the direct-seed set so that all eight Upper R1 matches are cross-group, including direct-vs-barrage-winner matches. The qualifying field itself does not change.
 
 With 3 groups and at least 4 direct advancers per group, every bucket necessarily includes one entrant from all 3 groups, so this pairing step can always find a different-group partner (it can't fail).
 

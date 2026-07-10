@@ -56,6 +56,11 @@ interface FinalsGroupSelection<TPlayer = unknown> {
   groupCount: 2 | 3 | 4;
 }
 
+export type DirectFinalsSeed<TPlayer = unknown> = {
+  seed: number;
+  qualification: FinalsQualInput<TPlayer>;
+};
+
 const TOTAL_FINALS_SLOTS = 12;
 
 const TWO_GROUP_DIRECT_UPPER_SEEDS = [
@@ -187,6 +192,123 @@ function assignAntiCollisionSeeds<T extends { group: string }>(
     seedByEntrant.set(highSeed, worse);
   }
   return seedByEntrant;
+}
+
+/**
+ * Reassign direct entrants after the four barrage winners are known.
+ *
+ * The qualification-time seeding can keep direct/direct and barrage/barrage
+ * matches cross-group, but it cannot know which barrage entrant will reach an
+ * Upper-Bracket seat. Phase 2 calls this helper with the resolved winner group
+ * for each barrage-fed Upper seed. A small deterministic backtracking search
+ * then assigns the existing direct entrants to the 12 direct seeds while
+ * preserving two invariants across every Winners R1 match:
+ *
+ * - a direct entrant never faces a barrage winner from the same group;
+ * - each direct/direct pair remains cross-group.
+ *
+ * Existing seed groups are tried first, so unaffected placements remain stable
+ * whenever the constraints allow it. Entrants within a group likewise retain
+ * their current seed where possible.
+ */
+export function reseedDirectEntrantsAgainstPlayoffWinners<TPlayer = unknown>(
+  directSeeds: DirectFinalsSeed<TPlayer>[],
+  playoffWinnerGroupByUpperSeed: ReadonlyMap<number, string>,
+): DirectFinalsSeed<TPlayer>[] {
+  const originalBySeed = new Map(directSeeds.map((entry) => [entry.seed, entry]));
+  const directSeedSet = new Set(originalBySeed.keys());
+  const forbiddenGroupBySeed = new Map<number, string>();
+  const pairedSeedBySeed = new Map<number, number>();
+
+  for (const match of generateBracketStructure(16)) {
+    if (match.round !== 'winners_r1' || match.player1Seed == null || match.player2Seed == null) continue;
+    const [seed1, seed2] = [match.player1Seed, match.player2Seed];
+    const seed1IsDirect = directSeedSet.has(seed1);
+    const seed2IsDirect = directSeedSet.has(seed2);
+    if (seed1IsDirect && seed2IsDirect) {
+      pairedSeedBySeed.set(seed1, seed2);
+      pairedSeedBySeed.set(seed2, seed1);
+      continue;
+    }
+
+    const directSeed = seed1IsDirect ? seed1 : seed2IsDirect ? seed2 : null;
+    const playoffSeed = seed1IsDirect ? seed2 : seed2IsDirect ? seed1 : null;
+    if (directSeed == null || playoffSeed == null) continue;
+    const winnerGroup = playoffWinnerGroupByUpperSeed.get(playoffSeed);
+    if (winnerGroup) forbiddenGroupBySeed.set(directSeed, winnerGroup);
+  }
+
+  const groupCounts = new Map<string, number>();
+  for (const { qualification } of directSeeds) {
+    groupCounts.set(qualification.group, (groupCounts.get(qualification.group) ?? 0) + 1);
+  }
+  const groups = [
+    ...(GROUPS as readonly string[]).filter((group) => groupCounts.has(group)),
+    ...[...groupCounts.keys()].filter((group) => !(GROUPS as readonly string[]).includes(group)).sort(),
+  ];
+  const originalGroupBySeed = new Map(directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
+  const soloSeeds = [...forbiddenGroupBySeed.keys()].sort((a, b) => a - b);
+  const pairedSeeds = [...pairedSeedBySeed.entries()]
+    .filter(([seed, partner]) => seed < partner)
+    .sort(([seedA], [seedB]) => seedA - seedB)
+    .flatMap(([seed, partner]) => [seed, partner]);
+  const orderedSeeds = [...soloSeeds, ...pairedSeeds];
+  if (orderedSeeds.length !== directSeeds.length) {
+    throw new Error(
+      `reseedDirectEntrantsAgainstPlayoffWinners: expected ${directSeeds.length} constrained direct seeds, found ${orderedSeeds.length}`,
+    );
+  }
+
+  const assignedGroupBySeed = new Map<number, string>();
+  const remainingCounts = new Map(groupCounts);
+  const assign = (index: number): boolean => {
+    if (index === orderedSeeds.length) return true;
+    const seed = orderedSeeds[index];
+    const originalGroup = originalGroupBySeed.get(seed);
+    const candidateGroups = [
+      ...(originalGroup ? [originalGroup] : []),
+      ...groups.filter((group) => group !== originalGroup),
+    ];
+    for (const group of candidateGroups) {
+      if ((remainingCounts.get(group) ?? 0) === 0) continue;
+      if (forbiddenGroupBySeed.get(seed) === group) continue;
+      const partnerGroup = assignedGroupBySeed.get(pairedSeedBySeed.get(seed) ?? -1);
+      if (partnerGroup === group) continue;
+
+      assignedGroupBySeed.set(seed, group);
+      remainingCounts.set(group, (remainingCounts.get(group) ?? 0) - 1);
+      if (assign(index + 1)) return true;
+      remainingCounts.set(group, (remainingCounts.get(group) ?? 0) + 1);
+      assignedGroupBySeed.delete(seed);
+    }
+    return false;
+  };
+
+  if (!assign(0)) {
+    throw new Error('reseedDirectEntrantsAgainstPlayoffWinners: no collision-free direct seed assignment exists');
+  }
+
+  const resultBySeed = new Map<number, DirectFinalsSeed<TPlayer>>();
+  for (const group of groups) {
+    const targetSeeds = orderedSeeds.filter((seed) => assignedGroupBySeed.get(seed) === group).sort((a, b) => a - b);
+    const entrants = directSeeds
+      .filter(({ qualification }) => qualification.group === group)
+      .sort((a, b) => a.seed - b.seed);
+
+    const retainedSeeds = new Set(
+      targetSeeds.filter((seed) => originalBySeed.get(seed)?.qualification.group === group),
+    );
+    for (const seed of retainedSeeds) {
+      resultBySeed.set(seed, { seed, qualification: originalBySeed.get(seed)!.qualification });
+    }
+    const remainingTargets = targetSeeds.filter((seed) => !retainedSeeds.has(seed));
+    const remainingEntrants = entrants.filter(({ seed }) => !retainedSeeds.has(seed));
+    remainingTargets.forEach((seed, index) => {
+      resultBySeed.set(seed, { seed, qualification: remainingEntrants[index].qualification });
+    });
+  }
+
+  return [...resultBySeed.values()].sort((a, b) => a.seed - b.seed);
 }
 
 /**
