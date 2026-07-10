@@ -6,6 +6,9 @@ on:
       - codex/issue-2859-setup-error-handler
     paths:
       - .github/workflows/apply-2859-fix.yml
+  pull_request:
+    paths:
+      - .github/workflows/apply-2859-fix.yml
 
 permissions:
   contents: write
