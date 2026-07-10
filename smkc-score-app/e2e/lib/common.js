@@ -2601,7 +2601,7 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
   return column.values;
 }
 
-async function assertCombinedStandingsTab(page, mode, tournamentId) {
+async function assertCombinedStandingsTab(page, mode, tournamentId, options = {}) {
   await nav(page, `/tournaments/${tournamentId}/${mode}`);
   await page.locator('main').waitFor({ timeout: 15000 });
 
@@ -2632,6 +2632,7 @@ async function assertCombinedStandingsTab(page, mode, tournamentId) {
   }
 
   const ranks = [];
+  const rowTexts = options.includeRowTexts ? await rows.allTextContents() : null;
   for (let i = 0; i < rowCount; i++) {
     const rankText = (await rows.nth(i).locator('td').first().innerText()).trim();
     const rank = Number(rankText);
@@ -2647,7 +2648,7 @@ async function assertCombinedStandingsTab(page, mode, tournamentId) {
     }
   }
 
-  return ranks;
+  return options.includeRowTexts ? { ranks, rowTexts } : ranks;
 }
 
 /** UI-driven BM qualification: group assignment + all match scores.

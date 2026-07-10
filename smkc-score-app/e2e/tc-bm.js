@@ -772,12 +772,12 @@ async function runTc3009(adminPage) {
       throw new Error(`expected B4 score > A4, got B4=${bFourth?.score} A4=${aFourth?.score}`);
     }
 
-    await nav(adminPage, `/tournaments/${tournamentId}/bm`);
-    const combinedTab = adminPage.getByRole('tab', { name: /^(合算順位|Combined)$/ });
-    await combinedTab.click();
-    const rows = adminPage.locator('[role="tabpanel"][data-state="active"] tbody tr');
-    await rows.first().waitFor({ state: 'visible', timeout: 15000 });
-    const renderedRows = await rows.allTextContents();
+    const { rowTexts: renderedRows } = await assertCombinedStandingsTab(
+      adminPage,
+      'bm',
+      tournamentId,
+      { includeRowTexts: true },
+    );
     const aFourthNickname = nicknameForPlayer.get(groupA[3].playerId);
     const bFourthNickname = nicknameForPlayer.get(groupB[3].playerId);
     const aFourthIndex = renderedRows.findIndex((row) => row.includes(aFourthNickname));
