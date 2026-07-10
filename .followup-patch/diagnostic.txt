@@ -1,0 +1,27 @@
+files:
+total 100
+drwxr-xr-x 2 runner runner  4096 Jul 10 19:17 .
+drwxr-xr-x 8 runner runner  4096 Jul 10 19:17 ..
+-rw-r--r-- 1 runner runner     7 Jul 10 19:17 diagnostic.txt
+-rw-r--r-- 1 runner runner 15989 Jul 10 19:17 part00
+-rw-r--r-- 1 runner runner 20000 Jul 10 19:17 part01
+-rw-r--r-- 1 runner runner 20000 Jul 10 19:17 part02
+-rw-r--r-- 1 runner runner  4000 Jul 10 19:17 part03_00
+-rw-r--r-- 1 runner runner  4000 Jul 10 19:17 part03_01
+-rw-r--r-- 1 runner runner  4000 Jul 10 19:17 part03_02
+-rw-r--r-- 1 runner runner  4000 Jul 10 19:17 part03_03
+-rw-r--r-- 1 runner runner  4000 Jul 10 19:17 part03_04
+-rw-r--r-- 1 runner runner  3000 Jul 10 19:17 part04_00
+-rw-r--r-- 1 runner runner  3000 Jul 10 19:17 part04_01
+-rw-r--r-- 1 runner runner  2016 Jul 10 19:17 part04_02
+base64 sha256:
+59a2bb0bdcde3ae193c89d31f8373c6f8e8e6f0cf0590f5619cca6c6ce824d86  /tmp/followups.b64
+base64: invalid input
+
+gzip: stdin: invalid compressed data--format violated
+decode status: 1 1
+patch sha256:
+be6fa3af3526f2d598839b278fbbb05d52725fc68c0a426e4d85012239bcd1d3  /tmp/followups.patch
+git apply check:
+error: patch fragment without header at /tmp/followups.patch:2099: @@ -552,7 +591,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
+apply status: 128
