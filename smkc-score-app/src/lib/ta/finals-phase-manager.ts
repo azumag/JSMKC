@@ -319,7 +319,7 @@ export async function promoteToPhase1(
   });
 
   for (const entry of createdEntries) {
-    createAuditLog({
+    await createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -446,7 +446,7 @@ export async function promoteToPhase2(
   });
 
   for (const entry of createdEntries) {
-    createAuditLog({
+    await createAuditLog({
       userId, ipAddress, userAgent,
       action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
       targetId: entry.id,
@@ -567,7 +567,7 @@ export async function promoteToPhase3(
   });
 
   for (const entry of createdEntries) {
-    createAuditLog({
+    await createAuditLog({
       userId, ipAddress, userAgent,
       action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
       targetId: entry.id,
@@ -648,7 +648,7 @@ export async function processEliminationPhaseResult(
 
   // Audit log for elimination event (non-critical)
   try {
-    void createAuditLog({
+    await createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -770,7 +770,7 @@ export async function processPhase3Result(
 
       // Audit log for life loss / elimination (non-critical)
       try {
-        void createAuditLog({
+        await createAuditLog({
           userId,
           ipAddress,
           userAgent,
@@ -827,7 +827,7 @@ export async function processPhase3Result(
 
     // Audit log for life reset event (non-critical)
     try {
-      void createAuditLog({
+      await createAuditLog({
         userId,
         ipAddress,
         userAgent,
@@ -1424,7 +1424,7 @@ export async function startPhaseRound(
 
   // Audit log for round start (non-critical, outside transaction)
   try {
-    void createAuditLog({
+    await createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -1633,7 +1633,7 @@ export async function submitRoundResults(
 
   // Audit log for round submission (non-critical)
   try {
-    void createAuditLog({
+    await createAuditLog({
       userId: context.userId,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
@@ -1939,7 +1939,7 @@ export async function cancelPhaseRound(
 
   // Audit log for round cancellation (non-critical)
   try {
-    void createAuditLog({
+    await createAuditLog({
       userId: context.userId,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
@@ -2174,7 +2174,7 @@ export async function undoLastPhaseRound(
 
   // Audit log for undo operation (non-critical)
   try {
-    void createAuditLog({
+    await createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -2248,7 +2248,7 @@ export async function cancelLastSubmittedPhaseRound(
 
   // Audit log for cancellation (non-critical)
   try {
-    void createAuditLog({
+    await createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -2430,10 +2430,10 @@ export async function resetPhase(
     where: { tournamentId, stage },
   });
 
-  // Audit log for the reset (non-critical, fire-and-forget like the other
-  // audit calls in this module — a logging failure must not roll back or
-  // fail a reset that has already completed on the primary data path).
-  createAuditLog({
+  // Audit log for the reset. Await completion so Workers cannot terminate the
+  // request before the write finishes; a logging failure remains non-critical
+  // and must not fail a reset that completed on the primary data path.
+  await createAuditLog({
     userId,
     ipAddress,
     userAgent,
