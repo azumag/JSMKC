@@ -277,31 +277,39 @@ describe('replayTTFinals', () => {
     expect(result[0].participants.get('p1')).toBe(5000);
   });
 
-  it('TC-2743: treats invalid timeMs values as missing while preserving zero and warning only for malformed values', () => {
-    const entries = Array.from({ length: 7 }, (_, index) => makeQualEntry(`p${index + 1}`, index + 1));
-    const malformedResults = [
-      { playerId: 'p1', timeMs: Number.NaN },
-      { playerId: 'p2', timeMs: Number.POSITIVE_INFINITY },
-      { playerId: 'p3', timeMs: Number.NEGATIVE_INFINITY },
-      { playerId: 'p4', timeMs: '5000' },
-      { playerId: 'p5', timeMs: undefined },
-      { playerId: 'p6', timeMs: null },
-      { playerId: 'p7', timeMs: 0 },
-    ] as unknown as Array<{ playerId: string; timeMs: number | null }>;
+  it.each([
+    ['NaN', Number.NaN, null, true],
+    ['positive Infinity', Number.POSITIVE_INFINITY, null, true],
+    ['negative Infinity', Number.NEGATIVE_INFINITY, null, true],
+    ['numeric string', '5000', null, true],
+    ['undefined', undefined, null, false],
+    ['null', null, null, false],
+    ['zero', 0, 0, false],
+  ])(
+    'TC-2743: handles %s timeMs as expected',
+    (_label, timeMs, expectedTime, shouldWarn) => {
+      const playerId = 'p1';
+      const entries = [makeQualEntry(playerId, 1)];
+      const results = [{ playerId, timeMs }] as unknown as Array<{
+        playerId: string;
+        timeMs: number | null;
+      }>;
 
-    const [round] = replayTTFinals(makeData(entries, [makePhaseRound('phase1', 1, malformedResults)]));
-
-    for (const playerId of ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']) {
-      expect(round.participants.get(playerId)).toBeNull();
-    }
-    expect(round.participants.get('p7')).toBe(0);
-    expect(warnMock).toHaveBeenCalledTimes(4);
-    for (const playerId of ['p1', 'p2', 'p3', 'p4']) {
-      expect(warnMock).toHaveBeenCalledWith(
-        `TT Finals phase1 round 1: invalid timeMs for player ${playerId}; treating as missing time`,
+      const [round] = replayTTFinals(
+        makeData(entries, [makePhaseRound('phase1', 1, results)]),
       );
-    }
-  });
+
+      expect(round.participants.get(playerId)).toBe(expectedTime);
+      if (shouldWarn) {
+        expect(warnMock).toHaveBeenCalledTimes(1);
+        expect(warnMock).toHaveBeenCalledWith(
+          `TT Finals phase1 round 1: invalid timeMs for player ${playerId}; treating as missing time`,
+        );
+      } else {
+        expect(warnMock).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it('TC-3004: phase3 bronze race — displayRowOrder stays raw-time order (template limitation), lostLife membership is unaffected either way', () => {
     // Manually-tested ASMKC 2025 replica report: the bronze-race LOSER
