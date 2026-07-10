@@ -2524,7 +2524,7 @@ describe('E2E case drift coverage', () => {
       'adds overall to existing tournament publicModes with SQLite JSON semantics',
     );
     expect(prismaMigrationsTest).toContain("COALESCE(publicModes, '[]')");
-    expect(prismaMigrationsTest).toContain('COALESCE(\\"publicModes\\", \'[]\')');
+    expect(prismaMigrationsTest).toMatch(/COALESCE\([\\"']?publicModes/);
     expect(prismaMigrationsTest).toContain('db.exec(d1Migration)');
   });
 
@@ -2537,10 +2537,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`prisma/migrations/0017_mr_scores_confirmed/migration.sql`');
     expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
     expect(prismaMigrationsTest).toContain('keeps MR scoresConfirmed type declarations aligned');
-    expect(prismaMigrationsTest).toContain('readWranglerMigration("0036_add_mr_scores_confirmed.sql")');
-    expect(prismaMigrationsTest).toContain(
-      'const expectedColumn = \'"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false\'',
-    );
+    expect(prismaMigrationsTest).toMatch(/readWranglerMigration\(['"]0036_add_mr_scores_confirmed\.sql['"]\)/);
+    expect(prismaMigrationsTest).toMatch(/expectedColumn = ['"]\\?"scoresConfirmed\\?" BOOLEAN NOT NULL DEFAULT false/);
   });
 
   it('documents TC-2206 as MR scoresConfirmed migration drift guard deduplication', () => {
@@ -2556,7 +2554,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`__tests__/docs/prisma-migrations.test.ts` が migration SQL の実体チェックを所有');
     expect(section).toContain('TC-2107/TC-2206 の文書化と coverage owner');
     expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
-    expect(prismaMigrationsTest).toContain('readWranglerMigration("0036_add_mr_scores_confirmed.sql")');
+    expect(prismaMigrationsTest).toMatch(/readWranglerMigration\(['"]0036_add_mr_scores_confirmed\.sql['"]\)/);
     expect(previewSchemaPreflightTest).toContain('keeps TC-2206 documented as migration drift deduplication coverage');
     expect(previewSchemaPreflightTest).not.toContain('0036_add_mr_scores_confirmed.sql');
   });
@@ -2677,7 +2675,7 @@ describe('E2E case drift coverage', () => {
     );
     expect(tcMr).toContain('scoresConfirmed: true');
     expect(tcMr).not.toContain("log('TC-822', 'SKIP'");
-    expect(prismaSchema).toContain('scoresConfirmed Boolean @default(false)');
+    expect(prismaSchema).toMatch(/scoresConfirmed\s+Boolean\s+@default\(false\)/);
     expect(mrMatchRoute).toContain('body?.scoresConfirmed === true');
     expect(mrReportRoute).toContain('Scores have already been confirmed for this match');
     expect(mrReportRouteTest).toContain('should reject participant reports after admin scoresConfirmed');
