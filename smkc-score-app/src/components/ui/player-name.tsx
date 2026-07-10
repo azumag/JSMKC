@@ -36,7 +36,7 @@ export function PlayerName({
   return (
     <span className={cn('inline-flex items-center gap-1.5 min-w-0', className)}>
       {!showFallback && <CountryFlag country={player.country} locale={locale} />}
-      <span className={cn('truncate', showFallback && 'text-muted-foreground', nameClassName)}>
+      <span className={cn('truncate', forceFallback && 'text-muted-foreground', nameClassName)}>
         {showFallback ? fallback : (displayName ?? player.nickname)}
       </span>
     </span>
