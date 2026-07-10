@@ -1,76 +1,82 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import formatChangedUtils from './format-changed-utils.cjs';
+
+const { collectChangedAppFiles, resolveBaseRevision, resolveComparisonBase } = formatChangedUtils;
 
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const repositoryRoot = path.resolve(appRoot, '..');
 const appPrefix = `${path.basename(appRoot)}/`;
-const supportedExtension = /\.(?:cjs|css|graphql|gql|html|js|json|jsx|md|mdx|mjs|scss|ts|tsx|yaml|yml)$/i;
 
 function git(args) {
   return execFileSync('git', args, {
     cwd: repositoryRoot,
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'inherit'],
+    stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
 }
 
-function resolveBaseRevision() {
-  if (process.env.FORMAT_BASE_SHA) return process.env.FORMAT_BASE_SHA;
-
-  // Local feature branches normally track origin/main. Keeping the fallback in
-  // this script makes `npm run format:check` behave like CI without requiring
-  // developers to copy a GitHub-specific command.
+function main() {
+  const headRevision = process.env.FORMAT_HEAD_SHA;
+  let diffOutput;
+  let untrackedOutput;
   try {
-    return git(['merge-base', 'origin/main', 'HEAD']);
-  } catch {
-    return git(['rev-parse', 'HEAD^']);
+    const baseRevision = resolveBaseRevision(
+      process.env.FORMAT_BASE_SHA,
+      () => git(['merge-base', 'origin/main', 'HEAD']),
+      () => git(['rev-parse', 'HEAD^']),
+    );
+    // A PR's base branch may advance after the feature branch was created. Diff
+    // from the common ancestor so newly merged base-branch files are not mistaken
+    // for changes made by this PR.
+    const comparisonBase = resolveComparisonBase(baseRevision, headRevision, (base, head) =>
+      git(['merge-base', base, head]),
+    );
+    const diffArguments = ['diff', '--name-only', '--diff-filter=ACMR', '-z', comparisonBase];
+    if (headRevision) diffArguments.push(headRevision);
+
+    diffOutput = execFileSync('git', diffArguments, { cwd: repositoryRoot, encoding: 'utf8' });
+    // CI checks committed revisions. Locally, include untracked files as well so a
+    // newly created source file cannot bypass the same check before its first commit.
+    untrackedOutput = headRevision
+      ? ''
+      : execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
+          cwd: repositoryRoot,
+          encoding: 'utf8',
+        });
+  } catch (error) {
+    const requestedBase = process.env.FORMAT_BASE_SHA || 'origin/main';
+    const clearMessage = `Unable to resolve formatting base revision: ${requestedBase}`;
+    if (error instanceof Error && error.message.startsWith(clearMessage)) throw error;
+    throw new Error(clearMessage, { cause: error });
   }
-}
+  const changedFiles = collectChangedAppFiles(diffOutput, untrackedOutput, !headRevision, appPrefix);
 
-const baseRevision = resolveBaseRevision();
-const headRevision = process.env.FORMAT_HEAD_SHA;
-// A PR's base branch may advance after the feature branch was created. Diff
-// from the common ancestor so newly merged base-branch files are not mistaken
-// for changes made by this PR.
-const comparisonBase = headRevision ? git(['merge-base', baseRevision, headRevision]) : baseRevision;
-const diffArguments = ['diff', '--name-only', '--diff-filter=ACMR', '-z', comparisonBase];
-if (headRevision) diffArguments.push(headRevision);
+  if (changedFiles.length === 0) {
+    console.log('No changed Prettier-supported files to check.');
+    return 0;
+  }
 
-const changedPaths = execFileSync('git', diffArguments, { cwd: repositoryRoot, encoding: 'utf8' }).split('\0');
-
-// CI checks committed revisions. Locally, include untracked files as well so a
-// newly created source file cannot bypass the same check before its first commit.
-if (!process.env.FORMAT_HEAD_SHA) {
-  changedPaths.push(
-    ...execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
-      cwd: repositoryRoot,
-      encoding: 'utf8',
-    }).split('\0'),
+  console.log(`Checking formatting for ${changedFiles.length} changed file(s).`);
+  const prettierExecutable = path.join(
+    appRoot,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'prettier.cmd' : 'prettier',
   );
+  const result = spawnSync(prettierExecutable, ['--check', ...changedFiles], {
+    cwd: appRoot,
+    stdio: 'inherit',
+  });
+
+  if (result.error) throw result.error;
+  return result.status ?? 1;
 }
 
-const changedFiles = [...new Set(changedPaths)]
-  .filter(Boolean)
-  .filter((file) => file.startsWith(appPrefix) && supportedExtension.test(file))
-  .map((file) => file.slice(appPrefix.length));
-
-if (changedFiles.length === 0) {
-  console.log('No changed Prettier-supported files to check.');
-  process.exit(0);
+try {
+  process.exitCode = main();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : 'Formatting check failed.');
+  process.exitCode = 1;
 }
-
-console.log(`Checking formatting for ${changedFiles.length} changed file(s).`);
-const prettierExecutable = path.join(
-  appRoot,
-  'node_modules',
-  '.bin',
-  process.platform === 'win32' ? 'prettier.cmd' : 'prettier',
-);
-const result = spawnSync(prettierExecutable, ['--check', ...changedFiles], {
-  cwd: appRoot,
-  stdio: 'inherit',
-});
-
-if (result.error) throw result.error;
-process.exit(result.status ?? 1);
