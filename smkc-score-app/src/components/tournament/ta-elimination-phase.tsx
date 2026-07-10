@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * TA Elimination Phase Component (Phase 1 / Phase 2)
@@ -20,26 +20,13 @@
  * - Auto-refresh every 3 seconds for live tournament tracking
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useSession } from "next-auth/react";
-import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -47,36 +34,30 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { CountryFlag } from "@/components/ui/country-flag";
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { CountryFlag } from '@/components/ui/country-flag';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from '@/lib/constants';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
-import { autoFormatTime, generateRandomTimeString, msToDisplayTime, sortResultsByTime, timeToMs } from "@/lib/ta/time-utils";
-import {
-  TA_TIME_INPUT_HELP_CLASS,
-  getTaTimeInputProps,
-} from "@/lib/ta/time-entry-layout";
-import { TaTimeEntryRow } from "@/components/tournament/ta-time-entry-row";
-import { getCourseCycleStatus } from "@/lib/ta/course-cycle-status";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { Dice5 } from "lucide-react";
-import type { Player } from "@/lib/types";
-import { createLogger } from "@/lib/client-logger";
-import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
-import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
-import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
-import { RoundCorrectionControls } from "@/components/tournament/round-correction-controls";
-import {
-  TASuddenDeathSection,
-  useTaSuddenDeath,
-} from "@/components/tournament/ta-sudden-death-panel";
+  autoFormatTime,
+  generateRandomTimeString,
+  msToDisplayTime,
+  sortResultsByTime,
+  timeToMs,
+} from '@/lib/ta/time-utils';
+import { TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from '@/lib/ta/time-entry-layout';
+import { TaTimeEntryRow } from '@/components/tournament/ta-time-entry-row';
+import { getCourseCycleStatus } from '@/lib/ta/course-cycle-status';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { Dice5 } from 'lucide-react';
+import type { Player } from '@/lib/types';
+import { createLogger } from '@/lib/client-logger';
+import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
+import { useBroadcastReflect } from '@/lib/hooks/use-broadcast-reflect';
+import { CourseCycleStatusPanel } from '@/components/tournament/course-cycle-status-panel';
+import { RoundCorrectionControls } from '@/components/tournament/round-correction-controls';
+import { TASuddenDeathSection, useTaSuddenDeath } from '@/components/tournament/ta-sudden-death-panel';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'ta-elimination-phase' });
@@ -84,13 +65,11 @@ const logger = createLogger({ serviceName: 'ta-elimination-phase' });
 /** Props for the elimination phase component */
 export interface TAEliminationPhaseProps {
   tournamentId: string;
-  phase: "phase1" | "phase2";
+  phase: 'phase1' | 'phase2';
   title: string;
   description: string;
   targetSurvivors: number;
 }
-
-
 
 /** TTEntry from the phases API */
 interface TTEntry {
@@ -160,7 +139,7 @@ export default function TAEliminationPhase({
   const [playedCourses, setPlayedCourses] = useState<string[]>([]);
   // Admin-selected course override. "__random__" = use random selection (default).
   // Cannot use "" because Radix UI Select reserves empty string for "no selection" (placeholder).
-  const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
+  const [selectedCourse, setSelectedCourse] = useState<string>('__random__');
   // Per-player TV assignments for the active round: playerId → TV number (1-4) or null.
   // Set after round starts; sent with submit_results to store in the results JSON.
   const [tvAssignments, setTvAssignments] = useState<Record<string, number | null>>({});
@@ -187,12 +166,8 @@ export default function TAEliminationPhase({
   const isDebugMode = useTournamentDebugMode(tournamentId);
 
   // Broadcast overlay state and handler — shared with ta/finals/page.tsx via hook.
-  const {
-    broadcastStatus,
-    handleBroadcastReflect,
-    resetBroadcastStatus,
-    hasUnbroadcastedTvAssignment,
-  } = useBroadcastReflect(tournamentId, tvAssignments, entries);
+  const { broadcastStatus, handleBroadcastReflect, resetBroadcastStatus, hasUnbroadcastedTvAssignment } =
+    useBroadcastReflect(tournamentId, tvAssignments, entries);
 
   // Tracks whether the user is actively editing times.
   // When true, polling is paused to prevent fetchData from overwriting input.
@@ -225,14 +200,10 @@ export default function TAEliminationPhase({
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases?phase=${phase}`
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=${phase}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || `Failed to fetch ${phase} data: ${response.status}`
-        );
+        throw new Error(errorData.error || `Failed to fetch ${phase} data: ${response.status}`);
       }
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, rounds, ... } }
@@ -247,7 +218,7 @@ export default function TAEliminationPhase({
       // A later phase "started" once it has entries (phaseStatus[stage] is
       // non-null). phase1's later stages are phase2/phase3; phase2's is phase3.
       const phaseStatus = data.phaseStatus ?? {};
-      const laterStages = phase === "phase1" ? ["phase2", "phase3"] : ["phase3"];
+      const laterStages = phase === 'phase1' ? ['phase2', 'phase3'] : ['phase3'];
       setLaterPhaseStarted(laterStages.some((stage) => phaseStatus[stage] != null));
 
       // Build player name map from entries for round history display
@@ -270,7 +241,7 @@ export default function TAEliminationPhase({
           const initialRetry: Record<string, boolean> = {};
           const initialTv: Record<string, number | null> = {};
           activeEntries.forEach((entry) => {
-            initialTimes[entry.playerId] = "";
+            initialTimes[entry.playerId] = '';
             initialRetry[entry.playerId] = false;
             initialTv[entry.playerId] = null;
           });
@@ -284,9 +255,8 @@ export default function TAEliminationPhase({
         }
       }
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to fetch data";
-      logger.error("Failed to fetch data:", { error: err });
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+      logger.error('Failed to fetch data:', { error: err });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -319,23 +289,20 @@ export default function TAEliminationPhase({
     setStartingRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "start_round",
-            phase,
-            // Only include course when admin has manually selected one;
-            // omitting it lets the server choose randomly (default behaviour).
-            ...(selectedCourse && selectedCourse !== "__random__" ? { course: selectedCourse } : {}),
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start_round',
+          phase,
+          // Only include course when admin has manually selected one;
+          // omitting it lets the server choose randomly (default behaviour).
+          ...(selectedCourse && selectedCourse !== '__random__' ? { course: selectedCourse } : {}),
+        }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to start round");
+        throw new Error(errorData.error || 'Failed to start round');
       }
       const json2 = await response.json();
       // Unwrap createSuccessResponse wrapper
@@ -347,7 +314,7 @@ export default function TAEliminationPhase({
       const initialRetry: Record<string, boolean> = {};
       const initialTv: Record<string, number | null> = {};
       activeEntries.forEach((entry) => {
-        initialTimes[entry.playerId] = "";
+        initialTimes[entry.playerId] = '';
         initialRetry[entry.playerId] = false;
         initialTv[entry.playerId] = null;
       });
@@ -360,11 +327,10 @@ export default function TAEliminationPhase({
       setRetryFlags(initialRetry);
       setTvAssignments(initialTv);
       resetBroadcastStatus();
-      setSelectedCourse("__random__"); // Reset manual selection after round is started
+      setSelectedCourse('__random__'); // Reset manual selection after round is started
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to start round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start round';
       setSaveError(errorMessage);
     } finally {
       setStartingRound(false);
@@ -381,21 +347,18 @@ export default function TAEliminationPhase({
     setCancellingRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "cancel_round",
-            phase,
-            roundNumber: currentRound.roundNumber,
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancel_round',
+          phase,
+          roundNumber: currentRound.roundNumber,
+        }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to cancel round");
+        throw new Error(errorData.error || 'Failed to cancel round');
       }
       // Clear client state after successful DB deletion and resume polling
       setCurrentRound(null);
@@ -407,8 +370,7 @@ export default function TAEliminationPhase({
       setShowCancelConfirm(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to cancel round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
       setSaveError(errorMessage);
       setShowCancelConfirm(false);
     } finally {
@@ -424,17 +386,14 @@ export default function TAEliminationPhase({
     setUndoingRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "undo_round", phase }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'undo_round', phase }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to undo round");
+        throw new Error(errorData.error || 'Failed to undo round');
       }
       setShowUndoConfirm(false);
       setCurrentRound(null);
@@ -445,8 +404,7 @@ export default function TAEliminationPhase({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to undo round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to undo round';
       setSaveError(errorMessage);
       setShowUndoConfirm(false);
     } finally {
@@ -465,17 +423,14 @@ export default function TAEliminationPhase({
     setCancellingLastRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "cancel_last_round", phase }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel_last_round', phase }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to cancel round");
+        throw new Error(errorData.error || 'Failed to cancel round');
       }
       setShowCancelLastRoundConfirm(false);
       setCurrentRound(null);
@@ -486,8 +441,7 @@ export default function TAEliminationPhase({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to cancel round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
       setSaveError(errorMessage);
       setShowCancelLastRoundConfirm(false);
     } finally {
@@ -517,13 +471,16 @@ export default function TAEliminationPhase({
   };
 
   /** Handle time input change for a specific player */
-  const handleTvChange = useCallback((playerId: string, value: number | null) => {
-    setTvAssignments((prev) => ({
-      ...prev,
-      [playerId]: value,
-    }));
-    resetBroadcastStatus();
-  }, [resetBroadcastStatus]);
+  const handleTvChange = useCallback(
+    (playerId: string, value: number | null) => {
+      setTvAssignments((prev) => ({
+        ...prev,
+        [playerId]: value,
+      }));
+      resetBroadcastStatus();
+    },
+    [resetBroadcastStatus],
+  );
 
   const handleTimeChange = useCallback((playerId: string, value: string) => {
     setIsEditing(true);
@@ -538,7 +495,7 @@ export default function TAEliminationPhase({
   const handleTimeBlur = useCallback((playerId: string) => {
     setCourseTimes((prev) => {
       const raw = prev[playerId];
-      if (!raw || raw.trim() === "") return prev;
+      if (!raw || raw.trim() === '') return prev;
       const formatted = autoFormatTime(raw);
       if (formatted !== null && formatted !== raw) {
         return { ...prev, [playerId]: formatted };
@@ -558,7 +515,7 @@ export default function TAEliminationPhase({
     setRetryFlags((prev) => ({ ...prev, [playerId]: nextIsRetry }));
     setCourseTimes((prevTimes) => ({
       ...prevTimes,
-      [playerId]: nextIsRetry ? RETRY_PENALTY_DISPLAY : "",
+      [playerId]: nextIsRetry ? RETRY_PENALTY_DISPLAY : '',
     }));
   }, []);
 
@@ -593,12 +550,10 @@ export default function TAEliminationPhase({
             ...(tvNumber !== null ? { tvNumber } : {}),
           });
         } else {
-          const timeStr = courseTimes[entry.playerId] || "";
+          const timeStr = courseTimes[entry.playerId] || '';
           const timeMs = timeToMs(timeStr);
           if (timeMs === null) {
-            setSaveError(
-              tElim('invalidTimeFor', { name: entry.player.nickname })
-            );
+            setSaveError(tElim('invalidTimeFor', { name: entry.player.nickname }));
             setSubmitting(false);
             return;
           }
@@ -611,28 +566,25 @@ export default function TAEliminationPhase({
       }
 
       if (results.length < 2) {
-        setSaveError(tElim("needAtLeast2Players"));
+        setSaveError(tElim('needAtLeast2Players'));
         setSubmitting(false);
         return;
       }
 
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "submit_results",
-            phase,
-            roundNumber: currentRound.roundNumber,
-            results,
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit_results',
+          phase,
+          roundNumber: currentRound.roundNumber,
+          results,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to submit results");
+        throw new Error(errorData.error || 'Failed to submit results');
       }
       const json = await response.json();
       const data = json.data ?? json;
@@ -655,8 +607,7 @@ export default function TAEliminationPhase({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to submit results";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit results';
       setSaveError(errorMessage);
     } finally {
       setSubmitting(false);
@@ -686,18 +637,13 @@ export default function TAEliminationPhase({
   // === Derived State ===
   const activeEntries = entries.filter((e) => !e.eliminated);
   const eliminatedEntries = entries.filter((e) => e.eliminated);
-  const isComplete =
-    activeEntries.length <= targetSurvivors && entries.length > 0;
+  const isComplete = activeEntries.length <= targetSurvivors && entries.length > 0;
 
   // Check if the last round in the rounds list has no results yet (open round)
-  const hasOpenRound =
-    rounds.length > 0 &&
-    (rounds[rounds.length - 1].results).length === 0;
+  const hasOpenRound = rounds.length > 0 && rounds[rounds.length - 1].results.length === 0;
 
   /** Count of completed rounds (with submitted results) */
-  const completedRoundsCount = rounds.filter(
-    (r) => (r.results).length > 0
-  ).length;
+  const completedRoundsCount = rounds.filter((r) => r.results.length > 0).length;
   const courseCycleStatus = getCourseCycleStatus(playedCourses);
 
   // === Loading State ===
@@ -722,9 +668,7 @@ export default function TAEliminationPhase({
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">{title}</h1>
           <Button variant="outline" asChild>
-            <a href={`/tournaments/${tournamentId}/ta`}>
-              {tElim('backToQualification')}
-            </a>
+            <a href={`/tournaments/${tournamentId}/ta`}>{tElim('backToQualification')}</a>
           </Button>
         </div>
         <Card>
@@ -747,17 +691,13 @@ export default function TAEliminationPhase({
             <p className="text-muted-foreground">{description}</p>
           </div>
           <Button variant="outline" asChild>
-            <a href={`/tournaments/${tournamentId}/ta`}>
-              {tElim('backToQualification')}
-            </a>
+            <a href={`/tournaments/${tournamentId}/ta`}>{tElim('backToQualification')}</a>
           </Button>
         </div>
         <Card>
           <CardHeader>
             <CardTitle>{tElim('noPlayersTitle')}</CardTitle>
-            <CardDescription>
-              {tElim('noPlayersDesc')}
-            </CardDescription>
+            <CardDescription>{tElim('noPlayersDesc')}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -770,32 +710,21 @@ export default function TAEliminationPhase({
   // is complete — the latter is what lets an admin fix a mistake in a phase's
   // final round without a full phase reset. Buttons render only when at least
   // one round has been submitted; dialogs are rendered once at the top level.
-  const roundCorrectionControls = completedRoundsCount > 0 ? (
-    <RoundCorrectionControls
-      labels={{
-        undoLastRound: tElim('undoLastRound'),
-        cancelLastRound: tElim('cancelLastRound'),
-        undoRoundTitle: tElim('undoRoundTitle'),
-        undoRoundDesc: tElim('undoRoundDesc'),
-        cancelLastRoundTitle: tElim('cancelLastRoundTitle'),
-        cancelLastRoundDesc: tElim('cancelLastRoundDesc'),
-        keepRound: tElim('keepRound'),
-        undoing: tElim('undoing'),
-        yesUndoRound: tElim('yesUndoRound'),
-        cancellingLastRound: tElim('cancellingLastRound'),
-        yesCancelLastRound: tElim('yesCancelLastRound'),
-      }}
-      actionsDisabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-      undoingRound={undoingRound}
-      cancellingLastRound={cancellingLastRound}
-      showUndoConfirm={showUndoConfirm}
-      onShowUndoConfirmChange={setShowUndoConfirm}
-      showCancelConfirm={showCancelLastRoundConfirm}
-      onShowCancelConfirmChange={setShowCancelLastRoundConfirm}
-      onUndoRound={handleUndoRound}
-      onCancelLastRound={handleCancelLastRound}
-    />
-  ) : null;
+  const roundCorrectionControls =
+    completedRoundsCount > 0 ? (
+      <RoundCorrectionControls
+        translate={tElim}
+        actionsDisabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+        undoingRound={undoingRound}
+        cancellingLastRound={cancellingLastRound}
+        showUndoConfirm={showUndoConfirm}
+        onShowUndoConfirmChange={setShowUndoConfirm}
+        showCancelConfirm={showCancelLastRoundConfirm}
+        onShowCancelConfirmChange={setShowCancelLastRoundConfirm}
+        onUndoRound={handleUndoRound}
+        onCancelLastRound={handleCancelLastRound}
+      />
+    ) : null;
 
   // === Main Render ===
   return (
@@ -811,9 +740,7 @@ export default function TAEliminationPhase({
           </p>
         </div>
         <Button variant="outline" asChild>
-          <a href={`/tournaments/${tournamentId}/ta`}>
-            {tElim('backToQualification')}
-          </a>
+          <a href={`/tournaments/${tournamentId}/ta`}>{tElim('backToQualification')}</a>
         </Button>
       </div>
 
@@ -822,9 +749,7 @@ export default function TAEliminationPhase({
         <Card className="border-green-500 bg-green-500/10">
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">&#10003;</div>
-            <h2 className="text-2xl font-bold">
-              {tElim('survivors', { count: activeEntries.length })}
-            </h2>
+            <h2 className="text-2xl font-bold">{tElim('survivors', { count: activeEntries.length })}</h2>
             <div className="mt-2 space-y-1">
               {activeEntries.map((e) => (
                 <p key={e.id} className="font-medium">
@@ -860,16 +785,19 @@ export default function TAEliminationPhase({
         onSubmit={handleSubmitSuddenDeath}
       />
 
-      {isAdmin && !isComplete && !pendingSuddenDeath && (
-        currentRound ? (
+      {isAdmin &&
+        !isComplete &&
+        !pendingSuddenDeath &&
+        (currentRound ? (
           <Card>
             <CardHeader>
               <CardTitle>
-                {tElim('roundTitle', { number: currentRound.roundNumber, course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course })}
+                {tElim('roundTitle', {
+                  number: currentRound.roundNumber,
+                  course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course,
+                })}
               </CardTitle>
-              <CardDescription>
-                {tElim('enterTimesDesc')}
-              </CardDescription>
+              <CardDescription>{tElim('enterTimesDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               {saveError && (
@@ -878,9 +806,7 @@ export default function TAEliminationPhase({
                 </div>
               )}
               <div className="space-y-3">
-                <p className={TA_TIME_INPUT_HELP_CLASS}>
-                  {tElim('timeInputHelp')}
-                </p>
+                <p className={TA_TIME_INPUT_HELP_CLASS}>{tElim('timeInputHelp')}</p>
                 {activeEntries.map((entry) => (
                   <TaTimeEntryRow
                     key={entry.id}
@@ -888,7 +814,7 @@ export default function TAEliminationPhase({
                     playerName={entry.player.nickname}
                     tvNumber={tvAssignments[entry.playerId] ?? null}
                     tvLabel={`${tCommon('tvNumber')} ${entry.player.nickname}`}
-                    timeValue={courseTimes[entry.playerId] || ""}
+                    timeValue={courseTimes[entry.playerId] || ''}
                     timePlaceholder={tElim('timePlaceholder')}
                     isRetry={retryFlags[entry.playerId]}
                     isEditingDisabled={submitting}
@@ -958,9 +884,7 @@ export default function TAEliminationPhase({
                   {tElim('cancelRound')}
                 </Button>
                 <Button onClick={handleSubmitResults} disabled={submitting}>
-                  {submitting
-                    ? tElim('submitting')
-                    : tElim('submitAndEliminate')}
+                  {submitting ? tElim('submitting') : tElim('submitAndEliminate')}
                 </Button>
               </div>
 
@@ -974,18 +898,10 @@ export default function TAEliminationPhase({
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowCancelConfirm(false)}
-                      disabled={cancellingRound}
-                    >
+                    <Button variant="outline" onClick={() => setShowCancelConfirm(false)} disabled={cancellingRound}>
                       {tElim('keepRound')}
                     </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleCancelRound}
-                      disabled={cancellingRound}
-                    >
+                    <Button variant="destructive" onClick={handleCancelRound} disabled={cancellingRound}>
                       {cancellingRound ? tElim('cancelling') : tElim('yesCancelRound')}
                     </Button>
                   </DialogFooter>
@@ -997,9 +913,7 @@ export default function TAEliminationPhase({
           <Card>
             <CardHeader>
               <CardTitle>{tElim('roundControl')}</CardTitle>
-              <CardDescription>
-                {tElim('startRoundDesc')}
-              </CardDescription>
+              <CardDescription>{tElim('startRoundDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -1036,7 +950,11 @@ export default function TAEliminationPhase({
                     Leaving this on "ランダム" (default) preserves the existing random behaviour. */}
                 <div className="space-y-1">
                   <Label className="text-sm text-muted-foreground">{tElim('courseOverrideLabel')}</Label>
-                  <Select value={selectedCourse} onValueChange={setSelectedCourse} disabled={startingRound || hasOpenRound}>
+                  <Select
+                    value={selectedCourse}
+                    onValueChange={setSelectedCourse}
+                    disabled={startingRound || hasOpenRound}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder={tElim('randomCourse')} />
                     </SelectTrigger>
@@ -1074,8 +992,7 @@ export default function TAEliminationPhase({
               </div>
             </CardContent>
           </Card>
-        )
-      )}
+        ))}
 
       {/* Final-round corrections (admin-only): once a phase is complete the
           round-management card above is hidden, but a mistake in the phase's
@@ -1088,9 +1005,7 @@ export default function TAEliminationPhase({
             <CardTitle>{tElim('correctFinalRoundTitle')}</CardTitle>
             <CardDescription>{tElim('correctFinalRoundDesc')}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {roundCorrectionControls}
-          </CardContent>
+          <CardContent className="space-y-2">{roundCorrectionControls}</CardContent>
         </Card>
       )}
 
@@ -1114,10 +1029,7 @@ export default function TAEliminationPhase({
             </TableHeader>
             <TableBody>
               {entries.map((entry, index) => (
-                <TableRow
-                  key={entry.id}
-                  className={entry.eliminated ? "opacity-50" : ""}
-                >
+                <TableRow key={entry.id} className={entry.eliminated ? 'opacity-50' : ''}>
                   <TableCell className="font-bold">{index + 1}</TableCell>
                   <TableCell className="font-medium">
                     <span className="inline-flex items-center gap-1.5 min-w-0">
@@ -1151,15 +1063,9 @@ export default function TAEliminationPhase({
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>{tElim('roundHistory')}</CardTitle>
-              <CardDescription>
-                {tElim('roundsCompleted', { count: completedRoundsCount })}
-              </CardDescription>
+              <CardDescription>{tElim('roundsCompleted', { count: completedRoundsCount })}</CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setHistoryExpanded((prev) => !prev)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setHistoryExpanded((prev) => !prev)}>
               {historyExpanded ? tCommon('hide') : tCommon('show')}
             </Button>
           </div>
@@ -1167,29 +1073,23 @@ export default function TAEliminationPhase({
         {historyExpanded && (
           <CardContent>
             {rounds.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                {tElim('noRoundsYet')}
-              </p>
+              <p className="text-muted-foreground text-center py-4">{tElim('noRoundsYet')}</p>
             ) : (
               <div className="space-y-4">
                 {[...rounds]
-                  .filter((r) => (r.results).length > 0)
+                  .filter((r) => r.results.length > 0)
                   .reverse()
                   .map((round) => {
-                    const courseInfo = COURSE_INFO.find(
-                      (c) => c.abbr === round.course
-                    );
-                    const sortedResults = [...round.results].sort(
-                      (a, b) => a.timeMs - b.timeMs
-                    );
+                    const courseInfo = COURSE_INFO.find((c) => c.abbr === round.course);
+                    const sortedResults = [...round.results].sort((a, b) => a.timeMs - b.timeMs);
                     return (
-                      <div
-                        key={round.id}
-                        className="border rounded-lg p-4 space-y-2"
-                      >
+                      <div key={round.id} className="border rounded-lg p-4 space-y-2">
                         <div className="flex justify-between items-center">
                           <h4 className="font-semibold">
-                            {tElim('roundTitle', { number: round.roundNumber, course: courseInfo?.name || round.course })}
+                            {tElim('roundTitle', {
+                              number: round.roundNumber,
+                              course: courseInfo?.name || round.course,
+                            })}
                           </h4>
                           <div className="flex items-center gap-1">
                             {round.tvNumber && (
@@ -1210,12 +1110,11 @@ export default function TAEliminationPhase({
                         </div>
                         <div className="space-y-1">
                           {sortedResults.map((result, idx) => {
-                            const isEliminated =
-                              round.eliminatedIds?.includes(result.playerId);
+                            const isEliminated = round.eliminatedIds?.includes(result.playerId);
                             return (
                               <div
                                 key={result.playerId}
-                                className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : ""}`}
+                                className={`flex justify-between text-sm ${isEliminated ? 'text-red-500 font-semibold' : ''}`}
                               >
                                 <span>
                                   {idx + 1}. {playerNames[result.playerId] || result.playerId}
@@ -1226,9 +1125,7 @@ export default function TAEliminationPhase({
                                   )}
                                   {isEliminated && ` (${tElim('eliminated')})`}
                                 </span>
-                                <span className="font-mono">
-                                  {msToDisplayTime(result.timeMs)}
-                                </span>
+                                <span className="font-mono">{msToDisplayTime(result.timeMs)}</span>
                               </div>
                             );
                           })}
@@ -1238,8 +1135,12 @@ export default function TAEliminationPhase({
                             {(round.suddenDeathRounds || []).map((sd) => (
                               <div key={sd.id} className="text-sm">
                                 <div className="flex justify-between">
-                                  <span className="font-medium">{tTaSuddenDeath("suddenDeathRoundLabel", { sequence: sd.sequence })}</span>
-                                  <Badge variant="outline" className="font-mono text-xs">{sd.course}</Badge>
+                                  <span className="font-medium">
+                                    {tTaSuddenDeath('suddenDeathRoundLabel', { sequence: sd.sequence })}
+                                  </span>
+                                  <Badge variant="outline" className="font-mono text-xs">
+                                    {sd.course}
+                                  </Badge>
                                 </div>
                                 {sortResultsByTime(sd.results || []).map((result) => (
                                   <div key={result.playerId} className="flex justify-between text-muted-foreground">
