@@ -3,7 +3,13 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import formatChangedUtils from './format-changed-utils.cjs';
 
-const { buildGitErrorMessage, collectChangedAppFiles, resolveBaseRevision, resolveComparisonBase } = formatChangedUtils;
+const {
+  buildGitErrorMessage,
+  collectChangedAppFiles,
+  describeRequestedBase,
+  resolveBaseRevision,
+  resolveComparisonBase,
+} = formatChangedUtils;
 
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const repositoryRoot = path.resolve(appRoot, '..');
@@ -27,9 +33,7 @@ function main() {
       () => git(['rev-parse', 'HEAD^']),
     );
   } catch (error) {
-    const requestedBase = /^0+$/.test(process.env.FORMAT_BASE_SHA ?? '')
-      ? 'HEAD^'
-      : (process.env.FORMAT_BASE_SHA ?? 'origin/main (fallback: HEAD^)');
+    const requestedBase = describeRequestedBase(process.env.FORMAT_BASE_SHA);
     throw new Error(buildGitErrorMessage(`Unable to resolve formatting base revision: ${requestedBase}`, error), {
       cause: error,
     });

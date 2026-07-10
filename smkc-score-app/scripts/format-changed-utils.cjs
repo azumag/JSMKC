@@ -14,6 +14,11 @@ function resolveBaseRevision(environmentBase, resolveMergeBase, resolveParent) {
   }
 }
 
+function describeRequestedBase(environmentBase) {
+  if (environmentBase && /^0+$/.test(environmentBase)) return 'HEAD^';
+  return environmentBase || 'origin/main (fallback: HEAD^)';
+}
+
 function resolveComparisonBase(baseRevision, headRevision, resolveMergeBase) {
   if (!headRevision) return baseRevision;
 
@@ -50,6 +55,7 @@ function buildGitErrorMessage(context, error) {
 module.exports = {
   buildGitErrorMessage,
   collectChangedAppFiles,
+  describeRequestedBase,
   findGitStderr,
   resolveBaseRevision,
   resolveComparisonBase,
