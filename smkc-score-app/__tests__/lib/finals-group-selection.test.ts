@@ -308,7 +308,18 @@ describe('selectFinalsEntrantsByGroup', () => {
       }
     };
 
-    it('keeps all 2/3/4-group direct and barrage round-one pairs cross-group across random valid inputs', () => {
+    const assertFixedTwoGroupLayout = (result: ReturnType<typeof selectFinalsEntrantsByGroup>) => {
+      expect(result.directSeeds.map(({ seed, qualification }) => `${seed}:${qualification.playerId}`)).toEqual([
+        '1:A1', '2:B3', '3:B1', '4:A3', '5:B2', '6:A4',
+        '7:A2', '8:B4', '9:A5', '11:B5', '13:B6', '15:A6',
+      ]);
+      expect(result.barrage.map(({ playerId }) => playerId)).toEqual([
+        'B8', 'B7', 'A8', 'A7', 'B9', 'A11',
+        'B10', 'A12', 'A10', 'B12', 'A9', 'B11',
+      ]);
+    };
+
+    it('keeps the fixed 2-group layout and all 2/3/4-group round-one pairs valid across random inputs', () => {
       const groupKeys = ['A', 'B', 'C', 'D'];
       const next = random(0x2799);
       const totalFinalsSlots = 12;
@@ -319,15 +330,21 @@ describe('selectFinalsEntrantsByGroup', () => {
           const groupSizes = Object.fromEntries(
             groupKeys.slice(0, groupCount).map((group) => [group, minimumSize + Math.floor(next() * 9)]),
           );
-          const qualifications = buildQuals(groupSizes, () => ({
-            score: Math.floor(next() * 31),
-            points: Math.floor(next() * 101) - 50,
-          }));
+          // The two-group path uses fixed A/B rank tokens, so only uneven group
+          // sizes vary there. Random score/point tiebreaks are meaningful only
+          // for the combined-ranking buckets used by the 3/4-group paths.
+          const statsFor = groupCount === 2
+            ? undefined
+            : () => ({
+                score: Math.floor(next() * 31),
+                points: Math.floor(next() * 101) - 50,
+              });
+          const qualifications = buildQuals(groupSizes, statsFor);
 
-          expect(() => selectFinalsEntrantsByGroup(qualifications)).not.toThrow();
           const result = selectFinalsEntrantsByGroup(qualifications);
           expect(result.directSeeds).toHaveLength(12);
           expect(result.barrage).toHaveLength(12);
+          if (groupCount === 2) assertFixedTwoGroupLayout(result);
           assertNoKnownRoundOneCollision(result);
         }
       }
