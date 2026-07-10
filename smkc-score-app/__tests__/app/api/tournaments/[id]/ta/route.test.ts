@@ -422,6 +422,61 @@ describe('/api/tournaments/[id]/ta', () => {
   // POST
   // =========================================================================
   describe('POST', () => {
+    it('recalculates persisted qualification scoring fields for an admin', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
+      });
+      (prisma.tTEntry.count as jest.Mock).mockResolvedValue(24);
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'recalculate_qualification' }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(rankCalculationMock.recalculateRanks).toHaveBeenCalledWith(
+        VALID_UUID,
+        'qualification',
+        prisma,
+      );
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'UPDATE_TA_ENTRY',
+          targetId: VALID_UUID,
+          details: expect.objectContaining({
+            action: 'recalculate_qualification',
+            recalculatedEntryCount: 24,
+          }),
+        }),
+      );
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: { stage: 'qualification', recalculatedEntryCount: 24 },
+      });
+    });
+
+    it('rejects qualification recalculation from a non-admin session', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
+      });
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'recalculate_qualification' }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(rankCalculationMock.recalculateRanks).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'FORBIDDEN' }),
+        { status: 403 },
+      );
+    });
+
     it('should add a player to qualification', async () => {
       // Admin session required — requireAdminOrPlayer() runs before creating the entry
       jest.mocked(auth).mockResolvedValue({
