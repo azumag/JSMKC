@@ -238,6 +238,7 @@
     "passwordNote": "このパスワードをプレイヤーに伝えてください。ニックネームと合わせてログインに使用します。",
     "savedIt": "保存しました",
     "failedToCreate": "プレイヤーの作成に失敗しました",
+    "duplicateNickname": "このニックネームのプレイヤーは既に存在します",
     "failedToUpdate": "プレイヤーの更新に失敗しました",
     "failedToDelete": "プレイヤーの削除に失敗しました",
     "cannotDeleteTournamentPlayer": "削除不可：このプレイヤーはトーナメントに登録されています",

@@ -24,6 +24,7 @@ import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
 import { createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
 import { resolveCountryCode } from "@/lib/countries";
+import { PLAYER_ERROR_CODES } from "@/lib/player-error-codes";
 
 /**
  * GET /api/players
@@ -301,7 +302,11 @@ export async function POST(request: NextRequest) {
       "code" in error &&
       error.code === "P2002"
     ) {
-      return createErrorResponse("A player with this nickname already exists", 409);
+      return createErrorResponse(
+        "A player with this nickname already exists",
+        409,
+        PLAYER_ERROR_CODES.DUPLICATE_NICKNAME,
+      );
     }
     return createErrorResponse("Failed to create player", 500);
   }

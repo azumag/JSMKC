@@ -238,6 +238,7 @@
     "passwordNote": "Please provide this password to the player. They can use it to log in with their nickname.",
     "savedIt": "I've Saved It",
     "failedToCreate": "Failed to create player",
+    "duplicateNickname": "A player with this nickname already exists",
     "failedToUpdate": "Failed to update player",
     "failedToDelete": "Failed to delete player",
     "cannotDeleteTournamentPlayer": "Cannot delete: this player is registered in a tournament",

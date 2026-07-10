@@ -60,6 +60,7 @@ import { TableSkeleton } from "@/components/ui/loading-skeleton";
 import { extractArrayData, extractPaginationMeta, type PaginationMeta } from "@/lib/api-response";
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { createPlayerWithRetry } from "@/lib/create-player-retry";
+import { PLAYER_ERROR_CODES } from "@/lib/player-error-codes";
 import { createLogger } from "@/lib/client-logger";
 
 /**
@@ -257,14 +258,11 @@ export default function PlayersPage() {
         // No fetchPlayers() here — the optimistic update is sufficient.
         // Background sync would overwrite it with stale/failed data.
       } else {
-        // Genuine failure (including a first-attempt duplicate-nickname
-        // 409): surface the API's error string as-is, matching the
-        // existing convention for handleUpdate/handleDelete/handleResetPassword
-        // below, which also display `data.error` verbatim rather than
-        // mapping it through i18n. The API's fixed English error text
-        // ("A player with this nickname already exists") is intelligible
-        // regardless of locale, so no new i18n key was added for this case.
-        setError(result.error || t('failedToCreate'));
+        setError(
+          result.code === PLAYER_ERROR_CODES.DUPLICATE_NICKNAME
+            ? t('duplicateNickname')
+            : result.error || t('failedToCreate'),
+        );
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
@@ -317,7 +315,11 @@ export default function PlayersPage() {
         const text = await response!.text();
         try {
           const data = JSON.parse(text);
-          setError(data.error || t('failedToUpdate'));
+          setError(
+            data.code === PLAYER_ERROR_CODES.DUPLICATE_NICKNAME
+              ? t('duplicateNickname')
+              : data.error || t('failedToUpdate'),
+          );
         } catch {
           setError(t('failedToUpdate'));
         }

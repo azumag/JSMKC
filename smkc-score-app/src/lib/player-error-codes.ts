@@ -1,0 +1,4 @@
+export const PLAYER_ERROR_CODES = {
+  DUPLICATE_NICKNAME: "DUPLICATE_NICKNAME",
+} as const;
+
