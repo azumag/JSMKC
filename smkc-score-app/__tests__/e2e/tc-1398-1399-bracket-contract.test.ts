@@ -14,10 +14,7 @@ describe('TC-1398-1399 bracket contract E2E guard', () => {
     expect(sectionStart).toBeGreaterThanOrEqual(0);
 
     const sectionEnd = cases.indexOf('\n## TC-', sectionStart + 1);
-    const section = cases.slice(
-      sectionStart,
-      sectionEnd === -1 ? cases.length : sectionEnd,
-    );
+    const section = cases.slice(sectionStart, sectionEnd === -1 ? cases.length : sectionEnd);
 
     expect(section).toContain('issues #1398, #1399');
     expect(section).toContain('BracketMatch');
@@ -26,34 +23,17 @@ describe('TC-1398-1399 bracket contract E2E guard', () => {
   });
 
   it('keeps the bracket component on the shared BracketMatch type', () => {
-    const source = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'components',
-      'tournament',
-      'double-elimination-bracket.tsx',
-    );
+    const source = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'double-elimination-bracket.tsx');
 
-    expect(source).toMatch(/import type \{[^}]*\bBracketMatch\b[^}]*\} from "@\/types\/bracket";/);
-    expect(source).toMatch(/import type \{[^}]*\bSeededPlayer\b[^}]*\} from "@\/types\/bracket";/);
+    expect(source).toMatch(/import type \{[^}]*\bBracketMatch\b[^}]*\} from ['"]@\/types\/bracket['"];/);
+    expect(source).toMatch(/import type \{[^}]*\bSeededPlayer\b[^}]*\} from ['"]@\/types\/bracket['"];/);
     expect(source).toContain('bracketStructure: BracketMatch[];');
     expect(source).not.toMatch(/interface\s+BracketMatch\s*{/);
   });
 
   it('keeps loserPosition fallback nullish in routing code paths', () => {
-    const doubleElimination = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'lib',
-      'double-elimination.ts',
-    );
-    const finalsRoute = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'lib',
-      'api-factories',
-      'finals-route.ts',
-    );
+    const doubleElimination = readRepoFile('smkc-score-app', 'src', 'lib', 'double-elimination.ts');
+    const finalsRoute = readRepoFile('smkc-score-app', 'src', 'lib', 'api-factories', 'finals-route.ts');
 
     expect(doubleElimination).toContain('position: match.loserPosition ?? 1');
     expect(doubleElimination).not.toContain('position: match.loserPosition || 1');

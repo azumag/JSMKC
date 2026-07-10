@@ -25,7 +25,7 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
     expect(section).toContain('tc-1007-group-setup-dialog-prop-contract.test.ts');
   });
 
-  it('TC-3010: keeps GroupSetupDialog\'s group count as its own internal state, not a prop, while making it selectable (2/3)', () => {
+  it("TC-3010: keeps GroupSetupDialog's group count as its own internal state, not a prop, while making it selectable (2/3)", () => {
     // Issue #1007/#1678 removed a `groupCount`/`setGroupCount` prop pair the
     // dialog never needed the parent for; that part of the contract still
     // holds. TC-1680/1682's "disabled read-only display" was explicitly
@@ -33,13 +33,7 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
     // note that a guard update would be needed if selectable UI came back) --
     // TC-3010 is that return, so this test now asserts the selector IS
     // clickable and toggles between 2 and 3, not the old disabled/secondary contract.
-    const source = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'components',
-      'tournament',
-      'group-setup-dialog.tsx',
-    );
+    const source = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'group-setup-dialog.tsx');
     const props = sectionBetween(source, 'interface GroupSetupDialogProps {', 'export function GroupSetupDialog');
     const signature = sectionBetween(source, 'export function GroupSetupDialog({', '}: GroupSetupDialogProps)');
 
@@ -49,15 +43,11 @@ describe('TC-1007 GroupSetupDialog prop contract', () => {
     expect(signature).not.toMatch(/\bgroupCount\b/);
     expect(signature).not.toMatch(/\bsetGroupCount\b/);
 
-    const groupCountButton = sectionBetween(
-      source,
-      '{GROUP_COUNT_OPTIONS.map((n) => (',
-      '</Button>',
-    );
+    const groupCountButton = sectionBetween(source, '{GROUP_COUNT_OPTIONS.map((n) => (', '</Button>');
     expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}');
     expect(groupCountButton).not.toContain('disabled');
     // default/outline (selected/unselected) signals an actionable toggle, not a read-only display
-    expect(groupCountButton).toContain('variant={n === groupCount ? "default" : "outline"}');
+    expect(groupCountButton).toMatch(/variant={n === groupCount \? ['"]default['"] : ['"]outline['"]}/);
   });
 
   it.each(modeClients)('does not pass the removed groupCount prop from %s', (_mode, path) => {
