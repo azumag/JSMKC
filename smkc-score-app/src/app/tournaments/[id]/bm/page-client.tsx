@@ -314,7 +314,7 @@ export default function BattleModePageClient({
     } catch (err) {
       logger.error('Failed to setup:', { error: err, tournamentId });
       setIsSetupDialogOpen(false);
-      alert(tc('networkError') ?? 'Network error — please try again');
+      alert(tc('networkError'));
     } finally {
       setSetupSaving(false);
     }
