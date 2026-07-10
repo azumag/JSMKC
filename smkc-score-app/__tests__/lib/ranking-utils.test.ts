@@ -12,11 +12,12 @@ import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
   compareByScoreThenPoints,
+  compareByScoreThenPointsAndCombinedOverride,
   computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
   findUnresolvedTies,
-} from "../../src/lib/ranking-utils";
+} from '../../src/lib/ranking-utils';
 
 // Minimal entry type matching what the pages use
 interface Entry {
@@ -30,108 +31,108 @@ interface Entry {
 // computeCombinedRanks additionally requires a group label to bucket by.
 interface GroupedEntry extends Entry {
   group: string;
+  combinedRankOverride?: number | null;
 }
 
 /** Standard BM/MR comparator: score desc, points desc */
 const bmCompareFn: (a: Entry, b: Entry) => number = compareByScoreThenPoints;
 
 /** GP comparator: score desc, points (driver points) desc */
-const gpCompareFn = (a: Entry, b: Entry) =>
-  b.score - a.score || b.points - a.points;
+const gpCompareFn = (a: Entry, b: Entry) => b.score - a.score || b.points - a.points;
 
 // ── computeTieAwareRanks ──────────────────────────────────────────────────────
 
-describe("computeTieAwareRanks", () => {
-  it("assigns sequential ranks when all entries are unique", () => {
+describe('computeTieAwareRanks', () => {
+  it('assigns sequential ranks when all entries are unique', () => {
     const entries: Entry[] = [
-      { id: "a", score: 10, points: 3, rankOverride: null },
-      { id: "b", score: 8, points: 2, rankOverride: null },
-      { id: "c", score: 6, points: 1, rankOverride: null },
+      { id: 'a', score: 10, points: 3, rankOverride: null },
+      { id: 'b', score: 8, points: 2, rankOverride: null },
+      { id: 'c', score: 6, points: 1, rankOverride: null },
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
     expect(result.map((e) => e._autoRank)).toEqual([1, 2, 3]);
   });
 
-  it("assigns the same _autoRank to tied entries (1224 competition ranking)", () => {
+  it('assigns the same _autoRank to tied entries (1224 competition ranking)', () => {
     // a and b are tied at score=10, points=2
     const entries: Entry[] = [
-      { id: "a", score: 10, points: 2, rankOverride: null },
-      { id: "b", score: 10, points: 2, rankOverride: null },
-      { id: "c", score: 6, points: 1, rankOverride: null },
+      { id: 'a', score: 10, points: 2, rankOverride: null },
+      { id: 'b', score: 10, points: 2, rankOverride: null },
+      { id: 'c', score: 6, points: 1, rankOverride: null },
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
     const rankMap = Object.fromEntries(result.map((e) => [e.id, e._autoRank]));
-    expect(rankMap["a"]).toBe(1);
-    expect(rankMap["b"]).toBe(1);
+    expect(rankMap['a']).toBe(1);
+    expect(rankMap['b']).toBe(1);
     // c skips rank 2 and becomes rank 3 (1224 ranking)
-    expect(rankMap["c"]).toBe(3);
+    expect(rankMap['c']).toBe(3);
   });
 
-  it("handles three-way tie correctly", () => {
+  it('handles three-way tie correctly', () => {
     const entries: Entry[] = [
-      { id: "a", score: 5, points: 0, rankOverride: null },
-      { id: "b", score: 5, points: 0, rankOverride: null },
-      { id: "c", score: 5, points: 0, rankOverride: null },
-      { id: "d", score: 2, points: 0, rankOverride: null },
+      { id: 'a', score: 5, points: 0, rankOverride: null },
+      { id: 'b', score: 5, points: 0, rankOverride: null },
+      { id: 'c', score: 5, points: 0, rankOverride: null },
+      { id: 'd', score: 2, points: 0, rankOverride: null },
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
     const rankMap = Object.fromEntries(result.map((e) => [e.id, e._autoRank]));
-    expect(rankMap["a"]).toBe(1);
-    expect(rankMap["b"]).toBe(1);
-    expect(rankMap["c"]).toBe(1);
-    expect(rankMap["d"]).toBe(4);
+    expect(rankMap['a']).toBe(1);
+    expect(rankMap['b']).toBe(1);
+    expect(rankMap['c']).toBe(1);
+    expect(rankMap['d']).toBe(4);
   });
 
-  it("sorts output by effective rank (rankOverride ?? _autoRank)", () => {
+  it('sorts output by effective rank (rankOverride ?? _autoRank)', () => {
     // c has rankOverride=1 so should appear first
     const entries: Entry[] = [
-      { id: "a", score: 10, points: 3, rankOverride: null },
-      { id: "b", score: 8, points: 2, rankOverride: null },
-      { id: "c", score: 6, points: 1, rankOverride: 1 },
+      { id: 'a', score: 10, points: 3, rankOverride: null },
+      { id: 'b', score: 8, points: 2, rankOverride: null },
+      { id: 'c', score: 6, points: 1, rankOverride: 1 },
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
-    expect(result[0].id).toBe("c"); // override=1 moves c to top
-    expect(result[1].id).toBe("a");
-    expect(result[2].id).toBe("b");
+    expect(result[0].id).toBe('c'); // override=1 moves c to top
+    expect(result[1].id).toBe('a');
+    expect(result[2].id).toBe('b');
   });
 
-  it("uses GP comparator (score primary, points secondary)", () => {
+  it('uses GP comparator (score primary, points secondary)', () => {
     const entries: Entry[] = [
-      { id: "a", score: 10, points: 6, rankOverride: null },
-      { id: "b", score: 8, points: 99, rankOverride: null },
-      { id: "c", score: 5, points: 3, rankOverride: null },
+      { id: 'a', score: 10, points: 6, rankOverride: null },
+      { id: 'b', score: 8, points: 99, rankOverride: null },
+      { id: 'c', score: 5, points: 3, rankOverride: null },
     ];
     const result = computeTieAwareRanks(entries, gpCompareFn);
-    expect(result[0].id).toBe("a"); // highest match score
-    expect(result[1].id).toBe("b");
-    expect(result[2].id).toBe("c");
+    expect(result[0].id).toBe('a'); // highest match score
+    expect(result[1].id).toBe('b');
+    expect(result[2].id).toBe('c');
   });
 
-  it("places overridden entry before auto-ranked entry when effective ranks collide", () => {
+  it('places overridden entry before auto-ranked entry when effective ranks collide', () => {
     // a has override=2; b has _autoRank=2 via sort; both effective rank = 2
     // Admin-overridden entries should sort first among equal effective ranks
     const entries: Entry[] = [
-      { id: "a", score: 10, points: 3, rankOverride: 2 },
-      { id: "b", score: 8, points: 2, rankOverride: null },
-      { id: "c", score: 6, points: 1, rankOverride: null },
+      { id: 'a', score: 10, points: 3, rankOverride: 2 },
+      { id: 'b', score: 8, points: 2, rankOverride: null },
+      { id: 'c', score: 6, points: 1, rankOverride: null },
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
-    const aIdx = result.findIndex((e) => e.id === "a");
-    const bIdx = result.findIndex((e) => e.id === "b");
+    const aIdx = result.findIndex((e) => e.id === 'a');
+    const bIdx = result.findIndex((e) => e.id === 'b');
     expect(aIdx).toBeLessThan(bIdx);
   });
 
-  it("returns empty array for empty input", () => {
+  it('returns empty array for empty input', () => {
     expect(computeTieAwareRanks([], bmCompareFn)).toEqual([]);
   });
 
-  it("trusts server-provided _rank instead of recomputing via compareFn", () => {
+  it('trusts server-provided _rank instead of recomputing via compareFn', () => {
     // Even though scores differ, the server says _rank=1 for both (H2H tiebreaker
     // or admin override pre-applied).  Client should respect _rank.
     const entries: Entry[] = [
-      { id: "a", score: 10, points: 3, rankOverride: null, _rank: 1 },
-      { id: "b", score: 8, points: 2, rankOverride: null, _rank: 1 },
-      { id: "c", score: 6, points: 1, rankOverride: null, _rank: 3 },
+      { id: 'a', score: 10, points: 3, rankOverride: null, _rank: 1 },
+      { id: 'b', score: 8, points: 2, rankOverride: null, _rank: 1 },
+      { id: 'c', score: 6, points: 1, rankOverride: null, _rank: 3 },
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
     expect(result.map((e) => e._autoRank)).toEqual([1, 1, 3]);
@@ -140,23 +141,23 @@ describe("computeTieAwareRanks", () => {
 
 // ── computeCombinedRanks ─────────────────────────────────────────────────────
 
-describe("computeCombinedRanks", () => {
+describe('computeCombinedRanks', () => {
   // docs/qualification-combined-ranking.md §2: entries are stacked bucket by
   // bucket (bucket N = every group's Nth-place finisher); a bucket always
   // outranks the next one in full, and only ties *within* a bucket are broken
   // by the comparator (WDL score -> points). No seed ranking is ever consulted.
 
-  it("shares the standard score-then-points comparator across qualification modes", () => {
+  it('shares the standard score-then-points comparator across qualification modes', () => {
     const entries: Entry[] = [
-      { id: "low-score", score: 6, points: 99, rankOverride: null },
-      { id: "high-score", score: 8, points: 0, rankOverride: null },
-      { id: "score-tie-high-points", score: 8, points: 3, rankOverride: null },
+      { id: 'low-score', score: 6, points: 99, rankOverride: null },
+      { id: 'high-score', score: 8, points: 0, rankOverride: null },
+      { id: 'score-tie-high-points', score: 8, points: 3, rankOverride: null },
     ];
 
     expect([...entries].sort(compareByScoreThenPoints).map((entry) => entry.id)).toEqual([
-      "score-tie-high-points",
-      "high-score",
-      "low-score",
+      'score-tie-high-points',
+      'high-score',
+      'low-score',
     ]);
   });
 
@@ -167,15 +168,15 @@ describe("computeCombinedRanks", () => {
     // with the raw score used for the cross-bucket tiebreak (mirrors a
     // server-resolved H2H rank that overrides the naive score ordering).
     const entries: GroupedEntry[] = [
-      { id: "a1", group: "A", score: 1, points: 0, rankOverride: null, _rank: 1 },
-      { id: "b1", group: "B", score: 1, points: 0, rankOverride: null, _rank: 1 },
-      { id: "a2", group: "A", score: 99, points: 99, rankOverride: null, _rank: 2 },
+      { id: 'a1', group: 'A', score: 1, points: 0, rankOverride: null, _rank: 1 },
+      { id: 'b1', group: 'B', score: 1, points: 0, rankOverride: null, _rank: 1 },
+      { id: 'a2', group: 'A', score: 99, points: 99, rankOverride: null, _rank: 2 },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
-    expect(result.map((e) => e.id)).toEqual(["a1", "b1", "a2"]);
+    expect(result.map((e) => e.id)).toEqual(['a1', 'b1', 'a2']);
   });
 
-  it("breaks a same-bucket tie by WDL score then points -- not by group letter", () => {
+  it('breaks a same-bucket tie by WDL score then points -- not by group letter', () => {
     // This is the fix for the bug found in the CDM Excel template: its 2-group
     // formula has no real tiebreak and always resolves ties as "group A wins",
     // which silently misranks a genuinely-better group-B player (see
@@ -183,205 +184,232 @@ describe("computeCombinedRanks", () => {
     // bucket-1 entry has the better record and must rank first despite group A
     // sorting first alphabetically.
     const entries: GroupedEntry[] = [
-      { id: "a1", group: "A", score: 10, points: 2, rankOverride: null },
-      { id: "b1", group: "B", score: 10, points: 5, rankOverride: null },
+      { id: 'a1', group: 'A', score: 10, points: 2, rankOverride: null },
+      { id: 'b1', group: 'B', score: 10, points: 5, rankOverride: null },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
-    expect(result.map((e) => e.id)).toEqual(["b1", "a1"]);
+    expect(result.map((e) => e.id)).toEqual(['b1', 'a1']);
   });
 
-  it("matches the 3-group worked example from qualification-combined-ranking.md §2.3", () => {
+  it('uses the recorded cross-group playoff order only after score and points are fully tied', () => {
+    const entries: GroupedEntry[] = [
+      { id: 'a1', group: 'A', score: 10, points: 5, rankOverride: null, combinedRankOverride: 2 },
+      { id: 'b1', group: 'B', score: 10, points: 5, rankOverride: null, combinedRankOverride: 1 },
+      { id: 'c1', group: 'C', score: 11, points: 0, rankOverride: null, combinedRankOverride: 99 },
+    ];
+
+    const result = computeCombinedRanks(entries, compareByScoreThenPoints, compareByScoreThenPointsAndCombinedOverride);
+    expect(result.map((entry) => entry.id)).toEqual(['c1', 'b1', 'a1']);
+    expect(result.map((entry) => entry._autoRank)).toEqual([1, 2, 3]);
+  });
+
+  it('keeps cross-group overrides out of group-internal bucket membership', () => {
+    const entries: GroupedEntry[] = [
+      { id: 'a1', group: 'A', score: 6, points: 3, rankOverride: null, combinedRankOverride: 2 },
+      { id: 'a2', group: 'A', score: 6, points: 3, rankOverride: null, combinedRankOverride: 1 },
+      { id: 'b1', group: 'B', score: 6, points: 3, rankOverride: null },
+      { id: 'b2', group: 'B', score: 4, points: 1, rankOverride: null },
+    ];
+
+    const result = computeCombinedRanks(entries, compareByScoreThenPoints, compareByScoreThenPointsAndCombinedOverride);
+
+    expect(result.map((entry) => entry.id)).toEqual(['a2', 'a1', 'b1', 'b2']);
+    expect(result.find((entry) => entry.id === 'a1')?._autoRank).toBe(2);
+    expect(result.find((entry) => entry.id === 'a2')?._autoRank).toBe(1);
+  });
+
+  it('matches the 3-group worked example from qualification-combined-ranking.md §2.3', () => {
     // Group-internal rank (_rank, e.g. from server H2H resolution) is pinned
     // independently of the score/points shown, exactly like the doc's table
     // -- group B's rank-1 finisher (B1) has a lower raw score than its own
     // rank-2 finisher (B2), which is possible when group rank came from a
     // tiebreak the raw score/points columns don't capture (H2H, admin override).
     const entries: GroupedEntry[] = [
-      { id: "A1", group: "A", score: 8, points: 20, rankOverride: null, _rank: 1 },
-      { id: "B1", group: "B", score: 6, points: 10, rankOverride: null, _rank: 1 },
-      { id: "C1", group: "C", score: 8, points: 15, rankOverride: null, _rank: 1 },
-      { id: "A2", group: "A", score: 7, points: 8, rankOverride: null, _rank: 2 },
-      { id: "B2", group: "B", score: 7, points: 12, rankOverride: null, _rank: 2 },
-      { id: "C2", group: "C", score: 5, points: 5, rankOverride: null, _rank: 2 },
+      { id: 'A1', group: 'A', score: 8, points: 20, rankOverride: null, _rank: 1 },
+      { id: 'B1', group: 'B', score: 6, points: 10, rankOverride: null, _rank: 1 },
+      { id: 'C1', group: 'C', score: 8, points: 15, rankOverride: null, _rank: 1 },
+      { id: 'A2', group: 'A', score: 7, points: 8, rankOverride: null, _rank: 2 },
+      { id: 'B2', group: 'B', score: 7, points: 12, rankOverride: null, _rank: 2 },
+      { id: 'C2', group: 'C', score: 5, points: 5, rankOverride: null, _rank: 2 },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
     expect(result.map((e) => [e.id, e._autoRank])).toEqual([
-      ["A1", 1],
-      ["C1", 2],
-      ["B1", 3],
-      ["B2", 4],
-      ["A2", 5],
-      ["C2", 6],
+      ['A1', 1],
+      ['C1', 2],
+      ['B1', 3],
+      ['B2', 4],
+      ['A2', 5],
+      ['C2', 6],
     ]);
   });
 
-  it("leaves a bucket with only some groups present when group sizes are uneven", () => {
+  it('leaves a bucket with only some groups present when group sizes are uneven', () => {
     // Group A has a 3rd-place finisher; group B does not. Bucket 3 (and any
     // further bucket) simply contains only group A's entry -- no error, no
     // auto-lowest-rank fabrication (§2.3/§2.4).
     const entries: GroupedEntry[] = [
-      { id: "a1", group: "A", score: 9, points: 0, rankOverride: null },
-      { id: "b1", group: "B", score: 8, points: 0, rankOverride: null },
-      { id: "a2", group: "A", score: 7, points: 0, rankOverride: null },
-      { id: "b2", group: "B", score: 6, points: 0, rankOverride: null },
-      { id: "a3", group: "A", score: 5, points: 0, rankOverride: null },
+      { id: 'a1', group: 'A', score: 9, points: 0, rankOverride: null },
+      { id: 'b1', group: 'B', score: 8, points: 0, rankOverride: null },
+      { id: 'a2', group: 'A', score: 7, points: 0, rankOverride: null },
+      { id: 'b2', group: 'B', score: 6, points: 0, rankOverride: null },
+      { id: 'a3', group: 'A', score: 5, points: 0, rankOverride: null },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
-    expect(result.map((e) => e.id)).toEqual(["a1", "b1", "a2", "b2", "a3"]);
+    expect(result.map((e) => e.id)).toEqual(['a1', 'b1', 'a2', 'b2', 'a3']);
     expect(result[4]._autoRank).toBe(5);
   });
 
-  it("resolves bucket membership from the group-scoped rankOverride, not raw score", () => {
+  it('resolves bucket membership from the group-scoped rankOverride, not raw score', () => {
     // Admin has overridden group A's ranking: b (lower raw score) is set to
     // rank 1, a (higher raw score) is demoted to rank 2 (e.g. a sudden-death
     // playoff result). Bucket assignment must follow that *final* group rank
     // (§1), not the raw score -- so despite having the best score of all
     // three entries, a is confined to bucket 2 and finishes last.
     const entries: GroupedEntry[] = [
-      { id: "a", group: "A", score: 10, points: 2, rankOverride: 2 },
-      { id: "b", group: "A", score: 3, points: 0, rankOverride: 1 },
-      { id: "c", group: "B", score: 9, points: 9, rankOverride: null },
+      { id: 'a', group: 'A', score: 10, points: 2, rankOverride: 2 },
+      { id: 'b', group: 'A', score: 3, points: 0, rankOverride: 1 },
+      { id: 'c', group: 'B', score: 9, points: 9, rankOverride: null },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
     // bucket 1 = {b, c}; c's score(9) beats b's(3). a is alone in bucket 2.
-    expect(result.map((e) => e.id)).toEqual(["c", "b", "a"]);
+    expect(result.map((e) => e.id)).toEqual(['c', 'b', 'a']);
   });
 
-  it("resolves bucket membership from server-computed _rank (H2H) when present", () => {
+  it('resolves bucket membership from server-computed _rank (H2H) when present', () => {
     const entries: GroupedEntry[] = [
-      { id: "a", group: "A", score: 10, points: 2, rankOverride: null, _rank: 2 },
-      { id: "b", group: "A", score: 10, points: 2, rankOverride: null, _rank: 1 },
-      { id: "c", group: "B", score: 20, points: 20, rankOverride: null, _rank: 1 },
+      { id: 'a', group: 'A', score: 10, points: 2, rankOverride: null, _rank: 2 },
+      { id: 'b', group: 'A', score: 10, points: 2, rankOverride: null, _rank: 1 },
+      { id: 'c', group: 'B', score: 20, points: 20, rankOverride: null, _rank: 1 },
     ];
     const result = computeCombinedRanks(entries, bmCompareFn);
     // b and c share bucket 1; c's score wins the tiebreak. a is bucket 2, always last.
-    expect(result.map((e) => e.id)).toEqual(["c", "b", "a"]);
+    expect(result.map((e) => e.id)).toEqual(['c', 'b', 'a']);
   });
 
-  it("uses the GP comparator for combined GP standings", () => {
+  it('uses the GP comparator for combined GP standings', () => {
     const entries: GroupedEntry[] = [
-      { id: "a", group: "A", score: 10, points: 6, rankOverride: null },
-      { id: "b", group: "B", score: 8, points: 9, rankOverride: null },
+      { id: 'a', group: 'A', score: 10, points: 6, rankOverride: null },
+      { id: 'b', group: 'B', score: 8, points: 9, rankOverride: null },
     ];
     const result = computeCombinedRanks(entries, gpCompareFn);
-    expect(result[0].id).toBe("a");
+    expect(result[0].id).toBe('a');
   });
 });
 
 // ── findUnresolvedTies ────────────────────────────────────────────────────────
 
-describe("findUnresolvedTies", () => {
-  it("returns empty set when there are no ties", () => {
+describe('findUnresolvedTies', () => {
+  it('returns empty set when there are no ties', () => {
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
-      { id: "b", score: 8, points: 1, rankOverride: null, _autoRank: 2 },
+      { id: 'a', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'b', score: 8, points: 1, rankOverride: null, _autoRank: 2 },
     ];
     expect(findUnresolvedTies(entries).size).toBe(0);
   });
 
-  it("returns IDs of both tied entries when unresolved", () => {
+  it('returns IDs of both tied entries when unresolved', () => {
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
-      { id: "c", score: 6, points: 1, rankOverride: null, _autoRank: 3 },
+      { id: 'a', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'c', score: 6, points: 1, rankOverride: null, _autoRank: 3 },
     ];
     const ties = findUnresolvedTies(entries);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("b")).toBe(true);
-    expect(ties.has("c")).toBe(false);
+    expect(ties.has('a')).toBe(true);
+    expect(ties.has('b')).toBe(true);
+    expect(ties.has('c')).toBe(false);
   });
 
-  it("does NOT include a tie group if ALL members have distinct overrides", () => {
+  it('does NOT include a tie group if ALL members have distinct overrides', () => {
     // Distinct effective ranks → no collision
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: 2, _autoRank: 1 },
+      { id: 'a', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: 2, _autoRank: 1 },
     ];
     expect(findUnresolvedTies(entries).size).toBe(0);
   });
 
-  it("still flags a group as unresolved when override values are duplicated", () => {
+  it('still flags a group as unresolved when override values are duplicated', () => {
     // Admin accidentally assigns the same rank to two tied players — still ambiguous
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'a', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
     ];
     const ties = findUnresolvedTies(entries);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("b")).toBe(true);
+    expect(ties.has('a')).toBe(true);
+    expect(ties.has('b')).toBe(true);
   });
 
   it("flags a 2-way tie when one member has an override that collides with the other's _autoRank", () => {
     // a gets override=1, so b (no override, _autoRank=1) collides at effective rank 1
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'a', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
     ];
     const ties = findUnresolvedTies(entries);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("b")).toBe(true);
+    expect(ties.has('a')).toBe(true);
+    expect(ties.has('b')).toBe(true);
   });
 
-  it("flags a 3-way tie when N-1 distinct overrides collide with the remaining _autoRank", () => {
+  it('flags a 3-way tie when N-1 distinct overrides collide with the remaining _autoRank', () => {
     // a=1, b=2, c has no override so effective rank = 1 → collides with a
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: 2, _autoRank: 1 },
-      { id: "c", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'a', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: 2, _autoRank: 1 },
+      { id: 'c', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
     ];
     const ties = findUnresolvedTies(entries);
     // a and c share effective rank 1; b is alone at rank 2
     expect(ties.size).toBe(2);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("c")).toBe(true);
-    expect(ties.has("b")).toBe(false);
+    expect(ties.has('a')).toBe(true);
+    expect(ties.has('c')).toBe(true);
+    expect(ties.has('b')).toBe(false);
   });
 
-  it("flags a 4-way tie when N-1 distinct overrides collide with the remaining _autoRank", () => {
+  it('flags a 4-way tie when N-1 distinct overrides collide with the remaining _autoRank', () => {
     // a=1, b=2, c=3, d has no override so effective rank = 1 → collides with a
     const entries = [
-      { id: "a", score: 5, points: 0, rankOverride: 1, _autoRank: 1 },
-      { id: "b", score: 5, points: 0, rankOverride: 2, _autoRank: 1 },
-      { id: "c", score: 5, points: 0, rankOverride: 3, _autoRank: 1 },
-      { id: "d", score: 5, points: 0, rankOverride: null, _autoRank: 1 },
+      { id: 'a', score: 5, points: 0, rankOverride: 1, _autoRank: 1 },
+      { id: 'b', score: 5, points: 0, rankOverride: 2, _autoRank: 1 },
+      { id: 'c', score: 5, points: 0, rankOverride: 3, _autoRank: 1 },
+      { id: 'd', score: 5, points: 0, rankOverride: null, _autoRank: 1 },
     ];
     const ties = findUnresolvedTies(entries);
     // a and d share effective rank 1; b and c are alone
     expect(ties.size).toBe(2);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("d")).toBe(true);
-    expect(ties.has("b")).toBe(false);
-    expect(ties.has("c")).toBe(false);
+    expect(ties.has('a')).toBe(true);
+    expect(ties.has('d')).toBe(true);
+    expect(ties.has('b')).toBe(false);
+    expect(ties.has('c')).toBe(false);
   });
 
-  it("keeps a 3-way tie unresolved when only 1 of 3 members has an override", () => {
+  it('keeps a 3-way tie unresolved when only 1 of 3 members has an override', () => {
     // Only 1 override among 3 tied entries: 2 positions remain ambiguous.
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
-      { id: "c", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'a', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'c', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
     ];
     const ties = findUnresolvedTies(entries);
     expect(ties.size).toBe(3);
   });
 
-  it("keeps a 3-way tie unresolved when 2 overrides are set but not distinct", () => {
+  it('keeps a 3-way tie unresolved when 2 overrides are set but not distinct', () => {
     // N-1=2 overrides exist, but both are rank 1 (duplicate) → still ambiguous.
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
-      { id: "c", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'a', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: 'c', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
     ];
     const ties = findUnresolvedTies(entries);
     expect(ties.size).toBe(3);
   });
 
-  it("handles multiple independent tie groups", () => {
+  it('handles multiple independent tie groups', () => {
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
-      { id: "b", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
-      { id: "c", score: 5, points: 1, rankOverride: null, _autoRank: 3 },
-      { id: "d", score: 5, points: 1, rankOverride: null, _autoRank: 3 },
+      { id: 'a', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'b', score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: 'c', score: 5, points: 1, rankOverride: null, _autoRank: 3 },
+      { id: 'd', score: 5, points: 1, rankOverride: null, _autoRank: 3 },
     ];
     const ties = findUnresolvedTies(entries);
     expect(ties.size).toBe(4);
@@ -391,76 +419,76 @@ describe("findUnresolvedTies", () => {
     // a (override=2) collides with b (_autoRank=2) even though they were never
     // tied in the original ordering.
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 2, _autoRank: 1 },
-      { id: "b", score: 8, points: 1, rankOverride: null, _autoRank: 2 },
+      { id: 'a', score: 10, points: 2, rankOverride: 2, _autoRank: 1 },
+      { id: 'b', score: 8, points: 1, rankOverride: null, _autoRank: 2 },
     ];
     const ties = findUnresolvedTies(entries);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("b")).toBe(true);
+    expect(ties.has('a')).toBe(true);
+    expect(ties.has('b')).toBe(true);
   });
 
-  it("detects collision between overrides from different original autoRanks", () => {
+  it('detects collision between overrides from different original autoRanks', () => {
     const entries = [
-      { id: "a", score: 10, points: 2, rankOverride: 3, _autoRank: 1 },
-      { id: "b", score: 8, points: 1, rankOverride: 3, _autoRank: 2 },
+      { id: 'a', score: 10, points: 2, rankOverride: 3, _autoRank: 1 },
+      { id: 'b', score: 8, points: 1, rankOverride: 3, _autoRank: 2 },
     ];
     const ties = findUnresolvedTies(entries);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("b")).toBe(true);
+    expect(ties.has('a')).toBe(true);
+    expect(ties.has('b')).toBe(true);
   });
 });
 
 // ── filterActiveTiedIds ───────────────────────────────────────────────────────
 
-describe("filterActiveTiedIds", () => {
-  it("returns empty set when all players have mp=0 (group just set up)", () => {
+describe('filterActiveTiedIds', () => {
+  it('returns empty set when all players have mp=0 (group just set up)', () => {
     // This is the primary motivating case: suppress the tiebreaker warning
     // immediately after group setup when all scores are trivially 0-0.
-    const tiedIds = new Set(["a", "b", "c"]);
+    const tiedIds = new Set(['a', 'b', 'c']);
     const entries = [
-      { id: "a", mp: 0 },
-      { id: "b", mp: 0 },
-      { id: "c", mp: 0 },
+      { id: 'a', mp: 0 },
+      { id: 'b', mp: 0 },
+      { id: 'c', mp: 0 },
     ];
     expect(filterActiveTiedIds(tiedIds, entries).size).toBe(0);
   });
 
-  it("passes through the full set when all tied players have played", () => {
-    const tiedIds = new Set(["a", "b"]);
+  it('passes through the full set when all tied players have played', () => {
+    const tiedIds = new Set(['a', 'b']);
     const entries = [
-      { id: "a", mp: 2 },
-      { id: "b", mp: 2 },
+      { id: 'a', mp: 2 },
+      { id: 'b', mp: 2 },
     ];
     const result = filterActiveTiedIds(tiedIds, entries);
-    expect(result.has("a")).toBe(true);
-    expect(result.has("b")).toBe(true);
+    expect(result.has('a')).toBe(true);
+    expect(result.has('b')).toBe(true);
   });
 
-  it("excludes zero-mp players from a partially-played group", () => {
+  it('excludes zero-mp players from a partially-played group', () => {
     // a and b have played and are genuinely tied at the same score.
     // c has not played yet (bye round or group not started) — its 0-0 tie is trivial.
-    const tiedIds = new Set(["a", "b", "c"]);
+    const tiedIds = new Set(['a', 'b', 'c']);
     const entries = [
-      { id: "a", mp: 1 },
-      { id: "b", mp: 1 },
-      { id: "c", mp: 0 },
+      { id: 'a', mp: 1 },
+      { id: 'b', mp: 1 },
+      { id: 'c', mp: 0 },
     ];
     const result = filterActiveTiedIds(tiedIds, entries);
-    expect(result.has("a")).toBe(true);
-    expect(result.has("b")).toBe(true);
-    expect(result.has("c")).toBe(false);
+    expect(result.has('a')).toBe(true);
+    expect(result.has('b')).toBe(true);
+    expect(result.has('c')).toBe(false);
   });
 
-  it("returns empty set when tiedIds is empty", () => {
-    const entries = [{ id: "a", mp: 3 }];
+  it('returns empty set when tiedIds is empty', () => {
+    const entries = [{ id: 'a', mp: 3 }];
     expect(filterActiveTiedIds(new Set(), entries).size).toBe(0);
   });
 
-  it("full round-trip: 2-way tie resolved by distinct overrides for both shows no warning", () => {
+  it('full round-trip: 2-way tie resolved by distinct overrides for both shows no warning', () => {
     // Mirrors the exact page flow: admin sets distinct overrides for both players
     const groupEntries = [
-      { id: "a", score: 10, points: 2, rankOverride: 1, mp: 2 },
-      { id: "b", score: 10, points: 2, rankOverride: 2, mp: 2 },
+      { id: 'a', score: 10, points: 2, rankOverride: 1, mp: 2 },
+      { id: 'b', score: 10, points: 2, rankOverride: 2, mp: 2 },
     ];
     const byEffectiveRank = computeTieAwareRanks(groupEntries, bmCompareFn);
     const tiedIds = findUnresolvedTies(byEffectiveRank);
@@ -469,12 +497,12 @@ describe("filterActiveTiedIds", () => {
     expect(activeTiedIds.size).toBe(0);
   });
 
-  it("full round-trip: all-zero group is silenced after computeTieAwareRanks", () => {
+  it('full round-trip: all-zero group is silenced after computeTieAwareRanks', () => {
     // Mirrors the exact flow in bm/mr/gp pages for a freshly set-up group
     const groupEntries = [
-      { id: "a", score: 0, points: 0, rankOverride: null, mp: 0 },
-      { id: "b", score: 0, points: 0, rankOverride: null, mp: 0 },
-      { id: "c", score: 0, points: 0, rankOverride: null, mp: 0 },
+      { id: 'a', score: 0, points: 0, rankOverride: null, mp: 0 },
+      { id: 'b', score: 0, points: 0, rankOverride: null, mp: 0 },
+      { id: 'c', score: 0, points: 0, rankOverride: null, mp: 0 },
     ];
     const byEffectiveRank = computeTieAwareRanks(groupEntries, bmCompareFn);
     const tiedIds = findUnresolvedTies(byEffectiveRank);
@@ -485,49 +513,49 @@ describe("filterActiveTiedIds", () => {
   });
 });
 
-describe("collectPlayoffGroups", () => {
-  it("returns no groups when there are no active ties", () => {
+describe('collectPlayoffGroups', () => {
+  it('returns no groups when there are no active ties', () => {
     const entries = [
-      { id: "a", _autoRank: 1, rankOverride: null },
-      { id: "b", _autoRank: 2, rankOverride: null },
+      { id: 'a', _autoRank: 1, rankOverride: null },
+      { id: 'b', _autoRank: 2, rankOverride: null },
     ];
     expect(collectPlayoffGroups(entries, new Set()).length).toBe(0);
   });
 
-  it("returns the full original tie block for an unresolved tie", () => {
+  it('returns the full original tie block for an unresolved tie', () => {
     const entries = [
-      { id: "a", _autoRank: 1, rankOverride: null },
-      { id: "b", _autoRank: 1, rankOverride: null },
-      { id: "c", _autoRank: 3, rankOverride: null },
+      { id: 'a', _autoRank: 1, rankOverride: null },
+      { id: 'b', _autoRank: 1, rankOverride: null },
+      { id: 'c', _autoRank: 3, rankOverride: null },
     ];
-    const groups = collectPlayoffGroups(entries, new Set(["a", "b"]));
+    const groups = collectPlayoffGroups(entries, new Set(['a', 'b']));
     expect(groups).toHaveLength(1);
-    expect(groups[0].map((entry) => entry.id)).toEqual(["a", "b"]);
+    expect(groups[0].map((entry) => entry.id)).toEqual(['a', 'b']);
   });
 
-  it("keeps partially-resolved ties together in one playoff group", () => {
+  it('keeps partially-resolved ties together in one playoff group', () => {
     const entries = [
-      { id: "a", _autoRank: 1, rankOverride: 1 },
-      { id: "b", _autoRank: 1, rankOverride: 2 },
-      { id: "c", _autoRank: 1, rankOverride: null },
+      { id: 'a', _autoRank: 1, rankOverride: 1 },
+      { id: 'b', _autoRank: 1, rankOverride: 2 },
+      { id: 'c', _autoRank: 1, rankOverride: null },
     ];
-    const groups = collectPlayoffGroups(entries, new Set(["a", "c"]));
+    const groups = collectPlayoffGroups(entries, new Set(['a', 'c']));
     expect(groups).toHaveLength(1);
-    expect(groups[0].map((entry) => entry.id)).toEqual(["a", "b", "c"]);
+    expect(groups[0].map((entry) => entry.id)).toEqual(['a', 'b', 'c']);
   });
 });
 
-describe("buildPlayoffRankAssignments", () => {
-  it("assigns sequential rank overrides from the shared auto rank", () => {
+describe('buildPlayoffRankAssignments', () => {
+  it('assigns sequential rank overrides from the shared auto rank', () => {
     const assignments = buildPlayoffRankAssignments([
-      { id: "b", _autoRank: 4, rankOverride: null },
-      { id: "a", _autoRank: 4, rankOverride: null },
-      { id: "c", _autoRank: 4, rankOverride: null },
+      { id: 'b', _autoRank: 4, rankOverride: null },
+      { id: 'a', _autoRank: 4, rankOverride: null },
+      { id: 'c', _autoRank: 4, rankOverride: null },
     ]);
     expect(assignments).toEqual([
-      { id: "b", rankOverride: 4 },
-      { id: "a", rankOverride: 5 },
-      { id: "c", rankOverride: 6 },
+      { id: 'b', rankOverride: 4 },
+      { id: 'a', rankOverride: 5 },
+      { id: 'c', rankOverride: 6 },
     ]);
   });
 });

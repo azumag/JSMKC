@@ -29,8 +29,8 @@ describe('TC-1563 combined standings test selectors', () => {
 
   it('keeps combined standings tests away from duplicate-text count assertions', () => {
     expect(unitTest).toContain('function cellsByHeader');
-    expect(unitTest).toContain('getAllByRole("columnheader")');
-    expect(unitTest).toContain('getAllByRole("cell")');
+    expect(unitTest).toMatch(/getAllByRole\(['"]columnheader['"]\)/);
+    expect(unitTest).toMatch(/getAllByRole\(['"]cell['"]\)/);
     expect(unitTest).toContain('expect(cells).toHaveLength(headers.length)');
     expect(unitTest).not.toMatch(/getAllByText\([\s\S]*?\)\)\.toHaveLength/);
   });

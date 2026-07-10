@@ -1,6 +1,7 @@
 import {
   buildGitErrorMessage,
   collectChangedAppFiles,
+  describeRequestedBase,
   findGitStderr,
   resolveBaseRevision,
   resolveComparisonBase,
@@ -33,6 +34,20 @@ describe('format-changed utilities', () => {
       const resolveParent = jest.fn(() => 'parent123');
 
       expect(resolveBaseRevision(undefined, resolveMergeBase, resolveParent)).toBe('parent123');
+    });
+  });
+
+  describe('describeRequestedBase', () => {
+    it.each([undefined, ''])('describes %p as the merge-base fallback', (environmentBase) => {
+      expect(describeRequestedBase(environmentBase)).toBe('origin/main (fallback: HEAD^)');
+    });
+
+    it('describes an all-zero push SHA as HEAD^', () => {
+      expect(describeRequestedBase('0000000000000000')).toBe('HEAD^');
+    });
+
+    it('preserves an explicit non-zero base revision', () => {
+      expect(describeRequestedBase('abc123')).toBe('abc123');
     });
   });
 

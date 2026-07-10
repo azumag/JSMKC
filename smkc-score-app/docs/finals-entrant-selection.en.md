@@ -64,7 +64,7 @@ With 3 groups, "who is direct vs. barrage" can no longer be decided per group in
 
 1. Take every group's "1st place" finisher and bundle them into one set — Bucket 1. Take every group's "2nd place" finisher into Bucket 2. And so on.
 2. Buckets are an absolute priority order: **everyone in Bucket N always outranks everyone in Bucket N+1**, no matter how their individual stats compare.
-3. Only the order _within_ a bucket is tie-broken, by **WDL score (match points) -> point differential**. **Seeding is never consulted** (tournament operations decided against it).
+3. Only the order _within_ a bucket is tie-broken, by **WDL score (match points) -> point differential**. When both are completely tied, the recorded cross-group sudden-death order in `combinedRankOverride` is used. **Neither seeding nor alphabetical group order is consulted**.
 
 Since `perGroup = 4`, buckets 1-4 advance directly and buckets 5-8 go to barrage.
 

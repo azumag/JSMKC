@@ -310,6 +310,26 @@ describe('selectFinalsEntrantsByGroup', () => {
     });
   });
 
+  describe('3-group complete-tie playoff order', () => {
+    it('uses combinedRankOverride after WDL score and points are fully tied', () => {
+      const quals = buildQuals({ A: 9, B: 9, C: 9 }).map((qualification) => ({
+        ...qualification,
+        combinedRankOverride:
+          qualification.playerId === 'A1'
+            ? 3
+            : qualification.playerId === 'B1'
+              ? 1
+              : qualification.playerId === 'C1'
+                ? 2
+                : null,
+      }));
+      const result = selectFinalsEntrantsByGroup(quals);
+      const bySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]));
+
+      expect([1, 3, 5, 7].map((seed) => bySeed.get(seed))).toEqual(['B1', 'C1', 'A1', 'A2']);
+    });
+  });
+
   describe('4-group case (A=B=C=D=6)', () => {
     const quals = buildQuals({ A: 6, B: 6, C: 6, D: 6 });
     const result = selectFinalsEntrantsByGroup(quals);

@@ -37,11 +37,11 @@
  */
 
 import { GROUPS } from './group-utils';
-import { compareByScoreThenPoints, groupBy, type ScorePointsEntry } from './ranking-utils';
+import { compareByScoreThenPointsAndCombinedOverride, groupBy, type CombinedOverrideEntry } from './ranking-utils';
 import { generateBracketStructure, generatePlayoffStructure } from './double-elimination';
 
 /** Minimum shape required from a qualification record. */
-export interface FinalsQualInput<TPlayer = unknown> extends ScorePointsEntry {
+export interface FinalsQualInput<TPlayer = unknown> extends CombinedOverrideEntry {
   playerId: string;
   group: string;
   player: TPlayer;
@@ -390,10 +390,10 @@ export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
   const direct: FinalsQualInput<TPlayer>[] = [];
   const barrage: FinalsQualInput<TPlayer>[] = [];
   for (let k = 0; k < perGroup; k++) {
-    direct.push(...buckets.map((bucket) => bucket[k]).sort(compareByScoreThenPoints));
+    direct.push(...buckets.map((bucket) => bucket[k]).sort(compareByScoreThenPointsAndCombinedOverride));
   }
   for (let k = perGroup; k < perGroup * 2; k++) {
-    barrage.push(...buckets.map((bucket) => bucket[k]).sort(compareByScoreThenPoints));
+    barrage.push(...buckets.map((bucket) => bucket[k]).sort(compareByScoreThenPointsAndCombinedOverride));
   }
 
   const directSeedByEntrant = assignAntiCollisionSeeds(direct, computeDirectSeedPairingPlan());

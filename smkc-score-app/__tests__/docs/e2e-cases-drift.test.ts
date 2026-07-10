@@ -65,12 +65,7 @@ describe('E2E case drift coverage', () => {
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
   const bmFinalsPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'finals', 'page.tsx');
   const tc1073Lr2Slots = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-1073-16p-lr2-slots.test.ts');
-  const cdmFinalsFixtureTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'e2e',
-    'tc-816a-cdm-finals-fixture.test.ts',
-  );
+  const cdmFinalsFixtureTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'tc-816a-cdm-finals-fixture.test.ts');
   const prismaMigrationsTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'prisma-migrations.test.ts');
   const taPhasesRouteTest = readRepoFile(
     'smkc-score-app',
@@ -83,13 +78,7 @@ describe('E2E case drift coverage', () => {
     'phases',
     'route.test.ts',
   );
-  const overlayPhaseTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'lib',
-    'overlay',
-    'phase.test.ts',
-  );
+  const overlayPhaseTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'overlay', 'phase.test.ts');
   const taFinalsPhaseManagerTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -98,13 +87,7 @@ describe('E2E case drift coverage', () => {
     'finals-phase-manager.test.ts',
   );
   const taCourseSelection = readRepoFile('smkc-score-app', 'src', 'lib', 'ta', 'course-selection.ts');
-  const taCourseSelectionTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'lib',
-    'ta',
-    'course-selection.test.ts',
-  );
+  const taCourseSelectionTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'ta', 'course-selection.test.ts');
   const prismaSchema = readRepoFile('smkc-score-app', 'prisma', 'schema.prisma');
   const mrMatchRoute = readRepoFile(
     'smkc-score-app',
@@ -161,25 +144,8 @@ describe('E2E case drift coverage', () => {
     'finals',
     'route.test.ts',
   );
-  const taFinalsPage = readRepoFile(
-    'smkc-score-app',
-    'src',
-    'app',
-    'tournaments',
-    '[id]',
-    'ta',
-    'finals',
-    'page.tsx',
-  );
-  const taPageClient = readRepoFile(
-    'smkc-score-app',
-    'src',
-    'app',
-    'tournaments',
-    '[id]',
-    'ta',
-    'page-client.tsx',
-  );
+  const taFinalsPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'ta', 'finals', 'page.tsx');
+  const taPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
   const taEliminationPhase = readRepoFile(
     'smkc-score-app',
     'src',
@@ -201,13 +167,7 @@ describe('E2E case drift coverage', () => {
     'tournament',
     'ta-sudden-death-panel.test.tsx',
   );
-  const taTimeEntryLayoutTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'lib',
-    'ta',
-    'time-entry-layout.test.ts',
-  );
+  const taTimeEntryLayoutTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'ta', 'time-entry-layout.test.ts');
   const taTimeEntryRowsTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -226,23 +186,17 @@ describe('E2E case drift coverage', () => {
   const bmPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx');
   const mrPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx');
   const gpPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx');
-  const taQualificationPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
-  const groupSetupHelperTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'e2e',
-    'group-setup-helper.test.ts',
-  );
-  const exportRoute = readRepoFile(
+  const taQualificationPageClient = readRepoFile(
     'smkc-score-app',
     'src',
     'app',
-    'api',
     'tournaments',
     '[id]',
-    'export',
-    'route.ts',
+    'ta',
+    'page-client.tsx',
   );
+  const groupSetupHelperTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'group-setup-helper.test.ts');
+  const exportRoute = readRepoFile('smkc-score-app', 'src', 'app', 'api', 'tournaments', '[id]', 'export', 'route.ts');
   const exportRouteTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -267,11 +221,31 @@ describe('E2E case drift coverage', () => {
     ['TC-111', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/preview-schema-preflight.test.ts'],
     ['TC-726', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-finals-assigned-cups.test.ts'],
     ['TC-728', 'n/a (unit coverage)', 'smkc-score-app/__tests__/lib/gp-ranking.test.ts'],
-    ['TC-2247', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts'],
-    ['TC-1009', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
-    ['TC-1080', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts'],
-    ['TC-1088', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts'],
-    ['TC-1090-1091', 'n/a (static/unit coverage)', 'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts'],
+    [
+      'TC-2247',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts',
+    ],
+    [
+      'TC-1009',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts',
+    ],
+    [
+      'TC-1080',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts',
+    ],
+    [
+      'TC-1088',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts',
+    ],
+    [
+      'TC-1090-1091',
+      'n/a (static/unit coverage)',
+      'smkc-score-app/__tests__/static/tc-1090-1091-overall-ranking.test.ts',
+    ],
     ['TC-1451-1452', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1454-1455', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
     ['TC-1457', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/helpers/e2e-cases.ts'],
@@ -280,31 +254,91 @@ describe('E2E case drift coverage', () => {
     ['TC-2034', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-2041', 'n/a (static/doc coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-1528', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/e2e/ta-phase-submit-helper.test.ts'],
-    ['TC-1669', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts'],
+    [
+      'TC-1669',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/static/tc-1009-overall-ranking-bracket-threshold-comments.test.ts',
+    ],
     ['TC-1671', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts'],
     ['TC-2444', 'n/a (unit coverage)', 'smkc-score-app/__tests__/components/tournament/ta-time-entry-rows.test.tsx'],
     ['TC-2446', 'n/a (unit coverage)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
     ['TC-2448', 'n/a (unit coverage)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
-    ['TC-2472', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
-    ['TC-2473', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
-    ['TC-2474', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
-    ['TC-2475', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts'],
+    [
+      'TC-2472',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts',
+    ],
+    [
+      'TC-2473',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts',
+    ],
+    [
+      'TC-2474',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts',
+    ],
+    [
+      'TC-2475',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/archive/route.test.ts',
+    ],
     ['TC-2476', 'n/a (unit/static coverage)', 'smkc-score-app/src/lib/auth.ts'],
     ['TC-2477', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2478', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2479', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2480', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
     ['TC-2481', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/middleware.test.ts'],
-    ['TC-2482', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
-    ['TC-2483', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
-    ['TC-2484', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
-    ['TC-2485', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
-    ['TC-2486', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
-    ['TC-2487', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
-    ['TC-2489', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/bm/debug-fill/route.test.ts'],
-    ['TC-2490', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/mr/debug-fill/route.test.ts'],
-    ['TC-2491', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/gp/debug-fill/route.test.ts'],
-    ['TC-2492', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/ta/debug-fill/route.test.ts'],
+    [
+      'TC-2482',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts',
+    ],
+    [
+      'TC-2483',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts',
+    ],
+    [
+      'TC-2484',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts',
+    ],
+    [
+      'TC-2485',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts',
+    ],
+    [
+      'TC-2486',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts',
+    ],
+    [
+      'TC-2487',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts',
+    ],
+    [
+      'TC-2489',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/bm/debug-fill/route.test.ts',
+    ],
+    [
+      'TC-2490',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/mr/debug-fill/route.test.ts',
+    ],
+    [
+      'TC-2491',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/gp/debug-fill/route.test.ts',
+    ],
+    [
+      'TC-2492',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/ta/debug-fill/route.test.ts',
+    ],
     ['TC-2493', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
     ['TC-2494', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
     ['TC-2495', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/audit-log.test.ts'],
@@ -318,10 +352,26 @@ describe('E2E case drift coverage', () => {
     ['TC-2503', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
     ['TC-2504', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
     ['TC-2505', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/api-auth.test.ts'],
-    ['TC-2506', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
-    ['TC-2507', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
-    ['TC-2508', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
-    ['TC-2509', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts'],
+    [
+      'TC-2506',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts',
+    ],
+    [
+      'TC-2507',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts',
+    ],
+    [
+      'TC-2508',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts',
+    ],
+    [
+      'TC-2509',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/score-entry-logs/route.test.ts',
+    ],
     ['TC-2510', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
     ['TC-2511', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
     ['TC-2512', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/db-read-retry.test.ts'],
@@ -356,7 +406,11 @@ describe('E2E case drift coverage', () => {
     ['TC-2552', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
     ['TC-2553', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
     ['TC-2554', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/time-format.test.ts'],
-    ['TC-2555', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts'],
+    [
+      'TC-2555',
+      'n/a (unit/static coverage)',
+      'smkc-score-app/__tests__/app/api/tournaments/[id]/overlay-events/route.test.ts',
+    ],
     ['TC-2556', 'n/a (unit/static coverage)', 'smkc-score-app/src/lib/api-factories/'],
     ['TC-2557', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/fill/tt-lives-replay.test.ts'],
     ['TC-2558', 'n/a (unit/static coverage)', 'smkc-score-app/__tests__/lib/cdm-export/fill/tt-lives-replay.test.ts'],
@@ -547,7 +601,9 @@ describe('E2E case drift coverage', () => {
     expect(preflight).not.toContain("typeof errorField === 'string'");
     expect(section).toContain('issue #2384');
     expect(preflightTest).toContain('detects CLOUDFLARE_API_TOKEN auth error in Wrangler stdout JSON');
-    expect(preflightTest).toContain('continues preview startup on Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth error by default');
+    expect(preflightTest).toContain(
+      'continues preview startup on Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth error by default',
+    );
     expect(preflightTest).toContain('keeps TC-2333 documented as stdout JSON CLOUDFLARE_API_TOKEN auth error coverage');
   });
 
@@ -580,7 +636,9 @@ describe('E2E case drift coverage', () => {
     expect(preflight).toContain('Number(errorField?.code) === 7403');
     expect(preflight).toContain('not valid or is not authorized');
     expect(preflightTest).toContain('detects Cloudflare API 7403 authorization errors in Wrangler stdout JSON');
-    expect(preflightTest).toContain('continues preview startup on Cloudflare API 7403 authorization stdout JSON by default');
+    expect(preflightTest).toContain(
+      'continues preview startup on Cloudflare API 7403 authorization stdout JSON by default',
+    );
     expect(preflightTest).toContain('keeps TC-2385 documented as stdout JSON Cloudflare API 7403 auth error coverage');
   });
 
@@ -626,10 +684,10 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('missing D1 migration detected on preview');
     expect(section).toContain('GPMatch table not found');
     expect(section).toContain('suddenDeathWinnerId column not found');
-    expect(preflightTest).toContain("SQLITE_ERROR: missing table: GPMatch");
-    expect(preflightTest).toContain("missing D1 migration detected on preview");
-    expect(preflightTest).toContain("GPMatch table not found");
-    expect(preflightTest).toContain("suddenDeathWinnerId column not found");
+    expect(preflightTest).toContain('SQLITE_ERROR: missing table: GPMatch');
+    expect(preflightTest).toContain('missing D1 migration detected on preview');
+    expect(preflightTest).toContain('GPMatch table not found');
+    expect(preflightTest).toContain('suddenDeathWinnerId column not found');
   });
 
   it('keeps TC-2202 aligned with preview preflight source-structure coverage', () => {
@@ -666,9 +724,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('finals-phase-manager.test.ts');
     expect(taFinalsPhaseManagerTest).toContain('falls back to activeCount-1 for activeCount=2');
     expect(taFinalsPhaseManagerTest).toContain('returns null for activeCount <= 1');
-    expect(taFinalsPhaseManagerTest).not.toContain(
-      'falls back to activeCount-1 when no configured threshold remains',
-    );
+    expect(taFinalsPhaseManagerTest).not.toContain('falls back to activeCount-1 when no configured threshold remains');
   });
 
   it('keeps TC-2450 aligned with per-range getNextPhase3ResetThreshold it blocks', () => {
@@ -747,12 +803,7 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-2242 aligned with PR title/diff authoring guidance', () => {
     const section = e2eCaseSection('TC-2242');
     const prTemplate = readRepoFile('.github', 'pull_request_template.md');
-    const prTemplateTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'docs',
-      'pr-template.test.ts',
-    );
+    const prTemplateTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'pr-template.test.ts');
 
     expect(section).toContain('issue #2242');
     expect(section).toContain('Conventional Commits');
@@ -761,7 +812,7 @@ describe('E2E case drift coverage', () => {
     expect(prTemplate).toContain('PR title and Conventional Commit type match the actual diff.');
     expect(prTemplate).toContain('Use `docs:` only when this PR changes documentation.');
     // Check actual assertion content rather than the it() description to avoid fragility from renames.
-    expect(prTemplateTest).toContain("Use `test:` or `refactor:` for test-only refactors.");
+    expect(prTemplateTest).toContain('Use `test:` or `refactor:` for test-only refactors.');
   });
 
   it('keeps TC-2118 documented with the shared tournament-tab hydration guard', () => {
@@ -784,7 +835,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('source 文字列ではなく helper 挙動');
     expect(section).toContain('src/lib/tournament-tab-hydration.ts');
     expect(staticTest).toContain('uses the hydration guard helper output to disable tabs before hydration');
-    expect(staticTest).toContain('uses class merging behavior so hydrated tabs do not keep whitespace-only guard classes');
+    expect(staticTest).toContain(
+      'uses class merging behavior so hydrated tabs do not keep whitespace-only guard classes',
+    );
     // guardClassName string check belongs to TC-2205; omit here to avoid duplication
   });
 
@@ -836,12 +889,20 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/lib/tc939-reporting.test.ts');
     expect(libTest).toContain('reports null SPA markers as full reload failures with className detail');
     expect(libTest).toContain('spaMarker: null');
-    expect(libTest).toContain('Tab click caused a full document reload / Hydrated tab className contains extra whitespace');
+    expect(libTest).toContain(
+      'Tab click caused a full document reload / Hydrated tab className contains extra whitespace',
+    );
   });
 
   it('keeps TC-830 aligned with runtime unit and bracket component coverage', () => {
     const section = e2eCaseSection('TC-830');
-    const pageWiringTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'tournaments', 'gp-finals-page-wiring.test.tsx');
+    const pageWiringTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'tournaments',
+      'gp-finals-page-wiring.test.tsx',
+    );
     const winnerHelperTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'gp-finals-match-winner.test.ts');
     const doubleBracketTest = readRepoFile(
       'smkc-score-app',
@@ -898,9 +959,9 @@ describe('E2E case drift coverage', () => {
     const tc356Block = sectionBetween(tcAll, '// TC-356:', '// TC-357:');
 
     expect(section).toContain('ダイアログ幅内に収まる');
-    expect(tc356Block).toContain("const dialog = document.querySelector('[role=\"dialog\"]')");
-    expect(tc356Block).toContain('dialog.querySelector(\'#gp-finals-simple-score1\')');
-    expect(tc356Block).toContain('dialog.querySelector(\'#gp-finals-simple-score2\')');
+    expect(tc356Block).toContain('const dialog = document.querySelector(\'[role="dialog"]\')');
+    expect(tc356Block).toContain("dialog.querySelector('#gp-finals-simple-score1')");
+    expect(tc356Block).toContain("dialog.querySelector('#gp-finals-simple-score2')");
     expect(tc356Block).toContain("log('TC-356', mobileLayoutUsable ? 'PASS' : 'FAIL'");
     expect(tc356Block).not.toContain("log('TC-356', hasScrollWrapper ? 'PASS' : 'SKIP'");
     expect(tc356Block).not.toContain('document.querySelector("div.overflow-x-auto")');
@@ -923,8 +984,8 @@ describe('E2E case drift coverage', () => {
     expectHeadingRoleOptions(qualificationFallbackTest, 'queryByRole', []);
     expect(qualificationFallbackTest).toContain('title=""');
     expect(tc357Block).toContain("waitUntil: 'domcontentloaded'");
-    expect(tc357Block).toContain("page.goto(`${BASE}/tournaments/${TID}/${mode}`");
-    expect(tc357Block).not.toContain("await nav(page, `/tournaments/${TID}/${mode}`)");
+    expect(tc357Block).toContain('page.goto(`${BASE}/tournaments/${TID}/${mode}`');
+    expect(tc357Block).not.toContain('await nav(page, `/tournaments/${TID}/${mode}`)');
     expect(tc357Block).toContain("document.querySelectorAll('h1')");
     expect(tc357Block).not.toContain("document.querySelectorAll('h1, h2, h3')");
     expect(tc357Block).toContain("bm: ['バトルモード', 'Battle Mode']");
@@ -964,7 +1025,9 @@ describe('E2E case drift coverage', () => {
       expect(pageClient).toContain("<QualificationClientLoadingState title={t('title')} />");
       expect(pageClient).not.toContain('titleSkeletonClassName="w-48"');
     }
-    expect(taQualificationPageClient).toContain("<QualificationClientLoadingState title={t('title')} showActionButton={false} />");
+    expect(taQualificationPageClient).toContain(
+      "<QualificationClientLoadingState title={t('title')} showActionButton={false} />",
+    );
     expect(taQualificationPageClient).not.toContain('titleSkeletonClassName="w-48"');
   });
 
@@ -986,9 +1049,13 @@ describe('E2E case drift coverage', () => {
     expect(loadingSkeleton).toContain('data-testid="title-skeleton"');
     // Unit tests must cover the accessibility contract
     expect(qualificationFallbackTest).toContain('TC-2401');
-    expect(qualificationFallbackTest).toContain('always renders with role="status" even when caller passes a different role');
-    expect(qualificationFallbackTest).toContain('always renders with aria-label even when caller passes a different aria-label');
-    expect(qualificationFallbackTest).toContain('getByTestId(\'title-skeleton\')');
+    expect(qualificationFallbackTest).toContain(
+      'always renders with role="status" even when caller passes a different role',
+    );
+    expect(qualificationFallbackTest).toContain(
+      'always renders with aria-label even when caller passes a different aria-label',
+    );
+    expect(qualificationFallbackTest).toContain("getByTestId('title-skeleton')");
   });
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
@@ -1021,7 +1088,7 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).toContain('cellFormula: true');
     expect(tcAll).toContain('cdmE2eStructuralFailures');
     expect(tcAll).toContain("require('fflate')");
-    expect(tcAll).toContain("xl/tables/table1.xml");
+    expect(tcAll).toContain('xl/tables/table1.xml');
     expect(tcAll).toContain('xl/richData/rdrichvalue.xml');
     expect(tcAll).toContain('xl/calcChain.xml');
     expect(tcAll).toContain('fullCalcOnLoad="1"');
@@ -1151,7 +1218,9 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).not.toContain('gpCupResultsChecked');
     expect(tcAll).not.toContain('GP cupResults not available; skipped summary-cell check');
     expect(tcAll).toContain('if (match.completed)');
-    expect(tcAll).toContain('structuralFailures.length === 0 && checked > 0 && missingModes.length === 0 && failures.length === 0');
+    expect(tcAll).toContain(
+      'structuralFailures.length === 0 && checked > 0 && missingModes.length === 0 && failures.length === 0',
+    );
   });
 
   it('documents CDM E2E finals readiness parallel fetch and generator diagnostics', () => {
@@ -1174,7 +1243,7 @@ describe('E2E case drift coverage', () => {
     expect(publicApiSection).toContain('公開 API を最小化');
     expect(tcAll).toContain('async function fetchCdmE2eModeStates');
     expect(tcAll).toContain('const [bmState, mrState, gpState] = await Promise.all([');
-    expect(tcAll).not.toContain("state: await apiFetchBmFinalsState(page, tournamentId)");
+    expect(tcAll).not.toContain('state: await apiFetchBmFinalsState(page, tournamentId)');
     expect(tcAll).toContain('function cdmE2eFinalsSlotMatches');
     expect(tcAll).toContain('slotMatches.map(({ slotRound }) => slotRound)');
     expect(tcAll).not.toContain('matches.map((match) => cdmE2eSlotRound(match)).filter(Boolean)');
@@ -1311,9 +1380,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('TypeScript AST');
     expect(section).toContain('tc-2088-cdm-main-hub-boundary.test.ts');
     // Check AST behavior targets rather than function names to avoid fragility on renames (#2354).
-    expect(tc2088BoundaryTest).toContain("'Array.from'");        // AST detects Array.from({ length: 60 }) call
-    expect(tc2088BoundaryTest).toContain("'Main Hub'");          // AST detects Main Hub cell boundary access
-    expect(tc2088BoundaryTest).toContain('ts.forEachChild');     // AST traversal approach still in use
+    expect(tc2088BoundaryTest).toContain("'Array.from'"); // AST detects Array.from({ length: 60 }) call
+    expect(tc2088BoundaryTest).toContain("'Main Hub'"); // AST detects Main Hub cell boundary access
+    expect(tc2088BoundaryTest).toContain('ts.forEachChild'); // AST traversal approach still in use
     expect(tc2088BoundaryTest).not.toContain("toContain('Array.from({ length: 60 }')");
     expect(tc2088BoundaryTest).not.toContain('B62).toBeUndefined()');
     expect(exportRouteTest).toContain('should write the Main Hub player rows for exactly 60 players');
@@ -1321,20 +1390,8 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1010 aligned with the BM 16-player finals regression coverage', () => {
     const section = e2eCaseSection('TC-1010');
-    const finalsRouteTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'api-factories',
-      'finals-route.test.ts',
-    );
-    const overallRankingTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'points',
-      'overall-ranking.test.ts',
-    );
+    const finalsRouteTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-factories', 'finals-route.test.ts');
+    const overallRankingTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'points', 'overall-ranking.test.ts');
 
     expect(section).toContain('issue #1010');
     expect(section).toContain('rankOverride');
@@ -1348,13 +1405,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-2334 aligned with the BM duplicate rankOverride collision coverage', () => {
     const section = e2eCaseSection('TC-2334');
-    const finalsRouteTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'api-factories',
-      'finals-route.test.ts',
-    );
+    const finalsRouteTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-factories', 'finals-route.test.ts');
 
     expect(section).toContain('issue #2357');
     expect(section).toContain('rankOverride');
@@ -1362,8 +1413,12 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('E2E_TESTS=TC-2334 node e2e/tc-bm.js');
     expect(tcBm).toContain("{ name: 'TC-2334', fn: runTc2334 }");
     expect(finalsRouteTest).toContain('uses the latest manual rankOverride when duplicate override ranks collide');
-    expect(finalsRouteTest).toContain('falls back to latest rankOverrideAt timestamp when both players share the same rankOverride value');
-    expect(finalsRouteTest).toContain('sorts by rankOverride value ascending when both players have rankOverride set (score/points tied)');
+    expect(finalsRouteTest).toContain(
+      'falls back to latest rankOverrideAt timestamp when both players share the same rankOverride value',
+    );
+    expect(finalsRouteTest).toContain(
+      'sorts by rankOverride value ascending when both players have rankOverride set (score/points tied)',
+    );
   });
 
   it('keeps TC-1007 aligned with the GroupSetupDialog static guard', () => {
@@ -1419,19 +1474,8 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1004 aligned with the CourseCycleStatus YAGNI guard', () => {
     const section = e2eCaseSection('TC-1004');
-    const guard = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'tc-1004-course-cycle-status-contract.test.ts',
-    );
-    const unitTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'ta',
-      'course-cycle-status.test.ts',
-    );
+    const guard = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-1004-course-cycle-status-contract.test.ts');
+    const unitTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'ta', 'course-cycle-status.test.ts');
 
     expect(section).toContain('issue #1004');
     expect(section).toContain('availableCourses.length');
@@ -1445,12 +1489,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1005 aligned with the shared TA course-cycle panel guard', () => {
     const section = e2eCaseSection('TC-1005');
-    const guard = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'tc-1005-course-cycle-panel-contract.test.ts',
-    );
+    const guard = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-1005-course-cycle-panel-contract.test.ts');
     const componentTest = readRepoFile(
       'smkc-score-app',
       '__tests__',
@@ -1515,13 +1554,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1060 aligned with complete TA finals position unit coverage', () => {
     const section = e2eCaseSection('TC-1060');
-    const unitTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'points',
-      'overall-ranking.test.ts',
-    );
+    const unitTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'points', 'overall-ranking.test.ts');
     const testCase = sectionBetween(
       unitTest,
       "it('assigns TA finals bonus positions through 24th from phase eliminations'",
@@ -1531,7 +1564,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1060');
     expect(section).toContain('18・19・22・23');
     expect(section).toContain('smkc-score-app/__tests__/lib/points/overall-ranking.test.ts');
-    expect(testCase).toContain("expect(positions).toEqual([");
+    expect(testCase).toContain('expect(positions).toEqual([');
     for (const [playerId, position] of [
       ['p17', 17],
       ['p18', 18],
@@ -1549,20 +1582,14 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1059 aligned with the TA phase position floor guard', () => {
     const section = e2eCaseSection('TC-1059');
-    const unitTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'points',
-      'overall-ranking.test.ts',
-    );
+    const unitTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'points', 'overall-ranking.test.ts');
 
     expect(section).toContain('issue #1059');
     expect(section).toContain('17〜20位');
     expect(section).toContain('21〜24位');
     expect(section).toContain('順位帯を越えず');
     expect(section).toContain('e2e-cases-drift.test.ts');
-    expect(unitTest).toContain("does not assign excess phase1/2 eliminations outside their position ranges");
+    expect(unitTest).toContain('does not assign excess phase1/2 eliminations outside their position ranges');
     expect(unitTest).toContain('p16-overflow');
     expect(unitTest).toContain('p20-overflow');
   });
@@ -1585,8 +1612,9 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-521 aligned with BM finals score-dialog long-name truncation', () => {
     const section = e2eCaseSection('TC-521');
-    const classTokenSets = Array.from(bmFinalsPage.matchAll(/className="([^"]+)"/g))
-      .map((match) => new Set(match[1].split(/\s+/).filter(Boolean)));
+    const classTokenSets = Array.from(bmFinalsPage.matchAll(/className="([^"]+)"/g)).map(
+      (match) => new Set(match[1].split(/\s+/).filter(Boolean)),
+    );
     const hasClassSet = (tokens: string[]) =>
       classTokenSets.some((classSet) => tokens.every((token) => classSet.has(token)));
 
@@ -1607,19 +1635,19 @@ describe('E2E case drift coverage', () => {
     expect(tcBm).toContain('await Promise.all([');
     expect(tcBm).toContain("m8Card.waitFor({ state: 'visible', timeout: 40000 })");
     expect(tcBm).toContain("m9Card.waitFor({ state: 'visible', timeout: 40000 })");
-    expect(tcBm).toContain('M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})');
-    expect(tcBm).toContain('M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})');
+    expect(tcBm).toContain(
+      'M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})',
+    );
+    expect(tcBm).toContain(
+      'M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})',
+    );
     expect(tcBm).not.toContain('const hasM8 = await m8Card.count() > 0');
     expect(tcBm).not.toContain('const hasM9 = await m9Card.count() > 0');
   });
 
   it('keeps TC-513 session-guidance waits diagnostic and unsuppressed', () => {
     const section = e2eCaseSection('TC-513');
-    const tc513Source = sectionBetween(
-      tcBm,
-      'async function runTc513',
-      '/* ───────── TC-503',
-    );
+    const tc513Source = sectionBetween(tcBm, 'async function runTc513', '/* ───────── TC-503');
 
     expect(section).toContain('未認証/管理者/プレイヤー');
     expect(tcBm).toContain('BM_MATCH_GUIDANCE_TIMEOUT_MS');
@@ -1639,11 +1667,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-531 BM finals navigation routed through the BASE-aware nav helper', () => {
     const section = e2eCaseSection('TC-531');
-    const tc531Source = sectionBetween(
-      tcBm,
-      'async function runTc531',
-      '/**\n * Builds the BM suite spec',
-    );
+    const tc531Source = sectionBetween(tcBm, 'async function runTc531', '/**\n * Builds the BM suite spec');
 
     expect(section).toContain('issue #889');
     expect(section).toContain('`nav`');
@@ -1653,14 +1677,14 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-858 MR Top-24 generation protected by an explicit reset cycle', () => {
     const section = e2eCaseSection('TC-858');
-    const tc858Source = sectionBetween(
-      tcMr,
-      'async function runTc858',
-      '/* END TC-858 */',
+    const tc858Source = sectionBetween(tcMr, 'async function runTc858', '/* END TC-858 */');
+    const unlockIdx = tc858Source.indexOf(
+      'apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false })',
     );
-    const unlockIdx = tc858Source.indexOf('apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false })');
     const resetIdx = tc858Source.indexOf('body: JSON.stringify({ reset: true })');
-    const reconfirmIdx = tc858Source.indexOf('apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true })');
+    const reconfirmIdx = tc858Source.indexOf(
+      'apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true })',
+    );
     const generateIdx = tc858Source.indexOf('generateMrFinalsBracket(adminPage, tournamentId, 24)');
 
     expect(section).toContain('issue #888');
@@ -1679,11 +1703,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-2243 aligned on the documented all-suite E2E command', () => {
     const section = e2eCaseSection('TC-2243');
-    const scopeNote = sectionBetween(
-      readRepoFile('E2E_TEST_CASES.md'),
-      '## Scope note:',
-      '---',
-    );
+    const scopeNote = sectionBetween(readRepoFile('E2E_TEST_CASES.md'), '## Scope note:', '---');
     const claudeGuide = readRepoFile('CLAUDE.md');
 
     expect(section).toContain('issue #2243');
@@ -1698,12 +1718,7 @@ describe('E2E case drift coverage', () => {
     const tc1555 = e2eCaseSection('TC-1555');
     const tc1556 = e2eCaseSection('TC-1556');
     const tc1558 = e2eCaseSection('TC-1558');
-    const guard = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'tc-1063-combined-rankings-usememo.test.ts',
-    );
+    const guard = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-1063-combined-rankings-usememo.test.ts');
 
     expect(section).toContain('issue #1063');
     expect(section).toContain('issue #1555/#1556');
@@ -1777,11 +1792,7 @@ describe('E2E case drift coverage', () => {
     const anchorIdx = routeCase.indexOf('expect(call.data.entries.map');
     expect(anchorIdx).toBeGreaterThanOrEqual(0);
     const orderAssertion = routeCase.slice(anchorIdx);
-    const expectedOrder = [
-      "'player-active'",
-      "'player-eliminated-first'",
-      "'player-eliminated-second'",
-    ];
+    const expectedOrder = ["'player-active'", "'player-eliminated-first'", "'player-eliminated-second'"];
     const orderIndexes = expectedOrder.map((playerId) => orderAssertion.indexOf(playerId));
     expect(orderIndexes.every((index) => index >= 0)).toBe(true);
     expect(orderIndexes).toEqual([...orderIndexes].sort((a, b) => a - b));
@@ -1789,12 +1800,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-2045 aligned with the marker-independent TA phases guard', () => {
     const section = e2eCaseSection('TC-2045');
-    const guard = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'tc-2040-ta-phases-comment-history.test.ts',
-    );
+    const guard = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-2040-ta-phases-comment-history.test.ts');
     const helper = readRepoFile('smkc-score-app', '__tests__', 'helpers', 'e2e-cases.test.ts');
 
     expect(section).toContain('issue #2045');
@@ -1902,10 +1908,12 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain('validateGpFinalsAssignedCupSequences');
     expect(gpFinalsValidators).toContain('validateGpFinalsAssignedCupSequences');
     expect(gpFinalsValidators).toContain('isGpFinalsFt3Round');
-    expect(gpFinalsValidatorExports).toEqual(expect.objectContaining({
-      isGpFinalsFt3Round: expect.any(Function),
-      validateGpFinalsAssignedCupSequences: expect.any(Function),
-    }));
+    expect(gpFinalsValidatorExports).toEqual(
+      expect.objectContaining({
+        isGpFinalsFt3Round: expect.any(Function),
+        validateGpFinalsAssignedCupSequences: expect.any(Function),
+      }),
+    );
   });
 
   // TC-2196-DRIFT-GUARD-START
@@ -1920,18 +1928,12 @@ describe('E2E case drift coverage', () => {
       'prisma.bMMatch.findFirst',
       'prisma.mRMatch.findFirst',
       'prisma.gPMatch.findFirst',
-    ].flatMap((callee) => callObjectArrayLiteralTexts(readCurrentPhaseInputSource, callee, [
-      'where',
-      'stage',
-      'in',
-    ]));
+    ].flatMap((callee) => callObjectArrayLiteralTexts(readCurrentPhaseInputSource, callee, ['where', 'stage', 'in']));
     const overlayFinalsSelects = [
       'prisma.bMMatch.findFirst',
       'prisma.mRMatch.findFirst',
       'prisma.gPMatch.findFirst',
-    ].flatMap((callee) => callObjectPropertyNames(readCurrentPhaseInputSource, callee, [
-      'select',
-    ]));
+    ].flatMap((callee) => callObjectPropertyNames(readCurrentPhaseInputSource, callee, ['select']));
 
     expect(section).toContain('issue #2196');
     expect(section).toContain('latestFinalsStage: "playoff"');
@@ -2035,9 +2037,7 @@ describe('E2E case drift coverage', () => {
     expect(tc2224DriftGuard).toContain('// TC-2196-DRIFT-GUARD-START');
     expect(tc2224DriftGuard).toContain('// TC-2196-DRIFT-GUARD-END');
     expect(tc2224DriftGuard).toContain('overlayFinalsSelects.length');
-    expect(tc2224DriftGuard).not.toContain(
-      'expect(overlayFinalsSelects.length).toBeGreaterThanOrEqual(3)',
-    );
+    expect(tc2224DriftGuard).not.toContain('expect(overlayFinalsSelects.length).toBeGreaterThanOrEqual(3)');
   });
 
   it('keeps TC-2225 aligned with missing-callee helper coverage', () => {
@@ -2126,26 +2126,8 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1082 aligned with shared BM/MR participant score input coverage', () => {
     const section = e2eCaseSection('TC-1082');
-    const bmPage = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'app',
-      'tournaments',
-      '[id]',
-      'bm',
-      'participant',
-      'page.tsx',
-    );
-    const mrPage = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'app',
-      'tournaments',
-      '[id]',
-      'mr',
-      'participant',
-      'page.tsx',
-    );
+    const bmPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'participant', 'page.tsx');
+    const mrPage = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'mr', 'participant', 'page.tsx');
 
     expect(section).toContain('issue #1082');
     expect(section).toContain('issue #1469/#1470');
@@ -2228,7 +2210,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('prisma.gPMatch.update');
     expect(section).toContain('gp/finals/route.test.ts');
     // Use regex to tolerate Prettier line-wrap reformatting — see issue #2375
-    expect(gpFinalsRouteTest).toMatch(/const updatedMatch\s*=\s*\{\s*\.\.\.mockMatch,\s*suddenDeathWinnerId:\s*null\s*\}/);
+    expect(gpFinalsRouteTest).toMatch(
+      /const updatedMatch\s*=\s*\{\s*\.\.\.mockMatch,\s*suddenDeathWinnerId:\s*null\s*\}/,
+    );
     expect(gpFinalsRouteTest).not.toMatch(redundantUpdatedMatch);
     expect(gpFinalsRouteTest).toContain('points1: 2');
     expect(gpFinalsRouteTest).toContain('points2: 2');
@@ -2296,11 +2280,12 @@ describe('E2E case drift coverage', () => {
   it.each(tc109ClassifiedRows)(
     'keeps %s explicitly classified outside standalone browser runner registration',
     (tc, marker, coverage) => {
-    const section = e2eCaseSection(tc);
+      const section = e2eCaseSection(tc);
 
-    expect(section).toContain(marker);
-    expect(section).toContain(coverage);
-  });
+      expect(section).toContain(marker);
+      expect(section).toContain(coverage);
+    },
+  );
 
   // [TC109-HELPER-COVERAGE-DRIFT-GUARD-START]
   it('keeps TC-109 helper coverage classified without environment variable names in the URL slot', () => {
@@ -2350,7 +2335,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/helpers/e2e-cases.test.ts');
     expect(anchoredBlock).toContain("e2eCaseSection('TC-109')");
     expect(anchoredBlock).toContain('fs.mkdirSync');
-    expect(anchoredBlock).not.toContain("it('keeps TC-109 drift guard focused on docs instead of helper implementation strings'");
+    expect(anchoredBlock).not.toContain(
+      "it('keeps TC-109 drift guard focused on docs instead of helper implementation strings'",
+    );
   });
 
   it('keeps late static-only TC classifications ordered within their local block', () => {
@@ -2372,7 +2359,7 @@ describe('E2E case drift coverage', () => {
       'TC-1669',
       'TC-1671',
     ];
-    const indexes = orderedTcs.map((tc) => block.indexOf(`['${tc}'`));
+    const indexes = orderedTcs.map((tc) => new RegExp(`\\[\\s*['"]${tc}['"]`).exec(block)?.index ?? -1);
 
     expect(indexes.every((index) => index >= 0)).toBe(true);
     expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
@@ -2501,7 +2488,7 @@ describe('E2E case drift coverage', () => {
     );
 
     expect(section).toContain('issue #2235');
-    expect(section).toContain("`p1` / `p2`");
+    expect(section).toContain('`p1` / `p2`');
     expect(section).toContain('Top-24');
     expect(player1WinnerCase).toContain("player1Id: 'p1'");
     expect(player1WinnerCase).toContain("suddenDeathWinnerId: 'p1'");
@@ -2533,10 +2520,12 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('COALESCE(publicModes,');
     expect(section).toContain('idempotency');
     expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
-    expect(prismaMigrationsTest).toContain('adds overall to existing tournament publicModes with SQLite JSON semantics');
+    expect(prismaMigrationsTest).toContain(
+      'adds overall to existing tournament publicModes with SQLite JSON semantics',
+    );
     expect(prismaMigrationsTest).toContain("COALESCE(publicModes, '[]')");
-    expect(prismaMigrationsTest).toContain("COALESCE(\\\"publicModes\\\", '[]')");
-    expect(prismaMigrationsTest).toContain("db.exec(d1Migration)");
+    expect(prismaMigrationsTest).toMatch(/COALESCE\([\\"']?publicModes/);
+    expect(prismaMigrationsTest).toContain('db.exec(d1Migration)');
   });
 
   it('documents TC-2107 as MR scoresConfirmed migration type alignment coverage', () => {
@@ -2548,8 +2537,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`prisma/migrations/0017_mr_scores_confirmed/migration.sql`');
     expect(section).toContain('__tests__/docs/prisma-migrations.test.ts');
     expect(prismaMigrationsTest).toContain('keeps MR scoresConfirmed type declarations aligned');
-    expect(prismaMigrationsTest).toContain('readWranglerMigration("0036_add_mr_scores_confirmed.sql")');
-    expect(prismaMigrationsTest).toContain('const expectedColumn = \'"scoresConfirmed" BOOLEAN NOT NULL DEFAULT false\'');
+    expect(prismaMigrationsTest).toMatch(/readWranglerMigration\(['"]0036_add_mr_scores_confirmed\.sql['"]\)/);
+    expect(prismaMigrationsTest).toMatch(/expectedColumn = ['"]\\?"scoresConfirmed\\?" BOOLEAN NOT NULL DEFAULT false/);
   });
 
   it('documents TC-2206 as MR scoresConfirmed migration drift guard deduplication', () => {
@@ -2565,7 +2554,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('`__tests__/docs/prisma-migrations.test.ts` が migration SQL の実体チェックを所有');
     expect(section).toContain('TC-2107/TC-2206 の文書化と coverage owner');
     expect(section).toContain('__tests__/e2e/preview-schema-preflight.test.ts');
-    expect(prismaMigrationsTest).toContain('readWranglerMigration("0036_add_mr_scores_confirmed.sql")');
+    expect(prismaMigrationsTest).toMatch(/readWranglerMigration\(['"]0036_add_mr_scores_confirmed\.sql['"]\)/);
     expect(previewSchemaPreflightTest).toContain('keeps TC-2206 documented as migration drift deduplication coverage');
     expect(previewSchemaPreflightTest).not.toContain('0036_add_mr_scores_confirmed.sql');
   });
@@ -2591,9 +2580,7 @@ describe('E2E case drift coverage', () => {
     expect(taFinalsPhaseManagerTest).toContain(
       'returns no targets when one tied player is absent from phase2 sudden death results',
     );
-    expect(taFinalsPhaseManagerTest).toContain(
-      'p3 tied at the phase2 boundary but did not submit a sudden-death time',
-    );
+    expect(taFinalsPhaseManagerTest).toContain('p3 tied at the phase2 boundary but did not submit a sudden-death time');
     expect(taFinalsPhaseManagerTest).not.toContain(
       'returns no targets when phase2 sudden death has a unique slowest result',
     );
@@ -2613,20 +2600,13 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-2117 as course-selection public API wording coverage', () => {
     const section = e2eCaseSection('TC-2117');
-    const staticTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'course-selection-dead-export.test.ts'
-    );
+    const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'course-selection-dead-export.test.ts');
 
     expect(section).toContain('issue #2117');
     expect(section).toContain('getPlayedCoursesWithSuddenDeath');
     expect(section).toContain('旧 `getPlayedCourses` export の非公開');
     expect(section).toContain('__tests__/static/course-selection-dead-export.test.ts');
-    expect(staticTest).toContain(
-      'exposes getPlayedCoursesWithSuddenDeath and hides obsolete getPlayedCourses'
-    );
+    expect(staticTest).toContain('exposes getPlayedCoursesWithSuddenDeath and hides obsolete getPlayedCourses');
     expect(staticTest).toContain('export\\s+async\\s+function\\s+getPlayedCoursesWithSuddenDeath');
     expect(staticTest).toContain('not.toMatch(/\\bexport\\s+async\\s+function\\s+getPlayedCourses\\s*\\(/)');
   });
@@ -2666,11 +2646,11 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('suddenDeathTiebreak');
     expect(enMessages).toContain('"taSuddenDeath"');
     expect(jaMessages).toContain('"taSuddenDeath"');
-    expect(taSuddenDeathPanel).toContain('useTranslations("taSuddenDeath")');
+    expect(taSuddenDeathPanel).toMatch(/useTranslations\(['"]taSuddenDeath['"]\)/);
     for (const key of ['suddenDeathTiebreak', 'suddenDeathRoundDesc', 'suddenDeathCourse', 'submitSuddenDeath']) {
       expect(enMessages).toContain(`"${key}"`);
       expect(jaMessages).toContain(`"${key}"`);
-      expect(taSuddenDeathPanel).toContain(`"${key}"`);
+      expect(taSuddenDeathPanel).toMatch(new RegExp(`['"]${key}['"]`));
     }
     expect(taFinalsPage).toContain("'invalidTimeFor'");
     expect(taEliminationPhase).toContain("'invalidTimeFor'");
@@ -2690,10 +2670,12 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('Issue**: #2076');
     expect(section).toContain('MRMatch.scoresConfirmed=true');
     expect(section).toContain('400');
-    expect(tcMr).toContain("log('TC-822', mismatch && confirmRes.s === 200 && storedConfirmed && reportBlocked ? 'PASS' : 'FAIL'");
+    expect(tcMr).toContain(
+      "log('TC-822', mismatch && confirmRes.s === 200 && storedConfirmed && reportBlocked ? 'PASS' : 'FAIL'",
+    );
     expect(tcMr).toContain('scoresConfirmed: true');
     expect(tcMr).not.toContain("log('TC-822', 'SKIP'");
-    expect(prismaSchema).toContain('scoresConfirmed Boolean @default(false)');
+    expect(prismaSchema).toMatch(/scoresConfirmed\s+Boolean\s+@default\(false\)/);
     expect(mrMatchRoute).toContain('body?.scoresConfirmed === true');
     expect(mrReportRoute).toContain('Scores have already been confirmed for this match');
     expect(mrReportRouteTest).toContain('should reject participant reports after admin scoresConfirmed');
@@ -2763,11 +2745,7 @@ describe('E2E case drift coverage', () => {
       'interface TASuddenDeathPanelProps',
       'export interface TASuddenDeathSectionProps',
     );
-    const sectionUsage = sectionBetween(
-      taSuddenDeathPanel,
-      '<TASuddenDeathPanel<Entry>',
-      '/>',
-    );
+    const sectionUsage = sectionBetween(taSuddenDeathPanel, '<TASuddenDeathPanel<Entry>', '/>');
 
     expect(section).toContain('issue #2292/#2290');
     expect(section).toContain('pendingSuddenDeathEntries');
@@ -2780,7 +2758,9 @@ describe('E2E case drift coverage', () => {
     expect(sectionUsage).toContain('submittingSuddenDeath={submittingSuddenDeath}');
     expect(sectionUsage).not.toContain('entries={pendingSuddenDeathEntries}');
     expect(sectionUsage).not.toContain('submitting={submittingSuddenDeath}');
-    expect(taSuddenDeathPanelTest).toContain('passes pending entries and submitting state through with matching prop names');
+    expect(taSuddenDeathPanelTest).toContain(
+      'passes pending entries and submitting state through with matching prop names',
+    );
     expect(taSuddenDeathPanelTest).toContain('submittingSuddenDeath');
   });
 
@@ -2829,7 +2809,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('空入力');
     expect(section).toContain('if (!raw || raw.trim() === "") return;');
     expect(section).toContain('ta-sudden-death-panel.test.tsx');
-    expect(taSuddenDeathPanel).toContain('if (!raw || raw.trim() === "") return;');
+    expect(taSuddenDeathPanel).toMatch(/if \(!raw \|\| raw\.trim\(\) === ['"]{2}\) return;/);
     expect(taSuddenDeathPanelTest).toContain('keeps empty blur as a no-op');
     expect(taSuddenDeathPanelTest).toContain('handleSuddenDeathTimeBlur');
     expect(taSuddenDeathPanelTest).toContain('suddenDeathTimes).toEqual({})');
@@ -2885,7 +2865,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('ta/phases route.test.ts');
     expect(tcTa).toContain("log('TC-1996'");
     expect(tcTa).toContain("selectOption('3')");
-    expect(tcTa).toContain("capturedSubmitPayload");
+    expect(tcTa).toContain('capturedSubmitPayload');
     expect(tcTa).toContain('makeTaPhaseRoundTimeMs(tvEntry)');
     expect(tcTa).not.toContain('seededByPlayer.get(tvEntry.playerId)?.totalMs');
     expect(taPhasesRouteTest).toContain('should accept phase3 results with null or absent tvNumber');
@@ -2936,17 +2916,8 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-1051 as the Top-24 directSeeds-only contract', () => {
     const section = e2eCaseSection('TC-1051');
-    const unitTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'finals-group-selection.test.ts',
-    );
-    const runTc510OkBlock = sectionBetween(
-      tcBm,
-      'const ok = playoffCreated',
-      "log('TC-510'",
-    );
+    const unitTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'finals-group-selection.test.ts');
+    const runTc510OkBlock = sectionBetween(tcBm, 'const ok = playoffCreated', "log('TC-510'");
 
     expect(section).toContain('issue #1051');
     expect(section).toContain('legacy `direct[]`');
@@ -2955,19 +2926,13 @@ describe('E2E case drift coverage', () => {
     expect(tcBm).toContain("log('TC-1051'");
     expect(tcBm).toContain('legacyDirectPayloadAbsent');
     expect(runTc510OkBlock).toContain('legacyDirectPayloadAbsent');
-    expect(unitTest).toContain("does not expose the redundant direct[] projection for 2 groups");
+    expect(unitTest).toContain('does not expose the redundant direct[] projection for 2 groups');
     expect(unitTest).toContain("expect('direct' in result).toBe(false)");
   });
 
   it('keeps TC-1048 aligned with the shared Top-24 Phase-2 action card', () => {
     const section = e2eCaseSection('TC-1048');
-    const component = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'components',
-      'tournament',
-      'playoff-complete-card.tsx',
-    );
+    const component = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'playoff-complete-card.tsx');
     const componentTest = readRepoFile(
       'smkc-score-app',
       '__tests__',
@@ -2990,20 +2955,8 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1046 aligned with the Top-24 qualifier-count guard', () => {
     const section = e2eCaseSection('TC-1046');
-    const routeFactory = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'lib',
-      'api-factories',
-      'finals-route.ts',
-    );
-    const unitTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'api-factories',
-      'finals-route.test.ts',
-    );
+    const routeFactory = readRepoFile('smkc-score-app', 'src', 'lib', 'api-factories', 'finals-route.ts');
+    const unitTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-factories', 'finals-route.test.ts');
 
     expect(section).toContain('issue #1046');
     expect(section).toContain('TOP24_QUALIFIER_COUNT');
@@ -3016,26 +2969,9 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1047 aligned with Top-24 preview fallback logging and typing', () => {
     const section = e2eCaseSection('TC-1047');
-    const routeFactory = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'lib',
-      'api-factories',
-      'finals-route.ts',
-    );
-    const routeTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'lib',
-      'api-factories',
-      'finals-route.test.ts',
-    );
-    const staticTest = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'static',
-      'tc-1047-top24-preview-logging.test.ts',
-    );
+    const routeFactory = readRepoFile('smkc-score-app', 'src', 'lib', 'api-factories', 'finals-route.ts');
+    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-factories', 'finals-route.test.ts');
+    const staticTest = readRepoFile('smkc-score-app', '__tests__', 'static', 'tc-1047-top24-preview-logging.test.ts');
 
     expect(section).toContain('issue #1047/#1045/#1628/#1630');
     expect(section).toContain('errorName・errorCode・tournamentId・eventTypeCode');
@@ -3080,12 +3016,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1614 aligned with implementation-detail-free TC-1612 drift coverage', () => {
     const section = e2eCaseSection('TC-1614');
-    const driftTestSource = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'docs',
-      'e2e-cases-drift.test.ts',
-    );
+    const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
     const tc1612DriftTest = sectionBetween(
       driftTestSource,
       "it('keeps TC-1612 aligned with the PlayoffCompleteCard className merge contract'",
@@ -3110,12 +3041,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-1616 aligned with positive extraction assertions for the TC-1614 guard', () => {
     const section = e2eCaseSection('TC-1616');
-    const driftTestSource = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'docs',
-      'e2e-cases-drift.test.ts',
-    );
+    const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
     const tc1614DriftTest = sectionBetween(
       driftTestSource,
       "it('keeps TC-1614 aligned with implementation-detail-free TC-1612 drift coverage'",
@@ -3127,19 +3053,14 @@ describe('E2E case drift coverage', () => {
     expect(tc1614DriftTest).toContain('toBeGreaterThan');
     expect(tc1614DriftTest).toContain('e2eCaseSection');
     expect(tc1614DriftTest.indexOf('toBeGreaterThan')).toBeLessThan(
-      tc1614DriftTest.indexOf("not.toContain(\"'src'\")"),
+      tc1614DriftTest.indexOf('not.toContain("\'src\'")'),
     );
   });
 
   it('keeps TC-1618 and TC-1619 aligned with stable TC-1614 extraction anchors', () => {
     const tc1618 = e2eCaseSection('TC-1618');
     const tc1619 = e2eCaseSection('TC-1619');
-    const driftTestSource = readRepoFile(
-      'smkc-score-app',
-      '__tests__',
-      'docs',
-      'e2e-cases-drift.test.ts',
-    );
+    const driftTestSource = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
     const tc1614DriftTest = sectionBetween(
       driftTestSource,
       "it('keeps TC-1614 aligned with implementation-detail-free TC-1612 drift coverage'",
@@ -3191,11 +3112,7 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-2400 using stable sorted entry order and neutral variable names (#2401 #2402)', () => {
     // runTc2400 is the last function before getSuite; use allowTerminal to read until end.
-    const tc2400Section = sectionBetween(
-      tcTa,
-      'async function runTc2400(',
-      'function getSuite(',
-    );
+    const tc2400Section = sectionBetween(tcTa, 'async function runTc2400(', 'function getSuite(');
     // #2401: entries must be sorted by playerId before time assignment to avoid
     // fragile dependence on the API's return order.
     expect(tc2400Section).toContain('localeCompare');
@@ -3477,7 +3394,16 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-2506 as score-entry-logs returning 403 for player role', () => {
     const section = e2eCaseSection('TC-2506');
-    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'api',
+      'tournaments',
+      '[id]',
+      'score-entry-logs',
+      'route.test.ts',
+    );
     expect(section).toContain('player');
     expect(section).toContain('route.test.ts');
     expect(routeTest).toContain('TC-2506');
@@ -3486,7 +3412,16 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-2507 as score-entry-logs returning logs grouped by matchId for admin', () => {
     const section = e2eCaseSection('TC-2507');
-    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'api',
+      'tournaments',
+      '[id]',
+      'score-entry-logs',
+      'route.test.ts',
+    );
     expect(section).toContain('matchId');
     expect(section).toContain('route.test.ts');
     expect(routeTest).toContain('TC-2507');
@@ -3495,7 +3430,16 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-2508 as score-entry-logs returning empty logsByMatch when no logs exist', () => {
     const section = e2eCaseSection('TC-2508');
-    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'api',
+      'tournaments',
+      '[id]',
+      'score-entry-logs',
+      'route.test.ts',
+    );
     expect(section).toContain('totalCount: 0');
     expect(section).toContain('route.test.ts');
     expect(routeTest).toContain('TC-2508');
@@ -3504,7 +3448,16 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-2509 as score-entry-logs querying with orderBy timestamp descending', () => {
     const section = e2eCaseSection('TC-2509');
-    const routeTest = readRepoFile('smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'score-entry-logs', 'route.test.ts');
+    const routeTest = readRepoFile(
+      'smkc-score-app',
+      '__tests__',
+      'app',
+      'api',
+      'tournaments',
+      '[id]',
+      'score-entry-logs',
+      'route.test.ts',
+    );
     expect(section).toContain('orderBy');
     expect(section).toContain('desc');
     expect(section).toContain('route.test.ts');
@@ -3802,7 +3755,14 @@ describe('E2E case drift coverage', () => {
       const section = e2eCaseSection('TC-2555');
       expect(section).toContain('overlay-events/route.test.ts');
       const overlayTest = readRepoFile(
-        'smkc-score-app', '__tests__', 'app', 'api', 'tournaments', '[id]', 'overlay-events', 'route.test.ts'
+        'smkc-score-app',
+        '__tests__',
+        'app',
+        'api',
+        'tournaments',
+        '[id]',
+        'overlay-events',
+        'route.test.ts',
       );
       // TC-2555: expect(array).toHaveLength(n) preferred over expect(array.length).toBe(n) (#2562)
       expect(overlayTest).toContain('TC-2555');
@@ -3837,33 +3797,31 @@ describe('E2E case drift coverage', () => {
         'fill',
         'tt-lives-replay.test.ts',
       );
-      for (const tc of ['TC-2557', 'TC-2558', 'TC-2559', 'TC-2560', 'TC-2561', 'TC-2562', 'TC-2563', 'TC-2564', 'TC-2565', 'TC-2566']) {
+      for (const tc of [
+        'TC-2557',
+        'TC-2558',
+        'TC-2559',
+        'TC-2560',
+        'TC-2561',
+        'TC-2562',
+        'TC-2563',
+        'TC-2564',
+        'TC-2565',
+        'TC-2566',
+      ]) {
         expect(replayTest).toContain(tc);
       }
     });
 
     it('documents TC-2567 and TC-2568 as displayRowOrder stable-sort unit tests in tt-finals.test.ts', () => {
-      const finalsTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'lib',
-        'cdm-export',
-        'fill',
-        'tt-finals.test.ts',
-      );
+      const finalsTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'cdm-export', 'fill', 'tt-finals.test.ts');
       for (const tc of ['TC-2567', 'TC-2568']) {
         expect(finalsTest).toContain(tc);
       }
     });
 
     it('documents TC-2569 through TC-2576 as fetchQualInitialData unit tests in qual-initial-data.test.ts', () => {
-      const qualTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'lib',
-        'api-factories',
-        'qual-initial-data.test.ts',
-      );
+      const qualTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-factories', 'qual-initial-data.test.ts');
       for (const tc of ['TC-2569', 'TC-2570', 'TC-2571', 'TC-2572', 'TC-2573', 'TC-2574', 'TC-2575', 'TC-2576']) {
         expect(qualTest).toContain(tc);
       }
@@ -3886,7 +3844,9 @@ describe('E2E case drift coverage', () => {
       // TC-2577/TC-2578 use lastCall to reliably reference each test's own paginate call (#2588)
       expect(pollingTest).toContain('mock.lastCall?.[0]');
       // TC-2577/TC-2578 restore objectContaining({findMany, count}) shape check (#2587)
-      expect(pollingTest).toContain('objectContaining({ findMany: expect.any(Function), count: expect.any(Function) })');
+      expect(pollingTest).toContain(
+        'objectContaining({ findMany: expect.any(Function), count: expect.any(Function) })',
+      );
       // Positive count assertion pinned to specific string to survive negative-only refactors (#2587)
       expect(pollingTest).toContain('expect(prisma.mRMatch.count).toHaveBeenCalled()');
       expect(pollingTest).toContain('expect(prisma.gPMatch.count).toHaveBeenCalled()');
@@ -3920,13 +3880,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2583 through TC-2586 as overlay layout edge-case unit tests in layout.test.ts', () => {
-      const layoutTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'lib',
-        'overlay',
-        'layout.test.ts',
-      );
+      const layoutTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'overlay', 'layout.test.ts');
       for (const tc of ['TC-2583', 'TC-2584', 'TC-2585', 'TC-2586']) {
         expect(layoutTest).toContain(tc);
       }
@@ -4002,10 +3956,7 @@ describe('E2E case drift coverage', () => {
         'hooks',
         'useQualificationActions.test.ts',
       );
-      for (const tc of [
-        'TC-2611', 'TC-2612', 'TC-2613', 'TC-2614',
-        'TC-2615', 'TC-2616', 'TC-2617', 'TC-2618',
-      ]) {
+      for (const tc of ['TC-2611', 'TC-2612', 'TC-2613', 'TC-2614', 'TC-2615', 'TC-2616', 'TC-2617', 'TC-2618']) {
         expect(qualActionsTest).toContain(tc);
       }
       // TC-2611: handleRankOverrideSave calls refetch on success
@@ -4037,8 +3988,15 @@ describe('E2E case drift coverage', () => {
         'useParticipantMatches.test.ts',
       );
       for (const tc of [
-        'TC-2619', 'TC-2620', 'TC-2621', 'TC-2622',
-        'TC-2623', 'TC-2624', 'TC-2625', 'TC-2626', 'TC-2627',
+        'TC-2619',
+        'TC-2620',
+        'TC-2621',
+        'TC-2622',
+        'TC-2623',
+        'TC-2624',
+        'TC-2625',
+        'TC-2626',
+        'TC-2627',
       ]) {
         expect(participantMatchesTest).toContain(tc);
       }
@@ -4080,16 +4038,20 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2628 through TC-2639 and TC-2642 as useModePublish unit tests', () => {
-      const modePublishTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'hooks',
-        'use-mode-publish.test.ts',
-      );
+      const modePublishTest = readRepoFile('smkc-score-app', '__tests__', 'hooks', 'use-mode-publish.test.ts');
       for (const tc of [
-        'TC-2628', 'TC-2629', 'TC-2630', 'TC-2631',
-        'TC-2632', 'TC-2633', 'TC-2634', 'TC-2635',
-        'TC-2636', 'TC-2637', 'TC-2638', 'TC-2639',
+        'TC-2628',
+        'TC-2629',
+        'TC-2630',
+        'TC-2631',
+        'TC-2632',
+        'TC-2633',
+        'TC-2634',
+        'TC-2635',
+        'TC-2636',
+        'TC-2637',
+        'TC-2638',
+        'TC-2639',
         'TC-2642',
       ]) {
         expect(modePublishTest).toContain(tc);
@@ -4132,10 +4094,22 @@ describe('E2E case drift coverage', () => {
         'rank-cell.test.tsx',
       );
       for (const tc of [
-        'TC-2643', 'TC-2644', 'TC-2645', 'TC-2646',
-        'TC-2647', 'TC-2648', 'TC-2649', 'TC-2650',
-        'TC-2651', 'TC-2652', 'TC-2657', 'TC-2658', 'TC-2659',
-        'TC-2660', 'TC-2661', 'TC-2662',
+        'TC-2643',
+        'TC-2644',
+        'TC-2645',
+        'TC-2646',
+        'TC-2647',
+        'TC-2648',
+        'TC-2649',
+        'TC-2650',
+        'TC-2651',
+        'TC-2652',
+        'TC-2657',
+        'TC-2658',
+        'TC-2659',
+        'TC-2660',
+        'TC-2661',
+        'TC-2662',
       ]) {
         expect(rankCellTest).toContain(tc);
       }
@@ -4143,10 +4117,10 @@ describe('E2E case drift coverage', () => {
       expect(rankCellTest).toContain('isAdmin={false}');
       expect(rankCellTest).toContain('queryByRole');
       // TC-2645/TC-2646: admin view mode shows Edit rank button
-      expect(rankCellTest).toContain("Edit rank");
+      expect(rankCellTest).toContain('Edit rank');
       expect(rankCellTest).toContain('isAdmin={true}');
       // TC-2647: empty input when no override (TC-2647 uses queryByRole for null check)
-      expect(rankCellTest).toContain("rankOverride={null}");
+      expect(rankCellTest).toContain('rankOverride={null}');
       expect(rankCellTest).toContain('spinbutton');
       // TC-2648/TC-2652: clear button queried consistently via getByRole
       expect(rankCellTest).toContain("getByRole('button', { name: /✕/ })");
@@ -4161,25 +4135,23 @@ describe('E2E case drift coverage', () => {
       expect(rankCellTest).toContain('not.toHaveBeenCalled');
       // TC-2652: clear button targets qual-99 and calls onSave with null
       expect(rankCellTest).toContain('✕');
-      expect(rankCellTest).toContain("qual-99");
+      expect(rankCellTest).toContain('qual-99');
       // TC-2657: empty string → null (parseInt("") === NaN)
       expect(rankCellTest).toContain('qual-empty');
-      expect(rankCellTest).toContain("parseInt");
+      expect(rankCellTest).toContain('parseInt');
       // TC-2658: rank 0 passes isNaN check
       expect(rankCellTest).toContain('qual-zero');
-      expect(rankCellTest).toContain("isNaN");
+      expect(rankCellTest).toContain('isNaN');
       // TC-2660: error message shown on reject
       expect(rankCellTest).toContain("getByRole('alert')");
       // TC-2661: error cleared on reopen
-      expect(rankCellTest).toContain('queryByRole(\'alert\')');
+      expect(rankCellTest).toContain("queryByRole('alert')");
     });
 
     it('TC-2659: commitSave has try/catch with inline error in rank-cell.tsx (structural drift guard)', () => {
       // Verify try/catch is present in commitSave so that onSave rejections are caught
       // and shown as inline error messages rather than propagating unhandled.
-      const rankCellSrc = readRepoFile(
-        'smkc-score-app', 'src', 'components', 'tournament', 'rank-cell.tsx',
-      );
+      const rankCellSrc = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'rank-cell.tsx');
       expect(rankCellSrc).toContain('commitSave');
       // Scope the check to the commitSave function block only.
       const commitSaveBlock = rankCellSrc.match(/const commitSave[\s\S]*?\n\s*};/)?.[0] ?? '';
@@ -4327,8 +4299,15 @@ describe('E2E case drift coverage', () => {
         'debug-fill-button.test.tsx',
       );
       for (const tc of [
-        'TC-2687', 'TC-2688', 'TC-2689', 'TC-2690',
-        'TC-2691', 'TC-2692', 'TC-2693', 'TC-2694', 'TC-2695',
+        'TC-2687',
+        'TC-2688',
+        'TC-2689',
+        'TC-2690',
+        'TC-2691',
+        'TC-2692',
+        'TC-2693',
+        'TC-2694',
+        'TC-2695',
       ]) {
         expect(btnTest).toContain(tc);
       }
@@ -4361,9 +4340,21 @@ describe('E2E case drift coverage', () => {
         'participant-page-layout.test.tsx',
       );
       for (const tc of [
-        'TC-2705', 'TC-2705b', 'TC-2706', 'TC-2707', 'TC-2708', 'TC-2709',
-        'TC-2710', 'TC-2711', 'TC-2712', 'TC-2713', 'TC-2714',
-        'TC-2715', 'TC-2716', 'TC-2717', 'TC-2718',
+        'TC-2705',
+        'TC-2705b',
+        'TC-2706',
+        'TC-2707',
+        'TC-2708',
+        'TC-2709',
+        'TC-2710',
+        'TC-2711',
+        'TC-2712',
+        'TC-2713',
+        'TC-2714',
+        'TC-2715',
+        'TC-2716',
+        'TC-2717',
+        'TC-2718',
       ]) {
         expect(layoutTest).toContain(tc);
       }
@@ -4393,16 +4384,8 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2719 through TC-2725 as LoadingSpinner unit tests', () => {
-      const spinnerTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'loading-spinner.test.tsx',
-      );
-      for (const tc of [
-        'TC-2719', 'TC-2720', 'TC-2721', 'TC-2722', 'TC-2723', 'TC-2724', 'TC-2725',
-      ]) {
+      const spinnerTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'loading-spinner.test.tsx');
+      for (const tc of ['TC-2719', 'TC-2720', 'TC-2721', 'TC-2722', 'TC-2723', 'TC-2724', 'TC-2725']) {
         expect(spinnerTest).toContain(tc);
       }
       // TC-2719: getByRole('status') asserts the element has role="status"
@@ -4420,16 +4403,8 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2726 through TC-2730 as LoadingOverlay unit tests', () => {
-      const overlayTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'loading-overlay.test.tsx',
-      );
-      for (const tc of [
-        'TC-2726', 'TC-2727', 'TC-2728', 'TC-2729', 'TC-2730',
-      ]) {
+      const overlayTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'loading-overlay.test.tsx');
+      for (const tc of ['TC-2726', 'TC-2727', 'TC-2728', 'TC-2729', 'TC-2730']) {
         expect(overlayTest).toContain(tc);
       }
       // TC-2726: null when closed
@@ -4454,8 +4429,16 @@ describe('E2E case drift coverage', () => {
         'update-indicator.test.tsx',
       );
       for (const tc of [
-        'TC-2731', 'TC-2732', 'TC-2733', 'TC-2734', 'TC-2735',
-        'TC-2736', 'TC-2737', 'TC-2738', 'TC-2739', 'TC-2740',
+        'TC-2731',
+        'TC-2732',
+        'TC-2733',
+        'TC-2734',
+        'TC-2735',
+        'TC-2736',
+        'TC-2737',
+        'TC-2738',
+        'TC-2739',
+        'TC-2740',
       ]) {
         expect(indicatorTest).toContain(tc);
       }
@@ -4478,17 +4461,26 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2741 through TC-2758 as Button unit tests', () => {
-      const buttonTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'button.test.tsx',
-      );
+      const buttonTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'button.test.tsx');
       for (const tc of [
-        'TC-2741', 'TC-2742', 'TC-2743', 'TC-2744', 'TC-2745', 'TC-2746', 'TC-2747',
-        'TC-2748', 'TC-2749', 'TC-2750', 'TC-2751', 'TC-2752', 'TC-2753', 'TC-2754',
-        'TC-2755', 'TC-2756', 'TC-2757', 'TC-2758',
+        'TC-2741',
+        'TC-2742',
+        'TC-2743',
+        'TC-2744',
+        'TC-2745',
+        'TC-2746',
+        'TC-2747',
+        'TC-2748',
+        'TC-2749',
+        'TC-2750',
+        'TC-2751',
+        'TC-2752',
+        'TC-2753',
+        'TC-2754',
+        'TC-2755',
+        'TC-2756',
+        'TC-2757',
+        'TC-2758',
       ]) {
         expect(buttonTest).toContain(tc);
       }
@@ -4511,16 +4503,8 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2759 through TC-2766 as Input unit tests', () => {
-      const inputTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'input.test.tsx',
-      );
-      for (const tc of [
-        'TC-2759', 'TC-2760', 'TC-2761', 'TC-2762', 'TC-2763', 'TC-2764', 'TC-2765', 'TC-2766',
-      ]) {
+      const inputTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'input.test.tsx');
+      for (const tc of ['TC-2759', 'TC-2760', 'TC-2761', 'TC-2762', 'TC-2763', 'TC-2764', 'TC-2765', 'TC-2766']) {
         expect(inputTest).toContain(tc);
       }
       // TC-2759: renders as input
@@ -4534,16 +4518,17 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2767 through TC-2775 as Tabs unit tests', () => {
-      const tabsTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'tabs.test.tsx',
-      );
+      const tabsTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'tabs.test.tsx');
       for (const tc of [
-        'TC-2767', 'TC-2768', 'TC-2769', 'TC-2770', 'TC-2771',
-        'TC-2772', 'TC-2773', 'TC-2774', 'TC-2775',
+        'TC-2767',
+        'TC-2768',
+        'TC-2769',
+        'TC-2770',
+        'TC-2771',
+        'TC-2772',
+        'TC-2773',
+        'TC-2774',
+        'TC-2775',
       ]) {
         expect(tabsTest).toContain(tc);
       }
@@ -4562,13 +4547,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2776 through TC-2785 as Badge unit tests', () => {
-      const badgeTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'badge.test.tsx',
-      );
+      const badgeTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'badge.test.tsx');
       for (const tc of tcRange(2776, 2785)) {
         expect(badgeTest).toContain(tc);
       }
@@ -4606,13 +4585,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2788 through TC-2801 as Switch unit tests', () => {
-      const switchTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'switch.test.tsx',
-      );
+      const switchTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'switch.test.tsx');
       for (const tc of tcRange(2788, 2801)) {
         expect(switchTest).toContain(tc);
       }
@@ -4634,13 +4607,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2802 through TC-2817 as Card unit tests', () => {
-      const cardTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'card.test.tsx',
-      );
+      const cardTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'card.test.tsx');
       for (const tc of tcRange(2802, 2817)) {
         expect(cardTest).toContain(tc);
       }
@@ -4662,12 +4629,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2818 through TC-2820 as tcRange helper unit tests', () => {
-      const driftTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'docs',
-        'e2e-cases-drift.test.ts',
-      );
+      const driftTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
       // Check for the it-block label prefixes, not just the TC number, to avoid
       // a tautology where the number appears in this very tcRange(2818, 2820) call.
       expect(driftTest).toContain("it('TC-2818:");
@@ -4679,13 +4641,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2821 through TC-2839 as Table unit tests', () => {
-      const tableTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'table.test.tsx',
-      );
+      const tableTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'table.test.tsx');
       for (const tc of tcRange(2821, 2839)) {
         expect(tableTest).toContain(tc);
       }
@@ -4708,13 +4664,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2840 through TC-2845 as Label unit tests', () => {
-      const labelTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'label.test.tsx',
-      );
+      const labelTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'label.test.tsx');
       for (const tc of tcRange(2840, 2845)) {
         expect(labelTest).toContain(tc);
       }
@@ -4727,13 +4677,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2846 through TC-2851 as Checkbox unit tests', () => {
-      const checkboxTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'checkbox.test.tsx',
-      );
+      const checkboxTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'checkbox.test.tsx');
       for (const tc of tcRange(2846, 2851)) {
         expect(checkboxTest).toContain(tc);
       }
@@ -4748,13 +4692,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2852 through TC-2861 as Alert unit tests', () => {
-      const alertTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'alert.test.tsx',
-      );
+      const alertTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'alert.test.tsx');
       for (const tc of tcRange(2852, 2861)) {
         expect(alertTest).toContain(tc);
       }
@@ -4769,13 +4707,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2862 through TC-2872 as Dialog unit tests', () => {
-      const dialogTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'dialog.test.tsx',
-      );
+      const dialogTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'dialog.test.tsx');
       for (const tc of tcRange(2862, 2872)) {
         expect(dialogTest).toContain(tc);
       }
@@ -4790,13 +4722,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2873 through TC-2902 as AlertDialog unit tests', () => {
-      const alertDialogTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'alert-dialog.test.tsx',
-      );
+      const alertDialogTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'alert-dialog.test.tsx');
       for (const tc of tcRange(2873, 2902)) {
         expect(alertDialogTest).toContain(tc);
       }
@@ -4875,12 +4801,7 @@ describe('E2E case drift coverage', () => {
 
     it('documents TC-2920 through TC-2928 as recommendGroupCount / assignGroupsBySeeding unit tests', () => {
       // TC-2920–TC-2928 moved to group-utils.test.ts per issue #2714
-      const groupUtilsTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'lib',
-        'group-utils.test.ts',
-      );
+      const groupUtilsTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'group-utils.test.ts');
       for (const tc of tcRange(2920, 2928)) {
         expect(groupUtilsTest).toContain(tc);
       }
@@ -4942,13 +4863,7 @@ describe('E2E case drift coverage', () => {
     });
 
     it('documents TC-2945 through TC-2988 as Select UI component unit tests', () => {
-      const selectTest = readRepoFile(
-        'smkc-score-app',
-        '__tests__',
-        'components',
-        'ui',
-        'select.test.tsx',
-      );
+      const selectTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'select.test.tsx');
       // Spot-check a range of TC IDs
       for (const tc of ['TC-2945', 'TC-2950', 'TC-2960', 'TC-2970', 'TC-2980', 'TC-2985', 'TC-2988']) {
         expect(selectTest).toContain(tc);
@@ -4972,4 +4887,3 @@ describe('tcRange helper', () => {
     expect(() => tcRange(2817, 2802)).toThrow(/start \(2817\) > end \(2802\)/);
   });
 });
-

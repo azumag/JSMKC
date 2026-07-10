@@ -36,7 +36,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { CountryFlag } from '@/components/ui/country-flag';
+import { PlayerName } from '@/components/ui/player-name';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from '@/lib/constants';
 import {
@@ -753,10 +753,7 @@ export default function TAEliminationPhase({
             <div className="mt-2 space-y-1">
               {activeEntries.map((e) => (
                 <p key={e.id} className="font-medium">
-                  <span className="inline-flex items-center gap-1.5 min-w-0">
-                    <CountryFlag country={e.player.country} locale={locale} />
-                    <span className="truncate">{e.player.nickname}</span>
-                  </span>
+                  <PlayerName player={e.player} locale={locale} />
                 </p>
               ))}
             </div>
@@ -1032,10 +1029,7 @@ export default function TAEliminationPhase({
                 <TableRow key={entry.id} className={entry.eliminated ? 'opacity-50' : ''}>
                   <TableCell className="font-bold">{index + 1}</TableCell>
                   <TableCell className="font-medium">
-                    <span className="inline-flex items-center gap-1.5 min-w-0">
-                      <CountryFlag country={entry.player.country} locale={locale} />
-                      <span className="truncate">{entry.player.nickname}</span>
-                    </span>
+                    <PlayerName player={entry.player} locale={locale} />
                     {entry.eliminated && (
                       <Badge variant="destructive" className="ml-2 text-xs">
                         {tElim('eliminated')}

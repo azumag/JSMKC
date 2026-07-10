@@ -16,21 +16,21 @@ datasource db {
 
 // User model (for NextAuth.js)
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  image         String?
-  role          String    @default("member") // member, admin
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  role      String   @default("member") // member, admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // NextAuth.js relations
-  accounts      Account[]
-  sessions      Session[]
-  
+  accounts Account[]
+  sessions Session[]
+
   // Relations
-  auditLogs     AuditLog[]
-  player        Player?
+  auditLogs AuditLog[]
+  player    Player?
 
   @@index([email])
 }
@@ -75,34 +75,34 @@ model VerificationToken {
 
 // Player model
 model Player {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  nickname  String   @unique
+  nickname  String    @unique
   country   String?
-  noCamera  Boolean  @default(false) // カメラなしフラグ（配信時のオーバーレイ制御用）
-  password  String?  // bcrypt hashed password for player authentication
+  noCamera  Boolean   @default(false) // カメラなしフラグ（配信時のオーバーレイ制御用）
+  password  String? // bcrypt hashed password for player authentication
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
-  version   Int      @default(0) // 楽観的ロック用
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  version   Int       @default(0) // 楽観的ロック用
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   // User relation (Optional, for linked users)
-  userId    String?  @unique
-  user      User?    @relation(fields: [userId], references: [id])
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
 
   // Battle Mode relations
-  bmPlayer1Matches BMMatch[] @relation("BMPlayer1")
-  bmPlayer2Matches BMMatch[] @relation("BMPlayer2")
+  bmPlayer1Matches BMMatch[]         @relation("BMPlayer1")
+  bmPlayer2Matches BMMatch[]         @relation("BMPlayer2")
   bmQualifications BMQualification[]
 
   // Match Race relations
-  mrPlayer1Matches MRMatch[] @relation("MRPlayer1")
-  mrPlayer2Matches MRMatch[] @relation("MRPlayer2")
+  mrPlayer1Matches MRMatch[]         @relation("MRPlayer1")
+  mrPlayer2Matches MRMatch[]         @relation("MRPlayer2")
   mrQualifications MRQualification[]
 
   // Grand Prix relations
-  gpPlayer1Matches GPMatch[] @relation("GPPlayer1")
-  gpPlayer2Matches GPMatch[] @relation("GPPlayer2")
+  gpPlayer1Matches GPMatch[]         @relation("GPPlayer1")
+  gpPlayer2Matches GPMatch[]         @relation("GPPlayer2")
   gpQualifications GPQualification[]
 
   // Time Trial relations
@@ -120,46 +120,46 @@ model Player {
 
 // Tournament model
 model Tournament {
-  id            String   @id @default(cuid())
-  name          String
-  slug          String?  @unique
-  date          DateTime
-  status        String   @default("draft") // draft, active, completed
-  dualReportEnabled Boolean @default(false) // When true, both players must report matching scores for auto-confirmation
-  taPlayerSelfEdit  Boolean @default(true)  // §3.1: When false, players cannot edit their own TA times (only partner's)
-  frozenStages  Json     @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
-  overlayPlayer1Name  String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
-  overlayPlayer2Name  String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
-  overlayPlayer1NoCamera Boolean @default(false) // 配信中1Pがカメラなしの場合、代替画像を表示
-  overlayPlayer2NoCamera Boolean @default(false) // 配信中2Pがカメラなしの場合、代替画像を表示
-  overlayMatchLabel   String? // 「配信に反映」時に設定される試合ラウンド表示名 (例: "決勝 QF")
-  overlayPlayer1Wins  Int?    // 配信中試合の1P勝利数
-  overlayPlayer2Wins  Int?    // 配信中試合の2P勝利数
-  overlayMatchFt      Int?    // 配信中試合のFirst-To目標勝利数 (BM/MR決勝: 5)
-  overlayLayout       Json     @default("{}") // 配信オーバーレイの名前・点数・下枠の座標設定
-  qualificationConfirmed Boolean @default(false) // 後方互換レガシーフィールド（オーバーレイ参照のみ）
+  id                       String    @id @default(cuid())
+  name                     String
+  slug                     String?   @unique
+  date                     DateTime
+  status                   String    @default("draft") // draft, active, completed
+  dualReportEnabled        Boolean   @default(false) // When true, both players must report matching scores for auto-confirmation
+  taPlayerSelfEdit         Boolean   @default(true) // §3.1: When false, players cannot edit their own TA times (only partner's)
+  frozenStages             Json      @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
+  overlayPlayer1Name       String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
+  overlayPlayer2Name       String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
+  overlayPlayer1NoCamera   Boolean   @default(false) // 配信中1Pがカメラなしの場合、代替画像を表示
+  overlayPlayer2NoCamera   Boolean   @default(false) // 配信中2Pがカメラなしの場合、代替画像を表示
+  overlayMatchLabel        String? // 「配信に反映」時に設定される試合ラウンド表示名 (例: "決勝 QF")
+  overlayPlayer1Wins       Int? // 配信中試合の1P勝利数
+  overlayPlayer2Wins       Int? // 配信中試合の2P勝利数
+  overlayMatchFt           Int? // 配信中試合のFirst-To目標勝利数 (BM/MR決勝: 5)
+  overlayLayout            Json      @default("{}") // 配信オーバーレイの名前・点数・下枠の座標設定
+  qualificationConfirmed   Boolean   @default(false) // 後方互換レガシーフィールド（オーバーレイ参照のみ）
   qualificationConfirmedAt DateTime? // 最後に予選が確定された日時（監査証跡・オーバーレイイベント用）
-  bmQualificationConfirmed Boolean @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可
-  mrQualificationConfirmed Boolean @default(false) // MRモード予選確定フラグ。trueの場合MRスコア編集不可
-  gpQualificationConfirmed Boolean @default(false) // GPモード予選確定フラグ。trueの場合GPスコア編集不可
-  debugMode     Boolean  @default(false) // デバッグ用トーナメント。trueの場合、admin に予選スコア自動入力ボタンを表示
-  publicModes   Json     @default("[]") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）
-  deletedAt     DateTime? // ソフトデリート用タイムスタンプ
-  version       Int      @default(0) // 楽観的ロック用
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  bmQualificationConfirmed Boolean   @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可
+  mrQualificationConfirmed Boolean   @default(false) // MRモード予選確定フラグ。trueの場合MRスコア編集不可
+  gpQualificationConfirmed Boolean   @default(false) // GPモード予選確定フラグ。trueの場合GPスコア編集不可
+  debugMode                Boolean   @default(false) // デバッグ用トーナメント。trueの場合、admin に予選スコア自動入力ボタンを表示
+  publicModes              Json      @default("[]") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）
+  deletedAt                DateTime? // ソフトデリート用タイムスタンプ
+  version                  Int       @default(0) // 楽観的ロック用
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   // Related data
-  bmMatches        BMMatch[]
-  bmQualifications BMQualification[]
-  mrMatches        MRMatch[]
-  mrQualifications MRQualification[]
-  gpMatches        GPMatch[]
-  gpQualifications GPQualification[]
-  ttEntries        TTEntry[]
-  ttPhaseRounds    TTPhaseRound[]
+  bmMatches                BMMatch[]
+  bmQualifications         BMQualification[]
+  mrMatches                MRMatch[]
+  mrQualifications         MRQualification[]
+  gpMatches                GPMatch[]
+  gpQualifications         GPQualification[]
+  ttEntries                TTEntry[]
+  ttPhaseRounds            TTPhaseRound[]
   ttPhaseSuddenDeathRounds TTPhaseSuddenDeathRound[]
-  playerScores     TournamentPlayerScore[]
+  playerScores             TournamentPlayerScore[]
 }
 
 // Course model (for Time Trial and Match Race)
@@ -182,58 +182,61 @@ model Arena {
 // ==========================================
 
 model BMQualification {
-  id               String     @id @default(cuid())
-  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId     String
-  player           Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId         String
-  group            String // A, B, C
-  seeding          Int?
-  mp               Int        @default(0) // Matches Played
-  wins             Int        @default(0)
-  ties             Int        @default(0)
-  losses           Int        @default(0)
-  winRounds        Int        @default(0)
-  lossRounds       Int        @default(0)
-  points           Int        @default(0) // Calculated: winRounds - lossRounds
-  score            Int        @default(0) // Ranking score
-  rankOverride     Int?       // 管理者による手動順位上書き (null = 自動計算)
-  rankOverrideBy   String?    // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt   DateTime?  // 上書き日時 (監査用)
-  deletedAt        DateTime?  // ソフトデリート用タイムスタンプ
-  version          Int        @default(0) // 楽観的ロック用
+  id                     String     @id @default(cuid())
+  tournament             Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId           String
+  player                 Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId               String
+  group                  String // A, B, C
+  seeding                Int?
+  mp                     Int        @default(0) // Matches Played
+  wins                   Int        @default(0)
+  ties                   Int        @default(0)
+  losses                 Int        @default(0)
+  winRounds              Int        @default(0)
+  lossRounds             Int        @default(0)
+  points                 Int        @default(0) // Calculated: winRounds - lossRounds
+  score                  Int        @default(0) // Ranking score
+  rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
+  rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
+  rankOverrideAt         DateTime? // 上書き日時 (監査用)
+  combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
+  combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
+  combinedRankOverrideAt DateTime? // 横断順位の記録日時
+  deletedAt              DateTime? // ソフトデリート用タイムスタンプ
+  version                Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
 
 model BMMatch {
-  id           String     @id @default(cuid())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String
-  matchNumber  Int
-  stage        String     @default("qualification") // qualification, finals, grand_final
-  round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
-  tvNumber     Int?
-  roundNumber  Int?       // サークル方式のDay番号 (1-based, qualification only)
-  isBye        Boolean    @default(false) // BREAK不戦勝マッチ
-  player1      Player     @relation("BMPlayer1", fields: [player1Id], references: [id])
-  player1Id    String
-  player1Side  Int        @default(1) // 1 or 2 (which controller)
-  player2      Player     @relation("BMPlayer2", fields: [player2Id], references: [id])
-  player2Id    String
-  player2Side  Int        @default(2)
-  score1       Int        @default(0) // Player 1's wins (e.g., 4 in "4-0")
-  score2       Int        @default(0) // Player 2's wins
-  completed    Boolean    @default(false)
-  assignedCourses Json? // Pre-assigned courses for this match (§5.4, §6.3): ["MC1", "DP1", "GV1", "BC1"]
-  rounds       Json? // [{arena: "Arena 1", winner: 1}, ...]
+  id                   String     @id @default(cuid())
+  tournament           Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId         String
+  matchNumber          Int
+  stage                String     @default("qualification") // qualification, finals, grand_final
+  round                String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
+  tvNumber             Int?
+  roundNumber          Int? // サークル方式のDay番号 (1-based, qualification only)
+  isBye                Boolean    @default(false) // BREAK不戦勝マッチ
+  player1              Player     @relation("BMPlayer1", fields: [player1Id], references: [id])
+  player1Id            String
+  player1Side          Int        @default(1) // 1 or 2 (which controller)
+  player2              Player     @relation("BMPlayer2", fields: [player2Id], references: [id])
+  player2Id            String
+  player2Side          Int        @default(2)
+  score1               Int        @default(0) // Player 1's wins (e.g., 4 in "4-0")
+  score2               Int        @default(0) // Player 2's wins
+  completed            Boolean    @default(false)
+  assignedCourses      Json? // Pre-assigned courses for this match (§5.4, §6.3): ["MC1", "DP1", "GV1", "BC1"]
+  rounds               Json? // [{arena: "Arena 1", winner: 1}, ...]
   startingCourseNumber Int? // BM: starting Battle Course (1-4). Qualification: shared per round-robin day (issue #724). Finals/playoff: shared per bracket round.
 
   // Double elimination fields
-  bracket      String?     // "winners", "losers", "grand_final"
+  bracket         String? // "winners", "losers", "grand_final"
   bracketPosition String? // "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2"
-  losses       Int        @default(0) // Losses in this stage
-  isGrandFinal Boolean    @default(false)
+  losses          Int     @default(0) // Losses in this stage
+  isGrandFinal    Boolean @default(false)
 
   // Player-reported scores (for participant score entry)
   player1ReportedScore1 Int? // Player 1's report: score for player 1
@@ -241,10 +244,10 @@ model BMMatch {
   player2ReportedScore1 Int? // Player 2's report: score for player 1
   player2ReportedScore2 Int? // Player 2's report: score for player 2
 
-  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
-  version      Int        @default(0) // 楽観的ロック用
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
+  version   Int       @default(0) // 楽観的ロック用
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
   @@index([tournamentId, stage, player1Id])
@@ -256,71 +259,74 @@ model BMMatch {
 // ==========================================
 
 model MRQualification {
-  id               String     @id @default(cuid())
-  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId     String
-  player           Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId         String
-  group            String
-  seeding          Int?
-  mp               Int        @default(0)
-  wins             Int        @default(0)
-  ties             Int        @default(0)
-  losses           Int        @default(0)
-  winRounds        Int        @default(0)
-  lossRounds       Int        @default(0)
-  points           Int        @default(0)
-  score            Int        @default(0)
-  rankOverride     Int?       // 管理者による手動順位上書き (null = 自動計算)
-  rankOverrideBy   String?    // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt   DateTime?  // 上書き日時 (監査用)
-  deletedAt        DateTime?  // ソフトデリート用タイムスタンプ
-  version          Int        @default(0) // 楽観的ロック用
+  id                     String     @id @default(cuid())
+  tournament             Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId           String
+  player                 Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId               String
+  group                  String
+  seeding                Int?
+  mp                     Int        @default(0)
+  wins                   Int        @default(0)
+  ties                   Int        @default(0)
+  losses                 Int        @default(0)
+  winRounds              Int        @default(0)
+  lossRounds             Int        @default(0)
+  points                 Int        @default(0)
+  score                  Int        @default(0)
+  rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
+  rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
+  rankOverrideAt         DateTime? // 上書き日時 (監査用)
+  combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
+  combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
+  combinedRankOverrideAt DateTime? // 横断順位の記録日時
+  deletedAt              DateTime? // ソフトデリート用タイムスタンプ
+  version                Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
 
 model MRMatch {
-  id           String     @id @default(cuid())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String
-  matchNumber  Int
-  stage        String     @default("qualification") // qualification, finals, grand_final
-  round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
-  tvNumber     Int?
-  roundNumber  Int?       // サークル方式のDay番号 (1-based, qualification only)
-  isBye        Boolean    @default(false) // BREAK不戦勝マッチ
-  player1      Player     @relation("MRPlayer1", fields: [player1Id], references: [id])
-  player1Id    String
-  player1Side  Int        @default(1) // 1 or 2 (which controller)
-  player2      Player     @relation("MRPlayer2", fields: [player2Id], references: [id])
-  player2Id    String
-  player2Side  Int        @default(2)
-  score1       Int        @default(0)
-  score2       Int        @default(0)
-  completed    Boolean    @default(false)
-  scoresConfirmed Boolean @default(false)
+  id              String     @id @default(cuid())
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId    String
+  matchNumber     Int
+  stage           String     @default("qualification") // qualification, finals, grand_final
+  round           String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
+  tvNumber        Int?
+  roundNumber     Int? // サークル方式のDay番号 (1-based, qualification only)
+  isBye           Boolean    @default(false) // BREAK不戦勝マッチ
+  player1         Player     @relation("MRPlayer1", fields: [player1Id], references: [id])
+  player1Id       String
+  player1Side     Int        @default(1) // 1 or 2 (which controller)
+  player2         Player     @relation("MRPlayer2", fields: [player2Id], references: [id])
+  player2Id       String
+  player2Side     Int        @default(2)
+  score1          Int        @default(0)
+  score2          Int        @default(0)
+  completed       Boolean    @default(false)
+  scoresConfirmed Boolean    @default(false)
   assignedCourses Json? // Pre-assigned courses for this match (§10.5): ["MC1", "DP1", "GV1", "BC1"]
-  rounds       Json? // [{course: "MC1", winner: 1}, ...]
+  rounds          Json? // [{course: "MC1", winner: 1}, ...]
 
   // Double elimination fields
-  bracket      String?     // "winners", "losers", "grand_final"
+  bracket         String? // "winners", "losers", "grand_final"
   bracketPosition String? // "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2"
-  losses       Int        @default(0) // Losses in this stage
-  isGrandFinal Boolean    @default(false)
+  losses          Int     @default(0) // Losses in this stage
+  isGrandFinal    Boolean @default(false)
 
   // Player-reported scores
   player1ReportedPoints1 Int? // Player 1's report: points for player 1
   player1ReportedPoints2 Int? // Player 1's report: points for player 2
-  player1ReportedRaces Json? // Player 1's report: races details
+  player1ReportedRaces   Json? // Player 1's report: races details
   player2ReportedPoints1 Int? // Player 2's report: points for player 1
   player2ReportedPoints2 Int? // Player 2's report: points for player 2
-  player2ReportedRaces Json? // Player 2's report: races details
+  player2ReportedRaces   Json? // Player 2's report: races details
 
-  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
-  version      Int        @default(0) // 楽観的ロック用
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
+  version   Int       @default(0) // 楽観的ロック用
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
   @@index([tournamentId, stage, player1Id])
@@ -332,65 +338,68 @@ model MRMatch {
 // ==========================================
 
 model GPQualification {
-  id               String     @id @default(cuid())
-  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId     String
-  player           Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId         String
-  group            String
-  seeding          Int?
-  mp               Int        @default(0)
-  wins             Int        @default(0)
-  ties             Int        @default(0)
-  losses           Int        @default(0)
-  points           Int        @default(0) // Driver points total
-  score            Int        @default(0)
-  rankOverride     Int?       // 管理者による手動順位上書き (null = 自動計算)
-  rankOverrideBy   String?    // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt   DateTime?  // 上書き日時 (監査用)
-  deletedAt        DateTime?  // ソフトデリート用タイムスタンプ
-  version          Int        @default(0) // 楽観的ロック用
+  id                     String     @id @default(cuid())
+  tournament             Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId           String
+  player                 Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId               String
+  group                  String
+  seeding                Int?
+  mp                     Int        @default(0)
+  wins                   Int        @default(0)
+  ties                   Int        @default(0)
+  losses                 Int        @default(0)
+  points                 Int        @default(0) // Driver points total
+  score                  Int        @default(0)
+  rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
+  rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
+  rankOverrideAt         DateTime? // 上書き日時 (監査用)
+  combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
+  combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
+  combinedRankOverrideAt DateTime? // 横断順位の記録日時
+  deletedAt              DateTime? // ソフトデリート用タイムスタンプ
+  version                Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
 
 model GPMatch {
-  id           String     @id @default(cuid())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String
-  matchNumber  Int
-  stage        String     @default("qualification")
-  round        String?
-  cup          String? // Mushroom, Flower, Star, Special
-  tvNumber     Int?
-  roundNumber  Int?       // サークル方式のDay番号 (1-based, qualification only)
-  isBye        Boolean    @default(false) // BREAK不戦勝マッチ
-  player1      Player     @relation("GPPlayer1", fields: [player1Id], references: [id])
-  player1Id    String
-  player1Side  Int        @default(1)
-  player2      Player     @relation("GPPlayer2", fields: [player2Id], references: [id])
-  player2Id    String
-  player2Side  Int        @default(2)
-  points1      Int        @default(0) // Driver points for player 1
-  points2      Int        @default(0) // Driver points for player 2
-  completed    Boolean    @default(false)
+  id                  String     @id @default(cuid())
+  tournament          Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId        String
+  matchNumber         Int
+  stage               String     @default("qualification")
+  round               String?
+  cup                 String? // Mushroom, Flower, Star, Special
+  tvNumber            Int?
+  roundNumber         Int? // サークル方式のDay番号 (1-based, qualification only)
+  isBye               Boolean    @default(false) // BREAK不戦勝マッチ
+  player1             Player     @relation("GPPlayer1", fields: [player1Id], references: [id])
+  player1Id           String
+  player1Side         Int        @default(1)
+  player2             Player     @relation("GPPlayer2", fields: [player2Id], references: [id])
+  player2Id           String
+  player2Side         Int        @default(2)
+  points1             Int        @default(0) // Driver points for player 1
+  points2             Int        @default(0) // Driver points for player 2
+  completed           Boolean    @default(false)
   suddenDeathWinnerId String? // Legacy GP finals tie-break winner; retained for historical bracket display
-  races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
-  assignedCups Json? // Finals/playoff: planned cup sequence for this matchup
-  cupResults   Json? // Finals/playoff: [{cup, races, points1, points2, winner}], one entry per played cup
+  races               Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
+  assignedCups        Json? // Finals/playoff: planned cup sequence for this matchup
+  cupResults          Json? // Finals/playoff: [{cup, races, points1, points2, winner}], one entry per played cup
 
   // Player-reported scores (for participant score entry)
   player1ReportedPoints1 Int? // Player 1's report: points for player 1
   player1ReportedPoints2 Int? // Player 1's report: points for player 2
-  player1ReportedRaces Json? // Player 1's report: races details
+  player1ReportedRaces   Json? // Player 1's report: races details
   player2ReportedPoints1 Int? // Player 2's report: points for player 1
   player2ReportedPoints2 Int? // Player 2's report: points for player 2
-  player2ReportedRaces Json? // Player 2's report: races details
+  player2ReportedRaces   Json? // Player 2's report: races details
 
-  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
-  version      Int        @default(0) // 楽観的ロック用
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
+  version   Int       @default(0) // 楽観的ロック用
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
   @@index([tournamentId, stage, player1Id])
@@ -403,16 +412,16 @@ model GPMatch {
 
 // Audit Log model
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?  // User ID (null for anonymous actions)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  ipAddress   String
-  userAgent   String
-  action      String   // CREATE_TOURNAMENT, UPDATE_MATCH, etc.
-  targetId    String?  // Target resource ID
-  targetType  String?  // Target resource type: Tournament, Player, Match, etc.
-  timestamp   DateTime @default(now())
-  details     Json?    // Additional details
+  id         String   @id @default(cuid())
+  userId     String? // User ID (null for anonymous actions)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress  String
+  userAgent  String
+  action     String // CREATE_TOURNAMENT, UPDATE_MATCH, etc.
+  targetId   String? // Target resource ID
+  targetType String? // Target resource type: Tournament, Player, Match, etc.
+  timestamp  DateTime @default(now())
+  details    Json? // Additional details
 
   @@index([timestamp])
   @@index([userId])
@@ -422,20 +431,20 @@ model AuditLog {
 
 // Score Entry Log model - Tracks participant score submissions
 model ScoreEntryLog {
-  id           String   @id @default(cuid())
-  tournamentId  String
+  id           String @id @default(cuid())
+  tournamentId String
   matchId      String
-  matchType    String   // BM, MR, GP
+  matchType    String // BM, MR, GP
   playerId     String
-  player       Player   @relation(fields: [playerId], references: [id])
+  player       Player @relation(fields: [playerId], references: [id])
 
   // Reported data (varies by match type)
-  reportedData Json     // Flexible storage for different match types
+  reportedData Json // Flexible storage for different match types
 
   // Metadata
-  ipAddress     String
-  userAgent     String
-  timestamp     DateTime @default(now())
+  ipAddress String
+  userAgent String
+  timestamp DateTime @default(now())
 
   @@index([matchId])
   @@index([playerId])
@@ -445,17 +454,17 @@ model ScoreEntryLog {
 
 // Match Character Usage model - Tracks which characters players use in matches
 model MatchCharacterUsage {
-  id          String   @id @default(cuid())
-  matchId     String
-  matchType   String   // BM, MR, GP
-  playerId    String
-  player      Player   @relation(fields: [playerId], references: [id])
+  id        String @id @default(cuid())
+  matchId   String
+  matchType String // BM, MR, GP
+  playerId  String
+  player    Player @relation(fields: [playerId], references: [id])
 
   // Character used
-  character   String   // Mario, Luigi, Peach, Toad, Yoshi, DK Jr., Bowser, Koopa
+  character String // Mario, Luigi, Peach, Toad, Yoshi, DK Jr., Bowser, Koopa
 
   // Metadata
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([matchId, matchType, playerId])
   @@index([playerId])
@@ -473,19 +482,19 @@ model MatchCharacterUsage {
 // - Round-by-round history display
 // - Elimination and life-reset tracking
 model TTPhaseRound {
-  id              String     @id @default(cuid())
-  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId    String
-  phase           String     // "phase1", "phase2", "phase3"
-  roundNumber     Int        // Sequential round number within the phase
-  course          String     // Course abbreviation (e.g., "MC1")
-  tvNumber        Int?       // Broadcast TV screen number (1-4), optional
-  results         Json       // Array: [{playerId, timeMs, isRetry}]
-  eliminatedIds   Json?      // Array of player IDs eliminated this round
-  livesReset      Boolean    @default(false) // Whether lives were reset after this round
-  manualOverride  Boolean    @default(false) // True when admin manually specified the course
-  submittedAt     DateTime?  // Set when the round has final results and elimination outcomes
-  createdAt       DateTime   @default(now())
+  id                String                    @id @default(cuid())
+  tournament        Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId      String
+  phase             String // "phase1", "phase2", "phase3"
+  roundNumber       Int // Sequential round number within the phase
+  course            String // Course abbreviation (e.g., "MC1")
+  tvNumber          Int? // Broadcast TV screen number (1-4), optional
+  results           Json // Array: [{playerId, timeMs, isRetry}]
+  eliminatedIds     Json? // Array of player IDs eliminated this round
+  livesReset        Boolean                   @default(false) // Whether lives were reset after this round
+  manualOverride    Boolean                   @default(false) // True when admin manually specified the course
+  submittedAt       DateTime? // Set when the round has final results and elimination outcomes
+  createdAt         DateTime                  @default(now())
   suddenDeathRounds TTPhaseSuddenDeathRound[]
 
   @@unique([tournamentId, phase, roundNumber])
@@ -520,30 +529,30 @@ model TTPhaseSuddenDeathRound {
 }
 
 model TTEntry {
-  id           String     @id @default(cuid())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId     String
-  stage        String     @default("qualification") // qualification, phase1, phase2, phase3
-  lives        Int        @default(3) // For phase3 finals
-  eliminated   Boolean    @default(false)
-  seeding      Int?       // §3.1: TA pair assignment seed ranking (lower = stronger), per-tournament
-  partnerId    String?    // §3.1: Partner player ID for pair running (partner enters your times)
-  times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
-  totalTime    Int? // Total time in milliseconds
-  rank         Int?
+  id                  String     @id @default(cuid())
+  tournament          Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId        String
+  player              Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId            String
+  stage               String     @default("qualification") // qualification, phase1, phase2, phase3
+  lives               Int        @default(3) // For phase3 finals
+  eliminated          Boolean    @default(false)
+  seeding             Int? // §3.1: TA pair assignment seed ranking (lower = stronger), per-tournament
+  partnerId           String? // §3.1: Partner player ID for pair running (partner enters your times)
+  times               Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
+  totalTime           Int? // Total time in milliseconds
+  rank                Int?
   // Most recently recorded (course, raw time string) on this entry. Persisted
   // by the TA PUT route so the overlay can show "<player> が <course> で
   // <time> を記録しました" without needing per-course history.
-  lastRecordedCourse String?
-  lastRecordedTime   String?
-  courseScores         Json?   // Points per course: {"MC1": 45, "DP1": 50, ...}
-  qualificationPoints  Int?    // Total qualification points (max 1000)
-  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
-  version      Int        @default(0) // 楽観的ロック用
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  lastRecordedCourse  String?
+  lastRecordedTime    String?
+  courseScores        Json? // Points per course: {"MC1": 45, "DP1": 50, ...}
+  qualificationPoints Int? // Total qualification points (max 1000)
+  deletedAt           DateTime? // ソフトデリート用タイムスタンプ
+  version             Int        @default(0) // 楽観的ロック用
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
   @@unique([tournamentId, playerId, stage])
   @@index([tournamentId, stage])
@@ -556,30 +565,30 @@ model TTEntry {
 
 // Aggregated tournament points for each player across all 4 modes
 model TournamentPlayerScore {
-  id              String     @id @default(cuid())
-  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId    String
-  player          Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId        String
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId     String
 
   // Qualification points (each mode max 1000)
-  taQualificationPoints  Int @default(0)
-  bmQualificationPoints  Int @default(0)
-  mrQualificationPoints  Int @default(0)
-  gpQualificationPoints  Int @default(0)
+  taQualificationPoints Int @default(0)
+  bmQualificationPoints Int @default(0)
+  mrQualificationPoints Int @default(0)
+  gpQualificationPoints Int @default(0)
 
   // Finals points (each mode max 2000)
-  taFinalsPoints  Int @default(0)
-  bmFinalsPoints  Int @default(0)
-  mrFinalsPoints  Int @default(0)
-  gpFinalsPoints  Int @default(0)
+  taFinalsPoints Int @default(0)
+  bmFinalsPoints Int @default(0)
+  mrFinalsPoints Int @default(0)
+  gpFinalsPoints Int @default(0)
 
   // Total and ranking
-  totalPoints     Int @default(0)  // Max 12000 (4 modes × 3000 max each)
-  overallRank     Int?
+  totalPoints Int  @default(0) // Max 12000 (4 modes × 3000 max each)
+  overallRank Int?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([tournamentId, playerId])
   @@index([tournamentId])
