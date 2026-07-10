@@ -1,0 +1,84 @@
+name: Apply qualification setup fix
+
+on:
+  push:
+    branches:
+      - codex/issue-2859-setup-error-handler
+    paths:
+      - .github/workflows/apply-2859-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/issue-2859-setup-error-handler
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+
+      - name: Reconstruct and apply fix
+        shell: bash
+        run: |
+          cat .github/scripts/apply-2859-fix.b64.* | base64 --decode > /tmp/apply-2859-fix.py
+          python /tmp/apply-2859-fix.py
+
+      - name: Install dependencies
+        working-directory: smkc-score-app
+        run: npm ci
+
+      - name: Format changed files
+        working-directory: smkc-score-app
+        run: |
+          npx prettier --write \
+            src/lib/hooks/useQualificationSetup.ts \
+            src/lib/hooks/useQualificationActions.ts \
+            src/components/tournament/group-setup-dialog.tsx \
+            'src/app/tournaments/[id]/bm/page-client.tsx' \
+            'src/app/tournaments/[id]/mr/page-client.tsx' \
+            'src/app/tournaments/[id]/gp/page-client.tsx' \
+            messages/en.json messages/ja.json \
+            __tests__/lib/hooks/useQualificationSetup.test.ts \
+            __tests__/lib/hooks/useQualificationActions.test.ts \
+            __tests__/components/tournament/group-setup-dialog.test.tsx \
+            __tests__/static/qualification-i18n-fallbacks.test.ts \
+            __tests__/static/qualification-setup-contract.test.ts \
+            __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts
+
+      - name: Lint
+        working-directory: smkc-score-app
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: smkc-score-app
+        run: npm run format:check
+
+      - name: Security audit
+        working-directory: smkc-score-app
+        run: npm audit --audit-level=high
+
+      - name: Unit tests
+        working-directory: smkc-score-app
+        run: npm test -- --ci --forceExit
+        env:
+          SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
+          NODE_ENV: test
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: preserve qualification setup input on failure"
+          git push
