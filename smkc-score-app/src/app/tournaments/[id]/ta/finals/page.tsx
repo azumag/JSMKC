@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Time Attack Finals - Phase 3 Page
@@ -27,26 +27,13 @@
  * - 3-second auto-refresh for live tracking
  */
 
-import { useState, useEffect, useCallback, use, useMemo, useRef } from "react";
-import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useEffect, useCallback, use, useMemo, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,7 +43,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -64,35 +51,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from '@/lib/constants';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
-import { autoFormatTime, generateRandomTimeString, msToDisplayTime, sortResultsByTime, timeToMs } from "@/lib/ta/time-utils";
-import {
-  TA_TIME_INPUT_HELP_CLASS,
-  getTaTimeInputProps,
-} from "@/lib/ta/time-entry-layout";
-import { TaTimeEntryRow } from "@/components/tournament/ta-time-entry-row";
-import { getCourseCycleStatus } from "@/lib/ta/course-cycle-status";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { Dice5 } from "lucide-react";
-import { createLogger } from "@/lib/client-logger";
-import type { Player } from "@/lib/types";
-import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
-import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
-import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
-import { RoundCorrectionControls } from "@/components/tournament/round-correction-controls";
-import {
-  TASuddenDeathSection,
-  useTaSuddenDeath,
-} from "@/components/tournament/ta-sudden-death-panel";
+  autoFormatTime,
+  generateRandomTimeString,
+  msToDisplayTime,
+  sortResultsByTime,
+  timeToMs,
+} from '@/lib/ta/time-utils';
+import { TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from '@/lib/ta/time-entry-layout';
+import { TaTimeEntryRow } from '@/components/tournament/ta-time-entry-row';
+import { getCourseCycleStatus } from '@/lib/ta/course-cycle-status';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { Dice5 } from 'lucide-react';
+import { createLogger } from '@/lib/client-logger';
+import type { Player } from '@/lib/types';
+import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
+import { useBroadcastReflect } from '@/lib/hooks/use-broadcast-reflect';
+import { CourseCycleStatusPanel } from '@/components/tournament/course-cycle-status-panel';
+import { RoundCorrectionControls } from '@/components/tournament/round-correction-controls';
+import { TASuddenDeathSection, useTaSuddenDeath } from '@/components/tournament/ta-sudden-death-panel';
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
 
@@ -143,23 +124,15 @@ function renderLives(lives: number, eliminated: boolean, eliminatedLabel: string
   const hearts = [];
   for (let i = 0; i < lives; i++) {
     hearts.push(
-      <span
-        key={i}
-        className={lives === 1 ? "text-red-500" : "text-red-400"}
-      >
+      <span key={i} className={lives === 1 ? 'text-red-500' : 'text-red-400'}>
         &#10084;&#65039;
-      </span>
+      </span>,
     );
   }
   return <span>{hearts}</span>;
 }
 
-
-export default function TimeAttackFinals({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function TimeAttackFinals({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
   const { data: session } = useSession();
   /* i18n translation hooks for TA finals, finals, and common namespaces */
@@ -187,7 +160,7 @@ export default function TimeAttackFinals({
   const [playedCourses, setPlayedCourses] = useState<string[]>([]);
   // Admin-selected course override. "__random__" = use random selection (default).
   // Cannot use "" because Radix UI Select reserves empty string for "no selection" (placeholder).
-  const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
+  const [selectedCourse, setSelectedCourse] = useState<string>('__random__');
   // Per-player TV assignments for the active round: playerId → TV number (1-4) or null.
   const [tvAssignments, setTvAssignments] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
@@ -215,12 +188,8 @@ export default function TimeAttackFinals({
   const isDebugMode = useTournamentDebugMode(tournamentId);
 
   // Broadcast overlay state and handler — shared with ta-elimination-phase via hook.
-  const {
-    broadcastStatus,
-    handleBroadcastReflect,
-    resetBroadcastStatus,
-    hasUnbroadcastedTvAssignment,
-  } = useBroadcastReflect(tournamentId, tvAssignments, entries);
+  const { broadcastStatus, handleBroadcastReflect, resetBroadcastStatus, hasUnbroadcastedTvAssignment } =
+    useBroadcastReflect(tournamentId, tvAssignments, entries);
 
   // Track if user is currently editing to pause polling
   const [isEditing, setIsEditing] = useState(false);
@@ -241,14 +210,10 @@ export default function TimeAttackFinals({
     setError(null);
     try {
       // Use the new phases API with phase3 parameter
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases?phase=phase3`
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || `Failed to fetch finals data: ${response.status}`
-        );
+        throw new Error(errorData.error || `Failed to fetch finals data: ${response.status}`);
       }
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, rounds, ... } }
@@ -280,7 +245,7 @@ export default function TimeAttackFinals({
           const initialRetry: Record<string, boolean> = {};
           const initialTv: Record<string, number | null> = {};
           activeEntries.forEach((entry) => {
-            initialTimes[entry.playerId] = "";
+            initialTimes[entry.playerId] = '';
             initialRetry[entry.playerId] = false;
             initialTv[entry.playerId] = null;
           });
@@ -294,9 +259,8 @@ export default function TimeAttackFinals({
         }
       }
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to fetch data";
-      logger.error("Failed to fetch data:", { error: err, tournamentId });
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+      logger.error('Failed to fetch data:', { error: err, tournamentId });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -333,23 +297,20 @@ export default function TimeAttackFinals({
     setStartingRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "start_round",
-            phase: "phase3",
-            // Only include course when admin has manually selected one;
-            // omitting it lets the server choose randomly (default behaviour).
-            ...(selectedCourse && selectedCourse !== "__random__" ? { course: selectedCourse } : {}),
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start_round',
+          phase: 'phase3',
+          // Only include course when admin has manually selected one;
+          // omitting it lets the server choose randomly (default behaviour).
+          ...(selectedCourse && selectedCourse !== '__random__' ? { course: selectedCourse } : {}),
+        }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to start round");
+        throw new Error(errorData.error || 'Failed to start round');
       }
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper
@@ -361,7 +322,7 @@ export default function TimeAttackFinals({
       const initialRetry: Record<string, boolean> = {};
       const initialTv: Record<string, number | null> = {};
       activeEntries.forEach((entry) => {
-        initialTimes[entry.playerId] = "";
+        initialTimes[entry.playerId] = '';
         initialRetry[entry.playerId] = false;
         initialTv[entry.playerId] = null;
       });
@@ -374,11 +335,10 @@ export default function TimeAttackFinals({
       setRetryFlags(initialRetry);
       setTvAssignments(initialTv);
       resetBroadcastStatus();
-      setSelectedCourse("__random__"); // Reset manual selection after round is started
+      setSelectedCourse('__random__'); // Reset manual selection after round is started
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to start round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start round';
       setSaveError(errorMessage);
     } finally {
       setStartingRound(false);
@@ -394,21 +354,18 @@ export default function TimeAttackFinals({
     setCancellingRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "cancel_round",
-            phase: "phase3",
-            roundNumber: currentRound.roundNumber,
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancel_round',
+          phase: 'phase3',
+          roundNumber: currentRound.roundNumber,
+        }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to cancel round");
+        throw new Error(errorData.error || 'Failed to cancel round');
       }
       setCurrentRound(null);
       setCourseTimes({});
@@ -419,8 +376,7 @@ export default function TimeAttackFinals({
       setShowCancelConfirm(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to cancel round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
       setSaveError(errorMessage);
       setShowCancelConfirm(false);
     } finally {
@@ -436,17 +392,14 @@ export default function TimeAttackFinals({
     setUndoingRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "undo_round", phase: "phase3" }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'undo_round', phase: 'phase3' }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to undo round");
+        throw new Error(errorData.error || 'Failed to undo round');
       }
       setShowUndoConfirm(false);
       setCurrentRound(null);
@@ -457,8 +410,7 @@ export default function TimeAttackFinals({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to undo round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to undo round';
       setSaveError(errorMessage);
       setShowUndoConfirm(false);
     } finally {
@@ -477,17 +429,14 @@ export default function TimeAttackFinals({
     setCancellingLastRound(true);
     setSaveError(null);
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "cancel_last_round", phase: "phase3" }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel_last_round', phase: 'phase3' }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to cancel round");
+        throw new Error(errorData.error || 'Failed to cancel round');
       }
       setShowCancelLastRoundConfirm(false);
       setCurrentRound(null);
@@ -498,8 +447,7 @@ export default function TimeAttackFinals({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to cancel round";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
       setSaveError(errorMessage);
       setShowCancelLastRoundConfirm(false);
     } finally {
@@ -539,7 +487,7 @@ export default function TimeAttackFinals({
   const handleTimeBlur = useCallback((playerId: string) => {
     setCourseTimes((prev) => {
       const raw = prev[playerId];
-      if (!raw || raw.trim() === "") return prev;
+      if (!raw || raw.trim() === '') return prev;
       const formatted = autoFormatTime(raw);
       if (formatted !== null && formatted !== raw) {
         return { ...prev, [playerId]: formatted };
@@ -556,14 +504,17 @@ export default function TimeAttackFinals({
     setRetryFlags((prev) => ({ ...prev, [playerId]: nextIsRetry }));
     setCourseTimes((prevTimes) => ({
       ...prevTimes,
-      [playerId]: nextIsRetry ? RETRY_PENALTY_DISPLAY : "",
+      [playerId]: nextIsRetry ? RETRY_PENALTY_DISPLAY : '',
     }));
   }, []);
 
-  const handleTvChange = useCallback((playerId: string, value: number | null) => {
-    setTvAssignments((prev) => ({ ...prev, [playerId]: value }));
-    resetBroadcastStatus();
-  }, [resetBroadcastStatus]);
+  const handleTvChange = useCallback(
+    (playerId: string, value: number | null) => {
+      setTvAssignments((prev) => ({ ...prev, [playerId]: value }));
+      resetBroadcastStatus();
+    },
+    [resetBroadcastStatus],
+  );
 
   /**
    * Submit round results: sends player times to the API.
@@ -597,12 +548,10 @@ export default function TimeAttackFinals({
             ...(tvNumber !== null ? { tvNumber } : {}),
           });
         } else {
-          const timeStr = courseTimes[entry.playerId] || "";
+          const timeStr = courseTimes[entry.playerId] || '';
           const timeMs = timeToMs(timeStr);
           if (timeMs === null) {
-            setSaveError(
-              tTaFinals('invalidTimeFor', { name: entry.player.nickname })
-            );
+            setSaveError(tTaFinals('invalidTimeFor', { name: entry.player.nickname }));
             setSubmitting(false);
             return;
           }
@@ -620,23 +569,20 @@ export default function TimeAttackFinals({
         return;
       }
 
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "submit_results",
-            phase: "phase3",
-            roundNumber: currentRound.roundNumber,
-            results,
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit_results',
+          phase: 'phase3',
+          roundNumber: currentRound.roundNumber,
+          results,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to submit results");
+        throw new Error(errorData.error || 'Failed to submit results');
       }
       const json = await response.json();
       const data = json.data ?? json;
@@ -659,8 +605,7 @@ export default function TimeAttackFinals({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to submit results";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit results';
       setSaveError(errorMessage);
     } finally {
       setSubmitting(false);
@@ -679,7 +624,7 @@ export default function TimeAttackFinals({
     handleSubmitSuddenDeath,
   } = useTaSuddenDeath({
     tournamentId,
-    phase: "phase3",
+    phase: 'phase3',
     entries,
     rounds,
     fetchData,
@@ -693,12 +638,12 @@ export default function TimeAttackFinals({
     try {
       // Use the main TA API for manual elimination since it supports direct entry updates
       const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entryId: entryToEliminate.id,
           eliminated: true,
-          action: "eliminate",
+          action: 'eliminate',
         }),
       });
       if (response.ok) {
@@ -707,11 +652,11 @@ export default function TimeAttackFinals({
         fetchData();
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to eliminate player");
+        alert(error.error || 'Failed to eliminate player');
       }
     } catch (err) {
-      logger.error("Failed to eliminate player:", { error: err, tournamentId });
-      alert("Failed to eliminate player");
+      logger.error('Failed to eliminate player:', { error: err, tournamentId });
+      alert('Failed to eliminate player');
     }
   };
 
@@ -721,20 +666,14 @@ export default function TimeAttackFinals({
   const isComplete = activeEntries.length <= 1 && entries.length > 0;
 
   // Check if there's an open (unsubmitted) round
-  const hasOpenRound =
-    rounds.length > 0 &&
-    (rounds[rounds.length - 1].results as unknown[]).length === 0;
+  const hasOpenRound = rounds.length > 0 && (rounds[rounds.length - 1].results as unknown[]).length === 0;
 
   /** Count of completed rounds (with submitted results), used in multiple sections */
-  const completedRoundsCount = rounds.filter(
-    (r) => (r.results as unknown[]).length > 0
-  ).length;
+  const completedRoundsCount = rounds.filter((r) => (r.results as unknown[]).length > 0).length;
   const courseCycleStatus = getCourseCycleStatus(playedCourses);
 
   // Life reset notification: show when lives were just reset
-  const lastCompletedRound = [...rounds]
-    .reverse()
-    .find((r) => (r.results as unknown[]).length > 0);
+  const lastCompletedRound = [...rounds].reverse().find((r) => (r.results as unknown[]).length > 0);
   const livesWereJustReset = lastCompletedRound?.livesReset === true;
 
   // === Loading State ===
@@ -759,9 +698,7 @@ export default function TimeAttackFinals({
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold">{tTaFinals('phase3Title')}</h1>
           <Button variant="outline" asChild>
-            <a href={`/tournaments/${tournamentId}/ta`}>
-              {tFinals('backToQualification')}
-            </a>
+            <a href={`/tournaments/${tournamentId}/ta`}>{tFinals('backToQualification')}</a>
           </Button>
         </div>
         <Card>
@@ -781,22 +718,16 @@ export default function TimeAttackFinals({
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-semibold">{tTaFinals('phase3Title')}</h1>
-            <p className="text-muted-foreground">
-              {tTaFinals('phase3Desc')}
-            </p>
+            <p className="text-muted-foreground">{tTaFinals('phase3Desc')}</p>
           </div>
           <Button variant="outline" asChild>
-            <a href={`/tournaments/${tournamentId}/ta`}>
-              {tFinals('backToQualification')}
-            </a>
+            <a href={`/tournaments/${tournamentId}/ta`}>{tFinals('backToQualification')}</a>
           </Button>
         </div>
         <Card>
           <CardHeader>
             <CardTitle>{tTaFinals('noFinalsYet')}</CardTitle>
-            <CardDescription>
-              {tTaFinals('noFinalsDesc')}
-            </CardDescription>
+            <CardDescription>{tTaFinals('noFinalsDesc')}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -809,32 +740,21 @@ export default function TimeAttackFinals({
   // is complete (champion decided) — the latter lets an admin fix a mistake in
   // the final round without a full phase reset. Buttons render only when at
   // least one round has been submitted; dialogs are rendered once at top level.
-  const roundCorrectionControls = completedRoundsCount > 0 ? (
-    <RoundCorrectionControls
-      labels={{
-        undoLastRound: tTaFinals('undoLastRound'),
-        cancelLastRound: tTaFinals('cancelLastRound'),
-        undoRoundTitle: tTaFinals('undoRoundTitle'),
-        undoRoundDesc: tTaFinals('undoRoundDesc'),
-        cancelLastRoundTitle: tTaFinals('cancelLastRoundTitle'),
-        cancelLastRoundDesc: tTaFinals('cancelLastRoundDesc'),
-        keepRound: tTaFinals('keepRound'),
-        undoing: tTaFinals('undoing'),
-        yesUndoRound: tTaFinals('yesUndoRound'),
-        cancellingLastRound: tTaFinals('cancellingLastRound'),
-        yesCancelLastRound: tTaFinals('yesCancelLastRound'),
-      }}
-      actionsDisabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-      undoingRound={undoingRound}
-      cancellingLastRound={cancellingLastRound}
-      showUndoConfirm={showUndoConfirm}
-      onShowUndoConfirmChange={setShowUndoConfirm}
-      showCancelConfirm={showCancelLastRoundConfirm}
-      onShowCancelConfirmChange={setShowCancelLastRoundConfirm}
-      onUndoRound={handleUndoRound}
-      onCancelLastRound={handleCancelLastRound}
-    />
-  ) : null;
+  const roundCorrectionControls =
+    completedRoundsCount > 0 ? (
+      <RoundCorrectionControls
+        translate={tTaFinals}
+        actionsDisabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+        undoingRound={undoingRound}
+        cancellingLastRound={cancellingLastRound}
+        showUndoConfirm={showUndoConfirm}
+        onShowUndoConfirmChange={setShowUndoConfirm}
+        showCancelConfirm={showCancelLastRoundConfirm}
+        onShowCancelConfirmChange={setShowCancelLastRoundConfirm}
+        onUndoRound={handleUndoRound}
+        onCancelLastRound={handleCancelLastRound}
+      />
+    ) : null;
 
   // === Main Render ===
   return (
@@ -842,9 +762,7 @@ export default function TimeAttackFinals({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">
-            {tTaFinals('phase3Title')}
-          </h1>
+          <h1 className="text-2xl font-semibold">{tTaFinals('phase3Title')}</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             {isComplete
               ? tFinals('tournamentComplete')
@@ -852,9 +770,7 @@ export default function TimeAttackFinals({
           </p>
         </div>
         <Button variant="outline" asChild>
-          <a href={`/tournaments/${tournamentId}/ta`}>
-            {tFinals('backToQualification')}
-          </a>
+          <a href={`/tournaments/${tournamentId}/ta`}>{tFinals('backToQualification')}</a>
         </Button>
       </div>
 
@@ -905,20 +821,19 @@ export default function TimeAttackFinals({
         onSubmit={handleSubmitSuddenDeath}
       />
 
-      {isAdmin && !isComplete && !pendingSuddenDeath && (
-        currentRound ? (
+      {isAdmin &&
+        !isComplete &&
+        !pendingSuddenDeath &&
+        (currentRound ? (
           <Card>
             <CardHeader>
               <CardTitle>
                 {tTaFinals('roundCourse', {
                   number: currentRound.roundNumber,
-                  course: COURSE_INFO.find((c) => c.abbr === currentRound.course)
-                    ?.name || currentRound.course,
+                  course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course,
                 })}
               </CardTitle>
-              <CardDescription>
-                {tTaFinals('enterTimesDesc')}
-              </CardDescription>
+              <CardDescription>{tTaFinals('enterTimesDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               {saveError && (
@@ -927,9 +842,7 @@ export default function TimeAttackFinals({
                 </div>
               )}
               <div className="space-y-3">
-                <p className={TA_TIME_INPUT_HELP_CLASS}>
-                  {tTaFinals('timeInputHelp')}
-                </p>
+                <p className={TA_TIME_INPUT_HELP_CLASS}>{tTaFinals('timeInputHelp')}</p>
                 {activeEntries.map((entry) => (
                   <TaTimeEntryRow
                     key={entry.id}
@@ -938,7 +851,7 @@ export default function TimeAttackFinals({
                     livesLabel={renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
                     tvNumber={tvAssignments[entry.playerId] ?? null}
                     tvLabel={`${tCommon('tvNumber')} ${entry.player.nickname}`}
-                    timeValue={courseTimes[entry.playerId] || ""}
+                    timeValue={courseTimes[entry.playerId] || ''}
                     timePlaceholder={tTaFinals('timePlaceholder')}
                     isRetry={retryFlags[entry.playerId]}
                     isEditingDisabled={submitting}
@@ -1007,9 +920,7 @@ export default function TimeAttackFinals({
                   {tTaFinals('cancelRound')}
                 </Button>
                 <Button onClick={handleSubmitResults} disabled={submitting}>
-                  {submitting
-                    ? tCommon('saving')
-                    : tTaFinals('submitDeductLives')}
+                  {submitting ? tCommon('saving') : tTaFinals('submitDeductLives')}
                 </Button>
               </div>
 
@@ -1023,18 +934,10 @@ export default function TimeAttackFinals({
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowCancelConfirm(false)}
-                      disabled={cancellingRound}
-                    >
+                    <Button variant="outline" onClick={() => setShowCancelConfirm(false)} disabled={cancellingRound}>
                       {tTaFinals('keepRound')}
                     </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleCancelRound}
-                      disabled={cancellingRound}
-                    >
+                    <Button variant="destructive" onClick={handleCancelRound} disabled={cancellingRound}>
                       {cancellingRound ? tTaFinals('cancelling') : tTaFinals('yesCancelRound')}
                     </Button>
                   </DialogFooter>
@@ -1046,9 +949,7 @@ export default function TimeAttackFinals({
           <Card>
             <CardHeader>
               <CardTitle>{tTaFinals('tournamentControl')}</CardTitle>
-              <CardDescription>
-                {tTaFinals('startRoundDesc')}
-              </CardDescription>
+              <CardDescription>{tTaFinals('startRoundDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -1060,21 +961,15 @@ export default function TimeAttackFinals({
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>{tTaFinals('activePlayers')}</span>
-                    <span className="font-bold">
-                      {activeEntries.length}
-                    </span>
+                    <span className="font-bold">{activeEntries.length}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>{tTaFinals('eliminatedPlayers')}</span>
-                    <span className="font-bold">
-                      {eliminatedEntries.length}
-                    </span>
+                    <span className="font-bold">{eliminatedEntries.length}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>{tTaFinals('roundsCompletedLabel')}</span>
-                    <span className="font-bold">
-                      {completedRoundsCount}
-                    </span>
+                    <span className="font-bold">{completedRoundsCount}</span>
                   </div>
                 </div>
                 <CourseCycleStatusPanel
@@ -1087,7 +982,11 @@ export default function TimeAttackFinals({
                     Leaving this on "ランダム" (default) preserves the existing random behaviour. */}
                 <div className="space-y-1">
                   <Label className="text-sm text-muted-foreground">{tTaFinals('courseOverrideLabel')}</Label>
-                  <Select value={selectedCourse} onValueChange={setSelectedCourse} disabled={startingRound || hasOpenRound}>
+                  <Select
+                    value={selectedCourse}
+                    onValueChange={setSelectedCourse}
+                    disabled={startingRound || hasOpenRound}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder={tTaFinals('randomCourse')} />
                     </SelectTrigger>
@@ -1121,8 +1020,7 @@ export default function TimeAttackFinals({
               </div>
             </CardContent>
           </Card>
-        )
-      )}
+        ))}
 
       {/* Final-round corrections (admin-only): once the champion is decided the
           round-management card above is hidden, but a mistake in the final
@@ -1135,9 +1033,7 @@ export default function TimeAttackFinals({
             <CardTitle>{tTaFinals('correctFinalRoundTitle')}</CardTitle>
             <CardDescription>{tTaFinals('correctFinalRoundDesc')}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {roundCorrectionControls}
-          </CardContent>
+          <CardContent className="space-y-2">{roundCorrectionControls}</CardContent>
         </Card>
       )}
 
@@ -1165,18 +1061,12 @@ export default function TimeAttackFinals({
             </TableHeader>
             <TableBody>
               {entries.map((entry, index) => (
-                <TableRow
-                  key={entry.id}
-                  className={entry.eliminated ? "opacity-50" : ""}
-                >
+                <TableRow key={entry.id} className={entry.eliminated ? 'opacity-50' : ''}>
                   <TableCell className="font-bold">{index + 1}</TableCell>
                   <TableCell className="font-medium">
                     {entry.player.nickname}
                     {entry.eliminated && (
-                      <Badge
-                        variant="destructive"
-                        className="ml-2 text-xs"
-                      >
+                      <Badge variant="destructive" className="ml-2 text-xs">
                         {tCommon('eliminated')}
                       </Badge>
                     )}
@@ -1186,20 +1076,20 @@ export default function TimeAttackFinals({
                   </TableCell>
                   {/* Admin-only: manual elimination button */}
                   {isAdmin && (
-                  <TableCell className="text-right">
-                    {!entry.eliminated && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEntryToEliminate(entry);
-                          setIsEliminateDialogOpen(true);
-                        }}
-                      >
-                        {tTaFinals('eliminate')}
-                      </Button>
-                    )}
-                  </TableCell>
+                    <TableCell className="text-right">
+                      {!entry.eliminated && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEntryToEliminate(entry);
+                            setIsEliminateDialogOpen(true);
+                          }}
+                        >
+                          {tTaFinals('eliminate')}
+                        </Button>
+                      )}
+                    </TableCell>
                   )}
                 </TableRow>
               ))}
@@ -1219,15 +1109,9 @@ export default function TimeAttackFinals({
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>{tTaFinals('roundHistory')}</CardTitle>
-              <CardDescription>
-                {tTaFinals('roundsCompleted', { count: completedRoundsCount })}
-              </CardDescription>
+              <CardDescription>{tTaFinals('roundsCompleted', { count: completedRoundsCount })}</CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setHistoryExpanded((prev) => !prev)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setHistoryExpanded((prev) => !prev)}>
               {historyExpanded ? tCommon('hide') : tCommon('show')}
             </Button>
           </div>
@@ -1235,27 +1119,18 @@ export default function TimeAttackFinals({
         {historyExpanded && (
           <CardContent>
             {rounds.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                {tTaFinals('noRoundsYet')}
-              </p>
+              <p className="text-muted-foreground text-center py-4">{tTaFinals('noRoundsYet')}</p>
             ) : (
               <div className="space-y-4">
                 {[...rounds]
                   .filter((r) => (r.results as unknown[]).length > 0)
                   .reverse()
                   .map((round) => {
-                    const courseInfo = COURSE_INFO.find(
-                      (c) => c.abbr === round.course
-                    );
-                    const sortedResults = [...round.results].sort(
-                      (a, b) => a.timeMs - b.timeMs
-                    );
+                    const courseInfo = COURSE_INFO.find((c) => c.abbr === round.course);
+                    const sortedResults = [...round.results].sort((a, b) => a.timeMs - b.timeMs);
                     const halfPoint = Math.ceil(sortedResults.length / 2);
                     return (
-                      <div
-                        key={round.id}
-                        className="border rounded-lg p-4 space-y-2"
-                      >
+                      <div key={round.id} className="border rounded-lg p-4 space-y-2">
                         <div className="flex justify-between items-center">
                           <h4 className="font-semibold">
                             {tTaFinals('roundCourse', {
@@ -1270,9 +1145,7 @@ export default function TimeAttackFinals({
                               </Badge>
                             )}
                             {round.livesReset && (
-                              <Badge className="bg-yellow-500 text-black">
-                                {tTaFinals('livesReset')}
-                              </Badge>
+                              <Badge className="bg-yellow-500 text-black">{tTaFinals('livesReset')}</Badge>
                             )}
                             {/* Show "手動選択" badge when admin manually specified the course */}
                             {round.manualOverride && (
@@ -1280,43 +1153,32 @@ export default function TimeAttackFinals({
                                 {tTaFinals('manualCourseOverride')}
                               </Badge>
                             )}
-                            <Badge
-                              variant="outline"
-                              className="font-mono text-xs"
-                            >
+                            <Badge variant="outline" className="font-mono text-xs">
                               {round.course}
                             </Badge>
                           </div>
                         </div>
                         <div className="space-y-1">
                           {sortedResults.map((result, idx) => {
-                            const isEliminated =
-                              round.eliminatedIds?.includes(result.playerId);
+                            const isEliminated = round.eliminatedIds?.includes(result.playerId);
                             // Bottom half loses a life (shown with visual indicator)
                             const isBottomHalf = idx >= halfPoint;
                             return (
                               <div
                                 key={result.playerId}
-                                className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : isBottomHalf ? "text-orange-500" : ""}`}
+                                className={`flex justify-between text-sm ${isEliminated ? 'text-red-500 font-semibold' : isBottomHalf ? 'text-orange-500' : ''}`}
                               >
                                 <span>
-                                  {idx + 1}.{" "}
-                                  {playerNames[result.playerId] ||
-                                    result.playerId}
+                                  {idx + 1}. {playerNames[result.playerId] || result.playerId}
                                   {result.isRetry && (
-                                    <Badge
-                                      variant="outline"
-                                      className="ml-1 text-xs"
-                                    >
+                                    <Badge variant="outline" className="ml-1 text-xs">
                                       {tCommon('retry')}
                                     </Badge>
                                   )}
                                   {isBottomHalf && !isEliminated && ` ${tTaFinals('minusOneLife')}`}
                                   {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
                                 </span>
-                                <span className="font-mono">
-                                  {msToDisplayTime(result.timeMs)}
-                                </span>
+                                <span className="font-mono">{msToDisplayTime(result.timeMs)}</span>
                               </div>
                             );
                           })}
@@ -1326,8 +1188,12 @@ export default function TimeAttackFinals({
                             {(round.suddenDeathRounds || []).map((sd) => (
                               <div key={sd.id} className="text-sm">
                                 <div className="flex justify-between">
-                                  <span className="font-medium">{tTaSuddenDeath("suddenDeathRoundLabel", { sequence: sd.sequence })}</span>
-                                  <Badge variant="outline" className="font-mono text-xs">{sd.course}</Badge>
+                                  <span className="font-medium">
+                                    {tTaSuddenDeath('suddenDeathRoundLabel', { sequence: sd.sequence })}
+                                  </span>
+                                  <Badge variant="outline" className="font-mono text-xs">
+                                    {sd.course}
+                                  </Badge>
                                 </div>
                                 {sortResultsByTime(sd.results || []).map((result) => (
                                   <div key={result.playerId} className="flex justify-between text-muted-foreground">
@@ -1349,25 +1215,22 @@ export default function TimeAttackFinals({
       </Card>
 
       {/* Manual Elimination Confirmation Dialog: admin-only */}
-      {isAdmin && <AlertDialog
-        open={isEliminateDialogOpen}
-        onOpenChange={setIsEliminateDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{tTaFinals('eliminatePlayerTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {tTaFinals('eliminatePlayerDesc', { player: entryToEliminate?.player.nickname || '' })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleEliminatePlayer}>
-              {tTaFinals('eliminate')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>}
+      {isAdmin && (
+        <AlertDialog open={isEliminateDialogOpen} onOpenChange={setIsEliminateDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{tTaFinals('eliminatePlayerTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {tTaFinals('eliminatePlayerDesc', { player: entryToEliminate?.player.nickname || '' })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
+              <AlertDialogAction onClick={handleEliminatePlayer}>{tTaFinals('eliminate')}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
