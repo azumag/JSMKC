@@ -95,13 +95,11 @@ describe('Qualification Route Factory', () => {
       .mockReturnValue({ valid: true, data: { matchId: 'match-1', score1: 3, score2: 1, completed: true } }),
     // match must include player1Id/player2Id because the source uses them to fetch
     // completed matches and update qualification records for both players
-    updateMatch: jest
-      .fn()
-      .mockResolvedValue({
-        match: { id: 'match-1', player1Id: 'player-1', player2Id: 'player-2' },
-        score1OrPoints1: 3,
-        score2OrPoints2: 1,
-      }),
+    updateMatch: jest.fn().mockResolvedValue({
+      match: { id: 'match-1', player1Id: 'player-1', player2Id: 'player-2' },
+      score1OrPoints1: 3,
+      score2OrPoints2: 1,
+    }),
     calculateMatchResult: jest.fn().mockReturnValue({ result1: 'win', result2: 'loss' }),
     aggregatePlayerStats: jest.fn().mockReturnValue({ qualificationData: { wins: 1, losses: 0, points: 3 } }),
     ...overrides,
@@ -1147,19 +1145,17 @@ describe('Qualification Route Factory', () => {
       (prisma.gPMatch as any) = {
         createMany: jest.fn().mockResolvedValue({ count: 6 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            {
-              id: 'bye-1',
-              player1Id: 'player-1',
-              player2Id: '__BREAK__',
-              score1: 45,
-              score2: 0,
-              completed: true,
-              isBye: true,
-            },
-          ]),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'bye-1',
+            player1Id: 'player-1',
+            player2Id: '__BREAK__',
+            score1: 45,
+            score2: 0,
+            completed: true,
+            isBye: true,
+          },
+        ]),
       };
 
       const config = createMockConfig({
