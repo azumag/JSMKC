@@ -4,14 +4,16 @@ on:
   push:
     branches:
       - codex/resolve-ta-battle-royale-followups
-    paths:
-      - .github/workflows/export-followup-source.yml
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   export:
+    if: github.head_ref == 'codex/resolve-ta-battle-royale-followups' || github.ref_name == 'codex/resolve-ta-battle-royale-followups'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
