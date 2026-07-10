@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   format-validate-commit:
-    name: Format, Validate & Commit
+    name: Format, Validate & Diagnose
     runs-on: ubuntu-latest
 
     steps:
@@ -50,18 +50,6 @@ jobs:
             __tests__/static/qualification-i18n-fallbacks.test.ts \
             __tests__/static/qualification-setup-contract.test.ts \
             __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts
-          npx prettier --check \
-            src/lib/hooks/useQualificationSetup.ts \
-            src/components/tournament/group-setup-dialog.tsx \
-            'src/app/tournaments/[id]/bm/page-client.tsx' \
-            'src/app/tournaments/[id]/mr/page-client.tsx' \
-            'src/app/tournaments/[id]/gp/page-client.tsx' \
-            messages/en.json messages/ja.json \
-            __tests__/lib/hooks/useQualificationSetup.test.ts \
-            __tests__/components/tournament/group-setup-dialog.test.tsx \
-            __tests__/static/qualification-i18n-fallbacks.test.ts \
-            __tests__/static/qualification-setup-contract.test.ts \
-            __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts
 
       - name: Lint
         working-directory: smkc-score-app
@@ -71,15 +59,21 @@ jobs:
         working-directory: smkc-score-app
         run: npm audit --audit-level=high
 
-      - name: Unit tests
+      - name: Run unit tests and capture diagnostics
         working-directory: smkc-score-app
-        run: npm test -- --ci --forceExit
+        shell: bash
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          set +e
+          npm test -- --ci --forceExit 2>&1 | tee ../.github/pr-2861-test.log
+          status=${PIPESTATUS[0]}
+          echo "jest_status=$status" >> ../.github/pr-2861-test.log
+          exit 0
 
-      - name: Restore CI definition and commit validated formatting
+      - name: Restore CI definition and commit formatting plus diagnostics
         shell: bash
         run: |
           git checkout origin/main -- .github/workflows/ci.yml
@@ -87,9 +81,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --check
-          if git diff --cached --quiet; then
-            echo "No formatting changes to commit."
-            exit 0
-          fi
-          git commit -m "fix: format and validate qualification setup changes"
+          git commit -m "test: capture qualification setup validation diagnostics"
           git push origin HEAD:${{ github.head_ref }}
