@@ -8,8 +8,12 @@ describe('qualification page i18n errors', () => {
   );
 
   it('keeps setup error fallbacks in the typed common message catalog', () => {
-    expect(setupHook).toContain("message: tc('networkError')");
-    expect(setupHook).toContain("tc(isValidation ? 'setupValidationError' : 'setupServerError')");
+    const networkErrorTranslation = /message:\s*tc\s*\(\s*(['"])networkError\1\s*\)/;
+    const setupFallbackTranslation =
+      /tc\s*\(\s*isValidation\s*\?\s*(['"])setupValidationError\1\s*:\s*(['"])setupServerError\2\s*\)/;
+
+    expect(setupHook).toMatch(networkErrorTranslation);
+    expect(setupHook).toMatch(setupFallbackTranslation);
     expect(setupHook).not.toContain('Network error — please try again');
   });
 
@@ -19,8 +23,11 @@ describe('qualification page i18n errors', () => {
       'utf8',
     );
 
-    expect(source).toContain("tc('failedGenerateBracket')");
+    const failedGenerateBracketTranslation = /tc\s*\(\s*(['"])failedGenerateBracket\1\s*\)/;
+    const networkErrorAlert = /alert\s*\(\s*tc\s*\(\s*(['"])networkError\1\s*\)\s*\)/;
+
+    expect(source).toMatch(failedGenerateBracketTranslation);
+    expect(source).not.toMatch(networkErrorAlert);
     expect(source).not.toContain('Network error — please try again');
-    expect(source).not.toContain("alert(tc('networkError'))");
   });
 });
