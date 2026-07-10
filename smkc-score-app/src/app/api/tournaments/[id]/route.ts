@@ -206,9 +206,10 @@ export async function GET(
  * - Same-status updates are accepted as no-ops so clients can PUT their
  *   current state without special-casing.
  *
- * Reopening deliberately leaves the persisted archive alone: the archive is
- * only served as a fallback when the live row is missing (see GET above),
- * and it is overwritten the next time the tournament is completed.
+ * Reopening leaves the persisted archive alone, but clears `publicModes` on
+ * the live row so provisional edits are not exposed as finalized results.
+ * The archive is only served as a fallback when the live row is missing (see
+ * GET above), and it is overwritten the next time the tournament is completed.
  */
 const ALLOWED_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
   draft: ["active"],
@@ -341,6 +342,7 @@ export async function PUT(
     };
 
     let tournament;
+    let reopenedFromCompleted = false;
     if (status !== undefined) {
       // Fold the "is this transition allowed from the CURRENT status" check
       // into the write itself via a conditional updateMany, instead of a
@@ -357,12 +359,32 @@ export async function PUT(
         if (tos.includes(status)) allowedSourceStatuses.add(from);
       }
 
-      const updateResult = await prisma.tournament.updateMany({
-        where: { id: resolvedId, status: { in: [...allowedSourceStatuses] } },
-        data: updateData,
-      });
+      let updateCount = 0;
 
-      if (updateResult.count === 0) {
+      if (status === "active") {
+        /* A completed tournament may still have publicly visible finalized
+         * modes. Clear them atomically with the completed -> active transition
+         * so no request can observe an active, editable tournament whose
+         * provisional results are still published. Other transitions to
+         * active (draft -> active and active -> active) retain publicModes. */
+        const reopenResult = await prisma.tournament.updateMany({
+          where: { id: resolvedId, status: "completed" },
+          data: { ...updateData, publicModes: [] },
+        });
+        updateCount = reopenResult.count;
+        reopenedFromCompleted = reopenResult.count > 0;
+        allowedSourceStatuses.delete("completed");
+      }
+
+      if (updateCount === 0) {
+        const updateResult = await prisma.tournament.updateMany({
+          where: { id: resolvedId, status: { in: [...allowedSourceStatuses] } },
+          data: updateData,
+        });
+        updateCount = updateResult.count;
+      }
+
+      if (updateCount === 0) {
         const current = await prisma.tournament.findUnique({
           where: { id: resolvedId },
           select: { status: true },
@@ -421,7 +443,7 @@ export async function PUT(
           bmQualificationConfirmed,
           mrQualificationConfirmed,
           gpQualificationConfirmed,
-          publicModes,
+          publicModes: reopenedFromCompleted ? [] : publicModes,
         },
       }).catch((err) => logger.warn('Failed to create audit log', {
         error: err,

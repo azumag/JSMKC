@@ -600,6 +600,7 @@ describe('PUT /api/tournaments/[id]', () => {
         id: 't1',
         name: 'Test Tournament',
         status: 'active',
+        publicModes: [],
       };
 
       jest.mocked(auth).mockResolvedValue({
@@ -620,7 +621,10 @@ describe('PUT /api/tournaments/[id]', () => {
       );
 
       expect(prisma.tournament.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'active' }) })
+        {
+          where: { id: 't1', status: 'completed' },
+          data: expect.objectContaining({ status: 'active', publicModes: [] }),
+        }
       );
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
@@ -637,7 +641,13 @@ describe('PUT /api/tournaments/[id]', () => {
           user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status });
-        (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+        if (status === 'active') {
+          (prisma.tournament.updateMany as jest.Mock)
+            .mockResolvedValueOnce({ count: 0 })
+            .mockResolvedValueOnce({ count: 1 });
+        } else {
+          (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+        }
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -653,6 +663,10 @@ describe('PUT /api/tournaments/[id]', () => {
         expect(prisma.tournament.updateMany).toHaveBeenCalledWith(
           expect.objectContaining({ data: expect.objectContaining({ status }) })
         );
+        if (status === 'active') {
+          expect((prisma.tournament.updateMany as jest.Mock).mock.calls[1][0].data)
+            .not.toHaveProperty('publicModes');
+        }
         expect(NextResponse.json).toHaveBeenCalledWith({
           success: true,
           data: mockTournament,
@@ -676,7 +690,13 @@ describe('PUT /api/tournaments/[id]', () => {
           user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ status: next });
-        (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+        if (next === 'active') {
+          (prisma.tournament.updateMany as jest.Mock)
+            .mockResolvedValueOnce({ count: 0 })
+            .mockResolvedValueOnce({ count: 1 });
+        } else {
+          (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+        }
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -693,6 +713,10 @@ describe('PUT /api/tournaments/[id]', () => {
         expect(prisma.tournament.updateMany).toHaveBeenCalledWith(
           expect.objectContaining({ data: expect.objectContaining({ status: next }) })
         );
+        if (next === 'active') {
+          expect((prisma.tournament.updateMany as jest.Mock).mock.calls[1][0].data)
+            .not.toHaveProperty('publicModes');
+        }
         expect(NextResponse.json).toHaveBeenCalledWith({
           success: true,
           data: mockTournament,
