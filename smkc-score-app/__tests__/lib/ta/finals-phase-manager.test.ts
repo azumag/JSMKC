@@ -2523,6 +2523,36 @@ describe("TA Finals Phase Manager", () => {
       );
     });
 
+    it("waits for the audit log write before resolving the reset", async () => {
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([makeResetEntry("p1", "Alice")]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
+      mockPrismaClient.tTPhaseRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTEntry.deleteMany.mockResolvedValue({ count: 1 });
+
+      let releaseAudit!: () => void;
+      let markAuditStarted!: () => void;
+      const auditStarted = new Promise<void>((resolve) => { markAuditStarted = resolve; });
+      const auditBlocked = new Promise<void>((resolve) => { releaseAudit = resolve; });
+      (createAuditLog as jest.Mock).mockImplementation(() => {
+        markAuditStarted();
+        return auditBlocked;
+      });
+
+      let settled = false;
+      const resetPromise = resetPhase(mockPrismaClient as never, context, "phase3")
+        .finally(() => { settled = true; });
+      await auditStarted;
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      releaseAudit();
+      await expect(resetPromise).resolves.toEqual({
+        stage: "phase3",
+        deletedEntryCount: 1,
+        deletedRoundCount: 0,
+      });
+    });
+
     it("logs a warning when the audit log write rejects, without failing the reset", async () => {
       mockPrismaClient.tTEntry.findFirst.mockResolvedValue(null);
       mockPrismaClient.tTEntry.findMany.mockResolvedValue([makeResetEntry("p1", "Alice")]);
