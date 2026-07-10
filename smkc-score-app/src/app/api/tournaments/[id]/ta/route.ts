@@ -75,7 +75,7 @@ function getArchivedTaPayload(archive: TournamentArchiveBundle) {
 
 /**
  * POST request body schema.
- * Only supports "add" action to add players to qualification.
+ * Supports adding players and an admin-only qualification-score recalculation.
  * Promotion actions have been moved to /api/tournaments/[id]/ta/phases endpoint.
  *
  * Players can be specified as:
@@ -90,7 +90,7 @@ const PostRequestSchema = z.object({
     playerId: z.string().cuid(),
     seeding: z.number().int().nonnegative().optional(),
   })).optional(),
-  action: z.enum(["add"]).optional(),
+  action: z.enum(["add", "recalculate_qualification"]).optional(),
 }).refine(
   (data) => {
     if (!data.action || data.action === "add") {
@@ -215,7 +215,8 @@ export const GET = (
 /**
  * POST /api/tournaments/[id]/ta
  *
- * Add player(s) to TA qualification round.
+ * Add player(s) to TA qualification round, or recalculate persisted
+ * qualification scoring fields after a scoring-rule deployment.
  * For promotion to finals phases, use POST /api/tournaments/[id]/ta/phases.
  */
 export async function POST(
@@ -235,7 +236,36 @@ export async function POST(
       return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
     }
 
-    const { playerId, players, playerEntries } = parseResult.data;
+    const { action, playerId, players, playerEntries } = parseResult.data;
+
+    if (action === "recalculate_qualification") {
+      const authResult = await requireAdminSession();
+      if (authResult.error) return authResult.error;
+
+      const recalculatedEntryCount = await prisma.tTEntry.count({
+        where: { tournamentId, stage: "qualification" },
+      });
+      await recalculateRanks(tournamentId, "qualification", prisma);
+      await createAuditLog({
+        userId: resolveAuditUserId(authResult.session),
+        ipAddress: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+        targetId: tournamentId,
+        targetType: "Tournament",
+        details: {
+          tournamentId,
+          stage: "qualification",
+          action: "recalculate_qualification",
+          recalculatedEntryCount,
+        },
+      });
+
+      return createSuccessResponse({
+        stage: "qualification",
+        recalculatedEntryCount,
+      });
+    }
 
     // === Add Player to Qualification ===
     const authResult = await requireAdminOrPlayerSession();
@@ -358,8 +388,8 @@ export async function POST(
     );
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to add player to TA", { error, tournamentId });
-    return createErrorResponse((error as Error).message || "Failed to add player to time attack", 500, "INTERNAL_ERROR");
+    logger.error("Failed to process TA request", { error, tournamentId });
+    return createErrorResponse((error as Error).message || "Failed to process time attack request", 500, "INTERNAL_ERROR");
   }
 }
 
