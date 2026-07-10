@@ -1,45 +1,31 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "smkc-score-app/**"
   pull_request:
     paths:
       - "smkc-score-app/**"
-      - ".github/workflows/ci.yml"
-
-permissions:
-  contents: write
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  finalize-pr-2861:
-    name: Finalize, Validate & Commit
+  lint-and-test:
+    name: Lint & Test
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: smkc-score-app
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0
-
-      - name: Apply final test-contract fix and restore CI definition
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts')
-          text = path.read_text(encoding='utf-8')
-          old = "expect(guard).toContain(\"expect(groupCountButton).not.toContain('disabled')\");"
-          new = "expect(guard).toContain(\"expect(groupCountButton).toContain('disabled={saving}')\");"
-          if text.count(old) != 1:
-              raise SystemExit(f'unexpected TC-1007 drift guard count: {text.count(old)}')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          Path('.github/pr-2861-test.log').unlink(missing_ok=True)
-          PY
-          git checkout origin/main -- .github/workflows/ci.yml
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -49,55 +35,24 @@ jobs:
           cache-dependency-path: smkc-score-app/package-lock.json
 
       - name: Install dependencies
-        working-directory: smkc-score-app
         run: npm ci
 
-      - name: Format changed files
-        working-directory: smkc-score-app
-        run: |
-          npx prettier --write \
-            src/lib/hooks/useQualificationSetup.ts \
-            src/components/tournament/group-setup-dialog.tsx \
-            'src/app/tournaments/[id]/bm/page-client.tsx' \
-            'src/app/tournaments/[id]/mr/page-client.tsx' \
-            'src/app/tournaments/[id]/gp/page-client.tsx' \
-            messages/en.json messages/ja.json \
-            __tests__/lib/hooks/useQualificationSetup.test.ts \
-            __tests__/components/tournament/group-setup-dialog.test.tsx \
-            __tests__/static/qualification-i18n-fallbacks.test.ts \
-            __tests__/static/qualification-setup-contract.test.ts \
-            __tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts \
-            __tests__/docs/e2e-cases-drift.test.ts
-
       - name: Lint
-        working-directory: smkc-score-app
         run: npm run lint
 
-      - name: Check formatting
-        working-directory: smkc-score-app
+      - name: Check formatting of changed files
         run: npm run format:check
         env:
-          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Security audit
-        working-directory: smkc-score-app
+        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
         run: npm audit --audit-level=high
 
       - name: Unit tests
-        working-directory: smkc-score-app
         run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
-
-      - name: Commit validated final changes
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "fix: preserve qualification setup state on submission failure"
-          git push origin HEAD:${{ github.head_ref }}
