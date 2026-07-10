@@ -2107,6 +2107,25 @@ describe('Qualification Route Factory', () => {
       expect((prisma.bMQualification as any).update).not.toHaveBeenCalled();
     });
 
+    it('rejects a qualification update with neither rank override field', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      const { PATCH } = createQualificationHandlers(createMockConfig());
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({ qualificationId: 'qual-1' }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(
+        expect.objectContaining({ error: 'Provide exactly one of rankOverride or combinedRankOverride' }),
+      );
+      expect((prisma.bMQualification as any).update).not.toHaveBeenCalled();
+    });
+
     it('should return 400 when rankOverride is fractional', async () => {
       mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
 
