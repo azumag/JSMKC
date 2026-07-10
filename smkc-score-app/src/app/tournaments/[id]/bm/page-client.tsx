@@ -53,6 +53,7 @@ import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
+  compareByScoreThenPoints,
   compareByScoreThenPointsAndCombinedOverride,
   computeCombinedRanks,
   computeTieAwareRanks,
@@ -211,7 +212,7 @@ export default function BattleModePageClient({
   const matches: BMMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const combinedRankings = useMemo(
-    () => computeCombinedRanks(qualifications, compareByScoreThenPointsAndCombinedOverride),
+    () => computeCombinedRanks(qualifications, compareByScoreThenPoints, compareByScoreThenPointsAndCombinedOverride),
     [qualifications],
   );
   /* Whether qualification scores are locked by admin confirmation */

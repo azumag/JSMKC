@@ -236,7 +236,8 @@ export default function GrandPrixPageClient({
   const matches: GPMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const combinedRankings = useMemo(
-    () => computeCombinedRanks(qualifications, compareByScoreThenPointsAndCombinedOverride),
+    () =>
+      computeCombinedRanks(qualifications, compareGpQualificationEntries, compareByScoreThenPointsAndCombinedOverride),
     [qualifications],
   );
   /* Whether qualification scores are locked by admin confirmation */

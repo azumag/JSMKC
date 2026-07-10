@@ -158,13 +158,14 @@ export function computeTieAwareRanks<T extends RankableEntry>(
  */
 export function computeCombinedRanks<T extends GroupedRankableEntry>(
   entries: T[],
-  compareFn: (a: T, b: T) => number,
+  groupCompareFn: (a: T, b: T) => number,
+  combinedCompareFn: (a: T, b: T) => number = groupCompareFn,
 ): EntryWithAutoRank<T>[] {
   if (entries.length === 0) return [];
 
   const bucketById = new Map<string, number>();
   for (const groupEntries of groupBy(entries, (entry) => entry.group).values()) {
-    for (const ranked of computeTieAwareRanks(groupEntries, compareFn)) {
+    for (const ranked of computeTieAwareRanks(groupEntries, groupCompareFn)) {
       bucketById.set(ranked.id, ranked.rankOverride ?? ranked._autoRank);
     }
   }
@@ -174,7 +175,7 @@ export function computeCombinedRanks<T extends GroupedRankableEntry>(
   // breaks ties within the same bucket.
   const combinedCompare = (a: T, b: T) => {
     const bucketDiff = bucketById.get(a.id)! - bucketById.get(b.id)!;
-    return bucketDiff !== 0 ? bucketDiff : compareFn(a, b);
+    return bucketDiff !== 0 ? bucketDiff : combinedCompareFn(a, b);
   };
   const sorted = [...entries].sort(combinedCompare);
 

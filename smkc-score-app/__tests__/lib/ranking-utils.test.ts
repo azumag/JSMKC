@@ -198,9 +198,24 @@ describe('computeCombinedRanks', () => {
       { id: 'c1', group: 'C', score: 11, points: 0, rankOverride: null, combinedRankOverride: 99 },
     ];
 
-    const result = computeCombinedRanks(entries, compareByScoreThenPointsAndCombinedOverride);
+    const result = computeCombinedRanks(entries, compareByScoreThenPoints, compareByScoreThenPointsAndCombinedOverride);
     expect(result.map((entry) => entry.id)).toEqual(['c1', 'b1', 'a1']);
     expect(result.map((entry) => entry._autoRank)).toEqual([1, 2, 3]);
+  });
+
+  it('keeps cross-group overrides out of group-internal bucket membership', () => {
+    const entries: GroupedEntry[] = [
+      { id: 'a1', group: 'A', score: 6, points: 3, rankOverride: null, combinedRankOverride: 2 },
+      { id: 'a2', group: 'A', score: 6, points: 3, rankOverride: null, combinedRankOverride: 1 },
+      { id: 'b1', group: 'B', score: 6, points: 3, rankOverride: null },
+      { id: 'b2', group: 'B', score: 4, points: 1, rankOverride: null },
+    ];
+
+    const result = computeCombinedRanks(entries, compareByScoreThenPoints, compareByScoreThenPointsAndCombinedOverride);
+
+    expect(result.map((entry) => entry.id)).toEqual(['a2', 'a1', 'b1', 'b2']);
+    expect(result.find((entry) => entry.id === 'a1')?._autoRank).toBe(2);
+    expect(result.find((entry) => entry.id === 'a2')?._autoRank).toBe(1);
   });
 
   it('matches the 3-group worked example from qualification-combined-ranking.md §2.3', () => {
