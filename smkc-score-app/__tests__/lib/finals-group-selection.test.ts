@@ -12,19 +12,38 @@
  *   4 groups: A1, B1, C1, D1, A2, B2, C2, D2, A3, B3, C3, D3
  */
 
-import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
+import { reseedDirectEntrantsAgainstPlayoffWinners, selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 
 type TestQual = { playerId: string; group: string; player: unknown; score: number; points: number };
 
 const FIXED_TWO_GROUP_DIRECT_SEEDS = [
-  [1, 'A1'], [2, 'B3'], [3, 'B1'], [4, 'A3'],
-  [5, 'B2'], [6, 'A4'], [7, 'A2'], [8, 'B4'],
-  [9, 'A5'], [11, 'B5'], [13, 'B6'], [15, 'A6'],
+  [1, 'A1'],
+  [2, 'B3'],
+  [3, 'B1'],
+  [4, 'A3'],
+  [5, 'B2'],
+  [6, 'A4'],
+  [7, 'A2'],
+  [8, 'B4'],
+  [9, 'A5'],
+  [11, 'B5'],
+  [13, 'B6'],
+  [15, 'A6'],
 ] as const;
 
 const FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS = [
-  'B8', 'B7', 'A8', 'A7', 'B9', 'A11',
-  'B10', 'A12', 'A10', 'B12', 'A9', 'B11',
+  'B8',
+  'B7',
+  'A8',
+  'A7',
+  'B9',
+  'A11',
+  'B10',
+  'A12',
+  'A10',
+  'B12',
+  'A9',
+  'B11',
 ] as const;
 
 /**
@@ -55,8 +74,14 @@ function buildQuals(
 
 describe('selectFinalsEntrantsByGroup', () => {
   const upperR1SeedPairs = [
-    [1, 16], [8, 9], [5, 12], [4, 13],
-    [3, 14], [6, 11], [7, 10], [2, 15],
+    [1, 16],
+    [8, 9],
+    [5, 12],
+    [4, 13],
+    [3, 14],
+    [6, 11],
+    [7, 10],
+    [2, 15],
   ];
 
   describe('2-group case (A=14, B=13)', () => {
@@ -68,8 +93,9 @@ describe('selectFinalsEntrantsByGroup', () => {
     });
 
     it('directSeeds[] maps direct players to the handwritten Upper Bracket seeds', () => {
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]))
-        .toEqual(FIXED_TWO_GROUP_DIRECT_SEEDS);
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
+        FIXED_TWO_GROUP_DIRECT_SEEDS,
+      );
     });
 
     it('does not expose the redundant direct[] projection for 2 groups', () => {
@@ -92,7 +118,7 @@ describe('selectFinalsEntrantsByGroup', () => {
     });
 
     it('barrage[] is ordered by playoff seeds 1-12 for the handwritten layout', () => {
-      expect(result.barrage.map(q => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
+      expect(result.barrage.map((q) => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
     });
 
     it('barrage[] creates the handwritten R1-to-bye blocks with the existing playoff structure', () => {
@@ -129,9 +155,18 @@ describe('selectFinalsEntrantsByGroup', () => {
     // round-1 pairs (2,15)/(4,13)/(6,11)/(8,9).
     it('directSeeds[] fills the gapped seed sequence via anti-collision placement', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [1, 'A1'], [2, 'B2'], [3, 'B1'], [4, 'A3'],
-        [5, 'C1'], [6, 'C3'], [7, 'A2'], [8, 'B4'],
-        [9, 'C4'], [11, 'A4'], [13, 'B3'], [15, 'C2'],
+        [1, 'A1'],
+        [2, 'B2'],
+        [3, 'B1'],
+        [4, 'A3'],
+        [5, 'C1'],
+        [6, 'C3'],
+        [7, 'A2'],
+        [8, 'B4'],
+        [9, 'C4'],
+        [11, 'A4'],
+        [13, 'B3'],
+        [15, 'C2'],
       ]);
     });
 
@@ -141,21 +176,100 @@ describe('selectFinalsEntrantsByGroup', () => {
 
     it('no round-1 direct-vs-direct pair shares a qualifying group', () => {
       const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+      for (const [a, b] of [
+        [2, 15],
+        [4, 13],
+        [6, 11],
+        [8, 9],
+      ] as const) {
         expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
       }
     });
 
     it('barrage[] fills playoff seeds 1-12 via anti-collision placement (BYE seeds 1-4 first)', () => {
-      expect(result.barrage.map(q => q.playerId)).toEqual([
-        'A5', 'B5', 'C5', 'A6', 'B6', 'A7', 'B7', 'C6', 'C7', 'B8', 'C8', 'A8',
+      expect(result.barrage.map((q) => q.playerId)).toEqual([
+        'A5',
+        'B5',
+        'C5',
+        'A6',
+        'B6',
+        'A7',
+        'B7',
+        'C6',
+        'C7',
+        'B8',
+        'C8',
+        'A8',
       ]);
     });
 
     it('no round-1 barrage pair shares a qualifying group', () => {
       const groupBySeed = new Map(result.barrage.map((q, i) => [i + 1, q.group]));
-      for (const [a, b] of [[5, 8], [6, 7], [9, 12], [10, 11]] as const) {
+      for (const [a, b] of [
+        [5, 8],
+        [6, 7],
+        [9, 12],
+        [10, 11],
+      ] as const) {
         expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
+      }
+    });
+
+    it('re-seeds direct entrants against resolved barrage winners without changing the field', () => {
+      const winnerGroupByUpperSeed = new Map([
+        [16, 'A'],
+        [12, 'A'],
+        [14, 'C'],
+        [10, 'B'],
+      ]);
+      const reseeded = reseedDirectEntrantsAgainstPlayoffWinners(result.directSeeds, winnerGroupByUpperSeed);
+      expect(reseeded.map(({ qualification }) => qualification.playerId).sort()).toEqual(
+        result.directSeeds.map(({ qualification }) => qualification.playerId).sort(),
+      );
+
+      const directGroupBySeed = new Map(reseeded.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [directSeed, playoffSeed] of [
+        [1, 16],
+        [5, 12],
+        [3, 14],
+        [7, 10],
+      ] as const) {
+        expect(directGroupBySeed.get(directSeed)).not.toBe(winnerGroupByUpperSeed.get(playoffSeed));
+      }
+      for (const [seed1, seed2] of [
+        [8, 9],
+        [4, 13],
+        [6, 11],
+        [2, 15],
+      ] as const) {
+        expect(directGroupBySeed.get(seed1)).not.toBe(directGroupBySeed.get(seed2));
+      }
+    });
+
+    it('finds a collision-free layout even when all four barrage winners are from one group', () => {
+      const winnerGroupByUpperSeed = new Map([
+        [16, 'A'],
+        [12, 'A'],
+        [14, 'A'],
+        [10, 'A'],
+      ]);
+      const reseeded = reseedDirectEntrantsAgainstPlayoffWinners(result.directSeeds, winnerGroupByUpperSeed);
+      const directGroupBySeed = new Map(reseeded.map(({ seed, qualification }) => [seed, qualification.group]));
+      for (const [directSeed, playoffSeed] of [
+        [1, 16],
+        [5, 12],
+        [3, 14],
+        [7, 10],
+      ] as const) {
+        expect(directGroupBySeed.get(directSeed)).not.toBe(winnerGroupByUpperSeed.get(playoffSeed));
+      }
+      for (const [seed1, seed2] of [
+        [8, 9],
+        [4, 13],
+        [6, 11],
+        [2, 15],
+      ] as const) {
+        expect(directGroupBySeed.get(seed1)).not.toBe(directGroupBySeed.get(seed2));
       }
     });
   });
@@ -173,7 +287,8 @@ describe('selectFinalsEntrantsByGroup', () => {
       C1: { score: 7, points: 0 },
     };
     const quals = buildQuals({ A: 9, B: 9, C: 9 }, (playerId, rank) =>
-      rank === 1 ? rank1Stats[playerId] : { score: 1000 - rank, points: 0 });
+      rank === 1 ? rank1Stats[playerId] : { score: 1000 - rank, points: 0 },
+    );
     const result = selectFinalsEntrantsByGroup(quals);
 
     it('gives the top 4 overall (B1 > C1 > A1 > A2) the protected solo seeds 1/3/5/7', () => {
@@ -184,7 +299,12 @@ describe('selectFinalsEntrantsByGroup', () => {
 
     it('still avoids same-group round-1 pairs after the tiebreak reshuffles bucket 0', () => {
       const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+      for (const [a, b] of [
+        [2, 15],
+        [4, 13],
+        [6, 11],
+        [8, 9],
+      ] as const) {
         expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
       }
     });
@@ -200,9 +320,18 @@ describe('selectFinalsEntrantsByGroup', () => {
 
     it('directSeeds[] fills the gapped seed sequence via anti-collision placement', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [1, 'A1'], [2, 'A2'], [3, 'B1'], [4, 'C2'],
-        [5, 'C1'], [6, 'A3'], [7, 'D1'], [8, 'C3'],
-        [9, 'D3'], [11, 'B3'], [13, 'D2'], [15, 'B2'],
+        [1, 'A1'],
+        [2, 'A2'],
+        [3, 'B1'],
+        [4, 'C2'],
+        [5, 'C1'],
+        [6, 'A3'],
+        [7, 'D1'],
+        [8, 'C3'],
+        [9, 'D3'],
+        [11, 'B3'],
+        [13, 'D2'],
+        [15, 'B2'],
       ]);
     });
 
@@ -212,22 +341,41 @@ describe('selectFinalsEntrantsByGroup', () => {
 
     it('no round-1 direct-vs-direct pair shares a qualifying group', () => {
       const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+      for (const [a, b] of [
+        [2, 15],
+        [4, 13],
+        [6, 11],
+        [8, 9],
+      ] as const) {
         expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
       }
     });
 
     it('barrage[] is Top4-6 from each group, unaffected by anti-collision reordering when all ranks tie', () => {
-      expect(result.barrage.map(q => q.playerId)).toEqual([
-        'A4', 'B4', 'C4', 'D4',
-        'A5', 'C5', 'D5', 'B5',
-        'A6', 'C6', 'D6', 'B6',
+      expect(result.barrage.map((q) => q.playerId)).toEqual([
+        'A4',
+        'B4',
+        'C4',
+        'D4',
+        'A5',
+        'C5',
+        'D5',
+        'B5',
+        'A6',
+        'C6',
+        'D6',
+        'B6',
       ]);
     });
 
     it('no round-1 barrage pair shares a qualifying group', () => {
       const groupBySeed = new Map(result.barrage.map((q, i) => [i + 1, q.group]));
-      for (const [a, b] of [[5, 8], [6, 7], [9, 12], [10, 11]] as const) {
+      for (const [a, b] of [
+        [5, 8],
+        [6, 7],
+        [9, 12],
+        [10, 11],
+      ] as const) {
         expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
       }
     });
@@ -244,11 +392,12 @@ describe('selectFinalsEntrantsByGroup', () => {
       D4: { score: 22, points: 0 },
     };
     const quals = buildQuals({ A: 6, B: 6, C: 6, D: 6 }, (playerId, rank) =>
-      rank === 4 ? rank4Stats[playerId] : { score: 1000 - rank, points: 0 });
+      rank === 4 ? rank4Stats[playerId] : { score: 1000 - rank, points: 0 },
+    );
     const result = selectFinalsEntrantsByGroup(quals);
 
     it('orders the barrage bucket by score (B4 > A4 > D4 > C4) instead of alphabetically', () => {
-      expect(result.barrage.slice(0, 4).map(q => q.playerId)).toEqual(['B4', 'A4', 'D4', 'C4']);
+      expect(result.barrage.slice(0, 4).map((q) => q.playerId)).toEqual(['B4', 'A4', 'D4', 'C4']);
     });
   });
 
@@ -256,9 +405,10 @@ describe('selectFinalsEntrantsByGroup', () => {
     it('2 groups A=20, B=12: each contributes Top1-6 direct, Top7-12 barrage', () => {
       const quals = buildQuals({ A: 20, B: 12 });
       const result = selectFinalsEntrantsByGroup(quals);
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]))
-        .toEqual(FIXED_TWO_GROUP_DIRECT_SEEDS);
-      expect(result.barrage.map(q => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
+        FIXED_TWO_GROUP_DIRECT_SEEDS,
+      );
+      expect(result.barrage.map((q) => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
     });
   });
 
@@ -276,20 +426,35 @@ describe('selectFinalsEntrantsByGroup', () => {
     };
 
     const assertNoKnownRoundOneCollision = (result: ReturnType<typeof selectFinalsEntrantsByGroup>) => {
-      const directGroupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [a, b] of [[2, 15], [4, 13], [6, 11], [8, 9]] as const) {
+      const directGroupBySeed = new Map(
+        result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]),
+      );
+      for (const [a, b] of [
+        [2, 15],
+        [4, 13],
+        [6, 11],
+        [8, 9],
+      ] as const) {
         expect(directGroupBySeed.get(a)).not.toBe(directGroupBySeed.get(b));
       }
 
-      const barrageGroupBySeed = new Map(result.barrage.map((qualification, index) => [index + 1, qualification.group]));
-      for (const [a, b] of [[5, 8], [6, 7], [9, 12], [10, 11]] as const) {
+      const barrageGroupBySeed = new Map(
+        result.barrage.map((qualification, index) => [index + 1, qualification.group]),
+      );
+      for (const [a, b] of [
+        [5, 8],
+        [6, 7],
+        [9, 12],
+        [10, 11],
+      ] as const) {
         expect(barrageGroupBySeed.get(a)).not.toBe(barrageGroupBySeed.get(b));
       }
     };
 
     const assertFixedTwoGroupLayout = (result: ReturnType<typeof selectFinalsEntrantsByGroup>) => {
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]))
-        .toEqual(FIXED_TWO_GROUP_DIRECT_SEEDS);
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
+        FIXED_TWO_GROUP_DIRECT_SEEDS,
+      );
       expect(result.barrage.map(({ playerId }) => playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
     };
 
@@ -307,12 +472,13 @@ describe('selectFinalsEntrantsByGroup', () => {
           // The two-group path uses fixed A/B rank tokens, so only uneven group
           // sizes vary there. Random score/point tiebreaks are meaningful only
           // for the combined-ranking buckets used by the 3/4-group paths.
-          const statsFor = groupCount === 2
-            ? undefined
-            : () => ({
-                score: Math.floor(next() * 31),
-                points: Math.floor(next() * 101) - 50,
-              });
+          const statsFor =
+            groupCount === 2
+              ? undefined
+              : () => ({
+                  score: Math.floor(next() * 31),
+                  points: Math.floor(next() * 101) - 50,
+                });
           const qualifications = buildQuals(groupSizes, statsFor);
 
           const result = selectFinalsEntrantsByGroup(qualifications);
@@ -358,7 +524,11 @@ describe('selectFinalsEntrantsByGroup', () => {
       // Caller provides interleaved A/B (out-of-group order). The function should still
       // bucket by group while preserving per-group relative order.
       const mk = (g: string, r: number): TestQual => ({
-        playerId: `${g}${r}`, group: g, player: { id: `${g}${r}` }, score: 1000 - r, points: 0,
+        playerId: `${g}${r}`,
+        group: g,
+        player: { id: `${g}${r}` },
+        score: 1000 - r,
+        points: 0,
       });
       const quals: TestQual[] = [];
       for (let r = 1; r <= 12; r++) {
@@ -366,9 +536,18 @@ describe('selectFinalsEntrantsByGroup', () => {
       }
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
-        'A1', 'B3', 'B1', 'A3',
-        'B2', 'A4', 'A2', 'B4',
-        'A5', 'B5', 'B6', 'A6',
+        'A1',
+        'B3',
+        'B1',
+        'A3',
+        'B2',
+        'A4',
+        'A2',
+        'B4',
+        'A5',
+        'B5',
+        'B6',
+        'A6',
       ]);
       expect('direct' in result).toBe(false);
     });

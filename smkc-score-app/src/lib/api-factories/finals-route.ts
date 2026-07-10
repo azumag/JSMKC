@@ -20,13 +20,19 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
-import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
+import { reseedDirectEntrantsAgainstPlayoffWinners, selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 import type { ScorePointsEntry } from '@/lib/ranking-utils';
 import { getGpFinalsMaxCups, getMrFinalsMaxRounds } from '@/lib/finals-target-wins';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError, handleAuthzError } from '@/lib/error-handling';
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleValidationError,
+  handleRateLimitError,
+  handleAuthzError,
+} from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
@@ -52,10 +58,7 @@ const PLAYOFF_ENTRANT_COUNT = 12;
 const PLAYOFF_R2_UPPER_SEED_COUNT = 4;
 const TOP24_SUPPORTED_GROUP_COUNT = 3;
 
-type QualificationConfirmedField =
-  | 'bmQualificationConfirmed'
-  | 'mrQualificationConfirmed'
-  | 'gpQualificationConfirmed';
+type QualificationConfirmedField = 'bmQualificationConfirmed' | 'mrQualificationConfirmed' | 'gpQualificationConfirmed';
 
 function getQualificationConfirmedField(eventTypeCode: 'bm' | 'mr' | 'gp'): QualificationConfirmedField {
   return `${eventTypeCode}QualificationConfirmed` as QualificationConfirmedField;
@@ -121,9 +124,7 @@ export interface QualificationRankLabelInput {
  * `2`, etc. When rows in the same group have the same `_rank`, the original
  * input order is kept so tied players receive deterministic adjacent labels.
  */
-export function buildQualificationRankLabelMap(
-  qualifications: QualificationRankLabelInput[],
-): Map<string, string> {
+export function buildQualificationRankLabelMap(qualifications: QualificationRankLabelInput[]): Map<string, string> {
   const orderedQualifications = qualifications
     .map((qualification, index) => ({ qualification, index }))
     .sort((a, b) => {
@@ -150,16 +151,15 @@ function isPublicFinalsPlayer(value: unknown): value is PublicFinalsPlayer {
 }
 
 function getSafeErrorLogFields(error: unknown): SafeErrorLogFields {
-  const errorLike = error && typeof error === 'object'
-    ? error as { name?: unknown; code?: unknown }
-    : null;
-  const errorName = error instanceof Error
-    ? error.name
-    : typeof error === 'string'
-      ? 'StringError'
-      : errorLike && typeof errorLike.name === 'string'
-        ? errorLike.name
-        : 'UnknownError';
+  const errorLike = error && typeof error === 'object' ? (error as { name?: unknown; code?: unknown }) : null;
+  const errorName =
+    error instanceof Error
+      ? error.name
+      : typeof error === 'string'
+        ? 'StringError'
+        : errorLike && typeof errorLike.name === 'string'
+          ? errorLike.name
+          : 'UnknownError';
 
   /* Do not log Error objects or messages here. Prisma errors can embed SQL
    * fragments or parameter values in `message`/`meta`; the preview fallback only
@@ -179,9 +179,7 @@ function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
   return result;
 }
 
-function getOrderedRounds(
-  bracketStructure: Array<{ round: string }>,
-): string[] {
+function getOrderedRounds(bracketStructure: Array<{ round: string }>): string[] {
   return [...new Set(bracketStructure.map((match) => match.round))];
 }
 
@@ -195,8 +193,9 @@ function createMrRoundAssignments(
 
   for (const round of getOrderedRounds(bracketStructure)) {
     const roundsNeeded = getMrFinalsMaxRounds({ round, stage });
-    const assignedCourses = Array.from({ length: roundsNeeded }, (_, index) =>
-      shuffledCourses[(cursor + index) % shuffledCourses.length]
+    const assignedCourses = Array.from(
+      { length: roundsNeeded },
+      (_, index) => shuffledCourses[(cursor + index) % shuffledCourses.length],
     );
     assignments.set(round, assignedCourses);
     cursor = (cursor + roundsNeeded) % shuffledCourses.length;
@@ -205,14 +204,10 @@ function createMrRoundAssignments(
   return assignments;
 }
 
-function createGpCupSequence(
-  maxCups: number,
-  preferredFirstCup?: string | null,
-): string[] {
+function createGpCupSequence(maxCups: number, preferredFirstCup?: string | null): string[] {
   if (maxCups <= 0) return [];
-  const first = preferredFirstCup && CUPS.includes(preferredFirstCup as (typeof CUPS)[number])
-    ? preferredFirstCup
-    : undefined;
+  const first =
+    preferredFirstCup && CUPS.includes(preferredFirstCup as (typeof CUPS)[number]) ? preferredFirstCup : undefined;
   const sequence = first ? [first] : [];
 
   while (sequence.length < Math.min(maxCups, CUPS.length)) {
@@ -244,9 +239,7 @@ function createGpRoundAssignments(
  * bracket. All matches in the same round share the same starting course,
  * satisfying issue #671: "そのラウンドで使用される開始コースはどの試合も同じにしたい".
  */
-function createBmRoundStartingCourses(
-  bracketStructure: Array<{ round: string }>,
-): Map<string, number> {
+function createBmRoundStartingCourses(bracketStructure: Array<{ round: string }>): Map<string, number> {
   const rounds = getOrderedRounds(bracketStructure);
   // Fisher-Yates over [1,2,3,4] then repeat cyclically across rounds so each
   // starting course appears roughly equally across the bracket.
@@ -285,11 +278,14 @@ async function normalizeRoundCupsToSingleSequence(
   matches: Array<{ id: string; cup?: string | null; assignedCups?: unknown; round?: string | null }>,
   logger?: ReturnType<typeof createLogger>,
 ): Promise<CupNormalizationResult> {
-  const matchesByRound = new Map<string, Array<{
-    id: string;
-    cup?: string | null;
-    assignedCups: string[];
-  }>>();
+  const matchesByRound = new Map<
+    string,
+    Array<{
+      id: string;
+      cup?: string | null;
+      assignedCups: string[];
+    }>
+  >();
 
   for (const match of matches) {
     if (!match.round) continue;
@@ -364,10 +360,12 @@ async function normalizeRoundCupsToSingleSequence(
       .map((match) => match.id);
     if (staleIds.length === 0) continue;
 
-    writes.push(modelInstance.updateMany({
-      where: { tournamentId, stage, round, id: { in: staleIds } },
-      data,
-    }));
+    writes.push(
+      modelInstance.updateMany({
+        where: { tournamentId, stage, round, id: { in: staleIds } },
+        data,
+      }),
+    );
   }
 
   const writeResults = await Promise.allSettled(writes);
@@ -376,9 +374,9 @@ async function normalizeRoundCupsToSingleSequence(
     logger?.warn('Failed to backfill some GP assigned cup rounds', {
       failedWrites: failedWrites.length,
       totalWrites: writes.length,
-      reasons: failedWrites.map((result) => result.reason instanceof Error
-        ? result.reason.message
-        : String(result.reason)),
+      reasons: failedWrites.map((result) =>
+        result.reason instanceof Error ? result.reason.message : String(result.reason),
+      ),
     });
   }
 
@@ -612,11 +610,10 @@ async function normalizeRoundStartingCoursesToSingleValue(
      * explicit null check to form `IS NULL OR col != value` (#753). */
     await modelInstance.updateMany({
       where: {
-        tournamentId, stage, round,
-        OR: [
-          { startingCourseNumber: null },
-          { NOT: { startingCourseNumber: value } },
-        ],
+        tournamentId,
+        stage,
+        round,
+        OR: [{ startingCourseNumber: null }, { NOT: { startingCourseNumber: value } }],
       },
       data: { startingCourseNumber: value },
     });
@@ -688,9 +685,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
   const qualModel = (p: any) => p[config.qualificationModel];
 
   function getQualificationMatchScoreFields(): { p1: string; p2: string } {
-    return config.eventTypeCode === 'gp'
-      ? { p1: 'points1', p2: 'points2' }
-      : { p1: 'score1', p2: 'score2' };
+    return config.eventTypeCode === 'gp' ? { p1: 'points1', p2: 'points2' } : { p1: 'score1', p2: 'score2' };
   }
 
   function getCompletedMatchWinner(
@@ -785,7 +780,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const byPartition = new Map<string, typeof qualifications>();
 
     for (const q of qualifications) {
-      const partition = firstOrderField === 'group' ? q.group ?? '' : '';
+      const partition = firstOrderField === 'group' ? (q.group ?? '') : '';
       const bucket = byPartition.get(partition) ?? [];
       bucket.push(q);
       byPartition.set(partition, bucket);
@@ -812,7 +807,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     tournamentId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     qualifications: any[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
     const scoreFields = getQualificationMatchScoreFields();
     const needsH2h = hasAutomaticRankTies(qualifications, config.qualificationOrderBy);
@@ -835,12 +830,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         })
       : [];
 
-    return computeQualificationRanks(
-      qualifications,
-      config.qualificationOrderBy,
-      matches,
-      { matchScoreFields: scoreFields },
-    );
+    return computeQualificationRanks(qualifications, config.qualificationOrderBy, matches, {
+      matchScoreFields: scoreFields,
+    });
   }
 
   function orderQualificationsForFinalsSeeding<
@@ -849,7 +841,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       _rankOverridden?: boolean;
       rankOverride?: number | null;
       rankOverrideAt?: Date | string | null;
-    }
+    },
   >(qualifications: TQualification[]): TQualification[] {
     /*
      * Finals seeding is a tournament-wide bracket contract, not a grouped
@@ -888,12 +880,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
           // When manual overrides collide on the same rank value, prefer the
           // latest manual correction timestamp.
-          const aOverrideAt = a.qualification.rankOverrideAt
-            ? new Date(a.qualification.rankOverrideAt).getTime()
-            : 0;
-          const bOverrideAt = b.qualification.rankOverrideAt
-            ? new Date(b.qualification.rankOverrideAt).getTime()
-            : 0;
+          const aOverrideAt = a.qualification.rankOverrideAt ? new Date(a.qualification.rankOverrideAt).getTime() : 0;
+          const bOverrideAt = b.qualification.rankOverrideAt ? new Date(b.qualification.rankOverrideAt).getTime() : 0;
           if (aOverrideAt !== bOverrideAt) return bOverrideAt - aOverrideAt;
         }
         return a.index - b.index;
@@ -926,11 +914,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
     if (playoffMatches.length === 0) return null;
 
     try {
-      const qualifications = await qualModel(prisma).findMany({
+      const qualifications = (await qualModel(prisma).findMany({
         where: { tournamentId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: config.qualificationOrderBy,
-      }) as Top24FinalsQualification[];
+      })) as Top24FinalsQualification[];
 
       /* This guard is deliberately tied to the full Top-24 qualifier count,
        * not PLAYOFF_ENTRANT_COUNT. The preview seeds direct qualifiers plus
@@ -939,32 +927,24 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * misleading Phase-2 preview. */
       if (qualifications.length < TOP24_QUALIFIER_COUNT) return null;
 
-      const rankedQualifications = await applyFinalsQualificationRanks(
-        model,
-        tournamentId,
-        qualifications,
-      );
+      const rankedQualifications = await applyFinalsQualificationRanks(model, tournamentId, qualifications);
       const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
 
       const selection = selectFinalsEntrantsByGroup<PublicFinalsPlayer | null>(
         rankedQualifications as Top24FinalsQualification[],
       );
 
-      const seededPlayers = buildDirectSeededPlayers(
-        selection.directSeeds,
-        qualificationRankLabels,
-        tournamentId,
-        logger,
-      );
-
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
       const r2Matches = playoffMatches.filter((m) => m.round === 'playoff_r2');
+      const qualificationGroupByPlayerId = new Map(
+        rankedQualifications.map((qualification) => [qualification.playerId, qualification.group]),
+      );
+      const playoffWinnerGroupByUpperSeed = new Map<number, string>();
+      const playoffWinnerSeeds: SeededFinalsPlayer[] = [];
 
       for (const r2BracketMatch of playoffStructure.filter((m) => m.round === 'playoff_r2')) {
         if (!r2BracketMatch.advancesToUpperSeed) continue;
-        const dbMatch = r2Matches.find(
-          (m) => m.matchNumber === r2BracketMatch.matchNumber,
-        );
+        const dbMatch = r2Matches.find((m) => m.matchNumber === r2BracketMatch.matchNumber);
         if (!dbMatch?.completed) continue;
 
         const winner = getCompletedMatchWinner(dbMatch);
@@ -977,13 +957,29 @@ export function createFinalsHandlers(config: FinalsConfig) {
           });
           continue;
         }
-        seededPlayers.push({
+        const winnerGroup = qualificationGroupByPlayerId.get(winner.winnerId);
+        if (selection.groupCount >= 3 && !winnerGroup) {
+          throw new Error(`Qualification group for playoff winner ${winner.winnerId} not resolved`);
+        }
+        if (winnerGroup) {
+          playoffWinnerGroupByUpperSeed.set(r2BracketMatch.advancesToUpperSeed, winnerGroup);
+        }
+        playoffWinnerSeeds.push({
           seed: r2BracketMatch.advancesToUpperSeed,
           playerId: winner.winnerId,
           player: winner.winnerPlayer,
           qualificationRankLabel: qualificationRankLabels.get(winner.winnerId),
         });
       }
+
+      const collisionFreeDirectSeeds =
+        selection.groupCount >= 3 && playoffWinnerGroupByUpperSeed.size === PLAYOFF_R2_UPPER_SEED_COUNT
+          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, playoffWinnerGroupByUpperSeed)
+          : selection.directSeeds;
+      const seededPlayers = [
+        ...buildDirectSeededPlayers(collisionFreeDirectSeeds, qualificationRankLabels, tournamentId, logger),
+        ...playoffWinnerSeeds,
+      ];
 
       return {
         bracketStructure: generateBracketStructure(16),
@@ -1008,10 +1004,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
    * GET handler: Fetch finals bracket data for a tournament.
    * Response shape depends on config.getStyle.
    */
-  async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
     const { id } = await params;
 
@@ -1033,18 +1026,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
       logger.error(config.getErrorMessage, { error, tournamentId: id });
       const archived = await readTournamentArchive(id);
       if (archived) {
-        return createSuccessResponse(
-          getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle)
-        );
+        return createSuccessResponse(getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle));
       }
       return createErrorResponse(config.getErrorMessage, 500, 'INTERNAL_ERROR');
     }
     if (!tournament) {
       const archived = await readTournamentArchive(id);
       if (archived) {
-        return createSuccessResponse(
-          getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle)
-        );
+        return createSuccessResponse(getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle));
       }
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
     }
@@ -1131,9 +1120,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
-      const playoffStructure = playoffMatches.length > 0
-        ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
-        : [];
+      const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT) : [];
 
       /* Reconstruct playoff seeded players from DB match data + structure.
        * R1 matches carry player1Seed (5-12) and player2Seed;
@@ -1173,12 +1160,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* Compute playoff completion flag from DB data so the frontend
        * can show "Create Upper Bracket" even after a page refresh. */
-      const playoffR2Matches = playoffMatches.filter(
-        (m: { round?: string }) => m.round === 'playoff_r2',
-      );
-      const playoffComplete = playoffR2Matches.length === 4
+      const playoffR2Matches = playoffMatches.filter((m: { round?: string }) => m.round === 'playoff_r2');
+      const playoffComplete =
+        playoffR2Matches.length === 4 &&
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        && playoffR2Matches.every((m: any) => m.completed);
+        playoffR2Matches.every((m: any) => m.completed);
 
       /* Phase priority: when both playoff and finals exist (Phase-2 has run),
        * default to 'finals' so the UI lands on the Upper Bracket first.
@@ -1187,12 +1173,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const hasFinals = await model(prisma).count({
         where: { tournamentId, stage: 'finals' },
       });
-      const phase = hasFinals > 0 ? 'finals' as const
-        : playoffMatches.length > 0 ? 'playoff' as const
-        : 'finals' as const;
-      const top24FinalsPreview = hasFinals === 0
-        ? await buildTop24FinalsPreview(tournamentId, playoffMatches, logger)
-        : null;
+      const phase =
+        hasFinals > 0 ? ('finals' as const) : playoffMatches.length > 0 ? ('playoff' as const) : ('finals' as const);
+      const top24FinalsPreview =
+        hasFinals === 0 ? await buildTop24FinalsPreview(tournamentId, playoffMatches, logger) : null;
 
       /* Normalize GP cup sequences for legacy finals rows before paginating or
        * simple/grouped fetches, so every branch sees the repaired state. */
@@ -1203,13 +1187,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           orderBy: { matchNumber: 'asc' },
         });
         if (legacyFinals.length > 0) {
-          await normalizeRoundCupsToSingleSequence(
-            model(prisma),
-            tournamentId,
-            'finals',
-            legacyFinals,
-            logger,
-          );
+          await normalizeRoundCupsToSingleSequence(model(prisma), tournamentId, 'finals', legacyFinals, logger);
         }
       }
 
@@ -1220,12 +1198,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           select: { id: true, round: true, assignedCourses: true },
         });
         if (legacyFinals.length > 0) {
-          await normalizeRoundCoursesToSingleSet(
-            model(prisma),
-            tournamentId,
-            'finals',
-            legacyFinals,
-          );
+          await normalizeRoundCoursesToSingleSet(model(prisma), tournamentId, 'finals', legacyFinals);
         }
       }
 
@@ -1237,12 +1210,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           select: { id: true, round: true, startingCourseNumber: true },
         });
         if (legacyFinals.length > 0) {
-          await normalizeRoundStartingCoursesToSingleValue(
-            model(prisma),
-            tournamentId,
-            'finals',
-            legacyFinals,
-          );
+          await normalizeRoundStartingCoursesToSingleValue(model(prisma), tournamentId, 'finals', legacyFinals);
         }
       }
 
@@ -1259,29 +1227,28 @@ export function createFinalsHandlers(config: FinalsConfig) {
           },
           { tournamentId, stage: 'finals' },
           { matchNumber: 'asc' },
-          { page, limit, include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          {
+            page,
+            limit,
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          },
         );
 
         /* Infer bracket size from total match count:
          * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
          * Use count > 20 as threshold to distinguish.
          * Use result.meta.total from paginate() to avoid an extra count query. */
-        const bracketSize = (result.meta.total ?? 0) > BRACKET_SIZE_THRESHOLD
-          ? 16
-          : top24FinalsPreview
-            ? 16
-            : 8;
+        const bracketSize = (result.meta.total ?? 0) > BRACKET_SIZE_THRESHOLD ? 16 : top24FinalsPreview ? 16 : 8;
 
-        const bracketStructure = result.data.length > 0
-          ? generateBracketStructure(bracketSize)
-          : top24FinalsPreview?.bracketStructure ?? [];
+        const bracketStructure =
+          result.data.length > 0 ? generateBracketStructure(bracketSize) : (top24FinalsPreview?.bracketStructure ?? []);
 
         return createSuccessResponse({
           ...result,
           bracketStructure,
           bracketSize,
           roundNames,
-          qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
+          qualificationConfirmed: ((tournament as Record<string, unknown>)[modeField] as boolean) ?? false,
           phase,
           playoffMatches,
           playoffStructure,
@@ -1298,24 +1265,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: { matchNumber: 'asc' },
       });
 
-      const bracketSize = matches.length > BRACKET_SIZE_THRESHOLD
-        ? 16
-        : top24FinalsPreview
-          ? 16
-          : 8;
+      const bracketSize = matches.length > BRACKET_SIZE_THRESHOLD ? 16 : top24FinalsPreview ? 16 : 8;
 
-      const bracketStructure = matches.length > 0
-        ? generateBracketStructure(bracketSize)
-        : top24FinalsPreview?.bracketStructure ?? [];
+      const bracketStructure =
+        matches.length > 0 ? generateBracketStructure(bracketSize) : (top24FinalsPreview?.bracketStructure ?? []);
       const seededPlayers = top24FinalsPreview?.seededPlayers ?? [];
 
       if (config.getStyle === 'grouped') {
-        const winnersMatches = matches.filter(
-          (m: { round?: string }) => m.round?.startsWith('winners_') || false,
-        );
-        const losersMatches = matches.filter(
-          (m: { round?: string }) => m.round?.startsWith('losers_') || false,
-        );
+        const winnersMatches = matches.filter((m: { round?: string }) => m.round?.startsWith('winners_') || false);
+        const losersMatches = matches.filter((m: { round?: string }) => m.round?.startsWith('losers_') || false);
         const grandFinalMatches = matches.filter(
           (m: { round?: string }) => m.round?.startsWith('grand_final') || false,
         );
@@ -1329,7 +1287,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
-          qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
+          qualificationConfirmed: ((tournament as Record<string, unknown>)[modeField] as boolean) ?? false,
           playoffStructure,
           playoffSeededPlayers,
           playoffComplete,
@@ -1344,7 +1302,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         bracketStructure,
         bracketSize,
         roundNames,
-        qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
+        qualificationConfirmed: ((tournament as Record<string, unknown>)[modeField] as boolean) ?? false,
         phase,
         playoffMatches,
         playoffStructure,
@@ -1356,9 +1314,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       logger.error(config.getErrorMessage, { error, tournamentId });
       const archived = await readTournamentArchive(id);
       if (archived) {
-        return createSuccessResponse(
-          getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle)
-        );
+        return createSuccessResponse(getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle));
       }
       return createErrorResponse(config.getErrorMessage, 500, 'INTERNAL_ERROR');
     }
@@ -1368,10 +1324,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
    * POST handler: Create a double-elimination finals bracket from qualification standings.
    * Takes the top N players (default 8) and seeds them into the bracket.
    */
-  async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
 
     /* Auth check for POST endpoint */
@@ -1415,20 +1368,19 @@ export function createFinalsHandlers(config: FinalsConfig) {
           return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
         }
         if (tournament[modeField]) {
-          return createErrorResponse(
-            'Cannot reset bracket while qualification is locked',
-            409,
-            'QUALIFICATION_LOCKED',
-          );
+          return createErrorResponse('Cannot reset bracket while qualification is locked', 409, 'QUALIFICATION_LOCKED');
         }
 
         await model(prisma).deleteMany({
           where: { tournamentId, stage: { in: ['playoff', 'finals'] } },
         });
-        return createSuccessResponse({
-          message: 'Bracket reset',
-          phase: 'finals',
-        }, 'Bracket reset');
+        return createSuccessResponse(
+          {
+            message: 'Bracket reset',
+            phase: 'finals',
+          },
+          'Bracket reset',
+        );
       }
 
       /* Supported bracket sizes:
@@ -1455,11 +1407,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: config.qualificationOrderBy,
       });
 
-      const rankedQualifications = await applyFinalsQualificationRanks(
-        model,
-        tournamentId,
-        qualifications,
-      );
+      const rankedQualifications = await applyFinalsQualificationRanks(model, tournamentId, qualifications);
       const finalsSeedQualifications = orderQualificationsForFinalsSeeding(rankedQualifications);
       const selectedQualifications = finalsSeedQualifications.slice(0, topN);
       const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
@@ -1481,14 +1429,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId, stage: 'finals' },
       });
 
-      const seededPlayers = selectedQualifications.map(
-        (q: { playerId: string; player: unknown }, index: number) => ({
-          seed: index + 1,
-          playerId: q.playerId,
-          player: q.player,
-          qualificationRankLabel: qualificationRankLabels.get(q.playerId),
-        }),
-      );
+      const seededPlayers = selectedQualifications.map((q: { playerId: string; player: unknown }, index: number) => ({
+        seed: index + 1,
+        playerId: q.playerId,
+        player: q.player,
+        qualificationRankLabel: qualificationRankLabels.get(q.playerId),
+      }));
 
       /*
        * Bulk-insert bracket matches (issue #420). Replaces a sequential
@@ -1559,12 +1505,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
         })
         .filter((m): m is NonNullable<typeof m> => m !== null);
 
-      return createSuccessResponse({
-        message: 'Finals bracket created',
-        matches: createdMatches,
-        seededPlayers,
-        bracketStructure,
-      }, 'Finals bracket created', { status: 201 });
+      return createSuccessResponse(
+        {
+          message: 'Finals bracket created',
+          matches: createdMatches,
+          seededPlayers,
+          bracketStructure,
+        },
+        'Finals bracket created',
+        { status: 201 },
+      );
     } catch (error) {
       logger.error('Failed to create finals', { error, tournamentId });
       return createErrorResponse(config.postErrorMessage, 500, 'INTERNAL_ERROR');
@@ -1619,11 +1569,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * (BM: [{ group: 'asc' }, { score: 'desc' }, ...]); within-group ordering by
        * score/points is preserved via stable insertion-order bucketing in
        * selectFinalsEntrantsByGroup. */
-      const qualifications = await qualificationModel(prisma).findMany({
+      const qualifications = (await qualificationModel(prisma).findMany({
         where: { tournamentId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: finalsConfig.qualificationOrderBy,
-      }) as Top24FinalsQualification[];
+      })) as Top24FinalsQualification[];
 
       if (qualifications.length < TOP24_QUALIFIER_COUNT) {
         return handleValidationError(
@@ -1632,11 +1582,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         );
       }
 
-      const rankedQualifications = await applyFinalsQualificationRanks(
-        matchModel,
-        tournamentId,
-        qualifications,
-      );
+      const rankedQualifications = await applyFinalsQualificationRanks(matchModel, tournamentId, qualifications);
       const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
 
       /* Per-group Top-N selection with bracket seed assignment (#454).
@@ -1751,7 +1697,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
               player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
               player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
               completed: false,
-              ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
+              ...getRoundAssignmentData(
+                bracketMatch.round,
+                playoffMrAssignments,
+                playoffGpAssignments,
+                playoffBmStartingCourses,
+              ),
             },
           };
         });
@@ -1781,21 +1732,23 @@ export function createFinalsHandlers(config: FinalsConfig) {
           })
           .filter((m): m is NonNullable<typeof m> => m !== null);
 
-        return createSuccessResponse({
-          message: 'Playoff bracket created',
-          phase: 'playoff',
-          playoffMatches: createdPlayoffMatches,
-          playoffStructure,
-          playoffSeededPlayers,
-          /* Note: Upper Bracket seats 1-12 for qual top 12 are reserved; the
-           * finals bracket will be created in Phase 2 after playoff completes. */
-        }, 'Playoff bracket created', { status: 201 });
+        return createSuccessResponse(
+          {
+            message: 'Playoff bracket created',
+            phase: 'playoff',
+            playoffMatches: createdPlayoffMatches,
+            playoffStructure,
+            playoffSeededPlayers,
+            /* Note: Upper Bracket seats 1-12 for qual top 12 are reserved; the
+             * finals bracket will be created in Phase 2 after playoff completes. */
+          },
+          'Playoff bracket created',
+          { status: 201 },
+        );
       }
 
       /* --- PHASE 2: Build Upper Bracket once playoff is complete --- */
-      const r2Matches = existingPlayoff.filter(
-        (m: { round?: string }) => m.round === 'playoff_r2',
-      );
+      const r2Matches = existingPlayoff.filter((m: { round?: string }) => m.round === 'playoff_r2');
       const incompleteR2 = r2Matches.filter((m: { completed: boolean }) => !m.completed);
 
       if (incompleteR2.length > 0) {
@@ -1809,11 +1762,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
       /* Derive each playoff winner and map to its advancesToUpperSeed target. */
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
       const upperSeedToPlayer = new Map<number, { playerId: string; player: PublicFinalsPlayer }>();
+      const qualificationGroupByPlayerId = new Map(
+        rankedQualifications.map((qualification) => [qualification.playerId, qualification.group]),
+      );
+      const playoffWinnerGroupByUpperSeed = new Map<number, string>();
 
-      for (const r2BracketMatch of playoffStructure.filter(m => m.round === 'playoff_r2')) {
-        const dbMatch = r2Matches.find(
-          (m: { matchNumber: number }) => m.matchNumber === r2BracketMatch.matchNumber,
-        );
+      for (const r2BracketMatch of playoffStructure.filter((m) => m.round === 'playoff_r2')) {
+        const dbMatch = r2Matches.find((m: { matchNumber: number }) => m.matchNumber === r2BracketMatch.matchNumber);
         if (!dbMatch || !r2BracketMatch.advancesToUpperSeed) continue;
         const winner = getCompletedMatchWinner(dbMatch);
         if (!winner) {
@@ -1829,14 +1784,25 @@ export function createFinalsHandlers(config: FinalsConfig) {
           playerId: winner.winnerId,
           player: winner.winnerPlayer,
         });
+        const winnerGroup = qualificationGroupByPlayerId.get(winner.winnerId);
+        if (selection.groupCount >= 3 && !winnerGroup) {
+          throw new Error(`Qualification group for playoff winner ${winner.winnerId} not resolved`);
+        }
+        if (winnerGroup) {
+          playoffWinnerGroupByUpperSeed.set(r2BracketMatch.advancesToUpperSeed, winnerGroup);
+        }
       }
 
       /* Build the 16 seeded players: direct advancers use their actual Upper
        * Bracket seed numbers (2 groups: fixed CDM paper layout; 3 groups:
        * assignAntiCollisionSeeds() in finals-group-selection.ts), and playoff
        * winners fill the barrage slots declared by generatePlayoffStructure. */
+      const collisionFreeDirectSeeds =
+        selection.groupCount >= 3
+          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, playoffWinnerGroupByUpperSeed)
+          : selection.directSeeds;
       const directPlayers = buildDirectSeededPlayers(
-        selection.directSeeds,
+        collisionFreeDirectSeeds,
         qualificationRankLabels,
         tournamentId,
         logger,
@@ -1845,7 +1811,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         .filter((m) => m.round === 'playoff_r2' && m.advancesToUpperSeed)
         .map((m) => m.advancesToUpperSeed as number);
       if (playoffUpperSeeds.length !== PLAYOFF_R2_UPPER_SEED_COUNT) {
-        throw new Error(`Expected ${PLAYOFF_R2_UPPER_SEED_COUNT} playoff R2 upper seeds, got ${playoffUpperSeeds.length}`);
+        throw new Error(
+          `Expected ${PLAYOFF_R2_UPPER_SEED_COUNT} playoff R2 upper seeds, got ${playoffUpperSeeds.length}`,
+        );
       }
       const playoffWinnerSeeds = playoffUpperSeeds.map((upperSeed) => {
         const winner = upperSeedToPlayer.get(upperSeed);
@@ -1888,10 +1856,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
        */
       const finalsMatchPlans = bracketStructure.map((bracketMatch) => {
         const player1 = bracketMatch.player1Seed
-          ? seededPlayers.find(p => p.seed === bracketMatch.player1Seed)
+          ? seededPlayers.find((p) => p.seed === bracketMatch.player1Seed)
           : null;
         const player2 = bracketMatch.player2Seed
-          ? seededPlayers.find(p => p.seed === bracketMatch.player2Seed)
+          ? seededPlayers.find((p) => p.seed === bracketMatch.player2Seed)
           : null;
         return {
           bracketMatch,
@@ -1905,7 +1873,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
-            ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
+            ...getRoundAssignmentData(
+              bracketMatch.round,
+              finalsMrAssignments,
+              finalsGpAssignments,
+              finalsBmStartingCourses,
+            ),
           },
         };
       });
@@ -1934,13 +1907,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
         })
         .filter((m): m is NonNullable<typeof m> => m !== null);
 
-      return createSuccessResponse({
-        message: 'Finals bracket created from playoff results',
-        phase: 'finals',
-        matches: createdMatches,
-        seededPlayers,
-        bracketStructure,
-      }, 'Finals bracket created', { status: 201 });
+      return createSuccessResponse(
+        {
+          message: 'Finals bracket created from playoff results',
+          phase: 'finals',
+          matches: createdMatches,
+          seededPlayers,
+          bracketStructure,
+        },
+        'Finals bracket created',
+        { status: 201 },
+      );
     } catch (error) {
       logger.error('Failed to create Top-24 finals', { error, tournamentId });
       return createErrorResponse(finalsConfig.postErrorMessage, 500, 'INTERNAL_ERROR');
@@ -1951,10 +1928,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
    * PUT handler: Update a finals match result and advance players through the bracket.
    * Handles winner/loser advancement, grand final reset logic, and tournament completion.
    */
-  async function PUT(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
 
     /* Auth check for PUT endpoint */
@@ -1981,7 +1955,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const { matchId } = body;
       let { score1, score2 } = body;
 
-      if (!matchId || (score1 === undefined || score2 === undefined) && body.cupResults === undefined) {
+      if (!matchId || ((score1 === undefined || score2 === undefined) && body.cupResults === undefined)) {
         return handleValidationError('matchId and score data are required', 'request');
       }
 
@@ -2014,7 +1988,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           body as Record<string, unknown>,
         );
 
-        if ("error" in resolved) {
+        if ('error' in resolved) {
           return handleValidationError(resolved.error, resolved.field ?? 'score');
         }
 
@@ -2115,7 +2089,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
         const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
-        const currentPlayoff = playoffStructure.find(b => b.matchNumber === matchNumber);
+        const currentPlayoff = playoffStructure.find((b) => b.matchNumber === matchNumber);
 
         if (currentPlayoff?.winnerGoesTo) {
           const position = currentPlayoff.position || 1;
@@ -2155,11 +2129,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const EIGHT_PLAYER_EXPECTED = 17;
       const SIXTEEN_PLAYER_EXPECTED = 31;
       const isAmbiguousCount =
-        totalFinalsMatches > EIGHT_PLAYER_EXPECTED &&
-        totalFinalsMatches <= BRACKET_SIZE_THRESHOLD;
+        totalFinalsMatches > EIGHT_PLAYER_EXPECTED && totalFinalsMatches <= BRACKET_SIZE_THRESHOLD;
       const isUnexpectedCount =
-        totalFinalsMatches !== EIGHT_PLAYER_EXPECTED &&
-        totalFinalsMatches !== SIXTEEN_PLAYER_EXPECTED;
+        totalFinalsMatches !== EIGHT_PLAYER_EXPECTED && totalFinalsMatches !== SIXTEEN_PLAYER_EXPECTED;
       if (isAmbiguousCount || isUnexpectedCount) {
         logger.warn('Bracket size inference may be unreliable', {
           tournamentId,
@@ -2175,9 +2147,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       /* Bracket progression: advance winner and loser to next matches */
       const bracketStructure = generateBracketStructure(bracketSize);
       const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
-      const currentBracketMatch = bracketStructure.find(
-        (b) => b.matchNumber === matchNumber,
-      );
+      const currentBracketMatch = bracketStructure.find((b) => b.matchNumber === matchNumber);
 
       if (!currentBracketMatch) {
         return createSuccessResponse({ match: updatedMatch });
@@ -2197,11 +2167,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return handleValidationError('Completed match must have a winner and loser', 'score');
       }
 
-      const updateRoutedMatch = async (
-        targetMatchNumber: number,
-        position: 1 | 2,
-        playerId: string,
-      ) => {
+      const updateRoutedMatch = async (targetMatchNumber: number, position: 1 | 2, playerId: string) => {
         try {
           await model(prisma).updateMany({
             where: {
@@ -2230,8 +2196,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           const position = currentBracketMatch.position || 1;
           await model(prisma).update({
             where: { id: nextWinnerMatch.id },
-            data:
-              position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
+            data: position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
           });
         } else {
           await updateRoutedMatch(currentBracketMatch.winnerGoesTo, currentBracketMatch.position || 1, winnerId);
@@ -2253,10 +2218,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         if (nextLoserMatch) {
           await model(prisma).update({
             where: { id: nextLoserMatch.id },
-            data:
-              loserPosition === 1
-                ? { player1Id: loserId }
-                : { player2Id: loserId },
+            data: loserPosition === 1 ? { player1Id: loserId } : { player2Id: loserId },
           });
         } else {
           await updateRoutedMatch(currentBracketMatch.loserGoesTo, loserPosition, loserId);
@@ -2341,10 +2303,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
    * concern keeps PUT's much heavier validation/advancement out of the path
    * for this lightweight admin tweak.
    */
-  async function PATCH(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
 
     const session = await auth();
@@ -2375,29 +2334,29 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const hasTv = tvNumber !== undefined;
       const hasCourse = startingCourseNumber !== undefined;
       if (!hasTv && !hasCourse) {
-        return handleValidationError(
-          'tvNumber or startingCourseNumber is required',
-          'body',
-        );
+        return handleValidationError('tvNumber or startingCourseNumber is required', 'body');
       }
 
-      if (hasTv && tvNumber !== null &&
-          (typeof tvNumber !== 'number' || !Number.isInteger(tvNumber) ||
-           tvNumber < 1 || tvNumber > MAX_TV_NUMBER)) {
-        return handleValidationError(
-          `tvNumber must be an integer between 1 and ${MAX_TV_NUMBER}, or null`,
-          'tvNumber',
-        );
+      if (
+        hasTv &&
+        tvNumber !== null &&
+        (typeof tvNumber !== 'number' || !Number.isInteger(tvNumber) || tvNumber < 1 || tvNumber > MAX_TV_NUMBER)
+      ) {
+        return handleValidationError(`tvNumber must be an integer between 1 and ${MAX_TV_NUMBER}, or null`, 'tvNumber');
       }
 
       /* startingCourseNumber must be 1–4 (battle courses) or null to clear.
        * Only meaningful for BM finals (config.assignBmStartingCourseByRound)
        * but accepting it on every finals PATCH keeps the route generic — MR/GP
        * brackets simply never expose a UI to send this field. */
-      if (hasCourse && startingCourseNumber !== null &&
-          (typeof startingCourseNumber !== 'number' ||
-           !Number.isInteger(startingCourseNumber) ||
-           startingCourseNumber < 1 || startingCourseNumber > 4)) {
+      if (
+        hasCourse &&
+        startingCourseNumber !== null &&
+        (typeof startingCourseNumber !== 'number' ||
+          !Number.isInteger(startingCourseNumber) ||
+          startingCourseNumber < 1 ||
+          startingCourseNumber > 4)
+      ) {
         return handleValidationError(
           'startingCourseNumber must be an integer between 1 and 4, or null',
           'startingCourseNumber',
@@ -2442,8 +2401,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * control disguised as a per-match select, so a startingCourseNumber
        * PATCH propagates to all matches in the same stage+round via
        * updateMany. tvNumber stays per-match (it's a broadcast slot). */
-      const propagateCourse =
-        hasCourse && Boolean(config.assignBmStartingCourseByRound) && Boolean(existing.round);
+      const propagateCourse = hasCourse && Boolean(config.assignBmStartingCourseByRound) && Boolean(existing.round);
 
       const updateData: Record<string, unknown> = {};
       if (hasTv) updateData.tvNumber = tvNumber ?? null;
@@ -2496,10 +2454,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
    * handler used the same id internally) we'd rather skip the cache-bust
    * than turn a successful response into an error.
    */
-  type FinalsWriteHandler = (
-    request: NextRequest,
-    ctx: { params: Promise<{ id: string }> },
-  ) => Promise<Response>;
+  type FinalsWriteHandler = (request: NextRequest, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
 
   function withFinalsCacheBust(handler: FinalsWriteHandler): FinalsWriteHandler {
     return async (request, ctx) => {
