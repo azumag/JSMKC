@@ -24,6 +24,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -37,6 +39,12 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Check formatting of changed files
+        run: npm run format:check
+        env:
+          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Security audit
         # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
