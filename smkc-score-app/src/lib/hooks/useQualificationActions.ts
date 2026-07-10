@@ -5,12 +5,12 @@
  * all 2P qualification pages, differing only in the mode string in the API URL.
  */
 
-import { useCallback, useMemo } from "react";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import { createLogger } from "@/lib/client-logger";
+import { useCallback, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { createLogger } from '@/lib/client-logger';
 
-type Mode = "bm" | "mr" | "gp";
+type Mode = 'bm' | 'mr' | 'gp';
 
 interface UseQualificationActionsOptions {
   tournamentId: string;
@@ -24,12 +24,17 @@ interface RankOverrideUpdate {
   rankOverride: number | null;
 }
 
+interface CombinedRankOverrideUpdate {
+  qualificationId: string;
+  combinedRankOverride: number | null;
+}
+
 /**
  * Returns shared action handlers for rank override and TV assignment.
  * These functions are identical across BM/MR/GP qualification pages.
  */
 export function useQualificationActions({ tournamentId, mode, refetch }: UseQualificationActionsOptions) {
-  const tc = useTranslations("common");
+  const tc = useTranslations('common');
   // Memoize logger so useCallback deps stay referentially stable
   const logger = useMemo(() => createLogger({ serviceName: `tournaments-${mode}` }), [mode]);
 
@@ -37,50 +42,82 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    * Save rank override for a qualification entry.
    * Passes null to clear a previously set override and restore automatic ranking.
    */
-  const handleRankOverrideSave = useCallback(async (qualificationId: string, rankOverride: number | null) => {
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qualificationId, rankOverride }),
-      });
-      if (response.ok) {
-        refetch();
-      } else {
-        const err = await response.json().catch(() => ({}));
-        alert(err.error || 'Failed to update rank');
+  const handleRankOverrideSave = useCallback(
+    async (qualificationId: string, rankOverride: number | null) => {
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qualificationId, rankOverride }),
+        });
+        if (response.ok) {
+          refetch();
+        } else {
+          const err = await response.json().catch(() => ({}));
+          alert(err.error || 'Failed to update rank');
+        }
+      } catch (err) {
+        logger.error('Failed to update rank:', { error: err, tournamentId });
       }
-    } catch (err) {
-      logger.error("Failed to update rank:", { error: err, tournamentId });
-    }
-  }, [tournamentId, mode, refetch, logger]);
+    },
+    [tournamentId, mode, refetch, logger],
+  );
 
   /**
    * Save multiple rank overrides as one admin action.
    * Used by the sudden-death playoff dialog so a full tie block can be
    * resolved without reloading the page after every single PATCH.
    */
-  const handleBulkRankOverrideSave = useCallback(async (updates: RankOverrideUpdate[]) => {
-    try {
-      for (const update of updates) {
-        const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(update),
-        });
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          alert(err.error || 'Failed to update rank');
-          return false;
+  const handleBulkRankOverrideSave = useCallback(
+    async (updates: RankOverrideUpdate[]) => {
+      try {
+        for (const update of updates) {
+          const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(update),
+          });
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            alert(err.error || 'Failed to update rank');
+            return false;
+          }
         }
+        refetch();
+        return true;
+      } catch (err) {
+        logger.error('Failed to update ranks:', { error: err, tournamentId });
+        return false;
       }
-      refetch();
-      return true;
-    } catch (err) {
-      logger.error("Failed to update ranks:", { error: err, tournamentId });
-      return false;
-    }
-  }, [tournamentId, mode, refetch, logger]);
+    },
+    [tournamentId, mode, refetch, logger],
+  );
+
+  /** Save a complete cross-group sudden-death order, then refresh once. */
+  const handleBulkCombinedRankOverrideSave = useCallback(
+    async (updates: CombinedRankOverrideUpdate[]) => {
+      try {
+        for (const update of updates) {
+          const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(update),
+          });
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            alert(err.error || 'Failed to update combined rank');
+            return false;
+          }
+        }
+        refetch();
+        return true;
+      } catch (err) {
+        logger.error('Failed to update combined ranks:', { error: err, tournamentId });
+        return false;
+      }
+    },
+    [tournamentId, mode, refetch, logger],
+  );
 
   /**
    * Handle TV number assignment for a match.
@@ -88,15 +125,18 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    * optimistic UI updates before calling this. No refetch is triggered so the
    * dropdown feels instant — the next polling cycle will confirm the value.
    */
-  const handleTvAssign = useCallback((matchId: string, tvNumber: number | null) => {
-    fetch(`/api/tournaments/${tournamentId}/${mode}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchId, tvNumber }),
-    }).catch((err) => {
-      logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
-    });
-  }, [tournamentId, mode, logger]);
+  const handleTvAssign = useCallback(
+    (matchId: string, tvNumber: number | null) => {
+      fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, tvNumber }),
+      }).catch((err) => {
+        logger.error('Failed to assign TV:', { error: err, tournamentId, matchId });
+      });
+    },
+    [tournamentId, mode, logger],
+  );
 
   /**
    * Push match players (and optional score/round info) to the overlay.
@@ -109,36 +149,45 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    *
    * Returns true on success so callers can show per-button feedback.
    */
-  const handleBroadcastReflect = useCallback(async (
-    player1Name: string,
-    player2Name: string,
-    matchInfo?: {
-      player1NoCamera?: boolean;
-      player2NoCamera?: boolean;
-      matchLabel?: string;
-      player1Wins?: number | null;
-      player2Wins?: number | null;
-      matchFt?: number | null;
-    },
-  ): Promise<boolean> => {
-    try {
-      const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player1Name, player2Name, ...matchInfo }),
-      });
-      if (res.ok) {
-        toast.success(tc("broadcastReflected"));
-        return true;
+  const handleBroadcastReflect = useCallback(
+    async (
+      player1Name: string,
+      player2Name: string,
+      matchInfo?: {
+        player1NoCamera?: boolean;
+        player2NoCamera?: boolean;
+        matchLabel?: string;
+        player1Wins?: number | null;
+        player2Wins?: number | null;
+        matchFt?: number | null;
+      },
+    ): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player1Name, player2Name, ...matchInfo }),
+        });
+        if (res.ok) {
+          toast.success(tc('broadcastReflected'));
+          return true;
+        }
+        toast.error(tc('broadcastError'));
+        return false;
+      } catch (err) {
+        logger.error('Failed to reflect broadcast:', { error: err, tournamentId });
+        toast.error(tc('broadcastError'));
+        return false;
       }
-      toast.error(tc("broadcastError"));
-      return false;
-    } catch (err) {
-      logger.error("Failed to reflect broadcast:", { error: err, tournamentId });
-      toast.error(tc("broadcastError"));
-      return false;
-    }
-  }, [tournamentId, tc, logger]);
+    },
+    [tournamentId, tc, logger],
+  );
 
-  return { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect };
+  return {
+    handleRankOverrideSave,
+    handleBulkRankOverrideSave,
+    handleBulkCombinedRankOverrideSave,
+    handleTvAssign,
+    handleBroadcastReflect,
+  };
 }

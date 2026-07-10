@@ -1,10 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlayerName } from '@/components/ui/player-name';
+import {
+  CombinedTieResolution,
+  type CombinedRankOverrideUpdate,
+} from '@/components/tournament/combined-tie-resolution';
 
 export interface CombinedStandingsEntry {
   id: string;
   _autoRank: number;
+  combinedRankOverride: number | null;
   group: string;
   mp: number;
   wins: number;
@@ -45,6 +50,18 @@ interface CombinedStandingsTableProps<T extends CombinedStandingsEntry> {
    * parent because this is a presentational component with no hook scope.
    */
   locale: string;
+  isAdmin: boolean;
+  onCombinedRankOverrideSave: (updates: CombinedRankOverrideUpdate[]) => Promise<boolean>;
+  onBroadcast?: (
+    player1Name: string,
+    player2Name: string,
+    matchInfo?: {
+      matchLabel?: string;
+      player1Wins?: number | null;
+      player2Wins?: number | null;
+      matchFt?: number | null;
+    },
+  ) => Promise<boolean>;
 }
 
 export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
@@ -53,6 +70,9 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
   getGroupLabel,
   getQualificationPoints,
   locale,
+  isAdmin,
+  onCombinedRankOverrideSave,
+  onBroadcast,
 }: CombinedStandingsTableProps<T>) {
   return (
     <Card>
@@ -61,6 +81,12 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
         <CardDescription>{labels.playersCount}</CardDescription>
       </CardHeader>
       <CardContent>
+        <CombinedTieResolution
+          rankings={rankings}
+          isAdmin={isAdmin}
+          onSave={onCombinedRankOverrideSave}
+          onBroadcast={onBroadcast}
+        />
         <Table>
           <TableHeader>
             <TableRow>

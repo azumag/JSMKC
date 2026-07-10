@@ -34,6 +34,7 @@ import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
   compareByScoreThenPoints,
+  compareByScoreThenPointsAndCombinedOverride,
   computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
@@ -81,6 +82,7 @@ interface MRQualification {
   points: number;
   score: number;
   rankOverride: number | null; // 管理者手動順位 (null = 自動計算)
+  combinedRankOverride: number | null; // グループ横断の同率決着順位
   player: Player;
 }
 
@@ -199,7 +201,7 @@ export default function MatchRacePageClient({
   const matches: MRMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const combinedRankings = useMemo(
-    () => computeCombinedRanks(qualifications, compareByScoreThenPoints),
+    () => computeCombinedRanks(qualifications, compareByScoreThenPoints, compareByScoreThenPointsAndCombinedOverride),
     [qualifications],
   );
   /* Whether qualification scores are locked by admin confirmation */
@@ -258,8 +260,13 @@ export default function MatchRacePageClient({
   }, [pollData]);
 
   /* Shared handlers for rank override and TV assignment */
-  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
-    useQualificationActions({ tournamentId, mode: 'mr', refetch });
+  const {
+    handleRankOverrideSave,
+    handleBulkRankOverrideSave,
+    handleBulkCombinedRankOverrideSave,
+    handleTvAssign,
+    handleBroadcastReflect,
+  } = useQualificationActions({ tournamentId, mode: 'mr', refetch });
 
   /**
    * Toggle qualification confirmed state.
@@ -736,6 +743,9 @@ export default function MatchRacePageClient({
               getGroupLabel={(group) => tc('groupLabel', { group })}
               getQualificationPoints={(q) => getQualificationPoints(q.mp, q.score)}
               locale={locale}
+              isAdmin={!!isAdmin}
+              onCombinedRankOverrideSave={handleBulkCombinedRankOverrideSave}
+              onBroadcast={handleBroadcastReflect}
             />
           </TabsContent>
 

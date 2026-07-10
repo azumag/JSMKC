@@ -37,11 +37,11 @@
  */
 
 import { GROUPS } from './group-utils';
-import { compareByScoreThenPoints, groupBy, type ScorePointsEntry } from './ranking-utils';
+import { compareByScoreThenPointsAndCombinedOverride, groupBy, type CombinedOverrideEntry } from './ranking-utils';
 import { generateBracketStructure, generatePlayoffStructure } from './double-elimination';
 
 /** Minimum shape required from a qualification record. */
-export interface FinalsQualInput<TPlayer = unknown> extends ScorePointsEntry {
+export interface FinalsQualInput<TPlayer = unknown> extends CombinedOverrideEntry {
   playerId: string;
   group: string;
   player: TPlayer;
@@ -74,9 +74,18 @@ const TWO_GROUP_DIRECT_UPPER_SEEDS = [
 ] as const;
 
 const TWO_GROUP_BARRAGE_SEED_TOKENS = [
-  'B8', 'B7', 'A8', 'A7',
-  'B9', 'A11', 'B10', 'A12',
-  'A10', 'B12', 'A9', 'B11',
+  'B8',
+  'B7',
+  'A8',
+  'A7',
+  'B9',
+  'A11',
+  'B10',
+  'A12',
+  'A10',
+  'B12',
+  'A9',
+  'B11',
 ] as const;
 
 /** Which round-1 seeds face a not-yet-decided opponent ("solo") vs. another seed in this same batch ("paired"). */
@@ -170,7 +179,7 @@ function assignAntiCollisionSeeds<T extends { group: string }>(
       // round-1 pair if that invariant is ever violated by a future change.
       throw new Error(
         `assignAntiCollisionSeeds: no cross-group partner available for seed pair (${lowSeed}, ${highSeed}); ` +
-        `remaining pool is all group "${better.group}"`,
+          `remaining pool is all group "${better.group}"`,
       );
     }
     const worse = pool.splice(partnerIndex, 1)[0];
@@ -198,25 +207,23 @@ export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
 
   const groupCount = byGroup.size;
   if (groupCount < 2 || groupCount > 4 || TOTAL_FINALS_SLOTS % groupCount !== 0) {
-    throw new Error(
-      `selectFinalsEntrantsByGroup: Unsupported group count ${groupCount} (must be 2, 3, or 4)`,
-    );
+    throw new Error(`selectFinalsEntrantsByGroup: Unsupported group count ${groupCount} (must be 2, 3, or 4)`);
   }
 
   const perGroup = TOTAL_FINALS_SLOTS / groupCount;
 
   /* Order group keys by the canonical GROUPS sequence (A, B, C, D) for deterministic
    * interleave order; include only groups actually present. */
-  const orderedGroupKeys = (GROUPS as readonly string[]).filter(g => byGroup.has(g));
+  const orderedGroupKeys = (GROUPS as readonly string[]).filter((g) => byGroup.has(g));
   if (orderedGroupKeys.length !== groupCount) {
-    throw new Error(
-      `selectFinalsEntrantsByGroup: Unknown group key detected (expected one of ${GROUPS.join(', ')})`,
-    );
+    throw new Error(`selectFinalsEntrantsByGroup: Unknown group key detected (expected one of ${GROUPS.join(', ')})`);
   }
 
   /* Snapshot each group's bucket so repeated lookups are cheap and we can drop the
    * `byGroup.get(g)!` non-null assertions. */
-  const buckets: FinalsQualInput<TPlayer>[][] = orderedGroupKeys.map(g => byGroup.get(g) as FinalsQualInput<TPlayer>[]);
+  const buckets: FinalsQualInput<TPlayer>[][] = orderedGroupKeys.map(
+    (g) => byGroup.get(g) as FinalsQualInput<TPlayer>[],
+  );
 
   /* Verify each group has enough players for both direct (perGroup) and barrage (perGroup). */
   for (let i = 0; i < orderedGroupKeys.length; i++) {
@@ -261,10 +268,10 @@ export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
   const direct: FinalsQualInput<TPlayer>[] = [];
   const barrage: FinalsQualInput<TPlayer>[] = [];
   for (let k = 0; k < perGroup; k++) {
-    direct.push(...buckets.map(bucket => bucket[k]).sort(compareByScoreThenPoints));
+    direct.push(...buckets.map((bucket) => bucket[k]).sort(compareByScoreThenPointsAndCombinedOverride));
   }
   for (let k = perGroup; k < perGroup * 2; k++) {
-    barrage.push(...buckets.map(bucket => bucket[k]).sort(compareByScoreThenPoints));
+    barrage.push(...buckets.map((bucket) => bucket[k]).sort(compareByScoreThenPointsAndCombinedOverride));
   }
 
   const directSeedByEntrant = assignAntiCollisionSeeds(direct, computeDirectSeedPairingPlan());

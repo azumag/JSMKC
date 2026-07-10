@@ -39,9 +39,7 @@ const TOURNAMENT_ID = 'tournament-abc';
 const MODE = 'bm' as const;
 
 function makeHook(refetch = jest.fn()) {
-  return renderHook(() =>
-    useQualificationActions({ tournamentId: TOURNAMENT_ID, mode: MODE, refetch }),
-  );
+  return renderHook(() => useQualificationActions({ tournamentId: TOURNAMENT_ID, mode: MODE, refetch }));
 }
 
 beforeEach(() => {
@@ -114,12 +112,10 @@ describe('useQualificationActions', () => {
     });
 
     it('TC-2614: stops on first failure, skips remaining updates, returns false', async () => {
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({ ok: true } as Response)
-        .mockResolvedValueOnce({
-          ok: false,
-          json: async () => ({ error: 'Server error' }),
-        } as unknown as Response);
+      (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true } as Response).mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: 'Server error' }),
+      } as unknown as Response);
       const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
       const refetch = jest.fn();
       const { result } = makeHook(refetch);
@@ -140,6 +136,41 @@ describe('useQualificationActions', () => {
       expect(alertSpy).toHaveBeenCalledWith('Server error');
       expect(refetch).not.toHaveBeenCalled();
       expect(returnValue).toBe(false);
+    });
+  });
+
+  describe('handleBulkCombinedRankOverrideSave', () => {
+    it('sends the cross-group override field for every tied player and refreshes once', async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({ ok: true } as Response);
+      const refetch = jest.fn();
+      const { result } = makeHook(refetch);
+
+      let returnValue: boolean | undefined;
+      await act(async () => {
+        returnValue = await result.current.handleBulkCombinedRankOverrideSave([
+          { qualificationId: 'q-b', combinedRankOverride: 1 },
+          { qualificationId: 'q-a', combinedRankOverride: 2 },
+        ]);
+      });
+
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        1,
+        `/api/tournaments/${TOURNAMENT_ID}/${MODE}`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ qualificationId: 'q-b', combinedRankOverride: 1 }),
+        }),
+      );
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        `/api/tournaments/${TOURNAMENT_ID}/${MODE}`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ qualificationId: 'q-a', combinedRankOverride: 2 }),
+        }),
+      );
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(returnValue).toBe(true);
     });
   });
 

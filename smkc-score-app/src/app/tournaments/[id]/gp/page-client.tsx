@@ -42,11 +42,13 @@ import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
 import { QualificationPlayoffManager } from '@/components/tournament/qualification-playoff-manager';
 import { RankCell } from '@/components/tournament/rank-cell';
 import { TieWarningBanner } from '@/components/tournament/tie-warning-banner';
+import { CombinedTieResolution } from '@/components/tournament/combined-tie-resolution';
 import { DebugFillButton } from '@/components/tournament/debug-fill-button';
 import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
+  compareByScoreThenPointsAndCombinedOverride,
   computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
@@ -95,6 +97,7 @@ interface GPQualification {
   points: number;
   score: number;
   rankOverride: number | null; // 管理者手動順位 (null = 自動計算)
+  combinedRankOverride: number | null; // グループ横断の同率決着順位
   player: Player;
 }
 
@@ -233,7 +236,8 @@ export default function GrandPrixPageClient({
   const matches: GPMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const combinedRankings = useMemo(
-    () => computeCombinedRanks(qualifications, compareGpQualificationEntries),
+    () =>
+      computeCombinedRanks(qualifications, compareGpQualificationEntries, compareByScoreThenPointsAndCombinedOverride),
     [qualifications],
   );
   /* Whether qualification scores are locked by admin confirmation */
@@ -292,8 +296,13 @@ export default function GrandPrixPageClient({
   }, [pollData]);
 
   /* Shared handlers for rank override and TV assignment */
-  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
-    useQualificationActions({ tournamentId, mode: 'gp', refetch });
+  const {
+    handleRankOverrideSave,
+    handleBulkRankOverrideSave,
+    handleBulkCombinedRankOverrideSave,
+    handleTvAssign,
+    handleBroadcastReflect,
+  } = useQualificationActions({ tournamentId, mode: 'gp', refetch });
 
   /**
    * Toggle qualification confirmed state.
@@ -821,6 +830,12 @@ export default function GrandPrixPageClient({
                 <CardDescription>{tc('playersCount', { count: qualifications.length })}</CardDescription>
               </CardHeader>
               <CardContent>
+                <CombinedTieResolution
+                  rankings={combinedRankings}
+                  isAdmin={!!isAdmin}
+                  onSave={handleBulkCombinedRankOverrideSave}
+                  onBroadcast={handleBroadcastReflect}
+                />
                 <Table>
                   <TableHeader>
                     <TableRow>
