@@ -29,8 +29,13 @@ function resolveBaseRevision() {
 }
 
 const baseRevision = resolveBaseRevision();
-const diffArguments = ['diff', '--name-only', '--diff-filter=ACMR', '-z', baseRevision];
-if (process.env.FORMAT_HEAD_SHA) diffArguments.push(process.env.FORMAT_HEAD_SHA);
+const headRevision = process.env.FORMAT_HEAD_SHA;
+// A PR's base branch may advance after the feature branch was created. Diff
+// from the common ancestor so newly merged base-branch files are not mistaken
+// for changes made by this PR.
+const comparisonBase = headRevision ? git(['merge-base', baseRevision, headRevision]) : baseRevision;
+const diffArguments = ['diff', '--name-only', '--diff-filter=ACMR', '-z', comparisonBase];
+if (headRevision) diffArguments.push(headRevision);
 
 const changedPaths = execFileSync('git', diffArguments, { cwd: repositoryRoot, encoding: 'utf8' }).split('\0');
 
