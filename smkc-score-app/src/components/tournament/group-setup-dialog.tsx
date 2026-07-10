@@ -256,268 +256,268 @@ export function GroupSetupDialog({
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
-        <Button
-          variant={hasExistingQualifications ? "outline" : "default"}
-          data-variant={hasExistingQualifications ? "outline" : "default"}
-        >
-          {hasExistingQualifications ? tc("editGroups") : tc("setupGroups")}
-        </Button>
-      </DialogTrigger>
+          <Button
+            variant={hasExistingQualifications ? "outline" : "default"}
+            data-variant={hasExistingQualifications ? "outline" : "default"}
+          >
+            {hasExistingQualifications ? tc("editGroups") : tc("setupGroups")}
+          </Button>
+        </DialogTrigger>
         {/*
-       * Wide dialog with responsive width and max-h constraint.
-       * Mobile-first approach with progressive enhancement per breakpoint.
-       */}
-        <DialogContent className="w-[calc(100vw-2rem)] sm:w-[calc(100vw-4rem)] md:w-[max-content] lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-5 md:p-6">
-        <DialogHeader>
-          <DialogTitle>
-            {hasExistingQualifications
-              ? t("editGroupsTitle")
-              : t("setupDialogTitle")}
-          </DialogTitle>
-          <DialogDescription>
-            {hasExistingQualifications
-              ? t("editGroupsDesc")
-              : t("setupDialogDesc")}
-          </DialogDescription>
-        </DialogHeader>
-
-        {/*
-         * Two-column layout:
-         * - Left: player checkbox list with search
-         * - Right: selected players with seeding + group assignments
+         * Wide dialog with responsive width and max-h constraint.
+         * Mobile-first approach with progressive enhancement per breakpoint.
          */}
-        {/* On mobile: whole area scrolls; on desktop: each column scrolls independently */}
-        <div className="flex-1 overflow-y-auto md:overflow-y-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
-            {/* Left column: Player selection with search */}
-            <div className="flex flex-col min-h-0">
-              <h4 className="font-medium mb-2">{tc("player")}</h4>
-              <Input
-                placeholder={t("searchPlayers")}
-                value={playerSearchQuery}
-                onChange={(e) => setPlayerSearchQuery(e.target.value)}
-                className="mb-2"
-              />
-              {/* Select All checkbox */}
-              {filteredPlayers.length > 0 && (
-                <div className="flex items-center gap-2 py-1 border-b mb-1">
-                  <Checkbox
-                    id="select-all"
-                    checked={allFilteredSelected}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        const newPlayers = filteredPlayers
-                          .filter((p) => !selectedIds.has(p.id))
-                          .map((p) => ({ playerId: p.id, group: availableGroups[0] }));
-                        setSetupPlayers([...setupPlayers, ...newPlayers]);
-                      } else {
-                        const filteredIds = new Set(
-                          filteredPlayers.map((p) => p.id)
-                        );
-                        setSetupPlayers(
-                          setupPlayers.filter(
-                            (sp) => !filteredIds.has(sp.playerId)
-                          )
-                        );
-                      }
-                    }}
-                    className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
-                  />
-                  <Label
-                    htmlFor="select-all"
-                    className="cursor-pointer font-medium"
-                  >
-                    {t("selectAll")}
-                  </Label>
-                </div>
-              )}
-              {/* Scrollable player list */}
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
-                {filteredPlayers.length === 0 ? (
-                  <p className="text-muted-foreground text-sm py-2">
-                    {tc("noPlayersSelected")}
-                  </p>
-                ) : (
-                  filteredPlayers.map((player) => (
-                    <div
-                      key={player.id}
-                      className="flex items-center gap-2 py-2 sm:py-1 px-2 sm:px-1 rounded hover:bg-muted/50"
-                    >
-                      <Checkbox
-                        id={`player-${player.id}`}
-                        checked={selectedIds.has(player.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            addPlayerToSetup(player.id, availableGroups[0]);
-                          } else {
-                            removePlayerFromSetup(player.id);
-                          }
-                        }}
-                        className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
-                      />
-                      <Label
-                        htmlFor={`player-${player.id}`}
-                        className="cursor-pointer flex-1"
-                      >
-                        <span className="inline-flex items-center gap-1.5 min-w-0">
-                          <CountryFlag country={player.country} locale={locale} />
-                          <span className="truncate">{player.nickname} ({player.name})</span>
-                        </span>
-                      </Label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-[calc(100vw-4rem)] md:w-[max-content] lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-5 md:p-6">
+          <DialogHeader>
+            <DialogTitle>
+              {hasExistingQualifications
+                ? t("editGroupsTitle")
+                : t("setupDialogTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {hasExistingQualifications
+                ? t("editGroupsDesc")
+                : t("setupDialogDesc")}
+            </DialogDescription>
+          </DialogHeader>
 
-            {/* Right column: Selected players with seeding + group assignments */}
-            <div className="flex flex-col min-h-0">
-              {/* Header row: title + group count + action buttons */}
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <h4 className="font-medium">
-                  {tc("selectedPlayers", { count: setupPlayers.length })}
-                </h4>
-                <div className="flex-1" />
-                {/* Group count selector: 2 or 3 groups (4+ groups out of scope, docs/qualification-combined-ranking.md §7) */}
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground">{tc("groupCount")}:</span>
-                  {GROUP_COUNT_OPTIONS.map((n) => (
-                    <Button
-                      key={n}
-                      variant={n === groupCount ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 w-7 p-0 text-xs"
-                      onClick={() => handleGroupCountChange(n)}
+          {/*
+           * Two-column layout:
+           * - Left: player checkbox list with search
+           * - Right: selected players with seeding + group assignments
+           */}
+          {/* On mobile: whole area scrolls; on desktop: each column scrolls independently */}
+          <div className="flex-1 overflow-y-auto md:overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
+              {/* Left column: Player selection with search */}
+              <div className="flex flex-col min-h-0">
+                <h4 className="font-medium mb-2">{tc("player")}</h4>
+                <Input
+                  placeholder={t("searchPlayers")}
+                  value={playerSearchQuery}
+                  onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                  className="mb-2"
+                />
+                {/* Select All checkbox */}
+                {filteredPlayers.length > 0 && (
+                  <div className="flex items-center gap-2 py-1 border-b mb-1">
+                    <Checkbox
+                      id="select-all"
+                      checked={allFilteredSelected}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          const newPlayers = filteredPlayers
+                            .filter((p) => !selectedIds.has(p.id))
+                            .map((p) => ({ playerId: p.id, group: availableGroups[0] }));
+                          setSetupPlayers([...setupPlayers, ...newPlayers]);
+                        } else {
+                          const filteredIds = new Set(
+                            filteredPlayers.map((p) => p.id)
+                          );
+                          setSetupPlayers(
+                            setupPlayers.filter(
+                              (sp) => !filteredIds.has(sp.playerId)
+                            )
+                          );
+                        }
+                      }}
+                      className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
+                    />
+                    <Label
+                      htmlFor="select-all"
+                      className="cursor-pointer font-medium"
                     >
-                      {n}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              {/* Action buttons row */}
-              {setupPlayers.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {/* Auto-distribute by seeding button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAutoDistribute}
-                    disabled={!allHaveSeeding}
-                    title={allHaveSeeding ? tc("autoDistributeDesc") : tc("enterSeedingFirst")}
-                  >
-                    {tc("autoDistribute")}
-                  </Button>
-                  {/* Random assignment button - shuffle players across groups */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRandomAssign}
-                    title={tc("randomAssignDesc")}
-                  >
-                    {tc("randomAssign")}
-                  </Button>
-                </div>
-              )}
-              {/* Scrollable selected players list */}
-              <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
-                {setupPlayers.length === 0 ? (
-                  <p className="text-muted-foreground text-sm py-4 text-center">
-                    {tc("noPlayersSelected")}
-                  </p>
-                ) : (
-                  <div className="divide-y">
-                    {setupPlayers.map((sp) => {
-                      const player = allPlayers.find(
-                        (p) => p.id === sp.playerId
-                      );
-                      return (
-                        <div
-                          key={sp.playerId}
-                          className="flex items-center gap-2 px-3 py-2"
-                        >
-                          {/* Seeding number input: compact width for 1-2 digit numbers */}
-                          <Input
-                            type="number"
-                            min={1}
-                            placeholder="#"
-                            value={sp.seeding ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const parsed = parseInt(val, 10);
-                              /* Guard: only accept valid positive integers */
-                              const seeding = val && !Number.isNaN(parsed) && parsed >= 1
-                                ? parsed
-                                : undefined;
-                              setSetupPlayers(
-                                setupPlayers.map((p) =>
-                                  p.playerId === sp.playerId
-                                    ? { ...p, seeding }
-                                    : p
-                                )
-                              );
-                            }}
-                            className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
-                          />
-                          {/* Player name with fallback for missing data */}
-                          <span className="flex-1 text-sm min-w-0 inline-flex items-center gap-1.5">
-                            <CountryFlag country={player?.country} locale={locale} />
-                            <span className="truncate">
-                              {player?.nickname ?? `ID: ${sp.playerId.slice(0, 8)}`}
-                            </span>
-                          </span>
-                          {/* Group selector: only shows groups available for current groupCount */}
-                          <Select
-                            value={sp.group}
-                            onValueChange={(group) => {
-                              setSetupPlayers(
-                                setupPlayers.map((p) =>
-                                  p.playerId === sp.playerId
-                                    ? { ...p, group }
-                                    : p
-                                )
-                              );
-                            }}
-                          >
-                            <SelectTrigger className="w-20 h-11 sm:h-10 md:h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableGroups.map((g) => (
-                                <SelectItem key={g} value={g}>{g}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {/* Remove button */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              removePlayerFromSetup(sp.playerId)
-                            }
-                            className="min-h-[44px] md:min-h-[32px]"
-                          >
-                            {tc("remove")}
-                          </Button>
-                        </div>
-                      );
-                    })}
+                      {t("selectAll")}
+                    </Label>
                   </div>
                 )}
+                {/* Scrollable player list */}
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+                  {filteredPlayers.length === 0 ? (
+                    <p className="text-muted-foreground text-sm py-2">
+                      {tc("noPlayersSelected")}
+                    </p>
+                  ) : (
+                    filteredPlayers.map((player) => (
+                      <div
+                        key={player.id}
+                        className="flex items-center gap-2 py-2 sm:py-1 px-2 sm:px-1 rounded hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          id={`player-${player.id}`}
+                          checked={selectedIds.has(player.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              addPlayerToSetup(player.id, availableGroups[0]);
+                            } else {
+                              removePlayerFromSetup(player.id);
+                            }
+                          }}
+                          className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
+                        />
+                        <Label
+                          htmlFor={`player-${player.id}`}
+                          className="cursor-pointer flex-1"
+                        >
+                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                            <CountryFlag country={player.country} locale={locale} />
+                            <span className="truncate">{player.nickname} ({player.name})</span>
+                          </span>
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Right column: Selected players with seeding + group assignments */}
+              <div className="flex flex-col min-h-0">
+                {/* Header row: title + group count + action buttons */}
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <h4 className="font-medium">
+                    {tc("selectedPlayers", { count: setupPlayers.length })}
+                  </h4>
+                  <div className="flex-1" />
+                  {/* Group count selector: 2 or 3 groups (4+ groups out of scope, docs/qualification-combined-ranking.md §7) */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">{tc("groupCount")}:</span>
+                    {GROUP_COUNT_OPTIONS.map((n) => (
+                      <Button
+                        key={n}
+                        variant={n === groupCount ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 w-7 p-0 text-xs"
+                        onClick={() => handleGroupCountChange(n)}
+                      >
+                        {n}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                {/* Action buttons row */}
+                {setupPlayers.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {/* Auto-distribute by seeding button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAutoDistribute}
+                      disabled={!allHaveSeeding}
+                      title={allHaveSeeding ? tc("autoDistributeDesc") : tc("enterSeedingFirst")}
+                    >
+                      {tc("autoDistribute")}
+                    </Button>
+                    {/* Random assignment button - shuffle players across groups */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRandomAssign}
+                      title={tc("randomAssignDesc")}
+                    >
+                      {tc("randomAssign")}
+                    </Button>
+                  </div>
+                )}
+                {/* Scrollable selected players list */}
+                <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
+                  {setupPlayers.length === 0 ? (
+                    <p className="text-muted-foreground text-sm py-4 text-center">
+                      {tc("noPlayersSelected")}
+                    </p>
+                  ) : (
+                    <div className="divide-y">
+                      {setupPlayers.map((sp) => {
+                        const player = allPlayers.find(
+                          (p) => p.id === sp.playerId
+                        );
+                        return (
+                          <div
+                            key={sp.playerId}
+                            className="flex items-center gap-2 px-3 py-2"
+                          >
+                            {/* Seeding number input: compact width for 1-2 digit numbers */}
+                            <Input
+                              type="number"
+                              min={1}
+                              placeholder="#"
+                              value={sp.seeding ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const parsed = parseInt(val, 10);
+                                /* Guard: only accept valid positive integers */
+                                const seeding = val && !Number.isNaN(parsed) && parsed >= 1
+                                  ? parsed
+                                  : undefined;
+                                setSetupPlayers(
+                                  setupPlayers.map((p) =>
+                                    p.playerId === sp.playerId
+                                      ? { ...p, seeding }
+                                      : p
+                                  )
+                                );
+                              }}
+                              className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
+                            />
+                            {/* Player name with fallback for missing data */}
+                            <span className="flex-1 text-sm min-w-0 inline-flex items-center gap-1.5">
+                              <CountryFlag country={player?.country} locale={locale} />
+                              <span className="truncate">
+                                {player?.nickname ?? `ID: ${sp.playerId.slice(0, 8)}`}
+                              </span>
+                            </span>
+                            {/* Group selector: only shows groups available for current groupCount */}
+                            <Select
+                              value={sp.group}
+                              onValueChange={(group) => {
+                                setSetupPlayers(
+                                  setupPlayers.map((p) =>
+                                    p.playerId === sp.playerId
+                                      ? { ...p, group }
+                                      : p
+                                  )
+                                );
+                              }}
+                            >
+                              <SelectTrigger className="w-20 h-11 sm:h-10 md:h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableGroups.map((g) => (
+                                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {/* Remove button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                removePlayerFromSetup(sp.playerId)
+                              }
+                              className="min-h-[44px] md:min-h-[32px]"
+                            >
+                              {tc("remove")}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Sticky footer - always visible at dialog bottom */}
-        <DialogFooter className="pt-4 border-t">
-          <Button onClick={onSave} disabled={saving}>
-            {saving
-              ? (tc("saving") ?? "Saving...")
-              : hasExistingQualifications
-                ? tc("updateGroups")
-                : t("createGroupsAndMatches")}
-          </Button>
-        </DialogFooter>
+          {/* Sticky footer - always visible at dialog bottom */}
+          <DialogFooter className="pt-4 border-t">
+            <Button onClick={onSave} disabled={saving}>
+              {saving
+                ? (tc("saving") ?? "Saving...")
+                : hasExistingQualifications
+                  ? tc("updateGroups")
+                  : t("createGroupsAndMatches")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <AlertDialog open={pendingGroupCount !== null} onOpenChange={(open) => !open && setPendingGroupCount(null)}>
