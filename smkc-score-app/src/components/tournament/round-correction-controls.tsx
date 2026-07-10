@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { RoundCorrectionHelp } from "@/components/tournament/round-correction-help";
-import { Button } from "@/components/ui/button";
+import { RoundCorrectionHelp } from '@/components/tournament/round-correction-help';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,24 +9,23 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 
-export interface RoundCorrectionLabels {
-  undoLastRound: string;
-  cancelLastRound: string;
-  undoRoundTitle: string;
-  undoRoundDesc: string;
-  cancelLastRoundTitle: string;
-  cancelLastRoundDesc: string;
-  keepRound: string;
-  undoing: string;
-  yesUndoRound: string;
-  cancellingLastRound: string;
-  yesCancelLastRound: string;
-}
+export type RoundCorrectionLabelKey =
+  | 'undoLastRound'
+  | 'cancelLastRound'
+  | 'undoRoundTitle'
+  | 'undoRoundDesc'
+  | 'cancelLastRoundTitle'
+  | 'cancelLastRoundDesc'
+  | 'keepRound'
+  | 'undoing'
+  | 'yesUndoRound'
+  | 'cancellingLastRound'
+  | 'yesCancelLastRound';
 
 interface RoundCorrectionControlsProps {
-  labels: RoundCorrectionLabels;
+  translate: (key: RoundCorrectionLabelKey) => string;
   actionsDisabled: boolean;
   undoingRound: boolean;
   cancellingLastRound: boolean;
@@ -46,7 +45,7 @@ interface RoundCorrectionControlsProps {
  * every state transition and confirmed action through controlled props.
  */
 export function RoundCorrectionControls({
-  labels,
+  translate,
   actionsDisabled,
   undoingRound,
   cancellingLastRound,
@@ -66,7 +65,7 @@ export function RoundCorrectionControls({
         onClick={() => onShowUndoConfirmChange(true)}
         disabled={actionsDisabled}
       >
-        {labels.undoLastRound}
+        {translate('undoLastRound')}
       </Button>
       <Button
         variant="outline"
@@ -74,21 +73,21 @@ export function RoundCorrectionControls({
         onClick={() => onShowCancelConfirmChange(true)}
         disabled={actionsDisabled}
       >
-        {labels.cancelLastRound}
+        {translate('cancelLastRound')}
       </Button>
 
       <Dialog open={showUndoConfirm} onOpenChange={onShowUndoConfirmChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{labels.undoRoundTitle}</DialogTitle>
-            <DialogDescription>{labels.undoRoundDesc}</DialogDescription>
+            <DialogTitle>{translate('undoRoundTitle')}</DialogTitle>
+            <DialogDescription>{translate('undoRoundDesc')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => onShowUndoConfirmChange(false)} disabled={undoingRound}>
-              {labels.keepRound}
+              {translate('keepRound')}
             </Button>
             <Button variant="destructive" onClick={onUndoRound} disabled={undoingRound}>
-              {undoingRound ? labels.undoing : labels.yesUndoRound}
+              {undoingRound ? translate('undoing') : translate('yesUndoRound')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -97,19 +96,15 @@ export function RoundCorrectionControls({
       <Dialog open={showCancelConfirm} onOpenChange={onShowCancelConfirmChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{labels.cancelLastRoundTitle}</DialogTitle>
-            <DialogDescription>{labels.cancelLastRoundDesc}</DialogDescription>
+            <DialogTitle>{translate('cancelLastRoundTitle')}</DialogTitle>
+            <DialogDescription>{translate('cancelLastRoundDesc')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => onShowCancelConfirmChange(false)}
-              disabled={cancellingLastRound}
-            >
-              {labels.keepRound}
+            <Button variant="outline" onClick={() => onShowCancelConfirmChange(false)} disabled={cancellingLastRound}>
+              {translate('keepRound')}
             </Button>
             <Button variant="destructive" onClick={onCancelLastRound} disabled={cancellingLastRound}>
-              {cancellingLastRound ? labels.cancellingLastRound : labels.yesCancelLastRound}
+              {cancellingLastRound ? translate('cancellingLastRound') : translate('yesCancelLastRound')}
             </Button>
           </DialogFooter>
         </DialogContent>
