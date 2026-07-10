@@ -72,7 +72,7 @@ import { createLogger } from "@/lib/client-logger";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 import { CourseCycleStatusPanel } from "@/components/tournament/course-cycle-status-panel";
-import { RoundCorrectionHelp } from "@/components/tournament/round-correction-help";
+import { RoundCorrectionControls } from "@/components/tournament/round-correction-controls";
 import {
   TASuddenDeathSection,
   useTaSuddenDeath,
@@ -770,92 +770,32 @@ export default function TAEliminationPhase({
   // is complete — the latter is what lets an admin fix a mistake in a phase's
   // final round without a full phase reset. Buttons render only when at least
   // one round has been submitted; dialogs are rendered once at the top level.
-  const roundCorrectionButtons = completedRoundsCount > 0 ? (
-    <>
-      {/* Explains Undo vs. Cancel — its own row, muted style, so it can't be
-          misclicked as a third destructive action. */}
-      <RoundCorrectionHelp />
-      {/* Undo last round: clears results, keeps the course assigned for re-entry. */}
-      <Button
-        variant="outline"
-        className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
-        onClick={() => setShowUndoConfirm(true)}
-        disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-      >
-        {tElim('undoLastRound')}
-      </Button>
-      {/* Cancel last round: like undo, but frees the course instead of keeping
-          it assigned for re-entry (issue #2761). */}
-      <Button
-        variant="outline"
-        className="w-full text-red-700 border-red-400 hover:bg-red-50"
-        onClick={() => setShowCancelLastRoundConfirm(true)}
-        disabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
-      >
-        {tElim('cancelLastRound')}
-      </Button>
-    </>
+  const roundCorrectionControls = completedRoundsCount > 0 ? (
+    <RoundCorrectionControls
+      labels={{
+        undoLastRound: tElim('undoLastRound'),
+        cancelLastRound: tElim('cancelLastRound'),
+        undoRoundTitle: tElim('undoRoundTitle'),
+        undoRoundDesc: tElim('undoRoundDesc'),
+        cancelLastRoundTitle: tElim('cancelLastRoundTitle'),
+        cancelLastRoundDesc: tElim('cancelLastRoundDesc'),
+        keepRound: tElim('keepRound'),
+        undoing: tElim('undoing'),
+        yesUndoRound: tElim('yesUndoRound'),
+        cancellingLastRound: tElim('cancellingLastRound'),
+        yesCancelLastRound: tElim('yesCancelLastRound'),
+      }}
+      actionsDisabled={undoingRound || cancellingLastRound || startingRound || hasOpenRound}
+      undoingRound={undoingRound}
+      cancellingLastRound={cancellingLastRound}
+      showUndoConfirm={showUndoConfirm}
+      onShowUndoConfirmChange={setShowUndoConfirm}
+      showCancelConfirm={showCancelLastRoundConfirm}
+      onShowCancelConfirmChange={setShowCancelLastRoundConfirm}
+      onUndoRound={handleUndoRound}
+      onCancelLastRound={handleCancelLastRound}
+    />
   ) : null;
-
-  const roundCorrectionDialogs = (
-    <>
-      {/* Undo confirmation dialog */}
-      <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{tElim('undoRoundTitle')}</DialogTitle>
-            <DialogDescription>
-              {tElim('undoRoundDesc')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUndoConfirm(false)}
-              disabled={undoingRound}
-            >
-              {tElim('keepRound')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleUndoRound}
-              disabled={undoingRound}
-            >
-              {undoingRound ? tElim('undoing') : tElim('yesUndoRound')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Cancel-last-round confirmation dialog */}
-      <Dialog open={showCancelLastRoundConfirm} onOpenChange={setShowCancelLastRoundConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{tElim('cancelLastRoundTitle')}</DialogTitle>
-            <DialogDescription>
-              {tElim('cancelLastRoundDesc')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowCancelLastRoundConfirm(false)}
-              disabled={cancellingLastRound}
-            >
-              {tElim('keepRound')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleCancelLastRound}
-              disabled={cancellingLastRound}
-            >
-              {cancellingLastRound ? tElim('cancellingLastRound') : tElim('yesCancelLastRound')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
 
   // === Main Render ===
   return (
@@ -1130,7 +1070,7 @@ export default function TAEliminationPhase({
                     #2781): the server-side assertNoLaterPhaseEntries guard already
                     rejects this, but the in-progress-phase card lacked the same
                     UI-level defense that the completed-phase card below has. */}
-                {!laterPhaseStarted && roundCorrectionButtons}
+                {!laterPhaseStarted && roundCorrectionControls}
               </div>
             </CardContent>
           </Card>
@@ -1149,14 +1089,10 @@ export default function TAEliminationPhase({
             <CardDescription>{tElim('correctFinalRoundDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {roundCorrectionButtons}
+            {roundCorrectionControls}
           </CardContent>
         </Card>
       )}
-
-      {/* Round-correction confirmation dialogs (rendered once; opened from the
-          buttons in whichever card is currently visible). */}
-      {isAdmin && roundCorrectionDialogs}
 
       {/* === Standings Section ===
        * Always visible so admin can monitor player status at all times. */}
