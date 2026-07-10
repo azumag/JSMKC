@@ -1,19 +1,6 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { PlayerName } from '@/components/ui/player-name';
 
 export interface CombinedStandingsEntry {
   id: string;
@@ -97,22 +84,15 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
                 <TableCell className="font-semibold">{entry._autoRank}</TableCell>
                 <TableCell>{getGroupLabel(entry.group)}</TableCell>
                 <TableCell className="font-medium">
-                  <span className="inline-flex items-center gap-1.5 min-w-0">
-                    <CountryFlag country={entry.player.country} locale={locale} />
-                    <span className="truncate">{entry.player.nickname}</span>
-                  </span>
+                  <PlayerName player={entry.player} locale={locale} />
                 </TableCell>
                 <TableCell className="text-center">{entry.mp}</TableCell>
                 <TableCell className="text-center">{entry.wins}</TableCell>
                 <TableCell className="text-center">{entry.ties}</TableCell>
                 <TableCell className="text-center">{entry.losses}</TableCell>
-                <TableCell className="text-center">
-                  {entry.points > 0 ? `+${entry.points}` : entry.points}
-                </TableCell>
+                <TableCell className="text-center">{entry.points > 0 ? `+${entry.points}` : entry.points}</TableCell>
                 <TableCell className="text-center font-bold">{entry.score}</TableCell>
-                <TableCell className="text-center font-bold">
-                  {getQualificationPoints(entry)}
-                </TableCell>
+                <TableCell className="text-center font-bold">{getQualificationPoints(entry)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

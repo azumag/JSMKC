@@ -1,5 +1,5 @@
-"use client";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+'use client';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 /**
  * Time Attack Qualification Page
@@ -27,28 +27,15 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * during live tournament operation.
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useSession } from "next-auth/react";
-import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { CountryFlag } from "@/components/ui/country-flag";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { PlayerName } from '@/components/ui/player-name';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -57,28 +44,38 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
-import { DebugFillButton } from "@/components/tournament/debug-fill-button";
-import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES, TV_NUMBER_OPTIONS } from "@/lib/constants";
-import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
-import { canEditTaEntry } from "@/lib/ta/entry-access";
-import { calculateCourseFirstPlaceCounts } from "@/lib/ta/qualification-results";
-import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from "@/lib/ta/time-entry-layout";
-import { canResetTaPhase, canShowTaPhasePromotion, shouldShowTaFinalsPhaseManagement, type TaPhaseStage, type TaPhaseStatus } from "@/lib/ta/phase-controls";
-import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
-import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
-import { usePolling } from "@/lib/hooks/usePolling";
-import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
-import type { TaInitialData } from "@/lib/ta/initial-data";
-import { QualificationClientLoadingState } from "@/components/ui/loading-skeleton";
-import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-react";
-import { toast } from "sonner";
-import { createLogger } from "@/lib/client-logger";
-import { parseManualScore } from "@/lib/parse-manual-score";
+} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
+import { DebugFillButton } from '@/components/tournament/debug-fill-button';
+import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES, TV_NUMBER_OPTIONS } from '@/lib/constants';
+import { applyAutoPairsToSetup } from '@/lib/ta/pair-utils';
+import { canEditTaEntry } from '@/lib/ta/entry-access';
+import { calculateCourseFirstPlaceCounts } from '@/lib/ta/qualification-results';
+import {
+  TA_TIME_ENTRY_CUP_GRID_CLASS,
+  TA_TIME_INPUT_HELP_CLASS,
+  getTaTimeInputProps,
+} from '@/lib/ta/time-entry-layout';
+import {
+  canResetTaPhase,
+  canShowTaPhasePromotion,
+  shouldShowTaFinalsPhaseManagement,
+  type TaPhaseStage,
+  type TaPhaseStatus,
+} from '@/lib/ta/phase-controls';
+import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
+import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from '@/lib/ta/time-utils';
+import { usePolling } from '@/lib/hooks/usePolling';
+import { useBroadcastReflect } from '@/lib/hooks/use-broadcast-reflect';
+import type { TaInitialData } from '@/lib/ta/initial-data';
+import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
+import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from 'lucide-react';
+import { toast } from 'sonner';
+import { createLogger } from '@/lib/client-logger';
+import { parseManualScore } from '@/lib/parse-manual-score';
 
 const logger = createLogger({ serviceName: 'tournaments-ta' });
 
@@ -96,9 +93,9 @@ const CUP_NAMES = [...new Set(COURSE_INFO.map((c) => c.cup))];
  * no such prior-phase dependency, so it only gets a plain confirmation.
  */
 const PROMOTION_CONFIRM_KEYS: Record<string, string> = {
-  promote_phase1: "startPhase1Confirm",
-  promote_phase2: "startPhase2Confirm",
-  promote_phase3: "startPhase3Confirm",
+  promote_phase1: 'startPhase1Confirm',
+  promote_phase2: 'startPhase2Confirm',
+  promote_phase3: 'startPhase3Confirm',
 };
 
 /** Player data structure from the API */
@@ -182,11 +179,13 @@ export default function TimeAttackPageClient({
    * the current qualification entries so unchecking removes and checking adds.
    */
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
-  const [setupEntries, setSetupEntries] = useState<Array<{
-    playerId: string;
-    seeding?: number;
-    partnerId?: string | null;
-  }>>([]);
+  const [setupEntries, setSetupEntries] = useState<
+    Array<{
+      playerId: string;
+      seeding?: number;
+      partnerId?: string | null;
+    }>
+  >([]);
 
   // View-only dialog state: opened when non-admin/non-owner clicks "View Times"
   const [isViewTimesDialogOpen, setIsViewTimesDialogOpen] = useState(false);
@@ -200,7 +199,7 @@ export default function TimeAttackPageClient({
   const [qualificationTvAssignments, setQualificationTvAssignments] = useState<Record<string, number | null>>({});
 
   // Search query used inside the unified setup dialog
-  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
 
   // Tournament-level debug flag controls auto-fill availability.
   // Replaces the previous NODE_ENV gate so debug tournaments can also be
@@ -270,8 +269,11 @@ export default function TimeAttackPageClient({
    * Poll at the standard interval during live tournament operation.
    * cacheKey enables instant content display when returning to this tab.
    */
-  const { data: pollData, error: pollError, refetch } = usePolling(
-    fetchTournamentData, {
+  const {
+    data: pollData,
+    error: pollError,
+    refetch,
+  } = usePolling(fetchTournamentData, {
     interval: POLLING_INTERVAL,
     cacheKey: `tournament/${tournamentId}/ta`,
     initialData,
@@ -281,14 +283,8 @@ export default function TimeAttackPageClient({
    * Derive display data directly from polling response.
    * Avoids redundant local state and provides instant display from cache.
    */
-  const entries: TTEntry[] = useMemo(
-    () => pollData?.entries ?? [],
-    [pollData?.entries],
-  );
-  const allPlayers: Player[] = useMemo(
-    () => pollData?.allPlayers ?? [],
-    [pollData?.allPlayers],
-  );
+  const entries: TTEntry[] = useMemo(() => pollData?.entries ?? [], [pollData?.entries]);
+  const allPlayers: Player[] = useMemo(() => pollData?.allPlayers ?? [], [pollData?.allPlayers]);
   const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
@@ -307,16 +303,9 @@ export default function TimeAttackPageClient({
       taPlayerSelfEdit,
     });
   };
-  const firstPlaceCounts = useMemo(
-    () => calculateCourseFirstPlaceCounts(entries),
-    [entries],
-  );
-  const {
-    broadcastStatus,
-    handleBroadcastReflect,
-    resetBroadcastStatus,
-    hasUnbroadcastedTvAssignment,
-  } = useBroadcastReflect(tournamentId, qualificationTvAssignments, entries);
+  const firstPlaceCounts = useMemo(() => calculateCourseFirstPlaceCounts(entries), [entries]);
+  const { broadcastStatus, handleBroadcastReflect, resetBroadcastStatus, hasUnbroadcastedTvAssignment } =
+    useBroadcastReflect(tournamentId, qualificationTvAssignments, entries);
   const showQualificationRegistrationLockedToast = () => {
     toast.info(t('qualificationRegistrationLocked'));
   };
@@ -329,7 +318,7 @@ export default function TimeAttackPageClient({
    * when they click Save.
    */
   const openSetupDialog = useCallback(() => {
-    const qualEntries = entries.filter((e) => e.stage === "qualification");
+    const qualEntries = entries.filter((e) => e.stage === 'qualification');
     setSetupEntries(
       qualEntries
         .map((e) => ({
@@ -340,7 +329,7 @@ export default function TimeAttackPageClient({
         .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity)),
     );
     setSaveError(null);
-    setPlayerSearchQuery("");
+    setPlayerSearchQuery('');
     setIsSetupDialogOpen(true);
   }, [entries]);
 
@@ -368,17 +357,14 @@ export default function TimeAttackPageClient({
     setSaving(true);
     setSaveError(null);
     try {
-      const existing = entries.filter((e) => e.stage === "qualification");
+      const existing = entries.filter((e) => e.stage === 'qualification');
       const existingByPlayerId = new Map(existing.map((e) => [e.playerId, e]));
       const setupByPlayerId = new Map(setupEntries.map((s) => [s.playerId, s]));
 
       /* 1. Delete entries that were unchecked. Sequential to avoid hammering D1. */
       for (const e of existing) {
         if (setupByPlayerId.has(e.playerId)) continue;
-        const res = await fetch(
-          `/api/tournaments/${tournamentId}/ta?entryId=${e.id}`,
-          { method: "DELETE" },
-        );
+        const res = await fetch(`/api/tournaments/${tournamentId}/ta?entryId=${e.id}`, { method: 'DELETE' });
         if (!res.ok && res.status !== 404) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `Failed to remove ${e.player.nickname}`);
@@ -389,33 +375,28 @@ export default function TimeAttackPageClient({
       const toAdd = setupEntries.filter((s) => !existingByPlayerId.has(s.playerId));
       if (toAdd.length > 0) {
         const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             playerEntries: toAdd.map((s) => ({
               playerId: s.playerId,
-              ...(typeof s.seeding === "number" ? { seeding: s.seeding } : {}),
+              ...(typeof s.seeding === 'number' ? { seeding: s.seeding } : {}),
             })),
           }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Failed to add players");
+          throw new Error(err.error || 'Failed to add players');
         }
       }
 
       /* 3. Re-fetch so we have entry ids for anything just added, then
        * reconcile seeding + partner per entry. */
-      const refreshed = await fetchWithRetry(
-        `/api/tournaments/${tournamentId}/ta?stage=qualification`,
-      );
-      if (!refreshed.ok) throw new Error("Failed to refetch TA entries");
+      const refreshed = await fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`);
+      if (!refreshed.ok) throw new Error('Failed to refetch TA entries');
       const refreshedJson = await refreshed.json();
-      const refreshedEntries: TTEntry[] =
-        (refreshedJson.data ?? refreshedJson).entries ?? [];
-      const refreshedByPlayerId = new Map(
-        refreshedEntries.map((e) => [e.playerId, e]),
-      );
+      const refreshedEntries: TTEntry[] = (refreshedJson.data ?? refreshedJson).entries ?? [];
+      const refreshedByPlayerId = new Map(refreshedEntries.map((e) => [e.playerId, e]));
 
       for (const s of setupEntries) {
         const entry = refreshedByPlayerId.get(s.playerId);
@@ -423,53 +404,49 @@ export default function TimeAttackPageClient({
 
         /* Update seeding only when it actually changes. `undefined` on the
          * setup side clears seeding back to null. */
-        const desiredSeeding = typeof s.seeding === "number" ? s.seeding : null;
+        const desiredSeeding = typeof s.seeding === 'number' ? s.seeding : null;
         if (desiredSeeding !== entry.seeding) {
           const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               entryId: entry.id,
-              action: "update_seeding",
+              action: 'update_seeding',
               seeding: desiredSeeding,
             }),
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(
-              err.error || `Failed to update seeding for ${entry.player.nickname}`,
-            );
+            throw new Error(err.error || `Failed to update seeding for ${entry.player.nickname}`);
           }
         }
 
         const desiredPartnerId = s.partnerId ?? null;
         if (desiredPartnerId !== (entry.partnerId ?? null)) {
           const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               entryId: entry.id,
-              action: "set_partner",
+              action: 'set_partner',
               partnerId: desiredPartnerId,
             }),
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(
-              err.error || `Failed to update partner for ${entry.player.nickname}`,
-            );
+            throw new Error(err.error || `Failed to update partner for ${entry.player.nickname}`);
           }
         }
       }
 
       setIsSetupDialogOpen(false);
       refetch();
-      toast.success(t("pairsSaved"));
+      toast.success(t('pairsSaved'));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Save failed";
+      const msg = err instanceof Error ? err.message : 'Save failed';
       setSaveError(msg);
       toast.error(msg);
-      logger.error("Failed to save setup:", { error: err, tournamentId });
+      logger.error('Failed to save setup:', { error: err, tournamentId });
     } finally {
       setSaving(false);
     }
@@ -478,8 +455,8 @@ export default function TimeAttackPageClient({
   // Check if qualification entries exist in each phase's rank range.
   // This directly mirrors the backend's getQualificationPlayersByRank checks.
   // If no players are ranked in a phase's range, that phase can be skipped.
-  const phase1HasPlayers = entries.some(e => e.rank !== null && e.rank >= 17 && e.rank <= 24);
-  const phase2HasPlayers = entries.some(e => e.rank !== null && e.rank >= 13 && e.rank <= 16);
+  const phase1HasPlayers = entries.some((e) => e.rank !== null && e.rank >= 17 && e.rank <= 24);
+  const phase2HasPlayers = entries.some((e) => e.rank !== null && e.rank >= 13 && e.rank <= 16);
   const showFinalsPhaseManagement = shouldShowTaFinalsPhaseManagement({
     entriesCount: entries.length,
     frozenStages,
@@ -492,9 +469,9 @@ export default function TimeAttackPageClient({
   // Reset (undo promotion) button visibility per phase: the stage must have
   // entries, and no later stage must have been promoted from it yet (see
   // canResetTaPhase's doc comment for the full rationale).
-  const canResetPhase1 = canResetTaPhase({ phaseStatus, stage: "phase1" });
-  const canResetPhase2 = canResetTaPhase({ phaseStatus, stage: "phase2" });
-  const canResetPhase3 = canResetTaPhase({ phaseStatus, stage: "phase3" });
+  const canResetPhase1 = canResetTaPhase({ phaseStatus, stage: 'phase1' });
+  const canResetPhase2 = canResetTaPhase({ phaseStatus, stage: 'phase2' });
+  const canResetPhase3 = canResetTaPhase({ phaseStatus, stage: 'phase3' });
 
   /* Sync polling errors to local error state for display */
   useEffect(() => {
@@ -541,23 +518,23 @@ export default function TimeAttackPageClient({
     setPromotingPhase(action);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
       const json = await response.json();
       if (!response.ok) {
-        throw new Error(json.error || "Failed to promote players");
+        throw new Error(json.error || 'Failed to promote players');
       }
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, skipped } }
       const data = json.data ?? json;
       // Refresh phase status after promotion
       await fetchPhaseStatus();
       if (data.skipped && data.skipped.length > 0) {
-        alert(`Promoted ${data.entries.length} players. Skipped: ${data.skipped.join(", ")} (incomplete times)`);
+        alert(`Promoted ${data.entries.length} players. Skipped: ${data.skipped.join(', ')} (incomplete times)`);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to promote";
+      const errorMessage = err instanceof Error ? err.message : 'Failed to promote';
       alert(errorMessage);
     } finally {
       setPromotingPhase(null);
@@ -577,9 +554,9 @@ export default function TimeAttackPageClient({
     setResettingPhase(stage);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reset_phase", phase: stage }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset_phase', phase: stage }),
       });
       const json = await response.json();
       if (!response.ok) {
@@ -602,22 +579,20 @@ export default function TimeAttackPageClient({
    * When frozen, all time edits for qualification entries are blocked.
    */
   const handleToggleFreeze = async () => {
-    const isFrozen = frozenStages.includes("qualification");
-    const newFrozen = isFrozen
-      ? frozenStages.filter((s) => s !== "qualification")
-      : [...frozenStages, "qualification"];
+    const isFrozen = frozenStages.includes('qualification');
+    const newFrozen = isFrozen ? frozenStages.filter((s) => s !== 'qualification') : [...frozenStages, 'qualification'];
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ frozenStages: newFrozen }),
       });
-      if (!response.ok) throw new Error("Failed to update freeze state");
+      if (!response.ok) throw new Error('Failed to update freeze state');
       refetch();
       toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to toggle freeze");
+      toast.error(err instanceof Error ? err.message : 'Failed to toggle freeze');
     }
   };
 
@@ -658,7 +633,7 @@ export default function TimeAttackPageClient({
    */
   const getCourseRankings = (courseAbbr: string) => {
     return entries
-      .filter((e) => e.times && e.times[courseAbbr] && e.times[courseAbbr] !== "")
+      .filter((e) => e.times && e.times[courseAbbr] && e.times[courseAbbr] !== '')
       .sort((a, b) => {
         const msA = timeToMs(a.times![courseAbbr]) ?? Infinity;
         const msB = timeToMs(b.times![courseAbbr]) ?? Infinity;
@@ -674,7 +649,7 @@ export default function TimeAttackPageClient({
   /** Auto-format time on blur — normalizes input to M:SS.mm */
   const handleTimeBlur = (course: string) => {
     const raw = timeInputs[course];
-    if (!raw || raw.trim() === "") return;
+    if (!raw || raw.trim() === '') return;
     const formatted = autoFormatTime(raw);
     if (formatted !== null && formatted !== raw) {
       setTimeInputs((prev) => ({ ...prev, [course]: formatted }));
@@ -689,8 +664,8 @@ export default function TimeAttackPageClient({
     setSaveError(null);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entryId: selectedEntry.id,
           times: timeInputs,
@@ -699,7 +674,7 @@ export default function TimeAttackPageClient({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to save times");
+        throw new Error(errorData.error || 'Failed to save times');
       }
 
       setIsTimeEntryDialogOpen(false);
@@ -707,21 +682,20 @@ export default function TimeAttackPageClient({
       setTimeInputs({});
       refetch();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to save times";
-      logger.error("Failed to save times:", { error: err, tournamentId });
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save times';
+      logger.error('Failed to save times:', { error: err, tournamentId });
       setSaveError(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
-
   // === Helper Functions ===
 
   /** Count how many course times have been entered for an entry */
   const getEnteredTimesCount = (entry: TTEntry): number => {
     if (!entry.times) return 0;
-    return Object.values(entry.times).filter((t) => t && t !== "").length;
+    return Object.values(entry.times).filter((t) => t && t !== '').length;
   };
 
   /** Players filtered by search query for the setup dialog (case-insensitive partial match) */
@@ -735,11 +709,10 @@ export default function TimeAttackPageClient({
   const setupPlayerIdSet = new Set(setupEntries.map((s) => s.playerId));
 
   /** Whether all currently visible (filtered) players are already in the setup */
-  const allFilteredSelected = filteredPlayers.length > 0 &&
-    filteredPlayers.every((p) => setupPlayerIdSet.has(p.id));
+  const allFilteredSelected = filteredPlayers.length > 0 && filteredPlayers.every((p) => setupPlayerIdSet.has(p.id));
 
   /** Has the qualification roster been initialized (controls Setup vs Edit label)? */
-  const hasQualificationRoster = entries.some((e) => e.stage === "qualification");
+  const hasQualificationRoster = entries.some((e) => e.stage === 'qualification');
 
   /* Show error state if the first fetch fails and there's no cached data.
      Must be checked before the skeleton to avoid permanent loading on error. */
@@ -786,34 +759,38 @@ export default function TimeAttackPageClient({
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{t('qualificationTitle')}</h1>
             {/* Show frozen badge when qualification stage is locked */}
-            {frozenStages.includes("qualification") && (
+            {frozenStages.includes('qualification') && (
               <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
                 <Lock className="h-3 w-3" />
                 {t('frozenBadge')}
               </span>
             )}
           </div>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            {t('qualificationDesc')}
-          </p>
+          <p className="text-muted-foreground text-sm sm:text-base">{t('qualificationDesc')}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {/* Freeze/Unfreeze qualification stage (admin only) */}
           {isAdmin && (
             <Button
-              variant={frozenStages.includes("qualification") ? "destructive" : "outline"}
+              variant={frozenStages.includes('qualification') ? 'destructive' : 'outline'}
               onClick={handleToggleFreeze}
               size="sm"
             >
-              {frozenStages.includes("qualification") ? (
-                <><Unlock className="h-4 w-4 mr-1" />{t('unfreezeQualification')}</>
+              {frozenStages.includes('qualification') ? (
+                <>
+                  <Unlock className="h-4 w-4 mr-1" />
+                  {t('unfreezeQualification')}
+                </>
               ) : (
-                <><Lock className="h-4 w-4 mr-1" />{t('freezeQualification')}</>
+                <>
+                  <Lock className="h-4 w-4 mr-1" />
+                  {t('freezeQualification')}
+                </>
               )}
             </Button>
           )}
           {/* debug: header行に配置（BM/MR/GP統一）; freeze gate は fillTATimes (debug-fill.ts:296) と対称 */}
-          {isAdmin && debugMode && !frozenStages.includes("qualification") && entries.length > 0 && (
+          {isAdmin && debugMode && !frozenStages.includes('qualification') && entries.length > 0 && (
             <DebugFillButton tournamentId={tournamentId} mode="ta" onFilled={refetch} />
           )}
           {/* Legacy "Promote to Finals" button and dialog removed.
@@ -835,32 +812,30 @@ export default function TimeAttackPageClient({
                 } else {
                   setIsSetupDialogOpen(false);
                   setSaveError(null);
-                  setPlayerSearchQuery("");
+                  setPlayerSearchQuery('');
                 }
               }}
             >
               <DialogTrigger asChild>
                 <Button
-                  variant={hasQualificationRoster ? "outline" : "default"}
-                  className={`w-full sm:w-auto ${qualificationRegistrationLocked ? "cursor-not-allowed opacity-50" : ""}`}
+                  variant={hasQualificationRoster ? 'outline' : 'default'}
+                  className={`w-full sm:w-auto ${qualificationRegistrationLocked ? 'cursor-not-allowed opacity-50' : ''}`}
                   aria-disabled={qualificationRegistrationLocked}
-                  title={qualificationRegistrationLocked ? t("qualificationRegistrationLocked") : undefined}
+                  title={qualificationRegistrationLocked ? t('qualificationRegistrationLocked') : undefined}
                   onClick={(event) => {
                     if (!qualificationRegistrationLocked) return;
                     event.preventDefault();
                     showQualificationRegistrationLockedToast();
                   }}
                 >
-                  {hasQualificationRoster ? t("editPlayers") : t("setupPlayers")}
+                  {hasQualificationRoster ? t('editPlayers') : t('setupPlayers')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="w-[calc(100vw-2rem)] sm:w-[calc(100vw-4rem)] md:w-[max-content] lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-5 md:p-6">
                 <DialogHeader>
-                  <DialogTitle>
-                    {hasQualificationRoster ? t("editPlayersTitle") : t("setupPlayersTitle")}
-                  </DialogTitle>
+                  <DialogTitle>{hasQualificationRoster ? t('editPlayersTitle') : t('setupPlayersTitle')}</DialogTitle>
                   <DialogDescription>
-                    {hasQualificationRoster ? t("editPlayersDesc") : t("setupPlayersDesc")}
+                    {hasQualificationRoster ? t('editPlayersDesc') : t('setupPlayersDesc')}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -868,9 +843,9 @@ export default function TimeAttackPageClient({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
                     {/* Left column: all players checklist */}
                     <div className="flex flex-col min-h-0">
-                      <h4 className="font-medium mb-2">{tc("player")}</h4>
+                      <h4 className="font-medium mb-2">{tc('player')}</h4>
                       <Input
-                        placeholder={t("searchPlayers")}
+                        placeholder={t('searchPlayers')}
                         value={playerSearchQuery}
                         onChange={(e) => setPlayerSearchQuery(e.target.value)}
                         className="mb-2"
@@ -892,23 +867,19 @@ export default function TimeAttackPageClient({
                                 setSetupEntries((prev) => [...prev, ...toAdd]);
                               } else {
                                 const visibleIds = new Set(filteredPlayers.map((p) => p.id));
-                                setSetupEntries((prev) =>
-                                  prev.filter((s) => !visibleIds.has(s.playerId)),
-                                );
+                                setSetupEntries((prev) => prev.filter((s) => !visibleIds.has(s.playerId)));
                               }
                             }}
                             className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
                           />
                           <Label htmlFor="setup-select-all" className="cursor-pointer font-medium">
-                            {t("selectAll")}
+                            {t('selectAll')}
                           </Label>
                         </div>
                       )}
                       <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
                         {filteredPlayers.length === 0 ? (
-                          <p className="text-muted-foreground text-sm py-2">
-                            {tc("noPlayersSelected")}
-                          </p>
+                          <p className="text-muted-foreground text-sm py-2">{tc('noPlayersSelected')}</p>
                         ) : (
                           filteredPlayers.map((player) => (
                             <div
@@ -923,23 +894,15 @@ export default function TimeAttackPageClient({
                                     setSetupEntries((prev) =>
                                       prev.some((s) => s.playerId === player.id)
                                         ? prev
-                                        : [
-                                            ...prev,
-                                            { playerId: player.id, seeding: undefined, partnerId: null },
-                                          ],
+                                        : [...prev, { playerId: player.id, seeding: undefined, partnerId: null }],
                                     );
                                   } else {
-                                    setSetupEntries((prev) =>
-                                      prev.filter((s) => s.playerId !== player.id),
-                                    );
+                                    setSetupEntries((prev) => prev.filter((s) => s.playerId !== player.id));
                                   }
                                 }}
                                 className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
                               />
-                              <Label
-                                htmlFor={`setup-player-${player.id}`}
-                                className="cursor-pointer flex-1"
-                              >
+                              <Label htmlFor={`setup-player-${player.id}`} className="cursor-pointer flex-1">
                                 {player.nickname} ({player.name})
                               </Label>
                             </div>
@@ -951,52 +914,42 @@ export default function TimeAttackPageClient({
                     {/* Right column: selected entries with seeding + partner */}
                     <div className="flex flex-col min-h-0">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h4 className="font-medium">
-                          {tc("selectedPlayers", { count: setupEntries.length })}
-                        </h4>
+                        <h4 className="font-medium">{tc('selectedPlayers', { count: setupEntries.length })}</h4>
                         <div className="flex-1" />
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={handleAutoPair}
                           disabled={setupEntries.length < 2}
-                          title={t("managePairsDesc")}
+                          title={t('managePairsDesc')}
                         >
-                          {t("autoPair")}
+                          {t('autoPair')}
                         </Button>
                       </div>
                       <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
                         {setupEntries.length === 0 ? (
-                          <p className="text-muted-foreground text-sm py-4 text-center">
-                            {tc("noPlayersSelected")}
-                          </p>
+                          <p className="text-muted-foreground text-sm py-4 text-center">{tc('noPlayersSelected')}</p>
                         ) : (
                           <div className="divide-y">
                             {setupEntries.map((s) => {
                               const player = allPlayers.find((p) => p.id === s.playerId);
                               return (
-                                <div
-                                  key={s.playerId}
-                                  className="flex items-center gap-2 px-3 py-2"
-                                >
+                                <div key={s.playerId} className="flex items-center gap-2 px-3 py-2">
                                   <Input
                                     type="number"
                                     min={1}
                                     placeholder="#"
-                                    value={s.seeding ?? ""}
+                                    value={s.seeding ?? ''}
                                     onChange={(e) => {
                                       /* Strict parse: reject "1.5"/"1e2" that parseInt
                                        * would silently truncate before `>= 1` passes. */
                                       const parsed = parseManualScore(e.target.value);
-                                      const seeding =
-                                        parsed !== null && parsed >= 1 ? parsed : undefined;
+                                      const seeding = parsed !== null && parsed >= 1 ? parsed : undefined;
                                       /* Recompute snake pairs immediately so the partner
                                        * column reflects §3.1 as soon as seedings change. */
                                       setSetupEntries((prev) =>
                                         applyAutoPairsToSetup(
-                                          prev.map((p) =>
-                                            p.playerId === s.playerId ? { ...p, seeding } : p,
-                                          ),
+                                          prev.map((p) => (p.playerId === s.playerId ? { ...p, seeding } : p)),
                                         ),
                                       );
                                     }}
@@ -1008,7 +961,7 @@ export default function TimeAttackPageClient({
                                   </span>
                                   <select
                                     className="border rounded px-2 py-1 text-sm bg-background h-11 sm:h-10 md:h-9 max-w-[130px]"
-                                    value={s.partnerId ?? ""}
+                                    value={s.partnerId ?? ''}
                                     onChange={(ev) => {
                                       const val = ev.target.value || null;
                                       /* Maintain reciprocal partner links within the dialog
@@ -1034,7 +987,7 @@ export default function TimeAttackPageClient({
                                     }}
                                     aria-label={`${player?.nickname ?? s.playerId} partner`}
                                   >
-                                    <option value="">{t("noPair")}</option>
+                                    <option value="">{t('noPair')}</option>
                                     {setupEntries
                                       .filter((e) => e.playerId !== s.playerId)
                                       .map((e) => {
@@ -1042,7 +995,7 @@ export default function TimeAttackPageClient({
                                         return (
                                           <option key={e.playerId} value={e.playerId}>
                                             {ep?.nickname ?? e.playerId}
-                                            {typeof e.seeding === "number" ? ` (#${e.seeding})` : ""}
+                                            {typeof e.seeding === 'number' ? ` (#${e.seeding})` : ''}
                                           </option>
                                         );
                                       })}
@@ -1051,13 +1004,11 @@ export default function TimeAttackPageClient({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() =>
-                                      setSetupEntries((prev) =>
-                                        prev.filter((p) => p.playerId !== s.playerId),
-                                      )
+                                      setSetupEntries((prev) => prev.filter((p) => p.playerId !== s.playerId))
                                     }
                                     className="min-h-[44px] md:min-h-[32px]"
                                   >
-                                    {tc("remove")}
+                                    {tc('remove')}
                                   </Button>
                                 </div>
                               );
@@ -1069,16 +1020,14 @@ export default function TimeAttackPageClient({
                   </div>
                 </div>
 
-                {saveError && (
-                  <p className="text-destructive text-sm pt-2">{saveError}</p>
-                )}
+                {saveError && <p className="text-destructive text-sm pt-2">{saveError}</p>}
 
                 <DialogFooter className="pt-4 border-t">
                   <Button variant="outline" onClick={() => setIsSetupDialogOpen(false)}>
-                    {tc("cancel")}
+                    {tc('cancel')}
                   </Button>
                   <Button onClick={handleSaveSetup} disabled={saving}>
-                    {saving ? t("savingPlayers") : t("savePlayers")}
+                    {saving ? t('savingPlayers') : t('savePlayers')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -1086,13 +1035,7 @@ export default function TimeAttackPageClient({
           )}
 
           {/* Per-mode independent publish toggle (issue #618) */}
-          {isAdmin && (
-            <ModePublishSwitch
-              tournamentId={tournamentId}
-              mode="ta"
-              modeLabelKey="timeTrial"
-            />
-          )}
+          {isAdmin && <ModePublishSwitch tournamentId={tournamentId} mode="ta" modeLabelKey="timeTrial" />}
         </div>
       </div>
 
@@ -1103,9 +1046,7 @@ export default function TimeAttackPageClient({
         <Card>
           <CardHeader>
             <CardTitle>{t('finalsPhases')}</CardTitle>
-            <CardDescription>
-              {t('finalsPhaseDesc')}
-            </CardDescription>
+            <CardDescription>{t('finalsPhaseDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1117,9 +1058,13 @@ export default function TimeAttackPageClient({
                 <p className="text-sm text-muted-foreground">{t('phase1Desc')}</p>
                 {phaseStatus?.phase1 ? (
                   <div className="text-sm">
-                    <span className="text-green-600">{phaseStatus.phase1.active} {tc('active')}</span>
-                    {" / "}
-                    <span className="text-red-500">{phaseStatus.phase1.eliminated} {tc('eliminated')}</span>
+                    <span className="text-green-600">
+                      {phaseStatus.phase1.active} {tc('active')}
+                    </span>
+                    {' / '}
+                    <span className="text-red-500">
+                      {phaseStatus.phase1.eliminated} {tc('eliminated')}
+                    </span>
                   </div>
                 ) : !phase1HasPlayers ? (
                   <p className="text-sm text-muted-foreground">{t('phase1Skipped')}</p>
@@ -1131,10 +1076,10 @@ export default function TimeAttackPageClient({
                   {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase1 && phase1HasPlayers && (
                     <Button
                       size="sm"
-                      onClick={() => handlePromoteToPhase("promote_phase1")}
+                      onClick={() => handlePromoteToPhase('promote_phase1')}
                       disabled={phaseActionInFlight}
                     >
-                      {promotingPhase === "promote_phase1" ? tc('promoting') : t('startPhase1')}
+                      {promotingPhase === 'promote_phase1' ? tc('promoting') : t('startPhase1')}
                     </Button>
                   )}
                   {phaseStatus?.phase1 && (
@@ -1149,10 +1094,10 @@ export default function TimeAttackPageClient({
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleResetPhase("phase1")}
+                      onClick={() => handleResetPhase('phase1')}
                       disabled={phaseActionInFlight}
                     >
-                      {resettingPhase === "phase1" ? t('resettingPhase') : t('resetPhase1')}
+                      {resettingPhase === 'phase1' ? t('resettingPhase') : t('resetPhase1')}
                     </Button>
                   )}
                 </div>
@@ -1160,106 +1105,127 @@ export default function TimeAttackPageClient({
 
               {/* Phase 2: Only shown when Phase 1 has been started or skipped (no eligible players).
                * This prevents displaying Phase 2 controls before Phase 1 is resolved. */}
-              {(phaseStatus?.phase1 || !phase1HasPlayers) && <div className="border rounded-lg p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold">{t('phase2')}</h4>
-                </div>
-                <p className="text-sm text-muted-foreground">{t('phase2Desc')}</p>
-                {phaseStatus?.phase2 ? (
-                  <div className="text-sm">
-                    <span className="text-green-600">{phaseStatus.phase2.active} {tc('active')}</span>
-                    {" / "}
-                    <span className="text-red-500">{phaseStatus.phase2.eliminated} {tc('eliminated')}</span>
+              {(phaseStatus?.phase1 || !phase1HasPlayers) && (
+                <div className="border rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold">{t('phase2')}</h4>
                   </div>
-                ) : !phase2HasPlayers ? (
-                  <p className="text-sm text-muted-foreground">{t('phase2Skipped')}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  {/* Promotion button: admin-only */}
-                  {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
-                    <Button
-                      size="sm"
-                      onClick={() => handlePromoteToPhase("promote_phase2")}
-                      disabled={phaseActionInFlight}
-                    >
-                      {promotingPhase === "promote_phase2" ? tc('promoting') : t('startPhase2')}
-                    </Button>
+                  <p className="text-sm text-muted-foreground">{t('phase2Desc')}</p>
+                  {phaseStatus?.phase2 ? (
+                    <div className="text-sm">
+                      <span className="text-green-600">
+                        {phaseStatus.phase2.active} {tc('active')}
+                      </span>
+                      {' / '}
+                      <span className="text-red-500">
+                        {phaseStatus.phase2.eliminated} {tc('eliminated')}
+                      </span>
+                    </div>
+                  ) : !phase2HasPlayers ? (
+                    <p className="text-sm text-muted-foreground">{t('phase2Skipped')}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                   )}
-                  {phaseStatus?.phase2 && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</a>
-                    </Button>
-                  )}
-                  {/* Reset (undo promotion) button: admin-only, destructive.
-                   * This is the direct recovery path for the reported incident:
-                   * promoting to Phase 2 before Phase 1 results are final. */}
-                  {isAdmin && canResetPhase2 && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleResetPhase("phase2")}
-                      disabled={phaseActionInFlight}
-                    >
-                      {resettingPhase === "phase2" ? t('resettingPhase') : t('resetPhase2')}
-                    </Button>
-                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Promotion button: admin-only */}
+                    {isAdmin &&
+                      showPhasePromotionButtons &&
+                      !phaseStatus?.phase2 &&
+                      (phaseStatus?.phase1 || !phase1HasPlayers) &&
+                      phase2HasPlayers && (
+                        <Button
+                          size="sm"
+                          onClick={() => handlePromoteToPhase('promote_phase2')}
+                          disabled={phaseActionInFlight}
+                        >
+                          {promotingPhase === 'promote_phase2' ? tc('promoting') : t('startPhase2')}
+                        </Button>
+                      )}
+                    {phaseStatus?.phase2 && (
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</a>
+                      </Button>
+                    )}
+                    {/* Reset (undo promotion) button: admin-only, destructive.
+                     * This is the direct recovery path for the reported incident:
+                     * promoting to Phase 2 before Phase 1 results are final. */}
+                    {isAdmin && canResetPhase2 && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleResetPhase('phase2')}
+                        disabled={phaseActionInFlight}
+                      >
+                        {resettingPhase === 'phase2' ? t('resettingPhase') : t('resetPhase2')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>}
+              )}
 
               {/* Phase 3: Only shown when Phase 2 has been started or skipped.
                * Both Phase 1 and Phase 2 must be resolved before Phase 3 appears. */}
-              {(phaseStatus?.phase2 || (!phase1HasPlayers && !phase2HasPlayers) || (phaseStatus?.phase1 && !phase2HasPlayers)) && <div className="border rounded-lg p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold">{t('phase3')}</h4>
-                </div>
-                <p className="text-sm text-muted-foreground">{t('phase3Desc')}</p>
-                {phaseStatus?.phase3 ? (
-                  <div className="text-sm">
-                    <span className="text-green-600">{phaseStatus.phase3.active} {tc('active')}</span>
-                    {" / "}
-                    <span className="text-red-500">{phaseStatus.phase3.eliminated} {tc('eliminated')}</span>
-                    {phaseStatus.phase3.winner && (
-                      <span className="ml-2 text-yellow-600 font-bold">
-                        {t('champion', { name: phaseStatus.phase3.winner })}
+              {(phaseStatus?.phase2 ||
+                (!phase1HasPlayers && !phase2HasPlayers) ||
+                (phaseStatus?.phase1 && !phase2HasPlayers)) && (
+                <div className="border rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold">{t('phase3')}</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{t('phase3Desc')}</p>
+                  {phaseStatus?.phase3 ? (
+                    <div className="text-sm">
+                      <span className="text-green-600">
+                        {phaseStatus.phase3.active} {tc('active')}
                       </span>
+                      {' / '}
+                      <span className="text-red-500">
+                        {phaseStatus.phase3.eliminated} {tc('eliminated')}
+                      </span>
+                      {phaseStatus.phase3.winner && (
+                        <span className="ml-2 text-yellow-600 font-bold">
+                          {t('champion', { name: phaseStatus.phase3.winner })}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
+                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Promotion button: admin-only */}
+                    {isAdmin &&
+                      showPhasePromotionButtons &&
+                      !phaseStatus?.phase3 &&
+                      (phaseStatus?.phase2 || !phase2HasPlayers) && (
+                        <Button
+                          size="sm"
+                          onClick={() => handlePromoteToPhase('promote_phase3')}
+                          disabled={phaseActionInFlight}
+                        >
+                          {promotingPhase === 'promote_phase3' ? tc('promoting') : t('startPhase3')}
+                        </Button>
+                      )}
+                    {phaseStatus?.phase3 && (
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</a>
+                      </Button>
+                    )}
+                    {/* Reset (undo promotion) button: admin-only, destructive.
+                     * Phase 3 has no later phase, so canResetTaPhase only
+                     * requires that phase3 has entries. */}
+                    {isAdmin && canResetPhase3 && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleResetPhase('phase3')}
+                        disabled={phaseActionInFlight}
+                      >
+                        {resettingPhase === 'phase3' ? t('resettingPhase') : t('resetPhase3')}
+                      </Button>
                     )}
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  {/* Promotion button: admin-only */}
-                  {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
-                    <Button
-                      size="sm"
-                      onClick={() => handlePromoteToPhase("promote_phase3")}
-                      disabled={phaseActionInFlight}
-                    >
-                      {promotingPhase === "promote_phase3" ? tc('promoting') : t('startPhase3')}
-                    </Button>
-                  )}
-                  {phaseStatus?.phase3 && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</a>
-                    </Button>
-                  )}
-                  {/* Reset (undo promotion) button: admin-only, destructive.
-                   * Phase 3 has no later phase, so canResetTaPhase only
-                   * requires that phase3 has entries. */}
-                  {isAdmin && canResetPhase3 && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleResetPhase("phase3")}
-                      disabled={phaseActionInFlight}
-                    >
-                      {resettingPhase === "phase3" ? t('resettingPhase') : t('resetPhase3')}
-                    </Button>
-                  )}
                 </div>
-              </div>}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1268,9 +1234,7 @@ export default function TimeAttackPageClient({
       {/* Main Content: Empty state or tabbed view */}
       {entries.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            {t('noPlayersYet')}
-          </CardContent>
+          <CardContent className="py-8 text-center text-muted-foreground">{t('noPlayersYet')}</CardContent>
         </Card>
       ) : (
         <Tabs defaultValue="standings" className="space-y-4">
@@ -1278,9 +1242,7 @@ export default function TimeAttackPageClient({
             <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
             {/* Time list tab: visible to all users.
              *  Admin/player sees "タイム入力", others see "タイム一覧" */}
-            <TabsTrigger value="times">
-              {canEditAnyEntry ? t('timeEntry') : t('timeList')}
-            </TabsTrigger>
+            <TabsTrigger value="times">{canEditAnyEntry ? t('timeEntry') : t('timeList')}</TabsTrigger>
             {/* Course rankings tab: per-course accordion view, visible to all */}
             <TabsTrigger value="courseRankings">{t('courseRankings')}</TabsTrigger>
           </TabsList>
@@ -1291,7 +1253,10 @@ export default function TimeAttackPageClient({
               <CardHeader>
                 <CardTitle>{t('qualificationStandings')}</CardTitle>
                 <CardDescription>
-                  {t('playersCompleted', { completed: entries.filter((e) => e.totalTime !== null).length, total: entries.length })}
+                  {t('playersCompleted', {
+                    completed: entries.filter((e) => e.totalTime !== null).length,
+                    total: entries.length,
+                  })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1317,35 +1282,23 @@ export default function TimeAttackPageClient({
                       })
                       .map((entry) => (
                         <TableRow key={entry.id}>
-                          <TableCell className="font-bold">
-                            {entry.rank || "-"}
-                          </TableCell>
+                          <TableCell className="font-bold">{entry.rank || '-'}</TableCell>
                           <TableCell className="font-medium">
-                            <span className="inline-flex items-center gap-1.5 min-w-0">
-                              <CountryFlag country={entry.player.country} locale={locale} />
-                              <span className="truncate">{entry.player.nickname}</span>
-                            </span>
+                            <PlayerName player={entry.player} locale={locale} />
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {entry.partnerId
-                              ? (entries.find(e => e.playerId === entry.partnerId)?.player.nickname ?? "-")
-                              : "-"}
+                              ? (entries.find((e) => e.playerId === entry.partnerId)?.player.nickname ?? '-')
+                              : '-'}
                           </TableCell>
                           <TableCell className="text-center">
                             {getEnteredTimesCount(entry)} / {TOTAL_COURSES}
                           </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {entry.qualificationPoints ?? "-"}
-                          </TableCell>
-                          <TableCell
-                            className="text-right font-mono"
-                            data-testid={`ta-first-place-count-${entry.id}`}
-                          >
+                          <TableCell className="text-right font-mono">{entry.qualificationPoints ?? '-'}</TableCell>
+                          <TableCell className="text-right font-mono" data-testid={`ta-first-place-count-${entry.id}`}>
                             {firstPlaceCounts.get(entry.id) ?? 0}
                           </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {msToDisplayTime(entry.totalTime)}
-                          </TableCell>
+                          <TableCell className="text-right font-mono">{msToDisplayTime(entry.totalTime)}</TableCell>
                         </TableRow>
                       ))}
                   </TableBody>
@@ -1362,13 +1315,9 @@ export default function TimeAttackPageClient({
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle>{canEditAnyEntry ? t('timeEntry') : t('timeList')}</CardTitle>
-                    <CardDescription>
-                      {canEditAnyEntry ? t('timeEntryDesc') : t('timeListDesc')}
-                    </CardDescription>
+                    <CardDescription>{canEditAnyEntry ? t('timeEntryDesc') : t('timeListDesc')}</CardDescription>
                     {isAdmin && hasUnbroadcastedTvAssignment && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {tc('broadcastTv12Only')}
-                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{tc('broadcastTv12Only')}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -1392,9 +1341,9 @@ export default function TimeAttackPageClient({
                             : tc('broadcastReflect')}
                       </Button>
                     )}
-                  {/* Quick-access button: lets logged-in players open their own
-                   *  time entry dialog directly without scrolling the table.
-                   *  Only shown when the player has an entry in this tournament. */}
+                    {/* Quick-access button: lets logged-in players open their own
+                     *  time entry dialog directly without scrolling the table.
+                     *  Only shown when the player has an entry in this tournament. */}
                     {currentPlayerId && entries.find((e) => e.playerId === currentPlayerId && canEditEntry(e)) && (
                       <Button
                         size="sm"
@@ -1424,16 +1373,13 @@ export default function TimeAttackPageClient({
                     {entries.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell className="font-medium">
-                          <span className="inline-flex items-center gap-1.5 min-w-0">
-                            <CountryFlag country={entry.player.country} locale={locale} />
-                            <span className="truncate">{entry.player.nickname}</span>
-                          </span>
+                          <PlayerName player={entry.player} locale={locale} />
                         </TableCell>
                         {isAdmin && (
                           <TableCell className="text-center">
                             <select
                               className="h-9 w-20 rounded border bg-background px-2 text-center text-sm"
-                              value={qualificationTvAssignments[entry.playerId] ?? ""}
+                              value={qualificationTvAssignments[entry.playerId] ?? ''}
                               onChange={(event) => {
                                 setQualificationTvAssignments((prev) => ({
                                   ...prev,
@@ -1446,7 +1392,9 @@ export default function TimeAttackPageClient({
                             >
                               <option value="">-</option>
                               {TV_NUMBER_OPTIONS.map((tv) => (
-                                <option key={tv} value={tv}>TV{tv}</option>
+                                <option key={tv} value={tv}>
+                                  TV{tv}
+                                </option>
                               ))}
                             </select>
                           </TableCell>
@@ -1454,25 +1402,16 @@ export default function TimeAttackPageClient({
                         <TableCell className="text-center">
                           {getEnteredTimesCount(entry)} / {TOTAL_COURSES}
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {msToDisplayTime(entry.totalTime)}
-                        </TableCell>
+                        <TableCell className="text-right font-mono">{msToDisplayTime(entry.totalTime)}</TableCell>
                         <TableCell className="text-right space-x-2">
                           {/* Edit button: admin can edit all; players can edit own or paired entries. */}
                           {canEditEntry(entry) ? (
-                            <Button
-                              size="sm"
-                              onClick={() => openTimeEntryDialog(entry)}
-                            >
+                            <Button size="sm" onClick={() => openTimeEntryDialog(entry)}>
                               {t('editTimes')}
                             </Button>
                           ) : (
                             /* View button: read-only access for all other users */
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openViewTimesDialog(entry)}
-                            >
+                            <Button size="sm" variant="outline" onClick={() => openViewTimesDialog(entry)}>
                               <Eye className="h-3 w-3 mr-1" />
                               {t('viewTimes')}
                             </Button>
@@ -1498,9 +1437,7 @@ export default function TimeAttackPageClient({
               <CardContent className="space-y-2">
                 {CUP_NAMES.map((cup) => (
                   <div key={cup} className="space-y-1">
-                    <h4 className="font-semibold text-sm text-muted-foreground pt-2">
-                      {t('cup', { cup })}
-                    </h4>
+                    <h4 className="font-semibold text-sm text-muted-foreground pt-2">{t('cup', { cup })}</h4>
                     {COURSE_INFO.filter((c) => c.cup === cup).map((course) => {
                       const isExpanded = expandedCourses.has(course.abbr);
                       const rankings = isExpanded ? getCourseRankings(course.abbr) : [];
@@ -1513,24 +1450,20 @@ export default function TimeAttackPageClient({
                             onClick={() => toggleCourse(course.abbr)}
                           >
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm font-medium w-10">
-                                {course.abbr}
-                              </span>
-                              <span className="text-sm text-muted-foreground">
-                                {course.name}
-                              </span>
+                              <span className="font-mono text-sm font-medium w-10">{course.abbr}</span>
+                              <span className="text-sm text-muted-foreground">{course.name}</span>
                             </div>
-                            {isExpanded
-                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
                           </button>
                           {/* Expanded: show player rankings for this course */}
                           {isExpanded && (
                             <div className="border-t px-3 pb-3">
                               {rankings.length === 0 ? (
-                                <p className="text-sm text-muted-foreground py-2">
-                                  {t('noTimeRecorded')}
-                                </p>
+                                <p className="text-sm text-muted-foreground py-2">{t('noTimeRecorded')}</p>
                               ) : (
                                 <Table>
                                   <TableHeader>
@@ -1544,20 +1477,15 @@ export default function TimeAttackPageClient({
                                   <TableBody>
                                     {rankings.map((entry, idx) => (
                                       <TableRow key={entry.id}>
-                                        <TableCell className="font-bold">
-                                          {idx + 1}
-                                        </TableCell>
+                                        <TableCell className="font-bold">{idx + 1}</TableCell>
                                         <TableCell className="font-medium">
-                                          <span className="inline-flex items-center gap-1.5 min-w-0">
-                                            <CountryFlag country={entry.player.country} locale={locale} />
-                                            <span className="truncate">{entry.player.nickname}</span>
-                                          </span>
+                                          <PlayerName player={entry.player} locale={locale} />
                                         </TableCell>
                                         <TableCell className="text-right font-mono">
                                           {entry.times![course.abbr]}
                                         </TableCell>
                                         <TableCell className="text-right font-mono text-muted-foreground">
-                                          {entry.courseScores?.[course.abbr]?.toFixed(1) ?? "-"}
+                                          {entry.courseScores?.[course.abbr]?.toFixed(1) ?? '-'}
                                         </TableCell>
                                       </TableRow>
                                     ))}
@@ -1577,113 +1505,93 @@ export default function TimeAttackPageClient({
         </Tabs>
       )}
 
-
-{/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
+      {/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
        * The dialog is opened via openTimeEntryDialog() which is only callable
        * through the canEditEntry() gated "Edit Times" button. */}
-      {canEditAnyEntry && <Dialog
-        open={isTimeEntryDialogOpen}
-        onOpenChange={(open) => {
-          setIsTimeEntryDialogOpen(open);
-          if (!open) setSaveError(null);
-        }}
-      >
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {t('enterTimesFor', { nickname: selectedEntry?.player.nickname ?? '' })}
-            </DialogTitle>
-            <DialogDescription>
-              {t('enterTimeCourseDesc')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            {saveError && (
-              <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
-                <p className="text-destructive text-sm">{saveError}</p>
+      {canEditAnyEntry && (
+        <Dialog
+          open={isTimeEntryDialogOpen}
+          onOpenChange={(open) => {
+            setIsTimeEntryDialogOpen(open);
+            if (!open) setSaveError(null);
+          }}
+        >
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t('enterTimesFor', { nickname: selectedEntry?.player.nickname ?? '' })}</DialogTitle>
+              <DialogDescription>{t('enterTimeCourseDesc')}</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {saveError && (
+                <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
+                  <p className="text-destructive text-sm">{saveError}</p>
+                </div>
+              )}
+              <p className={`${TA_TIME_INPUT_HELP_CLASS} mb-3`}>{t('timeInputHelp')}</p>
+              {/* Course time inputs organized by cup (Mushroom, Flower, Star, Special) */}
+              <div className={TA_TIME_ENTRY_CUP_GRID_CLASS} data-testid="ta-time-entry-cup-grid">
+                {CUP_NAMES.map((cup) => (
+                  <Card key={cup} data-testid="ta-time-entry-cup-card">
+                    <CardHeader className="py-2">
+                      <CardTitle className="text-sm">{t('cup', { cup })}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
+                        <div key={course.abbr} className="flex items-center gap-2">
+                          <Label className="w-12 text-xs font-mono">{course.abbr}</Label>
+                          <Input
+                            type="text"
+                            {...taTimeInputProps}
+                            placeholder={t('timePlaceholder')}
+                            value={timeInputs[course.abbr] || ''}
+                            onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
+                            onBlur={() => handleTimeBlur(course.abbr)}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Debug-mode-only: Fill random times in the single-player dialog.
+             * Operates on the local input state — saving requires the user to
+             * still click the dialog's submit button. */}
+            {debugMode && isAdmin && (
+              <div className="px-6 py-2">
+                <Button
+                  onClick={handleFillRandomTimes}
+                  variant="outline"
+                  disabled={saving}
+                  className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
+                >
+                  <Dice5 className="h-4 w-4 mr-2" />
+                  Fill Random Times (Debug)
+                </Button>
               </div>
             )}
-            <p className={`${TA_TIME_INPUT_HELP_CLASS} mb-3`}>
-              {t('timeInputHelp')}
-            </p>
-            {/* Course time inputs organized by cup (Mushroom, Flower, Star, Special) */}
-            <div className={TA_TIME_ENTRY_CUP_GRID_CLASS} data-testid="ta-time-entry-cup-grid">
-              {CUP_NAMES.map((cup) => (
-                <Card key={cup} data-testid="ta-time-entry-cup-card">
-                  <CardHeader className="py-2">
-                    <CardTitle className="text-sm">{t('cup', { cup })}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
-                      <div
-                        key={course.abbr}
-                        className="flex items-center gap-2"
-                      >
-                        <Label className="w-12 text-xs font-mono">
-                          {course.abbr}
-                        </Label>
-                        <Input
-                          type="text"
-                          {...taTimeInputProps}
-                          placeholder={t('timePlaceholder')}
-                          value={timeInputs[course.abbr] || ""}
-                          onChange={(e) =>
-                            handleTimeChange(course.abbr, e.target.value)
-                          }
-                          onBlur={() => handleTimeBlur(course.abbr)}
-                          className="font-mono text-sm"
-                        />
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-          
-          {/* Debug-mode-only: Fill random times in the single-player dialog.
-            * Operates on the local input state — saving requires the user to
-            * still click the dialog's submit button. */}
-          {debugMode && isAdmin && (
-            <div className="px-6 py-2">
-              <Button
-                onClick={handleFillRandomTimes}
-                variant="outline"
-                disabled={saving}
-                className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
-              >
-                <Dice5 className="h-4 w-4 mr-2" />
-                Fill Random Times (Debug)
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsTimeEntryDialogOpen(false)}>
+                {tc('cancel')}
               </Button>
-            </div>
-          )}
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsTimeEntryDialogOpen(false)}
-            >
-              {tc('cancel')}
-            </Button>
-            <Button onClick={handleSaveTimes} disabled={saving}>
-              {saving ? tc('saving') : tc('saveTimes')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>}
+              <Button onClick={handleSaveTimes} disabled={saving}>
+                {saving ? tc('saving') : tc('saveTimes')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* View Times Dialog: read-only view of a player's times.
        *  Opened by the "View Times" button for entries the user cannot edit.
        *  Same layout as the edit dialog but displays text instead of inputs. */}
-      <Dialog
-        open={isViewTimesDialogOpen}
-        onOpenChange={setIsViewTimesDialogOpen}
-      >
+      <Dialog open={isViewTimesDialogOpen} onOpenChange={setIsViewTimesDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {t('viewTimesFor', { nickname: viewEntry?.player.nickname ?? '' })}
-            </DialogTitle>
+            <DialogTitle>{t('viewTimesFor', { nickname: viewEntry?.player.nickname ?? '' })}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             {/* Course times displayed as read-only text, organized by cup */}
@@ -1695,13 +1603,8 @@ export default function TimeAttackPageClient({
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
-                      <div
-                        key={course.abbr}
-                        className="flex items-center gap-2"
-                      >
-                        <span className="w-12 text-xs font-mono text-muted-foreground">
-                          {course.abbr}
-                        </span>
+                      <div key={course.abbr} className="flex items-center gap-2">
+                        <span className="w-12 text-xs font-mono text-muted-foreground">{course.abbr}</span>
                         <span className="font-mono text-sm">
                           {viewEntry?.times?.[course.abbr] || t('noTimeRecorded')}
                         </span>
@@ -1713,10 +1616,7 @@ export default function TimeAttackPageClient({
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsViewTimesDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsViewTimesDialogOpen(false)}>
               {tc('close')}
             </Button>
           </DialogFooter>

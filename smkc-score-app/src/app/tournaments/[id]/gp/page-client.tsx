@@ -1,5 +1,5 @@
-"use client";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+'use client';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 /**
  * Grand Prix (GP) Qualification Page
@@ -19,28 +19,15 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * - Navigation to finals bracket
  */
 
-import { useState, useCallback, useEffect, useMemo } from "react";
-import { useSession } from "next-auth/react";
-import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -48,21 +35,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
-import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
-import { QualificationPlayoffManager } from "@/components/tournament/qualification-playoff-manager";
-import { RankCell } from "@/components/tournament/rank-cell";
-import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
-import { DebugFillButton } from "@/components/tournament/debug-fill-button";
-import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
+} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { GroupSetupDialog } from '@/components/tournament/group-setup-dialog';
+import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
+import { QualificationPlayoffManager } from '@/components/tournament/qualification-playoff-manager';
+import { RankCell } from '@/components/tournament/rank-cell';
+import { TieWarningBanner } from '@/components/tournament/tie-warning-banner';
+import { DebugFillButton } from '@/components/tournament/debug-fill-button';
+import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
@@ -70,27 +51,34 @@ import {
   computeTieAwareRanks,
   filterActiveTiedIds,
   findUnresolvedTies,
-} from "@/lib/ranking-utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
-import { formatGpPosition } from "@/lib/gp-utils";
-import { compareGpQualificationEntries } from "@/lib/gp-ranking";
-import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
-import { usePolling } from "@/lib/hooks/usePolling";
-import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
-import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { CountryFlag } from "@/components/ui/country-flag";
-import { QualificationClientLoadingState } from "@/components/ui/loading-skeleton";
-import { createLogger } from "@/lib/client-logger";
+} from '@/lib/ranking-utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  canCreateFinalsFromQualification,
-  canResetFinalsFromQualification,
-} from "@/lib/finals-action-availability";
-import { getQualificationPoints } from "@/lib/points/qualification-points";
-import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from "@/lib/gp-driver-points-input";
+  COURSE_INFO,
+  CUPS,
+  CUP_SUBSTITUTIONS,
+  GP_POSITION_OPTIONS,
+  POLLING_INTERVAL,
+  TOTAL_GP_RACES,
+  TV_NUMBER_OPTIONS,
+  getDriverPoints,
+  type CourseAbbr,
+} from '@/lib/constants';
+import { formatGpPosition } from '@/lib/gp-utils';
+import { compareGpQualificationEntries } from '@/lib/gp-ranking';
+import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
+import { usePolling } from '@/lib/hooks/usePolling';
+import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
+import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
+import { UpdateIndicator } from '@/components/ui/update-indicator';
+import { PlayerName } from '@/components/ui/player-name';
+import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
+import { createLogger } from '@/lib/client-logger';
+import { canCreateFinalsFromQualification, canResetFinalsFromQualification } from '@/lib/finals-action-availability';
+import { getQualificationPoints } from '@/lib/points/qualification-points';
+import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from '@/lib/gp-driver-points-input';
 
-import type { Player } from "@/lib/types";
+import type { Player } from '@/lib/types';
 
 const logger = createLogger({ serviceName: 'tournaments-gp' });
 
@@ -117,9 +105,9 @@ interface GPMatch {
   id: string;
   version: number;
   matchNumber: number;
-  roundNumber?: number;  // サークル方式のDay番号
-  isBye?: boolean;       // BREAK不戦勝マッチ
-  tvNumber?: number;     // 配信台番号
+  roundNumber?: number; // サークル方式のDay番号
+  isBye?: boolean; // BREAK不戦勝マッチ
+  tvNumber?: number; // 配信台番号
   player1Id: string;
   player2Id: string;
   player1Side: number;
@@ -145,7 +133,7 @@ interface GPMatch {
 
 /** Individual race entry in the match result form */
 interface Race {
-  course: CourseAbbr | "";
+  course: CourseAbbr | '';
   position1: number | null;
   position2: number | null;
 }
@@ -169,20 +157,18 @@ export default function GrandPrixPageClient({
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   /* State for match filters */
-  const [matchGroupFilter, setMatchGroupFilter] = useState<string>("all");
-  const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>("all");
-  const [selectedCup, setSelectedCup] = useState<string>("");
+  const [matchGroupFilter, setMatchGroupFilter] = useState<string>('all');
+  const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>('all');
+  const [selectedCup, setSelectedCup] = useState<string>('');
   /* GP matches have exactly 5 races per cup (§7.2) */
   const [races, setRaces] = useState<Race[]>(
-    Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
+    Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })),
   );
-  const [setupPlayers, setSetupPlayers] = useState<
-    { playerId: string; group: string; seeding?: number }[]
-  >([]);
+  const [setupPlayers, setSetupPlayers] = useState<{ playerId: string; group: string; seeding?: number }[]>([]);
   const [setupSaving, setSetupSaving] = useState(false);
   const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
-  const [manualPoints1, setManualPoints1] = useState("");
-  const [manualPoints2, setManualPoints2] = useState("");
+  const [manualPoints1, setManualPoints1] = useState('');
+  const [manualPoints2, setManualPoints2] = useState('');
   const [generatingBracket, setGeneratingBracket] = useState(false);
   const [resettingBracket, setResettingBracket] = useState(false);
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
@@ -227,8 +213,13 @@ export default function GrandPrixPageClient({
    * Poll at the standard interval for live tournament updates.
    * cacheKey enables instant content display when returning to this tab.
    */
-  const { data: pollData, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
-    fetchTournamentData, {
+  const {
+    data: pollData,
+    error: pollError,
+    lastUpdated,
+    isPolling,
+    refetch,
+  } = usePolling(fetchTournamentData, {
     interval: POLLING_INTERVAL,
     cacheKey: `tournament/${tournamentId}/gp`,
     initialData,
@@ -279,7 +270,9 @@ export default function GrandPrixPageClient({
       }
     }
     checkFinals();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [tournamentId]);
 
   /* Clear tvOverrides for matches where the API has caught up to the optimistic value */
@@ -288,7 +281,7 @@ export default function GrandPrixPageClient({
     setTvOverrides((prev) => {
       const next = { ...prev };
       let changed = false;
-      for (const match of (pollData.matches ?? [])) {
+      for (const match of pollData.matches ?? []) {
         if (match.id in next && next[match.id] === match.tvNumber) {
           delete next[match.id];
           changed = true;
@@ -300,7 +293,7 @@ export default function GrandPrixPageClient({
 
   /* Shared handlers for rank override and TV assignment */
   const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
-    useQualificationActions({ tournamentId, mode: "gp", refetch });
+    useQualificationActions({ tournamentId, mode: 'gp', refetch });
 
   /**
    * Toggle qualification confirmed state.
@@ -331,14 +324,12 @@ export default function GrandPrixPageClient({
   const getReportStatus = (match: GPMatch) => {
     if (match.isBye || match.completed) return null;
 
-    const player1Reported =
-      match.player1ReportedPoints1 != null && match.player1ReportedPoints2 != null;
-    const player2Reported =
-      match.player2ReportedPoints1 != null && match.player2ReportedPoints2 != null;
+    const player1Reported = match.player1ReportedPoints1 != null && match.player1ReportedPoints2 != null;
+    const player2Reported = match.player2ReportedPoints1 != null && match.player2ReportedPoints2 != null;
 
     if (player1Reported && player2Reported) {
       return {
-        tone: "warning",
+        tone: 'warning',
         label: tc('bothReportsMismatch'),
         detail: `${match.player1ReportedPoints1} - ${match.player1ReportedPoints2} / ${match.player2ReportedPoints1} - ${match.player2ReportedPoints2}`,
       };
@@ -346,7 +337,7 @@ export default function GrandPrixPageClient({
 
     if (player1Reported) {
       return {
-        tone: "info",
+        tone: 'info',
         label: tc('reportedBy', { player: match.player1.nickname }),
         detail: `${match.player1ReportedPoints1} - ${match.player1ReportedPoints2}`,
       };
@@ -354,7 +345,7 @@ export default function GrandPrixPageClient({
 
     if (player2Reported) {
       return {
-        tone: "info",
+        tone: 'info',
         label: tc('reportedBy', { player: match.player2.nickname }),
         detail: `${match.player2ReportedPoints1} - ${match.player2ReportedPoints2}`,
       };
@@ -376,8 +367,8 @@ export default function GrandPrixPageClient({
     setSetupSaving(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ players: setupPlayers }),
       });
 
@@ -392,7 +383,7 @@ export default function GrandPrixPageClient({
         alert(msg);
       }
     } catch (err) {
-      logger.error("Failed to setup:", { error: err, tournamentId });
+      logger.error('Failed to setup:', { error: err, tournamentId });
       setIsSetupDialogOpen(false);
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
@@ -412,13 +403,13 @@ export default function GrandPrixPageClient({
     } else {
       /* Pre-select cup if pre-assigned at setup time (§7.4), otherwise reset.
        * Auto-fill courses from the fixed cup sequence (no manual course selection). */
-      const cup = match.cup || "";
+      const cup = match.cup || '';
       setSelectedCup(cup);
       if (cup) {
         const cupCourses = getCupCourses(cup);
         setRaces(cupCourses.map((course) => ({ course, position1: null, position2: null })));
       } else {
-        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null })));
+        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })));
       }
     }
     setIsMatchDialogOpen(true);
@@ -433,28 +424,16 @@ export default function GrandPrixPageClient({
     }
 
     return {
-      points1: races.reduce(
-        (acc, race) => acc + (race.position1 ? getDriverPoints(race.position1) : 0),
-        0,
-      ),
-      points2: races.reduce(
-        (acc, race) => acc + (race.position2 ? getDriverPoints(race.position2) : 0),
-        0,
-      ),
+      points1: races.reduce((acc, race) => acc + (race.position1 ? getDriverPoints(race.position1) : 0), 0),
+      points2: races.reduce((acc, race) => acc + (race.position2 ? getDriverPoints(race.position2) : 0), 0),
     };
   };
 
-  const handleBroadcastMatch = async (
-    match: GPMatch,
-    points1: number,
-    points2: number,
-  ) =>
+  const handleBroadcastMatch = async (match: GPMatch, points1: number, points2: number) =>
     handleBroadcastReflect(match.player1.nickname, match.player2.nickname, {
       player1NoCamera: match.player1.noCamera === true,
       player2NoCamera: match.player2.noCamera === true,
-      matchLabel: match.roundNumber
-        ? `Qualification Round ${match.roundNumber}`
-        : "Qualification Round",
+      matchLabel: match.roundNumber ? `Qualification Round ${match.roundNumber}` : 'Qualification Round',
       player1Wins: points1,
       player2Wins: points2,
       matchFt: null,
@@ -492,8 +471,8 @@ export default function GrandPrixPageClient({
 
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/gp/match/${selectedMatch.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             points1,
             points2,
@@ -505,10 +484,8 @@ export default function GrandPrixPageClient({
         if (response.ok) {
           setIsMatchDialogOpen(false);
           setSelectedMatch(null);
-          setSelectedCup("");
-          setRaces(
-            Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
-          );
+          setSelectedCup('');
+          setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })));
           setManualScoreEnabled(false);
           refetch();
         } else {
@@ -517,7 +494,7 @@ export default function GrandPrixPageClient({
         }
       } catch (err) {
         const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-        logger.error("Failed to manually update GP score:", metadata);
+        logger.error('Failed to manually update GP score:', metadata);
       }
       return;
     }
@@ -528,9 +505,7 @@ export default function GrandPrixPageClient({
     }
 
     /* All races must have course and positions filled */
-    const completedRaces = races.filter(
-      (r) => r.course !== "" && r.position1 !== null && r.position2 !== null
-    );
+    const completedRaces = races.filter((r) => r.course !== '' && r.position1 !== null && r.position2 !== null);
 
     if (completedRaces.length !== TOTAL_GP_RACES) {
       alert(tc('pleaseCompleteAllRaces'));
@@ -538,9 +513,7 @@ export default function GrandPrixPageClient({
     }
 
     /* Two players cannot finish in the same position (except both game-over at 0) */
-    const duplicateRace = completedRaces.find(
-      (r) => r.position1 === r.position2 && r.position1 !== 0
-    );
+    const duplicateRace = completedRaces.find((r) => r.position1 === r.position2 && r.position1 !== 0);
     if (duplicateRace) {
       alert(tc('samePositionError'));
       return;
@@ -548,8 +521,8 @@ export default function GrandPrixPageClient({
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           matchId: selectedMatch.id,
           cup: selectedCup,
@@ -560,15 +533,13 @@ export default function GrandPrixPageClient({
       if (response.ok) {
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setSelectedCup("");
-        setRaces(
-          Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
-        );
+        setSelectedCup('');
+        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })));
         refetch();
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update match:", metadata);
+      logger.error('Failed to update match:', metadata);
     }
   };
 
@@ -599,9 +570,7 @@ export default function GrandPrixPageClient({
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{t('title')}</h1>
-          <p className="text-muted-foreground">
-            {t('qualificationDesc')}
-          </p>
+          <p className="text-muted-foreground">{t('qualificationDesc')}</p>
           <div className="mt-2 flex items-center gap-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
             {qualificationConfirmed && (
@@ -614,15 +583,13 @@ export default function GrandPrixPageClient({
         <div className="flex flex-wrap gap-2">
           {/* Player score entry link — visible to all users */}
           <Button variant="outline" asChild>
-            <a href={`/tournaments/${tournamentId}/gp/participant`}>
-              {tc('enterScore')}
-            </a>
+            <a href={`/tournaments/${tournamentId}/gp/participant`}>{tc('enterScore')}</a>
           </Button>
 
           {/* Admin-only qualification confirmation toggle */}
           {isAdmin && qualifications.length > 0 && (
             <Button
-              variant={qualificationConfirmed ? "destructive" : "outline"}
+              variant={qualificationConfirmed ? 'destructive' : 'outline'}
               onClick={handleToggleQualificationConfirmed}
             >
               {qualificationConfirmed ? tc('unconfirmQualification') : tc('confirmQualification')}
@@ -666,13 +633,10 @@ export default function GrandPrixPageClient({
           {/* Finals / Playoff bracket action button.
            *  - If bracket already exists: shows "View Tournament" link.
            *  - Otherwise: generates bracket (Top-24 playoff or Top-16 finals)
-           *    and then switches to the link state. */
-          }
+           *    and then switches to the link state. */}
           {finalsExists === true ? (
             <Button variant="outline" asChild>
-              <a href={`/tournaments/${tournamentId}/gp/finals`}>
-                {tc('viewTournament')}
-              </a>
+              <a href={`/tournaments/${tournamentId}/gp/finals`}>{tc('viewTournament')}</a>
             </Button>
           ) : canCreateFinals ? (
             <Button
@@ -706,30 +670,26 @@ export default function GrandPrixPageClient({
             </Button>
           ) : null}
           {/* Admin-only group setup/edit dialog (shared component) */}
-          {isAdmin && <GroupSetupDialog
-            mode="gp"
-            allPlayers={allPlayers}
-            setupPlayers={setupPlayers}
-            setSetupPlayers={setSetupPlayers}
-            isOpen={isSetupDialogOpen}
-            setIsOpen={setIsSetupDialogOpen}
-            onSave={handleSetup}
-            saving={setupSaving}
-            existingAssignments={qualifications.map((q) => ({
-              playerId: q.playerId,
-              group: q.group,
-              seeding: q.seeding ?? undefined,
-            }))}
-          />}
-
-          {/* Per-mode independent publish toggle (issue #618) */}
           {isAdmin && (
-            <ModePublishSwitch
-              tournamentId={tournamentId}
+            <GroupSetupDialog
               mode="gp"
-              modeLabelKey="grandPrix"
+              allPlayers={allPlayers}
+              setupPlayers={setupPlayers}
+              setSetupPlayers={setSetupPlayers}
+              isOpen={isSetupDialogOpen}
+              setIsOpen={setIsSetupDialogOpen}
+              onSave={handleSetup}
+              saving={setupSaving}
+              existingAssignments={qualifications.map((q) => ({
+                playerId: q.playerId,
+                group: q.group,
+                seeding: q.seeding ?? undefined,
+              }))}
             />
           )}
+
+          {/* Per-mode independent publish toggle (issue #618) */}
+          {isAdmin && <ModePublishSwitch tournamentId={tournamentId} mode="gp" modeLabelKey="grandPrix" />}
         </div>
       </div>
 
@@ -770,10 +730,7 @@ export default function GrandPrixPageClient({
                        */
                       const groupEntries = qualifications.filter((q) => q.group === group);
                       // GP: match score primary, driver points secondary.
-                      const byEffectiveRank = computeTieAwareRanks(
-                        groupEntries,
-                        compareGpQualificationEntries
-                      );
+                      const byEffectiveRank = computeTieAwareRanks(groupEntries, compareGpQualificationEntries);
                       const tiedIds = findUnresolvedTies(byEffectiveRank);
                       // Suppress trivial 0-0 ties: only flag players who have actually played.
                       const activeTiedIds = filterActiveTiedIds(tiedIds, groupEntries);
@@ -821,10 +778,7 @@ export default function GrandPrixPageClient({
                             </TableHeader>
                             <TableBody>
                               {byEffectiveRank.map((q) => (
-                                <TableRow
-                                  key={q.id}
-                                  className={activeTiedIds.has(q.id) ? "bg-yellow-50" : undefined}
-                                >
+                                <TableRow key={q.id} className={activeTiedIds.has(q.id) ? 'bg-yellow-50' : undefined}>
                                   <TableCell>
                                     <RankCell
                                       qualificationId={q.id}
@@ -835,21 +789,14 @@ export default function GrandPrixPageClient({
                                     />
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    <span className="inline-flex items-center gap-1.5 min-w-0">
-                                      <CountryFlag country={q.player.country} locale={locale} />
-                                      <span className="truncate">{q.player.nickname}</span>
-                                    </span>
+                                    <PlayerName player={q.player} locale={locale} />
                                   </TableCell>
                                   <TableCell className="text-center">{q.mp}</TableCell>
                                   <TableCell className="text-center">{q.wins}</TableCell>
                                   <TableCell className="text-center">{q.ties}</TableCell>
                                   <TableCell className="text-center">{q.losses}</TableCell>
-                                  <TableCell className="text-center font-bold">
-                                    {q.score}
-                                  </TableCell>
-                                  <TableCell className="text-center font-bold">
-                                    {q.points}
-                                  </TableCell>
+                                  <TableCell className="text-center font-bold">{q.score}</TableCell>
+                                  <TableCell className="text-center font-bold">{q.points}</TableCell>
                                   <TableCell className="text-center font-bold">
                                     {getQualificationPoints(q.mp, q.score)}
                                   </TableCell>
@@ -871,9 +818,7 @@ export default function GrandPrixPageClient({
             <Card>
               <CardHeader>
                 <CardTitle>{tc('combinedStandings')}</CardTitle>
-                <CardDescription>
-                  {tc('playersCount', { count: qualifications.length })}
-                </CardDescription>
+                <CardDescription>{tc('playersCount', { count: qualifications.length })}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -899,10 +844,7 @@ export default function GrandPrixPageClient({
                         <TableCell className="font-semibold">{q._autoRank}</TableCell>
                         <TableCell>{tc('groupLabel', { group: q.group })}</TableCell>
                         <TableCell className="font-medium">
-                          <span className="inline-flex items-center gap-1.5 min-w-0">
-                            <CountryFlag country={q.player.country} locale={locale} />
-                            <span className="truncate">{q.player.nickname}</span>
-                          </span>
+                          <PlayerName player={q.player} locale={locale} />
                         </TableCell>
                         <TableCell className="text-center">{q.mp}</TableCell>
                         <TableCell className="text-center">{q.wins}</TableCell>
@@ -910,9 +852,7 @@ export default function GrandPrixPageClient({
                         <TableCell className="text-center">{q.losses}</TableCell>
                         <TableCell className="text-center font-bold">{q.score}</TableCell>
                         <TableCell className="text-center font-bold">{q.points}</TableCell>
-                        <TableCell className="text-center font-bold">
-                          {getQualificationPoints(q.mp, q.score)}
-                        </TableCell>
+                        <TableCell className="text-center font-bold">{getQualificationPoints(q.mp, q.score)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -944,17 +884,17 @@ export default function GrandPrixPageClient({
                     playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
 
                   /* Apply group filter, then player filter */
-                  let filteredMatches = matchGroupFilter === "all"
-                    ? matches
-                    : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
-                  if (matchPlayerFilter !== "all") {
+                  let filteredMatches =
+                    matchGroupFilter === 'all' ? matches : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
+                  if (matchPlayerFilter !== 'all') {
                     filteredMatches = filteredMatches.filter(
-                      (m) => m.player1Id === matchPlayerFilter || m.player2Id === matchPlayerFilter
+                      (m) => m.player1Id === matchPlayerFilter || m.player2Id === matchPlayerFilter,
                     );
                   }
-                  const playersInScope = matchGroupFilter === "all"
-                    ? qualifications
-                    : qualifications.filter((q) => q.group === matchGroupFilter);
+                  const playersInScope =
+                    matchGroupFilter === 'all'
+                      ? qualifications
+                      : qualifications.filter((q) => q.group === matchGroupFilter);
                   const playerOptions = playersInScope
                     .map((q) => ({ id: q.playerId, nickname: q.player.nickname }))
                     .sort((a, b) => a.nickname.localeCompare(b.nickname));
@@ -968,7 +908,9 @@ export default function GrandPrixPageClient({
                         return acc;
                       }, {})
                     : { 0: filteredMatches };
-                  const sortedDays = Object.keys(matchesByDay).map(Number).sort((a, b) => a - b);
+                  const sortedDays = Object.keys(matchesByDay)
+                    .map(Number)
+                    .sort((a, b) => a - b);
 
                   return (
                     <div className="space-y-6">
@@ -977,24 +919,30 @@ export default function GrandPrixPageClient({
                         {groups.length > 1 && (
                           <div className="flex gap-2 flex-wrap">
                             <Button
-                              variant={matchGroupFilter === "all" ? "default" : "outline"}
+                              variant={matchGroupFilter === 'all' ? 'default' : 'outline'}
                               size="sm"
-                              onClick={() => { setMatchGroupFilter("all"); setMatchPlayerFilter("all"); }}
+                              onClick={() => {
+                                setMatchGroupFilter('all');
+                                setMatchPlayerFilter('all');
+                              }}
                             >
                               {tc('allGroups')}
                             </Button>
                             {groups.map((g) => (
                               <Button
                                 key={g}
-                                variant={matchGroupFilter === g ? "default" : "outline"}
+                                variant={matchGroupFilter === g ? 'default' : 'outline'}
                                 size="sm"
-                                onClick={() => { setMatchGroupFilter(g); setMatchPlayerFilter("all"); }}
+                                onClick={() => {
+                                  setMatchGroupFilter(g);
+                                  setMatchPlayerFilter('all');
+                                }}
                               >
                                 {tc('groupLabel', { group: g })}
                               </Button>
-                          ))}
-                        </div>
-                      )}
+                            ))}
+                          </div>
+                        )}
                         {/* Player filter dropdown */}
                         {playerOptions.length > 0 && (
                           <select
@@ -1004,7 +952,9 @@ export default function GrandPrixPageClient({
                           >
                             <option value="all">{tc('allPlayers')}</option>
                             {playerOptions.map((p) => (
-                              <option key={p.id} value={p.id}>{p.nickname}</option>
+                              <option key={p.id} value={p.id}>
+                                {p.nickname}
+                              </option>
                             ))}
                           </select>
                         )}
@@ -1017,134 +967,131 @@ export default function GrandPrixPageClient({
                             </h3>
                           )}
                           <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-16">#</TableHead>
-                                <TableHead>{tc('player1')}</TableHead>
-                                <TableHead className="text-center w-24">{tc('points')}</TableHead>
-                                <TableHead>{tc('player2')}</TableHead>
-                                <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
-                                {isAdmin && <TableHead className="text-center w-44">{tc('reportStatus')}</TableHead>}
-                                <TableHead className="text-right">{tc('actions')}</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {matchesByDay[day].map((match) => (
-                                <TableRow
-                                  key={match.id}
-                                  className={match.isBye ? "opacity-50 bg-muted/30" : ""}
-                                >
-                                  <TableCell>
-                                    {match.matchNumber}
-                                    {/* Show pre-assigned cup name next to match number (§7.4) */}
-                                    {match.cup && !match.isBye && (
-                                      <span className="ml-1 text-xs text-muted-foreground">
-                                        ({t('cupLabel', { cup: match.cup })})
-                                      </span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      match.completed && match.points1 > match.points2
-                                        ? "font-bold"
-                                        : ""
-                                    }
-                                  >
-                                    {match.player1.nickname}
-                                  </TableCell>
-                                  <TableCell className="text-center font-mono">
-                                    {match.isBye || match.completed
-                                      ? `${match.points1} - ${match.points2}`
-                                      : "- - -"}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      !match.isBye && match.completed && match.points2 > match.points1
-                                        ? "font-bold"
-                                        : ""
-                                    }
-                                  >
-                                    {match.isBye ? tc('bye') : match.player2.nickname}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    {isAdmin && !match.isBye ? (
-                                      <select
-                                        className="w-14 h-8 text-center text-sm border rounded bg-background"
-                                        value={(match.id in tvOverrides ? tvOverrides[match.id] : match.tvNumber) ?? ""}
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          const num = val ? parseInt(val) : null;
-                                          setTvOverrides((prev) => ({ ...prev, [match.id]: num }));
-                                          handleTvAssign(match.id, num);
-                                        }}
-                                      >
-                                        <option value="">-</option>
-                                        {TV_NUMBER_OPTIONS.map((tvNumber) => (
-                                          <option key={tvNumber} value={tvNumber}>
-                                            {tvNumber}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      match.tvNumber ? `${match.tvNumber}` : "-"
-                                    )}
-                                  </TableCell>
-                                  {isAdmin && (
-                                    <TableCell className="text-center">
-                                      {(() => {
-                                        const status = getReportStatus(match);
-                                        if (!status) {
-                                          return <span className="text-sm text-muted-foreground">-</span>;
-                                        }
-                                        return (
-                                          <div className={`inline-flex max-w-40 flex-col items-center rounded-md border px-2 py-1 text-xs ${
-                                            status.tone === "warning"
-                                              ? "border-yellow-300 bg-yellow-50 text-yellow-800"
-                                              : "border-blue-200 bg-blue-50 text-blue-800"
-                                          }`}>
-                                            <span className="max-w-full truncate">{status.label}</span>
-                                            <span className="font-mono">{status.detail}</span>
-                                          </div>
-                                        );
-                                      })()}
-                                    </TableCell>
-                                  )}
-                                  <TableCell className="text-right">
-                                    <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-1">
-                                    {isAdmin && !match.isBye && (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={broadcastingMatchId === match.id}
-                                        onClick={async () => {
-                                          setBroadcastingMatchId(match.id);
-                                          try {
-                                            await handleBroadcastMatch(match, match.points1, match.points2);
-                                          } finally {
-                                            setBroadcastingMatchId(null);
-                                          }
-                                        }}
-                                      >
-                                        {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
-                                      </Button>
-                                    )}
-                                    {isAdmin && !match.isBye && (
-                                      <Button
-                                        variant={match.completed ? "outline" : "default"}
-                                        size="sm"
-                                        onClick={() => openMatchDialog(match)}
-                                        disabled={qualificationConfirmed}
-                                      >
-                                        {match.completed ? tc('edit') : tc('enterResult')}
-                                      </Button>
-                                    )}
-                                    </div>
-                                  </TableCell>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-16">#</TableHead>
+                                  <TableHead>{tc('player1')}</TableHead>
+                                  <TableHead className="text-center w-24">{tc('points')}</TableHead>
+                                  <TableHead>{tc('player2')}</TableHead>
+                                  <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
+                                  {isAdmin && <TableHead className="text-center w-44">{tc('reportStatus')}</TableHead>}
+                                  <TableHead className="text-right">{tc('actions')}</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                              </TableHeader>
+                              <TableBody>
+                                {matchesByDay[day].map((match) => (
+                                  <TableRow key={match.id} className={match.isBye ? 'opacity-50 bg-muted/30' : ''}>
+                                    <TableCell>
+                                      {match.matchNumber}
+                                      {/* Show pre-assigned cup name next to match number (§7.4) */}
+                                      {match.cup && !match.isBye && (
+                                        <span className="ml-1 text-xs text-muted-foreground">
+                                          ({t('cupLabel', { cup: match.cup })})
+                                        </span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell
+                                      className={match.completed && match.points1 > match.points2 ? 'font-bold' : ''}
+                                    >
+                                      {match.player1.nickname}
+                                    </TableCell>
+                                    <TableCell className="text-center font-mono">
+                                      {match.isBye || match.completed ? `${match.points1} - ${match.points2}` : '- - -'}
+                                    </TableCell>
+                                    <TableCell
+                                      className={
+                                        !match.isBye && match.completed && match.points2 > match.points1
+                                          ? 'font-bold'
+                                          : ''
+                                      }
+                                    >
+                                      {match.isBye ? tc('bye') : match.player2.nickname}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {isAdmin && !match.isBye ? (
+                                        <select
+                                          className="w-14 h-8 text-center text-sm border rounded bg-background"
+                                          value={
+                                            (match.id in tvOverrides ? tvOverrides[match.id] : match.tvNumber) ?? ''
+                                          }
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            const num = val ? parseInt(val) : null;
+                                            setTvOverrides((prev) => ({ ...prev, [match.id]: num }));
+                                            handleTvAssign(match.id, num);
+                                          }}
+                                        >
+                                          <option value="">-</option>
+                                          {TV_NUMBER_OPTIONS.map((tvNumber) => (
+                                            <option key={tvNumber} value={tvNumber}>
+                                              {tvNumber}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : match.tvNumber ? (
+                                        `${match.tvNumber}`
+                                      ) : (
+                                        '-'
+                                      )}
+                                    </TableCell>
+                                    {isAdmin && (
+                                      <TableCell className="text-center">
+                                        {(() => {
+                                          const status = getReportStatus(match);
+                                          if (!status) {
+                                            return <span className="text-sm text-muted-foreground">-</span>;
+                                          }
+                                          return (
+                                            <div
+                                              className={`inline-flex max-w-40 flex-col items-center rounded-md border px-2 py-1 text-xs ${
+                                                status.tone === 'warning'
+                                                  ? 'border-yellow-300 bg-yellow-50 text-yellow-800'
+                                                  : 'border-blue-200 bg-blue-50 text-blue-800'
+                                              }`}
+                                            >
+                                              <span className="max-w-full truncate">{status.label}</span>
+                                              <span className="font-mono">{status.detail}</span>
+                                            </div>
+                                          );
+                                        })()}
+                                      </TableCell>
+                                    )}
+                                    <TableCell className="text-right">
+                                      <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-1">
+                                        {isAdmin && !match.isBye && (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={broadcastingMatchId === match.id}
+                                            onClick={async () => {
+                                              setBroadcastingMatchId(match.id);
+                                              try {
+                                                await handleBroadcastMatch(match, match.points1, match.points2);
+                                              } finally {
+                                                setBroadcastingMatchId(null);
+                                              }
+                                            }}
+                                          >
+                                            {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
+                                          </Button>
+                                        )}
+                                        {isAdmin && !match.isBye && (
+                                          <Button
+                                            variant={match.completed ? 'outline' : 'default'}
+                                            size="sm"
+                                            onClick={() => openMatchDialog(match)}
+                                            disabled={qualificationConfirmed}
+                                          >
+                                            {match.completed ? tc('edit') : tc('enterResult')}
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           </div>
                         </div>
                       ))}
@@ -1165,8 +1112,7 @@ export default function GrandPrixPageClient({
             <DialogDescription>
               {selectedMatch && (
                 <>
-                  Match #{selectedMatch.matchNumber}:{" "}
-                  {selectedMatch.player1.nickname} vs{" "}
+                  Match #{selectedMatch.matchNumber}: {selectedMatch.player1.nickname} vs{' '}
                   {selectedMatch.player2.nickname}
                 </>
               )}
@@ -1177,13 +1123,16 @@ export default function GrandPrixPageClient({
                 §7.1: When a cup is pre-assigned, only allow that cup or its substitute. */}
             <div>
               <Label>{t('selectCup')}</Label>
-              <Select value={selectedCup} onValueChange={(cup) => {
-                setSelectedCup(cup);
-                /* Auto-fill courses in fixed order when cup is selected.
-                 * SMK cups have a fixed course sequence — no manual selection needed. */
-                const cupCourses = getCupCourses(cup);
-                setRaces(cupCourses.map((course) => ({ course, position1: null, position2: null })));
-              }}>
+              <Select
+                value={selectedCup}
+                onValueChange={(cup) => {
+                  setSelectedCup(cup);
+                  /* Auto-fill courses in fixed order when cup is selected.
+                   * SMK cups have a fixed course sequence — no manual selection needed. */
+                  const cupCourses = getCupCourses(cup);
+                  setRaces(cupCourses.map((course) => ({ course, position1: null, position2: null })));
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder={t('selectCupPlaceholder')} />
                 </SelectTrigger>
@@ -1212,9 +1161,7 @@ export default function GrandPrixPageClient({
                 />
                 <div className="space-y-1">
                   <Label htmlFor="gp-manual-score">{t('manualTotalScore')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('manualTotalScoreDesc')}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{t('manualTotalScoreDesc')}</p>
                 </div>
               </div>
 
@@ -1266,11 +1213,10 @@ export default function GrandPrixPageClient({
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={race.position1?.toString() || ""}
+                            value={race.position1?.toString() || ''}
                             onValueChange={(value) => {
                               const newRaces = [...races];
-                              newRaces[index].position1 =
-                                value === "" ? null : parseInt(value, 10);
+                              newRaces[index].position1 = value === '' ? null : parseInt(value, 10);
                               setRaces(newRaces);
                             }}
                           >
@@ -1288,11 +1234,10 @@ export default function GrandPrixPageClient({
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={race.position2?.toString() || ""}
+                            value={race.position2?.toString() || ''}
                             onValueChange={(value) => {
                               const newRaces = [...races];
-                              newRaces[index].position2 =
-                                value === "" ? null : parseInt(value, 10);
+                              newRaces[index].position2 = value === '' ? null : parseInt(value, 10);
                               setRaces(newRaces);
                             }}
                           >
@@ -1318,30 +1263,20 @@ export default function GrandPrixPageClient({
             {/* Live driver points calculation preview */}
             {!manualScoreEnabled && (
               <div className="bg-muted p-4 rounded-lg">
-                <p className="text-sm font-medium mb-2">
-                  {t('driverPoints')}
-                </p>
+                <p className="text-sm font-medium mb-2">{t('driverPoints')}</p>
                 {selectedMatch && (
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-center sm:gap-4">
                     <div>
                       <span className="text-sm">{selectedMatch.player1.nickname}:</span>
                       <span className="ml-2 font-bold">
-                        {races.reduce(
-                          (acc, r) =>
-                            acc + (r.position1 ? getDriverPoints(r.position1) : 0),
-                          0
-                        )}
+                        {races.reduce((acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0), 0)}
                         pts
                       </span>
                     </div>
                     <div>
                       <span className="text-sm">{selectedMatch.player2.nickname}:</span>
                       <span className="ml-2 font-bold">
-                        {races.reduce(
-                          (acc, r) =>
-                            acc + (r.position2 ? getDriverPoints(r.position2) : 0),
-                          0
-                        )}
+                        {races.reduce((acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0), 0)}
                         pts
                       </span>
                     </div>
@@ -1355,9 +1290,7 @@ export default function GrandPrixPageClient({
               <Button variant="outline" onClick={handleBroadcastCurrentScore}>
                 {tc('broadcastReflect')}
               </Button>
-              <Button onClick={handleMatchSubmit}>
-                {manualScoreEnabled ? tc('saveScore') : tc('saveResult')}
-              </Button>
+              <Button onClick={handleMatchSubmit}>{manualScoreEnabled ? tc('saveScore') : tc('saveResult')}</Button>
             </div>
           </DialogFooter>
         </DialogContent>

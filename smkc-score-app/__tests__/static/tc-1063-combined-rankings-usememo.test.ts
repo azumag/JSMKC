@@ -31,18 +31,14 @@ describe('TC-1063 combined standings memoization guard', () => {
 
   it.each(pageClients)('memoizes $mode combined rankings before JSX rendering', ({ path, comparator }) => {
     const source = readRepoFile('smkc-score-app', ...path);
-    const declaration = sectionBetween(
-      source,
-      'const combinedRankings = useMemo(',
-      'const qualificationConfirmed',
-    );
+    const declaration = sectionBetween(source, 'const combinedRankings = useMemo(', 'const qualificationConfirmed');
     const combinedTab = sectionBetween(
       source,
       '<TabsContent value="combined">',
       '{/* Matches Tab - Group-filtered, round-grouped match list */}',
     );
 
-    expect(source).toMatch(/import\s*\{[^}]*\buseMemo\b[^}]*\}\s*from "react"/s);
+    expect(source).toMatch(/import\s*\{[^}]*\buseMemo\b[^}]*\}\s*from ['"]react['"]/s);
     expect(declaration).toContain('computeCombinedRanks(qualifications');
     expect(declaration).toContain(comparator);
     expect(declaration).toContain('[qualifications]');
@@ -52,24 +48,8 @@ describe('TC-1063 combined standings memoization guard', () => {
   });
 
   it('keeps BM/MR on the shared score-then-points comparator', () => {
-    const bmSource = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'app',
-      'tournaments',
-      '[id]',
-      'bm',
-      'page-client.tsx',
-    );
-    const mrSource = readRepoFile(
-      'smkc-score-app',
-      'src',
-      'app',
-      'tournaments',
-      '[id]',
-      'mr',
-      'page-client.tsx',
-    );
+    const bmSource = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx');
+    const mrSource = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx');
 
     expect(bmSource).toContain('compareByScoreThenPoints');
     expect(mrSource).toContain('compareByScoreThenPoints');

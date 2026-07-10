@@ -11,25 +11,22 @@
  *
  * Mode-specific content (score form, previous reports) is injected via render props.
  */
-"use client";
+'use client';
 
-import { ReactNode } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CountryFlag } from "@/components/ui/country-flag";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  LogIn, Trophy, Users, Clock, CheckCircle, AlertTriangle,
-  type LucideIcon,
-} from "lucide-react";
-import type { BaseMatch, ParticipantTournament } from "@/lib/hooks/useParticipantMatches";
+import { ReactNode } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PlayerName } from '@/components/ui/player-name';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LogIn, Trophy, Users, Clock, CheckCircle, AlertTriangle, type LucideIcon } from 'lucide-react';
+import type { BaseMatch, ParticipantTournament } from '@/lib/hooks/useParticipantMatches';
 
 interface ParticipantPageLayoutProps<TMatch extends BaseMatch> {
   /** Game mode — resolves mode-specific translations */
-  mode: "bm" | "mr" | "gp";
+  mode: 'bm' | 'mr' | 'gp';
   /** Icon for the section header (Trophy, Flag, Star, etc.) */
   sectionIcon: LucideIcon;
   /** Max container width class (e.g., "max-w-4xl", "max-w-6xl") */
@@ -61,7 +58,7 @@ interface ParticipantPageLayoutProps<TMatch extends BaseMatch> {
 export function ParticipantPageLayout<TMatch extends BaseMatch>({
   mode,
   sectionIcon: SectionIcon,
-  maxWidth = "max-w-4xl",
+  maxWidth = 'max-w-4xl',
   noPendingKey,
   sessionStatus,
   hasAccess,
@@ -79,17 +76,17 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
   renderMatchForm,
   renderPreviousReports,
 }: ParticipantPageLayoutProps<TMatch>) {
-  const tPart = useTranslations("participant");
+  const tPart = useTranslations('participant');
   const tMode = useTranslations(mode);
   const locale = useLocale();
 
   /* Loading state */
-  if (sessionStatus === "loading" || loading) {
+  if (sessionStatus === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="h-12 w-12 mx-auto mb-4 animate-pulse rounded-full bg-muted" />
-          <p className="text-lg">{tPart("loadingTournament")}</p>
+          <p className="text-lg">{tPart('loadingTournament')}</p>
         </div>
       </div>
     );
@@ -102,12 +99,12 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>{tPart("adminScoreEntryUnavailable")}</CardTitle>
-            <CardDescription>{tPart("adminScoreEntryUnavailableDesc")}</CardDescription>
+            <CardTitle>{tPart('adminScoreEntryUnavailable')}</CardTitle>
+            <CardDescription>{tPart('adminScoreEntryUnavailableDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full">
-              <Link href={`/tournaments/${tournamentId}/${mode}`}>{tPart("openAdminModePage")}</Link>
+              <Link href={`/tournaments/${tournamentId}/${mode}`}>{tPart('openAdminModePage')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -122,16 +119,14 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <LogIn className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>{tPart("playerLoginRequired")}</CardTitle>
-            <CardDescription>{tPart("loginToReport")}</CardDescription>
+            <CardTitle>{tPart('playerLoginRequired')}</CardTitle>
+            <CardDescription>{tPart('loginToReport')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full">
-              <Link href="/auth/signin">{tPart("logIn")}</Link>
+              <Link href="/auth/signin">{tPart('logIn')}</Link>
             </Button>
-            <p className="text-sm text-muted-foreground text-center">
-              {tPart("loginHelp")}
-            </p>
+            <p className="text-sm text-muted-foreground text-center">{tPart('loginHelp')}</p>
           </CardContent>
         </Card>
       </div>
@@ -145,8 +140,8 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>{tPart("tournamentNotFound")}</CardTitle>
-            <CardDescription>{tPart("tournamentNotFoundDesc")}</CardDescription>
+            <CardTitle>{tPart('tournamentNotFound')}</CardTitle>
+            <CardDescription>{tPart('tournamentNotFoundDesc')}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -158,11 +153,9 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">{tMode("scoreEntry")}</h1>
+          <h1 className="text-3xl font-bold mb-2">{tMode('scoreEntry')}</h1>
           <p className="text-lg text-muted-foreground">{tournament.name}</p>
-          <p className="text-sm text-muted-foreground">
-            {new Date(tournament.date).toLocaleDateString()}
-          </p>
+          <p className="text-sm text-muted-foreground">{new Date(tournament.date).toLocaleDateString()}</p>
         </div>
 
         <div className={`${maxWidth} mx-auto`}>
@@ -172,12 +165,8 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
               <div className="flex items-center gap-3">
                 <Users className="h-8 w-8 text-blue-600" />
                 <div>
-                  <h3 className="font-semibold">
-                    {session?.user?.nickname || session?.user?.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {tPart("loggedInAsPlayer")}
-                  </p>
+                  <h3 className="font-semibold">{session?.user?.nickname || session?.user?.name}</h3>
+                  <p className="text-sm text-muted-foreground">{tPart('loggedInAsPlayer')}</p>
                 </div>
               </div>
             </CardContent>
@@ -196,9 +185,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
             <Card>
               <CardContent className="py-12 text-center">
                 <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">
-                  {tPart("noPendingMatches")}
-                </h3>
+                <h3 className="text-lg font-semibold mb-2">{tPart('noPendingMatches')}</h3>
                 <p className="text-muted-foreground">{tPart(noPendingKey)}</p>
               </CardContent>
             </Card>
@@ -216,7 +203,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                         <div className="flex items-center gap-2">
                           <Clock className="h-5 w-5 text-yellow-600" />
                           <h2 className="text-xl font-semibold">
-                            {tPart("pendingSection", { count: pendingMatches.length })}
+                            {tPart('pendingSection', { count: pendingMatches.length })}
                           </h2>
                         </div>
                         {pendingMatches.map((match) => renderMatchCard(match))}
@@ -229,7 +216,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                         <div className="flex items-center gap-2 mt-4 pt-4 border-t">
                           <CheckCircle className="h-5 w-5 text-green-600" />
                           <h2 className="text-xl font-semibold text-muted-foreground">
-                            {tPart("completedSection", { count: completedMatches.length })}
+                            {tPart('completedSection', { count: completedMatches.length })}
                           </h2>
                         </div>
                         {completedMatches.map((match) => renderMatchCard(match))}
@@ -240,94 +227,98 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
 
                 function renderMatchCard(match: TMatch) {
                   return (
-                <Card key={match.id} className={match.completed ? "opacity-75" : ""}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">
-                          {tPart("matchNumber", { number: match.matchNumber })}
-                        </CardTitle>
-                        <CardDescription>
-                          {tPart("tvInfo", { tv: match.tvNumber ?? "" })} •{" "}
-                          {match.stage === "qualification"
-                            ? tPart("qualification")
-                            : tPart("finals")}
-                          {renderCardHeaderExtra?.(match)}
-                        </CardDescription>
-                      </div>
-                      {match.completed ? (
-                        <Badge variant="default" className="bg-green-600">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          {tPart("completed")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {tPart("pending")}
-                        </Badge>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* Player cards with "You" badge */}
-                      <div className="grid grid-cols-2 gap-4">
-                        {[match.player1, match.player2].map((player, idx) => {
-                          const side = idx === 0 ? match.player1Side : match.player2Side;
-                          const isYou = player.id === playerId;
-                          return (
-                            <div
-                              key={player.id}
-                              className={`p-3 rounded-lg border ${isYou ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"}`}
-                            >
-                              <div className="font-medium flex items-center gap-1 min-w-0">
-                                <CountryFlag country={player.country} locale={locale} />
-                                <span className="truncate min-w-0">{player.nickname}</span>
-                                {isYou && (
-                                  <Badge variant="default" className="shrink-0 bg-blue-600">
-                                    {tPart("you")}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {tPart("controller", { side })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Completed match: show final score */}
-                      {match.completed && (() => {
-                        /* Extract score from mode-specific fields (BM/MR: score1/2, GP: points1/2) */
-                        const m = match as Record<string, unknown>;
-                        const s1 = String(m.score1 ?? m.points1 ?? "?");
-                        const s2 = String(m.score2 ?? m.points2 ?? "?");
-                        return (
-                          <div className="border-t pt-4 text-center">
-                            <p className="text-sm text-muted-foreground mb-1">{tPart("finalResult")}</p>
-                            <p className="text-3xl font-bold font-mono">{s1} - {s2}</p>
+                    <Card key={match.id} className={match.completed ? 'opacity-75' : ''}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-lg">
+                              {tPart('matchNumber', { number: match.matchNumber })}
+                            </CardTitle>
+                            <CardDescription>
+                              {tPart('tvInfo', { tv: match.tvNumber ?? '' })} •{' '}
+                              {match.stage === 'qualification' ? tPart('qualification') : tPart('finals')}
+                              {renderCardHeaderExtra?.(match)}
+                            </CardDescription>
                           </div>
-                        );
-                      })()}
-
-                      {/* Mode-specific form — hidden when qualification is confirmed */}
-                      {!match.completed && (qualificationConfirmed ? (
-                        <div className="border-t pt-4">
-                          <Alert>
-                            <CheckCircle className="h-4 w-4" />
-                            <AlertDescription>
-                              {tPart("qualificationLocked")}
-                            </AlertDescription>
-                          </Alert>
+                          {match.completed ? (
+                            <Badge variant="default" className="bg-green-600">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              {tPart('completed')}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {tPart('pending')}
+                            </Badge>
+                          )}
                         </div>
-                      ) : renderMatchForm(match))}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {/* Player cards with "You" badge */}
+                          <div className="grid grid-cols-2 gap-4">
+                            {[match.player1, match.player2].map((player, idx) => {
+                              const side = idx === 0 ? match.player1Side : match.player2Side;
+                              const isYou = player.id === playerId;
+                              return (
+                                <div
+                                  key={player.id}
+                                  className={`p-3 rounded-lg border ${isYou ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}
+                                >
+                                  <div className="font-medium flex items-center gap-1 min-w-0">
+                                    <PlayerName
+                                      player={player}
+                                      locale={locale}
+                                      className="gap-1"
+                                      nameClassName="min-w-0"
+                                    />
+                                    {isYou && (
+                                      <Badge variant="default" className="shrink-0 bg-blue-600">
+                                        {tPart('you')}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">{tPart('controller', { side })}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
 
-                      {/* Mode-specific previous reports (injected by each page) */}
-                      {renderPreviousReports(match)}
-                    </div>
-                  </CardContent>
-                </Card>
+                          {/* Completed match: show final score */}
+                          {match.completed &&
+                            (() => {
+                              /* Extract score from mode-specific fields (BM/MR: score1/2, GP: points1/2) */
+                              const m = match as Record<string, unknown>;
+                              const s1 = String(m.score1 ?? m.points1 ?? '?');
+                              const s2 = String(m.score2 ?? m.points2 ?? '?');
+                              return (
+                                <div className="border-t pt-4 text-center">
+                                  <p className="text-sm text-muted-foreground mb-1">{tPart('finalResult')}</p>
+                                  <p className="text-3xl font-bold font-mono">
+                                    {s1} - {s2}
+                                  </p>
+                                </div>
+                              );
+                            })()}
+
+                          {/* Mode-specific form — hidden when qualification is confirmed */}
+                          {!match.completed &&
+                            (qualificationConfirmed ? (
+                              <div className="border-t pt-4">
+                                <Alert>
+                                  <CheckCircle className="h-4 w-4" />
+                                  <AlertDescription>{tPart('qualificationLocked')}</AlertDescription>
+                                </Alert>
+                              </div>
+                            ) : (
+                              renderMatchForm(match)
+                            ))}
+
+                          {/* Mode-specific previous reports (injected by each page) */}
+                          {renderPreviousReports(match)}
+                        </div>
+                      </CardContent>
+                    </Card>
                   );
                 }
               })()}
@@ -338,9 +329,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
         {/* Footer nav */}
         <div className="text-center mt-8">
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/participant`}>
-              {tPart("backToGameSelection")}
-            </Link>
+            <Link href={`/tournaments/${tournamentId}/participant`}>{tPart('backToGameSelection')}</Link>
           </Button>
         </div>
       </div>
