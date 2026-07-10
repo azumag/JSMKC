@@ -2414,6 +2414,15 @@ export async function resetPhase(
     select: { id: true },
   });
   const roundIds = rounds.map((round) => round.id);
+
+  /* Re-check immediately before the first destructive query. D1 cannot run
+   * this multi-table reset in an interactive transaction, so the initial
+   * guard above can become stale while the roster/round snapshots are read.
+   * This closes that wider read-check-delete window for a concurrent phase
+   * promotion and leaves only the irreducible gap between sequential D1
+   * statements. */
+  await assertNoLaterPhaseEntries(prisma, tournamentId, stage, "reset");
+
   if (roundIds.length > 0) {
     await prisma.tTPhaseSuddenDeathRound.deleteMany({
       where: { phaseRoundId: { in: roundIds } },
