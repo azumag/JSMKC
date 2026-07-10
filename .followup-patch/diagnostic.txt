@@ -1,9 +1,8 @@
 files:
-total 120
+total 104
 drwxr-xr-x 2 runner runner  4096 Jul 10 19:21 .
 drwxr-xr-x 8 runner runner  4096 Jul 10 19:21 ..
 -rw-r--r-- 1 runner runner     7 Jul 10 19:21 diagnostic.txt
--rw-r--r-- 1 runner runner 15989 Jul 10 19:21 part00
 -rw-r--r-- 1 runner runner  4000 Jul 10 19:21 part00_00
 -rw-r--r-- 1 runner runner  4000 Jul 10 19:21 part00_01
 -rw-r--r-- 1 runner runner  4000 Jul 10 19:21 part00_02
@@ -20,13 +19,21 @@ drwxr-xr-x 8 runner runner  4096 Jul 10 19:21 ..
 -rw-r--r-- 1 runner runner  3000 Jul 10 19:21 part04_01
 -rw-r--r-- 1 runner runner  2016 Jul 10 19:21 part04_02
 base64 sha256:
-c110d7f272f3b682d609005fce6fbd212b6bd529fbfca165be353cbb490bbfe7  /tmp/followups.b64
-base64: invalid input
-
-gzip: stdin: invalid compressed data--format violated
-decode status: 1 1
+ae60f65acfcebb11db0f2aa7e472fb4e3c32dbe5665917531900598a1420e016  /tmp/followups.b64
+decode status: 0 0
 patch sha256:
-6662ac61a4b8e2d36bb81eb38e92d392753997b64b4cfd4f46f6632202ebd03b  /tmp/followups.patch
+603b20403e5ade957d0c3249bc3d8cf46fc13afa75d51e8fb0fcd24d96de2b54  /tmp/followups.patch
 git apply check:
-error: patch fragment without header at /tmp/followups.patch:2063: @@ -433,14 +428,10 @@ describe(' enOhst({ ac+428,1@@ desurnameg      rankCalculationMock.recalculateRaneenCal 500 }
-apply status: 128
+warning: smkc-score-app/__tests__/app/api/tournaments/[id]/route.test.ts has type 100755, expected 100644
+warning: smkc-score-app/__tests__/app/api/tournaments/[id]/ta/route.test.ts has type 100755, expected 100644
+warning: smkc-score-app/messages/en.json has type 100755, expected 100644
+warning: smkc-score-app/messages/ja.json has type 100755, expected 100644
+warning: smkc-score-app/package.json has type 100755, expected 100644
+warning: smkc-score-app/prisma/schema.prisma has type 100755, expected 100644
+warning: smkc-score-app/src/app/api/tournaments/route.ts has type 100755, expected 100644
+warning: smkc-score-app/src/app/players/page.tsx has type 100755, expected 100644
+warning: smkc-score-app/src/app/tournaments/[id]/layout.tsx has type 100755, expected 100644
+warning: smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx has type 100755, expected 100644
+warning: smkc-score-app/src/app/tournaments/[id]/ta/page-client.tsx has type 100755, expected 100644
+warning: smkc-score-app/src/app/tournaments/page.tsx has type 100755, expected 100644
+apply status: 0
