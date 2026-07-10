@@ -82,9 +82,7 @@ export function getNextPhase3ResetThreshold(
   lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
 ): number | null {
   const minimumPhase3Survivors = PHASE_CONFIG.phase3.survivorsNeeded;
-  const thresholds = [...lifeResetThresholds]
-    .filter((threshold) => threshold < activeCount)
-    .sort((a, b) => b - a);
+  const thresholds = [...lifeResetThresholds].filter((threshold) => threshold < activeCount).sort((a, b) => b - a);
   // When no configured reset threshold remains below activeCount, fallback to one survivor.
   // This makes the elimination limit activeCount - 1 and protects the last remaining player.
   return thresholds[0] ?? (activeCount > minimumPhase3Survivors ? minimumPhase3Survivors : null);
