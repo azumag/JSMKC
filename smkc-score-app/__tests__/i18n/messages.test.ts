@@ -27,6 +27,21 @@ describe('translation messages', () => {
     expect(Array.from(enKeys).sort()).toEqual(Array.from(jaKeys).sort());
   });
 
+  it('keeps every message key aligned between English and Japanese', () => {
+    expect(flattenKeys(enMessages as JsonObject).sort()).toEqual(flattenKeys(jaMessages as JsonObject).sort());
+  });
+
+  it.each([
+    'failedGenerateBracket',
+    'networkError',
+    'noPermission',
+    'matchMustHaveWinner',
+    'select5UniqueCourses',
+  ] as const)('defines typed common message "%s" in both locales', (key) => {
+    expect(enMessages.common[key]).toBeDefined();
+    expect(jaMessages.common[key]).toBeDefined();
+  });
+
   it('defines the viewTournament label in both locales', () => {
     expect(enMessages.common.viewTournament).toBe('View Tournament');
     expect(jaMessages.common.viewTournament).toBe('トーナメントを見る');
@@ -47,7 +62,7 @@ describe('translation messages', () => {
     (modeKey) => {
       expect(enMessages.common[modeKey]).toBeDefined();
       expect(jaMessages.common[modeKey]).toBeDefined();
-    }
+    },
   );
 
   /**
@@ -76,6 +91,6 @@ describe('translation messages', () => {
       expect(jaMessages.taFinals[key]).toBeUndefined();
       expect(enMessages.taElimination[key]).toBeUndefined();
       expect(jaMessages.taElimination[key]).toBeUndefined();
-    }
+    },
   );
 });
