@@ -72,6 +72,7 @@ import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
+import { useQualificationSetup } from '@/lib/hooks/useQualificationSetup';
 import { UpdateIndicator } from '@/components/ui/update-indicator';
 import { PlayerName } from '@/components/ui/player-name';
 import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
@@ -168,7 +169,6 @@ export default function GrandPrixPageClient({
     Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })),
   );
   const [setupPlayers, setSetupPlayers] = useState<{ playerId: string; group: string; seeding?: number }[]>([]);
-  const [setupSaving, setSetupSaving] = useState(false);
   const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
   const [manualPoints1, setManualPoints1] = useState('');
   const [manualPoints2, setManualPoints2] = useState('');
@@ -302,8 +302,13 @@ export default function GrandPrixPageClient({
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
-    handleSetupFailure,
   } = useQualificationActions({ tournamentId, mode: 'gp', refetch });
+
+  const { submitSetup, setupSaving, setupError, clearSetupError } = useQualificationSetup({
+    tournamentId,
+    mode: 'gp',
+    refetch,
+  });
 
   /**
    * Toggle qualification confirmed state.
@@ -364,39 +369,14 @@ export default function GrandPrixPageClient({
     return null;
   };
 
-  /**
-   * Submit group setup to create qualification round-robin matches.
-   * Sends player list with group assignments to the POST endpoint.
-   */
+  /** Submit group setup while preserving dialog input on failure. */
   const handleSetup = async () => {
-    if (setupPlayers.length === 0) {
-      setIsSetupDialogOpen(false);
-      return;
-    }
+    const result = await submitSetup(setupPlayers);
+    if (!result.ok) return;
 
-    setSetupSaving(true);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ players: setupPlayers }),
-      });
-
-      if (response.ok) {
-        setIsSetupDialogOpen(false);
-        setSetupPlayers([]);
-        refetch();
-      } else {
-        setIsSetupDialogOpen(false);
-        const errorData = await response.json().catch(() => ({}));
-        const msg = errorData.error || `Setup failed (${response.status})`;
-        alert(msg);
-      }
-    } catch (err) {
-      handleSetupFailure(err, () => setIsSetupDialogOpen(false));
-    } finally {
-      setSetupSaving(false);
-    }
+    clearSetupError();
+    setSetupPlayers([]);
+    setIsSetupDialogOpen(false);
   };
 
   const openMatchDialog = (match: GPMatch) => {
@@ -688,6 +668,8 @@ export default function GrandPrixPageClient({
               setIsOpen={setIsSetupDialogOpen}
               onSave={handleSetup}
               saving={setupSaving}
+              error={setupError?.message ?? null}
+              onClearError={clearSetupError}
               existingAssignments={qualifications.map((q) => ({
                 playerId: q.playerId,
                 group: q.group,

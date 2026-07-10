@@ -198,21 +198,6 @@ describe('useQualificationActions', () => {
     });
   });
 
-  describe('handleSetupFailure', () => {
-    it('closes the dialog and shows the localized network error', () => {
-      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
-      const closeDialog = jest.fn();
-      const { result } = makeHook();
-
-      act(() => {
-        result.current.handleSetupFailure(new Error('offline'), closeDialog);
-      });
-
-      expect(closeDialog).toHaveBeenCalledTimes(1);
-      expect(alertSpy).toHaveBeenCalledWith('networkError');
-    });
-  });
-
   describe('handleBroadcastReflect', () => {
     it('TC-2616: calls broadcast PUT and shows success toast, returns true on ok', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({ ok: true } as Response);

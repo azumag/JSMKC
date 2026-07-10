@@ -39,6 +39,8 @@ const defaultProps = {
   setIsOpen: jest.fn(),
   onSave: jest.fn(),
   saving: false,
+  error: null,
+  onClearError: jest.fn(),
   existingAssignments: [],
 };
 
@@ -204,4 +206,65 @@ describe("GroupSetupDialog", () => {
     expect(screen.getByRole("button", { name: "2" })).toHaveAttribute("data-variant", "default");
     expect(screen.getByRole("button", { name: "3" })).toHaveAttribute("data-variant", "outline");
   });
+
+  it('renders a setup error without clearing the selected players', () => {
+    const setSetupPlayers = jest.fn();
+    render(
+      <GroupSetupDialog
+        {...defaultProps}
+        isOpen={true}
+        setupPlayers={[{ playerId: 'p1', group: 'A', seeding: 1 }]}
+        setSetupPlayers={setSetupPlayers}
+        error="networkError"
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('networkError');
+    expect(screen.getByText('Mario')).toBeInTheDocument();
+    expect(setSetupPlayers).not.toHaveBeenCalled();
+  });
+
+  it('disables editing and refuses to close while a setup save is in flight', () => {
+    render(
+      <ControlledGroupSetupDialog
+        {...defaultProps}
+        isOpen={true}
+        saving={true}
+        setupPlayers={[{ playerId: 'p1', group: 'A', seeding: 1 }]}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Saving/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '2' })).toBeDisabled();
+    expect(screen.getByPlaceholderText(/Search/i)).toBeDisabled();
+
+    const closeButton = document.querySelector('[data-slot="dialog-close"]');
+    expect(closeButton).not.toBeNull();
+    fireEvent.click(closeButton!);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('clears form and error state only when the administrator explicitly closes', () => {
+    const setSetupPlayers = jest.fn();
+    const onClearError = jest.fn();
+    render(
+      <ControlledGroupSetupDialog
+        {...defaultProps}
+        isOpen={true}
+        setupPlayers={[{ playerId: 'p1', group: 'A' }]}
+        setSetupPlayers={setSetupPlayers}
+        error="networkError"
+        onClearError={onClearError}
+      />,
+    );
+
+    const closeButton = document.querySelector('[data-slot="dialog-close"]');
+    expect(closeButton).not.toBeNull();
+    fireEvent.click(closeButton!);
+
+    expect(setSetupPlayers).toHaveBeenCalledWith([]);
+    expect(onClearError).toHaveBeenCalledTimes(1);
+  });
+});
+
 });

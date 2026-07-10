@@ -65,6 +65,7 @@ import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
+import { useQualificationSetup } from '@/lib/hooks/useQualificationSetup';
 import { UpdateIndicator } from '@/components/ui/update-indicator';
 import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
 import { createLogger } from '@/lib/client-logger';
@@ -141,7 +142,6 @@ export default function BattleModePageClient({
   /* State for group setup dialog */
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [setupPlayers, setSetupPlayers] = useState<{ playerId: string; group: string; seeding?: number }[]>([]);
-  const [setupSaving, setSetupSaving] = useState(false);
   /* State for match filters */
   const [matchGroupFilter, setMatchGroupFilter] = useState<string>('all');
   const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>('all');
@@ -277,46 +277,22 @@ export default function BattleModePageClient({
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
-    handleSetupFailure,
   } = useQualificationActions({ tournamentId, mode: 'bm', refetch });
 
-  /**
-   * Handle group setup submission.
-   * Sends the player-group assignments to the API which generates
-   * round-robin matches for each group.
-   */
+  const { submitSetup, setupSaving, setupError, clearSetupError } = useQualificationSetup({
+    tournamentId,
+    mode: 'bm',
+    refetch,
+  });
+
+  /** Submit group setup while preserving dialog input on failure. */
   const handleSetup = async () => {
-    if (setupPlayers.length === 0) {
-      /* No players to save — close dialog (user cancelled or form was empty) */
-      setIsSetupDialogOpen(false);
-      return;
-    }
+    const result = await submitSetup(setupPlayers);
+    if (!result.ok) return;
 
-    setSetupSaving(true);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ players: setupPlayers }),
-      });
-
-      if (response.ok) {
-        setIsSetupDialogOpen(false);
-        setSetupPlayers([]);
-        refetch();
-      } else {
-        /* Show server error to admin so they know why setup failed.
-         * Close dialog even on error — user can reopen to retry. */
-        setIsSetupDialogOpen(false);
-        const errorData = await response.json().catch(() => ({}));
-        const msg = errorData.error || `Setup failed (${response.status})`;
-        alert(msg);
-      }
-    } catch (err) {
-      handleSetupFailure(err, () => setIsSetupDialogOpen(false));
-    } finally {
-      setSetupSaving(false);
-    }
+    clearSetupError();
+    setSetupPlayers([]);
+    setIsSetupDialogOpen(false);
   };
 
   /**
@@ -545,6 +521,8 @@ export default function BattleModePageClient({
               setIsOpen={setIsSetupDialogOpen}
               onSave={handleSetup}
               saving={setupSaving}
+              error={setupError?.message ?? null}
+              onClearError={clearSetupError}
               existingAssignments={qualifications.map((q) => ({
                 playerId: q.playerId,
                 group: q.group,
