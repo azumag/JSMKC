@@ -266,6 +266,7 @@ export default function MatchRacePageClient({
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
+    handleSetupFailure,
   } = useQualificationActions({ tournamentId, mode: 'mr', refetch });
 
   /**
@@ -356,9 +357,7 @@ export default function MatchRacePageClient({
         alert(msg);
       }
     } catch (err) {
-      logger.error('Failed to setup:', { error: err, tournamentId });
-      setIsSetupDialogOpen(false);
-      alert(tc('networkError'));
+      handleSetupFailure(err, () => setIsSetupDialogOpen(false));
     } finally {
       setSetupSaving(false);
     }

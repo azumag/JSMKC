@@ -138,6 +138,16 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
     [tournamentId, mode, logger],
   );
 
+  /** Close a failed setup dialog and report the shared network failure consistently. */
+  const handleSetupFailure = useCallback(
+    (error: unknown, closeDialog: () => void) => {
+      logger.error('Failed to setup:', { error, tournamentId });
+      closeDialog();
+      alert(tc('networkError'));
+    },
+    [logger, tc, tournamentId],
+  );
+
   /**
    * Push match players (and optional score/round info) to the overlay.
    * Used by the "配信に反映" button on each match row.
@@ -189,5 +199,6 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
+    handleSetupFailure,
   };
 }

@@ -277,6 +277,7 @@ export default function BattleModePageClient({
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
+    handleSetupFailure,
   } = useQualificationActions({ tournamentId, mode: 'bm', refetch });
 
   /**
@@ -312,9 +313,7 @@ export default function BattleModePageClient({
         alert(msg);
       }
     } catch (err) {
-      logger.error('Failed to setup:', { error: err, tournamentId });
-      setIsSetupDialogOpen(false);
-      alert(tc('networkError'));
+      handleSetupFailure(err, () => setIsSetupDialogOpen(false));
     } finally {
       setSetupSaving(false);
     }
