@@ -8,8 +8,11 @@ describe('qualification page i18n errors', () => {
       'utf8',
     );
 
-    expect(source).toContain("alert(tc('networkError'))");
-    expect(source).toContain("tc('failedGenerateBracket')");
+    const networkErrorAlert = /alert\s*\(\s*tc\s*\(\s*(['"])networkError\1\s*\)\s*\)/;
+    const failedGenerateBracketTranslation = /tc\s*\(\s*(['"])failedGenerateBracket\1\s*\)/;
+
+    expect(source).toMatch(networkErrorAlert);
+    expect(source).toMatch(failedGenerateBracketTranslation);
     expect(source).not.toContain('Network error — please try again');
   });
 });
