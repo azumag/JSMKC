@@ -77,9 +77,12 @@ export const PHASE_CONFIG = {
   },
 } as const;
 
-export function getNextPhase3ResetThreshold(activeCount: number): number | null {
+export function getNextPhase3ResetThreshold(
+  activeCount: number,
+  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
+): number | null {
   const minimumPhase3Survivors = PHASE_CONFIG.phase3.survivorsNeeded;
-  const thresholds = [...PHASE_CONFIG.phase3.lifeResetThresholds]
+  const thresholds = [...lifeResetThresholds]
     .filter((threshold) => threshold < activeCount)
     .sort((a, b) => b - a);
   // When no configured reset threshold remains below activeCount, fallback to one survivor.
@@ -87,8 +90,11 @@ export function getNextPhase3ResetThreshold(activeCount: number): number | null 
   return thresholds[0] ?? (activeCount > minimumPhase3Survivors ? minimumPhase3Survivors : null);
 }
 
-function getPhase3EliminationLimit(activeCount: number): number {
-  const nextThreshold = getNextPhase3ResetThreshold(activeCount);
+function getPhase3EliminationLimit(
+  activeCount: number,
+  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
+): number {
+  const nextThreshold = getNextPhase3ResetThreshold(activeCount, lifeResetThresholds);
   return nextThreshold === null ? Number.POSITIVE_INFINITY : activeCount - nextThreshold;
 }
 
@@ -708,7 +714,7 @@ export async function processPhase3Result(
   const halfwayPoint = Math.ceil(sortedResults.length / 2);
   const bottomHalf = sortedResults.slice(halfwayPoint);
 
-  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length);
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length, rules.lifeResetThresholds);
   const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
   const selectedEliminationIds = new Set(
     bottomHalf
@@ -1004,6 +1010,7 @@ function detectTieBreakRequired(
   phase: 'phase1' | 'phase2' | 'phase3',
   courseResults: CourseResult[],
   activePlayers: TTEntry[] = [],
+  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
 ): TieBreakDecision | null {
   if (courseResults.length < 2) return null;
 
@@ -1024,7 +1031,7 @@ function detectTieBreakRequired(
   if (halfwayPoint <= 0 || halfwayPoint >= sorted.length) return null;
   const bottomHalf = sorted.slice(halfwayPoint);
 
-  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length);
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length, lifeResetThresholds);
   if (Number.isFinite(eliminationLimit)) {
     const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
     const eliminationCandidates = bottomHalf
@@ -1527,7 +1534,12 @@ export async function submitRoundResults(
   let eliminatedIds: string[] = [];
   let livesReset = false;
 
-  const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers);
+  const tieBreak = detectTieBreakRequired(
+    phase,
+    processedResults,
+    activePlayers,
+    getTaPhase3Rules(context.taBattleRoyaleMode === true).lifeResetThresholds,
+  );
   if (tieBreak) {
     const suddenDeathRound = await createSuddenDeathRound(
       prisma,

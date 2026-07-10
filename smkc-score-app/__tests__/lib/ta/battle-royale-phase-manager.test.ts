@@ -78,6 +78,64 @@ describe('TA battle royale phase manager', () => {
     expect(prisma.tTEntry.updateMany).not.toHaveBeenCalled();
   });
 
+  it('eliminates every zero-life loser at five players without a revival race', async () => {
+    const entries = [
+      makeEntry('p1', 0, 2),
+      makeEntry('p2', 0, 2),
+      makeEntry('p3', 0, 2),
+      makeEntry('p4', 0, 1),
+      makeEntry('p5', 0, 1),
+    ];
+    const prisma = {
+      tTPhaseRound: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'round-1',
+          tournamentId: context.tournamentId,
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'MC1',
+          results: [],
+        }),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      tTPhaseSuddenDeathRound: {
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({
+          id: 'sudden-death-1',
+          targetPlayerIds: ['p4', 'p5'],
+          kind: 'revival',
+        }),
+      },
+      tTEntry: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce(entries)
+          .mockResolvedValueOnce(entries)
+          .mockResolvedValueOnce(entries.slice(0, 3)),
+        findUnique: jest.fn(({ where }) => {
+          const playerId = where.tournamentId_playerId_stage.playerId;
+          return Promise.resolve(entries.find((entry) => entry.playerId === playerId));
+        }),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await submitRoundResults(prisma as never, context, 'phase3', 1, [
+      { playerId: 'p1', timeMs: 90_000 },
+      { playerId: 'p2', timeMs: 91_000 },
+      { playerId: 'p3', timeMs: 92_000 },
+      { playerId: 'p4', timeMs: 93_000 },
+      { playerId: 'p5', timeMs: 94_000 },
+    ]);
+
+    expect(result.tieBreakRequired).toBeUndefined();
+    expect(result.eliminatedIds).toEqual(['p4', 'p5']);
+    expect(prisma.tTPhaseSuddenDeathRound.create).not.toHaveBeenCalled();
+  });
+
   it('uses adjusted times for life loss while retaining raw times in round history', async () => {
     const entries = [makeEntry('p1', 0), makeEntry('p2', -1), makeEntry('p3', -3), makeEntry('p4', -5)];
     const prisma = {
