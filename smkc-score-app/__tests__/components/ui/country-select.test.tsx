@@ -55,4 +55,40 @@ describe("CountrySelect (searchable pulldown)", () => {
     fireEvent.click(screen.getByText("—"));
     expect(onChange).toHaveBeenLastCalledWith("");
   });
+
+  it("moves the active option with arrow keys and selects it with Enter", () => {
+    const onChange = jest.fn();
+    render(<CountrySelect value="" locale="en" onChange={onChange} />);
+    fireEvent.click(screen.getByRole("combobox"));
+
+    const search = screen.getByRole("combobox", { name: "Search countries" });
+    fireEvent.change(search, { target: { value: "japan" } });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+
+    const japan = screen.getByRole("option", { name: /Japan/ });
+    expect(search).toHaveAttribute("aria-activedescendant", japan.id);
+    expect(japan).toHaveClass("bg-accent");
+
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onChange).toHaveBeenLastCalledWith("JP");
+  });
+
+  it("supports ArrowUp, Home, End, and Escape navigation", () => {
+    render(<CountrySelect value="" locale="en" onChange={() => {}} />);
+    fireEvent.click(screen.getByRole("combobox"));
+    const search = screen.getByRole("combobox", { name: "Search countries" });
+    fireEvent.change(search, { target: { value: "nor" } });
+    const options = screen.getAllByRole("option");
+    expect(options.length).toBeGreaterThan(1);
+
+    fireEvent.keyDown(search, { key: "ArrowUp" });
+    expect(search).toHaveAttribute("aria-activedescendant", options.at(-1)?.id);
+    fireEvent.keyDown(search, { key: "Home" });
+    expect(search).toHaveAttribute("aria-activedescendant", options[0].id);
+    fireEvent.keyDown(search, { key: "End" });
+    expect(search).toHaveAttribute("aria-activedescendant", options.at(-1)?.id);
+
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(screen.queryByLabelText("Search countries")).not.toBeInTheDocument();
+  });
 });

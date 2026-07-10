@@ -42,6 +42,7 @@ export function CountrySelect({
 }: CountrySelectProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const [activeIndex, setActiveIndex] = React.useState(-1);
   const listboxId = `${React.useId()}-country-listbox`;
   const listRef = React.useRef<HTMLUListElement>(null);
 
@@ -84,10 +85,50 @@ export function CountrySelect({
     );
   }, [options, query]);
 
+  const activeOption = activeIndex >= 0 ? filtered[activeIndex] : undefined;
+  const activeOptionId = activeOption
+    ? `${listboxId}-option-${activeOption.code}`
+    : undefined;
+
+  React.useEffect(() => {
+    if (activeIndex >= filtered.length) setActiveIndex(filtered.length - 1);
+  }, [activeIndex, filtered.length]);
+
+  React.useEffect(() => {
+    if (!activeOptionId) return;
+    document.getElementById(activeOptionId)?.scrollIntoView?.({ block: "nearest" });
+  }, [activeOptionId]);
+
   const select = (next: string) => {
     onChange(next);
     setOpen(false);
     setQuery("");
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (filtered.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((current) => current < 0 ? 0 : (current + 1) % filtered.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((current) => current < 0 ? filtered.length - 1 : (current - 1 + filtered.length) % filtered.length);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActiveIndex(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActiveIndex(filtered.length - 1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (activeOption) select(activeOption.code);
+    }
   };
 
   return (
@@ -95,6 +136,7 @@ export function CountrySelect({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
+        setActiveIndex(-1);
         if (!o) setQuery("");
       }}
     >
@@ -102,7 +144,7 @@ export function CountrySelect({
         <button
           id={id}
           type="button"
-          role="combobox"
+          role={open ? undefined : "combobox"}
           aria-expanded={open}
           aria-controls={listboxId}
           className={cn(
@@ -127,8 +169,17 @@ export function CountrySelect({
             <Search className="size-4 shrink-0 opacity-50" />
             <input
               autoFocus
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={open}
+              aria-controls={listboxId}
+              aria-activedescendant={activeOptionId}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setActiveIndex(-1);
+              }}
+              onKeyDown={handleSearchKeyDown}
               placeholder={placeholder || "Search…"}
               aria-label="Search countries"
               className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -152,14 +203,20 @@ export function CountrySelect({
                 {!code && <Check className="size-4 shrink-0" />}
               </button>
             </li>
-            {filtered.map((o) => (
+            {filtered.map((o, index) => (
               <li key={o.code}>
                 <button
+                  id={`${listboxId}-option-${o.code}`}
                   type="button"
                   role="option"
                   aria-selected={o.code === code}
+                  tabIndex={-1}
                   onClick={() => select(o.code)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
+                  onMouseMove={() => setActiveIndex(index)}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent",
+                    activeIndex === index && "bg-accent",
+                  )}
                 >
                   <CountryFlag country={o.code} locale={locale} />
                   <span className="flex-1 truncate">{o.name}</span>
