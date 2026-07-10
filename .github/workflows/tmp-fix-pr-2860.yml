@@ -1,0 +1,118 @@
+name: Temporary fix PR 2860
+on:
+  push:
+    branches:
+      - codex/issue-2753-ta-battle-royale
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/issue-2753-ta-battle-royale
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Apply review fix and regression test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('smkc-score-app/src/lib/ta/finals-phase-manager.ts')
+          text = path.read_text()
+          replacements = [
+              (
+                  "export function getNextPhase3ResetThreshold(activeCount: number): number | null {\n  const minimumPhase3Survivors = PHASE_CONFIG.phase3.survivorsNeeded;\n  const thresholds = [...PHASE_CONFIG.phase3.lifeResetThresholds]",
+                  "export function getNextPhase3ResetThreshold(\n  activeCount: number,\n  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,\n): number | null {\n  const minimumPhase3Survivors = PHASE_CONFIG.phase3.survivorsNeeded;\n  const thresholds = [...lifeResetThresholds]",
+              ),
+              (
+                  "function getPhase3EliminationLimit(activeCount: number): number {\n  const nextThreshold = getNextPhase3ResetThreshold(activeCount);",
+                  "function getPhase3EliminationLimit(\n  activeCount: number,\n  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,\n): number {\n  const nextThreshold = getNextPhase3ResetThreshold(activeCount, lifeResetThresholds);",
+              ),
+              (
+                  "const eliminationLimit = getPhase3EliminationLimit(activePlayers.length);",
+                  "const eliminationLimit = getPhase3EliminationLimit(activePlayers.length, rules.lifeResetThresholds);",
+              ),
+              (
+                  "  activePlayers: TTEntry[] = [],\n): TieBreakDecision | null {",
+                  "  activePlayers: TTEntry[] = [],\n  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,\n): TieBreakDecision | null {",
+              ),
+              (
+                  "const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length);",
+                  "const eliminationLimit = getPhase3EliminationLimit(\n    activePlayers.length || sorted.length,\n    lifeResetThresholds,\n  );",
+              ),
+              (
+                  "const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers);",
+                  "const tieBreak = detectTieBreakRequired(\n    phase,\n    processedResults,\n    activePlayers,\n    getTaPhase3Rules(context.taBattleRoyaleMode === true).lifeResetThresholds,\n  );",
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one match, got {count}: {old[:80]!r}')
+              text = text.replace(old, new)
+          path.write_text(text)
+
+          test_path = Path('smkc-score-app/__tests__/lib/ta/battle-royale-phase-manager.test.ts')
+          test = test_path.read_text()
+          marker = "\n});\n"
+          regression = r'''
+
+  it('eliminates every zero-life loser above normal TA reset thresholds', async () => {
+    const entries = [
+      makeEntry('p1', 0, 1),
+      makeEntry('p2', 0, 1),
+      makeEntry('p3', 0, 1),
+      makeEntry('p4', 0, 1),
+      makeEntry('p5', 0, 1),
+    ];
+    const prisma = {
+      tTEntry: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce(entries)
+          .mockResolvedValueOnce([entries[0], entries[1], entries[2]]),
+        findUnique: jest.fn(({ where }) =>
+          Promise.resolve(entries.find((entry) => entry.playerId === where.tournamentId_playerId_stage.playerId)),
+        ),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await processPhase3Result(prisma as never, context, [
+      { playerId: 'p1', timeMs: 90_000 },
+      { playerId: 'p2', timeMs: 91_000 },
+      { playerId: 'p3', timeMs: 92_000 },
+      { playerId: 'p4', timeMs: 93_000 },
+      { playerId: 'p5', timeMs: 94_000 },
+    ]);
+
+    expect(result).toEqual({ eliminated: ['p4', 'p5'], livesReset: false });
+  });
+'''
+          if regression.strip() in test:
+              raise SystemExit('regression test already present')
+          if not test.endswith(marker):
+              raise SystemExit('unexpected test file ending')
+          test_path.write_text(test[:-len(marker)] + regression + marker)
+          PY
+      - name: Validate
+        working-directory: smkc-score-app
+        run: |
+          npm ci
+          npm test -- --runInBand __tests__/lib/ta/battle-royale-phase-manager.test.ts
+          npm run format:check
+      - name: Commit fix
+        run: |
+          rm .github/workflows/tmp-fix-pr-2860.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add smkc-score-app/src/lib/ta/finals-phase-manager.ts smkc-score-app/__tests__/lib/ta/battle-royale-phase-manager.test.ts .github/workflows/tmp-fix-pr-2860.yml
+          git commit -m "fix: honor battle royale elimination thresholds"
+          git push origin HEAD:codex/issue-2753-ta-battle-royale
