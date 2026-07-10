@@ -1,6 +1,11 @@
 name: Finalize qualification setup fix
 
 on:
+  push:
+    branches:
+      - codex/issue-2859-setup-error-handler
+    paths:
+      - .github/workflows/finalize-2859-fix.yml
   pull_request:
     paths:
       - .github/workflows/finalize-2859-fix.yml
