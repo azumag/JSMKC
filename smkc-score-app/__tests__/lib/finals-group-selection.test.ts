@@ -16,6 +16,17 @@ import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 
 type TestQual = { playerId: string; group: string; player: unknown; score: number; points: number };
 
+const FIXED_TWO_GROUP_DIRECT_SEEDS = [
+  [1, 'A1'], [2, 'B3'], [3, 'B1'], [4, 'A3'],
+  [5, 'B2'], [6, 'A4'], [7, 'A2'], [8, 'B4'],
+  [9, 'A5'], [11, 'B5'], [13, 'B6'], [15, 'A6'],
+] as const;
+
+const FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS = [
+  'B8', 'B7', 'A8', 'A7', 'B9', 'A11',
+  'B10', 'A12', 'A10', 'B12', 'A9', 'B11',
+] as const;
+
 /**
  * Build an ordered qualification list: grouped alphabetically, and within each group
  * ordered by rank (rank 1 first). Player ID encodes group+rank (e.g. "A1", "B7").
@@ -57,20 +68,8 @@ describe('selectFinalsEntrantsByGroup', () => {
     });
 
     it('directSeeds[] maps direct players to the handwritten Upper Bracket seeds', () => {
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [1, 'A1'],
-        [2, 'B3'],
-        [3, 'B1'],
-        [4, 'A3'],
-        [5, 'B2'],
-        [6, 'A4'],
-        [7, 'A2'],
-        [8, 'B4'],
-        [9, 'A5'],
-        [11, 'B5'],
-        [13, 'B6'],
-        [15, 'A6'],
-      ]);
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]))
+        .toEqual(FIXED_TWO_GROUP_DIRECT_SEEDS);
     });
 
     it('does not expose the redundant direct[] projection for 2 groups', () => {
@@ -93,11 +92,7 @@ describe('selectFinalsEntrantsByGroup', () => {
     });
 
     it('barrage[] is ordered by playoff seeds 1-12 for the handwritten layout', () => {
-      expect(result.barrage.map(q => q.playerId)).toEqual([
-        'B8', 'B7', 'A8', 'A7',
-        'B9', 'A11', 'B10', 'A12',
-        'A10', 'B12', 'A9', 'B11',
-      ]);
+      expect(result.barrage.map(q => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
     });
 
     it('barrage[] creates the handwritten R1-to-bye blocks with the existing playoff structure', () => {
@@ -261,25 +256,9 @@ describe('selectFinalsEntrantsByGroup', () => {
     it('2 groups A=20, B=12: each contributes Top1-6 direct, Top7-12 barrage', () => {
       const quals = buildQuals({ A: 20, B: 12 });
       const result = selectFinalsEntrantsByGroup(quals);
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [1, 'A1'],
-        [2, 'B3'],
-        [3, 'B1'],
-        [4, 'A3'],
-        [5, 'B2'],
-        [6, 'A4'],
-        [7, 'A2'],
-        [8, 'B4'],
-        [9, 'A5'],
-        [11, 'B5'],
-        [13, 'B6'],
-        [15, 'A6'],
-      ]);
-      expect(result.barrage.map(q => q.playerId)).toEqual([
-        'B8', 'B7', 'A8', 'A7',
-        'B9', 'A11', 'B10', 'A12',
-        'A10', 'B12', 'A9', 'B11',
-      ]);
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]))
+        .toEqual(FIXED_TWO_GROUP_DIRECT_SEEDS);
+      expect(result.barrage.map(q => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
     });
   });
 
@@ -309,14 +288,9 @@ describe('selectFinalsEntrantsByGroup', () => {
     };
 
     const assertFixedTwoGroupLayout = (result: ReturnType<typeof selectFinalsEntrantsByGroup>) => {
-      expect(result.directSeeds.map(({ seed, qualification }) => `${seed}:${qualification.playerId}`)).toEqual([
-        '1:A1', '2:B3', '3:B1', '4:A3', '5:B2', '6:A4',
-        '7:A2', '8:B4', '9:A5', '11:B5', '13:B6', '15:A6',
-      ]);
-      expect(result.barrage.map(({ playerId }) => playerId)).toEqual([
-        'B8', 'B7', 'A8', 'A7', 'B9', 'A11',
-        'B10', 'A12', 'A10', 'B12', 'A9', 'B11',
-      ]);
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]))
+        .toEqual(FIXED_TWO_GROUP_DIRECT_SEEDS);
+      expect(result.barrage.map(({ playerId }) => playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
     };
 
     it('keeps the fixed 2-group layout and all 2/3/4-group round-one pairs valid across random inputs', () => {
