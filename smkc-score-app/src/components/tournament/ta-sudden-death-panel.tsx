@@ -1,37 +1,16 @@
-"use client";
+'use client';
 
-import {
-  useMemo,
-  useState,
-  type Dispatch,
-  type InputHTMLAttributes,
-  type SetStateAction,
-} from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { PlayerName } from "@/components/ui/player-name";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { COURSE_INFO } from "@/lib/constants";
-import { autoFormatTime, timeToMs } from "@/lib/ta/time-utils";
-import {
-  TA_TIME_ENTRY_INPUT_CLASS,
-  TA_TIME_INPUT_HELP_CLASS,
-} from "@/lib/ta/time-entry-layout";
+import { useMemo, useState, type Dispatch, type InputHTMLAttributes, type SetStateAction } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { PlayerName } from '@/components/ui/player-name';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { COURSE_INFO } from '@/lib/constants';
+import { autoFormatTime, timeToMs } from '@/lib/ta/time-utils';
+import { TA_TIME_ENTRY_INPUT_CLASS, TA_TIME_INPUT_HELP_CLASS } from '@/lib/ta/time-entry-layout';
 
 export interface TASuddenDeathEntry {
   id: string;
@@ -95,9 +74,7 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
 
   const pendingSuddenDeathEntries = useMemo(
     () =>
-      pendingSuddenDeath
-        ? entries.filter((entry) => pendingSuddenDeath.targetPlayerIds.includes(entry.playerId))
-        : [],
+      pendingSuddenDeath ? entries.filter((entry) => pendingSuddenDeath.targetPlayerIds.includes(entry.playerId)) : [],
     [entries, pendingSuddenDeath],
   );
 
@@ -107,7 +84,7 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
 
   const handleTimeBlur = (playerId: string) => {
     const raw = times[playerId];
-    if (!raw || raw.trim() === "") return;
+    if (!raw || raw.trim() === '') return;
     const formatted = autoFormatTime(raw);
     if (formatted !== null && formatted !== raw) {
       setTime(playerId, formatted);
@@ -120,10 +97,10 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
     setSaveError(null);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: "change_sudden_death_course",
+          action: 'change_sudden_death_course',
           phase,
           suddenDeathRoundId: pendingSuddenDeath.id,
           course,
@@ -131,11 +108,11 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to change sudden-death course");
+        throw new Error(errorData.error || 'Failed to change sudden-death course');
       }
       fetchData();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to change sudden-death course");
+      setSaveError(err instanceof Error ? err.message : 'Failed to change sudden-death course');
     } finally {
       setChangingCourse(false);
     }
@@ -147,17 +124,17 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
     setSaveError(null);
     try {
       const results = pendingSuddenDeathEntries.map((entry) => {
-        const timeMs = timeToMs(times[entry.playerId] || "");
+        const timeMs = timeToMs(times[entry.playerId] || '');
         if (timeMs === null) {
           throw new Error(invalidTimeMessage(entry.player.nickname));
         }
         return { playerId: entry.playerId, timeMs };
       });
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: "submit_sudden_death",
+          action: 'submit_sudden_death',
           phase,
           suddenDeathRoundId: pendingSuddenDeath.id,
           results,
@@ -165,12 +142,12 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to submit sudden-death results");
+        throw new Error(errorData.error || 'Failed to submit sudden-death results');
       }
       setTimes({});
       fetchData();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to submit sudden-death results");
+      setSaveError(err instanceof Error ? err.message : 'Failed to submit sudden-death results');
     } finally {
       setSubmitting(false);
     }
@@ -244,15 +221,15 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
   onTimeBlur,
   onSubmit,
 }: TASuddenDeathPanelProps<Entry>) {
-  const tTaSuddenDeath = useTranslations("taSuddenDeath");
+  const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const locale = useLocale();
 
   return (
     <Card className="border-amber-500" data-testid="ta-sudden-death-panel">
       <CardHeader>
-        <CardTitle>{tTaSuddenDeath("suddenDeathTiebreak")}</CardTitle>
+        <CardTitle>{tTaSuddenDeath('suddenDeathTiebreak')}</CardTitle>
         <CardDescription>
-          {tTaSuddenDeath("suddenDeathRoundDesc", {
+          {tTaSuddenDeath('suddenDeathRoundDesc', {
             round: pendingSuddenDeath.round.roundNumber,
             sequence: pendingSuddenDeath.sequence,
           })}
@@ -265,7 +242,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
           </div>
         )}
         <div className="mb-4 space-y-1">
-          <Label className="text-sm text-muted-foreground">{tTaSuddenDeath("suddenDeathCourse")}</Label>
+          <Label className="text-sm text-muted-foreground">{tTaSuddenDeath('suddenDeathCourse')}</Label>
           <Select
             value={pendingSuddenDeath.course}
             onValueChange={onCourseChange}
@@ -298,7 +275,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
                 {...timeInputProps}
                 data-testid={`ta-sudden-death-time-${entry.playerId}`}
                 placeholder={timePlaceholder}
-                value={suddenDeathTimes[entry.playerId] || ""}
+                value={suddenDeathTimes[entry.playerId] || ''}
                 onChange={(event) => onTimeChange(entry.playerId, event.target.value)}
                 onBlur={() => onTimeBlur(entry.playerId)}
                 className={TA_TIME_ENTRY_INPUT_CLASS}
@@ -308,7 +285,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
         </div>
         <div className="mt-6 flex justify-end">
           <Button onClick={onSubmit} disabled={submittingSuddenDeath} data-testid="ta-sudden-death-submit">
-            {submittingSuddenDeath ? submittingLabel : tTaSuddenDeath("submitSuddenDeath")}
+            {submittingSuddenDeath ? submittingLabel : tTaSuddenDeath('submitSuddenDeath')}
           </Button>
         </div>
       </CardContent>

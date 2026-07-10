@@ -21,14 +21,14 @@
  * - Sticky footer with save button always visible
  * - Handles open/close logic: pre-populates existing assignments on open, resets on close
  */
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { PlayerName } from "@/components/ui/player-name";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { PlayerName } from '@/components/ui/player-name';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -37,7 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,21 +47,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  GROUPS,
-  assignGroupsBySeeding,
-  randomlyAssignGroups,
-  type SetupPlayer,
-} from "@/lib/group-utils";
+} from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { GROUPS, assignGroupsBySeeding, randomlyAssignGroups, type SetupPlayer } from '@/lib/group-utils';
 
 /**
  * Selectable group counts (docs/qualification-combined-ranking.md §7: 4+
@@ -80,10 +69,7 @@ const MIN_GROUPS: number = GROUP_COUNT_OPTIONS[0];
  * this transformation is applied so an accidental selector click cannot
  * silently overwrite an operator's visible assignment choices.
  */
-function remapToAvailableGroups<T extends { group: string }>(
-  players: T[],
-  availableGroups: readonly string[],
-): T[] {
+function remapToAvailableGroups<T extends { group: string }>(players: T[], availableGroups: readonly string[]): T[] {
   return players.map((p) =>
     availableGroups.includes(p.group) ? p : { ...p, group: availableGroups[availableGroups.length - 1] },
   );
@@ -99,11 +85,11 @@ export interface Player {
 }
 
 /* Re-export for consumers that import from here */
-export type { SetupPlayer } from "@/lib/group-utils";
+export type { SetupPlayer } from '@/lib/group-utils';
 
 interface GroupSetupDialogProps {
   /** Game mode - used to resolve mode-specific translations internally */
-  mode: "bm" | "mr" | "gp";
+  mode: 'bm' | 'mr' | 'gp';
   /** All available players from the API */
   allPlayers: Player[];
   /** Current player-group assignments (state managed by parent) */
@@ -139,10 +125,10 @@ export function GroupSetupDialog({
 }: GroupSetupDialogProps) {
   /* Resolve translations internally using mode prop - avoids props drilling */
   const t = useTranslations(mode);
-  const tc = useTranslations("common");
+  const tc = useTranslations('common');
   const locale = useLocale();
 
-  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
   const [groupCount, setGroupCount] = useState<number>(DEFAULT_GROUP_COUNT);
   const [pendingGroupCount, setPendingGroupCount] = useState<number | null>(null);
 
@@ -164,15 +150,14 @@ export function GroupSetupDialog({
        * 3-group tournament re-opens showing 3 groups selected. */
       const distinctGroupCount = new Set(existingAssignments.map((a) => a.group)).size;
       const inferredGroupCount =
-        GROUP_COUNT_OPTIONS.find((n) => n >= distinctGroupCount) ??
-        GROUP_COUNT_OPTIONS[GROUP_COUNT_OPTIONS.length - 1];
+        GROUP_COUNT_OPTIONS.find((n) => n >= distinctGroupCount) ?? GROUP_COUNT_OPTIONS[GROUP_COUNT_OPTIONS.length - 1];
       const inferredGroups = GROUPS.slice(0, inferredGroupCount) as readonly string[];
       setGroupCount(inferredGroupCount);
       setSetupPlayers(remapToAvailableGroups(existingAssignments, inferredGroups));
     } else if (!open) {
       /* Close: reset all form state */
       setSetupPlayers([]);
-      setPlayerSearchQuery("");
+      setPlayerSearchQuery('');
       setGroupCount(DEFAULT_GROUP_COUNT);
       setPendingGroupCount(null);
     }
@@ -235,32 +220,26 @@ export function GroupSetupDialog({
   const filteredPlayers = allPlayers.filter((p) => {
     if (!playerSearchQuery) return true;
     const q = playerSearchQuery.toLowerCase();
-    return (
-      p.nickname.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
-    );
+    return p.nickname.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
   });
 
   const selectedIds = new Set(setupPlayers.map((sp) => sp.playerId));
-  const allFilteredSelected =
-    filteredPlayers.length > 0 &&
-    filteredPlayers.every((p) => selectedIds.has(p.id));
+  const allFilteredSelected = filteredPlayers.length > 0 && filteredPlayers.every((p) => selectedIds.has(p.id));
 
   /* Check if all players have valid positive integer seeding */
   const allHaveSeeding =
     setupPlayers.length > 0 &&
-    setupPlayers.every(
-      (p) => typeof p.seeding === "number" && Number.isInteger(p.seeding) && p.seeding >= 1,
-    );
+    setupPlayers.every((p) => typeof p.seeding === 'number' && Number.isInteger(p.seeding) && p.seeding >= 1);
 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
           <Button
-            variant={hasExistingQualifications ? "outline" : "default"}
-            data-variant={hasExistingQualifications ? "outline" : "default"}
+            variant={hasExistingQualifications ? 'outline' : 'default'}
+            data-variant={hasExistingQualifications ? 'outline' : 'default'}
           >
-            {hasExistingQualifications ? tc("editGroups") : tc("setupGroups")}
+            {hasExistingQualifications ? tc('editGroups') : tc('setupGroups')}
           </Button>
         </DialogTrigger>
         {/*
@@ -269,15 +248,9 @@ export function GroupSetupDialog({
          */}
         <DialogContent className="w-[calc(100vw-2rem)] sm:w-[calc(100vw-4rem)] md:w-[max-content] lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-5 md:p-6">
           <DialogHeader>
-            <DialogTitle>
-              {hasExistingQualifications
-                ? t("editGroupsTitle")
-                : t("setupDialogTitle")}
-            </DialogTitle>
+            <DialogTitle>{hasExistingQualifications ? t('editGroupsTitle') : t('setupDialogTitle')}</DialogTitle>
             <DialogDescription>
-              {hasExistingQualifications
-                ? t("editGroupsDesc")
-                : t("setupDialogDesc")}
+              {hasExistingQualifications ? t('editGroupsDesc') : t('setupDialogDesc')}
             </DialogDescription>
           </DialogHeader>
 
@@ -291,9 +264,9 @@ export function GroupSetupDialog({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
               {/* Left column: Player selection with search */}
               <div className="flex flex-col min-h-0">
-                <h4 className="font-medium mb-2">{tc("player")}</h4>
+                <h4 className="font-medium mb-2">{tc('player')}</h4>
                 <Input
-                  placeholder={t("searchPlayers")}
+                  placeholder={t('searchPlayers')}
                   value={playerSearchQuery}
                   onChange={(e) => setPlayerSearchQuery(e.target.value)}
                   className="mb-2"
@@ -311,32 +284,21 @@ export function GroupSetupDialog({
                             .map((p) => ({ playerId: p.id, group: availableGroups[0] }));
                           setSetupPlayers([...setupPlayers, ...newPlayers]);
                         } else {
-                          const filteredIds = new Set(
-                            filteredPlayers.map((p) => p.id)
-                          );
-                          setSetupPlayers(
-                            setupPlayers.filter(
-                              (sp) => !filteredIds.has(sp.playerId)
-                            )
-                          );
+                          const filteredIds = new Set(filteredPlayers.map((p) => p.id));
+                          setSetupPlayers(setupPlayers.filter((sp) => !filteredIds.has(sp.playerId)));
                         }
                       }}
                       className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
                     />
-                    <Label
-                      htmlFor="select-all"
-                      className="cursor-pointer font-medium"
-                    >
-                      {t("selectAll")}
+                    <Label htmlFor="select-all" className="cursor-pointer font-medium">
+                      {t('selectAll')}
                     </Label>
                   </div>
                 )}
                 {/* Scrollable player list */}
                 <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
                   {filteredPlayers.length === 0 ? (
-                    <p className="text-muted-foreground text-sm py-2">
-                      {tc("noPlayersSelected")}
-                    </p>
+                    <p className="text-muted-foreground text-sm py-2">{tc('noPlayersSelected')}</p>
                   ) : (
                     filteredPlayers.map((player) => (
                       <div
@@ -355,10 +317,7 @@ export function GroupSetupDialog({
                           }}
                           className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
                         />
-                        <Label
-                          htmlFor={`player-${player.id}`}
-                          className="cursor-pointer flex-1"
-                        >
+                        <Label htmlFor={`player-${player.id}`} className="cursor-pointer flex-1">
                           <PlayerName
                             player={player}
                             locale={locale}
@@ -375,17 +334,15 @@ export function GroupSetupDialog({
               <div className="flex flex-col min-h-0">
                 {/* Header row: title + group count + action buttons */}
                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <h4 className="font-medium">
-                    {tc("selectedPlayers", { count: setupPlayers.length })}
-                  </h4>
+                  <h4 className="font-medium">{tc('selectedPlayers', { count: setupPlayers.length })}</h4>
                   <div className="flex-1" />
                   {/* Group count selector: 2 or 3 groups (4+ groups out of scope, docs/qualification-combined-ranking.md §7) */}
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">{tc("groupCount")}:</span>
+                    <span className="text-xs text-muted-foreground">{tc('groupCount')}:</span>
                     {GROUP_COUNT_OPTIONS.map((n) => (
                       <Button
                         key={n}
-                        variant={n === groupCount ? "default" : "outline"}
+                        variant={n === groupCount ? 'default' : 'outline'}
                         size="sm"
                         className="h-7 w-7 p-0 text-xs"
                         onClick={() => handleGroupCountChange(n)}
@@ -404,57 +361,39 @@ export function GroupSetupDialog({
                       size="sm"
                       onClick={handleAutoDistribute}
                       disabled={!allHaveSeeding}
-                      title={allHaveSeeding ? tc("autoDistributeDesc") : tc("enterSeedingFirst")}
+                      title={allHaveSeeding ? tc('autoDistributeDesc') : tc('enterSeedingFirst')}
                     >
-                      {tc("autoDistribute")}
+                      {tc('autoDistribute')}
                     </Button>
                     {/* Random assignment button - shuffle players across groups */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRandomAssign}
-                      title={tc("randomAssignDesc")}
-                    >
-                      {tc("randomAssign")}
+                    <Button variant="outline" size="sm" onClick={handleRandomAssign} title={tc('randomAssignDesc')}>
+                      {tc('randomAssign')}
                     </Button>
                   </div>
                 )}
                 {/* Scrollable selected players list */}
                 <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
                   {setupPlayers.length === 0 ? (
-                    <p className="text-muted-foreground text-sm py-4 text-center">
-                      {tc("noPlayersSelected")}
-                    </p>
+                    <p className="text-muted-foreground text-sm py-4 text-center">{tc('noPlayersSelected')}</p>
                   ) : (
                     <div className="divide-y">
                       {setupPlayers.map((sp) => {
-                        const player = allPlayers.find(
-                          (p) => p.id === sp.playerId
-                        );
+                        const player = allPlayers.find((p) => p.id === sp.playerId);
                         return (
-                          <div
-                            key={sp.playerId}
-                            className="flex items-center gap-2 px-3 py-2"
-                          >
+                          <div key={sp.playerId} className="flex items-center gap-2 px-3 py-2">
                             {/* Seeding number input: compact width for 1-2 digit numbers */}
                             <Input
                               type="number"
                               min={1}
                               placeholder="#"
-                              value={sp.seeding ?? ""}
+                              value={sp.seeding ?? ''}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 const parsed = parseInt(val, 10);
                                 /* Guard: only accept valid positive integers */
-                                const seeding = val && !Number.isNaN(parsed) && parsed >= 1
-                                  ? parsed
-                                  : undefined;
+                                const seeding = val && !Number.isNaN(parsed) && parsed >= 1 ? parsed : undefined;
                                 setSetupPlayers(
-                                  setupPlayers.map((p) =>
-                                    p.playerId === sp.playerId
-                                      ? { ...p, seeding }
-                                      : p
-                                  )
+                                  setupPlayers.map((p) => (p.playerId === sp.playerId ? { ...p, seeding } : p)),
                                 );
                               }}
                               className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
@@ -471,11 +410,7 @@ export function GroupSetupDialog({
                               value={sp.group}
                               onValueChange={(group) => {
                                 setSetupPlayers(
-                                  setupPlayers.map((p) =>
-                                    p.playerId === sp.playerId
-                                      ? { ...p, group }
-                                      : p
-                                  )
+                                  setupPlayers.map((p) => (p.playerId === sp.playerId ? { ...p, group } : p)),
                                 );
                               }}
                             >
@@ -484,7 +419,9 @@ export function GroupSetupDialog({
                               </SelectTrigger>
                               <SelectContent>
                                 {availableGroups.map((g) => (
-                                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                                  <SelectItem key={g} value={g}>
+                                    {g}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -492,12 +429,10 @@ export function GroupSetupDialog({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() =>
-                                removePlayerFromSetup(sp.playerId)
-                              }
+                              onClick={() => removePlayerFromSetup(sp.playerId)}
                               className="min-h-[44px] md:min-h-[32px]"
                             >
-                              {tc("remove")}
+                              {tc('remove')}
                             </Button>
                           </div>
                         );
@@ -513,10 +448,10 @@ export function GroupSetupDialog({
           <DialogFooter className="pt-4 border-t">
             <Button onClick={onSave} disabled={saving}>
               {saving
-                ? (tc("saving") ?? "Saving...")
+                ? (tc('saving') ?? 'Saving...')
                 : hasExistingQualifications
-                  ? tc("updateGroups")
-                  : t("createGroupsAndMatches")}
+                  ? tc('updateGroups')
+                  : t('createGroupsAndMatches')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -524,13 +459,13 @@ export function GroupSetupDialog({
       <AlertDialog open={pendingGroupCount !== null} onOpenChange={(open) => !open && setPendingGroupCount(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{tc("confirmGroupCountReductionTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>{tc("confirmGroupCountReductionDescription")}</AlertDialogDescription>
+            <AlertDialogTitle>{tc('confirmGroupCountReductionTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{tc('confirmGroupCountReductionDescription')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
+            <AlertDialogCancel>{tc('cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmGroupCountReduction}>
-              {tc("confirmGroupCountReductionAction")}
+              {tc('confirmGroupCountReductionAction')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

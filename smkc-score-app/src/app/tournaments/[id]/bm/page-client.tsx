@@ -21,30 +21,17 @@
  * - Matches show completion status and allow score entry/editing
  */
 
-"use client";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+'use client';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
-import { useState, useCallback, useEffect, useMemo } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { useSession } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -52,17 +39,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
-import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
-import { QualificationPlayoffManager } from "@/components/tournament/qualification-playoff-manager";
-import { RankCell } from "@/components/tournament/rank-cell";
-import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
-import { CombinedStandingsTable } from "@/components/tournament/combined-standings-table";
-import { PlayerName } from "@/components/ui/player-name";
-import { DebugFillButton } from "@/components/tournament/debug-fill-button";
-import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { GroupSetupDialog } from '@/components/tournament/group-setup-dialog';
+import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
+import { QualificationPlayoffManager } from '@/components/tournament/qualification-playoff-manager';
+import { RankCell } from '@/components/tournament/rank-cell';
+import { TieWarningBanner } from '@/components/tournament/tie-warning-banner';
+import { CombinedStandingsTable } from '@/components/tournament/combined-standings-table';
+import { PlayerName } from '@/components/ui/player-name';
+import { DebugFillButton } from '@/components/tournament/debug-fill-button';
+import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
@@ -71,22 +58,19 @@ import {
   computeTieAwareRanks,
   filterActiveTiedIds,
   findUnresolvedTies,
-} from "@/lib/ranking-utils";
-import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
-import { fetchAllPlayersForSetup, resolveAllPlayers } from "@/lib/qualification-page-data";
-import { usePolling } from "@/lib/hooks/usePolling";
-import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
-import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { QualificationClientLoadingState } from "@/components/ui/loading-skeleton";
-import { createLogger } from "@/lib/client-logger";
-import { parseManualScore } from "@/lib/parse-manual-score";
-import {
-  canCreateFinalsFromQualification,
-  canResetFinalsFromQualification,
-} from "@/lib/finals-action-availability";
-import { getQualificationPoints } from "@/lib/points/qualification-points";
-import type { Player } from "@/lib/types";
+} from '@/lib/ranking-utils';
+import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from '@/lib/constants';
+import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
+import { usePolling } from '@/lib/hooks/usePolling';
+import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
+import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
+import { UpdateIndicator } from '@/components/ui/update-indicator';
+import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
+import { createLogger } from '@/lib/client-logger';
+import { parseManualScore } from '@/lib/parse-manual-score';
+import { canCreateFinalsFromQualification, canResetFinalsFromQualification } from '@/lib/finals-action-availability';
+import { getQualificationPoints } from '@/lib/points/qualification-points';
+import type { Player } from '@/lib/types';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-bm' });
@@ -97,14 +81,14 @@ interface BMQualification {
   playerId: string;
   group: string;
   seeding: number | null;
-  mp: number;        // Matches played
-  wins: number;      // Match wins (3+ rounds won)
-  ties: number;      // Match ties (2-2 split)
-  losses: number;    // Match losses
+  mp: number; // Matches played
+  wins: number; // Match wins (3+ rounds won)
+  ties: number; // Match ties (2-2 split)
+  losses: number; // Match losses
   winRounds: number; // Total rounds won
   lossRounds: number; // Total rounds lost
-  points: number;    // Round differential (winRounds - lossRounds)
-  score: number;     // Match points (wins*2 + ties)
+  points: number; // Round differential (winRounds - lossRounds)
+  score: number; // Match points (wins*2 + ties)
   rankOverride: number | null; // 管理者手動順位 (null = 自動計算)
   player: Player;
 }
@@ -113,9 +97,9 @@ interface BMQualification {
 interface BMMatch {
   id: string;
   matchNumber: number;
-  roundNumber?: number;  // サークル方式のDay番号
-  isBye?: boolean;       // BREAK不戦勝マッチ
-  tvNumber?: number;     // 配信台番号
+  roundNumber?: number; // サークル方式のDay番号
+  isBye?: boolean; // BREAK不戦勝マッチ
+  tvNumber?: number; // 配信台番号
   player1Id: string;
   player2Id: string;
   player1Side: number;
@@ -154,13 +138,11 @@ export default function BattleModePageClient({
 
   /* State for group setup dialog */
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
-  const [setupPlayers, setSetupPlayers] = useState<
-    { playerId: string; group: string; seeding?: number }[]
-  >([]);
+  const [setupPlayers, setSetupPlayers] = useState<{ playerId: string; group: string; seeding?: number }[]>([]);
   const [setupSaving, setSetupSaving] = useState(false);
   /* State for match filters */
-  const [matchGroupFilter, setMatchGroupFilter] = useState<string>("all");
-  const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>("all");
+  const [matchGroupFilter, setMatchGroupFilter] = useState<string>('all');
+  const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>('all');
   /* State for score entry dialog */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
@@ -207,8 +189,13 @@ export default function BattleModePageClient({
    * from this tab and back, cached data is shown instantly without
    * a loading skeleton flash.
    */
-  const { data: pollData, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
-    fetchTournamentData, {
+  const {
+    data: pollData,
+    error: pollError,
+    lastUpdated,
+    isPolling,
+    refetch,
+  } = usePolling(fetchTournamentData, {
     interval: POLLING_INTERVAL,
     cacheKey: `tournament/${tournamentId}/bm`,
     initialData,
@@ -260,7 +247,9 @@ export default function BattleModePageClient({
       }
     }
     checkFinals();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [tournamentId]);
 
   /* Clear tvOverrides for matches where the API has caught up to the optimistic value */
@@ -269,7 +258,7 @@ export default function BattleModePageClient({
     setTvOverrides((prev) => {
       const next = { ...prev };
       let changed = false;
-      for (const match of (pollData.matches ?? [])) {
+      for (const match of pollData.matches ?? []) {
         if (match.id in next && next[match.id] === match.tvNumber) {
           delete next[match.id];
           changed = true;
@@ -281,7 +270,7 @@ export default function BattleModePageClient({
 
   /* Shared handlers for rank override, TV assignment, and broadcast reflect */
   const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
-    useQualificationActions({ tournamentId, mode: "bm", refetch });
+    useQualificationActions({ tournamentId, mode: 'bm', refetch });
 
   /**
    * Handle group setup submission.
@@ -298,8 +287,8 @@ export default function BattleModePageClient({
     setSetupSaving(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ players: setupPlayers }),
       });
 
@@ -316,7 +305,7 @@ export default function BattleModePageClient({
         alert(msg);
       }
     } catch (err) {
-      logger.error("Failed to setup:", { error: err, tournamentId });
+      logger.error('Failed to setup:', { error: err, tournamentId });
       setIsSetupDialogOpen(false);
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
@@ -369,8 +358,8 @@ export default function BattleModePageClient({
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           matchId: selectedMatch.id,
           score1: scoreForm.score1,
@@ -385,21 +374,15 @@ export default function BattleModePageClient({
         refetch();
       }
     } catch (err) {
-      logger.error("Failed to update score:", { error: err, tournamentId });
+      logger.error('Failed to update score:', { error: err, tournamentId });
     }
   };
 
-  const handleBroadcastMatch = async (
-    match: BMMatch,
-    score1: number,
-    score2: number,
-  ) =>
+  const handleBroadcastMatch = async (match: BMMatch, score1: number, score2: number) =>
     handleBroadcastReflect(match.player1.nickname, match.player2.nickname, {
       player1NoCamera: match.player1.noCamera === true,
       player2NoCamera: match.player2.noCamera === true,
-      matchLabel: match.roundNumber
-        ? `Qualification Round ${match.roundNumber}`
-        : "Qualification Round",
+      matchLabel: match.roundNumber ? `Qualification Round ${match.roundNumber}` : 'Qualification Round',
       player1Wins: score1,
       player2Wins: score2,
       matchFt: null,
@@ -445,9 +428,7 @@ export default function BattleModePageClient({
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{t('title')}</h1>
-          <p className="text-muted-foreground">
-            {t('qualificationDesc')}
-          </p>
+          <p className="text-muted-foreground">{t('qualificationDesc')}</p>
           <div className="mt-2 flex items-center gap-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
             {qualificationConfirmed && (
@@ -460,15 +441,13 @@ export default function BattleModePageClient({
         <div className="flex flex-wrap gap-2">
           {/* Player score entry link — visible to all users */}
           <Button variant="outline" asChild>
-            <a href={`/tournaments/${tournamentId}/bm/participant`}>
-              {tc('enterScore')}
-            </a>
+            <a href={`/tournaments/${tournamentId}/bm/participant`}>{tc('enterScore')}</a>
           </Button>
 
           {/* Admin-only qualification confirmation toggle */}
           {isAdmin && qualifications.length > 0 && (
             <Button
-              variant={qualificationConfirmed ? "destructive" : "outline"}
+              variant={qualificationConfirmed ? 'destructive' : 'outline'}
               onClick={handleToggleQualificationConfirmed}
             >
               {qualificationConfirmed ? tc('unconfirmQualification') : tc('confirmQualification')}
@@ -512,13 +491,10 @@ export default function BattleModePageClient({
           {/* Finals / Playoff bracket action button.
            *  - If bracket already exists: shows "View Tournament" link.
            *  - Otherwise: generates bracket (Top-24 playoff or Top-16 finals)
-           *    and then switches to the link state. */
-          }
+           *    and then switches to the link state. */}
           {finalsExists === true ? (
             <Button variant="outline" asChild>
-              <a href={`/tournaments/${tournamentId}/bm/finals`}>
-                {tc('viewTournament')}
-              </a>
+              <a href={`/tournaments/${tournamentId}/bm/finals`}>{tc('viewTournament')}</a>
             </Button>
           ) : canCreateFinals ? (
             <Button
@@ -572,14 +548,7 @@ export default function BattleModePageClient({
           )}
 
           {/* Per-mode independent publish toggle (issue #618) */}
-          {isAdmin && (
-            <ModePublishSwitch
-              tournamentId={tournamentId}
-              mode="bm"
-              modeLabelKey="battleMode"
-            />
-          )}
-
+          {isAdmin && <ModePublishSwitch tournamentId={tournamentId} mode="bm" modeLabelKey="battleMode" />}
         </div>
       </div>
 
@@ -621,7 +590,7 @@ export default function BattleModePageClient({
                       const groupEntries = qualifications.filter((q) => q.group === group);
                       const byEffectiveRank = computeTieAwareRanks(
                         groupEntries,
-                        (a, b) => b.score - a.score || b.points - a.points
+                        (a, b) => b.score - a.score || b.points - a.points,
                       );
                       const tiedIds = findUnresolvedTies(byEffectiveRank);
                       // Suppress trivial 0-0 ties: only flag players who have actually played.
@@ -670,10 +639,7 @@ export default function BattleModePageClient({
                             </TableHeader>
                             <TableBody>
                               {byEffectiveRank.map((q) => (
-                                <TableRow
-                                  key={q.id}
-                                  className={activeTiedIds.has(q.id) ? "bg-yellow-50" : undefined}
-                                >
+                                <TableRow key={q.id} className={activeTiedIds.has(q.id) ? 'bg-yellow-50' : undefined}>
                                   {/* RankCell handles amber badge display and inline admin editing */}
                                   <TableCell>
                                     <RankCell
@@ -694,9 +660,7 @@ export default function BattleModePageClient({
                                   <TableCell className="text-center">
                                     {q.points > 0 ? `+${q.points}` : q.points}
                                   </TableCell>
-                                  <TableCell className="text-center font-bold">
-                                    {q.score}
-                                  </TableCell>
+                                  <TableCell className="text-center font-bold">{q.score}</TableCell>
                                   <TableCell className="text-center font-bold">
                                     {getQualificationPoints(q.mp, q.score)}
                                   </TableCell>
@@ -770,19 +734,19 @@ export default function BattleModePageClient({
                     playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
 
                   /* Apply group filter, then player filter */
-                  let filteredMatches = matchGroupFilter === "all"
-                    ? matches
-                    : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
-                  if (matchPlayerFilter !== "all") {
+                  let filteredMatches =
+                    matchGroupFilter === 'all' ? matches : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
+                  if (matchPlayerFilter !== 'all') {
                     filteredMatches = filteredMatches.filter(
-                      (m) => m.player1Id === matchPlayerFilter || m.player2Id === matchPlayerFilter
+                      (m) => m.player1Id === matchPlayerFilter || m.player2Id === matchPlayerFilter,
                     );
                   }
 
                   /* Build list of players in the current group filter for the player dropdown */
-                  const playersInScope = matchGroupFilter === "all"
-                    ? qualifications
-                    : qualifications.filter((q) => q.group === matchGroupFilter);
+                  const playersInScope =
+                    matchGroupFilter === 'all'
+                      ? qualifications
+                      : qualifications.filter((q) => q.group === matchGroupFilter);
                   const playerOptions = playersInScope
                     .map((q) => ({ id: q.playerId, nickname: q.player.nickname }))
                     .sort((a, b) => a.nickname.localeCompare(b.nickname));
@@ -812,18 +776,24 @@ export default function BattleModePageClient({
                         {groups.length > 1 && (
                           <div className="flex gap-2 flex-wrap">
                             <Button
-                              variant={matchGroupFilter === "all" ? "default" : "outline"}
+                              variant={matchGroupFilter === 'all' ? 'default' : 'outline'}
                               size="sm"
-                              onClick={() => { setMatchGroupFilter("all"); setMatchPlayerFilter("all"); }}
+                              onClick={() => {
+                                setMatchGroupFilter('all');
+                                setMatchPlayerFilter('all');
+                              }}
                             >
                               {tc('allGroups')}
                             </Button>
                             {groups.map((g) => (
                               <Button
                                 key={g}
-                                variant={matchGroupFilter === g ? "default" : "outline"}
+                                variant={matchGroupFilter === g ? 'default' : 'outline'}
                                 size="sm"
-                                onClick={() => { setMatchGroupFilter(g); setMatchPlayerFilter("all"); }}
+                                onClick={() => {
+                                  setMatchGroupFilter(g);
+                                  setMatchPlayerFilter('all');
+                                }}
                               >
                                 {tc('groupLabel', { group: g })}
                               </Button>
@@ -839,7 +809,9 @@ export default function BattleModePageClient({
                           >
                             <option value="all">{tc('allPlayers')}</option>
                             {playerOptions.map((p) => (
-                              <option key={p.id} value={p.id}>{p.nickname}</option>
+                              <option key={p.id} value={p.id}>
+                                {p.nickname}
+                              </option>
                             ))}
                           </select>
                         )}
@@ -853,139 +825,143 @@ export default function BattleModePageClient({
                             </h3>
                           )}
                           <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-16">#</TableHead>
-                                <TableHead>{tc('player1')}</TableHead>
-                                <TableHead className="text-center w-24">{tc('score')}</TableHead>
-                                <TableHead>{tc('player2')}</TableHead>
-                                {/* TV# column for broadcast assignment */}
-                                <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
-                                <TableHead className="text-right">{tc('actions')}</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {matchesByDay[day].map((match) => (
-                                <TableRow
-                                  key={match.id}
-                                  className={match.isBye ? "opacity-50 bg-muted/30" : ""}
-                                >
-                                  <TableCell>{match.matchNumber}</TableCell>
-                                  <TableCell
-                                    className={
-                                      match.completed && match.score1 >= 3
-                                        ? "font-bold"
-                                        : ""
-                                    }
-                                  >
-                                    {match.player1.nickname}
-                                  </TableCell>
-                                  <TableCell className="text-center font-mono">
-                                    {match.isBye
-                                      ? `${match.score1} - ${match.score2}`
-                                      : match.completed
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-16">#</TableHead>
+                                  <TableHead>{tc('player1')}</TableHead>
+                                  <TableHead className="text-center w-24">{tc('score')}</TableHead>
+                                  <TableHead>{tc('player2')}</TableHead>
+                                  {/* TV# column for broadcast assignment */}
+                                  <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
+                                  <TableHead className="text-right">{tc('actions')}</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {matchesByDay[day].map((match) => (
+                                  <TableRow key={match.id} className={match.isBye ? 'opacity-50 bg-muted/30' : ''}>
+                                    <TableCell>{match.matchNumber}</TableCell>
+                                    <TableCell className={match.completed && match.score1 >= 3 ? 'font-bold' : ''}>
+                                      {match.player1.nickname}
+                                    </TableCell>
+                                    <TableCell className="text-center font-mono">
+                                      {match.isBye
                                         ? `${match.score1} - ${match.score2}`
-                                        : (() => {
-                                            /* Report status indicators for pending matches:
+                                        : match.completed
+                                          ? `${match.score1} - ${match.score2}`
+                                          : (() => {
+                                              /* Report status indicators for pending matches:
                                                - Both reported (mismatch): yellow badge with both scores
                                                - One reported: blue text with reporter's score
                                                - None reported: dash */
-                                            const p1r = match.player1ReportedScore1 != null;
-                                            const p2r = match.player2ReportedScore1 != null;
-                                            if (p1r && p2r) return (
-                                              <span className="text-xs text-yellow-600" title={tc('mismatchTooltip')}>
-                                                {match.player1ReportedScore1}-{match.player1ReportedScore2} / {match.player2ReportedScore1}-{match.player2ReportedScore2}
-                                              </span>
-                                            );
-                                            if (p1r) return <span className="text-xs text-blue-500">({match.player1ReportedScore1}-{match.player1ReportedScore2})</span>;
-                                            if (p2r) return <span className="text-xs text-blue-500">({match.player2ReportedScore1}-{match.player2ReportedScore2})</span>;
-                                            return "- - -";
-                                          })()}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      !match.isBye && match.completed && match.score2 >= 3
-                                        ? "font-bold"
-                                        : ""
-                                    }
-                                  >
-                                    {match.isBye ? tc('bye') : match.player2.nickname}
-                                  </TableCell>
-                                  {/* TV# assignment: admin can select TV number, others see read-only.
+                                              const p1r = match.player1ReportedScore1 != null;
+                                              const p2r = match.player2ReportedScore1 != null;
+                                              if (p1r && p2r)
+                                                return (
+                                                  <span
+                                                    className="text-xs text-yellow-600"
+                                                    title={tc('mismatchTooltip')}
+                                                  >
+                                                    {match.player1ReportedScore1}-{match.player1ReportedScore2} /{' '}
+                                                    {match.player2ReportedScore1}-{match.player2ReportedScore2}
+                                                  </span>
+                                                );
+                                              if (p1r)
+                                                return (
+                                                  <span className="text-xs text-blue-500">
+                                                    ({match.player1ReportedScore1}-{match.player1ReportedScore2})
+                                                  </span>
+                                                );
+                                              if (p2r)
+                                                return (
+                                                  <span className="text-xs text-blue-500">
+                                                    ({match.player2ReportedScore1}-{match.player2ReportedScore2})
+                                                  </span>
+                                                );
+                                              return '- - -';
+                                            })()}
+                                    </TableCell>
+                                    <TableCell
+                                      className={
+                                        !match.isBye && match.completed && match.score2 >= 3 ? 'font-bold' : ''
+                                      }
+                                    >
+                                      {match.isBye ? tc('bye') : match.player2.nickname}
+                                    </TableCell>
+                                    {/* TV# assignment: admin can select TV number, others see read-only.
                                       Optimistic update: local state is updated immediately; API fires in background. */}
-                                  <TableCell className="text-center">
-                                    {isAdmin && !match.isBye ? (
-                                      <select
-                                        className="w-14 h-8 text-center text-sm border rounded bg-background"
-                                        value={(match.id in tvOverrides ? tvOverrides[match.id] : match.tvNumber) ?? ""}
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          const num = val ? parseInt(val) : null;
-                                          setTvOverrides((prev) => ({ ...prev, [match.id]: num }));
-                                          handleTvAssign(match.id, num);
-                                        }}
-                                      >
-                                        <option value="">-</option>
-                                        {TV_NUMBER_OPTIONS.map((tvNumber) => (
-                                          <option key={tvNumber} value={tvNumber}>
-                                            {tvNumber}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      match.tvNumber ? `${match.tvNumber}` : "-"
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-1">
-                                    {/* Match detail link (not for BYE matches) */}
-                                    {!match.isBye && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
-                                          {tc('matchDetails')}
-                                        </a>
-                                      </Button>
-                                    )}
-                                    {/* 配信に反映: admin pushes this match's players to the overlay */}
-                                    {isAdmin && !match.isBye && (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={broadcastingMatchId === match.id}
-                                        onClick={async () => {
-                                          setBroadcastingMatchId(match.id);
-                                          try {
-                                            await handleBroadcastMatch(match, match.score1, match.score2);
-                                          } finally {
-                                            setBroadcastingMatchId(null);
+                                    <TableCell className="text-center">
+                                      {isAdmin && !match.isBye ? (
+                                        <select
+                                          className="w-14 h-8 text-center text-sm border rounded bg-background"
+                                          value={
+                                            (match.id in tvOverrides ? tvOverrides[match.id] : match.tvNumber) ?? ''
                                           }
-                                        }}
-                                      >
-                                        {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
-                                      </Button>
-                                    )}
-                                    {/* Admin-only score entry/edit button (not for BYE matches, locked when confirmed) */}
-                                    {isAdmin && !match.isBye && (
-                                      <Button
-                                        variant={match.completed ? "outline" : "default"}
-                                        size="sm"
-                                        onClick={() => openScoreDialog(match)}
-                                        disabled={qualificationConfirmed}
-                                      >
-                                        {match.completed ? tc('edit') : tc('enterScore')}
-                                      </Button>
-                                    )}
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            const num = val ? parseInt(val) : null;
+                                            setTvOverrides((prev) => ({ ...prev, [match.id]: num }));
+                                            handleTvAssign(match.id, num);
+                                          }}
+                                        >
+                                          <option value="">-</option>
+                                          {TV_NUMBER_OPTIONS.map((tvNumber) => (
+                                            <option key={tvNumber} value={tvNumber}>
+                                              {tvNumber}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : match.tvNumber ? (
+                                        `${match.tvNumber}`
+                                      ) : (
+                                        '-'
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-1">
+                                        {/* Match detail link (not for BYE matches) */}
+                                        {!match.isBye && (
+                                          <Button variant="ghost" size="sm" asChild>
+                                            <a href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
+                                              {tc('matchDetails')}
+                                            </a>
+                                          </Button>
+                                        )}
+                                        {/* 配信に反映: admin pushes this match's players to the overlay */}
+                                        {isAdmin && !match.isBye && (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={broadcastingMatchId === match.id}
+                                            onClick={async () => {
+                                              setBroadcastingMatchId(match.id);
+                                              try {
+                                                await handleBroadcastMatch(match, match.score1, match.score2);
+                                              } finally {
+                                                setBroadcastingMatchId(null);
+                                              }
+                                            }}
+                                          >
+                                            {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
+                                          </Button>
+                                        )}
+                                        {/* Admin-only score entry/edit button (not for BYE matches, locked when confirmed) */}
+                                        {isAdmin && !match.isBye && (
+                                          <Button
+                                            variant={match.completed ? 'outline' : 'default'}
+                                            size="sm"
+                                            onClick={() => openScoreDialog(match)}
+                                            disabled={qualificationConfirmed}
+                                          >
+                                            {match.completed ? tc('edit') : tc('enterScore')}
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           </div>
                         </div>
                       ))}
@@ -1006,8 +982,7 @@ export default function BattleModePageClient({
             <DialogDescription>
               {selectedMatch && (
                 <>
-                  Match #{selectedMatch.matchNumber}:{" "}
-                  {selectedMatch.player1.nickname} vs{" "}
+                  Match #{selectedMatch.matchNumber}: {selectedMatch.player1.nickname} vs{' '}
                   {selectedMatch.player2.nickname}
                 </>
               )}
@@ -1015,27 +990,39 @@ export default function BattleModePageClient({
           </DialogHeader>
           <div className="space-y-4 py-4">
             {/* §5.3 Character selection priority guidance */}
-            {selectedMatch && (() => {
-              /* Find previous completed match between the same two players */
-              const p1 = selectedMatch.player1Id;
-              const p2 = selectedMatch.player2Id;
-              const prevMatch = matches
-                .filter(m => m.completed && m.id !== selectedMatch.id &&
-                  ((m.player1Id === p1 && m.player2Id === p2) || (m.player1Id === p2 && m.player2Id === p1)))
-                .sort((a, b) => b.matchNumber - a.matchNumber)[0];
-              if (!prevMatch) {
-                return <p className="text-sm text-muted-foreground text-center">{tc('characterPriorityFirst')}</p>;
-              }
-              /* Determine who lost the previous match */
-              const p1Score = prevMatch.player1Id === p1 ? prevMatch.score1 : prevMatch.score2;
-              const p2Score = prevMatch.player1Id === p1 ? prevMatch.score2 : prevMatch.score1;
-              const loserNickname = p1Score < p2Score ? selectedMatch.player1.nickname : selectedMatch.player2.nickname;
-              return <p className="text-sm text-blue-600 text-center">{tc('characterPriority', { player: loserNickname })}</p>;
-            })()}
+            {selectedMatch &&
+              (() => {
+                /* Find previous completed match between the same two players */
+                const p1 = selectedMatch.player1Id;
+                const p2 = selectedMatch.player2Id;
+                const prevMatch = matches
+                  .filter(
+                    (m) =>
+                      m.completed &&
+                      m.id !== selectedMatch.id &&
+                      ((m.player1Id === p1 && m.player2Id === p2) || (m.player1Id === p2 && m.player2Id === p1)),
+                  )
+                  .sort((a, b) => b.matchNumber - a.matchNumber)[0];
+                if (!prevMatch) {
+                  return <p className="text-sm text-muted-foreground text-center">{tc('characterPriorityFirst')}</p>;
+                }
+                /* Determine who lost the previous match */
+                const p1Score = prevMatch.player1Id === p1 ? prevMatch.score1 : prevMatch.score2;
+                const p2Score = prevMatch.player1Id === p1 ? prevMatch.score2 : prevMatch.score1;
+                const loserNickname =
+                  p1Score < p2Score ? selectedMatch.player1.nickname : selectedMatch.player2.nickname;
+                return (
+                  <p className="text-sm text-blue-600 text-center">
+                    {tc('characterPriority', { player: loserNickname })}
+                  </p>
+                );
+              })()}
             <div className="flex flex-wrap items-center justify-center gap-4">
               {/* Player 1 score input */}
               <div className="text-center min-w-0 max-w-[140px]">
-                <Label htmlFor={`bm-score1-${selectedMatch?.id}`} className="block truncate w-full">{selectedMatch?.player1.nickname}</Label>
+                <Label htmlFor={`bm-score1-${selectedMatch?.id}`} className="block truncate w-full">
+                  {selectedMatch?.player1.nickname}
+                </Label>
                 <Input
                   id={`bm-score1-${selectedMatch?.id}`}
                   type="number"
@@ -1055,10 +1042,14 @@ export default function BattleModePageClient({
                   aria-label={`${selectedMatch?.player1.nickname} score`}
                 />
               </div>
-              <span className="text-2xl" aria-hidden="true">-</span>
+              <span className="text-2xl" aria-hidden="true">
+                -
+              </span>
               {/* Player 2 score input */}
               <div className="text-center min-w-0 max-w-[140px]">
-                <Label htmlFor={`bm-score2-${selectedMatch?.id}`} className="block truncate w-full">{selectedMatch?.player2.nickname}</Label>
+                <Label htmlFor={`bm-score2-${selectedMatch?.id}`} className="block truncate w-full">
+                  {selectedMatch?.player2.nickname}
+                </Label>
                 <Input
                   id={`bm-score2-${selectedMatch?.id}`}
                   type="number"
@@ -1077,16 +1068,15 @@ export default function BattleModePageClient({
             </div>
             {/* Validation warning when total rounds > 4.
                Always rendered to reserve vertical space and prevent layout shift. */}
-            <p className={`text-sm text-center ${(scoreForm.score1 + scoreForm.score2 !== 4 && !(scoreForm.score1 === 0 && scoreForm.score2 === 0)) ? 'text-yellow-600' : 'invisible'}`}>
+            <p
+              className={`text-sm text-center ${scoreForm.score1 + scoreForm.score2 !== 4 && !(scoreForm.score1 === 0 && scoreForm.score2 === 0) ? 'text-yellow-600' : 'invisible'}`}
+            >
               {tc('totalRoundsMustBe4Or0')}
             </p>
           </div>
           <DialogFooter>
             <div className="flex w-full justify-between">
-              <Button
-                variant="outline"
-                onClick={() => setScoreForm({ score1: 0, score2: 0 })}
-              >
+              <Button variant="outline" onClick={() => setScoreForm({ score1: 0, score2: 0 })}>
                 {tc('clearScores')}
               </Button>
               <div className="flex gap-2">

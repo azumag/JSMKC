@@ -21,18 +21,18 @@
  * - Proper role and tabIndex attributes
  */
 
-"use client";
+'use client';
 
-import { useLocale, useTranslations } from "next-intl";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PlayerName } from "@/components/ui/player-name";
-import { cn } from "@/lib/utils";
-import { TV_NUMBER_OPTIONS } from "@/lib/constants";
-import { resolveBracketWinnerFlags, type BracketWinnerResolver } from "@/lib/bracket-winner-flags";
+import { useLocale, useTranslations } from 'next-intl';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { PlayerName } from '@/components/ui/player-name';
+import { cn } from '@/lib/utils';
+import { TV_NUMBER_OPTIONS } from '@/lib/constants';
+import { resolveBracketWinnerFlags, type BracketWinnerResolver } from '@/lib/bracket-winner-flags';
 
-import type { Player } from "@/lib/types";
-import type { BracketMatch, SeededPlayer } from "@/types/bracket";
+import type { Player } from '@/lib/types';
+import type { BracketMatch, SeededPlayer } from '@/types/bracket';
 
 /** BM match data from the database including player relations */
 interface BMMatch {
@@ -106,7 +106,7 @@ function MatchCard<TMatch extends BMMatch>({
   getWinnerId?: BracketWinnerResolver<TMatch>;
   onTvNumberChange?: (match: TMatch, tvNumber: number | null) => void;
 }) {
-  const tc = useTranslations("common");
+  const tc = useTranslations('common');
   const locale = useLocale();
   /* Look up seeded players for displaying names and qualification rank labels. */
   const seededEntry1 = bracketMatch.player1Seed
@@ -130,8 +130,7 @@ function MatchCard<TMatch extends BMMatch>({
    * For later rounds, show "TBD" only for the specific slot that hasn't been
    * filled yet by a routing event from a completed prior match (issue #669).
    */
-  const isFirstRound =
-    bracketMatch.round === "winners_r1" || bracketMatch.round === "winners_qf";
+  const isFirstRound = bracketMatch.round === 'winners_r1' || bracketMatch.round === 'winners_qf';
   const showTBD1 = !isFirstRound && isTBD.player1;
   const showTBD2 = !isFirstRound && isTBD.player2;
 
@@ -141,15 +140,15 @@ function MatchCard<TMatch extends BMMatch>({
   return (
     <div
       className={cn(
-        "border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary",
-        match?.completed && "border-green-500/50",
-        isTV1 && "bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700"
+        'border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+        match?.completed && 'border-green-500/50',
+        isTV1 && 'bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700',
       )}
       onClick={onClick}
       role="button"
       tabIndex={0}
       data-testid="bracket-match-card"
-      aria-label={`Match ${bracketMatch.matchNumber}: ${showTBD1 ? tc('tbd') : player1?.nickname || tc('tbd')} vs ${showTBD2 ? tc('tbd') : player2?.nickname || tc('tbd')}${(showTBD1 || showTBD2) ? ' (Pending)' : ''}`}
+      aria-label={`Match ${bracketMatch.matchNumber}: ${showTBD1 ? tc('tbd') : player1?.nickname || tc('tbd')} vs ${showTBD2 ? tc('tbd') : player2?.nickname || tc('tbd')}${showTBD1 || showTBD2 ? ' (Pending)' : ''}`}
       onKeyDown={(e) => {
         /* Support keyboard activation for accessibility */
         if (e.key === 'Enter' || e.key === ' ') {
@@ -169,19 +168,21 @@ function MatchCard<TMatch extends BMMatch>({
         <span>M{bracketMatch.matchNumber}</span>
         {onTvNumberChange && match ? (
           <select
-            value={match.tvNumber ?? ""}
+            value={match.tvNumber ?? ''}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
               e.stopPropagation();
               const v = e.target.value;
-              onTvNumberChange(match, v === "" ? null : parseInt(v, 10));
+              onTvNumberChange(match, v === '' ? null : parseInt(v, 10));
             }}
             className="text-blue-500 bg-transparent border border-input rounded px-1 py-0.5 text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
-            aria-label={tc("tvNumber")}
+            aria-label={tc('tvNumber')}
           >
-            <option value="">{tc("tvNumber")}</option>
+            <option value="">{tc('tvNumber')}</option>
             {TV_NUMBER_OPTIONS.map((n) => (
-              <option key={n} value={n}>TV{n}</option>
+              <option key={n} value={n}>
+                TV{n}
+              </option>
             ))}
           </select>
         ) : (
@@ -192,53 +193,41 @@ function MatchCard<TMatch extends BMMatch>({
       {/* Player 1 row with optional seed number and score */}
       <div
         className={cn(
-          "flex justify-between items-center py-1 px-2 rounded",
-          isWinner1 && "bg-primary/10 font-bold border-l-2 border-l-primary"
+          'flex justify-between items-center py-1 px-2 rounded',
+          isWinner1 && 'bg-primary/10 font-bold border-l-2 border-l-primary',
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player1Seed && (
-            <span className="text-xs text-muted-foreground">
-              [{seedLabel1}]
-            </span>
-          )}
+          {bracketMatch.player1Seed && <span className="text-xs text-muted-foreground">[{seedLabel1}]</span>}
           <PlayerName
             player={player1}
             locale={locale}
             forceFallback={showTBD1}
-            fallback={tc("tbd")}
+            fallback={tc('tbd')}
             className="gap-1"
           />
         </span>
-        <span className="font-mono">
-          {match?.completed ? match.score1 : "-"}
-        </span>
+        <span className="font-mono">{match?.completed ? match.score1 : '-'}</span>
       </div>
 
       {/* Player 2 row with optional seed number and score */}
       <div
         className={cn(
-          "flex justify-between items-center py-1 px-2 rounded",
-          isWinner2 && "bg-primary/10 font-bold border-l-2 border-l-primary"
+          'flex justify-between items-center py-1 px-2 rounded',
+          isWinner2 && 'bg-primary/10 font-bold border-l-2 border-l-primary',
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player2Seed && (
-            <span className="text-xs text-muted-foreground">
-              [{seedLabel2}]
-            </span>
-          )}
+          {bracketMatch.player2Seed && <span className="text-xs text-muted-foreground">[{seedLabel2}]</span>}
           <PlayerName
             player={player2}
             locale={locale}
             forceFallback={showTBD2}
-            fallback={tc("tbd")}
+            fallback={tc('tbd')}
             className="gap-1"
           />
         </span>
-        <span className="font-mono">
-          {match?.completed ? match.score2 : "-"}
-        </span>
+        <span className="font-mono">{match?.completed ? match.score2 : '-'}</span>
       </div>
     </div>
   );
@@ -258,18 +247,18 @@ function MatchCard<TMatch extends BMMatch>({
 function BracketSection({
   title,
   children,
-  variant = "default",
+  variant = 'default',
 }: {
   title: string;
   children: React.ReactNode;
-  variant?: "default" | "losers" | "final";
+  variant?: 'default' | 'losers' | 'final';
 }) {
-  const tf = useTranslations("finals");
+  const tf = useTranslations('finals');
   return (
     <Card
       className={cn(
-        variant === "losers" && "border-orange-500/30",
-        variant === "final" && "border-accent/70 bg-accent/5"
+        variant === 'losers' && 'border-orange-500/30',
+        variant === 'final' && 'border-accent/70 bg-accent/5',
       )}
       aria-label={`${title} Bracket`}
     >
@@ -277,14 +266,14 @@ function BracketSection({
         <CardTitle className="text-lg flex items-center gap-2">
           {title}
           {/* Badge indicators for losers and final brackets */}
-          {variant === "losers" && (
+          {variant === 'losers' && (
             <Badge variant="outline" className="text-orange-500 border-orange-500">
-              {tf("losersBadge")}
+              {tf('losersBadge')}
             </Badge>
           )}
-          {variant === "final" && (
+          {variant === 'final' && (
             <Badge variant="flag-draft" className="">
-              {tf("grandFinalBadge")}
+              {tf('grandFinalBadge')}
             </Badge>
           )}
         </CardTitle>
@@ -296,12 +285,12 @@ function BracketSection({
 
 /** Displays a round name with the assigned starting course below it. */
 function RoundHeader({ label, course }: { label: string; course: number | null }) {
-  const tf = useTranslations("finals");
+  const tf = useTranslations('finals');
   return (
     <div>
       <h4 className="text-sm font-medium text-muted-foreground">{label}</h4>
       {course != null && (
-        <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: course })}</p>
+        <p className="text-xs font-semibold text-blue-500">{tf('battleCourse', { number: course })}</p>
       )}
     </div>
   );
@@ -325,14 +314,12 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
   getWinnerId,
   onTvNumberChange,
 }: DoubleEliminationBracketProps<TMatch>) {
-  const tf = useTranslations("finals");
+  const tf = useTranslations('finals');
   /** Look up a match by its bracket match number */
-  const getMatch = (matchNumber: number) =>
-    matches.find((m) => m.matchNumber === matchNumber);
+  const getMatch = (matchNumber: number) => matches.find((m) => m.matchNumber === matchNumber);
 
   /** Look up a bracket position by match number */
-  const getBracketMatch = (matchNumber: number) =>
-    bracketStructure.find((b) => b.matchNumber === matchNumber);
+  const getBracketMatch = (matchNumber: number) => bracketStructure.find((b) => b.matchNumber === matchNumber);
 
   /**
    * Reverse routing map: `${matchNumber}-${slot}` → source match number.
@@ -369,7 +356,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
     if (!match) return { player1: true, player2: true };
     const bracket = getBracketMatch(matchNumber);
     /* First-round seeded matches always have real players */
-    if (bracket?.round === "winners_qf" || bracket?.round === "winners_r1") {
+    if (bracket?.round === 'winners_qf' || bracket?.round === 'winners_r1') {
       return { player1: false, player2: false };
     }
     if (match.completed) return { player1: false, player2: false };
@@ -397,24 +384,20 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
     matches.find((m) => m.round === round && m.startingCourseNumber != null)?.startingCourseNumber ?? null;
 
   /* Group bracket positions by round for organized display */
-  const winnersR1 = bracketStructure.filter((b) => b.round === "winners_r1");
-  const winnersQF = bracketStructure.filter((b) => b.round === "winners_qf");
-  const winnersSF = bracketStructure.filter((b) => b.round === "winners_sf");
-  const winnersFinal = bracketStructure.filter(
-    (b) => b.round === "winners_final"
-  );
+  const winnersR1 = bracketStructure.filter((b) => b.round === 'winners_r1');
+  const winnersQF = bracketStructure.filter((b) => b.round === 'winners_qf');
+  const winnersSF = bracketStructure.filter((b) => b.round === 'winners_sf');
+  const winnersFinal = bracketStructure.filter((b) => b.round === 'winners_final');
 
-  const losersR1 = bracketStructure.filter((b) => b.round === "losers_r1");
-  const losersR2 = bracketStructure.filter((b) => b.round === "losers_r2");
-  const losersR3 = bracketStructure.filter((b) => b.round === "losers_r3");
-  const losersR4 = bracketStructure.filter((b) => b.round === "losers_r4");
-  const losersSF = bracketStructure.filter((b) => b.round === "losers_sf");
-  const losersFinal = bracketStructure.filter((b) => b.round === "losers_final");
+  const losersR1 = bracketStructure.filter((b) => b.round === 'losers_r1');
+  const losersR2 = bracketStructure.filter((b) => b.round === 'losers_r2');
+  const losersR3 = bracketStructure.filter((b) => b.round === 'losers_r3');
+  const losersR4 = bracketStructure.filter((b) => b.round === 'losers_r4');
+  const losersSF = bracketStructure.filter((b) => b.round === 'losers_sf');
+  const losersFinal = bracketStructure.filter((b) => b.round === 'losers_final');
 
-  const grandFinal = bracketStructure.filter((b) => b.round === "grand_final");
-  const grandFinalReset = bracketStructure.filter(
-    (b) => b.round === "grand_final_reset"
-  );
+  const grandFinal = bracketStructure.filter((b) => b.round === 'grand_final');
+  const grandFinalReset = bracketStructure.filter((b) => b.round === 'grand_final_reset');
 
   /* Detect bracket size: 16-player has winners_r1, 8-player doesn't */
   const is16Player = winnersR1.length > 0;
@@ -422,7 +405,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
   return (
     <div className="space-y-6" role="region" aria-live="polite" aria-atomic="false">
       {/* Winners Bracket - Players with no losses */}
-      <BracketSection title={tf("winnersSection")}>
+      <BracketSection title={tf('winnersSection')}>
         {/* overflow-x-auto stays on at every breakpoint: 16-player brackets have
          * five round columns (R1 → QF → SF → Final + gaps) that routinely exceed
          * the container width on desktop. Without horizontal scrolling here the
@@ -431,7 +414,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
           {/* Round 1 - Only in 16-player brackets */}
           {is16Player && (
             <div className="space-y-2">
-              <RoundHeader label={tf("roundOne")} course={getCourseForRound("winners_r1")} />
+              <RoundHeader label={tf('roundOne')} course={getCourseForRound('winners_r1')} />
               <div className="flex flex-col gap-2">
                 {winnersR1.map((b) => (
                   <MatchCard
@@ -455,7 +438,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
 
           {/* Quarter Finals */}
           <div className="space-y-2">
-            <RoundHeader label={tf("quarterFinals")} course={getCourseForRound("winners_qf")} />
+            <RoundHeader label={tf('quarterFinals')} course={getCourseForRound('winners_qf')} />
             <div className="flex flex-col gap-2">
               {winnersQF.map((b) => (
                 <MatchCard
@@ -478,7 +461,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
 
           {/* Semi Finals - Winners of QF matches */}
           <div className="space-y-2">
-            <RoundHeader label={tf("semiFinals")} course={getCourseForRound("winners_sf")} />
+            <RoundHeader label={tf('semiFinals')} course={getCourseForRound('winners_sf')} />
             <div className="flex flex-col gap-2 justify-center h-full">
               {winnersSF.map((b) => (
                 <MatchCard
@@ -501,7 +484,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
 
           {/* Winners Final - Winner proceeds to Grand Final undefeated */}
           <div className="space-y-2">
-            <RoundHeader label={tf("bracketFinalRound")} course={getCourseForRound("winners_final")} />
+            <RoundHeader label={tf('bracketFinalRound')} course={getCourseForRound('winners_final')} />
             <div className="flex flex-col gap-2 justify-center h-full">
               {winnersFinal.map((b) => (
                 <MatchCard
@@ -525,14 +508,14 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
       </BracketSection>
 
       {/* Losers Bracket - Players with one loss get a second chance */}
-      <BracketSection title={tf("losersSection")} variant="losers">
+      <BracketSection title={tf('losersSection')} variant="losers">
         {/* See Winners Bracket above: horizontal scrolling must stay enabled on
          * desktop so wide 16-player losers brackets (up to 6 round columns) can
          * scroll instead of overflowing the containing pane (issue #424). */}
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Losers Round 1 - First matchups of eliminated players */}
           <div className="space-y-2">
-            <RoundHeader label={tf("roundOne")} course={getCourseForRound("losers_r1")} />
+            <RoundHeader label={tf('roundOne')} course={getCourseForRound('losers_r1')} />
             <div className="flex flex-col gap-2">
               {losersR1.map((b) => (
                 <MatchCard
@@ -555,7 +538,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
 
           {/* Losers Round 2 */}
           <div className="space-y-2">
-            <RoundHeader label={tf("roundTwo")} course={getCourseForRound("losers_r2")} />
+            <RoundHeader label={tf('roundTwo')} course={getCourseForRound('losers_r2')} />
             <div className="flex flex-col gap-2">
               {losersR2.map((b) => (
                 <MatchCard
@@ -578,7 +561,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
 
           {/* Losers Round 3 */}
           <div className="space-y-2">
-            <RoundHeader label={tf("roundThree")} course={getCourseForRound("losers_r3")} />
+            <RoundHeader label={tf('roundThree')} course={getCourseForRound('losers_r3')} />
             <div className="flex flex-col gap-2">
               {losersR3.map((b) => (
                 <MatchCard
@@ -602,7 +585,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
           {/* Losers Round 4 - Only in 16-player brackets */}
           {losersR4.length > 0 && (
             <div className="space-y-2">
-              <RoundHeader label={tf("roundFour")} course={getCourseForRound("losers_r4")} />
+              <RoundHeader label={tf('roundFour')} course={getCourseForRound('losers_r4')} />
               <div className="flex flex-col gap-2">
                 {losersR4.map((b) => (
                   <MatchCard
@@ -626,7 +609,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
 
           {/* Losers Semi Final */}
           <div className="space-y-2">
-            <RoundHeader label={tf("semiFinals")} course={getCourseForRound("losers_sf")} />
+            <RoundHeader label={tf('semiFinals')} course={getCourseForRound('losers_sf')} />
             <div className="flex flex-col gap-2">
               {losersSF.map((b) => (
                 <MatchCard
@@ -649,7 +632,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
 
           {/* Losers Final - Winner advances to Grand Final */}
           <div className="space-y-2">
-            <RoundHeader label={tf("bracketFinalRound")} course={getCourseForRound("losers_final")} />
+            <RoundHeader label={tf('bracketFinalRound')} course={getCourseForRound('losers_final')} />
             <div className="flex flex-col gap-2">
               {losersFinal.map((b) => (
                 <MatchCard
@@ -673,13 +656,13 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
       </BracketSection>
 
       {/* Grand Final - Winners champion vs Losers champion */}
-      <BracketSection title={tf("grandFinalSection")} variant="final">
+      <BracketSection title={tf('grandFinalSection')} variant="final">
         {/* Kept consistent with Winners/Losers sections for predictable layout
          * behaviour across all bracket sections (issue #424). */}
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Grand Final match */}
           <div className="space-y-2">
-            <RoundHeader label={tf("grandFinalMatch")} course={getCourseForRound("grand_final")} />
+            <RoundHeader label={tf('grandFinalMatch')} course={getCourseForRound('grand_final')} />
             {grandFinal.map((b) => (
               <MatchCard
                 key={b.matchNumber}
@@ -704,7 +687,7 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
            * In true double elimination, both players must lose to be eliminated.
            */}
           <div className="space-y-2">
-            <RoundHeader label={tf("resetMatchLabel")} course={getCourseForRound("grand_final_reset")} />
+            <RoundHeader label={tf('resetMatchLabel')} course={getCourseForRound('grand_final_reset')} />
             {grandFinalReset.map((b) => (
               <MatchCard
                 key={b.matchNumber}

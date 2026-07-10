@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
-import { CountryFlag } from "@/components/ui/country-flag";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { CountryFlag } from '@/components/ui/country-flag';
+import { cn } from '@/lib/utils';
 
 interface PlayerNamePlayer {
   nickname?: string | null;
@@ -34,9 +34,9 @@ export function PlayerName({
   const showFallback = forceFallback || !player?.nickname;
 
   return (
-    <span className={cn("inline-flex items-center gap-1.5 min-w-0", className)}>
+    <span className={cn('inline-flex items-center gap-1.5 min-w-0', className)}>
       {!showFallback && <CountryFlag country={player.country} locale={locale} />}
-      <span className={cn("truncate", showFallback && "text-muted-foreground", nameClassName)}>
+      <span className={cn('truncate', showFallback && 'text-muted-foreground', nameClassName)}>
         {showFallback ? fallback : (displayName ?? player.nickname)}
       </span>
     </span>
