@@ -2453,6 +2453,25 @@ describe("TA Finals Phase Manager", () => {
       expect(mockPrismaClient.tTEntry.deleteMany).not.toHaveBeenCalled();
     });
 
+    it("re-checks the later-phase guard immediately before deletion", async () => {
+      mockPrismaClient.tTEntry.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ stage: "phase2" });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        makeResetEntry("p1", "Alice"),
+      ]);
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([{ id: "r1" }]);
+
+      await expect(resetPhase(mockPrismaClient as never, context, "phase1")).rejects.toThrow(
+        PhaseResetConflictError
+      );
+
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledTimes(2);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrismaClient.tTPhaseRound.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrismaClient.tTEntry.deleteMany).not.toHaveBeenCalled();
+    });
+
     it("allows resetting phase3 without a later-phase guard query", async () => {
       mockPrismaClient.tTEntry.findMany.mockResolvedValue([makeResetEntry("p1", "Alice")]);
       mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
