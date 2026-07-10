@@ -6,9 +6,6 @@ on:
       - codex/issue-2859-setup-error-handler
     paths:
       - .github/workflows/finalize-2859-fix.yml
-  pull_request:
-    paths:
-      - .github/workflows/finalize-2859-fix.yml
 
 permissions:
   contents: write
@@ -22,56 +19,13 @@ jobs:
           ref: codex/issue-2859-setup-error-handler
           fetch-depth: 0
 
-      - name: Merge latest main and resolve the i18n guard
+      - name: Merge latest main
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          set +e
-          git merge --no-edit origin/main
-          merge_status=$?
-          set -e
-          if [ "$merge_status" -ne 0 ]; then
-            cat > smkc-score-app/__tests__/static/qualification-i18n-fallbacks.test.ts <<'EOF'
-          import fs from 'node:fs';
-          import path from 'node:path';
-
-          describe('qualification page i18n errors', () => {
-            const setupHook = fs.readFileSync(
-              path.join(process.cwd(), 'src', 'lib', 'hooks', 'useQualificationSetup.ts'),
-              'utf8',
-            );
-
-            it('keeps setup error fallbacks in the typed common message catalog', () => {
-              const networkErrorTranslation = /message:\s*tc\s*\(\s*(['"])networkError\1\s*\)/;
-              const setupFallbackTranslation =
-                /tc\s*\(\s*isValidation\s*\?\s*(['"])setupValidationError\1\s*:\s*(['"])setupServerError\2\s*\)/;
-
-              expect(setupHook).toMatch(networkErrorTranslation);
-              expect(setupHook).toMatch(setupFallbackTranslation);
-              expect(setupHook).not.toContain('Network error — please try again');
-            });
-
-            it.each(['bm', 'mr', 'gp'])('%s keeps other qualification errors localized', (mode) => {
-              const source = fs.readFileSync(
-                path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', mode, 'page-client.tsx'),
-                'utf8',
-              );
-
-              const failedGenerateBracketTranslation = /tc\s*\(\s*(['"])failedGenerateBracket\1\s*\)/;
-              const networkErrorAlert = /alert\s*\(\s*tc\s*\(\s*(['"])networkError\1\s*\)\s*\)/;
-
-              expect(source).toMatch(failedGenerateBracketTranslation);
-              expect(source).not.toMatch(networkErrorAlert);
-              expect(source).not.toContain('Network error — please try again');
-            });
-          });
-          EOF
-            sed -i 's/^          //' smkc-score-app/__tests__/static/qualification-i18n-fallbacks.test.ts
-            git add smkc-score-app/__tests__/static/qualification-i18n-fallbacks.test.ts
-            git commit --no-edit
-          fi
+          git merge -X ours --no-edit origin/main
 
       - name: Fix generated test and remove temporary files
         shell: bash
@@ -85,7 +39,6 @@ jobs:
           if not text.endswith(suffix):
               raise SystemExit('unexpected test file ending')
           path.write_text(text.removesuffix("\n});\n"), encoding='utf-8')
-
           Path('.github/apply-2859-prettier.log').unlink(missing_ok=True)
           Path('.github/workflows/finalize-2859-fix.yml').unlink(missing_ok=True)
           PY
