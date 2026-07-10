@@ -1,0 +1,26 @@
+name: Export follow-up source
+
+on:
+  push:
+    branches:
+      - codex/resolve-ta-battle-royale-followups
+    paths:
+      - .github/workflows/export-followup-source.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source archive
+        run: |
+          tar --exclude=.git --exclude=node_modules -czf jsmkc-followup-source.tar.gz .
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: jsmkc-followup-source
+          path: jsmkc-followup-source.tar.gz
+          retention-days: 1
