@@ -49,6 +49,8 @@ import { extractArrayData, extractPaginationMeta, type PaginationMeta } from '@/
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { getTournamentUrlIdentifier } from '@/lib/tournament-identifier';
+import { TaModeSelector } from '@/components/tournament/ta-mode-selector';
+import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-list' });
@@ -66,6 +68,8 @@ interface Tournament {
   date: string;
   status: string;
   publicModes: string[];
+  taBattleRoyaleMode?: boolean;
+  taMode?: 'standard' | 'battle_royale';
   createdAt: string;
 }
 
@@ -106,6 +110,7 @@ export default function TournamentsPage() {
   });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBattleRoyaleConfirmOpen, setIsBattleRoyaleConfirmOpen] = useState(false);
   // Ref guards against two rapid form-submits racing before the first re-render.
   const isSubmittingRef = useRef(false);
 
@@ -154,8 +159,7 @@ export default function TournamentsPage() {
    * Handles new tournament creation form submission.
    * On success, resets the form, closes the dialog, and refreshes the list.
    */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const createTournament = async () => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setError('');
@@ -178,6 +182,7 @@ export default function TournamentsPage() {
           taBattleRoyaleMode: false,
           debugMode: false,
         });
+        setIsBattleRoyaleConfirmOpen(false);
         setIsAddDialogOpen(false);
         if (currentPage === 1) {
           fetchTournaments();
@@ -195,6 +200,15 @@ export default function TournamentsPage() {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (formData.taBattleRoyaleMode) {
+      setIsBattleRoyaleConfirmOpen(true);
+      return;
+    }
+    void createTournament();
   };
 
   /**
@@ -372,17 +386,14 @@ export default function TournamentsPage() {
                       {t('taPlayerSelfEdit')}
                     </Label>
                   </div>
-                  <div className="flex items-center gap-3 pt-2">
-                    <input
-                      id="taBattleRoyaleMode"
-                      type="checkbox"
-                      checked={formData.taBattleRoyaleMode}
-                      onChange={(e) => setFormData({ ...formData, taBattleRoyaleMode: e.target.checked })}
-                      className="h-4 w-4 rounded border-gray-300"
+                  <div className="space-y-2 pt-2">
+                    <Label>{t('taBattleRoyaleMode')}</Label>
+                    <TaModeSelector
+                      value={formData.taBattleRoyaleMode ? 'battle_royale' : 'standard'}
+                      onValueChange={(mode) =>
+                        setFormData({ ...formData, taBattleRoyaleMode: mode === 'battle_royale' })
+                      }
                     />
-                    <Label htmlFor="taBattleRoyaleMode" className="text-sm font-normal cursor-pointer">
-                      {t('taBattleRoyaleMode')}
-                    </Label>
                   </div>
                   <div className="flex items-center gap-3 pt-2">
                     <input
@@ -406,6 +417,31 @@ export default function TournamentsPage() {
             </DialogContent>
           </Dialog>
         )}
+        <Dialog open={isBattleRoyaleConfirmOpen} onOpenChange={setIsBattleRoyaleConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('confirmBattleRoyaleTitle')}</DialogTitle>
+              <DialogDescription>{t('confirmBattleRoyaleDescription')}</DialogDescription>
+            </DialogHeader>
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <TaModeBadge mode="battle_royale" verbose />
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>{t('battleRoyaleRuleAllPhase3')}</li>
+                <li>{t('battleRoyaleRuleLives')}</li>
+                <li>{t('battleRoyaleRuleHandicap')}</li>
+                <li>{t('battleRoyaleRuleLocked')}</li>
+              </ul>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsBattleRoyaleConfirmOpen(false)} disabled={isSubmitting}>
+                {tc('cancel')}
+              </Button>
+              <Button onClick={() => void createTournament()} disabled={isSubmitting}>
+                {isSubmitting ? t('creating') : t('confirmAndCreate')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </header>
 
       {/* Tournament list — editorial table with flag-coded left rules */}
@@ -457,6 +493,16 @@ export default function TournamentsPage() {
                         >
                           {tournament.name}
                         </Link>
+                        <span className="ml-2 inline-flex">
+                          <TaModeBadge
+                            mode={
+                              tournament.taMode === 'battle_royale' || tournament.taBattleRoyaleMode
+                                ? 'battle_royale'
+                                : 'standard'
+                            }
+                            verbose={false}
+                          />
+                        </span>
                       </TableCell>
                       <TableCell className="font-mono tabular text-sm text-muted-foreground">
                         {new Date(tournament.date).toLocaleDateString()}

@@ -28,6 +28,7 @@ function makeEntry(playerId: string, handicap = 0, lives = 10) {
     times: {},
     totalTime: null,
     rank: null,
+    taHandicapSeconds: handicap,
     player: { nickname: playerId, taHandicapSeconds: handicap },
   };
 }

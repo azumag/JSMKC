@@ -153,6 +153,9 @@ export async function POST(request: NextRequest) {
     if (!name || !date) {
       return handleValidationError('Name and date are required');
     }
+    if (taBattleRoyaleMode !== undefined && typeof taBattleRoyaleMode !== 'boolean') {
+      return handleValidationError('taBattleRoyaleMode must be a boolean', 'taBattleRoyaleMode');
+    }
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
       return handleValidationError('Slug must contain only lowercase letters, numbers, and hyphens', 'slug');
@@ -192,6 +195,7 @@ export async function POST(request: NextRequest) {
           slug,
           date,
           debugMode: debugMode === true,
+          taBattleRoyaleMode: taBattleRoyaleMode === true,
         },
       }).catch((err) =>
         logger.warn('Failed to create audit log', {

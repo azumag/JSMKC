@@ -16,23 +16,24 @@
  * participants access these pages via their player session and don't need
  * the full tournament admin interface.
  */
-"use client";
+'use client';
 
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
-import { useState, useEffect, useCallback, use } from "react";
-import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ExportButton } from "@/components/tournament/export-button";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { createLogger } from "@/lib/client-logger";
-import { cn } from "@/lib/utils";
-import { getTabHydrationGuardProps } from "@/lib/tournament-tab-hydration";
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { useState, useEffect, useCallback, use } from 'react';
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ExportButton } from '@/components/tournament/export-button';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { createLogger } from '@/lib/client-logger';
+import { cn } from '@/lib/utils';
+import { getTabHydrationGuardProps } from '@/lib/tournament-tab-hydration';
+import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
 
-const logger = createLogger({ serviceName: "tournaments-layout" });
+const logger = createLogger({ serviceName: 'tournaments-layout' });
 
 /**
  * Tournament data model used by the layout header.
@@ -43,6 +44,7 @@ interface Tournament {
   date: string;
   status: string;
   publicModes: string[];
+  taBattleRoyaleMode: boolean;
 }
 
 /**
@@ -53,17 +55,15 @@ interface Tournament {
  * label single-line so dense tournament pages don't get a busy header.
  */
 const TABS = [
-  { href: "ta", labelKey: "timeTrial" },
-  { href: "bm", labelKey: "battleMode" },
-  { href: "mr", labelKey: "matchRace" },
-  { href: "gp", labelKey: "grandPrix" },
-  { href: "overall-ranking", labelKey: "overall", publicMode: "overall" },
+  { href: 'ta', labelKey: 'timeTrial' },
+  { href: 'bm', labelKey: 'battleMode' },
+  { href: 'mr', labelKey: 'matchRace' },
+  { href: 'gp', labelKey: 'grandPrix' },
+  { href: 'overall-ranking', labelKey: 'overall', publicMode: 'overall' },
 ] as const;
 
 /** Admin-only tabs shown after the main mode tabs */
-const ADMIN_TABS = [
-  { href: "broadcast", label: "配信管理" },
-] as const;
+const ADMIN_TABS = [{ href: 'broadcast', label: '配信管理' }] as const;
 
 /**
  * Determines if the current page is a "minimal UI" page where the
@@ -78,11 +78,7 @@ const ADMIN_TABS = [
  * admin navigation chrome (header, status controls, tab bar).
  */
 function isMinimalPage(pathname: string): boolean {
-  return (
-    pathname.includes("/participant") ||
-    pathname.includes("/match/") ||
-    pathname.includes("/overlay")
-  );
+  return pathname.includes('/participant') || pathname.includes('/match/') || pathname.includes('/overlay');
 }
 
 /**
@@ -97,14 +93,14 @@ function isMinimalPage(pathname: string): boolean {
 function getActiveTab(pathname: string): string {
   /* Check "overall-ranking" first since it's the longest segment
      and won't conflict with shorter path segments */
-  if (pathname.includes("/overall-ranking")) return "overall-ranking";
-  if (pathname.includes("/broadcast")) return "broadcast";
+  if (pathname.includes('/overall-ranking')) return 'overall-ranking';
+  if (pathname.includes('/broadcast')) return 'broadcast';
   for (const tab of TABS) {
-    if (tab.href !== "overall-ranking" && pathname.includes(`/${tab.href}`)) {
+    if (tab.href !== 'overall-ranking' && pathname.includes(`/${tab.href}`)) {
       return tab.href;
     }
   }
-  return "";
+  return '';
 }
 
 export default function TournamentLayout({
@@ -123,14 +119,14 @@ export default function TournamentLayout({
    * t() resolves keys from "tournaments" (e.g., tab labels, status badges).
    * tc() resolves keys from "common" (e.g., generic messages like "not found").
    */
-  const t = useTranslations("tournaments");
-  const tc = useTranslations("common");
+  const t = useTranslations('tournaments');
+  const tc = useTranslations('common');
 
   /**
    * Admin role check: controls visibility of status transition buttons,
    * export button, and management labels.
    */
-  const isAdmin = session?.user && session.user.role === "admin";
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,11 +147,8 @@ export default function TournamentLayout({
         setTournament(json.data ?? json);
       }
     } catch (err) {
-      const metadata =
-        err instanceof Error
-          ? { message: err.message, stack: err.stack }
-          : { error: err };
-      logger.error("Failed to fetch tournament:", metadata);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to fetch tournament:', metadata);
     } finally {
       setLoading(false);
     }
@@ -171,7 +164,7 @@ export default function TournamentLayout({
   useEffect(() => {
     if (!loading && !tournament && retryCount < 2) {
       const timer = setTimeout(() => {
-        setRetryCount(c => c + 1);
+        setRetryCount((c) => c + 1);
         fetchTournament();
       }, 2000);
       return () => clearTimeout(timer);
@@ -188,7 +181,9 @@ export default function TournamentLayout({
 
   // Re-fetch when a mode's publish state changes so tab badges update immediately (issue #621)
   useEffect(() => {
-    const handler = () => { fetchTournament(); };
+    const handler = () => {
+      fetchTournament();
+    };
     window.addEventListener('publicModesChanged', handler);
     return () => window.removeEventListener('publicModesChanged', handler);
   }, [fetchTournament]);
@@ -205,19 +200,16 @@ export default function TournamentLayout({
   const updateStatus = async (status: string) => {
     try {
       const response = await fetch(`/api/tournaments/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
       if (response.ok) {
         fetchTournament();
       }
     } catch (err) {
-      const metadata =
-        err instanceof Error
-          ? { message: err.message, stack: err.stack }
-          : { error: err };
-      logger.error("Failed to update status:", metadata);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to update status:', metadata);
     }
   };
 
@@ -228,12 +220,12 @@ export default function TournamentLayout({
    */
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "draft":
-        return <Badge variant="flag-draft">{t("draft")}</Badge>;
-      case "active":
-        return <Badge variant="flag-active">{t("activeStatus")}</Badge>;
-      case "completed":
-        return <Badge variant="flag-completed">{t("completed")}</Badge>;
+      case 'draft':
+        return <Badge variant="flag-draft">{t('draft')}</Badge>;
+      case 'active':
+        return <Badge variant="flag-active">{t('activeStatus')}</Badge>;
+      case 'completed':
+        return <Badge variant="flag-completed">{t('completed')}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -272,7 +264,7 @@ export default function TournamentLayout({
 
   /* 404-like state when tournament is not found or API returned an error */
   if (!tournament) {
-    return <div className="text-center py-8">{tc("tournamentNotFound")}</div>;
+    return <div className="text-center py-8">{tc('tournamentNotFound')}</div>;
   }
 
   const activeTab = getActiveTab(pathname);
@@ -300,9 +292,8 @@ export default function TournamentLayout({
                 </h1>
                 <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                   {getStatusBadge(tournament.status)}
-                  <span className="font-mono tabular">
-                    {new Date(tournament.date).toLocaleDateString()}
-                  </span>
+                  <TaModeBadge mode={tournament.taBattleRoyaleMode ? 'battle_royale' : 'standard'} />
+                  <span className="font-mono tabular">{new Date(tournament.date).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
@@ -312,43 +303,30 @@ export default function TournamentLayout({
                * the API (ALLOWED_STATUS_TRANSITIONS): draft→active→completed,
                * plus completed→active to reopen a tournament closed too early.
                */}
-              {isAdmin && tournament.status === "draft" && (
-                <Button onClick={() => updateStatus("active")}>
-                  {t("startTournament")}
-                </Button>
+              {isAdmin && tournament.status === 'draft' && (
+                <Button onClick={() => updateStatus('active')}>{t('startTournament')}</Button>
               )}
-              {isAdmin && tournament.status === "active" && (
-                <Button onClick={() => updateStatus("completed")}>
-                  {t("completeTournament")}
-                </Button>
+              {isAdmin && tournament.status === 'active' && (
+                <Button onClick={() => updateStatus('completed')}>{t('completeTournament')}</Button>
               )}
               {/*
                * Reopen is rendered as an outline button so it reads as a
                * corrective action, not the primary next step of the flow.
                */}
-              {isAdmin && tournament.status === "completed" && (
-                <Button variant="outline" onClick={() => updateStatus("active")}>
-                  {t("reopenTournament")}
+              {isAdmin && tournament.status === 'completed' && (
+                <Button variant="outline" onClick={() => updateStatus('active')}>
+                  {t('reopenTournament')}
                 </Button>
               )}
+              {isAdmin && <ExportButton tournamentId={id} tournamentName={tournament.name} />}
               {isAdmin && (
-                <ExportButton
-                  tournamentId={id}
-                  tournamentName={tournament.name}
-                />
-              )}
-              {isAdmin && (
-                <ExportButton
-                  tournamentId={id}
-                  tournamentName={tournament.name}
-                  format="cdm"
-                >
+                <ExportButton tournamentId={id} tournamentName={tournament.name} format="cdm">
                   CDM Export
                 </ExportButton>
               )}
               <Button variant="outline" asChild>
                 <Link href="/tournaments" prefetch={false}>
-                  ← {t("backToList")}
+                  ← {t('backToList')}
                 </Link>
               </Button>
             </div>
@@ -362,20 +340,16 @@ export default function TournamentLayout({
          */}
         <nav
           aria-label="Tournament sections"
-          data-tournament-tabs-hydrated={tabsHydrated ? "true" : "false"}
+          data-tournament-tabs-hydrated={tabsHydrated ? 'true' : 'false'}
           className="overflow-x-auto -mx-5 sm:-mx-6 px-5 sm:px-6 border-b border-foreground/15"
         >
           <ul className="flex items-stretch gap-0 min-w-max">
             {TABS.map((tab) => {
-              const modeName = "publicMode" in tab ? tab.publicMode : tab.href;
-              const isHidden =
-                modeName &&
-                !isAdmin &&
-                !(tournament.publicModes ?? []).includes(modeName);
+              const modeName = 'publicMode' in tab ? tab.publicMode : tab.href;
+              const isHidden = modeName && !isAdmin && !(tournament.publicModes ?? []).includes(modeName);
               if (isHidden) return null;
               const isActive = activeTab === tab.href;
-              const adminHidden =
-                isAdmin && modeName && !(tournament.publicModes ?? []).includes(modeName);
+              const adminHidden = isAdmin && modeName && !(tournament.publicModes ?? []).includes(modeName);
 
               return (
                 <li key={tab.href}>
@@ -383,19 +357,19 @@ export default function TournamentLayout({
                     href={`/tournaments/${id}/${tab.href}`}
                     prefetch={false}
                     {...tabHydrationGuardProps}
-                    aria-current={isActive ? "page" : undefined}
+                    aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      "inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+                      'inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
                       isActive
-                        ? "pit-active text-foreground font-semibold"
-                        : "text-muted-foreground hover:text-foreground",
-                      guardClassName
+                        ? 'pit-active text-foreground font-semibold'
+                        : 'text-muted-foreground hover:text-foreground',
+                      guardClassName,
                     )}
                   >
                     {t(tab.labelKey)}
                     {adminHidden && (
                       <Badge variant="flag-draft" className="px-1 py-0">
-                        {t("hidden")}
+                        {t('hidden')}
                       </Badge>
                     )}
                   </Link>
@@ -411,13 +385,13 @@ export default function TournamentLayout({
                       href={`/tournaments/${id}/${tab.href}`}
                       prefetch={false}
                       {...tabHydrationGuardProps}
-                      aria-current={isActive ? "page" : undefined}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        "inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+                        'inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
                         isActive
-                          ? "pit-active text-foreground font-semibold"
-                          : "text-muted-foreground hover:text-foreground",
-                        guardClassName
+                          ? 'pit-active text-foreground font-semibold'
+                          : 'text-muted-foreground hover:text-foreground',
+                        guardClassName,
                       )}
                     >
                       {tab.label}

@@ -50,7 +50,9 @@
     "deploy:cf": "npm run db:migrations:apply && wrangler deploy",
     "deploy:cf:preview": "npm run db:migrations:apply:preview && wrangler deploy --env preview",
     "deploy": "npm run build:cf && npm run deploy:cf",
-    "deploy:preview": "npm run build:cf && npm run deploy:cf:preview"
+    "deploy:preview": "npm run build:cf && npm run deploy:cf:preview",
+    "e2e:ta-br": "node e2e/tc-ta-battle-royale.js",
+    "e2e:preview:ta-br": "node e2e/run-preview.js tc-ta-battle-royale.js"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

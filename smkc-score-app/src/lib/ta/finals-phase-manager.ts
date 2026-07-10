@@ -42,7 +42,12 @@ import {
   isValidCourseAbbr,
 } from '@/lib/ta/course-selection';
 import { RETRY_PENALTY_MS, CourseAbbr } from '@/lib/constants';
-import { applyTaHandicap, getTaPhase3Rules, isTaHandicapSeconds } from '@/lib/ta/battle-royale';
+import {
+  applyTaHandicap,
+  getTaPhase3Rules,
+  normalizeTaHandicapSeconds,
+  type Phase3Rules,
+} from '@/lib/ta/battle-royale';
 
 /**
  * Phase configuration constants defining the rules for each phase.
@@ -79,21 +84,26 @@ export const PHASE_CONFIG = {
 
 export function getNextPhase3ResetThreshold(
   activeCount: number,
-  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
+  rules: Phase3Rules = getTaPhase3Rules(false),
 ): number | null {
-  const minimumPhase3Survivors = PHASE_CONFIG.phase3.survivorsNeeded;
-  const thresholds = [...lifeResetThresholds].filter((threshold) => threshold < activeCount).sort((a, b) => b - a);
-  // When no configured reset threshold remains below activeCount, fallback to one survivor.
-  // This makes the elimination limit activeCount - 1 and protects the last remaining player.
-  return thresholds[0] ?? (activeCount > minimumPhase3Survivors ? minimumPhase3Survivors : null);
+  if (activeCount <= rules.survivorsNeeded) return null;
+  const nextConfiguredThreshold = [...rules.lifeResetThresholds]
+    .filter((threshold) => threshold < activeCount)
+    .sort((a, b) => b - a)[0];
+  return nextConfiguredThreshold ?? rules.survivorsNeeded;
 }
 
-function getPhase3EliminationLimit(
-  activeCount: number,
-  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
+export function getPhase3EliminationLimit(activeCount: number, rules: Phase3Rules): number {
+  const nextThreshold = getNextPhase3ResetThreshold(activeCount, rules);
+  return nextThreshold === null ? 0 : Math.max(0, activeCount - nextThreshold);
+}
+
+function getCurrentPhase3Lives(
+  playerId: string,
+  currentLivesByPlayer: ReadonlyMap<string, number>,
+  rules: Phase3Rules,
 ): number {
-  const nextThreshold = getNextPhase3ResetThreshold(activeCount, lifeResetThresholds);
-  return nextThreshold === null ? Number.POSITIVE_INFINITY : activeCount - nextThreshold;
+  return currentLivesByPlayer.get(playerId) ?? rules.initialLives;
 }
 
 /**
@@ -537,6 +547,9 @@ export async function promoteToPhase3(prisma: PrismaClient, context: PhaseContex
         times: source.times as InputJsonValue,
         totalTime: source.totalTime,
         rank: source.rank,
+        taHandicapSeconds: normalizeTaHandicapSeconds(
+          (source as TTEntry & { taHandicapSeconds?: number }).taHandicapSeconds,
+        ),
       })),
     });
   } catch (e) {
@@ -567,6 +580,9 @@ export async function promoteToPhase3(prisma: PrismaClient, context: PhaseContex
         playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
         promotedTo: 'phase3',
         initialLives: rules.initialLives,
+        taHandicapSeconds: normalizeTaHandicapSeconds(
+          (entry as TTEntry & { taHandicapSeconds?: number }).taHandicapSeconds,
+        ),
       },
     }).catch((err) => logger.warn('Failed to create audit log', { error: err }));
   }
@@ -712,11 +728,11 @@ export async function processPhase3Result(
   const halfwayPoint = Math.ceil(sortedResults.length / 2);
   const bottomHalf = sortedResults.slice(halfwayPoint);
 
-  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length, rules.lifeResetThresholds);
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length, rules);
   const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
   const selectedEliminationIds = new Set(
     bottomHalf
-      .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? 0) - 1 <= 0)
+      .filter((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - 1 <= 0)
       .sort((a, b) => comparePhase3CourseResults(b, a, resolvedOrder))
       .slice(0, eliminationLimit)
       .map((result) => result.playerId),
@@ -987,7 +1003,11 @@ interface TieBreakDecision {
  * @param activePlayers  - Active phase3 entries (for lives lookup)
  * @returns The two player IDs to race for bronze, or null
  */
-function detectPhase3BronzeTargets(orderedResults: CourseResult[], activePlayers: TTEntry[]): string[] | null {
+function detectPhase3BronzeTargets(
+  orderedResults: CourseResult[],
+  activePlayers: TTEntry[],
+  rules: Phase3Rules,
+): string[] | null {
   const activeCount = activePlayers.length || orderedResults.length;
   // Only the top-4 stage awards a medal to the eliminated pair; larger
   // simultaneous culls (e.g. 8→4) do not run a placement sudden death.
@@ -998,17 +1018,15 @@ function detectPhase3BronzeTargets(orderedResults: CourseResult[], activePlayers
   const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
   const allOnLastLife =
     bottomHalf.length === 2 &&
-    bottomHalf.every(
-      (result) => (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0,
-    );
+    bottomHalf.every((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - 1 <= 0);
   return allOnLastLife ? bottomHalf.map((result) => result.playerId) : null;
 }
 
 function detectTieBreakRequired(
   phase: 'phase1' | 'phase2' | 'phase3',
   courseResults: CourseResult[],
-  activePlayers: TTEntry[] = [],
-  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
+  activePlayers: TTEntry[],
+  rules: Phase3Rules,
 ): TieBreakDecision | null {
   if (courseResults.length < 2) return null;
 
@@ -1029,13 +1047,13 @@ function detectTieBreakRequired(
   if (halfwayPoint <= 0 || halfwayPoint >= sorted.length) return null;
   const bottomHalf = sorted.slice(halfwayPoint);
 
-  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length, lifeResetThresholds);
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length, rules);
   if (Number.isFinite(eliminationLimit)) {
     const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
     const eliminationCandidates = bottomHalf
-      .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0)
+      .filter((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - 1 <= 0)
       .sort((a, b) => b.timeMs - a.timeMs);
-    if (eliminationCandidates.length > eliminationLimit) {
+    if (rules.lifeResetThresholds.length > 0 && eliminationCandidates.length > eliminationLimit) {
       // Zero-life overflows at a reset threshold must send every candidate to sudden death:
       // partially ordering only the slowest players can still drop the active field below the reset size.
       return {
@@ -1056,7 +1074,7 @@ function detectTieBreakRequired(
   }
 
   // No unresolved tie: check for the top-4 simultaneous last-life scenario.
-  const bronzeTargets = detectPhase3BronzeTargets(sorted, activePlayers);
+  const bronzeTargets = detectPhase3BronzeTargets(sorted, activePlayers, rules);
   if (bronzeTargets) {
     return { targetPlayerIds: bronzeTargets, kind: 'bronze' };
   }
@@ -1497,15 +1515,14 @@ export async function submitRoundResults(
     throw new Error(`Missing results for active players: ${missingIds.join(', ')}`);
   }
 
-  // Apply retry penalty: override timeMs with RETRY_PENALTY_MS for retry-flagged results.
-  // This ensures retrying players always receive the maximum penalty time (9:59.990).
+  // Apply retry penalty before handicap processing. The per-tournament entry
+  // snapshot is authoritative; changing Player defaults must not affect an
+  // in-progress tournament.
+  const phase3Rules = getTaPhase3Rules(context.taBattleRoyaleMode === true);
   const handicapByPlayer = new Map(
     activePlayers.map((entry) => [
       entry.playerId,
-      (() => {
-        const value = (entry as TTEntry & { player?: { taHandicapSeconds?: number } }).player?.taHandicapSeconds;
-        return isTaHandicapSeconds(value) ? value : 0;
-      })(),
+      normalizeTaHandicapSeconds((entry as TTEntry & { taHandicapSeconds?: number }).taHandicapSeconds),
     ]),
   );
   const processedResults: CourseResult[] = results.map((r) => {
@@ -1513,7 +1530,7 @@ export async function submitRoundResults(
     return {
       playerId: r.playerId,
       timeMs:
-        phase === 'phase3' && context.taBattleRoyaleMode && !r.isRetry
+        phase === 'phase3' && phase3Rules.handicapEnabled && !r.isRetry
           ? applyTaHandicap(rawTimeMs, handicapByPlayer.get(r.playerId) ?? 0)
           : rawTimeMs,
     };
@@ -1524,7 +1541,8 @@ export async function submitRoundResults(
     playerId: r.playerId,
     timeMs: processedResults[index].timeMs,
     rawTimeMs: r.isRetry ? RETRY_PENALTY_MS : r.timeMs,
-    handicapSeconds: phase === 'phase3' && context.taBattleRoyaleMode ? (handicapByPlayer.get(r.playerId) ?? 0) : 0,
+    handicapSeconds:
+      phase === 'phase3' && phase3Rules.handicapEnabled && !r.isRetry ? (handicapByPlayer.get(r.playerId) ?? 0) : 0,
     isRetry: r.isRetry ?? false,
     tvNumber: r.tvNumber ?? null,
   }));
@@ -1532,12 +1550,7 @@ export async function submitRoundResults(
   let eliminatedIds: string[] = [];
   let livesReset = false;
 
-  const tieBreak = detectTieBreakRequired(
-    phase,
-    processedResults,
-    activePlayers,
-    getTaPhase3Rules(context.taBattleRoyaleMode === true).lifeResetThresholds,
-  );
+  const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers, phase3Rules);
   if (tieBreak) {
     const suddenDeathRound = await createSuddenDeathRound(
       prisma,
@@ -1796,7 +1809,8 @@ export async function submitSuddenDeathResults(
      * exact pair, it WAS the bronze race — finalize instead of looping.
      */
     const activePlayers = await getActivePhasePlayers(prisma, tournamentId, 'phase3');
-    const bronzeTargets = detectPhase3BronzeTargets(orderedResults, activePlayers);
+    const phase3Rules = getTaPhase3Rules(context.taBattleRoyaleMode === true);
+    const bronzeTargets = detectPhase3BronzeTargets(orderedResults, activePlayers, phase3Rules);
     if (bronzeTargets && !hasSameTargetPlayers(suddenDeathRound.targetPlayerIds, bronzeTargets)) {
       const nextRound = await createSuddenDeathRound(
         prisma,

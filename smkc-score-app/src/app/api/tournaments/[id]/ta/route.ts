@@ -37,6 +37,12 @@ import { createErrorResponse, createSuccessResponse } from '@/lib/error-handling
 import { resolveTournamentId, resolveTournament } from '@/lib/tournament-identifier';
 import { withApiTiming } from '@/lib/perf/api-timing';
 import { getArchivedModePayload, readTournamentArchive, type TournamentArchiveBundle } from '@/lib/tournament-archive';
+import { getTaPhase3Rules, normalizeTaHandicapSeconds, type TaHandicapSeconds } from '@/lib/ta/battle-royale';
+import {
+  TaEntryNotFoundError,
+  TaHandicapUpdateConflictError,
+  updateQualificationHandicaps,
+} from '@/lib/ta/handicap-service';
 
 const KNOCKOUT_STAGES = ['phase1', 'phase2', 'phase3'] as const;
 
@@ -145,6 +151,32 @@ const PutRequestSchema = z
                 : data.times !== undefined || (data.course !== undefined && data.time !== undefined),
     { message: 'Invalid request for action' },
   );
+
+const HandicapValueSchema = z.union([z.literal(0), z.literal(-1), z.literal(-3), z.literal(-5)]);
+
+const HandicapUpdateSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('update_handicap'),
+    entryId: z.string().cuid(),
+    taHandicapSeconds: HandicapValueSchema,
+  }),
+  z.object({
+    action: z.literal('bulk_update_handicaps'),
+    updates: z
+      .array(
+        z.object({
+          entryId: z.string().cuid(),
+          taHandicapSeconds: HandicapValueSchema,
+        }),
+      )
+      .min(1)
+      .max(100),
+  }),
+  z.object({
+    action: z.literal('reset_handicaps_to_player_defaults'),
+    entryIds: z.array(z.string().cuid()).min(1).max(100).optional(),
+  }),
+]);
 
 /**
  * GET /api/tournaments/[id]/ta
@@ -352,6 +384,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const newPlayerIds = playerIds.filter((pid) => !existingPlayerIds.has(pid));
 
       if (newPlayerIds.length > 0) {
+        const playerDefaults =
+          (await prisma.player.findMany({
+            where: { id: { in: newPlayerIds }, deletedAt: null },
+            select: { id: true, taHandicapSeconds: true },
+          })) ?? newPlayerIds.map((id) => ({ id, taHandicapSeconds: 0 }));
+        if (playerDefaults.length !== newPlayerIds.length) {
+          return createErrorResponse('One or more players were not found', 400, 'PLAYER_NOT_FOUND');
+        }
+        const defaultByPlayerId = new Map(
+          playerDefaults.map((player) => [player.id, normalizeTaHandicapSeconds(player.taHandicapSeconds)]),
+        );
+
         await prisma.tTEntry.createMany({
           data: newPlayerIds.map((pid) => ({
             tournamentId,
@@ -360,6 +404,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             // Empty times object — typed as InputJsonValue at runtime via Prisma
             times: {},
             seeding: seedingMap.get(pid) ?? null,
+            taHandicapSeconds: defaultByPlayerId.get(pid) ?? 0,
           })),
         });
 
@@ -384,6 +429,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               tournamentId,
               playerId: entry.playerId,
               playerNickname: entry.player.nickname,
+              taHandicapSeconds: normalizeTaHandicapSeconds(
+                (entry as TtEntryWithPlayer & { taHandicapSeconds?: number }).taHandicapSeconds,
+              ),
             },
           })),
         );
@@ -404,6 +452,95 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       500,
       'INTERNAL_ERROR',
     );
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('ta-api');
+  const authResult = await requireAdminSession();
+  if (authResult.error) return authResult.error;
+
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
+  try {
+    const parsed = HandicapUpdateSchema.safeParse(sanitizeInput(await request.json()));
+    if (!parsed.success) {
+      return createErrorResponse(parsed.error.issues[0]?.message || 'Invalid request body', 400, 'VALIDATION_ERROR');
+    }
+    if (await hasKnockoutStageStarted(tournamentId)) {
+      return createErrorResponse('TA handicaps are locked after the knockout stage starts', 409, 'TA_HANDICAP_LOCKED');
+    }
+
+    let source: 'manual' | 'player_default_reset' = 'manual';
+    let updates: Array<{ entryId: string; taHandicapSeconds: TaHandicapSeconds }>;
+    if (parsed.data.action === 'update_handicap') {
+      updates = [{ entryId: parsed.data.entryId, taHandicapSeconds: parsed.data.taHandicapSeconds }];
+    } else if (parsed.data.action === 'bulk_update_handicaps') {
+      updates = parsed.data.updates;
+    } else {
+      source = 'player_default_reset';
+      const entries = await prisma.tTEntry.findMany({
+        where: {
+          tournamentId,
+          stage: 'qualification',
+          ...(parsed.data.entryIds && { id: { in: parsed.data.entryIds } }),
+        },
+        select: {
+          id: true,
+          player: { select: { taHandicapSeconds: true } },
+        },
+      });
+      if (parsed.data.entryIds && entries.length !== parsed.data.entryIds.length) {
+        return createErrorResponse('One or more TA entries were not found', 404, 'TA_ENTRY_NOT_FOUND');
+      }
+      updates = entries.map((entry) => ({
+        entryId: entry.id,
+        taHandicapSeconds: normalizeTaHandicapSeconds(entry.player.taHandicapSeconds),
+      }));
+      if (updates.length === 0) {
+        return createSuccessResponse({ entries: [] });
+      }
+    }
+
+    if (new Set(updates.map((update) => update.entryId)).size !== updates.length) {
+      return createErrorResponse('Duplicate entry IDs are not allowed', 400, 'VALIDATION_ERROR');
+    }
+
+    const { entries, previousById } = await updateQualificationHandicaps(prisma, tournamentId, updates);
+    const ipAddress = getClientIdentifier(request);
+    const userAgent = getUserAgent(request);
+    createAuditLogs(
+      entries.map((entry) => ({
+        userId: resolveAuditUserId(authResult.session),
+        ipAddress,
+        userAgent,
+        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+        targetId: entry.id,
+        targetType: 'TTEntry',
+        details: {
+          tournamentId,
+          playerId: entry.playerId,
+          playerNickname: entry.player.nickname,
+          stage: 'qualification',
+          action: 'update_ta_handicap',
+          oldTaHandicapSeconds: previousById.get(entry.id) ?? 0,
+          newTaHandicapSeconds: normalizeTaHandicapSeconds(entry.taHandicapSeconds),
+          source,
+          bulkOperation: updates.length > 1,
+        },
+      })),
+    ).catch((error) => logger.warn('Failed to create TA handicap audit logs', { error, tournamentId }));
+
+    return createSuccessResponse({ entries });
+  } catch (error) {
+    if (error instanceof TaEntryNotFoundError) {
+      return createErrorResponse(error.message, 404, 'TA_ENTRY_NOT_FOUND');
+    }
+    if (error instanceof TaHandicapUpdateConflictError) {
+      return createErrorResponse(error.message, 409, 'TA_HANDICAP_UPDATE_CONFLICT');
+    }
+    logger.error('Failed to update TA handicaps', { error, tournamentId });
+    return createErrorResponse('Failed to update TA handicaps', 500, 'INTERNAL_ERROR');
   }
 }
 
@@ -518,9 +655,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const livesFreeze = await checkStageFrozen(prisma, tournamentId, entry.stage);
       if (livesFreeze) return livesFreeze;
 
+      const phase3Rules =
+        entry.stage === 'phase3'
+          ? getTaPhase3Rules(
+              (
+                await prisma.tournament.findUnique({
+                  where: { id: tournamentId },
+                  select: { taBattleRoyaleMode: true },
+                })
+              )?.taBattleRoyaleMode === true,
+            )
+          : getTaPhase3Rules(false);
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
-        data: action === 'reset_lives' ? { lives: 3 } : { lives: { increment: livesDelta } },
+        data: action === 'reset_lives' ? { lives: phase3Rules.initialLives } : { lives: { increment: livesDelta } },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 

@@ -51,6 +51,9 @@ import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { createPlayerWithRetry } from '@/lib/create-player-retry';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
 import { createLogger } from '@/lib/client-logger';
+import { TaHandicapSelect } from '@/components/tournament/ta-handicap-select';
+import { TaHandicapBadge } from '@/components/tournament/ta-handicap-badge';
+import { TaHandicapLegend } from '@/components/tournament/ta-handicap-legend';
 
 /**
  * Client-side logger for the players page.
@@ -548,20 +551,13 @@ export default function PlayersPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="taHandicapSeconds">{t('taHandicap')}</Label>
-                    <select
-                      id="taHandicapSeconds"
+                    <TaHandicapSelect
                       value={formData.taHandicapSeconds}
-                      onChange={(e) =>
-                        setFormData({ ...formData, taHandicapSeconds: Number(e.target.value) as 0 | -1 | -3 | -5 })
-                      }
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
-                      <option value={0}>{t('taHandicap0')}</option>
-                      <option value={-1}>{t('taHandicapMinus1')}</option>
-                      <option value={-3}>{t('taHandicapMinus3')}</option>
-                      <option value={-5}>{t('taHandicapMinus5')}</option>
-                    </select>
+                      onValueChange={(taHandicapSeconds) => setFormData({ ...formData, taHandicapSeconds })}
+                      aria-label={t('taHandicap')}
+                    />
                     <p className="text-xs text-muted-foreground">{t('taHandicapHelp')}</p>
+                    <TaHandicapLegend compact />
                   </div>
                 </div>
                 <DialogFooter>
@@ -611,6 +607,7 @@ export default function PlayersPage() {
                       <TableHead>{t('fullName')}</TableHead>
                       <TableHead>{t('country')}</TableHead>
                       <TableHead>{t('noCamera')}</TableHead>
+                      {isAdmin && <TableHead>{t('taHandicap')}</TableHead>}
                       {/* Actions column only visible to admins */}
                       {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
                     </TableRow>
@@ -627,6 +624,11 @@ export default function PlayersPage() {
                           </span>
                         </TableCell>
                         <TableCell>{player.noCamera ? '✗' : '-'}</TableCell>
+                        {isAdmin && (
+                          <TableCell>
+                            <TaHandicapBadge value={player.taHandicapSeconds} title={t('taHandicapHelp')} />
+                          </TableCell>
+                        )}
                         {/* Admin-only action buttons: Edit and Delete */}
                         {isAdmin && (
                           <TableCell className="text-right space-x-2">
@@ -739,20 +741,13 @@ export default function PlayersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-taHandicapSeconds">{t('taHandicap')}</Label>
-                <select
-                  id="edit-taHandicapSeconds"
+                <TaHandicapSelect
                   value={formData.taHandicapSeconds}
-                  onChange={(e) =>
-                    setFormData({ ...formData, taHandicapSeconds: Number(e.target.value) as 0 | -1 | -3 | -5 })
-                  }
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value={0}>{t('taHandicap0')}</option>
-                  <option value={-1}>{t('taHandicapMinus1')}</option>
-                  <option value={-3}>{t('taHandicapMinus3')}</option>
-                  <option value={-5}>{t('taHandicapMinus5')}</option>
-                </select>
+                  onValueChange={(taHandicapSeconds) => setFormData({ ...formData, taHandicapSeconds })}
+                  aria-label={t('taHandicap')}
+                />
                 <p className="text-xs text-muted-foreground">{t('taHandicapHelp')}</p>
+                <TaHandicapLegend compact />
               </div>
             </div>
             <DialogFooter>
