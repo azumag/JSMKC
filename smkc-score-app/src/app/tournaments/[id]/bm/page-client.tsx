@@ -60,7 +60,7 @@ import { QualificationPlayoffManager } from "@/components/tournament/qualificati
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
 import { CombinedStandingsTable } from "@/components/tournament/combined-standings-table";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 import { DebugFillButton } from "@/components/tournament/debug-fill-button";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import {
@@ -685,10 +685,7 @@ export default function BattleModePageClient({
                                     />
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    <span className="inline-flex items-center gap-1.5 min-w-0">
-                                      <CountryFlag country={q.player.country} locale={locale} />
-                                      <span className="truncate">{q.player.nickname}</span>
-                                    </span>
+                                    <PlayerName player={q.player} locale={locale} />
                                   </TableCell>
                                   <TableCell className="text-center">{q.mp}</TableCell>
                                   <TableCell className="text-center">{q.wins}</TableCell>

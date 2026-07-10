@@ -19,7 +19,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   LogIn, Trophy, Users, Clock, CheckCircle, AlertTriangle,
@@ -281,8 +281,12 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                               className={`p-3 rounded-lg border ${isYou ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"}`}
                             >
                               <div className="font-medium flex items-center gap-1 min-w-0">
-                                <CountryFlag country={player.country} locale={locale} />
-                                <span className="truncate min-w-0">{player.nickname}</span>
+                                <PlayerName
+                                  player={player}
+                                  locale={locale}
+                                  className="gap-1"
+                                  nameClassName="min-w-0"
+                                />
                                 {isYou && (
                                   <Badge variant="default" className="shrink-0 bg-blue-600">
                                     {tPart("you")}

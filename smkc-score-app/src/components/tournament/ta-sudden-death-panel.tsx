@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -291,10 +291,7 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
           {pendingSuddenDeathEntries.map((entry) => (
             <div key={entry.id} className="flex items-center gap-2">
               <Label className="flex-1 truncate">
-                <span className="inline-flex items-center gap-1.5 min-w-0">
-                  <CountryFlag country={entry.player.country} locale={locale} />
-                  <span className="truncate">{entry.player.nickname}</span>
-                </span>
+                <PlayerName player={entry.player} locale={locale} />
               </Label>
               <Input
                 type="text"

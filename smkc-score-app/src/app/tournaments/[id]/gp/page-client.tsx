@@ -80,7 +80,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import type { QualInitialData } from "@/lib/api-factories/qual-initial-data";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 import { QualificationClientLoadingState } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import {
@@ -835,10 +835,7 @@ export default function GrandPrixPageClient({
                                     />
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    <span className="inline-flex items-center gap-1.5 min-w-0">
-                                      <CountryFlag country={q.player.country} locale={locale} />
-                                      <span className="truncate">{q.player.nickname}</span>
-                                    </span>
+                                    <PlayerName player={q.player} locale={locale} />
                                   </TableCell>
                                   <TableCell className="text-center">{q.mp}</TableCell>
                                   <TableCell className="text-center">{q.wins}</TableCell>
@@ -899,10 +896,7 @@ export default function GrandPrixPageClient({
                         <TableCell className="font-semibold">{q._autoRank}</TableCell>
                         <TableCell>{tc('groupLabel', { group: q.group })}</TableCell>
                         <TableCell className="font-medium">
-                          <span className="inline-flex items-center gap-1.5 min-w-0">
-                            <CountryFlag country={q.player.country} locale={locale} />
-                            <span className="truncate">{q.player.nickname}</span>
-                          </span>
+                          <PlayerName player={q.player} locale={locale} />
                         </TableCell>
                         <TableCell className="text-center">{q.mp}</TableCell>
                         <TableCell className="text-center">{q.wins}</TableCell>

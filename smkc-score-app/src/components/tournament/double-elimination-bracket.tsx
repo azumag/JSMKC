@@ -26,7 +26,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 import { cn } from "@/lib/utils";
 import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { resolveBracketWinnerFlags, type BracketWinnerResolver } from "@/lib/bracket-winner-flags";
@@ -202,10 +202,13 @@ function MatchCard<TMatch extends BMMatch>({
               [{seedLabel1}]
             </span>
           )}
-          {!showTBD1 && <CountryFlag country={player1?.country} locale={locale} />}
-          <span className={showTBD1 ? "text-muted-foreground" : ""}>
-            {showTBD1 ? tc("tbd") : player1?.nickname || tc("tbd")}
-          </span>
+          <PlayerName
+            player={player1}
+            locale={locale}
+            forceFallback={showTBD1}
+            fallback={tc("tbd")}
+            className="gap-1"
+          />
         </span>
         <span className="font-mono">
           {match?.completed ? match.score1 : "-"}
@@ -225,10 +228,13 @@ function MatchCard<TMatch extends BMMatch>({
               [{seedLabel2}]
             </span>
           )}
-          {!showTBD2 && <CountryFlag country={player2?.country} locale={locale} />}
-          <span className={showTBD2 ? "text-muted-foreground" : ""}>
-            {showTBD2 ? tc("tbd") : player2?.nickname || tc("tbd")}
-          </span>
+          <PlayerName
+            player={player2}
+            locale={locale}
+            forceFallback={showTBD2}
+            fallback={tc("tbd")}
+            className="gap-1"
+          />
         </span>
         <span className="font-mono">
           {match?.completed ? match.score2 : "-"}

@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 
 export interface CombinedStandingsEntry {
   id: string;
@@ -97,10 +97,7 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
                 <TableCell className="font-semibold">{entry._autoRank}</TableCell>
                 <TableCell>{getGroupLabel(entry.group)}</TableCell>
                 <TableCell className="font-medium">
-                  <span className="inline-flex items-center gap-1.5 min-w-0">
-                    <CountryFlag country={entry.player.country} locale={locale} />
-                    <span className="truncate">{entry.player.nickname}</span>
-                  </span>
+                  <PlayerName player={entry.player} locale={locale} />
                 </TableCell>
                 <TableCell className="text-center">{entry.mp}</TableCell>
                 <TableCell className="text-center">{entry.wins}</TableCell>

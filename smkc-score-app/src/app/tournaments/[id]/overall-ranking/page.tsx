@@ -37,7 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -316,10 +316,10 @@ export default function OverallRankingPage({
                   </span>
                   <div className="mt-auto">
                     <p className="text-lg font-semibold leading-tight">
-                      <span className="inline-flex items-center gap-1.5 min-w-0">
-                        <CountryFlag country={ranking.playerCountry} locale={locale} />
-                        <span className="truncate">{ranking.playerNickname}</span>
-                      </span>
+                      <PlayerName
+                        player={{ nickname: ranking.playerNickname, country: ranking.playerCountry }}
+                        locale={locale}
+                      />
                     </p>
                     <p className="text-xs opacity-80 mt-0.5">
                       {ranking.playerName}
@@ -370,10 +370,10 @@ export default function OverallRankingPage({
                       <TableCell>
                         <div>
                           <div className="font-medium">
-                            <span className="inline-flex items-center gap-1.5 min-w-0">
-                              <CountryFlag country={ranking.playerCountry} locale={locale} />
-                              <span className="truncate">{ranking.playerNickname}</span>
-                            </span>
+                            <PlayerName
+                              player={{ nickname: ranking.playerNickname, country: ranking.playerCountry }}
+                              locale={locale}
+                            />
                           </div>
                           <div className="text-sm text-muted-foreground">{ranking.playerName}</div>
                         </div>

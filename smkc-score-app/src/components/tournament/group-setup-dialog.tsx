@@ -26,7 +26,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { CountryFlag } from "@/components/ui/country-flag";
+import { PlayerName } from "@/components/ui/player-name";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -359,10 +359,11 @@ export function GroupSetupDialog({
                           htmlFor={`player-${player.id}`}
                           className="cursor-pointer flex-1"
                         >
-                          <span className="inline-flex items-center gap-1.5 min-w-0">
-                            <CountryFlag country={player.country} locale={locale} />
-                            <span className="truncate">{player.nickname} ({player.name})</span>
-                          </span>
+                          <PlayerName
+                            player={player}
+                            locale={locale}
+                            displayName={`${player.nickname} (${player.name})`}
+                          />
                         </Label>
                       </div>
                     ))
@@ -459,12 +460,12 @@ export function GroupSetupDialog({
                               className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
                             />
                             {/* Player name with fallback for missing data */}
-                            <span className="flex-1 text-sm min-w-0 inline-flex items-center gap-1.5">
-                              <CountryFlag country={player?.country} locale={locale} />
-                              <span className="truncate">
-                                {player?.nickname ?? `ID: ${sp.playerId.slice(0, 8)}`}
-                              </span>
-                            </span>
+                            <PlayerName
+                              player={player}
+                              locale={locale}
+                              fallback={`ID: ${sp.playerId.slice(0, 8)}`}
+                              className="flex-1 text-sm"
+                            />
                             {/* Group selector: only shows groups available for current groupCount */}
                             <Select
                               value={sp.group}
