@@ -25,23 +25,16 @@
  * The API may return either legacy list payloads or the standardized
  * success wrapper, so the fetch handler normalizes both formats.
  */
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -50,12 +43,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { extractArrayData, extractPaginationMeta, type PaginationMeta } from "@/lib/api-response";
-import { createLogger } from "@/lib/client-logger";
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { extractArrayData, extractPaginationMeta, type PaginationMeta } from '@/lib/api-response';
+import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
-import { getTournamentUrlIdentifier } from "@/lib/tournament-identifier";
+import { getTournamentUrlIdentifier } from '@/lib/tournament-identifier';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-list' });
@@ -103,14 +96,15 @@ export default function TournamentsPage() {
   /* Create tournament dialog state */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
-    slug: "",
-    date: "",
+    name: '',
+    slug: '',
+    date: '',
     dualReportEnabled: false,
     taPlayerSelfEdit: true,
+    taBattleRoyaleMode: false,
     debugMode: false,
   });
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Ref guards against two rapid form-submits racing before the first re-render.
   const isSubmittingRef = useRef(false);
@@ -140,12 +134,12 @@ export default function TournamentsPage() {
         setPaginationMeta(meta);
       } else {
         setFetchError(true);
-        logger.error("API returned error status", { status: response.status });
+        logger.error('API returned error status', { status: response.status });
       }
     } catch (err) {
       setFetchError(true);
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to fetch tournaments:", metadata);
+      logger.error('Failed to fetch tournaments:', metadata);
     } finally {
       setLoading(false);
     }
@@ -164,18 +158,26 @@ export default function TournamentsPage() {
     e.preventDefault();
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
-    setError("");
+    setError('');
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/tournaments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
       if (response.ok) {
-        setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true, debugMode: false });
+        setFormData({
+          name: '',
+          slug: '',
+          date: '',
+          dualReportEnabled: false,
+          taPlayerSelfEdit: true,
+          taBattleRoyaleMode: false,
+          debugMode: false,
+        });
         setIsAddDialogOpen(false);
         if (currentPage === 1) {
           fetchTournaments();
@@ -187,7 +189,7 @@ export default function TournamentsPage() {
         setError(data.error || t('failedToCreate'));
       }
     } catch (err) {
-      logger.error("Failed to create tournament:", { error: err });
+      logger.error('Failed to create tournament:', { error: err });
       setError(t('failedToCreate'));
     } finally {
       isSubmittingRef.current = false;
@@ -200,7 +202,7 @@ export default function TournamentsPage() {
    * Uses browser confirm() as a guard against accidental deletion.
    */
   const handleDelete = async (id: string, status: string) => {
-    if (status !== "draft") {
+    if (status !== 'draft') {
       alert(t('cannotDeleteStartedTournament'));
       return;
     }
@@ -209,21 +211,17 @@ export default function TournamentsPage() {
 
     try {
       const response = await fetch(`/api/tournaments/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (response.ok) {
         fetchTournaments();
       } else {
         const data = await response.json().catch(() => null);
-        alert(
-          response.status === 409
-            ? t('cannotDeleteStartedTournament')
-            : data?.error || t('failedToDelete')
-        );
+        alert(response.status === 409 ? t('cannotDeleteStartedTournament') : data?.error || t('failedToDelete'));
       }
     } catch (err) {
-      logger.error("Failed to delete tournament:", { error: err, tournamentId: id });
+      logger.error('Failed to delete tournament:', { error: err, tournamentId: id });
       alert(t('failedToDelete'));
     }
   };
@@ -241,11 +239,11 @@ export default function TournamentsPage() {
    */
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "draft":
+      case 'draft':
         return <Badge variant="flag-draft">{t('draft')}</Badge>;
-      case "active":
+      case 'active':
         return <Badge variant="flag-active">{t('activeStatus')}</Badge>;
-      case "completed":
+      case 'completed':
         return <Badge variant="flag-completed">{t('completed')}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
@@ -258,14 +256,14 @@ export default function TournamentsPage() {
    */
   const rowAccent = (status: string) => {
     switch (status) {
-      case "draft":
-        return "border-l-accent";
-      case "active":
-        return "border-l-[oklch(0.55_0.16_145)]";
-      case "completed":
-        return "border-l-foreground";
+      case 'draft':
+        return 'border-l-accent';
+      case 'active':
+        return 'border-l-[oklch(0.55_0.16_145)]';
+      case 'completed':
+        return 'border-l-foreground';
       default:
-        return "border-l-foreground/20";
+        return 'border-l-foreground/20';
     }
   };
 
@@ -283,129 +281,137 @@ export default function TournamentsPage() {
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-foreground/15 pb-5">
         <div>
-          <h1 className="font-display text-3xl sm:text-4xl tracking-wide leading-none">
-            {t('title')}
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm">
-            {isAdmin ? t('subtitleAdmin') : t('subtitleView')}
-          </p>
+          <h1 className="font-display text-3xl sm:text-4xl tracking-wide leading-none">{t('title')}</h1>
+          <p className="text-muted-foreground mt-2 text-sm">{isAdmin ? t('subtitleAdmin') : t('subtitleView')}</p>
         </div>
         {/* Create Tournament dialog - only rendered for admin users */}
         {isAdmin && (
-          <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) setIsSubmitting(false); }}>
+          <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+              setIsAddDialogOpen(open);
+              if (!open) setIsSubmitting(false);
+            }}
+          >
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true, debugMode: false })}>
+              <Button
+                onClick={() =>
+                  setFormData({
+                    name: '',
+                    slug: '',
+                    date: '',
+                    dualReportEnabled: false,
+                    taPlayerSelfEdit: true,
+                    taBattleRoyaleMode: false,
+                    debugMode: false,
+                  })
+                }
+              >
                 {t('createTournament')}
               </Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('createNewTournament')}</DialogTitle>
-              <DialogDescription>
-                {t('enterTournamentDetails')}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
-                {error && (
-                  <div className="text-red-500 text-sm">{error}</div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('tournamentName')}</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder={t('tournamentNamePlaceholder')}
-                    required
-                  />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t('createNewTournament')}</DialogTitle>
+                <DialogDescription>{t('enterTournamentDetails')}</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-4 py-4">
+                  {error && <div className="text-red-500 text-sm">{error}</div>}
+                  <div className="space-y-2">
+                    <Label htmlFor="name">{t('tournamentName')}</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder={t('tournamentNamePlaceholder')}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="date">{t('date')}</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="slug">{t('customUrl')}</Label>
+                    <Input
+                      id="slug"
+                      value={formData.slug}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
+                      placeholder={t('customUrlPlaceholder')}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('customUrlHelp')}</p>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <input
+                      id="dualReport"
+                      type="checkbox"
+                      checked={formData.dualReportEnabled}
+                      onChange={(e) => setFormData({ ...formData, dualReportEnabled: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="dualReport" className="text-sm font-normal cursor-pointer">
+                      {t('dualReportEnabled')}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <input
+                      id="taPlayerSelfEdit"
+                      type="checkbox"
+                      checked={formData.taPlayerSelfEdit}
+                      onChange={(e) => setFormData({ ...formData, taPlayerSelfEdit: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="taPlayerSelfEdit" className="text-sm font-normal cursor-pointer">
+                      {t('taPlayerSelfEdit')}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <input
+                      id="taBattleRoyaleMode"
+                      type="checkbox"
+                      checked={formData.taBattleRoyaleMode}
+                      onChange={(e) => setFormData({ ...formData, taBattleRoyaleMode: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="taBattleRoyaleMode" className="text-sm font-normal cursor-pointer">
+                      {t('taBattleRoyaleMode')}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <input
+                      id="debugMode"
+                      type="checkbox"
+                      checked={formData.debugMode}
+                      onChange={(e) => setFormData({ ...formData, debugMode: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="debugMode" className="text-sm font-normal cursor-pointer">
+                      {t('debugMode')}
+                    </Label>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date">{t('date')}</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, date: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="slug">{t('customUrl')}</Label>
-                  <Input
-                    id="slug"
-                    value={formData.slug}
-                    onChange={(e) =>
-                      setFormData({ ...formData, slug: e.target.value.toLowerCase() })
-                    }
-                    placeholder={t('customUrlPlaceholder')}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('customUrlHelp')}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 pt-2">
-                  <input
-                    id="dualReport"
-                    type="checkbox"
-                    checked={formData.dualReportEnabled}
-                    onChange={(e) =>
-                      setFormData({ ...formData, dualReportEnabled: e.target.checked })
-                    }
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="dualReport" className="text-sm font-normal cursor-pointer">
-                    {t('dualReportEnabled')}
-                  </Label>
-                </div>
-                <div className="flex items-center gap-3 pt-2">
-                  <input
-                    id="taPlayerSelfEdit"
-                    type="checkbox"
-                    checked={formData.taPlayerSelfEdit}
-                    onChange={(e) =>
-                      setFormData({ ...formData, taPlayerSelfEdit: e.target.checked })
-                    }
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="taPlayerSelfEdit" className="text-sm font-normal cursor-pointer">
-                    {t('taPlayerSelfEdit')}
-                  </Label>
-                </div>
-                <div className="flex items-center gap-3 pt-2">
-                  <input
-                    id="debugMode"
-                    type="checkbox"
-                    checked={formData.debugMode}
-                    onChange={(e) =>
-                      setFormData({ ...formData, debugMode: e.target.checked })
-                    }
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="debugMode" className="text-sm font-normal cursor-pointer">
-                    {t('debugMode')}
-                  </Label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('creating') : t('createTournament')}</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? t('creating') : t('createTournament')}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </header>
 
       {/* Tournament list — editorial table with flag-coded left rules */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-base font-semibold">
-            {t('tournamentList')}
-          </h2>
+          <h2 className="text-base font-semibold">{t('tournamentList')}</h2>
           <p className="text-xs text-muted-foreground font-mono tabular">
             {t('tournamentCount', { count: totalTournaments })}
           </p>
@@ -414,7 +420,14 @@ export default function TournamentsPage() {
         {fetchError ? (
           <div className="text-center py-12 space-y-3 border border-foreground/15">
             <p className="text-destructive">{t('fetchError')}</p>
-            <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchTournaments(); }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoading(true);
+                fetchTournaments();
+              }}
+            >
               {tc('retry')}
             </Button>
           </div>
@@ -436,10 +449,7 @@ export default function TournamentsPage() {
                 </TableHeader>
                 <TableBody>
                   {tournaments.map((tournament) => (
-                    <TableRow
-                      key={tournament.id}
-                      className={`border-l-[6px] ${rowAccent(tournament.status)}`}
-                    >
+                    <TableRow key={tournament.id} className={`border-l-[6px] ${rowAccent(tournament.status)}`}>
                       <TableCell className="font-medium pl-4">
                         <Link
                           href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}
@@ -461,21 +471,15 @@ export default function TournamentsPage() {
                       </TableCell>
                       <TableCell className="text-right pr-4 space-x-2">
                         <Button variant="outline" size="sm" asChild>
-                          <Link href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}>
-                            {tc('open')}
-                          </Link>
+                          <Link href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}>{tc('open')}</Link>
                         </Button>
                         {isAdmin && (
                           <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => handleDelete(tournament.id, tournament.status)}
-                            disabled={tournament.status !== "draft"}
-                            title={
-                              tournament.status !== "draft"
-                                ? t('cannotDeleteStartedTournament')
-                                : undefined
-                            }
+                            disabled={tournament.status !== 'draft'}
+                            title={tournament.status !== 'draft' ? t('cannotDeleteStartedTournament') : undefined}
                           >
                             {tc('delete')}
                           </Button>

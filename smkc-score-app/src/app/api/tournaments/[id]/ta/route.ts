@@ -19,30 +19,26 @@
  * to ensure proper test mocking per the project's mock architecture pattern.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import prisma from "@/lib/prisma";
-import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
-import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
-import { sanitizeInput } from "@/lib/sanitize";
-import { z } from "zod";
-import { requireAdminSession, requireAdminOrPlayerSession } from "@/lib/api-auth";
-import { COURSES, type CourseAbbr } from "@/lib/constants";
-import { recalculateRanks, rerankStageAfterDelete } from "@/lib/ta/rank-calculation";
-import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
+import prisma from '@/lib/prisma';
+import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
+import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
+import { sanitizeInput } from '@/lib/sanitize';
+import { z } from 'zod';
+import { requireAdminSession, requireAdminOrPlayerSession } from '@/lib/api-auth';
+import { COURSES, type CourseAbbr } from '@/lib/constants';
+import { recalculateRanks, rerankStageAfterDelete } from '@/lib/ta/rank-calculation';
+import { timeToMs, TimesObjectSchema } from '@/lib/ta/time-utils';
 // Promotion functions moved to /api/tournaments/[id]/ta/phases endpoint
-import { createLogger } from "@/lib/logger";
-import { checkStageFrozen } from "@/lib/ta/freeze-check";
-import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
-import { resolveTournamentId, resolveTournament } from "@/lib/tournament-identifier";
-import { withApiTiming } from "@/lib/perf/api-timing";
-import {
-  getArchivedModePayload,
-  readTournamentArchive,
-  type TournamentArchiveBundle,
-} from "@/lib/tournament-archive";
+import { createLogger } from '@/lib/logger';
+import { checkStageFrozen } from '@/lib/ta/freeze-check';
+import { createErrorResponse, createSuccessResponse } from '@/lib/error-handling';
+import { resolveTournamentId, resolveTournament } from '@/lib/tournament-identifier';
+import { withApiTiming } from '@/lib/perf/api-timing';
+import { getArchivedModePayload, readTournamentArchive, type TournamentArchiveBundle } from '@/lib/tournament-archive';
 
-const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
+const KNOCKOUT_STAGES = ['phase1', 'phase2', 'phase3'] as const;
 
 async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
   const knockoutEntry = await prisma.tTEntry.findFirst({
@@ -64,13 +60,13 @@ async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
  * the Phase 1/2/3 system (via /api/tournaments/[id]/ta/phases).
  * Note: "finals" values may still exist in production DB but are no longer
  * queryable through this endpoint. */
-const StageSchema = z.enum(["qualification", "revival_1", "revival_2"]);
+const StageSchema = z.enum(['qualification', 'revival_1', 'revival_2']);
 
 function getArchivedTaPayload(archive: TournamentArchiveBundle) {
-  if (!("ta" in archive.modes) || !archive.modes.ta) {
+  if (!('ta' in archive.modes) || !archive.modes.ta) {
     return null;
   }
-  return getArchivedModePayload(archive, "ta");
+  return getArchivedModePayload(archive, 'ta');
 }
 
 /**
@@ -83,25 +79,33 @@ function getArchivedTaPayload(archive: TournamentArchiveBundle) {
  * - players: array of player IDs (legacy, no seeding)
  * - playerEntries: array of { playerId, seeding? } objects (preferred, supports seeding)
  */
-const PostRequestSchema = z.object({
-  playerId: z.string().cuid().optional(),
-  players: z.array(z.string().cuid()).optional(),
-  playerEntries: z.array(z.object({
-    playerId: z.string().cuid(),
-    seeding: z.number().int().nonnegative().optional(),
-  })).optional(),
-  action: z.enum(["add", "recalculate_qualification"]).optional(),
-}).refine(
-  (data) => {
-    if (!data.action || data.action === "add") {
-      return data.playerId !== undefined
-        || (data.players !== undefined && data.players.length > 0)
-        || (data.playerEntries !== undefined && data.playerEntries.length > 0);
-    }
-    return true;
-  },
-  { message: "playerId, players, or playerEntries is required" }
-);
+const PostRequestSchema = z
+  .object({
+    playerId: z.string().cuid().optional(),
+    players: z.array(z.string().cuid()).optional(),
+    playerEntries: z
+      .array(
+        z.object({
+          playerId: z.string().cuid(),
+          seeding: z.number().int().nonnegative().optional(),
+        }),
+      )
+      .optional(),
+    action: z.enum(['add', 'recalculate_qualification']).optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.action || data.action === 'add') {
+        return (
+          data.playerId !== undefined ||
+          (data.players !== undefined && data.players.length > 0) ||
+          (data.playerEntries !== undefined && data.playerEntries.length > 0)
+        );
+      }
+      return true;
+    },
+    { message: 'playerId, players, or playerEntries is required' },
+  );
 
 /**
  * PUT request body schema.
@@ -112,25 +116,35 @@ const PostRequestSchema = z.object({
  * - "reset_lives": Reset all active players' lives to initial value
  * - "set_partner": Set partner player ID for pair running (§3.1, admin only)
  */
-const PutRequestSchema = z.object({
-  entryId: z.string().cuid(),
-  course: z.string().optional(),
-  time: z.string().optional(),
-  times: TimesObjectSchema.optional(),
-  livesDelta: z.number().optional(),
-  eliminated: z.boolean().optional(),
-  partnerId: z.string().cuid().nullable().optional(),
-  seeding: z.number().int().nonnegative().nullable().optional(),
-  action: z.enum(["update_times", "update_lives", "eliminate", "reset_lives", "set_partner", "update_seeding"]).optional(),
-}).refine(
-  (data) => data.action === "update_lives" ? data.livesDelta !== undefined :
-            data.action === "eliminate" ? data.eliminated !== undefined :
-            data.action === "reset_lives" ? true :
-            data.action === "set_partner" ? true :
-            data.action === "update_seeding" ? true :
-            data.times !== undefined || (data.course !== undefined && data.time !== undefined),
-  { message: "Invalid request for action" }
-);
+const PutRequestSchema = z
+  .object({
+    entryId: z.string().cuid(),
+    course: z.string().optional(),
+    time: z.string().optional(),
+    times: TimesObjectSchema.optional(),
+    livesDelta: z.number().optional(),
+    eliminated: z.boolean().optional(),
+    partnerId: z.string().cuid().nullable().optional(),
+    seeding: z.number().int().nonnegative().nullable().optional(),
+    action: z
+      .enum(['update_times', 'update_lives', 'eliminate', 'reset_lives', 'set_partner', 'update_seeding'])
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.action === 'update_lives'
+        ? data.livesDelta !== undefined
+        : data.action === 'eliminate'
+          ? data.eliminated !== undefined
+          : data.action === 'reset_lives'
+            ? true
+            : data.action === 'set_partner'
+              ? true
+              : data.action === 'update_seeding'
+                ? true
+                : data.times !== undefined || (data.course !== undefined && data.time !== undefined),
+    { message: 'Invalid request for action' },
+  );
 
 /**
  * GET /api/tournaments/[id]/ta
@@ -142,22 +156,24 @@ const PutRequestSchema = z.object({
  * Query parameters:
  * - stage: "qualification" | "revival_1" | "revival_2" (default: "qualification")
  */
-async function handleGET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+async function handleGET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id } = await params;
   try {
     // Parse optional stage query parameter (defaults to "qualification")
     const { searchParams } = new URL(request.url);
-    const stage = StageSchema.safeParse(searchParams.get("stage"));
-    const stageToQuery = stage.success ? stage.data : "qualification";
+    const stage = StageSchema.safeParse(searchParams.get('stage'));
+    const stageToQuery = stage.success ? stage.data : 'qualification';
 
     /* Single query: resolve slug/id AND fetch frozenStages/taPlayerSelfEdit (#692).
        Then run the remaining three queries in parallel using the resolved id. */
-    const tournament = await resolveTournament(id, { id: true, frozenStages: true, taPlayerSelfEdit: true });
+    const tournament = await resolveTournament(id, {
+      id: true,
+      frozenStages: true,
+      taPlayerSelfEdit: true,
+      taBattleRoyaleMode: true,
+    });
     if (!tournament) {
       const archived = await readTournamentArchive(id);
       if (archived) {
@@ -166,7 +182,7 @@ async function handleGET(
           return createSuccessResponse(archivedTaPayload);
         }
       }
-      return createErrorResponse("Tournament not found", 404, "NOT_FOUND");
+      return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
     }
     const tournamentId = tournament.id;
 
@@ -174,10 +190,10 @@ async function handleGET(
       prisma.tTEntry.findMany({
         where: { tournamentId, stage: stageToQuery },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
+        orderBy: [{ rank: 'asc' }, { totalTime: 'asc' }],
       }),
       prisma.tTEntry.count({
-        where: { tournamentId, stage: "qualification" },
+        where: { tournamentId, stage: 'qualification' },
       }),
       hasKnockoutStageStarted(tournamentId),
     ]);
@@ -192,10 +208,11 @@ async function handleGET(
       // Return frozen stages so the UI can disable editing for frozen phases
       frozenStages: (tournament?.frozenStages as string[]) || [],
       taPlayerSelfEdit: tournament?.taPlayerSelfEdit ?? true,
+      taBattleRoyaleMode: tournament?.taBattleRoyaleMode ?? false,
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to fetch TA data", { error, tournamentId: id });
+    logger.error('Failed to fetch TA data', { error, tournamentId: id });
     const archived = await readTournamentArchive(id);
     if (archived) {
       const archivedTaPayload = getArchivedTaPayload(archived);
@@ -203,13 +220,11 @@ async function handleGET(
         return createSuccessResponse(archivedTaPayload);
       }
     }
-    return createErrorResponse("Failed to fetch time attack data", 500, "INTERNAL_ERROR");
+    return createErrorResponse('Failed to fetch time attack data', 500, 'INTERNAL_ERROR');
   }
 }
 
-export const GET = (
-  ...args: Parameters<typeof handleGET>
-): ReturnType<typeof handleGET> =>
+export const GET = (...args: Parameters<typeof handleGET>): ReturnType<typeof handleGET> =>
   withApiTiming('ta.GET', () => handleGET(...args));
 
 /**
@@ -219,10 +234,7 @@ export const GET = (
  * qualification scoring fields after a scoring-rule deployment.
  * For promotion to finals phases, use POST /api/tournaments/[id]/ta/phases.
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id } = await params;
@@ -233,36 +245,40 @@ export async function POST(
 
     const parseResult = PostRequestSchema.safeParse(body);
     if (!parseResult.success) {
-      return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
+      return createErrorResponse(
+        parseResult.error.issues[0]?.message || 'Invalid request body',
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     const { action, playerId, players, playerEntries } = parseResult.data;
 
-    if (action === "recalculate_qualification") {
+    if (action === 'recalculate_qualification') {
       const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
       const recalculatedEntryCount = await prisma.tTEntry.count({
-        where: { tournamentId, stage: "qualification" },
+        where: { tournamentId, stage: 'qualification' },
       });
-      await recalculateRanks(tournamentId, "qualification", prisma);
+      await recalculateRanks(tournamentId, 'qualification', prisma);
       await createAuditLog({
         userId: resolveAuditUserId(authResult.session),
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
         action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
         targetId: tournamentId,
-        targetType: "Tournament",
+        targetType: 'Tournament',
         details: {
           tournamentId,
-          stage: "qualification",
-          action: "recalculate_qualification",
+          stage: 'qualification',
+          action: 'recalculate_qualification',
           recalculatedEntryCount,
         },
       });
 
       return createSuccessResponse({
-        stage: "qualification",
+        stage: 'qualification',
         recalculatedEntryCount,
       });
     }
@@ -272,24 +288,18 @@ export async function POST(
     if (authResult.error) return authResult.error;
 
     if (await hasKnockoutStageStarted(tournamentId)) {
-      return createErrorResponse(
-        "Cannot add players after knockout stage has started",
-        409,
-        "CONFLICT"
-      );
+      return createErrorResponse('Cannot add players after knockout stage has started', 409, 'CONFLICT');
     }
 
     // Normalize all input formats into { playerId, seeding? } entries.
     // playerEntries is the preferred format (supports seeding);
     // playerId / players are legacy formats (no seeding).
     const normalizedEntries: { playerId: string; seeding?: number }[] =
-      playerEntries
-        ?? (players ? players.map(pid => ({ playerId: pid })) : null)
-        ?? (playerId ? [{ playerId }] : []);
+      playerEntries ?? (players ? players.map((pid) => ({ playerId: pid })) : null) ?? (playerId ? [{ playerId }] : []);
 
-    const playerIds = normalizedEntries.map(e => e.playerId);
+    const playerIds = normalizedEntries.map((e) => e.playerId);
     // Build seeding lookup for O(1) access
-    const seedingMap = new Map(normalizedEntries.map(e => [e.playerId, e.seeding]));
+    const seedingMap = new Map(normalizedEntries.map((e) => [e.playerId, e.seeding]));
 
     // Ownership check: players can only add themselves to qualification.
     // Admins can add any player. This prevents a player from registering
@@ -299,7 +309,7 @@ export async function POST(
       if (!selfPlayerId) {
         return createErrorResponse('Player ID not found in session', 401);
       }
-      const isAddingSelf = playerIds.length > 0 && playerIds.every(pid => pid === selfPlayerId);
+      const isAddingSelf = playerIds.length > 0 && playerIds.every((pid) => pid === selfPlayerId);
       if (!isAddingSelf) {
         return createErrorResponse('Forbidden: Players can only add themselves', 403, 'FORBIDDEN');
       }
@@ -333,7 +343,7 @@ export async function POST(
       const existingEntries = await prisma.tTEntry.findMany({
         where: {
           tournamentId,
-          stage: "qualification",
+          stage: 'qualification',
           playerId: { in: playerIds },
         },
         select: { playerId: true },
@@ -346,7 +356,7 @@ export async function POST(
           data: newPlayerIds.map((pid) => ({
             tournamentId,
             playerId: pid,
-            stage: "qualification",
+            stage: 'qualification',
             // Empty times object — typed as InputJsonValue at runtime via Prisma
             times: {},
             seeding: seedingMap.get(pid) ?? null,
@@ -356,7 +366,7 @@ export async function POST(
         createdEntries = await prisma.tTEntry.findMany({
           where: {
             tournamentId,
-            stage: "qualification",
+            stage: 'qualification',
             playerId: { in: newPlayerIds },
           },
           include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -369,7 +379,7 @@ export async function POST(
             userAgent,
             action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
             targetId: entry.id,
-            targetType: "TTEntry",
+            targetType: 'TTEntry',
             details: {
               tournamentId,
               playerId: entry.playerId,
@@ -383,13 +393,17 @@ export async function POST(
     /* Use standard { success, data } wrapper for consistency with other endpoints.
      * 201 status is set explicitly since createSuccessResponse() defaults to 200. */
     return NextResponse.json(
-      { success: true, data: { entries: createdEntries }, message: "Player(s) added to time attack" },
-      { status: 201 }
+      { success: true, data: { entries: createdEntries }, message: 'Player(s) added to time attack' },
+      { status: 201 },
     );
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to process TA request", { error, tournamentId });
-    return createErrorResponse((error as Error).message || "Failed to process time attack request", 500, "INTERNAL_ERROR");
+    logger.error('Failed to process TA request', { error, tournamentId });
+    return createErrorResponse(
+      (error as Error).message || 'Failed to process time attack request',
+      500,
+      'INTERNAL_ERROR',
+    );
   }
 }
 
@@ -405,10 +419,7 @@ export async function POST(
  *
  * After any update, ranks are automatically recalculated for the affected stage.
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id } = await params;
@@ -419,14 +430,18 @@ export async function PUT(
 
     const parseResult = PutRequestSchema.safeParse(body);
     if (!parseResult.success) {
-      return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
+      return createErrorResponse(
+        parseResult.error.issues[0]?.message || 'Invalid request body',
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     const { entryId, action, eliminated, livesDelta, partnerId, seeding } = parseResult.data;
 
     // === Partner Assignment (§3.1) ===
     // Set or clear the partner player ID for pair running (admin only)
-    if (action === "set_partner") {
+    if (action === 'set_partner') {
       const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
@@ -471,7 +486,7 @@ export async function PUT(
 
     // === Seeding Update (§3.1) ===
     // Update the seeding number for a TA entry (admin only, per-tournament)
-    if (action === "update_seeding") {
+    if (action === 'update_seeding') {
       const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
@@ -486,7 +501,7 @@ export async function PUT(
 
     // === Lives Actions ===
     // Manually update or reset player lives (admin only)
-    if (action === "update_lives" || action === "reset_lives") {
+    if (action === 'update_lives' || action === 'reset_lives') {
       const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
@@ -505,7 +520,7 @@ export async function PUT(
 
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
-        data: action === "reset_lives" ? { lives: 3 } : { lives: { increment: livesDelta } },
+        data: action === 'reset_lives' ? { lives: 3 } : { lives: { increment: livesDelta } },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
@@ -519,25 +534,32 @@ export async function PUT(
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
         targetId: entryId,
-        targetType: "TTEntry",
+        targetType: 'TTEntry',
         details: {
           tournamentId,
           playerNickname: updatedEntry.player.nickname,
           action,
         },
-      }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_LIVES' }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          tournamentId,
+          entryId,
+          action: 'UPDATE_TA_ENTRY_LIVES',
+        }),
+      );
 
       return createSuccessResponse({ entry: updatedEntry });
     }
 
     // === Elimination Action ===
     // Manually eliminate or un-eliminate a player (admin only)
-    if (action === "eliminate") {
+    if (action === 'eliminate') {
       const authResult = await requireAdminSession();
       if (authResult.error) return authResult.error;
 
       if (eliminated === undefined) {
-        return createErrorResponse("eliminated boolean is required", 400, "VALIDATION_ERROR");
+        return createErrorResponse('eliminated boolean is required', 400, 'VALIDATION_ERROR');
       }
 
       const entry = await prisma.tTEntry.findUnique({
@@ -570,14 +592,21 @@ export async function PUT(
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
         targetId: entryId,
-        targetType: "TTEntry",
+        targetType: 'TTEntry',
         details: {
           tournamentId,
           playerNickname: updatedEntry.player.nickname,
           eliminated,
           manualUpdate: true,
         },
-      }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_ELIMINATE' }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          tournamentId,
+          entryId,
+          action: 'UPDATE_TA_ENTRY_ELIMINATE',
+        }),
+      );
 
       return createSuccessResponse({ entry: updatedEntry });
     }
@@ -612,7 +641,7 @@ export async function PUT(
       const isOwner = currentPlayerId === entry.playerId;
       const isPartner = entry.partnerId === currentPlayerId;
       if (!isOwner && !isPartner) {
-        return createErrorResponse('Forbidden: You can only update your own or your partner\'s times', 403, 'FORBIDDEN');
+        return createErrorResponse("Forbidden: You can only update your own or your partner's times", 403, 'FORBIDDEN');
       }
 
       // §3.1 taPlayerSelfEdit: when disabled, players can only edit partner's times
@@ -626,11 +655,11 @@ export async function PUT(
         }
       }
 
-      if (entry.stage === "qualification" && await hasKnockoutStageStarted(tournamentId)) {
+      if (entry.stage === 'qualification' && (await hasKnockoutStageStarted(tournamentId))) {
         return createErrorResponse(
           'Forbidden: Qualification times can only be edited by admins after knockout starts',
           403,
-          'FORBIDDEN'
+          'FORBIDDEN',
         );
       }
     }
@@ -645,17 +674,17 @@ export async function PUT(
     } else if (course && time !== undefined) {
       // Single course update: validate course abbreviation
       if (!COURSES.includes(course as CourseAbbr)) {
-        return createErrorResponse("Invalid course abbreviation", 400, "VALIDATION_ERROR");
+        return createErrorResponse('Invalid course abbreviation', 400, 'VALIDATION_ERROR');
       }
       updatedTimes = { ...currentTimes, [course]: time };
     } else {
-      return createErrorResponse("Either (course and time) or times object is required", 400, "VALIDATION_ERROR");
+      return createErrorResponse('Either (course and time) or times object is required', 400, 'VALIDATION_ERROR');
     }
 
     // Validate all time formats before saving
     for (const [c, t] of Object.entries(updatedTimes)) {
-      if (t && t !== "" && timeToMs(t) === null) {
-        return createErrorResponse(`Invalid time format for ${c}: ${t}`, 400, "VALIDATION_ERROR");
+      if (t && t !== '' && timeToMs(t) === null) {
+        return createErrorResponse(`Invalid time format for ${c}: ${t}`, 400, 'VALIDATION_ERROR');
       }
     }
 
@@ -665,12 +694,12 @@ export async function PUT(
     // sequential typed entries produce a stable "latest" event.
     let lastRecordedCourse: string | null = null;
     let lastRecordedTime: string | null = null;
-    if (course && time !== undefined && time !== "") {
+    if (course && time !== undefined && time !== '') {
       lastRecordedCourse = course;
       lastRecordedTime = time;
     } else if (bulkTimes) {
       for (const [c, t] of Object.entries(bulkTimes)) {
-        if (!t || t === "") continue;
+        if (!t || t === '') continue;
         if (currentTimes[c] === t) continue;
         lastRecordedCourse = c;
         lastRecordedTime = t;
@@ -684,9 +713,7 @@ export async function PUT(
       where: { id: entryId },
       data: {
         times: updatedTimes,
-        ...(lastRecordedCourse && lastRecordedTime
-          ? { lastRecordedCourse, lastRecordedTime }
-          : {}),
+        ...(lastRecordedCourse && lastRecordedTime ? { lastRecordedCourse, lastRecordedTime } : {}),
       },
     });
 
@@ -707,19 +734,21 @@ export async function PUT(
       userAgent,
       action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
       targetId: entryId,
-      targetType: "TTEntry",
+      targetType: 'TTEntry',
       details: {
         tournamentId,
         updatedTimes: updatedTimes,
         playerNickname: finalEntry?.player.nickname,
       },
-    }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_TIMES' }));
+    }).catch((err) =>
+      logger.warn('Failed to create audit log', { error: err, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_TIMES' }),
+    );
 
     return createSuccessResponse({ entry: finalEntry });
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to update times", { error, tournamentId });
-    return createErrorResponse("Failed to update times", 500, "INTERNAL_ERROR");
+    logger.error('Failed to update times', { error, tournamentId });
+    return createErrorResponse('Failed to update times', 500, 'INTERNAL_ERROR');
   }
 }
 
@@ -732,32 +761,28 @@ export async function PUT(
  * Query parameters:
  * - entryId: UUID of the entry to delete (required)
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id } = await params;
   const tournamentId = await resolveTournamentId(id);
   try {
-
     const authResult = await requireAdminSession();
     if (authResult.error) return authResult.error;
 
     // Get entry ID from query parameters
     const { searchParams } = new URL(request.url);
-    const entryId = searchParams.get("entryId");
+    const entryId = searchParams.get('entryId');
 
     if (!entryId) {
-      return createErrorResponse("entryId is required", 400, "VALIDATION_ERROR");
+      return createErrorResponse('entryId is required', 400, 'VALIDATION_ERROR');
     }
 
     // Validate entry ID format
     const cuidSchema = z.string().cuid();
     const entryIdResult = cuidSchema.safeParse(entryId);
     if (!entryIdResult.success) {
-      return createErrorResponse("Invalid entry ID format", 400, "VALIDATION_ERROR");
+      return createErrorResponse('Invalid entry ID format', 400, 'VALIDATION_ERROR');
     }
 
     // Fetch entry to confirm existence and get player data for audit log
@@ -776,7 +801,7 @@ export async function DELETE(
 
     // Delete the entry from the database
     await prisma.tTEntry.delete({
-      where: { id: entryId }
+      where: { id: entryId },
     });
 
     // Deletion only shifts ranks; remaining times and course scores are unchanged.
@@ -791,18 +816,20 @@ export async function DELETE(
       userAgent,
       action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
       targetId: entryId,
-      targetType: "TTEntry",
+      targetType: 'TTEntry',
       details: {
         tournamentId,
         playerNickname: entryToDelete.player.nickname,
         deletedBy: authResult.session!.user.id,
       },
-    }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'DELETE_TA_ENTRY' }));
+    }).catch((err) =>
+      logger.warn('Failed to create audit log', { error: err, tournamentId, entryId, action: 'DELETE_TA_ENTRY' }),
+    );
 
-    return createSuccessResponse({ message: "Entry deleted successfully" });
+    return createSuccessResponse({ message: 'Entry deleted successfully' });
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to delete entry", { error, tournamentId });
-    return createErrorResponse("Failed to delete entry", 500, "INTERNAL_ERROR");
+    logger.error('Failed to delete entry', { error, tournamentId });
+    return createErrorResponse('Failed to delete entry', 500, 'INTERNAL_ERROR');
   }
 }

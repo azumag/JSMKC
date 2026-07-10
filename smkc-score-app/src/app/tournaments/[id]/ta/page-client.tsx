@@ -262,6 +262,7 @@ export default function TimeAttackPageClient({
       qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
       frozenStages: taData.frozenStages || [],
       taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,
+      taBattleRoyaleMode: taData.taBattleRoyaleMode ?? false,
     };
   }, [tournamentId]);
 
@@ -289,6 +290,7 @@ export default function TimeAttackPageClient({
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
   const taPlayerSelfEdit: boolean = pollData?.taPlayerSelfEdit ?? true;
+  const taBattleRoyaleMode: boolean = pollData?.taBattleRoyaleMode ?? false;
   /**
    * Whether the current user can edit a specific entry's times.
    * Returns false if the entry's stage is frozen (applies to both admins and players).
@@ -1051,61 +1053,63 @@ export default function TimeAttackPageClient({
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Phase 1: Only relevant when there are ≥17 qualified players (ranks 17-24) */}
-              <div className="border rounded-lg p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold">{t('phase1')}</h4>
-                </div>
-                <p className="text-sm text-muted-foreground">{t('phase1Desc')}</p>
-                {phaseStatus?.phase1 ? (
-                  <div className="text-sm">
-                    <span className="text-green-600">
-                      {phaseStatus.phase1.active} {tc('active')}
-                    </span>
-                    {' / '}
-                    <span className="text-red-500">
-                      {phaseStatus.phase1.eliminated} {tc('eliminated')}
-                    </span>
+              {!taBattleRoyaleMode && (
+                <div className="border rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold">{t('phase1')}</h4>
                   </div>
-                ) : !phase1HasPlayers ? (
-                  <p className="text-sm text-muted-foreground">{t('phase1Skipped')}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  {/* Promotion button: admin-only */}
-                  {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase1 && phase1HasPlayers && (
-                    <Button
-                      size="sm"
-                      onClick={() => handlePromoteToPhase('promote_phase1')}
-                      disabled={phaseActionInFlight}
-                    >
-                      {promotingPhase === 'promote_phase1' ? tc('promoting') : t('startPhase1')}
-                    </Button>
+                  <p className="text-sm text-muted-foreground">{t('phase1Desc')}</p>
+                  {phaseStatus?.phase1 ? (
+                    <div className="text-sm">
+                      <span className="text-green-600">
+                        {phaseStatus.phase1.active} {tc('active')}
+                      </span>
+                      {' / '}
+                      <span className="text-red-500">
+                        {phaseStatus.phase1.eliminated} {tc('eliminated')}
+                      </span>
+                    </div>
+                  ) : !phase1HasPlayers ? (
+                    <p className="text-sm text-muted-foreground">{t('phase1Skipped')}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                   )}
-                  {phaseStatus?.phase1 && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</a>
-                    </Button>
-                  )}
-                  {/* Reset (undo promotion) button: admin-only, destructive.
-                   * Only shown while phase2 has not been promoted yet — see
-                   * canResetTaPhase for the full guard rationale. */}
-                  {isAdmin && canResetPhase1 && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleResetPhase('phase1')}
-                      disabled={phaseActionInFlight}
-                    >
-                      {resettingPhase === 'phase1' ? t('resettingPhase') : t('resetPhase1')}
-                    </Button>
-                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Promotion button: admin-only */}
+                    {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase1 && phase1HasPlayers && (
+                      <Button
+                        size="sm"
+                        onClick={() => handlePromoteToPhase('promote_phase1')}
+                        disabled={phaseActionInFlight}
+                      >
+                        {promotingPhase === 'promote_phase1' ? tc('promoting') : t('startPhase1')}
+                      </Button>
+                    )}
+                    {phaseStatus?.phase1 && (
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</a>
+                      </Button>
+                    )}
+                    {/* Reset (undo promotion) button: admin-only, destructive.
+                     * Only shown while phase2 has not been promoted yet — see
+                     * canResetTaPhase for the full guard rationale. */}
+                    {isAdmin && canResetPhase1 && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleResetPhase('phase1')}
+                        disabled={phaseActionInFlight}
+                      >
+                        {resettingPhase === 'phase1' ? t('resettingPhase') : t('resetPhase1')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Phase 2: Only shown when Phase 1 has been started or skipped (no eligible players).
                * This prevents displaying Phase 2 controls before Phase 1 is resolved. */}
-              {(phaseStatus?.phase1 || !phase1HasPlayers) && (
+              {!taBattleRoyaleMode && (phaseStatus?.phase1 || !phase1HasPlayers) && (
                 <div className="border rounded-lg p-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <h4 className="font-semibold">{t('phase2')}</h4>
@@ -1165,7 +1169,8 @@ export default function TimeAttackPageClient({
 
               {/* Phase 3: Only shown when Phase 2 has been started or skipped.
                * Both Phase 1 and Phase 2 must be resolved before Phase 3 appears. */}
-              {(phaseStatus?.phase2 ||
+              {(taBattleRoyaleMode ||
+                phaseStatus?.phase2 ||
                 (!phase1HasPlayers && !phase2HasPlayers) ||
                 (phaseStatus?.phase1 && !phase2HasPlayers)) && (
                 <div className="border rounded-lg p-4 space-y-2">
@@ -1196,7 +1201,7 @@ export default function TimeAttackPageClient({
                     {isAdmin &&
                       showPhasePromotionButtons &&
                       !phaseStatus?.phase3 &&
-                      (phaseStatus?.phase2 || !phase2HasPlayers) && (
+                      (taBattleRoyaleMode || phaseStatus?.phase2 || !phase2HasPlayers) && (
                         <Button
                           size="sm"
                           onClick={() => handlePromoteToPhase('promote_phase3')}

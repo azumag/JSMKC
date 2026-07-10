@@ -26,22 +26,23 @@
  * - "qualification" -> "phase1" -> "phase2" -> "phase3"
  */
 
-import { Prisma, PrismaClient, type TTEntry } from "@prisma/client";
+import { Prisma, PrismaClient, type TTEntry } from '@prisma/client';
 // InputJsonValue and PrismaClientKnownRequestError were moved out of
 // the Prisma namespace in v6; import directly from runtime library.
-import type { InputJsonValue } from "@prisma/client/runtime/library";
-import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
+import type { InputJsonValue } from '@prisma/client/runtime/library';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
-import { createLogger } from "@/lib/logger";
+import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { createLogger } from '@/lib/logger';
 import {
   selectRandomCourse,
   getAvailableCourses,
   getPlayedCoursesWithSuddenDeath,
   selectRandomAvailableCourse,
   isValidCourseAbbr,
-} from "@/lib/ta/course-selection";
-import { RETRY_PENALTY_MS, CourseAbbr } from "@/lib/constants";
+} from '@/lib/ta/course-selection';
+import { RETRY_PENALTY_MS, CourseAbbr } from '@/lib/constants';
+import { applyTaHandicap, getTaPhase3Rules, isTaHandicapSeconds } from '@/lib/ta/battle-royale';
 
 /**
  * Phase configuration constants defining the rules for each phase.
@@ -76,18 +77,22 @@ export const PHASE_CONFIG = {
   },
 } as const;
 
-export function getNextPhase3ResetThreshold(activeCount: number): number | null {
+export function getNextPhase3ResetThreshold(
+  activeCount: number,
+  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
+): number | null {
   const minimumPhase3Survivors = PHASE_CONFIG.phase3.survivorsNeeded;
-  const thresholds = [...PHASE_CONFIG.phase3.lifeResetThresholds]
-    .filter((threshold) => threshold < activeCount)
-    .sort((a, b) => b - a);
+  const thresholds = [...lifeResetThresholds].filter((threshold) => threshold < activeCount).sort((a, b) => b - a);
   // When no configured reset threshold remains below activeCount, fallback to one survivor.
   // This makes the elimination limit activeCount - 1 and protects the last remaining player.
   return thresholds[0] ?? (activeCount > minimumPhase3Survivors ? minimumPhase3Survivors : null);
 }
 
-function getPhase3EliminationLimit(activeCount: number): number {
-  const nextThreshold = getNextPhase3ResetThreshold(activeCount);
+function getPhase3EliminationLimit(
+  activeCount: number,
+  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
+): number {
+  const nextThreshold = getNextPhase3ResetThreshold(activeCount, lifeResetThresholds);
   return nextThreshold === null ? Number.POSITIVE_INFINITY : activeCount - nextThreshold;
 }
 
@@ -101,6 +106,7 @@ export interface PhaseContext {
   userId: string | undefined;
   ipAddress: string;
   userAgent: string;
+  taBattleRoyaleMode?: boolean;
 }
 
 /**
@@ -117,7 +123,7 @@ export interface PhaseContext {
 export class PhaseResetConflictError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "PhaseResetConflictError";
+    this.name = 'PhaseResetConflictError';
   }
 }
 
@@ -149,11 +155,7 @@ type Phase3ResolvedOrder = ReadonlyMap<string, number>;
  * should not occur there. If a future caller supplies a partial map, falling
  * back to time keeps normal Phase3 ordering rather than mixing two rank systems.
  */
-function comparePhase3CourseResults(
-  a: CourseResult,
-  b: CourseResult,
-  resolvedOrder?: Phase3ResolvedOrder
-) {
+function comparePhase3CourseResults(a: CourseResult, b: CourseResult, resolvedOrder?: Phase3ResolvedOrder) {
   const aOrder = resolvedOrder?.get(a.playerId);
   const bOrder = resolvedOrder?.get(b.playerId);
   if (aOrder !== undefined && bOrder !== undefined && aOrder !== bOrder) {
@@ -176,19 +178,19 @@ async function getQualificationPlayersByRank(
   prisma: PrismaClient,
   tournamentId: string,
   rankStart: number,
-  rankEnd: number
+  rankEnd: number,
 ): Promise<TTEntry[]> {
   return prisma.tTEntry.findMany({
     where: {
       tournamentId,
-      stage: "qualification",
+      stage: 'qualification',
       rank: {
         gte: rankStart,
         lte: rankEnd,
       },
     },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
-    orderBy: { rank: "asc" },
+    orderBy: { rank: 'asc' },
   });
 }
 
@@ -201,11 +203,7 @@ async function getQualificationPlayersByRank(
  * @param phase - Phase stage name (e.g., "phase1", "phase2", "phase3")
  * @returns Array of non-eliminated TTEntry records ordered by total time
  */
-async function getActivePhasePlayers(
-  prisma: PrismaClient,
-  tournamentId: string,
-  phase: string
-): Promise<TTEntry[]> {
+async function getActivePhasePlayers(prisma: PrismaClient, tournamentId: string, phase: string): Promise<TTEntry[]> {
   return prisma.tTEntry.findMany({
     where: {
       tournamentId,
@@ -213,7 +211,7 @@ async function getActivePhasePlayers(
       eliminated: false,
     },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
-    orderBy: { totalTime: "asc" },
+    orderBy: { totalTime: 'asc' },
   });
 }
 
@@ -230,12 +228,9 @@ async function getActivePhasePlayers(
  * @returns Operation result with created entries and status message
  * @throws Error if no players found in the qualifying rank range
  */
-export async function promoteToPhase1(
-  prisma: PrismaClient,
-  context: PhaseContext
-): Promise<PhaseOperationResult> {
+export async function promoteToPhase1(prisma: PrismaClient, context: PhaseContext): Promise<PhaseOperationResult> {
   // Logger created inside function (not module level) for proper test mocking
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
   const config = PHASE_CONFIG.phase1;
 
@@ -244,7 +239,7 @@ export async function promoteToPhase1(
     prisma,
     tournamentId,
     config.qualRankStart,
-    config.qualRankEnd
+    config.qualRankEnd,
   );
 
   // If no players in ranks 17-24, Phase 1 is skipped (small tournament).
@@ -253,7 +248,7 @@ export async function promoteToPhase1(
     return {
       entries: [],
       skipped: [],
-      message: "Phase 1 skipped — no players in qualification ranks 17-24",
+      message: 'Phase 1 skipped — no players in qualification ranks 17-24',
     };
   }
 
@@ -270,13 +265,13 @@ export async function promoteToPhase1(
   });
 
   if (eligible.length === 0) {
-    return { entries: [], skipped: skippedPlayers, message: "Phase 1 skipped — no eligible players with total time" };
+    return { entries: [], skipped: skippedPlayers, message: 'Phase 1 skipped — no eligible players with total time' };
   }
 
   // Bulk-check existing phase1 entries — collapses N findUnique calls into one D1 round-trip
   const playerIds = eligible.map((q) => q.playerId);
   const existingEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase1", playerId: { in: playerIds } },
+    where: { tournamentId, stage: 'phase1', playerId: { in: playerIds } },
     select: { playerId: true },
   });
   const existingIds = new Set(existingEntries.map((e: { playerId: string }) => e.playerId));
@@ -284,7 +279,7 @@ export async function promoteToPhase1(
   const toCreate = eligible.filter((q) => !existingIds.has(q.playerId));
   if (toCreate.length === 0) {
     skippedPlayers.push(...playerIds.filter((id) => existingIds.has(id)));
-    return { entries: [], skipped: skippedPlayers, message: "All players already promoted to Phase 1" };
+    return { entries: [], skipped: skippedPlayers, message: 'All players already promoted to Phase 1' };
   }
 
   // Batch-insert all new phase1 entries in one D1 round-trip (avoids N sequential creates
@@ -294,7 +289,7 @@ export async function promoteToPhase1(
       data: toCreate.map((qual) => ({
         tournamentId,
         playerId: qual.playerId,
-        stage: "phase1",
+        stage: 'phase1',
         lives: 0, // Phase1 uses direct elimination, not the life system
         eliminated: false,
         times: qual.times as InputJsonValue,
@@ -303,9 +298,9 @@ export async function promoteToPhase1(
       })),
     });
   } catch (e) {
-    if (e instanceof Error && e.message.includes("P2002")) {
+    if (e instanceof Error && e.message.includes('P2002')) {
       // Concurrent request already created some entries — fetch below picks them up
-      logger.warn("promoteToPhase1: P2002 on createMany, treating as idempotent");
+      logger.warn('promoteToPhase1: P2002 on createMany, treating as idempotent');
     } else {
       throw e;
     }
@@ -313,9 +308,9 @@ export async function promoteToPhase1(
 
   // Fetch created entries with player data for the response and audit logs
   const createdEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase1", playerId: { in: toCreate.map((q) => q.playerId) } },
+    where: { tournamentId, stage: 'phase1', playerId: { in: toCreate.map((q) => q.playerId) } },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
-    orderBy: { rank: "asc" },
+    orderBy: { rank: 'asc' },
   });
 
   for (const entry of createdEntries) {
@@ -325,14 +320,14 @@ export async function promoteToPhase1(
       userAgent,
       action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
       targetId: entry.id,
-      targetType: "TTEntry",
+      targetType: 'TTEntry',
       details: {
         tournamentId,
         playerId: entry.playerId,
         playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
-        promotedTo: "phase1",
+        promotedTo: 'phase1',
       },
-    }).catch((err) => logger.warn("Failed to create audit log", { error: err }));
+    }).catch((err) => logger.warn('Failed to create audit log', { error: err }));
   }
 
   return {
@@ -355,28 +350,21 @@ export async function promoteToPhase1(
  * @returns Operation result with created entries and status message
  * @throws Error if no players available for Phase 2
  */
-export async function promoteToPhase2(
-  prisma: PrismaClient,
-  context: PhaseContext
-): Promise<PhaseOperationResult> {
+export async function promoteToPhase2(prisma: PrismaClient, context: PhaseContext): Promise<PhaseOperationResult> {
   // Logger created inside function for proper test mocking
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
   const config = PHASE_CONFIG.phase2;
 
   // Get Phase 1 survivors (non-eliminated players)
-  const phase1Survivors = await getActivePhasePlayers(
-    prisma,
-    tournamentId,
-    "phase1"
-  );
+  const phase1Survivors = await getActivePhasePlayers(prisma, tournamentId, 'phase1');
 
   // Get qualification ranks 13-16
   const qualifiers = await getQualificationPlayersByRank(
     prisma,
     tournamentId,
     config.qualRankStart,
-    config.qualRankEnd
+    config.qualRankEnd,
   );
 
   // Combine both groups into the phase 2 candidate pool
@@ -388,7 +376,7 @@ export async function promoteToPhase2(
     return {
       entries: [],
       skipped: [],
-      message: "Phase 2 skipped — no Phase 1 survivors and no players in ranks 13-16",
+      message: 'Phase 2 skipped — no Phase 1 survivors and no players in ranks 13-16',
     };
   }
 
@@ -407,14 +395,14 @@ export async function promoteToPhase2(
   // Bulk-check existing phase2 entries — collapses N findUnique calls into one D1 round-trip
   const playerIds = eligible.map((s) => s.playerId);
   const existingEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase2", playerId: { in: playerIds } },
+    where: { tournamentId, stage: 'phase2', playerId: { in: playerIds } },
     select: { playerId: true },
   });
   const existingIds = new Set(existingEntries.map((e: { playerId: string }) => e.playerId));
 
   const toCreate = eligible.filter((s) => !existingIds.has(s.playerId));
   if (toCreate.length === 0) {
-    return { entries: [], skipped: skippedPlayers, message: "All players already promoted to Phase 2" };
+    return { entries: [], skipped: skippedPlayers, message: 'All players already promoted to Phase 2' };
   }
 
   // Batch-insert all new phase2 entries in one D1 round-trip (#689)
@@ -423,7 +411,7 @@ export async function promoteToPhase2(
       data: toCreate.map((source) => ({
         tournamentId,
         playerId: source.playerId,
-        stage: "phase2",
+        stage: 'phase2',
         lives: 0,
         eliminated: false,
         times: source.times as InputJsonValue,
@@ -432,29 +420,34 @@ export async function promoteToPhase2(
       })),
     });
   } catch (e) {
-    if (e instanceof Error && e.message.includes("P2002")) {
-      logger.warn("promoteToPhase2: P2002 on createMany, treating as idempotent");
+    if (e instanceof Error && e.message.includes('P2002')) {
+      logger.warn('promoteToPhase2: P2002 on createMany, treating as idempotent');
     } else {
       throw e;
     }
   }
 
   const createdEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase2", playerId: { in: toCreate.map((s) => s.playerId) } },
+    where: { tournamentId, stage: 'phase2', playerId: { in: toCreate.map((s) => s.playerId) } },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
-    orderBy: { rank: "asc" },
+    orderBy: { rank: 'asc' },
   });
 
   for (const entry of createdEntries) {
     await createAuditLog({
-      userId, ipAddress, userAgent,
+      userId,
+      ipAddress,
+      userAgent,
       action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
       targetId: entry.id,
-      targetType: "TTEntry",
-      details: { tournamentId, playerId: entry.playerId,
+      targetType: 'TTEntry',
+      details: {
+        tournamentId,
+        playerId: entry.playerId,
         playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
-        promotedTo: "phase2" },
-    }).catch((err) => logger.warn("Failed to create audit log", { error: err }));
+        promotedTo: 'phase2',
+      },
+    }).catch((err) => logger.warn('Failed to create audit log', { error: err }));
   }
 
   return {
@@ -479,29 +472,22 @@ export async function promoteToPhase2(
  * @returns Operation result with created entries and status message
  * @throws Error if no players available for Phase 3
  */
-export async function promoteToPhase3(
-  prisma: PrismaClient,
-  context: PhaseContext
-): Promise<PhaseOperationResult> {
+export async function promoteToPhase3(prisma: PrismaClient, context: PhaseContext): Promise<PhaseOperationResult> {
   // Logger created inside function for proper test mocking
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
   const config = PHASE_CONFIG.phase3;
+  const rules = getTaPhase3Rules(context.taBattleRoyaleMode === true);
 
-  // Get Phase 2 survivors (non-eliminated)
-  const phase2Survivors = await getActivePhasePlayers(
-    prisma,
-    tournamentId,
-    "phase2"
-  );
+  const phase2Survivors = context.taBattleRoyaleMode ? [] : await getActivePhasePlayers(prisma, tournamentId, 'phase2');
 
-  // Get qualification ranks 1-12 (top performers)
-  const qualifiers = await getQualificationPlayersByRank(
-    prisma,
-    tournamentId,
-    config.qualRankStart,
-    config.qualRankEnd
-  );
+  const qualifiers = context.taBattleRoyaleMode
+    ? await prisma.tTEntry.findMany({
+        where: { tournamentId, stage: 'qualification' },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
+        orderBy: [{ rank: 'asc' }, { createdAt: 'asc' }],
+      })
+    : await getQualificationPlayersByRank(prisma, tournamentId, config.qualRankStart, config.qualRankEnd);
 
   // Combine both groups into the finals candidate pool
   const allPlayers = [...phase2Survivors, ...qualifiers];
@@ -510,13 +496,14 @@ export async function promoteToPhase3(
   // Phase 3 with 0 players is always an error: there must be at least some players
   // in ranks 1-12 for a valid finals. This throw is intentional.
   if (allPlayers.length === 0) {
-    throw new Error("No players available for Phase 3 (Finals)");
+    throw new Error('No players available for Phase 3 (Finals)');
   }
 
   const skippedPlayers: string[] = [];
 
   // Filter out players without total time
   const eligible = allPlayers.filter((source) => {
+    if (context.taBattleRoyaleMode) return true;
     if (source.totalTime === null) {
       const playerEntry = source as TTEntry & { player: { nickname: string } };
       skippedPlayers.push(playerEntry.player.nickname);
@@ -528,14 +515,14 @@ export async function promoteToPhase3(
   // Bulk-check existing phase3 entries — collapses N findUnique calls into one D1 round-trip
   const playerIds = eligible.map((s) => s.playerId);
   const existingEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase3", playerId: { in: playerIds } },
+    where: { tournamentId, stage: 'phase3', playerId: { in: playerIds } },
     select: { playerId: true },
   });
   const existingIds = new Set(existingEntries.map((e: { playerId: string }) => e.playerId));
 
   const toCreate = eligible.filter((s) => !existingIds.has(s.playerId));
   if (toCreate.length === 0) {
-    return { entries: [], skipped: skippedPlayers, message: "All players already promoted to Phase 3" };
+    return { entries: [], skipped: skippedPlayers, message: 'All players already promoted to Phase 3' };
   }
 
   // Batch-insert all new phase3 entries in one D1 round-trip (#689)
@@ -544,8 +531,8 @@ export async function promoteToPhase3(
       data: toCreate.map((source) => ({
         tournamentId,
         playerId: source.playerId,
-        stage: "phase3",
-        lives: config.initialLives,
+        stage: 'phase3',
+        lives: rules.initialLives,
         eliminated: false,
         times: source.times as InputJsonValue,
         totalTime: source.totalTime,
@@ -553,35 +540,41 @@ export async function promoteToPhase3(
       })),
     });
   } catch (e) {
-    if (e instanceof Error && e.message.includes("P2002")) {
-      logger.warn("promoteToPhase3: P2002 on createMany, treating as idempotent");
+    if (e instanceof Error && e.message.includes('P2002')) {
+      logger.warn('promoteToPhase3: P2002 on createMany, treating as idempotent');
     } else {
       throw e;
     }
   }
 
   const createdEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase3", playerId: { in: toCreate.map((s) => s.playerId) } },
+    where: { tournamentId, stage: 'phase3', playerId: { in: toCreate.map((s) => s.playerId) } },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
-    orderBy: { rank: "asc" },
+    orderBy: { rank: 'asc' },
   });
 
   for (const entry of createdEntries) {
     await createAuditLog({
-      userId, ipAddress, userAgent,
+      userId,
+      ipAddress,
+      userAgent,
       action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
       targetId: entry.id,
-      targetType: "TTEntry",
-      details: { tournamentId, playerId: entry.playerId,
+      targetType: 'TTEntry',
+      details: {
+        tournamentId,
+        playerId: entry.playerId,
         playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
-        promotedTo: "phase3", initialLives: config.initialLives },
-    }).catch((err) => logger.warn("Failed to create audit log", { error: err }));
+        promotedTo: 'phase3',
+        initialLives: rules.initialLives,
+      },
+    }).catch((err) => logger.warn('Failed to create audit log', { error: err }));
   }
 
   return {
     entries: createdEntries,
     skipped: skippedPlayers,
-    message: `Promoted ${createdEntries.length} players to Phase 3 (Finals) with ${config.initialLives} lives`,
+    message: `Promoted ${createdEntries.length} players to Phase 3 (Finals) with ${rules.initialLives} lives`,
   };
 }
 
@@ -602,20 +595,16 @@ export async function promoteToPhase3(
 export async function processEliminationPhaseResult(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2",
-  courseResults: CourseResult[]
+  phase: 'phase1' | 'phase2',
+  courseResults: CourseResult[],
 ): Promise<string[]> {
   // Logger created inside function for proper test mocking
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
   const config = PHASE_CONFIG[phase];
 
   // Get current active (non-eliminated) players in this phase
-  const activePlayers = await getActivePhasePlayers(
-    prisma,
-    tournamentId,
-    phase
-  );
+  const activePlayers = await getActivePhasePlayers(prisma, tournamentId, phase);
 
   // If already at or below survivor count, no elimination needed
   if (activePlayers.length <= config.survivorsNeeded) {
@@ -628,10 +617,10 @@ export async function processEliminationPhaseResult(
   // Guard against tied slowest times: if multiple players share the worst time,
   // elimination is ambiguous and requires admin manual resolution.
   const slowestPlayer = sortedResults[0];
-  const tiedCount = sortedResults.filter(r => r.timeMs === slowestPlayer.timeMs).length;
+  const tiedCount = sortedResults.filter((r) => r.timeMs === slowestPlayer.timeMs).length;
   if (tiedCount > 1) {
     throw new Error(
-      `Tie detected: ${tiedCount} players share the slowest time (${slowestPlayer.timeMs}ms). Admin must resolve the tie manually before continuing.`
+      `Tie detected: ${tiedCount} players share the slowest time (${slowestPlayer.timeMs}ms). Admin must resolve the tie manually before continuing.`,
     );
   }
 
@@ -654,17 +643,17 @@ export async function processEliminationPhaseResult(
       userAgent,
       action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
       targetId: slowestPlayer.playerId,
-      targetType: "TTEntry",
+      targetType: 'TTEntry',
       details: {
         tournamentId,
         phase,
-        action: "eliminated",
-        reason: "slowest_time",
+        action: 'eliminated',
+        reason: 'slowest_time',
         timeMs: slowestPlayer.timeMs,
       },
     });
   } catch (logError) {
-    logger.error("Failed to create audit log", {
+    logger.error('Failed to create audit log', {
       error: logError instanceof Error ? logError.message : logError,
     });
   }
@@ -693,19 +682,17 @@ export async function processPhase3Result(
   context: PhaseContext,
   courseResults: CourseResult[],
   resolvedOrder?: Phase3ResolvedOrder,
-  preloadedActivePlayers?: TTEntry[]
+  preloadedActivePlayers?: TTEntry[],
 ): Promise<{ eliminated: string[]; livesReset: boolean }> {
   // Logger created inside function for proper test mocking
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
-  const config = PHASE_CONFIG.phase3;
+  const rules = getTaPhase3Rules(context.taBattleRoyaleMode === true);
 
   // Get current active players in phase 3. Callers that already fetched the
   // roster (sudden-death resolution needs it for the bronze check) pass it in
   // so the same round does not read the table twice.
-  const activePlayers =
-    preloadedActivePlayers ??
-    (await getActivePhasePlayers(prisma, tournamentId, "phase3"));
+  const activePlayers = preloadedActivePlayers ?? (await getActivePhasePlayers(prisma, tournamentId, 'phase3'));
 
   // Only 1 player left = winner, no more processing needed
   if (activePlayers.length <= 1) {
@@ -718,23 +705,21 @@ export async function processPhase3Result(
    * +1/+2ms to the tied players can collide with a non-sudden-death player's
    * real time and pick the wrong capped elimination target.
    */
-  const sortedResults = [...courseResults].sort((a, b) =>
-    comparePhase3CourseResults(a, b, resolvedOrder)
-  );
+  const sortedResults = [...courseResults].sort((a, b) => comparePhase3CourseResults(a, b, resolvedOrder));
 
   // Bottom half loses a life (players with slower times)
   // If odd number of players, the extra player is in the "safe" top half
   const halfwayPoint = Math.ceil(sortedResults.length / 2);
   const bottomHalf = sortedResults.slice(halfwayPoint);
 
-  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length);
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length, rules.lifeResetThresholds);
   const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
   const selectedEliminationIds = new Set(
     bottomHalf
       .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? 0) - 1 <= 0)
       .sort((a, b) => comparePhase3CourseResults(b, a, resolvedOrder))
       .slice(0, eliminationLimit)
-      .map((result) => result.playerId)
+      .map((result) => result.playerId),
   );
   const eliminatedPlayers: string[] = [];
 
@@ -745,7 +730,7 @@ export async function processPhase3Result(
         tournamentId_playerId_stage: {
           tournamentId,
           playerId: result.playerId,
-          stage: "phase3",
+          stage: 'phase3',
         },
       },
     });
@@ -776,18 +761,18 @@ export async function processPhase3Result(
           userAgent,
           action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
           targetId: entry.id,
-          targetType: "TTEntry",
+          targetType: 'TTEntry',
           details: {
             tournamentId,
-            phase: "phase3",
-            action: selectedForElimination ? "eliminated" : "life_lost",
+            phase: 'phase3',
+            action: selectedForElimination ? 'eliminated' : 'life_lost',
             oldLives: entry.lives,
             newLives: Math.max(0, newLives),
             timeMs: result.timeMs,
           },
         });
       } catch (logError) {
-        logger.error("Failed to create audit log", {
+        logger.error('Failed to create audit log', {
           error: logError instanceof Error ? logError.message : logError,
         });
       }
@@ -799,28 +784,21 @@ export async function processPhase3Result(
   // AND the new count hits a threshold. Without the eliminatedPlayers.length > 0 guard,
   // an infinite loop occurs: e.g. 8 players remain, bottom 4 lose a life (3→2),
   // no eliminations, remaining=8, lives reset to 3, repeat forever.
-  const remainingPlayers = await getActivePhasePlayers(
-    prisma,
-    tournamentId,
-    "phase3"
-  );
+  const remainingPlayers = await getActivePhasePlayers(prisma, tournamentId, 'phase3');
   const remainingCount = remainingPlayers.length;
 
   let livesReset = false;
   // Only reset when a threshold is freshly reached (i.e., eliminations happened this round)
-  if (
-    eliminatedPlayers.length > 0 &&
-    (config.lifeResetThresholds as readonly number[]).includes(remainingCount)
-  ) {
+  if (eliminatedPlayers.length > 0 && rules.lifeResetThresholds.includes(remainingCount)) {
     // Reset all remaining players to initial lives (3)
     await prisma.tTEntry.updateMany({
       where: {
         tournamentId,
-        stage: "phase3",
+        stage: 'phase3',
         eliminated: false,
       },
       data: {
-        lives: config.initialLives,
+        lives: rules.initialLives,
       },
     });
     livesReset = true;
@@ -833,17 +811,17 @@ export async function processPhase3Result(
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
         targetId: tournamentId,
-        targetType: "Tournament",
+        targetType: 'Tournament',
         details: {
           tournamentId,
-          phase: "phase3",
-          action: "lives_reset",
+          phase: 'phase3',
+          action: 'lives_reset',
           playerCount: remainingCount,
-          newLives: config.initialLives,
+          newLives: rules.initialLives,
         },
       });
     } catch (logError) {
-      logger.error("Failed to create audit log", {
+      logger.error('Failed to create audit log', {
         error: logError instanceof Error ? logError.message : logError,
       });
     }
@@ -852,14 +830,14 @@ export async function processPhase3Result(
   return { eliminated: eliminatedPlayers, livesReset };
 }
 
-type PhaseStage = "phase1" | "phase2" | "phase3";
+type PhaseStage = 'phase1' | 'phase2' | 'phase3';
 type PhaseCountRow = {
   stage: PhaseStage;
   eliminated: boolean;
   _count: { _all: number };
 };
 type PhaseGroupBy = (args: {
-  by: ["stage", "eliminated"];
+  by: ['stage', 'eliminated'];
   where: {
     tournamentId: string;
     stage: { in: PhaseStage[] };
@@ -880,7 +858,7 @@ type PhaseGroupBy = (args: {
  */
 export async function getPhaseStatus(
   prisma: PrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<{
   phase1: { total: number; active: number; eliminated: number } | null;
   phase2: { total: number; active: number; eliminated: number } | null;
@@ -893,12 +871,12 @@ export async function getPhaseStatus(
    * occasionally caused Workers request-hung cancellations on the no-filter
    * `/ta/phases` endpoint.
    */
-  const phaseStages: PhaseStage[] = ["phase1", "phase2", "phase3"];
+  const phaseStages: PhaseStage[] = ['phase1', 'phase2', 'phase3'];
   const ttEntry = prisma.tTEntry as typeof prisma.tTEntry & {
     groupBy: PhaseGroupBy;
   };
   const phaseCountRows = await ttEntry.groupBy({
-    by: ["stage", "eliminated"],
+    by: ['stage', 'eliminated'],
     where: {
       tournamentId,
       stage: { in: phaseStages },
@@ -913,7 +891,7 @@ export async function getPhaseStatus(
   };
 
   for (const row of phaseCountRows) {
-    const stage = row.stage as "phase1" | "phase2" | "phase3";
+    const stage = row.stage as 'phase1' | 'phase2' | 'phase3';
     const count = row._count._all;
     counts[stage].total += count;
     if (row.eliminated) {
@@ -923,33 +901,35 @@ export async function getPhaseStatus(
     }
   }
 
-  const buildBase = (stage: "phase1" | "phase2" | "phase3") => {
+  const buildBase = (stage: 'phase1' | 'phase2' | 'phase3') => {
     const value = counts[stage];
     return value.total === 0 ? null : value;
   };
 
-  const phase3Base = buildBase("phase3");
+  const phase3Base = buildBase('phase3');
   const phase3Winner =
     phase3Base?.active === 1
-      ? (await prisma.tTEntry.findFirst({
-          where: { tournamentId, stage: "phase3", eliminated: false },
-          select: { player: { select: { nickname: true } } },
-        }))?.player.nickname ?? null
+      ? ((
+          await prisma.tTEntry.findFirst({
+            where: { tournamentId, stage: 'phase3', eliminated: false },
+            select: { player: { select: { nickname: true } } },
+          })
+        )?.player.nickname ?? null)
       : null;
   const phase3Status = phase3Base ? { ...phase3Base, winner: phase3Winner } : null;
 
   const currentPhase =
     counts.phase3.total > 0
-      ? "phase3"
+      ? 'phase3'
       : counts.phase2.total > 0
-        ? "phase2"
+        ? 'phase2'
         : counts.phase1.total > 0
-          ? "phase1"
-          : "qualification";
+          ? 'phase1'
+          : 'qualification';
 
   return {
-    phase1: buildBase("phase1"),
-    phase2: buildBase("phase2"),
+    phase1: buildBase('phase1'),
+    phase2: buildBase('phase2'),
     phase3: phase3Status,
     currentPhase,
   };
@@ -988,7 +968,7 @@ export interface SuddenDeathResultInput {
  *   same round): fresh course, consumed from the cycle; the sudden death only
  *   orders the two eliminated players to decide 3rd place (bronze medal).
  */
-export type SuddenDeathKind = "elimination" | "revival" | "life_loss" | "bronze";
+export type SuddenDeathKind = 'elimination' | 'revival' | 'life_loss' | 'bronze';
 
 interface TieBreakDecision {
   targetPlayerIds: string[];
@@ -1007,10 +987,7 @@ interface TieBreakDecision {
  * @param activePlayers  - Active phase3 entries (for lives lookup)
  * @returns The two player IDs to race for bronze, or null
  */
-function detectPhase3BronzeTargets(
-  orderedResults: CourseResult[],
-  activePlayers: TTEntry[]
-): string[] | null {
+function detectPhase3BronzeTargets(orderedResults: CourseResult[], activePlayers: TTEntry[]): string[] | null {
   const activeCount = activePlayers.length || orderedResults.length;
   // Only the top-4 stage awards a medal to the eliminated pair; larger
   // simultaneous culls (e.g. 8→4) do not run a placement sudden death.
@@ -1022,20 +999,20 @@ function detectPhase3BronzeTargets(
   const allOnLastLife =
     bottomHalf.length === 2 &&
     bottomHalf.every(
-      (result) =>
-        (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0
+      (result) => (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0,
     );
   return allOnLastLife ? bottomHalf.map((result) => result.playerId) : null;
 }
 
 function detectTieBreakRequired(
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   courseResults: CourseResult[],
-  activePlayers: TTEntry[] = []
+  activePlayers: TTEntry[] = [],
+  lifeResetThresholds: readonly number[] = PHASE_CONFIG.phase3.lifeResetThresholds,
 ): TieBreakDecision | null {
   if (courseResults.length < 2) return null;
 
-  if (phase === "phase1" || phase === "phase2") {
+  if (phase === 'phase1' || phase === 'phase2') {
     const config = PHASE_CONFIG[phase];
     if (activePlayers.length > 0 && activePlayers.length <= config.survivorsNeeded) {
       return null;
@@ -1043,7 +1020,7 @@ function detectTieBreakRequired(
     const maxTime = Math.max(...courseResults.map((result) => result.timeMs));
     const tiedSlowest = courseResults.filter((result) => result.timeMs === maxTime);
     return tiedSlowest.length > 1
-      ? { targetPlayerIds: tiedSlowest.map((result) => result.playerId), kind: "elimination" }
+      ? { targetPlayerIds: tiedSlowest.map((result) => result.playerId), kind: 'elimination' }
       : null;
   }
 
@@ -1052,7 +1029,7 @@ function detectTieBreakRequired(
   if (halfwayPoint <= 0 || halfwayPoint >= sorted.length) return null;
   const bottomHalf = sorted.slice(halfwayPoint);
 
-  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length);
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length, lifeResetThresholds);
   if (Number.isFinite(eliminationLimit)) {
     const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
     const eliminationCandidates = bottomHalf
@@ -1063,7 +1040,7 @@ function detectTieBreakRequired(
       // partially ordering only the slowest players can still drop the active field below the reset size.
       return {
         targetPlayerIds: eliminationCandidates.map((result) => result.playerId),
-        kind: "revival",
+        kind: 'revival',
       };
     }
   }
@@ -1073,26 +1050,21 @@ function detectTieBreakRequired(
   if (boundarySafe.timeMs === boundaryUnsafe.timeMs) {
     const boundaryTime = boundarySafe.timeMs;
     return {
-      targetPlayerIds: sorted
-        .filter((result) => result.timeMs === boundaryTime)
-        .map((result) => result.playerId),
-      kind: "life_loss",
+      targetPlayerIds: sorted.filter((result) => result.timeMs === boundaryTime).map((result) => result.playerId),
+      kind: 'life_loss',
     };
   }
 
   // No unresolved tie: check for the top-4 simultaneous last-life scenario.
   const bronzeTargets = detectPhase3BronzeTargets(sorted, activePlayers);
   if (bronzeTargets) {
-    return { targetPlayerIds: bronzeTargets, kind: "bronze" };
+    return { targetPlayerIds: bronzeTargets, kind: 'bronze' };
   }
 
   return null;
 }
 
-function applySuddenDeathOrder(
-  baseResults: CourseResult[],
-  suddenDeathResults: CourseResult[]
-): CourseResult[] {
+function applySuddenDeathOrder(baseResults: CourseResult[], suddenDeathResults: CourseResult[]): CourseResult[] {
   const suddenByPlayer = new Map(suddenDeathResults.map((result) => [result.playerId, result.timeMs]));
   return [...baseResults].sort((a, b) => {
     const aSudden = suddenByPlayer.get(a.playerId);
@@ -1120,7 +1092,7 @@ function applySuddenDeathOrder(
  */
 export function orderResultsWithSuddenDeathChain(
   baseResults: CourseResult[],
-  resolvedSuddenDeathResults: CourseResult[][]
+  resolvedSuddenDeathResults: CourseResult[][],
 ): CourseResult[] {
   // Latest sequence first, so the most recent shared race decides each pair.
   const timesBySequence = resolvedSuddenDeathResults
@@ -1139,13 +1111,13 @@ export function orderResultsWithSuddenDeathChain(
 }
 
 export function getSuddenDeathContinuationTargets(
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   baseResults: CourseResult[],
-  suddenDeathResults: CourseResult[]
+  suddenDeathResults: CourseResult[],
 ): string[] {
   if (suddenDeathResults.length < 2) return [];
 
-  if (phase === "phase1" || phase === "phase2") {
+  if (phase === 'phase1' || phase === 'phase2') {
     const maxTime = Math.max(...suddenDeathResults.map((result) => result.timeMs));
     const tiedSlowest = suddenDeathResults.filter((result) => result.timeMs === maxTime);
     return tiedSlowest.length > 1 ? tiedSlowest.map((result) => result.playerId) : [];
@@ -1170,15 +1142,13 @@ export function getSuddenDeathContinuationTargets(
     return stillTiedForElimination.length > 1 ? stillTiedForElimination.map((result) => result.playerId) : [];
   }
 
-  return suddenDeathResults
-    .filter((result) => result.timeMs === safeSuddenTime)
-    .map((result) => result.playerId);
+  return suddenDeathResults.filter((result) => result.timeMs === safeSuddenTime).map((result) => result.playerId);
 }
 
 async function ensureNoUnresolvedSuddenDeath(
   prisma: PrismaClient,
   tournamentId: string,
-  phase: "phase1" | "phase2" | "phase3"
+  phase: 'phase1' | 'phase2' | 'phase3',
 ) {
   const unresolved = await prisma.tTPhaseSuddenDeathRound.findFirst({
     where: { tournamentId, phase, resolved: false },
@@ -1191,7 +1161,7 @@ async function ensureNoUnresolvedSuddenDeath(
 
 function hasSameTargetPlayers(existingTargetPlayerIds: unknown, expectedTargetPlayerIds: string[]) {
   if (!Array.isArray(existingTargetPlayerIds)) return false;
-  if (!existingTargetPlayerIds.every((id): id is string => typeof id === "string")) return false;
+  if (!existingTargetPlayerIds.every((id): id is string => typeof id === 'string')) return false;
   if (existingTargetPlayerIds.length !== expectedTargetPlayerIds.length) return false;
 
   const expected = new Set(expectedTargetPlayerIds);
@@ -1201,13 +1171,13 @@ function hasSameTargetPlayers(existingTargetPlayerIds: unknown, expectedTargetPl
 async function createSuddenDeathRound(
   prisma: PrismaClient,
   tournamentId: string,
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   phaseRoundId: string,
   targetPlayerIds: string[],
   kind: SuddenDeathKind,
-  options: { course?: string } = {}
+  options: { course?: string } = {},
 ) {
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const MAX_SUDDEN_DEATH_CREATE_ATTEMPTS = 3;
 
   for (let attempt = 1; attempt <= MAX_SUDDEN_DEATH_CREATE_ATTEMPTS; attempt++) {
@@ -1247,8 +1217,7 @@ async function createSuddenDeathRound(
         },
       });
     } catch (error) {
-      const isUniqueViolation =
-        error instanceof PrismaClientKnownRequestError && error.code === "P2002";
+      const isUniqueViolation = error instanceof PrismaClientKnownRequestError && error.code === 'P2002';
       if (isUniqueViolation) {
         const existing = await prisma.tTPhaseSuddenDeathRound.findFirst({
           where: {
@@ -1257,7 +1226,7 @@ async function createSuddenDeathRound(
             phaseRoundId,
             resolved: false,
           },
-          orderBy: { sequence: "desc" },
+          orderBy: { sequence: 'desc' },
         });
         if (existing) {
           if (!hasSameTargetPlayers(existing.targetPlayerIds, targetPlayerIds)) {
@@ -1270,10 +1239,10 @@ async function createSuddenDeathRound(
             throw new Error(
               `Sudden-death round for ${phase} changed during submission. Refresh and submit again. ` +
                 `Computed targets (this request): ${JSON.stringify(targetPlayerIds)}, ` +
-                `Stored targets (concurrent request): ${JSON.stringify(existing.targetPlayerIds)}`
+                `Stored targets (concurrent request): ${JSON.stringify(existing.targetPlayerIds)}`,
             );
           }
-          logger.warn("Sudden-death creation race condition detected, reusing existing round", {
+          logger.warn('Sudden-death creation race condition detected, reusing existing round', {
             tournamentId,
             phase,
             phaseRoundId,
@@ -1284,7 +1253,7 @@ async function createSuddenDeathRound(
           return existing;
         }
         if (attempt < MAX_SUDDEN_DEATH_CREATE_ATTEMPTS) {
-          logger.warn("Sudden-death creation race condition detected without reusable round, retrying", {
+          logger.warn('Sudden-death creation race condition detected without reusable round, retrying', {
             tournamentId,
             phase,
             phaseRoundId,
@@ -1325,19 +1294,15 @@ async function createSuddenDeathRound(
 export async function startPhaseRound(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   manualCourse?: string,
-  tvNumber?: number | null
+  tvNumber?: number | null,
 ): Promise<{ roundNumber: number; course: string; manualOverride: boolean; tvNumber: number | null }> {
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
   // Verify the phase has active players (pre-transaction guard)
-  const activePlayers = await getActivePhasePlayers(
-    prisma,
-    tournamentId,
-    phase
-  );
+  const activePlayers = await getActivePhasePlayers(prisma, tournamentId, phase);
   if (activePlayers.length === 0) {
     throw new Error(`No active players in ${phase}. Promote players first.`);
   }
@@ -1348,7 +1313,7 @@ export async function startPhaseRound(
   // constraint causes one to fail with P2002, which we catch and retry.
   const MAX_ROUND_CREATE_ATTEMPTS = 3;
   let roundNumber = 0;
-  let course = "";
+  let course = '';
   let manualOverride = false;
 
   for (let attempt = 1; attempt <= MAX_ROUND_CREATE_ATTEMPTS; attempt++) {
@@ -1361,12 +1326,10 @@ export async function startPhaseRound(
     // Determine the course to use: admin-specified manual override or random selection.
     // Manual course must be validated against the 20-course cycle to ensure fairness.
     // For random selection, pick a fresh course each retry attempt.
-    if (manualCourse !== undefined && manualCourse !== "") {
+    if (manualCourse !== undefined && manualCourse !== '') {
       // Validate the abbreviation is a known course (only on first attempt)
       if (attempt === 1 && !isValidCourseAbbr(manualCourse)) {
-        throw new Error(
-          `Invalid course abbreviation: "${manualCourse}". Must be one of the 20 standard courses.`
-        );
+        throw new Error(`Invalid course abbreviation: "${manualCourse}". Must be one of the 20 standard courses.`);
       }
       // Validate the course is still available in the current cycle
       // (not already played in the current 20-course block)
@@ -1375,7 +1338,7 @@ export async function startPhaseRound(
       if (!available.includes(manualCourse as CourseAbbr)) {
         throw new Error(
           `Course "${manualCourse}" has already been played in the current cycle. ` +
-            `Available courses: ${available.join(", ")}`
+            `Available courses: ${available.join(', ')}`,
         );
       }
       course = manualCourse as CourseAbbr;
@@ -1405,10 +1368,9 @@ export async function startPhaseRound(
     } catch (error) {
       // P2002 = unique constraint violation = another request created this round first.
       // Log and retry with the next roundNumber.
-      const isUniqueViolation =
-        error instanceof PrismaClientKnownRequestError && error.code === "P2002";
+      const isUniqueViolation = error instanceof PrismaClientKnownRequestError && error.code === 'P2002';
       if (isUniqueViolation && attempt < MAX_ROUND_CREATE_ATTEMPTS) {
-        logger.warn("Round creation race condition detected, retrying", {
+        logger.warn('Round creation race condition detected, retrying', {
           tournamentId,
           phase,
           attempt,
@@ -1430,11 +1392,11 @@ export async function startPhaseRound(
       userAgent,
       action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
       targetId: tournamentId,
-      targetType: "Tournament",
+      targetType: 'Tournament',
       details: {
         tournamentId,
         phase,
-        action: "start_round",
+        action: 'start_round',
         roundNumber,
         course,
         manualOverride,
@@ -1442,7 +1404,7 @@ export async function startPhaseRound(
       },
     });
   } catch (logError) {
-    logger.error("Failed to create audit log for round start", {
+    logger.error('Failed to create audit log for round start', {
       error: logError instanceof Error ? logError.message : logError,
     });
   }
@@ -1470,9 +1432,9 @@ export async function startPhaseRound(
 export async function submitRoundResults(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   roundNumber: number,
-  results: RoundResultInput[]
+  results: RoundResultInput[],
 ): Promise<{
   eliminatedIds: string[];
   livesReset: boolean;
@@ -1480,7 +1442,7 @@ export async function submitRoundResults(
   tieBreakRequired?: boolean;
   suddenDeathRound?: unknown;
 }> {
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId } = context;
 
   // Fetch the round record to get the course and verify it exists
@@ -1495,17 +1457,13 @@ export async function submitRoundResults(
   });
 
   if (!round) {
-    throw new Error(
-      `Round ${roundNumber} not found for ${phase} in tournament ${tournamentId}`
-    );
+    throw new Error(`Round ${roundNumber} not found for ${phase} in tournament ${tournamentId}`);
   }
 
   // Check if results have already been submitted (non-empty results array)
   const existingResults = round.results as unknown[];
   if (existingResults && existingResults.length > 0) {
-    throw new Error(
-      `Round ${roundNumber} of ${phase} has already been submitted`
-    );
+    throw new Error(`Round ${roundNumber} of ${phase} has already been submitted`);
   }
 
   // === Player ID Validation ===
@@ -1518,50 +1476,55 @@ export async function submitRoundResults(
 
   // Check for duplicate player IDs in the submission
   if (uniqueIds.size !== submittedIds.length) {
-    const duplicates = submittedIds.filter(
-      (id, i) => submittedIds.indexOf(id) !== i
-    );
-    throw new Error(
-      `Duplicate player IDs in results: ${[...new Set(duplicates)].join(", ")}`
-    );
+    const duplicates = submittedIds.filter((id, i) => submittedIds.indexOf(id) !== i);
+    throw new Error(`Duplicate player IDs in results: ${[...new Set(duplicates)].join(', ')}`);
   }
 
   // Fetch active players for validation against the phase roster
-  const activePlayers = await getActivePhasePlayers(
-    prisma,
-    tournamentId,
-    phase
-  );
+  const activePlayers = await getActivePhasePlayers(prisma, tournamentId, phase);
   const activePlayerIds = new Set(activePlayers.map((p) => p.playerId));
 
   // Verify every submitted player ID belongs to an active player in this phase
   const invalidIds = submittedIds.filter((id) => !activePlayerIds.has(id));
   if (invalidIds.length > 0) {
-    throw new Error(
-      `Invalid player IDs (not active in ${phase}): ${invalidIds.join(", ")}`
-    );
+    throw new Error(`Invalid player IDs (not active in ${phase}): ${invalidIds.join(', ')}`);
   }
 
   // Verify all active players have results — prevents partial submissions
   // that could corrupt elimination logic
   const missingIds = [...activePlayerIds].filter((id) => !uniqueIds.has(id));
   if (missingIds.length > 0) {
-    throw new Error(
-      `Missing results for active players: ${missingIds.join(", ")}`
-    );
+    throw new Error(`Missing results for active players: ${missingIds.join(', ')}`);
   }
 
   // Apply retry penalty: override timeMs with RETRY_PENALTY_MS for retry-flagged results.
   // This ensures retrying players always receive the maximum penalty time (9:59.990).
-  const processedResults: CourseResult[] = results.map((r) => ({
-    playerId: r.playerId,
-    timeMs: r.isRetry ? RETRY_PENALTY_MS : r.timeMs,
-  }));
+  const handicapByPlayer = new Map(
+    activePlayers.map((entry) => [
+      entry.playerId,
+      (() => {
+        const value = (entry as TTEntry & { player?: { taHandicapSeconds?: number } }).player?.taHandicapSeconds;
+        return isTaHandicapSeconds(value) ? value : 0;
+      })(),
+    ]),
+  );
+  const processedResults: CourseResult[] = results.map((r) => {
+    const rawTimeMs = r.isRetry ? RETRY_PENALTY_MS : r.timeMs;
+    return {
+      playerId: r.playerId,
+      timeMs:
+        phase === 'phase3' && context.taBattleRoyaleMode && !r.isRetry
+          ? applyTaHandicap(rawTimeMs, handicapByPlayer.get(r.playerId) ?? 0)
+          : rawTimeMs,
+    };
+  });
 
   // Store the full results including retry flags for display/audit purposes
-  const storedResults = results.map((r) => ({
+  const storedResults = results.map((r, index) => ({
     playerId: r.playerId,
-    timeMs: r.isRetry ? RETRY_PENALTY_MS : r.timeMs,
+    timeMs: processedResults[index].timeMs,
+    rawTimeMs: r.isRetry ? RETRY_PENALTY_MS : r.timeMs,
+    handicapSeconds: phase === 'phase3' && context.taBattleRoyaleMode ? (handicapByPlayer.get(r.playerId) ?? 0) : 0,
     isRetry: r.isRetry ?? false,
     tvNumber: r.tvNumber ?? null,
   }));
@@ -1569,7 +1532,12 @@ export async function submitRoundResults(
   let eliminatedIds: string[] = [];
   let livesReset = false;
 
-  const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers);
+  const tieBreak = detectTieBreakRequired(
+    phase,
+    processedResults,
+    activePlayers,
+    getTaPhase3Rules(context.taBattleRoyaleMode === true).lifeResetThresholds,
+  );
   if (tieBreak) {
     const suddenDeathRound = await createSuddenDeathRound(
       prisma,
@@ -1579,7 +1547,7 @@ export async function submitRoundResults(
       tieBreak.targetPlayerIds,
       tieBreak.kind,
       // Life-loss ties re-run the base round's course (issue #2773).
-      tieBreak.kind === "life_loss" ? { course: round.course } : {}
+      tieBreak.kind === 'life_loss' ? { course: round.course } : {},
     );
     await prisma.tTPhaseRound.update({
       where: { id: round.id },
@@ -1602,20 +1570,11 @@ export async function submitRoundResults(
   // Delegate elimination processing to the appropriate handler.
   // Phase 1/2: Slowest player is eliminated (single elimination).
   // Phase 3: Bottom half loses a life, eliminated at 0 lives, life resets at thresholds.
-  if (phase === "phase1" || phase === "phase2") {
-    eliminatedIds = await processEliminationPhaseResult(
-      prisma,
-      context,
-      phase,
-      processedResults
-    );
+  if (phase === 'phase1' || phase === 'phase2') {
+    eliminatedIds = await processEliminationPhaseResult(prisma, context, phase, processedResults);
   } else {
     // phase3 — life-based elimination
-    const phase3Result = await processPhase3Result(
-      prisma,
-      context,
-      processedResults
-    );
+    const phase3Result = await processPhase3Result(prisma, context, processedResults);
     eliminatedIds = phase3Result.eliminated;
     livesReset = phase3Result.livesReset;
   }
@@ -1639,11 +1598,11 @@ export async function submitRoundResults(
       userAgent: context.userAgent,
       action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
       targetId: tournamentId,
-      targetType: "Tournament",
+      targetType: 'Tournament',
       details: {
         tournamentId,
         phase,
-        action: "submit_round_results",
+        action: 'submit_round_results',
         roundNumber,
         course: round.course,
         eliminatedIds,
@@ -1652,7 +1611,7 @@ export async function submitRoundResults(
       },
     });
   } catch (logError) {
-    logger.error("Failed to create audit log for round submission", {
+    logger.error('Failed to create audit log for round submission', {
       error: logError instanceof Error ? logError.message : logError,
     });
   }
@@ -1663,9 +1622,9 @@ export async function submitRoundResults(
 export async function changeSuddenDeathCourse(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   suddenDeathRoundId: string,
-  course: string
+  course: string,
 ) {
   const { tournamentId } = context;
   if (!isValidCourseAbbr(course)) {
@@ -1679,7 +1638,7 @@ export async function changeSuddenDeathCourse(
     throw new Error(`Sudden-death round ${suddenDeathRoundId} not found for ${phase}`);
   }
   if (suddenDeathRound.resolved || Array.isArray(suddenDeathRound.results)) {
-    throw new Error("Sudden-death course cannot be changed after results are submitted");
+    throw new Error('Sudden-death course cannot be changed after results are submitted');
   }
   /*
    * In phase3 the base round's own course is a legal choice ONLY for a
@@ -1691,16 +1650,16 @@ export async function changeSuddenDeathCourse(
    * rules never allow for those kinds.
    */
   const baseCourseAllowed =
-    phase === "phase3" &&
-    suddenDeathRound.kind === "life_loss" &&
-    course === suddenDeathRound.phaseRound.course;
+    phase === 'phase3' && suddenDeathRound.kind === 'life_loss' && course === suddenDeathRound.phaseRound.course;
   if (!baseCourseAllowed) {
     const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase, {
       excludeSuddenDeathRoundId: suddenDeathRoundId,
     });
     const available = getAvailableCourses(playedCourses);
     if (!available.includes(course as CourseAbbr)) {
-      throw new Error(`Course "${course}" has already been played in the current cycle. Available courses: ${available.join(", ")}`);
+      throw new Error(
+        `Course "${course}" has already been played in the current cycle. Available courses: ${available.join(', ')}`,
+      );
     }
   }
   return prisma.tTPhaseSuddenDeathRound.update({
@@ -1712,9 +1671,9 @@ export async function changeSuddenDeathCourse(
 export async function submitSuddenDeathResults(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   suddenDeathRoundId: string,
-  results: SuddenDeathResultInput[]
+  results: SuddenDeathResultInput[],
 ): Promise<{
   eliminatedIds: string[];
   livesReset: boolean;
@@ -1737,15 +1696,15 @@ export async function submitSuddenDeathResults(
   const submittedIds = results.map((result) => result.playerId);
   const uniqueIds = new Set(submittedIds);
   if (uniqueIds.size !== submittedIds.length) {
-    throw new Error("Duplicate player IDs in sudden-death results");
+    throw new Error('Duplicate player IDs in sudden-death results');
   }
   const missingIds = targetPlayerIds.filter((id) => !uniqueIds.has(id));
   const invalidIds = submittedIds.filter((id) => !targetPlayerIds.includes(id));
   if (missingIds.length > 0) {
-    throw new Error(`Missing sudden-death results for players: ${missingIds.join(", ")}`);
+    throw new Error(`Missing sudden-death results for players: ${missingIds.join(', ')}`);
   }
   if (invalidIds.length > 0) {
-    throw new Error(`Invalid sudden-death player IDs: ${invalidIds.join(", ")}`);
+    throw new Error(`Invalid sudden-death player IDs: ${invalidIds.join(', ')}`);
   }
 
   const processedResults: CourseResult[] = results.map((result) => ({
@@ -1763,7 +1722,7 @@ export async function submitSuddenDeathResults(
     : [];
   // The persisted kind (issue #2775) replaces inferring a life-loss re-run
   // from course equality, which could misfire at a 20-course cycle boundary.
-  const isLifeLossRerun = suddenDeathRound.kind === "life_loss";
+  const isLifeLossRerun = suddenDeathRound.kind === 'life_loss';
   const continuationTargetIds = getSuddenDeathContinuationTargets(phase, baseResults, processedResults);
   await prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRound.id },
@@ -1783,7 +1742,7 @@ export async function submitSuddenDeathResults(
       // A continuation keeps the same kind as the round it re-ties.
       suddenDeathRound.kind as SuddenDeathKind,
       // A re-tied life-loss re-run races the same course again.
-      isLifeLossRerun ? { course: suddenDeathRound.phaseRound.course } : {}
+      isLifeLossRerun ? { course: suddenDeathRound.phaseRound.course } : {},
     );
     return {
       eliminatedIds: [],
@@ -1796,7 +1755,7 @@ export async function submitSuddenDeathResults(
 
   let eliminatedIds: string[] = [];
   let livesReset = false;
-  if (phase === "phase1" || phase === "phase2") {
+  if (phase === 'phase1' || phase === 'phase2') {
     const slowest = [...processedResults].sort((a, b) => b.timeMs - a.timeMs)[0];
     await prisma.tTEntry.update({
       where: {
@@ -1820,7 +1779,7 @@ export async function submitSuddenDeathResults(
         resolved: true,
         id: { not: suddenDeathRound.id },
       },
-      orderBy: { sequence: "asc" },
+      orderBy: { sequence: 'asc' },
       select: { results: true },
     });
     const resolvedResultsChain = priorResolvedRounds
@@ -1836,7 +1795,7 @@ export async function submitSuddenDeathResults(
      * finalized. Guard: if the just-resolved sudden death already raced this
      * exact pair, it WAS the bronze race — finalize instead of looping.
      */
-    const activePlayers = await getActivePhasePlayers(prisma, tournamentId, "phase3");
+    const activePlayers = await getActivePhasePlayers(prisma, tournamentId, 'phase3');
     const bronzeTargets = detectPhase3BronzeTargets(orderedResults, activePlayers);
     if (bronzeTargets && !hasSameTargetPlayers(suddenDeathRound.targetPlayerIds, bronzeTargets)) {
       const nextRound = await createSuddenDeathRound(
@@ -1845,7 +1804,7 @@ export async function submitSuddenDeathResults(
         phase,
         suddenDeathRound.phaseRoundId,
         bronzeTargets,
-        "bronze"
+        'bronze',
       );
       return {
         eliminatedIds: [],
@@ -1857,13 +1816,7 @@ export async function submitSuddenDeathResults(
     }
 
     const resolvedOrder = new Map(orderedResults.map((result, index) => [result.playerId, index]));
-    const phase3Result = await processPhase3Result(
-      prisma,
-      context,
-      orderedResults,
-      resolvedOrder,
-      activePlayers
-    );
+    const phase3Result = await processPhase3Result(prisma, context, orderedResults, resolvedOrder, activePlayers);
     eliminatedIds = phase3Result.eliminated;
     livesReset = phase3Result.livesReset;
   }
@@ -1901,10 +1854,10 @@ export async function submitSuddenDeathResults(
 export async function cancelPhaseRound(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3",
-  roundNumber: number
+  phase: 'phase1' | 'phase2' | 'phase3',
+  roundNumber: number,
 ): Promise<{ cancelledRoundNumber: number }> {
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId } = context;
 
   // Fetch the round to verify it exists and hasn't been submitted
@@ -1919,17 +1872,13 @@ export async function cancelPhaseRound(
   });
 
   if (!round) {
-    throw new Error(
-      `Round ${roundNumber} not found for ${phase}`
-    );
+    throw new Error(`Round ${roundNumber} not found for ${phase}`);
   }
 
   // Prevent cancelling a round that has already been submitted
   const existingResults = round.results as unknown[];
   if (existingResults && existingResults.length > 0) {
-    throw new Error(
-      `Round ${roundNumber} of ${phase} has already been submitted and cannot be cancelled`
-    );
+    throw new Error(`Round ${roundNumber} of ${phase} has already been submitted and cannot be cancelled`);
   }
 
   // Delete the orphaned round record to free the course back into the pool
@@ -1945,17 +1894,17 @@ export async function cancelPhaseRound(
       userAgent: context.userAgent,
       action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
       targetId: tournamentId,
-      targetType: "Tournament",
+      targetType: 'Tournament',
       details: {
         tournamentId,
         phase,
-        action: "cancel_round",
+        action: 'cancel_round',
         roundNumber,
         course: round.course,
       },
     });
   } catch (logError) {
-    logger.error("Failed to create audit log for round cancellation", {
+    logger.error('Failed to create audit log for round cancellation', {
       error: logError instanceof Error ? logError.message : logError,
     });
   }
@@ -1974,11 +1923,11 @@ export async function cancelPhaseRound(
 async function findLastSubmittedRound(
   prisma: PrismaClient,
   tournamentId: string,
-  phase: "phase1" | "phase2" | "phase3"
+  phase: 'phase1' | 'phase2' | 'phase3',
 ) {
   const rounds = await prisma.tTPhaseRound.findMany({
     where: { tournamentId, phase },
-    orderBy: { roundNumber: "asc" },
+    orderBy: { roundNumber: 'asc' },
   });
 
   const submittedRounds = rounds.filter((r) => {
@@ -2015,11 +1964,12 @@ async function findLastSubmittedRound(
 async function restorePhaseStateBeforeRound(
   prisma: PrismaClient,
   tournamentId: string,
-  phase: "phase1" | "phase2" | "phase3",
+  phase: 'phase1' | 'phase2' | 'phase3',
   lastRound: { eliminatedIds: unknown },
-  previousRounds: Array<{ results: unknown; livesReset: boolean }>
+  previousRounds: Array<{ results: unknown; livesReset: boolean }>,
+  taBattleRoyaleMode = false,
 ): Promise<void> {
-  if (phase === "phase1" || phase === "phase2") {
+  if (phase === 'phase1' || phase === 'phase2') {
     // Simple undo: restore eliminated players from this round
     const eliminatedIds = lastRound.eliminatedIds as string[] | null;
     if (eliminatedIds && eliminatedIds.length > 0) {
@@ -2032,22 +1982,25 @@ async function restorePhaseStateBeforeRound(
   }
 
   // Phase 3: replay all previous rounds from initial state to reconstruct lives
-  const config = PHASE_CONFIG.phase3;
+  const rules = getTaPhase3Rules(taBattleRoyaleMode);
 
   // Reset ALL phase3 entries to initial state
   await prisma.tTEntry.updateMany({
-    where: { tournamentId, stage: "phase3" },
-    data: { lives: config.initialLives, eliminated: false },
+    where: { tournamentId, stage: 'phase3' },
+    data: { lives: rules.initialLives, eliminated: false },
   });
 
   // Replay each previous round's effects in memory, then apply as a batch
   // playerId -> { lives, eliminated }
   const allEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase3" },
+    where: { tournamentId, stage: 'phase3' },
     select: { playerId: true },
   });
   const playerState = new Map<string, { lives: number; eliminated: boolean }>(
-    (allEntries as Array<{ playerId: string }>).map((e) => [e.playerId, { lives: config.initialLives, eliminated: false }])
+    (allEntries as Array<{ playerId: string }>).map((e) => [
+      e.playerId,
+      { lives: rules.initialLives, eliminated: false },
+    ]),
   );
 
   for (const round of previousRounds) {
@@ -2079,7 +2032,7 @@ async function restorePhaseStateBeforeRound(
     if (round.livesReset) {
       for (const [, state] of playerState) {
         if (!state.eliminated) {
-          state.lives = config.initialLives;
+          state.lives = rules.initialLives;
         }
       }
     }
@@ -2098,7 +2051,7 @@ async function restorePhaseStateBeforeRound(
   }
   for (const { lives, eliminated, playerIds } of stateGroups.values()) {
     await prisma.tTEntry.updateMany({
-      where: { tournamentId, stage: "phase3", playerId: { in: playerIds } },
+      where: { tournamentId, stage: 'phase3', playerId: { in: playerIds } },
       data: { lives, eliminated },
     });
   }
@@ -2136,15 +2089,15 @@ async function restorePhaseStateBeforeRound(
 export async function undoLastPhaseRound(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3"
+  phase: 'phase1' | 'phase2' | 'phase3',
 ): Promise<{ undoneRoundNumber: number }> {
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
   // Guard (issue #2779 / case B): once this phase has been promoted, undoing
   // its last round would restore a survivor the later phase's roster was built
   // from, silently desyncing that roster. Reset the later phase first.
-  await assertNoLaterPhaseEntries(prisma, tournamentId, phase, "undo the last round of");
+  await assertNoLaterPhaseEntries(prisma, tournamentId, phase, 'undo the last round of');
 
   const { lastRound, previousRounds } = await findLastSubmittedRound(prisma, tournamentId, phase);
 
@@ -2170,7 +2123,14 @@ export async function undoLastPhaseRound(
     where: { phaseRoundId: lastRound.id },
   });
 
-  await restorePhaseStateBeforeRound(prisma, tournamentId, phase, lastRound, previousRounds);
+  await restorePhaseStateBeforeRound(
+    prisma,
+    tournamentId,
+    phase,
+    lastRound,
+    previousRounds,
+    context.taBattleRoyaleMode,
+  );
 
   // Audit log for undo operation (non-critical)
   try {
@@ -2180,17 +2140,17 @@ export async function undoLastPhaseRound(
       userAgent,
       action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
       targetId: tournamentId,
-      targetType: "Tournament",
+      targetType: 'Tournament',
       details: {
         tournamentId,
         phase,
-        action: "undo_round",
+        action: 'undo_round',
         roundNumber: lastRound.roundNumber,
         course: lastRound.course,
       },
     });
   } catch (logError) {
-    logger.error("Failed to create audit log for round undo", {
+    logger.error('Failed to create audit log for round undo', {
       error: logError instanceof Error ? logError.message : logError,
     });
   }
@@ -2222,19 +2182,26 @@ export async function undoLastPhaseRound(
 export async function cancelLastSubmittedPhaseRound(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3"
+  phase: 'phase1' | 'phase2' | 'phase3',
 ): Promise<{ cancelledRoundNumber: number; freedCourse: string }> {
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
   // Guard (issue #2779 / case B): once this phase has been promoted, cancelling
   // its last round would restore a survivor the later phase's roster was built
   // from, silently desyncing that roster. Reset the later phase first.
-  await assertNoLaterPhaseEntries(prisma, tournamentId, phase, "cancel the last round of");
+  await assertNoLaterPhaseEntries(prisma, tournamentId, phase, 'cancel the last round of');
 
   const { lastRound, previousRounds } = await findLastSubmittedRound(prisma, tournamentId, phase);
 
-  await restorePhaseStateBeforeRound(prisma, tournamentId, phase, lastRound, previousRounds);
+  await restorePhaseStateBeforeRound(
+    prisma,
+    tournamentId,
+    phase,
+    lastRound,
+    previousRounds,
+    context.taBattleRoyaleMode,
+  );
 
   // Dependent data first, same ordering rationale as resetPhase: D1 has no
   // interactive transactions, so these run as sequential non-atomic queries
@@ -2254,17 +2221,17 @@ export async function cancelLastSubmittedPhaseRound(
       userAgent,
       action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
       targetId: tournamentId,
-      targetType: "Tournament",
+      targetType: 'Tournament',
       details: {
         tournamentId,
         phase,
-        action: "cancel_last_round",
+        action: 'cancel_last_round',
         roundNumber: lastRound.roundNumber,
         course: lastRound.course,
       },
     });
   } catch (logError) {
-    logger.error("Failed to create audit log for last-round cancellation", {
+    logger.error('Failed to create audit log for last-round cancellation', {
       error: logError instanceof Error ? logError.message : logError,
     });
   }
@@ -2277,7 +2244,7 @@ export async function cancelLastSubmittedPhaseRound(
  * come "after" a given stage, both for the reset-order guard and for the
  * D1 deletion sequencing rationale documented on resetPhase itself.
  */
-const PHASE_ORDER: readonly PhaseStage[] = ["phase1", "phase2", "phase3"];
+const PHASE_ORDER: readonly PhaseStage[] = ['phase1', 'phase2', 'phase3'];
 
 /**
  * Guard: a phase's rounds must not be mutated once a LATER phase has been
@@ -2296,7 +2263,7 @@ async function assertNoLaterPhaseEntries(
   prisma: PrismaClient,
   tournamentId: string,
   stage: PhaseStage,
-  verb: string
+  verb: string,
 ): Promise<void> {
   const laterStages = PHASE_ORDER.slice(PHASE_ORDER.indexOf(stage) + 1);
   if (laterStages.length === 0) return;
@@ -2306,7 +2273,7 @@ async function assertNoLaterPhaseEntries(
   });
   if (laterEntry) {
     throw new PhaseResetConflictError(
-      `Cannot ${verb} ${stage}: ${laterEntry.stage} already has entries. Reset ${laterEntry.stage} first.`
+      `Cannot ${verb} ${stage}: ${laterEntry.stage} already has entries. Reset ${laterEntry.stage} first.`,
     );
   }
 }
@@ -2388,13 +2355,13 @@ async function assertNoLaterPhaseEntries(
 export async function resetPhase(
   prisma: PrismaClient,
   context: PhaseContext,
-  stage: PhaseStage
+  stage: PhaseStage,
 ): Promise<{ stage: PhaseStage; deletedEntryCount: number; deletedRoundCount: number }> {
-  const logger = createLogger("ta-phase-manager");
+  const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
   // Guard: refuse to reset a stage while any later stage still has entries.
-  await assertNoLaterPhaseEntries(prisma, tournamentId, stage, "reset");
+  await assertNoLaterPhaseEntries(prisma, tournamentId, stage, 'reset');
 
   // Snapshot the roster before deleting anything — needed for the
   // "nothing to reset" check below and for the audit log details.
@@ -2421,7 +2388,7 @@ export async function resetPhase(
    * This closes that wider read-check-delete window for a concurrent phase
    * promotion and leaves only the irreducible gap between sequential D1
    * statements. */
-  await assertNoLaterPhaseEntries(prisma, tournamentId, stage, "reset");
+  await assertNoLaterPhaseEntries(prisma, tournamentId, stage, 'reset');
 
   if (roundIds.length > 0) {
     await prisma.tTPhaseSuddenDeathRound.deleteMany({
@@ -2448,19 +2415,17 @@ export async function resetPhase(
     userAgent,
     action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
     targetId: tournamentId,
-    targetType: "Tournament",
+    targetType: 'Tournament',
     details: {
       tournamentId,
       stage,
-      action: "reset_phase",
+      action: 'reset_phase',
       deletedEntryCount: entries.length,
       deletedRoundCount: roundIds.length,
       playerIds: entries.map((entry) => entry.playerId),
-      playerNicknames: entries.map(
-        (entry) => (entry as TTEntry & { player: { nickname: string } }).player.nickname
-      ),
+      playerNicknames: entries.map((entry) => (entry as TTEntry & { player: { nickname: string } }).player.nickname),
     },
-  }).catch((err) => logger.warn("Failed to create audit log for phase reset", { error: err }));
+  }).catch((err) => logger.warn('Failed to create audit log for phase reset', { error: err }));
 
   return { stage, deletedEntryCount: entries.length, deletedRoundCount: roundIds.length };
 }

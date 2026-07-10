@@ -256,7 +256,13 @@
     "passwordResetSuccess": "Password Reset Successfully",
     "failedToResetPassword": "Failed to reset password",
     "fetchError": "Failed to load players. Please try again.",
-    "noCamera": "No Camera"
+    "noCamera": "No Camera",
+    "taHandicap": "TA battle royale handicap",
+    "taHandicap0": "0 sec — Offline Top 8 / NTSC rank 30 or better",
+    "taHandicapMinus1": "-1 sec — Offline Top 16 / NTSC rank 60 or better",
+    "taHandicapMinus3": "-3 sec — Group stage qualifier",
+    "taHandicapMinus5": "-5 sec — Group stage elimination / no offline attendance",
+    "taHandicapHelp": "Applied only in TA battle royale-only tournaments."
   },
   "profile": {
     "title": "Profile",
@@ -279,6 +285,7 @@
     "createTournament": "Create Tournament",
     "dualReportEnabled": "Enable Dual Report (both players must confirm scores)",
     "taPlayerSelfEdit": "Allow players to edit their own TA times (disable for partner-only entry)",
+    "taBattleRoyaleMode": "TA battle royale only (10 lives, no life recovery)",
     "debugMode": "Debug mode (enables auto-fill score buttons for testing)",
     "loadingTournaments": "Loading tournaments...",
     "createNewTournament": "Create New Tournament",

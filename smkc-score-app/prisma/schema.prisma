@@ -80,6 +80,7 @@ model Player {
   nickname  String    @unique
   country   String?
   noCamera  Boolean   @default(false) // カメラなしフラグ（配信時のオーバーレイ制御用）
+  taHandicapSeconds Int @default(0) // TAバトロワ用タイムハンデ: 0, -1, -3, -5
   password  String? // bcrypt hashed password for player authentication
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int       @default(0) // 楽観的ロック用
@@ -127,6 +128,7 @@ model Tournament {
   status                   String    @default("draft") // draft, active, completed
   dualReportEnabled        Boolean   @default(false) // When true, both players must report matching scores for auto-confirmation
   taPlayerSelfEdit         Boolean   @default(true) // §3.1: When false, players cannot edit their own TA times (only partner's)
+  taBattleRoyaleMode       Boolean   @default(false) // Phase 1/2を省略する少人数TAバトロワ
   frozenStages             Json      @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
   overlayPlayer1Name       String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
   overlayPlayer2Name       String? // 「配信に反映」で設定される2Pのオーバーレイ表示名

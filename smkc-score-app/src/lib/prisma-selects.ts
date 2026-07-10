@@ -23,6 +23,7 @@ export const PLAYER_PUBLIC_SELECT = {
   nickname: true,
   country: true,
   noCamera: true,
+  taHandicapSeconds: true,
 } as const;
 
 /**
@@ -39,15 +40,7 @@ export const PLAYER_AUTH_SELECT = {
 } as const;
 
 type BmMrMatchLeanSelectRequiredField =
-  | 'id'
-  | 'tournamentId'
-  | 'player1Id'
-  | 'player2Id'
-  | 'score1'
-  | 'score2'
-  | 'rounds'
-  | 'completed'
-  | 'isBye';
+  'id' | 'tournamentId' | 'player1Id' | 'player2Id' | 'score1' | 'score2' | 'rounds' | 'completed' | 'isBye';
 
 /**
  * Shared lean select for BM/MR qualification match score updates.

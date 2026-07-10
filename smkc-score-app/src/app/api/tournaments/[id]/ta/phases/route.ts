@@ -16,20 +16,16 @@
  * to ensure proper test mocking per the project's mock architecture pattern.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import prisma from "@/lib/prisma";
-import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
-import { sanitizeInput } from "@/lib/sanitize";
-import { requireAdminSession } from "@/lib/api-auth";
-import { z } from "zod";
-import { createLogger } from "@/lib/logger";
-import { retryDbRead } from "@/lib/db-read-retry";
-import {
-  createSuccessResponse,
-  createErrorResponse,
-  handleValidationError,
-} from "@/lib/error-handling";
+import prisma from '@/lib/prisma';
+import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
+import { sanitizeInput } from '@/lib/sanitize';
+import { requireAdminSession } from '@/lib/api-auth';
+import { z } from 'zod';
+import { createLogger } from '@/lib/logger';
+import { retryDbRead } from '@/lib/db-read-retry';
+import { createSuccessResponse, createErrorResponse, handleValidationError } from '@/lib/error-handling';
 import {
   promoteToPhase1,
   promoteToPhase2,
@@ -46,13 +42,13 @@ import {
   PhaseResetConflictError,
   type PhaseContext,
   type RoundResultInput,
-} from "@/lib/ta/finals-phase-manager";
-import { getAvailableCourses, getPlayedCoursesWithSuddenDeath } from "@/lib/ta/course-selection";
-import { checkStageFrozen } from "@/lib/ta/freeze-check";
-import { RETRY_PENALTY_MS } from "@/lib/constants";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
-import { resolveAuditUserId } from "@/lib/audit-log";
-import { readTournamentArchive } from "@/lib/tournament-archive";
+} from '@/lib/ta/finals-phase-manager';
+import { getAvailableCourses, getPlayedCoursesWithSuddenDeath } from '@/lib/ta/course-selection';
+import { checkStageFrozen } from '@/lib/ta/freeze-check';
+import { RETRY_PENALTY_MS } from '@/lib/constants';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { resolveAuditUserId } from '@/lib/audit-log';
+import { readTournamentArchive } from '@/lib/tournament-archive';
 
 function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
   return {
@@ -85,7 +81,7 @@ function compareNullableNumber(a: number | null, b: number | null) {
 
 export function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
   entries: T[],
-  rounds: PhaseRoundForDisplay[]
+  rounds: PhaseRoundForDisplay[],
 ): T[] {
   const eliminationMeta = new Map<string, { roundNumber: number; timeMs: number; index: number }>();
 
@@ -141,7 +137,7 @@ export function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
 }
 
 /** Valid phase names for URL query parameters and request bodies */
-const PhaseSchema = z.enum(["phase1", "phase2", "phase3"]);
+const PhaseSchema = z.enum(['phase1', 'phase2', 'phase3']);
 type PhaseName = z.infer<typeof PhaseSchema>;
 
 function summarizeArchivedPhase(entries: unknown[], phase: PhaseName) {
@@ -149,14 +145,15 @@ function summarizeArchivedPhase(entries: unknown[], phase: PhaseName) {
   if (phaseEntries.length === 0) return null;
   const activeEntry = phaseEntries.find((entry) => (entry as { eliminated?: unknown }).eliminated !== true);
   const active = phaseEntries.filter((entry) => (entry as { eliminated?: unknown }).eliminated !== true).length;
-  const winner = phase === "phase3" && active === 1
-    ? ((activeEntry as { player?: { nickname?: string } } | undefined)?.player?.nickname ?? null)
-    : null;
+  const winner =
+    phase === 'phase3' && active === 1
+      ? ((activeEntry as { player?: { nickname?: string } } | undefined)?.player?.nickname ?? null)
+      : null;
   return {
     total: phaseEntries.length,
     active,
     eliminated: phaseEntries.length - active,
-    ...(phase === "phase3" ? { winner } : {}),
+    ...(phase === 'phase3' ? { winner } : {}),
   };
 }
 
@@ -168,13 +165,13 @@ function getRoundResultPlayerIds(rounds: unknown[], phase: PhaseName) {
     if (Array.isArray(results)) {
       for (const result of results) {
         const playerId = (result as { playerId?: unknown }).playerId;
-        if (typeof playerId === "string") playerIds.add(playerId);
+        if (typeof playerId === 'string') playerIds.add(playerId);
       }
     }
     const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
     if (Array.isArray(eliminatedIds)) {
       for (const playerId of eliminatedIds) {
-        if (typeof playerId === "string") playerIds.add(playerId);
+        if (typeof playerId === 'string') playerIds.add(playerId);
       }
     }
   }
@@ -186,23 +183,23 @@ function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>) {
   const eliminated = new Set<string>();
 
   const phase3Rounds = rounds
-    .filter((round) => (round as { phase?: unknown }).phase === "phase3")
-    .sort((a, b) =>
-      ((a as { roundNumber?: number }).roundNumber ?? 0) -
-      ((b as { roundNumber?: number }).roundNumber ?? 0)
+    .filter((round) => (round as { phase?: unknown }).phase === 'phase3')
+    .sort(
+      (a, b) => ((a as { roundNumber?: number }).roundNumber ?? 0) - ((b as { roundNumber?: number }).roundNumber ?? 0),
     );
 
   for (const round of phase3Rounds) {
     const results = (round as { results?: unknown }).results;
     if (Array.isArray(results)) {
-      const sorted = [...results].sort((a, b) =>
-        ((a as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY) -
-        ((b as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY)
+      const sorted = [...results].sort(
+        (a, b) =>
+          ((a as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY) -
+          ((b as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY),
       );
       const bottomHalf = sorted.slice(Math.ceil(sorted.length / 2));
       for (const result of bottomHalf) {
         const playerId = (result as { playerId?: unknown }).playerId;
-        if (typeof playerId !== "string" || eliminated.has(playerId)) continue;
+        if (typeof playerId !== 'string' || eliminated.has(playerId)) continue;
         livesByPlayer.set(playerId, Math.max(0, (livesByPlayer.get(playerId) ?? 3) - 1));
       }
     }
@@ -210,7 +207,7 @@ function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>) {
     const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
     if (Array.isArray(eliminatedIds)) {
       for (const playerId of eliminatedIds) {
-        if (typeof playerId !== "string") continue;
+        if (typeof playerId !== 'string') continue;
         eliminated.add(playerId);
         livesByPlayer.set(playerId, 0);
       }
@@ -236,12 +233,12 @@ function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: P
   const sourceByPlayerId = new Map(
     entries
       .map((entry) => [(entry as { playerId?: unknown }).playerId, entry] as const)
-      .filter(([playerId]) => typeof playerId === "string")
+      .filter(([playerId]) => typeof playerId === 'string'),
   );
   const eliminated = new Set<string>();
   const livesByPlayer = new Map<string, number>();
 
-  if (phase === "phase3") {
+  if (phase === 'phase3') {
     const replay = replayArchivedPhase3Lives(rounds, playerIds);
     replay.eliminated.forEach((playerId) => eliminated.add(playerId));
     replay.livesByPlayer.forEach((lives, playerId) => livesByPlayer.set(playerId, lives));
@@ -251,7 +248,7 @@ function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: P
       const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
       if (!Array.isArray(eliminatedIds)) continue;
       eliminatedIds.forEach((playerId) => {
-        if (typeof playerId === "string") eliminated.add(playerId);
+        if (typeof playerId === 'string') eliminated.add(playerId);
       });
     }
   }
@@ -263,7 +260,7 @@ function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: P
       id: `${String(source.id ?? playerId)}-${phase}`,
       playerId,
       stage: phase,
-      lives: phase === "phase3" ? (livesByPlayer.get(playerId) ?? 3) : 0,
+      lives: phase === 'phase3' ? (livesByPlayer.get(playerId) ?? 3) : 0,
       eliminated: eliminated.has(playerId),
       player: source.player ?? { id: playerId, name: playerId, nickname: playerId },
     };
@@ -276,30 +273,27 @@ async function getArchivedPhaseResponse(id: string, phase?: PhaseName) {
 
   const entries = archive.modes.ta.entries ?? [];
   const rounds = archive.modes.ta.phaseRounds ?? [];
-  const phase1Entries = getArchivedPhaseEntries(entries, rounds, "phase1");
-  const phase2Entries = getArchivedPhaseEntries(entries, rounds, "phase2");
-  const phase3Entries = getArchivedPhaseEntries(entries, rounds, "phase3");
+  const phase1Entries = getArchivedPhaseEntries(entries, rounds, 'phase1');
+  const phase2Entries = getArchivedPhaseEntries(entries, rounds, 'phase2');
+  const phase3Entries = getArchivedPhaseEntries(entries, rounds, 'phase3');
   const response: Record<string, unknown> = {
     phaseStatus: {
-      phase1: summarizeArchivedPhase(phase1Entries, "phase1"),
-      phase2: summarizeArchivedPhase(phase2Entries, "phase2"),
-      phase3: summarizeArchivedPhase(phase3Entries, "phase3"),
-      currentPhase: "completed",
+      phase1: summarizeArchivedPhase(phase1Entries, 'phase1'),
+      phase2: summarizeArchivedPhase(phase2Entries, 'phase2'),
+      phase3: summarizeArchivedPhase(phase3Entries, 'phase3'),
+      currentPhase: 'completed',
     },
     archived: true,
   };
 
   if (phase) {
-    const phaseEntries =
-      phase === "phase1" ? phase1Entries :
-      phase === "phase2" ? phase2Entries :
-      phase3Entries;
+    const phaseEntries = phase === 'phase1' ? phase1Entries : phase === 'phase2' ? phase2Entries : phase3Entries;
     const phaseRounds = rounds
       .filter((round) => (round as { phase?: unknown }).phase === phase)
       .map((round) => normalizePhaseRound(round as { results: unknown; eliminatedIds?: unknown }));
     const playedCourses = phaseRounds
       .map((round) => (round as { course?: unknown }).course)
-      .filter((course): course is string => typeof course === "string");
+      .filter((course): course is string => typeof course === 'string');
     response.entries = sortPhaseEntriesForDisplay(phaseEntries as never[], phaseRounds as never[]);
     response.rounds = phaseRounds;
     response.availableCourses = getAvailableCourses(playedCourses);
@@ -313,18 +307,18 @@ async function getArchivedPhaseResponse(id: string, phase?: PhaseName) {
  * POST request body schema.
  * Uses discriminated union on "action" field to validate action-specific fields.
  */
-const PostRequestSchema = z.discriminatedUnion("action", [
+const PostRequestSchema = z.discriminatedUnion('action', [
   // Promote players to a phase (triggers the corresponding promoteToPhaseN function)
-  z.object({ action: z.literal("promote_phase1") }),
-  z.object({ action: z.literal("promote_phase2") }),
-  z.object({ action: z.literal("promote_phase3") }),
+  z.object({ action: z.literal('promote_phase1') }),
+  z.object({ action: z.literal('promote_phase2') }),
+  z.object({ action: z.literal('promote_phase3') }),
 
   // Start a new round: selects a random course and creates a TTPhaseRound record.
   // Optional `course` allows admin to manually specify a course abbreviation (e.g. "MC1")
   // instead of using random selection. Must be a valid abbreviation in the current cycle.
   // Optional `tvNumber` (1-4) assigns a broadcast TV screen to the round.
   z.object({
-    action: z.literal("start_round"),
+    action: z.literal('start_round'),
     phase: PhaseSchema,
     course: z.string().optional(),
     tvNumber: z.number().int().min(1).max(4).nullable().optional(),
@@ -332,14 +326,14 @@ const PostRequestSchema = z.discriminatedUnion("action", [
 
   // Cancel an unsubmitted round: deletes the TTPhaseRound record to free the course
   z.object({
-    action: z.literal("cancel_round"),
+    action: z.literal('cancel_round'),
     phase: PhaseSchema,
     roundNumber: z.number().int().positive(),
   }),
 
   // Undo the last submitted round: clears results and restores player state
   z.object({
-    action: z.literal("undo_round"),
+    action: z.literal('undo_round'),
     phase: PhaseSchema,
   }),
 
@@ -349,7 +343,7 @@ const PostRequestSchema = z.discriminatedUnion("action", [
   // when the last course/round itself was the mistake, not just the times
   // entered for it — see cancelLastSubmittedPhaseRound's doc comment.
   z.object({
-    action: z.literal("cancel_last_round"),
+    action: z.literal('cancel_last_round'),
     phase: PhaseSchema,
   }),
 
@@ -362,41 +356,45 @@ const PostRequestSchema = z.discriminatedUnion("action", [
   // request shape is unified here so callers don't have to remember a
   // one-off field name for this action.
   z.object({
-    action: z.literal("reset_phase"),
+    action: z.literal('reset_phase'),
     phase: PhaseSchema,
   }),
 
   // Submit results for a round: triggers elimination processing.
   // Optional `tvNumber` per result records which TV screen the player used (for history display).
   z.object({
-    action: z.literal("submit_results"),
+    action: z.literal('submit_results'),
     phase: PhaseSchema,
     roundNumber: z.number().int().positive(),
-    results: z.array(
-      z.object({
-        playerId: z.string().cuid(),
-        timeMs: z.number().min(0).max(RETRY_PENALTY_MS),
-        isRetry: z.boolean().optional(),
-        tvNumber: z.number().int().min(1).max(4).nullable().optional(),
-      })
-    ).min(1),
+    results: z
+      .array(
+        z.object({
+          playerId: z.string().cuid(),
+          timeMs: z.number().min(0).max(RETRY_PENALTY_MS),
+          isRetry: z.boolean().optional(),
+          tvNumber: z.number().int().min(1).max(4).nullable().optional(),
+        }),
+      )
+      .min(1),
   }),
 
   z.object({
-    action: z.literal("submit_sudden_death"),
+    action: z.literal('submit_sudden_death'),
     phase: PhaseSchema,
     suddenDeathRoundId: z.string().cuid(),
-    results: z.array(
-      z.object({
-        playerId: z.string().cuid(),
-        timeMs: z.number().min(0).max(RETRY_PENALTY_MS),
-        isRetry: z.boolean().optional(),
-      })
-    ).min(2),
+    results: z
+      .array(
+        z.object({
+          playerId: z.string().cuid(),
+          timeMs: z.number().min(0).max(RETRY_PENALTY_MS),
+          isRetry: z.boolean().optional(),
+        }),
+      )
+      .min(2),
   }),
 
   z.object({
-    action: z.literal("change_sudden_death_course"),
+    action: z.literal('change_sudden_death_course'),
     phase: PhaseSchema,
     suddenDeathRoundId: z.string().cuid(),
     course: z.string(),
@@ -415,64 +413,55 @@ const PostRequestSchema = z.discriminatedUnion("action", [
  * - rounds: TTPhaseRound records for the requested phase
  * - availableCourses: Courses not yet played in the current 20-course cycle
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const logger = createLogger("ta-phases-api");
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('ta-phases-api');
   const { id } = await params;
   let tournamentId = id;
 
   try {
-    tournamentId = await retryDbRead(
-      () => resolveTournamentId(id),
-      {
-        onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase tournament resolve", {
+    tournamentId = await retryDbRead(() => resolveTournamentId(id), {
+      onRetry: ({ attempt, error }) =>
+        logger.warn('Retrying TA phase tournament resolve', {
           attempt,
           id,
           error: error instanceof Error ? error.message : error,
         }),
-      },
-    );
+    });
 
     // Parse optional phase filter from query params early (no async needed)
     const { searchParams } = new URL(request.url);
-    const phaseParam = searchParams.get("phase");
+    const phaseParam = searchParams.get('phase');
     const phase = phaseParam ? PhaseSchema.safeParse(phaseParam) : null;
 
     if (phaseParam && !phase?.success) {
-      return handleValidationError("Invalid phase parameter. Must be one of: phase1, phase2, phase3");
+      return handleValidationError('Invalid phase parameter. Must be one of: phase1, phase2, phase3');
     }
 
-    const tournament = await retryDbRead(
-      () => prisma.tournament.findUnique({ where: { id: tournamentId } }),
-      {
-        onRetry: ({ attempt, error }) => logger.warn("Retrying TA tournament read", {
+    const tournament = await retryDbRead(() => prisma.tournament.findUnique({ where: { id: tournamentId } }), {
+      onRetry: ({ attempt, error }) =>
+        logger.warn('Retrying TA tournament read', {
           attempt,
           tournamentId,
           error: error instanceof Error ? error.message : error,
         }),
-      },
-    );
+    });
 
     if (!tournament) {
       const archived = await getArchivedPhaseResponse(id, phase?.success ? phase.data : undefined);
       if (archived) {
         return createSuccessResponse(archived);
       }
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
 
-    const phaseStatus = await retryDbRead(
-      () => getPhaseStatus(prisma, tournamentId),
-      {
-        onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase status read", {
+    const phaseStatus = await retryDbRead(() => getPhaseStatus(prisma, tournamentId), {
+      onRetry: ({ attempt, error }) =>
+        logger.warn('Retrying TA phase status read', {
           attempt,
           tournamentId,
           error: error instanceof Error ? error.message : error,
         }),
-      },
-    );
+    });
 
     const response: Record<string, unknown> = { phaseStatus };
 
@@ -490,54 +479,52 @@ export async function GET(
        * requests under load.
        */
       const entries = await retryDbRead(
-        () => prisma.tTEntry.findMany({
-          where: { tournamentId, stage: phaseValue },
-          include: { player: { select: PLAYER_PUBLIC_SELECT } },
-          orderBy: [
-            { eliminated: "asc" },
-            { lives: "desc" },
-            { totalTime: "asc" },
-          ],
-        }),
-        {
-          onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase entry read", {
-            attempt,
-            tournamentId,
-            phase: phaseValue,
-            error: error instanceof Error ? error.message : error,
+        () =>
+          prisma.tTEntry.findMany({
+            where: { tournamentId, stage: phaseValue },
+            include: { player: { select: PLAYER_PUBLIC_SELECT } },
+            orderBy: [{ eliminated: 'asc' }, { lives: 'desc' }, { totalTime: 'asc' }],
           }),
+        {
+          onRetry: ({ attempt, error }) =>
+            logger.warn('Retrying TA phase entry read', {
+              attempt,
+              tournamentId,
+              phase: phaseValue,
+              error: error instanceof Error ? error.message : error,
+            }),
         },
       );
       const rounds = await retryDbRead(
-        () => prisma.tTPhaseRound.findMany({
-          where: { tournamentId, phase: phaseValue },
-          include: {
-            suddenDeathRounds: {
-              orderBy: { sequence: "asc" },
+        () =>
+          prisma.tTPhaseRound.findMany({
+            where: { tournamentId, phase: phaseValue },
+            include: {
+              suddenDeathRounds: {
+                orderBy: { sequence: 'asc' },
+              },
             },
-          },
-          orderBy: { roundNumber: "asc" },
-        }),
+            orderBy: { roundNumber: 'asc' },
+          }),
         {
-          onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase round read", {
+          onRetry: ({ attempt, error }) =>
+            logger.warn('Retrying TA phase round read', {
+              attempt,
+              tournamentId,
+              phase: phaseValue,
+              error: error instanceof Error ? error.message : error,
+            }),
+        },
+      );
+      const playedCourses = await retryDbRead(() => getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phaseValue), {
+        onRetry: ({ attempt, error }) =>
+          logger.warn('Retrying TA phase course read', {
             attempt,
             tournamentId,
             phase: phaseValue,
             error: error instanceof Error ? error.message : error,
           }),
-        },
-      );
-      const playedCourses = await retryDbRead(
-        () => getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phaseValue),
-        {
-          onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase course read", {
-            attempt,
-            tournamentId,
-            phase: phaseValue,
-            error: error instanceof Error ? error.message : error,
-          }),
-        },
-      );
+      });
 
       // End of the D1 read section; the remaining work only normalizes and sorts in memory.
       const normalizedRounds = rounds.map(normalizePhaseRound);
@@ -550,18 +537,18 @@ export async function GET(
 
     return createSuccessResponse(response);
   } catch (err) {
-    logger.error("Failed to fetch phase data", {
+    logger.error('Failed to fetch phase data', {
       error: err instanceof Error ? err.message : err,
       stack: err instanceof Error ? err.stack : undefined,
       tournamentId,
     });
     const { searchParams } = new URL(request.url);
-    const phase = PhaseSchema.safeParse(searchParams.get("phase"));
+    const phase = PhaseSchema.safeParse(searchParams.get('phase'));
     const archived = await getArchivedPhaseResponse(id, phase.success ? phase.data : undefined);
     if (archived) {
       return createSuccessResponse(archived);
     }
-    return createErrorResponse("Internal server error", 500);
+    return createErrorResponse('Internal server error', 500);
   }
 }
 
@@ -578,11 +565,8 @@ export async function GET(
  * - start_round: Select random course and create a new round
  * - submit_results: Submit player times and trigger elimination
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const logger = createLogger("ta-phases-api");
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('ta-phases-api');
   const { id } = await params;
   const tournamentId = await resolveTournamentId(id);
 
@@ -597,7 +581,7 @@ export async function POST(
     const parsed = PostRequestSchema.safeParse(sanitizedBody);
 
     if (!parsed.success) {
-      return handleValidationError("Invalid request");
+      return handleValidationError('Invalid request');
     }
 
     // Validate tournament exists
@@ -605,7 +589,7 @@ export async function POST(
       where: { id: tournamentId },
     });
     if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
 
     // Build context for audit logging and phase operations
@@ -614,28 +598,38 @@ export async function POST(
       userId: resolveAuditUserId(session),
       ipAddress: getClientIdentifier(request),
       userAgent: getUserAgent(request),
+      taBattleRoyaleMode: tournament.taBattleRoyaleMode,
     };
 
     const action = parsed.data.action;
 
+    if (
+      tournament.taBattleRoyaleMode &&
+      (action === 'promote_phase1' ||
+        action === 'promote_phase2' ||
+        ('phase' in parsed.data && (parsed.data.phase === 'phase1' || parsed.data.phase === 'phase2')))
+    ) {
+      return createErrorResponse('TA battle royale mode uses Phase 3 only', 400);
+    }
+
     // === Promotion Actions ===
-    if (action === "promote_phase1") {
+    if (action === 'promote_phase1') {
       const result = await promoteToPhase1(prisma, context);
       return createSuccessResponse(result);
     }
 
-    if (action === "promote_phase2") {
+    if (action === 'promote_phase2') {
       const result = await promoteToPhase2(prisma, context);
       return createSuccessResponse(result);
     }
 
-    if (action === "promote_phase3") {
+    if (action === 'promote_phase3') {
       const result = await promoteToPhase3(prisma, context);
       return createSuccessResponse(result);
     }
 
     // === Round Management Actions ===
-    if (action === "start_round") {
+    if (action === 'start_round') {
       const { phase, course, tvNumber } = parsed.data;
       // Prevent starting rounds in a frozen phase (admin locked after completion)
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
@@ -645,7 +639,7 @@ export async function POST(
       return createSuccessResponse(result);
     }
 
-    if (action === "cancel_round") {
+    if (action === 'cancel_round') {
       const { phase, roundNumber } = parsed.data;
       // Prevent cancelling rounds in a frozen phase
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
@@ -654,7 +648,7 @@ export async function POST(
       return createSuccessResponse(result);
     }
 
-    if (action === "undo_round") {
+    if (action === 'undo_round') {
       const { phase } = parsed.data;
       // Prevent undoing rounds in a frozen phase
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
@@ -663,7 +657,7 @@ export async function POST(
       return createSuccessResponse(result);
     }
 
-    if (action === "cancel_last_round") {
+    if (action === 'cancel_last_round') {
       const { phase } = parsed.data;
       // Prevent cancelling rounds in a frozen phase
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
@@ -672,7 +666,7 @@ export async function POST(
       return createSuccessResponse(result);
     }
 
-    if (action === "reset_phase") {
+    if (action === 'reset_phase') {
       const { phase } = parsed.data;
       // Same frozen-stage guard as the other phase mutations above: a stage
       // an admin has explicitly locked should not be resettable either.
@@ -682,56 +676,38 @@ export async function POST(
       return createSuccessResponse(result);
     }
 
-    if (action === "submit_results") {
+    if (action === 'submit_results') {
       const { phase, roundNumber, results } = parsed.data;
       // Prevent submitting results in a frozen phase
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
 
       const roundResults: RoundResultInput[] = results;
-      const result = await submitRoundResults(
-        prisma,
-        context,
-        phase,
-        roundNumber,
-        roundResults
-      );
+      const result = await submitRoundResults(prisma, context, phase, roundNumber, roundResults);
       return createSuccessResponse(result);
     }
 
-    if (action === "submit_sudden_death") {
+    if (action === 'submit_sudden_death') {
       const { phase, suddenDeathRoundId, results } = parsed.data;
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
-      const result = await submitSuddenDeathResults(
-        prisma,
-        context,
-        phase,
-        suddenDeathRoundId,
-        results
-      );
+      const result = await submitSuddenDeathResults(prisma, context, phase, suddenDeathRoundId, results);
       return createSuccessResponse(result);
     }
 
-    if (action === "change_sudden_death_course") {
+    if (action === 'change_sudden_death_course') {
       const { phase, suddenDeathRoundId, course } = parsed.data;
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
-      const result = await changeSuddenDeathCourse(
-        prisma,
-        context,
-        phase,
-        suddenDeathRoundId,
-        course
-      );
+      const result = await changeSuddenDeathCourse(prisma, context, phase, suddenDeathRoundId, course);
       return createSuccessResponse(result);
     }
 
     // Should not reach here due to discriminated union validation
-    return handleValidationError("Unknown action");
+    return handleValidationError('Unknown action');
   } catch (err) {
-    const internalMessage = err instanceof Error ? err.message : "Unknown error";
-    logger.error("Phase operation failed", {
+    const internalMessage = err instanceof Error ? err.message : 'Unknown error';
+    logger.error('Phase operation failed', {
       error: internalMessage,
       tournamentId,
     });
@@ -741,7 +717,7 @@ export async function POST(
     // via instanceof (same pattern as OptimisticLockError / DebugFillLockedError)
     // rather than string-matching, since the message is guard-specific.
     if (err instanceof PhaseResetConflictError) {
-      return createErrorResponse(err.message, 409, "PHASE_RESET_CONFLICT");
+      return createErrorResponse(err.message, 409, 'PHASE_RESET_CONFLICT');
     }
 
     // Expose known business logic errors (thrown by our code with descriptive messages)
@@ -750,31 +726,31 @@ export async function POST(
     // start with recognizable patterns; Prisma/system errors do not.
     const isBusinessError =
       err instanceof Error &&
-      (internalMessage.startsWith("Round ") ||
-        internalMessage.startsWith("No active") ||
-        internalMessage.startsWith("Invalid player") ||
-        internalMessage.startsWith("Missing results") ||
-        internalMessage.startsWith("Duplicate player") ||
-        internalMessage.includes("already been submitted") ||
-        internalMessage.includes("cannot be cancelled") ||
-        internalMessage.includes("No submitted rounds") ||
-        internalMessage.includes("already promoted") ||
-        internalMessage.includes("Promote players first") ||
-        internalMessage.startsWith("Tie detected") ||
-        internalMessage.includes("sudden-death") ||
-        internalMessage.includes("Sudden-death") ||
-        internalMessage.startsWith("Unresolved sudden-death") ||
-        internalMessage.startsWith("Missing sudden-death") ||
+      (internalMessage.startsWith('Round ') ||
+        internalMessage.startsWith('No active') ||
+        internalMessage.startsWith('Invalid player') ||
+        internalMessage.startsWith('Missing results') ||
+        internalMessage.startsWith('Duplicate player') ||
+        internalMessage.includes('already been submitted') ||
+        internalMessage.includes('cannot be cancelled') ||
+        internalMessage.includes('No submitted rounds') ||
+        internalMessage.includes('already promoted') ||
+        internalMessage.includes('Promote players first') ||
+        internalMessage.startsWith('Tie detected') ||
+        internalMessage.includes('sudden-death') ||
+        internalMessage.includes('Sudden-death') ||
+        internalMessage.startsWith('Unresolved sudden-death') ||
+        internalMessage.startsWith('Missing sudden-death') ||
         // Manual course override validation errors (start_round with course param)
-        internalMessage.startsWith("Invalid course abbreviation") ||
+        internalMessage.startsWith('Invalid course abbreviation') ||
         internalMessage.startsWith('Course "') ||
-        internalMessage.startsWith("Course ") ||
+        internalMessage.startsWith('Course ') ||
         // resetPhase: stage has no entries to reset (nothing to do)
-        internalMessage.includes("entries to reset"));
+        internalMessage.includes('entries to reset'));
 
     return createErrorResponse(
-      isBusinessError ? internalMessage : "Internal server error",
-      isBusinessError ? 400 : 500
+      isBusinessError ? internalMessage : 'Internal server error',
+      isBusinessError ? 400 : 500,
     );
   }
 }

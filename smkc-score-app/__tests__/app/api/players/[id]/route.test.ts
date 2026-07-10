@@ -29,7 +29,6 @@
 
 // Mock dependencies
 
-
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
@@ -85,7 +84,10 @@ jest.mock('next/server', () => {
           return h[key] || null;
         },
         forEach: (cb) => {
-          if (h instanceof Headers) { h.forEach(cb); return; }
+          if (h instanceof Headers) {
+            h.forEach(cb);
+            return;
+          }
           Object.entries(h).forEach(([k, v]) => cb(v, k));
         },
       };
@@ -151,7 +153,7 @@ describe('GET /api/players/[id]', () => {
         expect.objectContaining({
           success: true,
           data: mockPlayer,
-        })
+        }),
       );
     });
   });
@@ -171,7 +173,7 @@ describe('GET /api/players/[id]', () => {
         expect.objectContaining({
           error: 'Player not found',
         }),
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -189,7 +191,7 @@ describe('GET /api/players/[id]', () => {
         expect.objectContaining({
           error: 'Failed to fetch player',
         }),
-        { status: 500 }
+        { status: 500 },
       );
     });
   });
@@ -230,12 +232,35 @@ describe('PUT /api/players/[id]', () => {
         expect.objectContaining({
           error: 'Forbidden',
         }),
-        { status: 403 }
+        { status: 403 },
       );
     });
   });
 
   describe('Validation', () => {
+    it('rejects an unsupported TA handicap', async () => {
+      sanitizeMock.sanitizeInput.mockReturnValue({
+        name: 'Updated Name',
+        nickname: 'updated',
+        taHandicapSeconds: 1,
+      });
+
+      const route = (await import('@/app/api/players/[id]/route')).PUT;
+      await route(
+        new NextRequest('http://localhost:3000/api/players/player-1', {
+          method: 'PUT',
+          body: JSON.stringify({ name: 'Updated Name', nickname: 'updated', taHandicapSeconds: 1 }),
+        }),
+        { params: Promise.resolve({ id: 'player-1' }) },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.stringContaining('0, -1, -3, or -5') }),
+        { status: 400 },
+      );
+      expect(prisma.player.update).not.toHaveBeenCalled();
+    });
+
     it('should return 400 when name is missing', async () => {
       sanitizeMock.sanitizeInput.mockReturnValue({ nickname: 'updated' });
 
@@ -251,7 +276,7 @@ describe('PUT /api/players/[id]', () => {
         expect.objectContaining({
           error: expect.any(String),
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -270,7 +295,7 @@ describe('PUT /api/players/[id]', () => {
         expect.objectContaining({
           error: expect.any(String),
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
   });
@@ -288,6 +313,7 @@ describe('PUT /api/players/[id]', () => {
         name: 'Updated Name',
         nickname: 'updated',
         country: 'US',
+        taHandicapSeconds: -5,
       });
       prisma.player.update.mockResolvedValue(mockPlayer);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
@@ -314,8 +340,9 @@ describe('PUT /api/players/[id]', () => {
             nickname: 'updated',
             country: 'US',
             noCamera: false,
+            taHandicapSeconds: -5,
           },
-        })
+        }),
       );
 
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
@@ -325,7 +352,7 @@ describe('PUT /api/players/[id]', () => {
           userAgent: 'test-agent',
           action: 'UPDATE_PLAYER',
           targetId: 'player-1',
-        })
+        }),
       );
 
       // createSuccessResponse wraps data in { success: true, data: ... }
@@ -333,7 +360,7 @@ describe('PUT /api/players/[id]', () => {
         expect.objectContaining({
           success: true,
           data: mockPlayer,
-        })
+        }),
       );
     });
 
@@ -357,11 +384,11 @@ describe('PUT /api/players/[id]', () => {
           method: 'PUT',
           body: JSON.stringify({ name: 'Updated Name', nickname: 'updated', country: 'United States of America' }),
         }),
-        { params: Promise.resolve({ id: 'player-1' }) }
+        { params: Promise.resolve({ id: 'player-1' }) },
       );
 
       expect(prisma.player.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ country: 'US' }) })
+        expect.objectContaining({ data: expect.objectContaining({ country: 'US' }) }),
       );
     });
 
@@ -382,11 +409,11 @@ describe('PUT /api/players/[id]', () => {
           method: 'PUT',
           body: JSON.stringify({ name: 'Updated Name', nickname: 'updated', country: 'not-a-real-country' }),
         }),
-        { params: Promise.resolve({ id: 'player-1' }) }
+        { params: Promise.resolve({ id: 'player-1' }) },
       );
 
       expect(prisma.player.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ country: null }) })
+        expect.objectContaining({ data: expect.objectContaining({ country: null }) }),
       );
     });
 
@@ -434,7 +461,7 @@ describe('PUT /api/players/[id]', () => {
         expect.objectContaining({
           error: 'Player not found',
         }),
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -458,7 +485,7 @@ describe('PUT /api/players/[id]', () => {
           error: 'A player with this nickname already exists',
           code: 'DUPLICATE_NICKNAME',
         }),
-        { status: 409 }
+        { status: 409 },
       );
     });
   });
@@ -498,7 +525,7 @@ describe('DELETE /api/players/[id]', () => {
         expect.objectContaining({
           error: 'Forbidden',
         }),
-        { status: 403 }
+        { status: 403 },
       );
     });
   });
@@ -518,7 +545,7 @@ describe('DELETE /api/players/[id]', () => {
       await route(request, { params: Promise.resolve({ id: 'player-1' }) });
 
       expect(prisma.player.delete).toHaveBeenCalledWith({
-        where: { id: 'player-1' }
+        where: { id: 'player-1' },
       });
 
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
@@ -528,7 +555,7 @@ describe('DELETE /api/players/[id]', () => {
           userAgent: 'test-agent',
           action: 'DELETE_PLAYER',
           targetId: 'player-1',
-        })
+        }),
       );
 
       // createSuccessResponse wraps data in { success: true, data: ... }
@@ -536,9 +563,9 @@ describe('DELETE /api/players/[id]', () => {
         expect.objectContaining({
           success: true,
           data: expect.objectContaining({
-            message: "Player deleted successfully",
+            message: 'Player deleted successfully',
           }),
-        })
+        }),
       );
     });
 
@@ -579,12 +606,12 @@ describe('DELETE /api/players/[id]', () => {
      */
     it.each([
       ['bMQualification', 'BM qualification (cascade-delete policy)'],
-      ['bMMatch',         'BM match (FK Restrict — would error without guard)'],
+      ['bMMatch', 'BM match (FK Restrict — would error without guard)'],
       ['mRQualification', 'MR qualification (cascade-delete policy)'],
-      ['mRMatch',         'MR match (FK Restrict)'],
+      ['mRMatch', 'MR match (FK Restrict)'],
       ['gPQualification', 'GP qualification (cascade-delete policy)'],
-      ['gPMatch',         'GP match (FK Restrict)'],
-      ['tTEntry',         'TA entry (cascade-delete policy)'],
+      ['gPMatch', 'GP match (FK Restrict)'],
+      ['tTEntry', 'TA entry (cascade-delete policy)'],
       ['tournamentPlayerScore', 'tournament score (cascade-delete policy)'],
     ])('should return 409 when player has %s records', async (modelKey) => {
       allCountsZero();
@@ -601,7 +628,7 @@ describe('DELETE /api/players/[id]', () => {
         expect.objectContaining({
           error: expect.stringContaining('registered in a tournament'),
         }),
-        { status: 409 }
+        { status: 409 },
       );
       expect(prisma.player.delete).not.toHaveBeenCalled();
     });
@@ -624,9 +651,7 @@ describe('DELETE /api/players/[id]', () => {
       expect(prisma.scoreEntryLog.deleteMany).toHaveBeenCalledWith({ where: { playerId: 'player-1' } });
       expect(prisma.matchCharacterUsage.deleteMany).toHaveBeenCalledWith({ where: { playerId: 'player-1' } });
       expect(prisma.player.delete).toHaveBeenCalledWith({ where: { id: 'player-1' } });
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true }),
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
   });
 
@@ -645,7 +670,7 @@ describe('DELETE /api/players/[id]', () => {
         expect.objectContaining({
           error: 'Player not found',
         }),
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -663,7 +688,7 @@ describe('DELETE /api/players/[id]', () => {
         expect.objectContaining({
           error: 'Failed to delete player',
         }),
-        { status: 500 }
+        { status: 500 },
       );
     });
   });

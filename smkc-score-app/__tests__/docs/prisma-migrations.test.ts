@@ -128,4 +128,17 @@ describe('Prisma migration compatibility', () => {
       }
     }
   });
+
+  it('keeps TA battle royale settings aligned between Prisma and Wrangler migrations', () => {
+    const prismaMigration = readMigration('0021_add_ta_battle_royale', 'migration.sql');
+    const wranglerMigration = readWranglerMigration('0040_add_ta_battle_royale.sql');
+
+    for (const column of [
+      'ALTER TABLE "Player" ADD COLUMN "taHandicapSeconds" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "Tournament" ADD COLUMN "taBattleRoyaleMode" BOOLEAN NOT NULL DEFAULT false',
+    ]) {
+      expect(prismaMigration).toContain(column);
+      expect(wranglerMigration).toContain(column);
+    }
+  });
 });

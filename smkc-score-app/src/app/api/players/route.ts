@@ -13,18 +13,19 @@
  * The plaintext password is returned only in the POST response and is never
  * stored or retrievable again. Admins must share it with the player immediately.
  */
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { sanitizeInput } from "@/lib/sanitize";
-import { auth } from "@/lib/auth";
-import { generateSecurePassword, hashPassword } from "@/lib/password-utils";
-import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
-import { getServerSideIdentifier } from "@/lib/rate-limit";
-import { paginate } from "@/lib/pagination";
-import { createLogger } from "@/lib/logger";
-import { createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
-import { resolveCountryCode } from "@/lib/countries";
-import { PLAYER_ERROR_CODES } from "@/lib/player-error-codes";
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { sanitizeInput } from '@/lib/sanitize';
+import { auth } from '@/lib/auth';
+import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
+import { getServerSideIdentifier } from '@/lib/rate-limit';
+import { paginate } from '@/lib/pagination';
+import { createLogger } from '@/lib/logger';
+import { createErrorResponse, handleValidationError, handleAuthzError } from '@/lib/error-handling';
+import { resolveCountryCode } from '@/lib/countries';
+import { isTaHandicapSeconds } from '@/lib/ta/battle-royale';
+import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
 
 /**
  * GET /api/players
@@ -50,8 +51,7 @@ export async function GET(request: NextRequest) {
     const page = Number(searchParams.get('page')) || 1;
     const limit = Number(searchParams.get('limit')) || 50;
     const includeTournamentData =
-      searchParams.get('includeTournamentData') === 'true' ||
-      searchParams.get('includeTournamentData') === '1';
+      searchParams.get('includeTournamentData') === 'true' || searchParams.get('includeTournamentData') === '1';
 
     // Use the paginate utility to handle offset calculation and total count.
     // Sort: alphabetical by nickname for consistent ordering.
@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
         count: prisma.player.count,
       },
       where,
-      { nickname: "asc" },
-      { page, limit }
+      { nickname: 'asc' },
+      { page, limit },
     );
 
     /*
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       // Scope all queries to just the player IDs on the current page to avoid full-table scans.
       // result.data is untyped (paginate returns unknown[]); cast to the minimal shape we need.
       const players = result.data as Array<{ id: string }>;
-      const pagePlayerIds = players.map(p => p.id);
+      const pagePlayerIds = players.map((p) => p.id);
 
       // Run queries sequentially to avoid D1 (SQLite) concurrent query failures.
       // D1 can intermittently fail under parallel query load (Promise.all with 8 queries),
@@ -116,65 +116,69 @@ export async function GET(request: NextRequest) {
             for (const row of rows) {
               for (const field of fields) {
                 const v = row[field];
-                if (typeof v === "string") collected.add(v);
+                if (typeof v === 'string') collected.add(v);
               }
             }
           }
         }
 
         await collectFrom(
-          (chunk) => prisma.bMQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
-          ["playerId"]
+          (chunk) =>
+            prisma.bMQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ['playerId'],
         );
         await collectFrom(
           (chunk) => prisma.bMMatch.findMany({ where: { player1Id: { in: chunk } }, select: { player1Id: true } }),
-          ["player1Id"]
+          ['player1Id'],
         );
         await collectFrom(
           (chunk) => prisma.bMMatch.findMany({ where: { player2Id: { in: chunk } }, select: { player2Id: true } }),
-          ["player2Id"]
+          ['player2Id'],
         );
         await collectFrom(
-          (chunk) => prisma.mRQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
-          ["playerId"]
+          (chunk) =>
+            prisma.mRQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ['playerId'],
         );
         await collectFrom(
           (chunk) => prisma.mRMatch.findMany({ where: { player1Id: { in: chunk } }, select: { player1Id: true } }),
-          ["player1Id"]
+          ['player1Id'],
         );
         await collectFrom(
           (chunk) => prisma.mRMatch.findMany({ where: { player2Id: { in: chunk } }, select: { player2Id: true } }),
-          ["player2Id"]
+          ['player2Id'],
         );
         await collectFrom(
-          (chunk) => prisma.gPQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
-          ["playerId"]
+          (chunk) =>
+            prisma.gPQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ['playerId'],
         );
         await collectFrom(
           (chunk) => prisma.gPMatch.findMany({ where: { player1Id: { in: chunk } }, select: { player1Id: true } }),
-          ["player1Id"]
+          ['player1Id'],
         );
         await collectFrom(
           (chunk) => prisma.gPMatch.findMany({ where: { player2Id: { in: chunk } }, select: { player2Id: true } }),
-          ["player2Id"]
+          ['player2Id'],
         );
         await collectFrom(
           (chunk) => prisma.tTEntry.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
-          ["playerId"]
+          ['playerId'],
         );
         await collectFrom(
-          (chunk) => prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
-          ["playerId"]
+          (chunk) =>
+            prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ['playerId'],
         );
 
-        result.data = players.map(player => ({
+        result.data = players.map((player) => ({
           ...player,
           hasTournamentData: collected.has(player.id),
         }));
       } catch (annotationError) {
         // hasTournamentData is a UI convenience (disables delete button).
         // If it fails, serve the player list without it rather than returning 500.
-        logger.warn("Failed to annotate hasTournamentData, serving without it", { error: annotationError });
+        logger.warn('Failed to annotate hasTournamentData, serving without it', { error: annotationError });
       }
     }
 
@@ -183,8 +187,8 @@ export async function GET(request: NextRequest) {
      * Direct JSON response preserves flat structure: { success, data: [...], meta: {...} } */
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
-    logger.error("Failed to fetch players", { error });
-    return createErrorResponse("Failed to fetch players", 500);
+    logger.error('Failed to fetch players', { error });
+    return createErrorResponse('Failed to fetch players', 500);
   }
 }
 
@@ -222,11 +226,14 @@ export async function POST(request: NextRequest) {
 
     // Sanitize all input fields to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country, noCamera } = body;
+    const { name, nickname, country, noCamera, taHandicapSeconds = 0 } = body;
 
     // Validate required fields before database operations
     if (!name || !nickname) {
-      return handleValidationError("Name and nickname are required");
+      return handleValidationError('Name and nickname are required');
+    }
+    if (!isTaHandicapSeconds(taHandicapSeconds)) {
+      return handleValidationError('TA handicap must be 0, -1, -3, or -5 seconds', 'taHandicapSeconds');
     }
 
     // Generate a cryptographically secure random password (12 characters).
@@ -253,6 +260,7 @@ export async function POST(request: NextRequest) {
         nickname,
         country: normalizedCountry,
         noCamera: noCamera === true,
+        taHandicapSeconds,
         password: hashedPassword,
       },
     });
@@ -268,12 +276,20 @@ export async function POST(request: NextRequest) {
         action: AUDIT_ACTIONS.CREATE_PLAYER,
         targetId: player.id,
         targetType: 'Player',
-        details: { name, nickname, country: normalizedCountry, passwordGenerated: true },
-      }).catch((err) => logger.warn('Failed to create audit log', {
-        error: err,
-        playerId: player.id,
-        action: 'create_player',
-      }));
+        details: {
+          name,
+          nickname,
+          country: normalizedCountry,
+          taHandicapSeconds,
+          passwordGenerated: true,
+        },
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          playerId: player.id,
+          action: 'create_player',
+        }),
+      );
     } catch (logError) {
       // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
@@ -286,28 +302,20 @@ export async function POST(request: NextRequest) {
     // Return the created player along with the one-time plaintext password.
     // The admin must communicate this password to the player immediately.
     /* Use standard { success, data } wrapper. 201 set explicitly. */
-    return NextResponse.json(
-      { success: true, data: { player, temporaryPassword: plainPassword } },
-      { status: 201 }
-    );
+    return NextResponse.json({ success: true, data: { player, temporaryPassword: plainPassword } }, { status: 201 });
   } catch (error: unknown) {
     // Log error with structured metadata for monitoring and debugging
-    logger.error("Failed to create player", { error });
+    logger.error('Failed to create player', { error });
 
     // Prisma error P2002 indicates a unique constraint violation.
     // For players, this means the nickname is already taken.
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return createErrorResponse(
-        "A player with this nickname already exists",
+        'A player with this nickname already exists',
         409,
         PLAYER_ERROR_CODES.DUPLICATE_NICKNAME,
       );
     }
-    return createErrorResponse("Failed to create player", 500);
+    return createErrorResponse('Failed to create player', 500);
   }
 }
