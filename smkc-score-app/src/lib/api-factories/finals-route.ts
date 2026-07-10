@@ -735,6 +735,56 @@ export function createFinalsHandlers(config: FinalsConfig) {
     };
   }
 
+  function resolvePlayoffWinnerGroups(
+    rankedQualifications: Array<{ playerId: string; group: string }>,
+    playoffStructure: ReturnType<typeof generatePlayoffStructure>,
+    r2Matches: Top24FinalsPreviewMatch[],
+    groupCount: number,
+    options: {
+      requireWinner: boolean;
+      tournamentId: string;
+      logger: ReturnType<typeof createLogger>;
+    },
+  ) {
+    const qualificationGroupByPlayerId = new Map(
+      rankedQualifications.map((qualification) => [qualification.playerId, qualification.group]),
+    );
+    const winnerGroupByUpperSeed = new Map<number, string>();
+    const resolvedWinners: Array<{
+      upperSeed: number;
+      winner: { winnerId: string; winnerPlayer: PublicFinalsPlayer };
+    }> = [];
+
+    for (const bracketMatch of playoffStructure.filter((match) => match.round === 'playoff_r2')) {
+      if (!bracketMatch.advancesToUpperSeed) continue;
+      const dbMatch = r2Matches.find((match) => match.matchNumber === bracketMatch.matchNumber);
+      if (!dbMatch?.completed) continue;
+
+      const winner = getCompletedMatchWinner(dbMatch);
+      if (!winner) {
+        options.logger.warn('Top-24 playoff winner could not be resolved', {
+          tournamentId: options.tournamentId,
+          eventTypeCode: config.eventTypeCode,
+          matchNumber: bracketMatch.matchNumber,
+          advancesToUpperSeed: bracketMatch.advancesToUpperSeed,
+        });
+        if (options.requireWinner) {
+          throw new Error(`Playoff winner for match ${bracketMatch.matchNumber} not resolved`);
+        }
+        continue;
+      }
+
+      const winnerGroup = qualificationGroupByPlayerId.get(winner.winnerId);
+      if (groupCount >= 3 && !winnerGroup) {
+        throw new Error(`Qualification group for playoff winner ${winner.winnerId} not resolved`);
+      }
+      if (winnerGroup) winnerGroupByUpperSeed.set(bracketMatch.advancesToUpperSeed, winnerGroup);
+      resolvedWinners.push({ upperSeed: bracketMatch.advancesToUpperSeed, winner });
+    }
+
+    return { resolvedWinners, winnerGroupByUpperSeed };
+  }
+
   function buildDirectSeededPlayers(
     directSeeds: Array<{ seed: number; qualification: { playerId: string; player: unknown } }>,
     qualificationRankLabels: Map<string, string>,
@@ -936,45 +986,23 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
       const r2Matches = playoffMatches.filter((m) => m.round === 'playoff_r2');
-      const qualificationGroupByPlayerId = new Map(
-        rankedQualifications.map((qualification) => [qualification.playerId, qualification.group]),
+      const { resolvedWinners, winnerGroupByUpperSeed } = resolvePlayoffWinnerGroups(
+        rankedQualifications,
+        playoffStructure,
+        r2Matches,
+        selection.groupCount,
+        { requireWinner: false, tournamentId, logger },
       );
-      const playoffWinnerGroupByUpperSeed = new Map<number, string>();
-      const playoffWinnerSeeds: SeededFinalsPlayer[] = [];
-
-      for (const r2BracketMatch of playoffStructure.filter((m) => m.round === 'playoff_r2')) {
-        if (!r2BracketMatch.advancesToUpperSeed) continue;
-        const dbMatch = r2Matches.find((m) => m.matchNumber === r2BracketMatch.matchNumber);
-        if (!dbMatch?.completed) continue;
-
-        const winner = getCompletedMatchWinner(dbMatch);
-        if (!winner) {
-          logger.warn('Top-24 playoff winner could not be resolved', {
-            tournamentId,
-            eventTypeCode: config.eventTypeCode,
-            matchNumber: r2BracketMatch.matchNumber,
-            advancesToUpperSeed: r2BracketMatch.advancesToUpperSeed,
-          });
-          continue;
-        }
-        const winnerGroup = qualificationGroupByPlayerId.get(winner.winnerId);
-        if (selection.groupCount >= 3 && !winnerGroup) {
-          throw new Error(`Qualification group for playoff winner ${winner.winnerId} not resolved`);
-        }
-        if (winnerGroup) {
-          playoffWinnerGroupByUpperSeed.set(r2BracketMatch.advancesToUpperSeed, winnerGroup);
-        }
-        playoffWinnerSeeds.push({
-          seed: r2BracketMatch.advancesToUpperSeed,
-          playerId: winner.winnerId,
-          player: winner.winnerPlayer,
-          qualificationRankLabel: qualificationRankLabels.get(winner.winnerId),
-        });
-      }
+      const playoffWinnerSeeds: SeededFinalsPlayer[] = resolvedWinners.map(({ upperSeed, winner }) => ({
+        seed: upperSeed,
+        playerId: winner.winnerId,
+        player: winner.winnerPlayer,
+        qualificationRankLabel: qualificationRankLabels.get(winner.winnerId),
+      }));
 
       const collisionFreeDirectSeeds =
-        selection.groupCount >= 3 && playoffWinnerGroupByUpperSeed.size === PLAYOFF_R2_UPPER_SEED_COUNT
-          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, playoffWinnerGroupByUpperSeed)
+        selection.groupCount >= 3 && winnerGroupByUpperSeed.size === PLAYOFF_R2_UPPER_SEED_COUNT
+          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, winnerGroupByUpperSeed)
           : selection.directSeeds;
       const seededPlayers = [
         ...buildDirectSeededPlayers(collisionFreeDirectSeeds, qualificationRankLabels, tournamentId, logger),
@@ -1761,37 +1789,25 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* Derive each playoff winner and map to its advancesToUpperSeed target. */
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
-      const upperSeedToPlayer = new Map<number, { playerId: string; player: PublicFinalsPlayer }>();
-      const qualificationGroupByPlayerId = new Map(
-        rankedQualifications.map((qualification) => [qualification.playerId, qualification.group]),
+      const { resolvedWinners, winnerGroupByUpperSeed } = resolvePlayoffWinnerGroups(
+        rankedQualifications,
+        playoffStructure,
+        r2Matches,
+        selection.groupCount,
+        { requireWinner: true, tournamentId, logger },
       );
-      const playoffWinnerGroupByUpperSeed = new Map<number, string>();
-
-      for (const r2BracketMatch of playoffStructure.filter((m) => m.round === 'playoff_r2')) {
-        const dbMatch = r2Matches.find((m: { matchNumber: number }) => m.matchNumber === r2BracketMatch.matchNumber);
-        if (!dbMatch || !r2BracketMatch.advancesToUpperSeed) continue;
-        const winner = getCompletedMatchWinner(dbMatch);
-        if (!winner) {
-          logger.warn('Top-24 playoff winner could not be resolved', {
-            tournamentId,
-            eventTypeCode: config.eventTypeCode,
-            matchNumber: r2BracketMatch.matchNumber,
-            advancesToUpperSeed: r2BracketMatch.advancesToUpperSeed,
-          });
-          throw new Error(`Playoff winner for match ${r2BracketMatch.matchNumber} not resolved`);
-        }
-        upperSeedToPlayer.set(r2BracketMatch.advancesToUpperSeed, {
-          playerId: winner.winnerId,
-          player: winner.winnerPlayer,
-        });
-        const winnerGroup = qualificationGroupByPlayerId.get(winner.winnerId);
-        if (selection.groupCount >= 3 && !winnerGroup) {
-          throw new Error(`Qualification group for playoff winner ${winner.winnerId} not resolved`);
-        }
-        if (winnerGroup) {
-          playoffWinnerGroupByUpperSeed.set(r2BracketMatch.advancesToUpperSeed, winnerGroup);
-        }
-      }
+      const upperSeedToPlayer = new Map(
+        resolvedWinners.map(
+          ({ upperSeed, winner }) =>
+            [
+              upperSeed,
+              {
+                playerId: winner.winnerId,
+                player: winner.winnerPlayer,
+              },
+            ] as const,
+        ),
+      );
 
       /* Build the 16 seeded players: direct advancers use their actual Upper
        * Bracket seed numbers (2 groups: fixed CDM paper layout; 3 groups:
@@ -1799,7 +1815,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * winners fill the barrage slots declared by generatePlayoffStructure. */
       const collisionFreeDirectSeeds =
         selection.groupCount >= 3
-          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, playoffWinnerGroupByUpperSeed)
+          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, winnerGroupByUpperSeed)
           : selection.directSeeds;
       const directPlayers = buildDirectSeededPlayers(
         collisionFreeDirectSeeds,
