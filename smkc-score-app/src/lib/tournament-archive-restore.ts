@@ -12,6 +12,8 @@ const DATE_FIELDS = new Set([
   'submittedAt',
 ]);
 
+const D1_SAFE_BOUND_PARAMETERS = 80;
+
 type ArchivedPlayer = {
   id: string;
   name: string;
@@ -22,6 +24,7 @@ type ArchivedPlayer = {
 };
 
 type ArchivedRecord = Record<string, unknown>;
+type RestoreStageError = Error & { restoreStage: string; cause?: unknown };
 
 type RestoreResult = {
   tournament: Awaited<ReturnType<typeof prisma.tournament.findUnique>>;
@@ -71,6 +74,53 @@ function cleanArchivedRow(value: unknown, tournamentId: string): ArchivedRecord 
   delete row._rankOverridden;
   row.tournamentId = tournamentId;
   return row;
+}
+
+export function chunkRowsForD1<T extends object>(
+  rows: T[],
+  maxBoundParameters = D1_SAFE_BOUND_PARAMETERS,
+): T[][] {
+  if (maxBoundParameters < 1) throw new Error('maxBoundParameters must be positive');
+
+  const chunks: T[][] = [];
+  let current: T[] = [];
+  let currentBindings = 0;
+
+  for (const row of rows) {
+    const rowBindings = Object.values(row).filter((value) => value !== undefined).length;
+    if (rowBindings > maxBoundParameters) {
+      throw new Error(`A single archive row requires ${rowBindings} bound parameters`);
+    }
+
+    if (current.length > 0 && currentBindings + rowBindings > maxBoundParameters) {
+      chunks.push(current);
+      current = [];
+      currentBindings = 0;
+    }
+
+    current.push(row);
+    currentBindings += rowBindings;
+  }
+
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+async function createManyInD1Chunks<T extends object>(
+  stage: string,
+  rows: T[],
+  write: (chunk: T[]) => Promise<unknown>,
+): Promise<void> {
+  for (const chunk of chunkRowsForD1(rows)) {
+    try {
+      await write(chunk);
+    } catch (cause) {
+      throw Object.assign(new Error(`Archive restore failed at ${stage}`), {
+        restoreStage: stage,
+        cause,
+      }) as RestoreStageError;
+    }
+  }
 }
 
 function collectArchivedPlayers(bundle: TournamentArchiveBundle): ArchivedPlayer[] {
@@ -264,46 +314,46 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     const ttSuddenDeathRounds = ttSuddenDeathRows(bundle, tournamentId, playerIds);
     const tournamentScores = tournamentScoreRows(bundle, tournamentId, playerIds);
 
-    if (bmQualifications.length > 0) {
-      await prisma.bMQualification.createMany({
-        data: bmQualifications as unknown as Prisma.BMQualificationCreateManyInput[],
-      });
-    }
-    if (mrQualifications.length > 0) {
-      await prisma.mRQualification.createMany({
-        data: mrQualifications as unknown as Prisma.MRQualificationCreateManyInput[],
-      });
-    }
-    if (gpQualifications.length > 0) {
-      await prisma.gPQualification.createMany({
-        data: gpQualifications as unknown as Prisma.GPQualificationCreateManyInput[],
-      });
-    }
-    if (bmMatches.length > 0) {
-      await prisma.bMMatch.createMany({ data: bmMatches as unknown as Prisma.BMMatchCreateManyInput[] });
-    }
-    if (mrMatches.length > 0) {
-      await prisma.mRMatch.createMany({ data: mrMatches as unknown as Prisma.MRMatchCreateManyInput[] });
-    }
-    if (gpMatches.length > 0) {
-      await prisma.gPMatch.createMany({ data: gpMatches as unknown as Prisma.GPMatchCreateManyInput[] });
-    }
-    if (ttEntries.length > 0) {
-      await prisma.tTEntry.createMany({ data: ttEntries as unknown as Prisma.TTEntryCreateManyInput[] });
-    }
-    if (ttPhaseRounds.length > 0) {
-      await prisma.tTPhaseRound.createMany({
-        data: ttPhaseRounds as unknown as Prisma.TTPhaseRoundCreateManyInput[],
-      });
-    }
-    if (ttSuddenDeathRounds.length > 0) {
-      await prisma.tTPhaseSuddenDeathRound.createMany({
-        data: ttSuddenDeathRounds as unknown as Prisma.TTPhaseSuddenDeathRoundCreateManyInput[],
-      });
-    }
-    if (tournamentScores.length > 0) {
-      await prisma.tournamentPlayerScore.createMany({ data: tournamentScores });
-    }
+    await createManyInD1Chunks('BM qualifications', bmQualifications, (chunk) =>
+      prisma.bMQualification.createMany({
+        data: chunk as unknown as Prisma.BMQualificationCreateManyInput[],
+      }),
+    );
+    await createManyInD1Chunks('MR qualifications', mrQualifications, (chunk) =>
+      prisma.mRQualification.createMany({
+        data: chunk as unknown as Prisma.MRQualificationCreateManyInput[],
+      }),
+    );
+    await createManyInD1Chunks('GP qualifications', gpQualifications, (chunk) =>
+      prisma.gPQualification.createMany({
+        data: chunk as unknown as Prisma.GPQualificationCreateManyInput[],
+      }),
+    );
+    await createManyInD1Chunks('BM matches', bmMatches, (chunk) =>
+      prisma.bMMatch.createMany({ data: chunk as unknown as Prisma.BMMatchCreateManyInput[] }),
+    );
+    await createManyInD1Chunks('MR matches', mrMatches, (chunk) =>
+      prisma.mRMatch.createMany({ data: chunk as unknown as Prisma.MRMatchCreateManyInput[] }),
+    );
+    await createManyInD1Chunks('GP matches', gpMatches, (chunk) =>
+      prisma.gPMatch.createMany({ data: chunk as unknown as Prisma.GPMatchCreateManyInput[] }),
+    );
+    await createManyInD1Chunks('TA entries', ttEntries, (chunk) =>
+      prisma.tTEntry.createMany({ data: chunk as unknown as Prisma.TTEntryCreateManyInput[] }),
+    );
+    await createManyInD1Chunks('TA phase rounds', ttPhaseRounds, (chunk) =>
+      prisma.tTPhaseRound.createMany({
+        data: chunk as unknown as Prisma.TTPhaseRoundCreateManyInput[],
+      }),
+    );
+    await createManyInD1Chunks('TA sudden-death rounds', ttSuddenDeathRounds, (chunk) =>
+      prisma.tTPhaseSuddenDeathRound.createMany({
+        data: chunk as unknown as Prisma.TTPhaseSuddenDeathRoundCreateManyInput[],
+      }),
+    );
+    await createManyInD1Chunks('overall ranking scores', tournamentScores, (chunk) =>
+      prisma.tournamentPlayerScore.createMany({ data: chunk }),
+    );
 
     const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
     if (!tournament) throw new Error('Restored tournament disappeared before it could be returned');
