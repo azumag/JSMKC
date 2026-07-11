@@ -4,20 +4,21 @@ import path from 'node:path';
 describe('TA battle royale CRUD controls (issue #2753)', () => {
   const read = (relativePath: string) => fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
 
-  it('offers every supported handicap in both player dialogs', () => {
-    const source = read('src/app/players/page.tsx');
+  it('offers every supported handicap through the shared selector in both player dialogs', () => {
+    const pageSource = read('src/app/players/page.tsx');
+    const selectorSource = read('src/components/tournament/ta-handicap-select.tsx');
 
-    expect(source).toContain('id="taHandicapSeconds"');
-    expect(source).toContain('id="edit-taHandicapSeconds"');
-    for (const value of [0, -1, -3, -5]) {
-      expect(source.match(new RegExp(`<option value=\\{${value}\\}>`, 'g'))).toHaveLength(2);
-    }
+    expect(pageSource.match(/<TaHandicapSelect/g) ?? []).toHaveLength(2);
+    expect(selectorSource).toContain('TA_HANDICAP_SECONDS.map((seconds) =>');
+    expect(selectorSource).toContain('<SelectItem key={seconds} value={String(seconds)}>');
   });
 
-  it('offers the battle royale-only switch when creating a tournament', () => {
-    const source = read('src/app/tournaments/page.tsx');
+  it('offers the battle royale-only mode when creating a tournament', () => {
+    const pageSource = read('src/app/tournaments/page.tsx');
+    const selectorSource = read('src/components/tournament/ta-mode-selector.tsx');
 
-    expect(source).toContain('id="taBattleRoyaleMode"');
-    expect(source).toContain("t('taBattleRoyaleMode')");
+    expect(pageSource).toContain('<TaModeSelector');
+    expect(pageSource).toContain("value={formData.taBattleRoyaleMode ? 'battle_royale' : 'standard'}");
+    expect(selectorSource).toContain("value: 'battle_royale'");
   });
 });
