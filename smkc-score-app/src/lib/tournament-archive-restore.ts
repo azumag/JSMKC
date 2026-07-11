@@ -12,6 +12,9 @@ const DATE_FIELDS = new Set([
   'submittedAt',
 ]);
 
+// Cloudflare D1 accepts roughly 100 bound parameters per statement. Keep restore
+// batches at 80 parameters to leave a 20% margin for Prisma-generated bindings
+// and future schema changes without exceeding the platform limit.
 const D1_SAFE_BOUND_PARAMETERS = 80;
 
 const NULLABLE_JSON_FIELDS = {
