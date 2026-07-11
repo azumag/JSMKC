@@ -76,10 +76,7 @@ function cleanArchivedRow(value: unknown, tournamentId: string): ArchivedRecord 
   return row;
 }
 
-export function chunkRowsForD1<T extends object>(
-  rows: T[],
-  maxBoundParameters = D1_SAFE_BOUND_PARAMETERS,
-): T[][] {
+export function chunkRowsForD1<T extends object>(rows: T[], maxBoundParameters = D1_SAFE_BOUND_PARAMETERS): T[][] {
   if (maxBoundParameters < 1) throw new Error('maxBoundParameters must be positive');
 
   const chunks: T[][] = [];

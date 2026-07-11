@@ -56,9 +56,9 @@ describe('POST /api/tournaments/[id]/restore', () => {
   });
 
   it('reports the failed restore stage to the admin caller', async () => {
-    jest.mocked(restoreTournamentArchiveForReopen).mockRejectedValue(
-      Object.assign(new Error('too many SQL variables'), { restoreStage: 'BM matches' }),
-    );
+    jest
+      .mocked(restoreTournamentArchiveForReopen)
+      .mockRejectedValue(Object.assign(new Error('too many SQL variables'), { restoreStage: 'BM matches' }));
 
     await POST(new NextRequest('http://localhost/api/tournaments/archived-1/restore', { method: 'POST' }), {
       params: Promise.resolve({ id: 'archived-1' }),
