@@ -316,8 +316,8 @@ export default function TournamentLayout({
                  * Status transition buttons (admin only). Guarding lives in
                  * the API (ALLOWED_STATUS_TRANSITIONS): draft→active→completed,
                  * plus completed→active to reopen a tournament closed too early.
-                 * Archived R2 fallback summaries are read-only and intentionally
-                 * do not render lifecycle controls.
+                 * Archived R2 fallback summaries can still expose lifecycle
+                 * controls when the summary contains enough data to update status.
                  */}
                 {canManageStatus && tournament.status === 'draft' && (
                   <Button disabled={statusUpdating} aria-busy={statusUpdating} onClick={() => updateStatus('active')}>
