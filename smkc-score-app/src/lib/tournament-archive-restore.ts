@@ -14,6 +14,15 @@ const DATE_FIELDS = new Set([
 
 const D1_SAFE_BOUND_PARAMETERS = 80;
 
+const NULLABLE_JSON_FIELDS = {
+  bmMatch: ['assignedCourses', 'rounds'],
+  mrMatch: ['assignedCourses', 'rounds', 'player1ReportedRaces', 'player2ReportedRaces'],
+  gpMatch: ['races', 'assignedCups', 'cupResults', 'player1ReportedRaces', 'player2ReportedRaces'],
+  ttEntry: ['times', 'courseScores'],
+  ttPhaseRound: ['eliminatedIds'],
+  ttSuddenDeathRound: ['results'],
+} as const;
+
 type ArchivedPlayer = {
   id: string;
   name: string;
@@ -24,7 +33,7 @@ type ArchivedPlayer = {
 };
 
 type ArchivedRecord = Record<string, unknown>;
-type RestoreStageError = Error & { restoreStage: string; cause?: unknown };
+type RestoreStageError = Error & { restoreStage: string; cause?: unknown; code?: unknown };
 
 type RestoreResult = {
   tournament: Awaited<ReturnType<typeof prisma.tournament.findUnique>>;
@@ -52,6 +61,18 @@ function normalizeDateFields(record: ArchivedRecord): ArchivedRecord {
   return normalized;
 }
 
+function normalizeNullableJsonFields(record: ArchivedRecord, fields: readonly string[]): ArchivedRecord {
+  const normalized = { ...record };
+  for (const field of fields) {
+    if (normalized[field] === null) normalized[field] = Prisma.DbNull;
+  }
+  return normalized;
+}
+
+function normalizeRequiredJson(value: unknown, fallback: Prisma.InputJsonValue): Prisma.InputJsonValue {
+  return value === undefined || value === null ? fallback : (value as Prisma.InputJsonValue);
+}
+
 function remapPlayerId(value: unknown, playerIds: Map<string, string>): unknown {
   return typeof value === 'string' ? (playerIds.get(value) ?? value) : value;
 }
@@ -74,6 +95,24 @@ function cleanArchivedRow(value: unknown, tournamentId: string): ArchivedRecord 
   delete row._rankOverridden;
   row.tournamentId = tournamentId;
   return row;
+}
+
+function createRestoreStageError(stage: string, cause: unknown): RestoreStageError {
+  const error = Object.assign(new Error(`Archive restore failed at ${stage}`), {
+    restoreStage: stage,
+    cause,
+  }) as RestoreStageError;
+  if (cause && typeof cause === 'object' && 'code' in cause) error.code = cause.code;
+  return error;
+}
+
+async function runRestoreStage<T>(stage: string, action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (cause) {
+    if (cause && typeof cause === 'object' && 'restoreStage' in cause) throw cause;
+    throw createRestoreStageError(stage, cause);
+  }
 }
 
 export function chunkRowsForD1<T extends object>(rows: T[], maxBoundParameters = D1_SAFE_BOUND_PARAMETERS): T[][] {
@@ -109,14 +148,7 @@ async function createManyInD1Chunks<T extends object>(
   write: (chunk: T[]) => Promise<unknown>,
 ): Promise<void> {
   for (const chunk of chunkRowsForD1(rows)) {
-    try {
-      await write(chunk);
-    } catch (cause) {
-      throw Object.assign(new Error(`Archive restore failed at ${stage}`), {
-        restoreStage: stage,
-        cause,
-      }) as RestoreStageError;
-    }
+    await runRestoreStage(stage, () => write(chunk));
   }
 }
 
@@ -201,6 +233,7 @@ function matchRows(
   values: unknown[] | undefined,
   tournamentId: string,
   playerIds: Map<string, string>,
+  nullableJsonFields: readonly string[],
 ): ArchivedRecord[] {
   return (values ?? []).map((value) => {
     const row = cleanArchivedRow(value, tournamentId);
@@ -209,7 +242,7 @@ function matchRows(
     if (row.suddenDeathWinnerId !== undefined && row.suddenDeathWinnerId !== null) {
       row.suddenDeathWinnerId = remapPlayerId(row.suddenDeathWinnerId, playerIds);
     }
-    return row;
+    return normalizeNullableJsonFields(row, nullableJsonFields);
   });
 }
 
@@ -220,16 +253,17 @@ function ttEntryRows(bundle: TournamentArchiveBundle, tournamentId: string, play
     if (row.partnerId !== undefined && row.partnerId !== null) {
       row.partnerId = remapPlayerId(row.partnerId, playerIds);
     }
-    return row;
+    return normalizeNullableJsonFields(row, NULLABLE_JSON_FIELDS.ttEntry);
   });
 }
 
 function ttPhaseRoundRows(bundle: TournamentArchiveBundle, tournamentId: string, playerIds: Map<string, string>) {
   return (bundle.modes.ta.phaseRounds ?? []).map((value) => {
     const row = cleanArchivedRow(value, tournamentId);
-    row.results = remapPlayerIdsDeep(row.results, playerIds);
+    const remappedResults = remapPlayerIdsDeep(row.results, playerIds);
+    row.results = remappedResults === null || remappedResults === undefined ? [] : remappedResults;
     row.eliminatedIds = remapPlayerIdsDeep(row.eliminatedIds, playerIds);
-    return row;
+    return normalizeNullableJsonFields(row, NULLABLE_JSON_FIELDS.ttPhaseRound);
   });
 }
 
@@ -237,9 +271,11 @@ function ttSuddenDeathRows(bundle: TournamentArchiveBundle, tournamentId: string
   const ta = bundle.modes.ta as TournamentArchiveBundle['modes']['ta'] & { suddenDeathRounds?: unknown[] };
   return (ta.suddenDeathRounds ?? []).map((value) => {
     const row = cleanArchivedRow(value, tournamentId);
-    row.targetPlayerIds = remapPlayerIdsDeep(row.targetPlayerIds, playerIds);
+    const remappedTargetPlayerIds = remapPlayerIdsDeep(row.targetPlayerIds, playerIds);
+    row.targetPlayerIds =
+      remappedTargetPlayerIds === null || remappedTargetPlayerIds === undefined ? [] : remappedTargetPlayerIds;
     row.results = remapPlayerIdsDeep(row.results, playerIds);
-    return row;
+    return normalizeNullableJsonFields(row, NULLABLE_JSON_FIELDS.ttSuddenDeathRound);
   });
 }
 
@@ -267,45 +303,51 @@ function tournamentScoreRows(bundle: TournamentArchiveBundle, tournamentId: stri
  */
 export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiveBundle): Promise<RestoreResult> {
   const tournamentId = bundle.tournament.id;
-  const existing = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const existing = await runRestoreStage('existing tournament lookup', () =>
+    prisma.tournament.findUnique({ where: { id: tournamentId } }),
+  );
   if (existing) {
     return { tournament: existing, restoredPlayerCount: 0, reusedPlayerCount: 0 };
   }
 
-  const { playerIds, restoredPlayerCount, reusedPlayerCount } = await restorePlayers(bundle);
+  const { playerIds, restoredPlayerCount, reusedPlayerCount } = await runRestoreStage('players', () =>
+    restorePlayers(bundle),
+  );
   let tournamentCreated = false;
 
   try {
-    await prisma.tournament.create({
-      data: {
-        id: tournamentId,
-        slug: bundle.tournament.slug,
-        name: bundle.tournament.name,
-        date: asDate(bundle.tournament.date),
-        status: 'active',
-        taPlayerSelfEdit: bundle.tournament.taPlayerSelfEdit,
-        taBattleRoyaleMode: bundle.tournament.taBattleRoyaleMode,
-        frozenStages: bundle.tournament.frozenStages as Prisma.InputJsonValue,
-        qualificationConfirmed:
-          bundle.tournament.bmQualificationConfirmed ||
-          bundle.tournament.mrQualificationConfirmed ||
-          bundle.tournament.gpQualificationConfirmed,
-        bmQualificationConfirmed: bundle.tournament.bmQualificationConfirmed,
-        mrQualificationConfirmed: bundle.tournament.mrQualificationConfirmed,
-        gpQualificationConfirmed: bundle.tournament.gpQualificationConfirmed,
-        publicModes: [],
-        createdAt: asDate(bundle.tournament.createdAt),
-        updatedAt: new Date(),
-      },
-    });
+    await runRestoreStage('tournament', () =>
+      prisma.tournament.create({
+        data: {
+          id: tournamentId,
+          slug: bundle.tournament.slug,
+          name: bundle.tournament.name,
+          date: asDate(bundle.tournament.date),
+          status: 'active',
+          taPlayerSelfEdit: bundle.tournament.taPlayerSelfEdit,
+          taBattleRoyaleMode: bundle.tournament.taBattleRoyaleMode,
+          frozenStages: normalizeRequiredJson(bundle.tournament.frozenStages, []),
+          qualificationConfirmed:
+            bundle.tournament.bmQualificationConfirmed ||
+            bundle.tournament.mrQualificationConfirmed ||
+            bundle.tournament.gpQualificationConfirmed,
+          bmQualificationConfirmed: bundle.tournament.bmQualificationConfirmed,
+          mrQualificationConfirmed: bundle.tournament.mrQualificationConfirmed,
+          gpQualificationConfirmed: bundle.tournament.gpQualificationConfirmed,
+          publicModes: [],
+          createdAt: asDate(bundle.tournament.createdAt),
+          updatedAt: new Date(),
+        },
+      }),
+    );
     tournamentCreated = true;
 
     const bmQualifications = qualificationRows(bundle.modes.bm.qualifications, tournamentId, playerIds);
     const mrQualifications = qualificationRows(bundle.modes.mr.qualifications, tournamentId, playerIds);
     const gpQualifications = qualificationRows(bundle.modes.gp.qualifications, tournamentId, playerIds);
-    const bmMatches = matchRows(bundle.modes.bm.matches, tournamentId, playerIds);
-    const mrMatches = matchRows(bundle.modes.mr.matches, tournamentId, playerIds);
-    const gpMatches = matchRows(bundle.modes.gp.matches, tournamentId, playerIds);
+    const bmMatches = matchRows(bundle.modes.bm.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.bmMatch);
+    const mrMatches = matchRows(bundle.modes.mr.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.mrMatch);
+    const gpMatches = matchRows(bundle.modes.gp.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.gpMatch);
     const ttEntries = ttEntryRows(bundle, tournamentId, playerIds);
     const ttPhaseRounds = ttPhaseRoundRows(bundle, tournamentId, playerIds);
     const ttSuddenDeathRounds = ttSuddenDeathRows(bundle, tournamentId, playerIds);
@@ -352,8 +394,10 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
       prisma.tournamentPlayerScore.createMany({ data: chunk }),
     );
 
-    const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-    if (!tournament) throw new Error('Restored tournament disappeared before it could be returned');
+    const tournament = await runRestoreStage('restored tournament lookup', () =>
+      prisma.tournament.findUnique({ where: { id: tournamentId } }),
+    );
+    if (!tournament) throw createRestoreStageError('restored tournament lookup', new Error('Tournament missing'));
     return { tournament, restoredPlayerCount, reusedPlayerCount };
   } catch (error) {
     if (tournamentCreated) {

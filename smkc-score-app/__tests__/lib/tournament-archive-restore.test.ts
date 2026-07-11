@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { chunkRowsForD1, restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
 import type { TournamentArchiveBundle } from '@/lib/tournament-archive';
@@ -177,13 +178,21 @@ describe('chunkRowsForD1', () => {
 
 describe('restoreTournamentArchiveForReopen', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.player.create as jest.Mock).mockResolvedValue({ id: 'player-1' });
-    (prisma.tournament.create as jest.Mock).mockResolvedValue({ id: 'archived-1' });
-    (prisma.tournament.findUnique as jest.Mock)
+    const playerFindUnique = prisma.player.findUnique as jest.Mock;
+    const playerCreate = prisma.player.create as jest.Mock;
+    const tournamentCreate = prisma.tournament.create as jest.Mock;
+    const tournamentFindUnique = prisma.tournament.findUnique as jest.Mock;
+    const tournamentDeleteMany = prisma.tournament.deleteMany as jest.Mock;
+
+    playerFindUnique.mockReset().mockResolvedValue(null);
+    playerCreate.mockReset().mockResolvedValue({ id: 'player-1' });
+    tournamentCreate.mockReset().mockResolvedValue({ id: 'archived-1' });
+    tournamentFindUnique
+      .mockReset()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 'archived-1', status: 'active', publicModes: [] });
+    tournamentDeleteMany.mockReset();
+
     for (const model of [
       prisma.bMQualification,
       prisma.mRQualification,
@@ -195,7 +204,7 @@ describe('restoreTournamentArchiveForReopen', () => {
       prisma.tTPhaseRound,
       prisma.tournamentPlayerScore,
     ]) {
-      (model.createMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (model.createMany as jest.Mock).mockReset().mockResolvedValue({ count: 1 });
     }
   });
 
@@ -219,7 +228,12 @@ describe('restoreTournamentArchiveForReopen', () => {
       data: [expect.not.objectContaining({ player: expect.anything(), _rank: expect.anything() })],
     });
     expect(prisma.bMMatch.createMany).toHaveBeenCalledWith({
-      data: [expect.not.objectContaining({ player1: expect.anything(), player2: expect.anything() })],
+      data: [
+        expect.objectContaining({
+          assignedCourses: Prisma.DbNull,
+          rounds: Prisma.DbNull,
+        }),
+      ],
     });
     expect(prisma.tTEntry.createMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({ tournamentId: 'archived-1', playerId: 'player-1' })],
@@ -228,6 +242,32 @@ describe('restoreTournamentArchiveForReopen', () => {
       data: [expect.objectContaining({ tournamentId: 'archived-1', totalPoints: 2000 })],
     });
     expect(restored.tournament).toEqual({ id: 'archived-1', status: 'active', publicModes: [] });
+  });
+
+  it('normalizes nullable TA JSON columns to database NULL', async () => {
+    const archive = makeArchive();
+    const entry = archive.modes.ta.entries?.[0];
+    if (!entry) throw new Error('Missing TA fixture entry');
+    entry.times = null;
+    entry.courseScores = null;
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ times: Prisma.DbNull, courseScores: Prisma.DbNull })],
+    });
+  });
+
+  it('labels tournament creation failures before child rows are restored', async () => {
+    (prisma.tournament.create as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    );
+
+    await expect(restoreTournamentArchiveForReopen(makeArchive())).rejects.toMatchObject({
+      restoreStage: 'tournament',
+      code: 'P2002',
+    });
+    expect(prisma.bMQualification.createMany).not.toHaveBeenCalled();
   });
 
   it('removes a partially restored tournament when a child-row restore fails', async () => {
