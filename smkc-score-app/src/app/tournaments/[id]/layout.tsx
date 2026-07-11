@@ -32,10 +32,7 @@ import { createLogger } from '@/lib/client-logger';
 import { cn } from '@/lib/utils';
 import { getTabHydrationGuardProps } from '@/lib/tournament-tab-hydration';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
-import {
-  canUpdateTournamentStatus,
-  parseTournamentStatusUpdateResponse,
-} from '@/lib/tournament-status-update';
+import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '@/lib/tournament-status-update';
 
 const logger = createLogger({ serviceName: 'tournaments-layout' });
 
