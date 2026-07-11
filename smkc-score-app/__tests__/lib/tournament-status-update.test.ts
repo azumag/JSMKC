@@ -1,7 +1,4 @@
-import {
-  canUpdateTournamentStatus,
-  parseTournamentStatusUpdateResponse,
-} from '@/lib/tournament-status-update';
+import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '@/lib/tournament-status-update';
 
 describe('tournament status updates', () => {
   it('allows lifecycle updates only for live tournament rows', () => {
