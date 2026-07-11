@@ -20,7 +20,7 @@ Every group needs at least `2 * perGroup` players (direct + barrage) — enforce
 
 Note the distinction between "who qualifies for direct advancement vs. barrage" (selection) and "which specific bracket seed they're placed into" (the ordering that avoids same-group matchups, seed placement). 2 groups uses a fixed token map (§2.2); 3 groups uses a general algorithm, `assignAntiCollisionSeeds()` (§3.3). Both are implemented.
 
-## 2. The 2-group case (current production)
+## 2. The 2-group case
 
 `perGroup = 6`. 12 direct advancers + 12 barrage entrants (4 of whom advance through barrage) make up the finals Top 16.
 
@@ -109,7 +109,7 @@ This remains covered by the existing logic and tests, but cannot currently be se
 
 ## 5. Comparison table
 
-| | 2 groups (current) | 3 groups | 4 groups (internal logic) |
+| | 2 groups (supported) | 3 groups (supported) | 4 groups (internal logic) |
 |---|---|---|
 | perGroup | 6 | 4 | 3 |
 | Direct-advancer selection | Each group's places 1-6 (group-internal rank as-is) | Buckets 1-4 (each group's Nth place, stacked and tie-broken by match points -> point differential) | Buckets 1-3 |
