@@ -97,6 +97,7 @@ function DialogOverlay({
  * The main container for dialog body content. Features:
  * - Centered positioning using translate(-50%, -50%) on fixed element
  * - Responsive max-width: full width minus 2rem margin on mobile, sm:max-w-lg on desktop
+ * - Viewport-bounded height with vertical scrolling for long forms
  * - Entry/exit animations: fade + zoom for polished UX
  * - Optional close button (X icon) in top-right corner
  *
@@ -121,8 +122,9 @@ function DialogContent({
           // `paddock-modal` paints the checker top stripe, the red side bar,
           // the diagonal race-stripe wash, and the layered drop shadow.
           // pt-9 leaves room under the 6px top stripe so the title doesn't
-          // crowd the checker band.
-          "paddock-modal fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 px-6 pt-9 pb-6 outline-none sm:max-w-lg",
+          // crowd the checker band. Bounding every dialog to the viewport here
+          // prevents long forms from hiding their action buttons off-screen.
+          "paddock-modal fixed top-[50%] left-[50%] z-50 grid max-h-[90vh] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 overflow-y-auto px-6 pt-9 pb-6 outline-none sm:max-w-lg",
           // Use Radix's data-state-driven animations (via tw-animate-css) for
           // both open and close. A custom keyframe with `fill-mode: both`
           // would lock the dialog at its 0% frame (opacity:0, translated up)
