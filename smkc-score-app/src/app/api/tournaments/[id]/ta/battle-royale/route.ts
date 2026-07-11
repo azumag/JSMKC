@@ -87,18 +87,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const handicapByPlayerId = new Map(
       parsed.data.players.map((player) => [player.playerId, normalizeTaHandicapSeconds(player.taHandicapSeconds)]),
     );
+    const entryData = playerIds.map((playerId) => ({
+      tournamentId: tournament.id,
+      playerId,
+      stage: 'phase3',
+      lives: rules.initialLives,
+      eliminated: false,
+      times: {},
+      taHandicapSeconds: handicapByPlayerId.get(playerId) ?? 0,
+    }));
 
-    await prisma.tTEntry.createMany({
-      data: playerIds.map((playerId) => ({
-        tournamentId: tournament.id,
-        playerId,
-        stage: 'phase3',
-        lives: rules.initialLives,
-        eliminated: false,
-        times: {},
-        taHandicapSeconds: handicapByPlayerId.get(playerId) ?? 0,
-      })),
-    });
+    // D1 allows roughly 100 bound parameters per statement. Each TTEntry row
+    // binds 7 values, so 14 rows (98 parameters) is the largest safe chunk.
+    const ENTRY_CHUNK = 14;
+    for (let i = 0; i < entryData.length; i += ENTRY_CHUNK) {
+      await prisma.tTEntry.createMany({ data: entryData.slice(i, i + ENTRY_CHUNK) });
+    }
 
     const createdEntries = await prisma.tTEntry.findMany({
       where: {
