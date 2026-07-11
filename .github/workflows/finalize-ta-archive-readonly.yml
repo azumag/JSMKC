@@ -1,0 +1,55 @@
+name: Finalize archived TA read-only behavior
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.head_ref == 'codex/resolve-ta-battle-royale-followups'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Make archived finals read-only and remove this workflow
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx')
+          text = page.read_text()
+          marker = '  const roundCorrectionControls =\n'
+          if text.count(marker) != 1:
+              raise SystemExit('round correction marker not found exactly once')
+          text = text.replace(marker, '  const canManage = Boolean(isAdmin) && !archived;\n\n' + marker)
+          if text.count('isAdmin={Boolean(isAdmin)}') != 1:
+              raise SystemExit('sudden death admin prop not found exactly once')
+          text = text.replace('isAdmin={Boolean(isAdmin)}', 'isAdmin={canManage}')
+          admin_conditions = text.count('isAdmin &&')
+          if admin_conditions < 4:
+              raise SystemExit(f'expected multiple admin conditions, found {admin_conditions}')
+          text = text.replace('isAdmin &&', 'canManage &&')
+          page.write_text(text)
+
+          test = Path('smkc-score-app/__tests__/e2e/ta-battle-royale-script.test.ts')
+          test_text = test.read_text()
+          insertion = "\n  it('keeps archived TA finals read-only for administrators', () => {\n    const page = read('src/app/tournaments/[id]/ta/finals/page.tsx');\n    expect(page).toContain('const canManage = Boolean(isAdmin) && !archived;');\n    expect(page).toContain('isAdmin={canManage}');\n    expect(page).not.toContain('isAdmin &&');\n  });\n"
+          closing = '\n});\n'
+          if test_text.count(closing) != 1:
+              raise SystemExit('test suite closing marker not found exactly once')
+          test.write_text(test_text.replace(closing, insertion + closing))
+          PY
+
+          rm -f .github/workflows/finalize-ta-archive-readonly.yml
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: keep archived TA finals read-only"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
