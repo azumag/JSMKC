@@ -1395,7 +1395,7 @@ export default function TimeAttackPageClient({
                       <TableHead className="w-16">{t('rank')}</TableHead>
                       <TableHead>{tc('player')}</TableHead>
                       <TableHead>{t('pairPartner')}</TableHead>
-                      {taBattleRoyaleMode && <TableHead>ハンデ</TableHead>}
+                      {taBattleRoyaleMode && <TableHead>{t('handicap')}</TableHead>}
                       <TableHead className="text-center">{t('progress')}</TableHead>
                       <TableHead className="text-right">{tc('points')}</TableHead>
                       <TableHead className="text-right">{t('firstPlaceCount')}</TableHead>
@@ -1494,7 +1494,7 @@ export default function TimeAttackPageClient({
                     <TableRow>
                       <TableHead>{tc('player')}</TableHead>
                       {isAdmin && <TableHead className="text-center w-24">{tc('tvNumber')}</TableHead>}
-                      {taBattleRoyaleMode && <TableHead>ハンデ</TableHead>}
+                      {taBattleRoyaleMode && <TableHead>{t('handicap')}</TableHead>}
                       <TableHead className="text-center">{t('progress')}</TableHead>
                       <TableHead className="text-right">{t('total')}</TableHead>
                       <TableHead className="text-right w-32">{t('action')}</TableHead>

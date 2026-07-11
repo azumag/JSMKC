@@ -441,6 +441,7 @@
     "pairsSaved": "Pairs saved",
     "pairSaveError": "Failed to save pairs",
     "pairPartner": "Pair",
+    "handicap": "Handicap",
     "manageTournamentHandicaps": "Manage tournament handicaps",
     "manageTournamentHandicapsDesc": "Bulk-edit the handicaps snapshotted for this tournament",
     "handicapLockedAfterKnockout": "Handicaps cannot be changed after knockout play starts",

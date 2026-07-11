@@ -441,6 +441,7 @@
     "pairsSaved": "ペアを保存しました",
     "pairSaveError": "ペアの保存に失敗しました",
     "pairPartner": "ペア",
+    "handicap": "ハンデ",
     "manageTournamentHandicaps": "大会内ハンデ管理",
     "manageTournamentHandicapsDesc": "大会参加時点で固定されたハンデを一括編集します",
     "handicapLockedAfterKnockout": "ノックアウト開始後はハンデを変更できません",
