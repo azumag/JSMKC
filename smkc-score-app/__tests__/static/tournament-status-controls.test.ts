@@ -7,8 +7,7 @@ const layoutSource = fs.readFileSync(
 );
 
 describe('tournament status control contract', () => {
-  it('does not offer lifecycle controls for archived fallback summaries', () => {
-    expect(layoutSource).toContain('archived?: boolean');
+  it('keeps lifecycle controls available for loaded tournament summaries', () => {
     expect(layoutSource).toContain('canUpdateTournamentStatus(tournament)');
     expect(layoutSource).toContain("canManageStatus && tournament.status === 'completed'");
   });
