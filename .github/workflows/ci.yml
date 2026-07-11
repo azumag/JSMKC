@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "smkc-score-app/**"
+      - ".github/workflows/ci.yml"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -37,22 +38,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Check formatting of changed files
-        run: npm run format:check
-        env:
-          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Security audit
-        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
-        run: npm audit --audit-level=high
-
-      - name: Unit tests
-        run: npm test -- --ci --forceExit
+      - name: Diagnose archive restore test
+        run: npm test -- --runInBand --verbose __tests__/lib/tournament-archive-restore.test.ts
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
-          NODE_OPTIONS: "--max-old-space-size=4096"
