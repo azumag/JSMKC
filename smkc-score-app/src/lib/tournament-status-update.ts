@@ -1,6 +1,4 @@
-type TournamentStatusTarget = {
-  archived?: boolean;
-};
+type TournamentStatusTarget = object;
 
 function readApiErrorDetail(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -16,11 +14,13 @@ function readApiErrorDetail(payload: unknown): string | null {
 }
 
 /**
- * Archived tournament summaries are read-only fallbacks backed by R2. They do
- * not have a live database row that can accept lifecycle updates.
+ * A summary marked as archived may be a permanent R2-only record, but it may
+ * also be a temporary fallback returned after a failed database read. Keep the
+ * lifecycle action available and let the PUT endpoint determine whether the
+ * live row can actually be updated; any rejection is surfaced by the caller.
  */
 export function canUpdateTournamentStatus(tournament: TournamentStatusTarget | null): boolean {
-  return tournament !== null && tournament.archived !== true;
+  return tournament !== null;
 }
 
 /**
