@@ -9,9 +9,6 @@ on:
     paths:
       - "smkc-score-app/**"
 
-permissions:
-  contents: write
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -54,19 +51,7 @@ jobs:
         run: npm audit --audit-level=high
 
       - name: Unit tests
-        run: |
-          set +e
-          npm test -- --ci --forceExit 2>&1 | tee /tmp/unit-test.log
-          status=${PIPESTATUS[0]}
-          tail -n 500 /tmp/unit-test.log > ../unit-test-failures.txt
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add ../unit-test-failures.txt
-          if ! git diff --cached --quiet; then
-            git commit -m "test: capture tournament reopen CI failure"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
-          exit "$status"
+        run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
