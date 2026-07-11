@@ -1,0 +1,69 @@
+name: Apply 3-group documentation sync
+
+on:
+  push:
+    branches:
+      - docs/align-3group-test-cases-pr5
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/align-3group-test-cases-pr5
+      - name: Align docs and E2E cases
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          e2e = Path('E2E_TEST_CASES.md')
+          text = e2e.read_text()
+          text = text.replace(
+              '## Scope note: このドキュメントは Playwright ベースの実行E2Eシナリオのみを管理\n- この一覧は、`node e2e/tc-all.js` 系で実行される実際のE2Eシナリオを列挙するものです。\n- Jest 単体テスト（例: PR テンプレート検証など）はこのE2E台帳のケースとして扱わず、`--runInBand` など専用のテスト実行経路で管理します。',
+              '## Scope note: このドキュメントは Playwright ベースの実行E2Eと、未自動化の明示的な回帰シナリオを管理\n- `node e2e/tc-all.js` 系で実行されるケースは **スクリプト** 欄に実行対象を記載します。\n- 未自動化ケースは **スクリプト** 欄を `未実装` とし、既存の単体/API/UIテストを **補助検証** として明示します。\n- Jest単体テストだけで完結する項目は原則この台帳へ追加せず、E2E化予定のユーザーフローだけを未自動化ケースとして残します。'
+          )
+          replacement = '''## TC-1052: 廃止 — 3グループ拒否仕様はTC-3010へ置換\n- **状態**: 廃止\n- **背景**: 旧TC-1052は「Top-24は最大2グループまで対応」という暫定制限を検証していたが、PR #2798でUI・予選API・決勝API・衝突回避シード配置が3グループ対応したため、拒否仕様は現行実装と矛盾する。\n- **置換先**: TC-3010（3グループの予選設定からTop-24決勝生成までの回帰確認）\n- **期待結果**: TC-1052を実行対象として扱わず、3グループ対応の正仕様はTC-3010だけで管理する。\n\n'''
+          text, count = re.subn(r'## TC-1052:.*?(?=## TC-1010:)', replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('TC-1052 section not found')
+          old = '- **スクリプト**: n/a（ライブE2E未実施 — 本セッションではPlaywright実行環境を使わずコード変更のみ）。ユニット/静的: smkc-score-app/__tests__/components/tournament/group-setup-dialog.test.tsx, smkc-score-app/__tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts（disabled/secondary guardを2/3セレクタ用に更新）, smkc-score-app/__tests__/lib/api-factories/qualification-route.test.ts, smkc-score-app/__tests__/lib/api-factories/finals-route.test.ts\n- **TODO（次回定期E2Eループで実施）**: 上記手順をPlaywright永続プロファイルで実際に操作し、`e2e/tc-all.js` にスクリプト化する。'
+          new = '- **スクリプト**: 未実装（Playwright永続プロファイルで自動化予定）\n- **補助検証**: `__tests__/components/tournament/group-setup-dialog.test.tsx`, `__tests__/static/tc-1007-group-setup-dialog-prop-contract.test.ts`, `__tests__/lib/api-factories/qualification-route.test.ts`, `__tests__/lib/api-factories/finals-route.test.ts`, `__tests__/lib/finals-group-selection.test.ts`\n- **自動化TODO**: `e2e/tc-bm.js` に3グループ24名以上のfixtureを追加し、A/B/C作成、合算順位、バラージ12名、直接進出12名、Upper R1全8試合の同グループ衝突なしまで検証する。'
+          if old not in text:
+              raise SystemExit('TC-3010 status block not found')
+          text = text.replace(old, new)
+          e2e.write_text(text)
+
+          replacements = {
+              'smkc-score-app/docs/finals-entrant-selection.ja.md': {
+                  '## 2. 2グループの場合（現行本番運用）': '## 2. 2グループの場合',
+                  '| | 2グループ（現行） | 3グループ | 4グループ（内部ロジック） |': '| | 2グループ（対応済み） | 3グループ（対応済み） | 4グループ（内部ロジック） |',
+              },
+              'smkc-score-app/docs/finals-entrant-selection.en.md': {
+                  '## 2. The 2-group case (current production)': '## 2. The 2-group case',
+                  '| | 2 groups (current) | 3 groups | 4 groups (internal logic) |': '| | 2 groups (supported) | 3 groups (supported) | 4 groups (internal logic) |',
+              },
+          }
+          for filename, mapping in replacements.items():
+              path = Path(filename)
+              body = path.read_text()
+              for old_text, new_text in mapping.items():
+                  if old_text not in body:
+                      raise SystemExit(f'missing expected text in {filename}: {old_text}')
+                  body = body.replace(old_text, new_text)
+              path.write_text(body)
+
+          workflow = Path('.github/workflows/apply-3group-doc-sync.yml')
+          workflow.unlink()
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: align 3-group support and regression cases"
+          git push origin HEAD:docs/align-3group-test-cases-pr5
