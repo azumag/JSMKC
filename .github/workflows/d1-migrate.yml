@@ -1,10 +1,10 @@
 name: D1 Migrate
 
 on:
-  # Temporary push trigger for the emergency replay on 2026-07-11.
-  # Restore this file to workflow_dispatch-only after the run completes.
-  push:
-    branches: [ops/apply-missing-d1-migrations]
+  # Temporary PR trigger for the emergency replay on 2026-07-11.
+  # This branch is reset to main after the run completes.
+  pull_request:
+    branches: [main]
     paths:
       - ".github/workflows/d1-migrate.yml"
   workflow_dispatch:
@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   apply:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'ops/apply-missing-d1-migrations'
     name: Apply D1 migrations (remote)
     runs-on: ubuntu-latest
     environment: production
