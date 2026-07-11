@@ -13,7 +13,11 @@ function restoreStageFromError(error: unknown): string | null {
 function restoreDiagnosticFromError(error: unknown): string | null {
   if (!error || typeof error !== 'object') return null;
 
-  const wrapped = error as { code?: unknown; cause?: unknown; message?: unknown };
+  const wrapped = error as {
+    code?: unknown;
+    cause?: unknown;
+    message?: unknown;
+  };
   const cause = wrapped.cause && typeof wrapped.cause === 'object' ? wrapped.cause : error;
   const candidate = cause as { code?: unknown; message?: unknown };
   const code = typeof candidate.code === 'string' ? candidate.code.trim() : '';
@@ -63,7 +67,10 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     });
     return createSuccessResponse(restored.tournament);
   } catch (error) {
-    logger.error('Failed to restore archived tournament', { error, identifier: id });
+    logger.error('Failed to restore archived tournament', {
+      error,
+      identifier: id,
+    });
     if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return createErrorResponse('Tournament or player data conflicts with an existing record', 409, 'CONFLICT');
     }
