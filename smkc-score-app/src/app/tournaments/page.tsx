@@ -493,16 +493,11 @@ export default function TournamentsPage() {
                         >
                           {tournament.name}
                         </Link>
-                        <span className="ml-2 inline-flex">
-                          <TaModeBadge
-                            mode={
-                              tournament.taMode === 'battle_royale' || tournament.taBattleRoyaleMode
-                                ? 'battle_royale'
-                                : 'standard'
-                            }
-                            verbose={false}
-                          />
-                        </span>
+                        {(tournament.taMode === 'battle_royale' || tournament.taBattleRoyaleMode) && (
+                          <span className="ml-2 inline-flex">
+                            <TaModeBadge mode="battle_royale" verbose={false} />
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="font-mono tabular text-sm text-muted-foreground">
                         {new Date(tournament.date).toLocaleDateString()}
