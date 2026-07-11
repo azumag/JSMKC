@@ -5,6 +5,11 @@ import type { TaMode } from '@/lib/ta/phase-api-types';
 export function TaModeBadge({ mode, verbose = true }: { mode: TaMode; verbose?: boolean }) {
   const t = useTranslations('tournaments');
   const battleRoyale = mode === 'battle_royale';
+
+  // Compact badges are used in the tournament list, where only the exceptional
+  // battle-royale format needs to be called out. Standard TA needs no tag.
+  if (!verbose && !battleRoyale) return null;
+
   const full = battleRoyale ? t('battleRoyaleModeTitle') : t('standardTaModeTitle');
   const compact = battleRoyale ? t('battleRoyaleModeShort') : t('standardTaModeShort');
   return (

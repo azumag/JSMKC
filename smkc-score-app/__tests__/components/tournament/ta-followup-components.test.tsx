@@ -31,9 +31,13 @@ describe('TA follow-up components', () => {
     expect(screen.getByText('eliminated')).toBeInTheDocument();
   });
 
-  it('uses localized mode labels and compact labels', () => {
-    const { rerender } = render(<TaModeBadge mode="standard" />);
+  it('renders a full standard label but reserves compact badges for battle royale', () => {
+    const { rerender, container } = render(<TaModeBadge mode="standard" />);
     expect(screen.getByText('standardTaModeTitle')).toBeInTheDocument();
+
+    rerender(<TaModeBadge mode="standard" verbose={false} />);
+    expect(container).toBeEmptyDOMElement();
+
     rerender(<TaModeBadge mode="battle_royale" verbose={false} />);
     expect(screen.getByText('battleRoyaleModeShort')).toBeInTheDocument();
   });
