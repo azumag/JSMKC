@@ -70,9 +70,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
     const stage = restoreStageFromError(error);
     const diagnostic = restoreDiagnosticFromError(error);
-    const summary = stage
-      ? `Failed to restore tournament archive (${stage})`
-      : 'Failed to restore tournament archive';
+    const summary = stage ? `Failed to restore tournament archive (${stage})` : 'Failed to restore tournament archive';
     return createErrorResponse(diagnostic ? `${summary}: ${diagnostic}` : summary, 500, 'INTERNAL_ERROR');
   }
 }
