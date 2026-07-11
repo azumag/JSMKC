@@ -1,6 +1,19 @@
 import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '@/lib/tournament-status-update';
 
+function responseWithUrl(body: unknown, status: number, url: string): Response {
+  const response = new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  Object.defineProperty(response, 'url', { value: url });
+  return response;
+}
+
 describe('tournament status updates', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('keeps lifecycle updates available for any loaded tournament summary', () => {
     expect(canUpdateTournamentStatus(null)).toBe(false);
     expect(canUpdateTournamentStatus({ archived: true })).toBe(true);
@@ -26,6 +39,42 @@ describe('tournament status updates', () => {
     });
 
     await expect(parseTournamentStatusUpdateResponse(response)).resolves.toEqual(tournament);
+  });
+
+  it('restores an archived-only tournament when the ordinary reopen PUT returns 404', async () => {
+    const restored = { id: 'archived-1', status: 'active', publicModes: [] };
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      responseWithUrl(
+        { success: true, data: restored },
+        200,
+        'https://example.test/api/tournaments/archived-1/restore',
+      ),
+    );
+    const response = responseWithUrl(
+      { success: false, error: 'Tournament not found' },
+      404,
+      'https://example.test/api/tournaments/archived-1',
+    );
+
+    await expect(parseTournamentStatusUpdateResponse(response)).resolves.toEqual(restored);
+    expect(fetchMock).toHaveBeenCalledWith('/api/tournaments/archived-1/restore', { method: 'POST' });
+  });
+
+  it('surfaces a restore error when an archived-only tournament cannot be rebuilt', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      responseWithUrl(
+        { success: false, error: 'Failed to restore tournament archive' },
+        500,
+        'https://example.test/api/tournaments/archived-1/restore',
+      ),
+    );
+    const response = responseWithUrl(
+      { success: false, error: 'Tournament not found' },
+      404,
+      'https://example.test/api/tournaments/archived-1',
+    );
+
+    await expect(parseTournamentStatusUpdateResponse(response)).rejects.toThrow('Failed to restore tournament archive');
   });
 
   it('surfaces the API error detail on a rejected transition', async () => {
