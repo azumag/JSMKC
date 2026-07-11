@@ -4,8 +4,25 @@ import {
   getPhase3EliminationLimit,
 } from '@/lib/ta/finals-phase-manager';
 
-describe('Phase 3 battle royale elimination boundaries', () => {
+describe('Phase 3 elimination boundaries', () => {
+  const standardRules = getTaPhase3Rules(false);
   const battleRoyaleRules = getTaPhase3Rules(true);
+
+  it.each([
+    [9, 8, 1],
+    [8, 4, 4],
+    [4, 2, 2],
+  ] as const)(
+    'standard TA with %i active players uses threshold %i and elimination limit %i',
+    (activeCount, expectedThreshold, expectedLimit) => {
+      expect(getNextPhase3ResetThreshold(activeCount, standardRules)).toBe(
+        expectedThreshold,
+      );
+      expect(getPhase3EliminationLimit(activeCount, standardRules)).toBe(
+        expectedLimit,
+      );
+    },
+  );
 
   it.each([
     ['battle royale', battleRoyaleRules, 9, 1, 8],
