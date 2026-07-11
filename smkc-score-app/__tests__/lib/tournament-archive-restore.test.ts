@@ -178,13 +178,21 @@ describe('chunkRowsForD1', () => {
 
 describe('restoreTournamentArchiveForReopen', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.player.create as jest.Mock).mockResolvedValue({ id: 'player-1' });
-    (prisma.tournament.create as jest.Mock).mockResolvedValue({ id: 'archived-1' });
-    (prisma.tournament.findUnique as jest.Mock)
+    const playerFindUnique = prisma.player.findUnique as jest.Mock;
+    const playerCreate = prisma.player.create as jest.Mock;
+    const tournamentCreate = prisma.tournament.create as jest.Mock;
+    const tournamentFindUnique = prisma.tournament.findUnique as jest.Mock;
+    const tournamentDeleteMany = prisma.tournament.deleteMany as jest.Mock;
+
+    playerFindUnique.mockReset().mockResolvedValue(null);
+    playerCreate.mockReset().mockResolvedValue({ id: 'player-1' });
+    tournamentCreate.mockReset().mockResolvedValue({ id: 'archived-1' });
+    tournamentFindUnique
+      .mockReset()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 'archived-1', status: 'active', publicModes: [] });
+    tournamentDeleteMany.mockReset();
+
     for (const model of [
       prisma.bMQualification,
       prisma.mRQualification,
@@ -196,7 +204,7 @@ describe('restoreTournamentArchiveForReopen', () => {
       prisma.tTPhaseRound,
       prisma.tournamentPlayerScore,
     ]) {
-      (model.createMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (model.createMany as jest.Mock).mockReset().mockResolvedValue({ count: 1 });
     }
   });
 
