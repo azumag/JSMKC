@@ -23,12 +23,8 @@ describe('Phase 3 mode-specific elimination boundaries', () => {
   ] as const)(
     '%s mode with %i active players uses threshold %s and elimination limit %i',
     (_mode, rules, activeCount, expectedThreshold, expectedLimit) => {
-      expect(getNextPhase3ResetThreshold(activeCount, rules)).toBe(
-        expectedThreshold,
-      );
-      expect(getPhase3EliminationLimit(activeCount, rules)).toBe(
-        expectedLimit,
-      );
+      expect(getNextPhase3ResetThreshold(activeCount, rules)).toBe(expectedThreshold);
+      expect(getPhase3EliminationLimit(activeCount, rules)).toBe(expectedLimit);
     },
   );
 
