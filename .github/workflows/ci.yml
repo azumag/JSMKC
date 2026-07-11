@@ -43,194 +43,54 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Apply archive restore lookup fix
+      - name: Apply id-only existence lookup
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          restore_path = Path('src/lib/tournament-archive-restore.ts')
-          restore = restore_path.read_text()
+          path = Path('src/lib/tournament-archive-restore.ts')
+          text = path.read_text()
 
-          select_anchor = """} as const satisfies Prisma.TournamentSelect;
+          lookup_start = text.index("const existing = await runRestoreStage('existing tournament lookup'")
+          lookup_end = text.index("\n  const { playerIds", lookup_start)
+          old_block = text[lookup_start:lookup_end]
 
-          type RestoredTournament = Prisma.TournamentGetPayload<{ select: typeof RESTORED_TOURNAMENT_SELECT }>;
-          """
-          select_replacement = """} as const satisfies Prisma.TournamentSelect;
+          new_block = """const existing = await runRestoreStage('existing tournament lookup', () =>
+    retryDbRead(() =>
+      prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { id: true },
+      }),
+    ),
+  );
+  if (existing) {
+    const tournament = await runRestoreStage('existing tournament refresh', () =>
+      prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { status: 'active', publicModes: [] },
+        select: RESTORED_TOURNAMENT_SELECT,
+      }),
+    );
+    return { tournament, restoredPlayerCount: 0, reusedPlayerCount: 0 };
+  }
+"""
 
-          const EXISTING_TOURNAMENT_SELECT = {
-            id: true,
-          } as const satisfies Prisma.TournamentSelect;
-
-          type RestoredTournament = Prisma.TournamentGetPayload<{ select: typeof RESTORED_TOURNAMENT_SELECT }>;
-          """
-          if 'const EXISTING_TOURNAMENT_SELECT' not in restore:
-              if select_anchor not in restore:
-                  raise SystemExit('restore select anchor not found')
-              restore = restore.replace(select_anchor, select_replacement, 1)
-
-          old_lookup = """  const existing = await runRestoreStage('existing tournament lookup', () =>
-            retryDbRead(() =>
-              prisma.tournament.findUnique({
-                where: { id: tournamentId },
-                select: RESTORED_TOURNAMENT_SELECT,
-              }),
-            ),
-          );
-          if (existing) {
-            return { tournament: existing, restoredPlayerCount: 0, reusedPlayerCount: 0 };
-          }
-          """
-          new_lookup = """  const existing = await runRestoreStage('existing tournament lookup', () =>
-            retryDbRead(() =>
-              prisma.tournament.findUnique({
-                where: { id: tournamentId },
-                select: EXISTING_TOURNAMENT_SELECT,
-              }),
-            ),
-          );
-          if (existing) {
-            const tournament = await runRestoreStage('existing tournament refresh', () =>
-              prisma.tournament.update({
-                where: { id: tournamentId },
-                data: { status: 'active', publicModes: [] },
-                select: RESTORED_TOURNAMENT_SELECT,
-              }),
-            );
-            return { tournament, restoredPlayerCount: 0, reusedPlayerCount: 0 };
-          }
-          """
-          if old_lookup in restore:
-              restore = restore.replace(old_lookup, new_lookup, 1)
-          elif 'select: EXISTING_TOURNAMENT_SELECT' not in restore:
-              raise SystemExit('existing lookup block not found')
-
-          restore_path.write_text(restore)
-
-          route_path = Path('src/app/api/tournaments/[id]/restore/route.ts')
-          route = route_path.read_text()
-          helper_anchor = """function restoreStageFromError(error: unknown): string | null {
-            if (!error || typeof error !== 'object' || !('restoreStage' in error)) return null;
-            return typeof error.restoreStage === 'string' && error.restoreStage.trim() ? error.restoreStage : null;
-          }
-          """
-          helper_replacement = helper_anchor + """
-          function restoreDiagnosticFromError(error: unknown): string | null {
-            if (!error || typeof error !== 'object') return null;
-
-            const wrapped = error as { code?: unknown; cause?: unknown; message?: unknown };
-            const cause = wrapped.cause && typeof wrapped.cause === 'object' ? wrapped.cause : error;
-            const candidate = cause as { code?: unknown; message?: unknown };
-            const code = typeof candidate.code === 'string' ? candidate.code.trim() : '';
-            const message =
-              cause instanceof Error
-                ? cause.message
-                : typeof candidate.message === 'string'
-                  ? candidate.message
-                  : typeof wrapped.message === 'string'
-                    ? wrapped.message
-                    : '';
-            const diagnostic = [code, message].filter(Boolean).join(': ').replace(/\\s+/g, ' ').trim();
-            return diagnostic ? diagnostic.slice(0, 240) : null;
-          }
-          """
-          if 'function restoreDiagnosticFromError' not in route:
-              if helper_anchor not in route:
-                  raise SystemExit('route helper anchor not found')
-              route = route.replace(helper_anchor, helper_replacement, 1)
-
-          old_error = """    const stage = restoreStageFromError(error);
-            return createErrorResponse(
-              stage ? `Failed to restore tournament archive (${stage})` : 'Failed to restore tournament archive',
-              500,
-              'INTERNAL_ERROR',
-            );
-          """
-          new_error = """    const stage = restoreStageFromError(error);
-            const diagnostic = restoreDiagnosticFromError(error);
-            const summary = stage
-              ? `Failed to restore tournament archive (${stage})`
-              : 'Failed to restore tournament archive';
-            return createErrorResponse(diagnostic ? `${summary}: ${diagnostic}` : summary, 500, 'INTERNAL_ERROR');
-          """
-          if old_error in route:
-              route = route.replace(old_error, new_error, 1)
-          elif 'const diagnostic = restoreDiagnosticFromError(error);' not in route:
-              raise SystemExit('route error block not found')
-          route_path.write_text(route)
-
-          query_test_path = Path('__tests__/lib/tournament-archive-restore-query-shape.test.ts')
-          query_test_path.write_text("""import fs from 'node:fs';
-          import path from 'node:path';
-
-          describe('archive restore tournament query shape', () => {
-            const source = fs.readFileSync(path.join(process.cwd(), 'src/lib/tournament-archive-restore.ts'), 'utf8');
-
-            it('uses an id-only projection for the initial existence lookup', () => {
-              expect(source.match(/select: EXISTING_TOURNAMENT_SELECT/g)).toHaveLength(1);
-              const selectBlock = source.match(/const EXISTING_TOURNAMENT_SELECT = \\{([\\s\\S]*?)\\n\\} as const/);
-              expect(selectBlock?.[1]).toContain('id: true');
-              expect(selectBlock?.[1]).not.toContain('status');
-              expect(selectBlock?.[1]).not.toContain('taBattleRoyaleMode');
-            });
-
-            it('uses the explicit response projection only after a row exists', () => {
-              expect(source.match(/select: RESTORED_TOURNAMENT_SELECT/g)).toHaveLength(2);
-              expect(source).not.toContain('prisma.tournament.findUnique({ where: { id: tournamentId } })');
-            });
-
-            it('retries both D1 Tournament reads', () => {
-              expect(source.match(/retryDbRead\\(\\(\\) =>/g)).toHaveLength(2);
-            });
-          });
-          """)
-
-          route_test_path = Path('__tests__/app/api/tournaments/[id]/restore/route.test.ts')
-          route_test = route_test_path.read_text()
-          diagnostic_test = """
-            it('includes the wrapped database diagnostic for an admin caller', async () => {
-              jest.mocked(restoreTournamentArchiveForReopen).mockRejectedValue(
-                Object.assign(new Error('Archive restore failed at existing tournament lookup'), {
-                  restoreStage: 'existing tournament lookup',
-                  cause: Object.assign(new Error('no such column: Tournament.taBattleRoyaleMode'), { code: 'P2022' }),
-                }),
-              );
-
-              await POST(new NextRequest('http://localhost/api/tournaments/archived-1/restore', { method: 'POST' }), {
-                params: Promise.resolve({ id: 'archived-1' }),
-              });
-
-              expect(NextResponse.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                  success: false,
-                  error:
-                    'Failed to restore tournament archive (existing tournament lookup): P2022: no such column: Tournament.taBattleRoyaleMode',
-                }),
-                { status: 500 },
-              );
-            });
-          """
-          anchor = """  it('rejects non-admin callers', async () => {
-          """
-          if 'includes the wrapped database diagnostic' not in route_test:
-              if anchor not in route_test:
-                  raise SystemExit('route test anchor not found')
-              route_test = route_test.replace(anchor, diagnostic_test + '\n' + anchor, 1)
-          route_test_path.write_text(route_test)
+          if "select: { id: true }" not in old_block:
+              text = text[:lookup_start] + new_block + text[lookup_end:]
+              path.write_text(text)
           PY
 
           npx prettier --write \
             "src/lib/tournament-archive-restore.ts" \
             "src/app/api/tournaments/[id]/restore/route.ts" \
-            "__tests__/lib/tournament-archive-restore-query-shape.test.ts" \
-            "__tests__/app/api/tournaments/[id]/restore/route.test.ts"
+            "__tests__/lib/tournament-archive-restore-query-shape.test.ts"
 
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add \
             "src/lib/tournament-archive-restore.ts" \
             "src/app/api/tournaments/[id]/restore/route.ts" \
-            "__tests__/lib/tournament-archive-restore-query-shape.test.ts" \
-            "__tests__/app/api/tournaments/[id]/restore/route.test.ts"
+            "__tests__/lib/tournament-archive-restore-query-shape.test.ts"
           if ! git diff --cached --quiet; then
             git commit -m "fix: use id-only archive restore existence lookup"
             git push origin HEAD:fix/archive-restore-id-only-lookup
