@@ -5,6 +5,11 @@ import { createLogger } from '@/lib/logger';
 import { readTournamentArchive } from '@/lib/tournament-archive';
 import { restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
 
+function restoreStageFromError(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('restoreStage' in error)) return null;
+  return typeof error.restoreStage === 'string' && error.restoreStage.trim() ? error.restoreStage : null;
+}
+
 /**
  * POST /api/tournaments/:id/restore
  *
@@ -43,6 +48,12 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return createErrorResponse('Tournament or player data conflicts with an existing record', 409, 'CONFLICT');
     }
-    return createErrorResponse('Failed to restore tournament archive', 500, 'INTERNAL_ERROR');
+
+    const stage = restoreStageFromError(error);
+    return createErrorResponse(
+      stage ? `Failed to restore tournament archive (${stage})` : 'Failed to restore tournament archive',
+      500,
+      'INTERNAL_ERROR',
+    );
   }
 }
