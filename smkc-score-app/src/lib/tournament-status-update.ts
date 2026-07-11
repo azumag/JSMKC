@@ -13,24 +13,16 @@ function readApiErrorDetail(payload: unknown): string | null {
   return null;
 }
 
-/**
- * A summary marked as archived may be a permanent R2-only record, but it may
- * also be a temporary fallback returned after a failed database read. Keep the
- * lifecycle action available and let the PUT endpoint determine whether the
- * live row can actually be updated; any rejection is surfaced by the caller.
- */
-export function canUpdateTournamentStatus(tournament: TournamentStatusTarget | null): boolean {
-  return tournament !== null;
+async function readResponsePayload(response: Response): Promise<unknown> {
+  return response.json().catch(() => null);
 }
 
-/**
- * Unwrap the standard API response and turn non-2xx responses into actionable
- * errors. Callers can show the thrown message instead of silently ignoring a
- * rejected status transition.
- */
-export async function parseTournamentStatusUpdateResponse<T extends object>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => null);
+function archivedRestoreUrl(response: Response): string | null {
+  const match = response.url.match(/\/api\/tournaments\/[^/?#]+/);
+  return match ? `${match[0]}/restore` : null;
+}
 
+async function unwrapTournamentResponse<T extends object>(response: Response, payload: unknown): Promise<T> {
   if (!response.ok) {
     throw new Error(readApiErrorDetail(payload) ?? `HTTP ${response.status}`);
   }
@@ -43,4 +35,34 @@ export async function parseTournamentStatusUpdateResponse<T extends object>(resp
   }
 
   return data as T;
+}
+
+/**
+ * A summary marked as archived may be a permanent R2-only record, but it may
+ * also be a temporary fallback returned after a failed database read. Keep the
+ * lifecycle action available and let the update/restore endpoints determine
+ * whether the tournament can actually be reopened.
+ */
+export function canUpdateTournamentStatus(tournament: TournamentStatusTarget | null): boolean {
+  return tournament !== null;
+}
+
+/**
+ * Unwrap the status-update response. When reopening an archived-only tournament,
+ * the ordinary PUT returns 404 because its live D1 row has already been deleted.
+ * In that case, call the admin-only restore endpoint, which recreates the live
+ * tournament and its archived competition data in the active state.
+ */
+export async function parseTournamentStatusUpdateResponse<T extends object>(response: Response): Promise<T> {
+  const payload = await readResponsePayload(response);
+
+  if (response.status === 404) {
+    const restoreUrl = archivedRestoreUrl(response);
+    if (restoreUrl) {
+      const restoreResponse = await fetch(restoreUrl, { method: 'POST' });
+      return unwrapTournamentResponse<T>(restoreResponse, await readResponsePayload(restoreResponse));
+    }
+  }
+
+  return unwrapTournamentResponse<T>(response, payload);
 }
