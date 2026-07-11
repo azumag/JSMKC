@@ -26,7 +26,9 @@ describe('Phase 3 mode-specific elimination boundaries', () => {
       expect(getNextPhase3ResetThreshold(activeCount, rules)).toBe(
         expectedThreshold,
       );
-      expect(getPhase3EliminationLimit(activeCount, rules)).toBe(expectedLimit);
+      expect(getPhase3EliminationLimit(activeCount, rules)).toBe(
+        expectedLimit,
+      );
     },
   );
 
