@@ -42,23 +42,80 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Capture archive restore test failure
+      - name: Fix test isolation and remove diagnostic
         run: |
-          set +e
-          npm test -- --runInBand --verbose __tests__/lib/tournament-archive-restore.test.ts > /tmp/archive-restore-test.log 2>&1
-          status=$?
-          tail -n 220 /tmp/archive-restore-test.log > .archive-restore-test-failure.txt
-          cat .archive-restore-test-failure.txt
-          if [ "$status" -ne 0 ]; then
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add .archive-restore-test-failure.txt
-            if ! git diff --cached --quiet; then
-              git commit -m "chore: capture archive restore test failure"
-              git push origin HEAD:fix/restore-archive-json-nulls
-            fi
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('__tests__/lib/tournament-archive-restore.test.ts')
+          text = path.read_text()
+          old = """  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.player.create as jest.Mock).mockResolvedValue({ id: 'player-1' });
+    (prisma.tournament.create as jest.Mock).mockResolvedValue({ id: 'archived-1' });
+    (prisma.tournament.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'archived-1', status: 'active', publicModes: [] });
+    for (const model of [
+      prisma.bMQualification,
+      prisma.mRQualification,
+      prisma.gPQualification,
+      prisma.bMMatch,
+      prisma.mRMatch,
+      prisma.gPMatch,
+      prisma.tTEntry,
+      prisma.tTPhaseRound,
+      prisma.tournamentPlayerScore,
+    ]) {
+      (model.createMany as jest.Mock).mockResolvedValue({ count: 1 });
+    }
+  });"""
+          new = """  beforeEach(() => {
+    const playerFindUnique = prisma.player.findUnique as jest.Mock;
+    const playerCreate = prisma.player.create as jest.Mock;
+    const tournamentCreate = prisma.tournament.create as jest.Mock;
+    const tournamentFindUnique = prisma.tournament.findUnique as jest.Mock;
+    const tournamentDeleteMany = prisma.tournament.deleteMany as jest.Mock;
+
+    playerFindUnique.mockReset().mockResolvedValue(null);
+    playerCreate.mockReset().mockResolvedValue({ id: 'player-1' });
+    tournamentCreate.mockReset().mockResolvedValue({ id: 'archived-1' });
+    tournamentFindUnique
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'archived-1', status: 'active', publicModes: [] });
+    tournamentDeleteMany.mockReset();
+
+    for (const model of [
+      prisma.bMQualification,
+      prisma.mRQualification,
+      prisma.gPQualification,
+      prisma.bMMatch,
+      prisma.mRMatch,
+      prisma.gPMatch,
+      prisma.tTEntry,
+      prisma.tTPhaseRound,
+      prisma.tournamentPlayerScore,
+    ]) {
+      (model.createMany as jest.Mock).mockReset().mockResolvedValue({ count: 1 });
+    }
+  });"""
+          if old in text:
+              path.write_text(text.replace(old, new))
+          Path('.archive-restore-test-failure.txt').unlink(missing_ok=True)
+          PY
+          npx prettier --write "__tests__/lib/tournament-archive-restore.test.ts"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "__tests__/lib/tournament-archive-restore.test.ts" .archive-restore-test-failure.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "test: reset archive restore mocks between cases"
+            git push origin HEAD:fix/restore-archive-json-nulls
           fi
-          exit "$status"
+
+      - name: Verify archive restore test
+        run: npm test -- --runInBand __tests__/lib/tournament-archive-restore.test.ts
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
