@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type { TournamentArchiveBundle } from '@/lib/tournament-archive';
 import { normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';
+import { retryDbRead } from '@/lib/db-read-retry';
 
 const DATE_FIELDS = new Set([
   'rankOverrideAt',
@@ -26,6 +27,26 @@ const NULLABLE_JSON_FIELDS = {
   ttSuddenDeathRound: ['results'],
 } as const;
 
+const RESTORED_TOURNAMENT_SELECT = {
+  id: true,
+  slug: true,
+  name: true,
+  date: true,
+  status: true,
+  taPlayerSelfEdit: true,
+  taBattleRoyaleMode: true,
+  frozenStages: true,
+  qualificationConfirmed: true,
+  bmQualificationConfirmed: true,
+  mrQualificationConfirmed: true,
+  gpQualificationConfirmed: true,
+  publicModes: true,
+  createdAt: true,
+  updatedAt: true,
+} as const satisfies Prisma.TournamentSelect;
+
+type RestoredTournament = Prisma.TournamentGetPayload<{ select: typeof RESTORED_TOURNAMENT_SELECT }>;
+
 type ArchivedPlayer = {
   id: string;
   name: string;
@@ -39,7 +60,7 @@ type ArchivedRecord = Record<string, unknown>;
 type RestoreStageError = Error & { restoreStage: string; cause?: unknown; code?: unknown };
 
 type RestoreResult = {
-  tournament: Awaited<ReturnType<typeof prisma.tournament.findUnique>>;
+  tournament: RestoredTournament;
   restoredPlayerCount: number;
   reusedPlayerCount: number;
 };
@@ -307,7 +328,12 @@ function tournamentScoreRows(bundle: TournamentArchiveBundle, tournamentId: stri
 export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiveBundle): Promise<RestoreResult> {
   const tournamentId = bundle.tournament.id;
   const existing = await runRestoreStage('existing tournament lookup', () =>
-    prisma.tournament.findUnique({ where: { id: tournamentId } }),
+    retryDbRead(() =>
+      prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: RESTORED_TOURNAMENT_SELECT,
+      }),
+    ),
   );
   if (existing) {
     return { tournament: existing, restoredPlayerCount: 0, reusedPlayerCount: 0 };
@@ -398,7 +424,12 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     );
 
     const tournament = await runRestoreStage('restored tournament lookup', () =>
-      prisma.tournament.findUnique({ where: { id: tournamentId } }),
+      retryDbRead(() =>
+        prisma.tournament.findUnique({
+          where: { id: tournamentId },
+          select: RESTORED_TOURNAMENT_SELECT,
+        }),
+      ),
     );
     if (!tournament) throw createRestoreStageError('restored tournament lookup', new Error('Tournament missing'));
     return { tournament, restoredPlayerCount, reusedPlayerCount };
