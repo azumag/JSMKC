@@ -1,9 +1,9 @@
 import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '@/lib/tournament-status-update';
 
 describe('tournament status updates', () => {
-  it('allows lifecycle updates only for live tournament rows', () => {
+  it('keeps lifecycle updates available for any loaded tournament summary', () => {
     expect(canUpdateTournamentStatus(null)).toBe(false);
-    expect(canUpdateTournamentStatus({ archived: true })).toBe(false);
+    expect(canUpdateTournamentStatus({ archived: true })).toBe(true);
     expect(canUpdateTournamentStatus({ archived: false })).toBe(true);
     expect(canUpdateTournamentStatus({})).toBe(true);
   });
