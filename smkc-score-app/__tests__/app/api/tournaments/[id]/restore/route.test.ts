@@ -99,6 +99,33 @@ describe('POST /api/tournaments/[id]/restore', () => {
     );
   });
 
+  it('reports the direct database code and message to the admin caller', async () => {
+    jest.mocked(restoreTournamentArchiveForReopen).mockRejectedValue(
+      Object.assign(new Error('UNIQUE constraint failed: Tournament.slug'), {
+        code: 'SQLITE_CONSTRAINT',
+        restoreStage: 'tournament',
+      }),
+    );
+
+    await POST(
+      new NextRequest('http://localhost/api/tournaments/archived-1/restore', {
+        method: 'POST',
+      }),
+      {
+        params: Promise.resolve({ id: 'archived-1' }),
+      },
+    );
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error:
+          'Failed to restore tournament archive (tournament): SQLITE_CONSTRAINT: UNIQUE constraint failed: Tournament.slug',
+      }),
+      { status: 500 },
+    );
+  });
+
   it('reports the wrapped Prisma code and database message to the admin caller', async () => {
     jest.mocked(restoreTournamentArchiveForReopen).mockRejectedValue(
       Object.assign(new Error('Archive restore failed at existing tournament lookup'), {
