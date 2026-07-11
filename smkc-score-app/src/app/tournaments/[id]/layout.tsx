@@ -32,6 +32,7 @@ import { createLogger } from '@/lib/client-logger';
 import { cn } from '@/lib/utils';
 import { getTabHydrationGuardProps } from '@/lib/tournament-tab-hydration';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
+import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '@/lib/tournament-status-update';
 
 const logger = createLogger({ serviceName: 'tournaments-layout' });
 
@@ -45,6 +46,7 @@ interface Tournament {
   status: string;
   publicModes: string[];
   taBattleRoyaleMode: boolean;
+  archived?: boolean;
 }
 
 /**
@@ -131,6 +133,8 @@ export default function TournamentLayout({
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [tabsHydrated, setTabsHydrated] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   /**
    * Fetches tournament details from the API.
@@ -198,18 +202,26 @@ export default function TournamentLayout({
    * api/tournaments/[id]/route.ts); anything else is rejected with 400.
    */
   const updateStatus = async (status: string) => {
+    if (statusUpdating || !canUpdateTournamentStatus(tournament)) return;
+
+    setStatusUpdating(true);
+    setStatusError(null);
     try {
       const response = await fetch(`/api/tournaments/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      if (response.ok) {
-        fetchTournament();
-      }
+      const updatedTournament = await parseTournamentStatusUpdateResponse<Tournament>(response);
+      // The PUT response is the newly persisted row. Applying it directly avoids
+      // a stale follow-up GET making a successful reopen look like it did nothing.
+      setTournament(updatedTournament);
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to update status:', metadata);
+      setStatusError(err instanceof Error ? err.message : tc('networkError'));
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -269,18 +281,19 @@ export default function TournamentLayout({
 
   const activeTab = getActiveTab(pathname);
   const { guardClassName, ...tabHydrationGuardProps } = getTabHydrationGuardProps(tabsHydrated);
+  const canManageStatus = Boolean(isAdmin) && canUpdateTournamentStatus(tournament);
 
   return (
     <ErrorBoundary>
       <div className="space-y-7">
-        {/*
+        {/**
          * Tournament header. Status flag and date sit on a single quiet
          * line beside the title — no programme/championship eyebrow.
          */}
         <header className="border-b border-foreground/15 pb-5">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
             <div className="flex items-stretch gap-3">
-              {/*
+              {/**
                * 3px Racing Red rule — a quiet "race chapter" mark that
                * runs the full height of the title block. Substitutes for
                * the heavier eyebrow ticker we removed earlier.
@@ -297,43 +310,65 @@ export default function TournamentLayout({
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {/*
-               * Status transition buttons (admin only). Guarding lives in
-               * the API (ALLOWED_STATUS_TRANSITIONS): draft→active→completed,
-               * plus completed→active to reopen a tournament closed too early.
-               */}
-              {isAdmin && tournament.status === 'draft' && (
-                <Button onClick={() => updateStatus('active')}>{t('startTournament')}</Button>
-              )}
-              {isAdmin && tournament.status === 'active' && (
-                <Button onClick={() => updateStatus('completed')}>{t('completeTournament')}</Button>
-              )}
-              {/*
-               * Reopen is rendered as an outline button so it reads as a
-               * corrective action, not the primary next step of the flow.
-               */}
-              {isAdmin && tournament.status === 'completed' && (
-                <Button variant="outline" onClick={() => updateStatus('active')}>
-                  {t('reopenTournament')}
+            <div className="flex flex-col items-start lg:items-end gap-2">
+              <div className="flex flex-wrap gap-2">
+                {/**
+                 * Status transition buttons (admin only). Guarding lives in
+                 * the API (ALLOWED_STATUS_TRANSITIONS): draft→active→completed,
+                 * plus completed→active to reopen a tournament closed too early.
+                 * Archived R2 fallback summaries are read-only and intentionally
+                 * do not render lifecycle controls.
+                 */}
+                {canManageStatus && tournament.status === 'draft' && (
+                  <Button disabled={statusUpdating} aria-busy={statusUpdating} onClick={() => updateStatus('active')}>
+                    {t('startTournament')}
+                  </Button>
+                )}
+                {canManageStatus && tournament.status === 'active' && (
+                  <Button
+                    disabled={statusUpdating}
+                    aria-busy={statusUpdating}
+                    onClick={() => updateStatus('completed')}
+                  >
+                    {t('completeTournament')}
+                  </Button>
+                )}
+                {/**
+                 * Reopen is rendered as an outline button so it reads as a
+                 * corrective action, not the primary next step of the flow.
+                 */}
+                {canManageStatus && tournament.status === 'completed' && (
+                  <Button
+                    variant="outline"
+                    disabled={statusUpdating}
+                    aria-busy={statusUpdating}
+                    onClick={() => updateStatus('active')}
+                  >
+                    {t('reopenTournament')}
+                  </Button>
+                )}
+                {isAdmin && <ExportButton tournamentId={id} tournamentName={tournament.name} />}
+                {isAdmin && (
+                  <ExportButton tournamentId={id} tournamentName={tournament.name} format="cdm">
+                    CDM Export
+                  </ExportButton>
+                )}
+                <Button variant="outline" asChild>
+                  <Link href="/tournaments" prefetch={false}>
+                    ← {t('backToList')}
+                  </Link>
                 </Button>
-              )}
-              {isAdmin && <ExportButton tournamentId={id} tournamentName={tournament.name} />}
-              {isAdmin && (
-                <ExportButton tournamentId={id} tournamentName={tournament.name} format="cdm">
-                  CDM Export
-                </ExportButton>
-              )}
-              <Button variant="outline" asChild>
-                <Link href="/tournaments" prefetch={false}>
-                  ← {t('backToList')}
-                </Link>
-              </Button>
+              </div>
+              {statusError ? (
+                <p role="alert" className="max-w-xl text-sm text-red-600 lg:text-right">
+                  {statusError}
+                </p>
+              ) : null}
             </div>
           </div>
         </header>
 
-        {/*
+        {/**
          * Tab navigation. Next Link keeps SPA navigation; prefetch={false}
          * avoids speculative production Workers/D1 reads during large operations.
          * The active tab draws a 3px Racing Red bar via `pit-active`.
@@ -402,7 +437,7 @@ export default function TournamentLayout({
           </ul>
         </nav>
 
-        {/*
+        {/**
          * Per-mode publish controls have moved next to each mode's player
          * settings (issue #618). Each mode's publish state is now independent;
          * the "未公開" badge below still reflects the per-mode state via
