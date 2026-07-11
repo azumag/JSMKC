@@ -2,10 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('archive restore tournament query shape', () => {
-  const source = fs.readFileSync(
-    path.join(process.cwd(), 'src/lib/tournament-archive-restore.ts'),
-    'utf8',
-  );
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/lib/tournament-archive-restore.ts'), 'utf8');
 
   it('uses the explicit restore projection for both Tournament lookups', () => {
     expect(source.match(/select: RESTORED_TOURNAMENT_SELECT/g)).toHaveLength(2);
