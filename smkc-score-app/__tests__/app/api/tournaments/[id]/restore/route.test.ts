@@ -55,7 +55,7 @@ describe('POST /api/tournaments/[id]/restore', () => {
     });
   });
 
-  it('reports the failed restore stage to the admin caller', async () => {
+  it('reports the failed restore stage and message to the admin caller', async () => {
     jest
       .mocked(restoreTournamentArchiveForReopen)
       .mockRejectedValue(Object.assign(new Error('too many SQL variables'), { restoreStage: 'BM matches' }));
@@ -65,7 +65,32 @@ describe('POST /api/tournaments/[id]/restore', () => {
     });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: 'Failed to restore tournament archive (BM matches)' }),
+      expect.objectContaining({
+        success: false,
+        error: 'Failed to restore tournament archive (BM matches): too many SQL variables',
+      }),
+      { status: 500 },
+    );
+  });
+
+  it('reports the wrapped Prisma code and database message to the admin caller', async () => {
+    jest.mocked(restoreTournamentArchiveForReopen).mockRejectedValue(
+      Object.assign(new Error('Archive restore failed at existing tournament lookup'), {
+        restoreStage: 'existing tournament lookup',
+        cause: Object.assign(new Error('no such column: Tournament.taBattleRoyaleMode'), { code: 'P2022' }),
+      }),
+    );
+
+    await POST(new NextRequest('http://localhost/api/tournaments/archived-1/restore', { method: 'POST' }), {
+      params: Promise.resolve({ id: 'archived-1' }),
+    });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error:
+          'Failed to restore tournament archive (existing tournament lookup): P2022: no such column: Tournament.taBattleRoyaleMode',
+      }),
       { status: 500 },
     );
   });
