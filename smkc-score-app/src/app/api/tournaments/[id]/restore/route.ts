@@ -14,7 +14,6 @@ function restoreDiagnosticFromError(error: unknown): string | null {
   if (!error || typeof error !== 'object') return null;
 
   const wrapped = error as {
-    code?: unknown;
     cause?: unknown;
     message?: unknown;
   };
