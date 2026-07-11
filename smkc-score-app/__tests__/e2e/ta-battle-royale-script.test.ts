@@ -14,11 +14,15 @@ describe('TA battle royale E2E wiring', () => {
     expect(pkg.scripts['e2e:preview:ta-br']).toContain('tc-ta-battle-royale.js');
   });
 
-  it('includes the suite in tc-all and covers the critical invariants', () => {
+  it('starts directly in Phase 3 and covers the critical invariants', () => {
     const suite = read('e2e/tc-ta-battle-royale.js');
 
-    expect(suite).toContain('for (let index = 1; index <= 6; index++)');
-    expect(suite).toContain("code === 'TA_MODE_LOCKED'");
+    expect(suite).toContain('for (let index = 1; index <= 6; index += 1)');
+    expect(suite).toContain(`/api/tournaments/${'${tournamentId}'}/ta/battle-royale`);
+    expect(suite).toContain('direct Phase 3 start failed');
+    expect(suite).toContain("locked.b?.code === 'TA_MODE_LOCKED'");
+    expect(suite).toContain('/ta/finals(?:$|\\\\?)');
+    expect(suite).toContain('Overall tab is visible');
     expect(suite).toContain('all three one-life bottom-half players must be eliminated');
     expect(suite).toContain("pendingSuddenDeath?.kind === 'revival'");
     expect(suite).toContain('archive?.schemaVersion === 2');
@@ -30,11 +34,11 @@ describe('TA battle royale E2E wiring', () => {
     expect(suite).toContain('Review Before Submit|送信前確認|補正後タイム順');
     expect(suite).toContain('/Confirm results|結果を確定/');
   });
+
   it('keeps archived TA finals read-only for administrators', () => {
     const page = read('src/app/tournaments/[id]/ta/finals/page.tsx');
     expect(page).toContain('const canManage = Boolean(isAdmin) && !archived;');
     expect(page).toContain('isAdmin={canManage}');
     expect(page).not.toContain('isAdmin &&');
   });
-
 });
