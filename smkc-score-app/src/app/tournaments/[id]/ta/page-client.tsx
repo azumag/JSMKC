@@ -76,6 +76,11 @@ import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from 'lucide-reac
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { parseManualScore } from '@/lib/parse-manual-score';
+import { TaHandicapSelect } from '@/components/tournament/ta-handicap-select';
+import { TaHandicapBadge } from '@/components/tournament/ta-handicap-badge';
+import { TaHandicapLegend } from '@/components/tournament/ta-handicap-legend';
+import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
+import { normalizeTaHandicapSeconds, type TaHandicapSeconds } from '@/lib/ta/battle-royale';
 
 const logger = createLogger({ serviceName: 'tournaments-ta' });
 
@@ -105,6 +110,7 @@ interface Player {
   nickname: string;
   /** Stored country value (ISO code or legacy name); rendered as an inline flag. */
   country?: string | null;
+  taHandicapSeconds?: TaHandicapSeconds;
 }
 
 /** Time Trial entry data structure from the API */
@@ -118,6 +124,7 @@ interface TTEntry {
   seeding: number | null;
   /** §3.1: Partner player ID for pair running */
   partnerId: string | null;
+  taHandicapSeconds: TaHandicapSeconds;
   times: Record<string, string> | null;
   totalTime: number | null;
   rank: number | null;
@@ -184,6 +191,7 @@ export default function TimeAttackPageClient({
       playerId: string;
       seeding?: number;
       partnerId?: string | null;
+      taHandicapSeconds: TaHandicapSeconds;
     }>
   >([]);
 
@@ -220,6 +228,7 @@ export default function TimeAttackPageClient({
   const [phaseStatus, setPhaseStatus] = useState<TaPhaseStatus>(null);
   const [phaseStatusLoaded, setPhaseStatusLoaded] = useState(false);
   const [promotingPhase, setPromotingPhase] = useState<string | null>(null);
+  const [battleRoyalePromotionConfirmOpen, setBattleRoyalePromotionConfirmOpen] = useState(false);
   // Phase reset (undo promotion) state — tracks which stage is currently being reset
   const [resettingPhase, setResettingPhase] = useState<TaPhaseStage | null>(null);
   /*
@@ -327,6 +336,7 @@ export default function TimeAttackPageClient({
           playerId: e.playerId,
           seeding: e.seeding ?? undefined,
           partnerId: e.partnerId ?? null,
+          taHandicapSeconds: e.taHandicapSeconds ?? 0,
         }))
         .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity)),
     );
@@ -399,6 +409,28 @@ export default function TimeAttackPageClient({
       const refreshedJson = await refreshed.json();
       const refreshedEntries: TTEntry[] = (refreshedJson.data ?? refreshedJson).entries ?? [];
       const refreshedByPlayerId = new Map(refreshedEntries.map((e) => [e.playerId, e]));
+
+      if (taBattleRoyaleMode) {
+        const handicapUpdates = setupEntries
+          .map((setup) => {
+            const entry = refreshedByPlayerId.get(setup.playerId);
+            return entry && entry.taHandicapSeconds !== setup.taHandicapSeconds
+              ? { entryId: entry.id, taHandicapSeconds: setup.taHandicapSeconds }
+              : null;
+          })
+          .filter((value): value is { entryId: string; taHandicapSeconds: TaHandicapSeconds } => value !== null);
+        if (handicapUpdates.length > 0) {
+          const handicapResponse = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'bulk_update_handicaps', updates: handicapUpdates }),
+          });
+          if (!handicapResponse.ok) {
+            const errorPayload = await handicapResponse.json().catch(() => ({}));
+            throw new Error(errorPayload.error || 'Failed to update TA handicaps');
+          }
+        }
+      }
 
       for (const s of setupEntries) {
         const entry = refreshedByPlayerId.get(s.playerId);
@@ -514,9 +546,9 @@ export default function TimeAttackPageClient({
    * Promote players to a specific phase via the phases API.
    * Used by Phase 1/2/3 promotion buttons.
    */
-  const handlePromoteToPhase = async (action: string) => {
+  const handlePromoteToPhase = async (action: string, skipConfirm = false) => {
     const confirmKey = PROMOTION_CONFIRM_KEYS[action];
-    if (confirmKey && !confirm(t(confirmKey))) return;
+    if (!skipConfirm && confirmKey && !confirm(t(confirmKey))) return;
     setPromotingPhase(action);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
@@ -865,6 +897,7 @@ export default function TimeAttackPageClient({
                                     playerId: p.id,
                                     seeding: undefined as number | undefined,
                                     partnerId: null as string | null,
+                                    taHandicapSeconds: normalizeTaHandicapSeconds(p.taHandicapSeconds),
                                   }));
                                 setSetupEntries((prev) => [...prev, ...toAdd]);
                               } else {
@@ -896,7 +929,15 @@ export default function TimeAttackPageClient({
                                     setSetupEntries((prev) =>
                                       prev.some((s) => s.playerId === player.id)
                                         ? prev
-                                        : [...prev, { playerId: player.id, seeding: undefined, partnerId: null }],
+                                        : [
+                                            ...prev,
+                                            {
+                                              playerId: player.id,
+                                              seeding: undefined,
+                                              partnerId: null,
+                                              taHandicapSeconds: player.taHandicapSeconds ?? 0,
+                                            },
+                                          ],
                                     );
                                   } else {
                                     setSetupEntries((prev) => prev.filter((s) => s.playerId !== player.id));
@@ -928,6 +969,29 @@ export default function TimeAttackPageClient({
                           {t('autoPair')}
                         </Button>
                       </div>
+                      {taBattleRoyaleMode && (
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-3">
+                          <TaHandicapLegend compact />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setSetupEntries((previous) =>
+                                previous.map((entry) => ({
+                                  ...entry,
+                                  taHandicapSeconds: normalizeTaHandicapSeconds(
+                                    allPlayers.find((player) => player.id === entry.playerId)?.taHandicapSeconds,
+                                  ),
+                                })),
+                              )
+                            }
+                            disabled={qualificationRegistrationLocked}
+                          >
+                            {t('resetHandicapsToPlayerDefaults')}
+                          </Button>
+                        </div>
+                      )}
                       <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
                         {setupEntries.length === 0 ? (
                           <p className="text-muted-foreground text-sm py-4 text-center">{tc('noPlayersSelected')}</p>
@@ -961,6 +1025,21 @@ export default function TimeAttackPageClient({
                                   <span className="flex-1 min-w-0 text-sm truncate">
                                     {player?.nickname ?? `ID: ${s.playerId.slice(0, 8)}`}
                                   </span>
+                                  {taBattleRoyaleMode && (
+                                    <TaHandicapSelect
+                                      value={s.taHandicapSeconds}
+                                      onValueChange={(taHandicapSeconds) =>
+                                        setSetupEntries((prev) =>
+                                          prev.map((item) =>
+                                            item.playerId === s.playerId ? { ...item, taHandicapSeconds } : item,
+                                          ),
+                                        )
+                                      }
+                                      disabled={qualificationRegistrationLocked}
+                                      aria-label={`${player?.nickname ?? s.playerId} handicap`}
+                                      className="w-24"
+                                    />
+                                  )}
                                   <select
                                     className="border rounded px-2 py-1 text-sm bg-background h-11 sm:h-10 md:h-9 max-w-[130px]"
                                     value={s.partnerId ?? ''}
@@ -1035,6 +1114,18 @@ export default function TimeAttackPageClient({
               </DialogContent>
             </Dialog>
           )}
+          {isAdmin && taBattleRoyaleMode && hasQualificationRoster && (
+            <Button
+              variant="outline"
+              onClick={openSetupDialog}
+              disabled={qualificationRegistrationLocked}
+              title={
+                qualificationRegistrationLocked ? t('handicapLockedAfterKnockout') : t('manageTournamentHandicapsDesc')
+              }
+            >
+              {t('manageTournamentHandicaps')}
+            </Button>
+          )}
 
           {/* Per-mode independent publish toggle (issue #618) */}
           {isAdmin && <ModePublishSwitch tournamentId={tournamentId} mode="ta" modeLabelKey="timeTrial" />}
@@ -1050,8 +1141,26 @@ export default function TimeAttackPageClient({
             <CardTitle>{t('finalsPhases')}</CardTitle>
             <CardDescription>{t('finalsPhaseDesc')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3">
+              <TaModeBadge mode={taBattleRoyaleMode ? 'battle_royale' : 'standard'} />
+              <span className="text-sm text-muted-foreground">
+                {taBattleRoyaleMode ? t('battleRoyalePhaseSummary') : t('standardPhaseSummary')}
+                {taBattleRoyaleMode && entries.length > 0 && (
+                  <span className="ml-2 font-mono text-xs">
+                    {[-5, -3, -1, 0]
+                      .map((handicap) =>
+                        t('handicapDistributionItem', {
+                          handicap,
+                          count: entries.filter((entry) => entry.taHandicapSeconds === handicap).length,
+                        }),
+                      )
+                      .join(' / ')}
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className={taBattleRoyaleMode ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 sm:grid-cols-3 gap-4'}>
               {/* Phase 1: Only relevant when there are ≥17 qualified players (ranks 17-24) */}
               {!taBattleRoyaleMode && (
                 <div className="border rounded-lg p-4 space-y-2">
@@ -1173,11 +1282,20 @@ export default function TimeAttackPageClient({
                 phaseStatus?.phase2 ||
                 (!phase1HasPlayers && !phase2HasPlayers) ||
                 (phaseStatus?.phase1 && !phase2HasPlayers)) && (
-                <div className="border rounded-lg p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-semibold">{t('phase3')}</h4>
+                <div
+                  className={
+                    taBattleRoyaleMode
+                      ? 'rounded-lg border-2 border-primary/50 bg-primary/5 p-5 space-y-3'
+                      : 'border rounded-lg p-4 space-y-2'
+                  }
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-semibold">{taBattleRoyaleMode ? t('battleRoyaleFinals') : t('phase3')}</h4>
+                    {taBattleRoyaleMode && <TaModeBadge mode="battle_royale" />}
                   </div>
-                  <p className="text-sm text-muted-foreground">{t('phase3Desc')}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {taBattleRoyaleMode ? t('battleRoyalePhase3Desc') : t('phase3Desc')}
+                  </p>
                   {phaseStatus?.phase3 ? (
                     <div className="text-sm">
                       <span className="text-green-600">
@@ -1204,7 +1322,13 @@ export default function TimeAttackPageClient({
                       (taBattleRoyaleMode || phaseStatus?.phase2 || !phase2HasPlayers) && (
                         <Button
                           size="sm"
-                          onClick={() => handlePromoteToPhase('promote_phase3')}
+                          onClick={() => {
+                            if (taBattleRoyaleMode) {
+                              setBattleRoyalePromotionConfirmOpen(true);
+                            } else {
+                              void handlePromoteToPhase('promote_phase3');
+                            }
+                          }}
                           disabled={phaseActionInFlight}
                         >
                           {promotingPhase === 'promote_phase3' ? tc('promoting') : t('startPhase3')}
@@ -1271,6 +1395,7 @@ export default function TimeAttackPageClient({
                       <TableHead className="w-16">{t('rank')}</TableHead>
                       <TableHead>{tc('player')}</TableHead>
                       <TableHead>{t('pairPartner')}</TableHead>
+                      {taBattleRoyaleMode && <TableHead>{t('handicap')}</TableHead>}
                       <TableHead className="text-center">{t('progress')}</TableHead>
                       <TableHead className="text-right">{tc('points')}</TableHead>
                       <TableHead className="text-right">{t('firstPlaceCount')}</TableHead>
@@ -1369,6 +1494,7 @@ export default function TimeAttackPageClient({
                     <TableRow>
                       <TableHead>{tc('player')}</TableHead>
                       {isAdmin && <TableHead className="text-center w-24">{tc('tvNumber')}</TableHead>}
+                      {taBattleRoyaleMode && <TableHead>{t('handicap')}</TableHead>}
                       <TableHead className="text-center">{t('progress')}</TableHead>
                       <TableHead className="text-right">{t('total')}</TableHead>
                       <TableHead className="text-right w-32">{t('action')}</TableHead>
@@ -1402,6 +1528,11 @@ export default function TimeAttackPageClient({
                                 </option>
                               ))}
                             </select>
+                          </TableCell>
+                        )}
+                        {taBattleRoyaleMode && (
+                          <TableCell>
+                            <TaHandicapBadge value={entry.taHandicapSeconds} />
                           </TableCell>
                         )}
                         <TableCell className="text-center">
@@ -1589,6 +1720,37 @@ export default function TimeAttackPageClient({
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog open={battleRoyalePromotionConfirmOpen} onOpenChange={setBattleRoyalePromotionConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('startBattleRoyaleConfirmTitle')}</DialogTitle>
+            <DialogDescription>{t('startBattleRoyaleConfirmDesc', { count: entries.length })}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 rounded-md border bg-muted/30 p-3 text-sm">
+            <TaModeBadge mode="battle_royale" verbose />
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>{t('battleRoyaleStartRuleLives')}</li>
+              <li>{t('battleRoyaleStartRuleHandicap')}</li>
+              <li>{t('battleRoyaleStartRuleLock')}</li>
+            </ul>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBattleRoyalePromotionConfirmOpen(false)}>
+              {tc('cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                setBattleRoyalePromotionConfirmOpen(false);
+                void handlePromoteToPhase('promote_phase3', true);
+              }}
+              disabled={phaseActionInFlight}
+            >
+              {t('startBattleRoyaleFinals')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Times Dialog: read-only view of a player's times.
        *  Opened by the "View Times" button for entries the user cannot edit.

@@ -12,28 +12,28 @@
  * This is the primary endpoint for the tournament detail page.
  * Additional match types (MR, GP, TA) are loaded via their own endpoints.
  */
-import { NextRequest } from "next/server";
+import { NextRequest } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
-import { getServerSideIdentifier } from "@/lib/rate-limit";
-import { sanitizeInput } from "@/lib/sanitize";
-import { createLogger } from "@/lib/logger";
-import { retryDbRead } from "@/lib/db-read-retry";
-import { isValidTournamentSlug, normalizeTournamentSlug, resolveTournamentId } from "@/lib/tournament-identifier";
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
+import { getServerSideIdentifier } from '@/lib/rate-limit';
+import { sanitizeInput } from '@/lib/sanitize';
+import { createLogger } from '@/lib/logger';
+import { retryDbRead } from '@/lib/db-read-retry';
+import { isValidTournamentSlug, normalizeTournamentSlug, resolveTournamentId } from '@/lib/tournament-identifier';
 import {
   createSuccessResponse,
   createErrorResponse,
   handleAuthzError,
   handleValidationError,
-} from "@/lib/error-handling";
-import { isValidPublicModes } from "@/lib/public-modes";
+} from '@/lib/error-handling';
+import { isValidPublicModes } from '@/lib/public-modes';
 import {
   getArchivedTournamentSummary,
   persistTournamentArchive,
   readTournamentArchive,
-} from "@/lib/tournament-archive";
+} from '@/lib/tournament-archive';
 
 /**
  * GET /api/tournaments/:id
@@ -54,26 +54,21 @@ import {
  *   404 - Tournament not found
  *   500 - Server error
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('tournament-api');
   const { id: identifier } = await params;
   let resolvedId = identifier;
 
   try {
-    resolvedId = await retryDbRead(
-      () => resolveTournamentId(identifier),
-      {
-        onRetry: ({ attempt, error }) => logger.warn("Retrying tournament id resolve", {
+    resolvedId = await retryDbRead(() => resolveTournamentId(identifier), {
+      onRetry: ({ attempt, error }) =>
+        logger.warn('Retrying tournament id resolve', {
           attempt,
           id: identifier,
           error: error instanceof Error ? error.message : error,
         }),
-      },
-    );
+    });
 
     const { searchParams } = new URL(request.url);
 
@@ -86,53 +81,57 @@ export async function GET(
     const isSummary = searchParams.get('fields') === 'summary';
 
     const tournament = await retryDbRead(
-      () => prisma.tournament.findUnique({
-        where: { id: resolvedId },
-        select: isSummary
-          ? {
-              id: true,
-              slug: true,
-              name: true,
-              date: true,
-              status: true,
-              publicModes: true,
-              frozenStages: true,
-              qualificationConfirmed: true,
-              debugMode: true,
-              createdAt: true,
-              updatedAt: true,
-            }
-          : {
-              id: true,
-              slug: true,
-              name: true,
-              date: true,
-              status: true,
-              publicModes: true,
-              frozenStages: true,
-              qualificationConfirmed: true,
-              debugMode: true,
-              createdAt: true,
-              updatedAt: true,
-              bmQualifications: {
-                include: { player: { select: PLAYER_PUBLIC_SELECT } },
-                orderBy: [{ group: "asc" }, { score: "desc" }],
-              },
-              bmMatches: {
-                include: {
-                  player1: { select: PLAYER_PUBLIC_SELECT },
-                  player2: { select: PLAYER_PUBLIC_SELECT },
+      () =>
+        prisma.tournament.findUnique({
+          where: { id: resolvedId },
+          select: isSummary
+            ? {
+                id: true,
+                slug: true,
+                name: true,
+                date: true,
+                status: true,
+                publicModes: true,
+                frozenStages: true,
+                qualificationConfirmed: true,
+                taBattleRoyaleMode: true,
+                debugMode: true,
+                createdAt: true,
+                updatedAt: true,
+              }
+            : {
+                id: true,
+                slug: true,
+                name: true,
+                date: true,
+                status: true,
+                publicModes: true,
+                frozenStages: true,
+                qualificationConfirmed: true,
+                taBattleRoyaleMode: true,
+                debugMode: true,
+                createdAt: true,
+                updatedAt: true,
+                bmQualifications: {
+                  include: { player: { select: PLAYER_PUBLIC_SELECT } },
+                  orderBy: [{ group: 'asc' }, { score: 'desc' }],
                 },
-                orderBy: { matchNumber: "asc" },
+                bmMatches: {
+                  include: {
+                    player1: { select: PLAYER_PUBLIC_SELECT },
+                    player2: { select: PLAYER_PUBLIC_SELECT },
+                  },
+                  orderBy: { matchNumber: 'asc' },
+                },
               },
-            },
-      }),
-      {
-        onRetry: ({ attempt, error }) => logger.warn("Retrying tournament read", {
-          attempt,
-          id: resolvedId,
-          error: error instanceof Error ? error.message : error,
         }),
+      {
+        onRetry: ({ attempt, error }) =>
+          logger.warn('Retrying tournament read', {
+            attempt,
+            id: resolvedId,
+            error: error instanceof Error ? error.message : error,
+          }),
       },
     );
 
@@ -141,7 +140,7 @@ export async function GET(
       if (archived) {
         return createSuccessResponse(getArchivedTournamentSummary(archived, isSummary));
       }
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
 
     // Visibility check based on publicModes (not isPublic).
@@ -153,9 +152,9 @@ export async function GET(
     const isAuthenticated = Boolean(session?.user);
 
     // Ternary select makes Prisma v6 infer {} for the result; cast to access the field.
-    const publicModes = (tournament as { publicModes?: unknown }).publicModes as string[] || [];
+    const publicModes = ((tournament as { publicModes?: unknown }).publicModes as string[]) || [];
     if (!isAuthenticated && publicModes.length === 0) {
-      return handleAuthzError("This tournament has no visible modes");
+      return handleAuthzError('This tournament has no visible modes');
     }
 
     // `debugMode` exposes internal QA state and signals which tournaments
@@ -175,14 +174,14 @@ export async function GET(
     return createSuccessResponse(t);
   } catch (error) {
     // Log with tournament ID for easy filtering in log aggregation
-    logger.error("Failed to fetch tournament", { error, id: resolvedId });
+    logger.error('Failed to fetch tournament', { error, id: resolvedId });
     const archived = await readTournamentArchive(identifier);
     if (archived) {
       return createSuccessResponse(
-        getArchivedTournamentSummary(archived, new URL(request.url).searchParams.get('fields') === 'summary')
+        getArchivedTournamentSummary(archived, new URL(request.url).searchParams.get('fields') === 'summary'),
       );
     }
-    return createErrorResponse("Failed to fetch tournament", 500);
+    return createErrorResponse('Failed to fetch tournament', 500);
   }
 }
 
@@ -212,9 +211,9 @@ export async function GET(
  * GET above), and it is overwritten the next time the tournament is completed.
  */
 const ALLOWED_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
-  draft: ["active"],
-  active: ["completed", "draft"],
-  completed: ["active", "draft"],
+  draft: ['active'],
+  active: ['completed', 'draft'],
+  completed: ['active', 'draft'],
 };
 
 /**
@@ -235,10 +234,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
  *   404 - Tournament not found (Prisma P2025, or status change on missing row)
  *   500 - Server error
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('tournament-api');
 
@@ -255,7 +251,12 @@ export async function PUT(
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
     const {
-      name, date, status, frozenStages, taPlayerSelfEdit, publicModes,
+      name,
+      date,
+      status,
+      frozenStages,
+      taPlayerSelfEdit,
+      publicModes,
       // Per-mode qualification confirmed flags (issue #696).
       // Legacy qualificationConfirmed is no longer accepted; use the mode-specific fields.
       bmQualificationConfirmed,
@@ -263,24 +264,23 @@ export async function PUT(
       gpQualificationConfirmed,
       // debugMode: enables auto-fill buttons; admin-only toggle (#746)
       debugMode,
+      taBattleRoyaleMode,
     } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
-      return handleValidationError("Slug must contain only lowercase letters, numbers, and hyphens", "slug");
+      return handleValidationError('Slug must contain only lowercase letters, numbers, and hyphens', 'slug');
     }
 
     // Validate frozenStages if provided: only "qualification" is supported.
     // Phase freeze was removed because phase operations are admin-only.
-    const VALID_FROZEN_STAGES = ["qualification"];
+    const VALID_FROZEN_STAGES = ['qualification'];
     if (frozenStages !== undefined) {
       if (
         !Array.isArray(frozenStages) ||
-        !frozenStages.every(
-          (s: unknown) => typeof s === "string" && VALID_FROZEN_STAGES.includes(s)
-        )
+        !frozenStages.every((s: unknown) => typeof s === 'string' && VALID_FROZEN_STAGES.includes(s))
       ) {
-        return handleValidationError("frozenStages must be an array of valid stage names");
+        return handleValidationError('frozenStages must be an array of valid stage names');
       }
     }
 
@@ -290,24 +290,34 @@ export async function PUT(
     if (publicModes !== undefined) {
       if (!Array.isArray(publicModes) || !isValidPublicModes(publicModes)) {
         return handleValidationError(
-          "publicModes must be an array of valid modes (ta, bm, mr, gp, overall) with no duplicates",
-          "publicModes"
+          'publicModes must be an array of valid modes (ta, bm, mr, gp, overall) with no duplicates',
+          'publicModes',
         );
       }
+    }
+
+    if (taBattleRoyaleMode !== undefined && typeof taBattleRoyaleMode !== 'boolean') {
+      return handleValidationError('taBattleRoyaleMode must be a boolean', 'taBattleRoyaleMode');
+    }
+    if (taBattleRoyaleMode !== undefined && status !== undefined) {
+      return handleValidationError(
+        'taBattleRoyaleMode and status cannot be changed in the same request',
+        'taBattleRoyaleMode',
+      );
     }
 
     // Validate the requested status value itself (pure, no DB read) against
     // the lifecycle map before touching the database.
     if (status !== undefined) {
       if (
-        typeof status !== "string" ||
+        typeof status !== 'string' ||
         // Object.hasOwn (not `in`): prototype keys like "toString" must not
         // pass value validation and leak into the DB query below.
         !Object.hasOwn(ALLOWED_STATUS_TRANSITIONS, status)
       ) {
         return handleValidationError(
-          `status must be one of: ${Object.keys(ALLOWED_STATUS_TRANSITIONS).join(", ")}`,
-          "status"
+          `status must be one of: ${Object.keys(ALLOWED_STATUS_TRANSITIONS).join(', ')}`,
+          'status',
         );
       }
     }
@@ -339,11 +349,76 @@ export async function PUT(
       }),
       ...(publicModes !== undefined && { publicModes }),
       ...(debugMode !== undefined && { debugMode: debugMode === true }),
+      ...(taBattleRoyaleMode !== undefined && { taBattleRoyaleMode }),
     };
 
     let tournament;
     let reopenedFromCompleted = false;
-    if (status !== undefined) {
+    let previousTaBattleRoyaleMode: boolean | undefined;
+    let modeChanged = false;
+    if (taBattleRoyaleMode !== undefined) {
+      const current = await prisma.tournament.findUnique({
+        where: { id: resolvedId },
+        select: { status: true, taBattleRoyaleMode: true },
+      });
+      if (!current) {
+        return createErrorResponse('Tournament not found', 404);
+      }
+
+      previousTaBattleRoyaleMode = current.taBattleRoyaleMode;
+      if (current.taBattleRoyaleMode !== taBattleRoyaleMode) {
+        const result = await prisma.tournament.updateMany({
+          where: {
+            id: resolvedId,
+            status: 'draft',
+            taBattleRoyaleMode: current.taBattleRoyaleMode,
+            ttEntries: { none: {} },
+            ttPhaseRounds: { none: {} },
+            ttPhaseSuddenDeathRounds: { none: {} },
+          },
+          data: updateData,
+        });
+        if (result.count === 0) {
+          const latest = await prisma.tournament.findUnique({
+            where: { id: resolvedId },
+            select: {
+              status: true,
+              taBattleRoyaleMode: true,
+              _count: {
+                select: { ttEntries: true, ttPhaseRounds: true, ttPhaseSuddenDeathRounds: true },
+              },
+            },
+          });
+          if (!latest) {
+            return createErrorResponse('Tournament not found', 404);
+          }
+          if (
+            latest.status !== 'draft' ||
+            latest._count.ttEntries > 0 ||
+            latest._count.ttPhaseRounds > 0 ||
+            latest._count.ttPhaseSuddenDeathRounds > 0
+          ) {
+            return createErrorResponse(
+              'TA mode cannot be changed after TA registration or tournament start',
+              409,
+              'TA_MODE_LOCKED',
+            );
+          }
+          return createErrorResponse(
+            'Tournament update conflicted with another request',
+            409,
+            'TOURNAMENT_UPDATE_CONFLICT',
+          );
+        }
+        modeChanged = true;
+      } else {
+        await prisma.tournament.update({ where: { id: resolvedId }, data: updateData });
+      }
+      tournament = await prisma.tournament.findUnique({ where: { id: resolvedId } });
+      if (!tournament) {
+        return createErrorResponse('Tournament not found', 404);
+      }
+    } else if (status !== undefined) {
       // Fold the "is this transition allowed from the CURRENT status" check
       // into the write itself via a conditional updateMany, instead of a
       // separate findUnique-then-update (issue #2761): D1 has no interactive
@@ -361,19 +436,19 @@ export async function PUT(
 
       let updateCount = 0;
 
-      if (status === "active") {
+      if (status === 'active') {
         /* A completed tournament may still have publicly visible finalized
          * modes. Clear them atomically with the completed -> active transition
          * so no request can observe an active, editable tournament whose
          * provisional results are still published. Other transitions to
          * active (draft -> active and active -> active) retain publicModes. */
         const reopenResult = await prisma.tournament.updateMany({
-          where: { id: resolvedId, status: "completed" },
+          where: { id: resolvedId, status: 'completed' },
           data: { ...updateData, publicModes: [] },
         });
         updateCount = reopenResult.count;
         reopenedFromCompleted = reopenResult.count > 0;
-        allowedSourceStatuses.delete("completed");
+        allowedSourceStatuses.delete('completed');
       }
 
       if (updateCount === 0) {
@@ -390,11 +465,11 @@ export async function PUT(
           select: { status: true },
         });
         if (!current) {
-          return createErrorResponse("Tournament not found", 404);
+          return createErrorResponse('Tournament not found', 404);
         }
         return handleValidationError(
           `Cannot change tournament status from "${current.status}" to "${status}"`,
-          "status"
+          'status',
         );
       }
 
@@ -403,7 +478,7 @@ export async function PUT(
         // Row vanished between the successful updateMany and this read
         // (e.g. a concurrent delete). Vanishingly unlikely, but report it
         // as "not found" rather than crashing on a null response body.
-        return createErrorResponse("Tournament not found", 404);
+        return createErrorResponse('Tournament not found', 404);
       }
     } else {
       tournament = await prisma.tournament.update({
@@ -412,11 +487,11 @@ export async function PUT(
       });
     }
 
-    if (status === "completed") {
+    if (status === 'completed') {
       try {
         await persistTournamentArchive(resolvedId);
       } catch (archiveError) {
-        logger.warn("Failed to persist tournament archive", {
+        logger.warn('Failed to persist tournament archive', {
           error: archiveError,
           id: resolvedId,
         });
@@ -444,12 +519,19 @@ export async function PUT(
           mrQualificationConfirmed,
           gpQualificationConfirmed,
           publicModes: reopenedFromCompleted ? [] : publicModes,
+          ...(modeChanged && {
+            action: 'update_ta_mode',
+            oldTaMode: previousTaBattleRoyaleMode ? 'battle_royale' : 'standard',
+            newTaMode: taBattleRoyaleMode ? 'battle_royale' : 'standard',
+          }),
         },
-      }).catch((err) => logger.warn('Failed to create audit log', {
-        error: err,
-        id: resolvedId,
-        action: 'UPDATE_TOURNAMENT',
-      }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          id: resolvedId,
+          action: 'UPDATE_TOURNAMENT',
+        }),
+      );
     } catch (logError) {
       // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
@@ -462,28 +544,18 @@ export async function PUT(
     return createSuccessResponse(tournament);
   } catch (error: unknown) {
     // Log error with tournament ID for debugging
-    logger.error("Failed to update tournament", { error, id: resolvedId });
+    logger.error('Failed to update tournament', { error, id: resolvedId });
 
     // P2025: Record not found - tournament ID doesn't exist
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2025"
-    ) {
-      return createErrorResponse("Tournament not found", 404);
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+      return createErrorResponse('Tournament not found', 404);
     }
 
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
-      return createErrorResponse("Tournament slug already exists", 409, "CONFLICT");
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return createErrorResponse('Tournament slug already exists', 409, 'CONFLICT');
     }
 
-    return createErrorResponse("Failed to update tournament", 500);
+    return createErrorResponse('Failed to update tournament', 500);
   }
 }
 
@@ -500,10 +572,7 @@ export async function PUT(
  *   409 - Tournament has already started
  *   500 - Server error
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('tournament-api');
 
@@ -518,7 +587,7 @@ export async function DELETE(
 
   try {
     const deleteResult = await prisma.tournament.deleteMany({
-      where: { id: resolvedId, status: "draft" },
+      where: { id: resolvedId, status: 'draft' },
     });
 
     if (deleteResult.count === 0) {
@@ -528,14 +597,10 @@ export async function DELETE(
       });
 
       if (!tournament) {
-        return createErrorResponse("Tournament not found", 404);
+        return createErrorResponse('Tournament not found', 404);
       }
 
-      return createErrorResponse(
-        "Started tournaments cannot be deleted",
-        409,
-        "CONFLICT"
-      );
+      return createErrorResponse('Started tournaments cannot be deleted', 409, 'CONFLICT');
     }
 
     // Audit log for the deletion - important for security tracking
@@ -552,11 +617,13 @@ export async function DELETE(
         details: {
           tournamentId: resolvedId,
         },
-      }).catch((err) => logger.warn('Failed to create audit log', {
-        error: err,
-        id: resolvedId,
-        action: 'DELETE_TOURNAMENT',
-      }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          id: resolvedId,
+          action: 'DELETE_TOURNAMENT',
+        }),
+      );
     } catch (logError) {
       // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
@@ -566,21 +633,16 @@ export async function DELETE(
       });
     }
 
-    return createSuccessResponse({ message: "Tournament deleted successfully" });
+    return createSuccessResponse({ message: 'Tournament deleted successfully' });
   } catch (error: unknown) {
     // Log error with tournament ID for debugging
-    logger.error("Failed to delete tournament", { error, id: resolvedId });
+    logger.error('Failed to delete tournament', { error, id: resolvedId });
 
     // P2025: Record not found - retained for defensive compatibility.
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2025"
-    ) {
-      return createErrorResponse("Tournament not found", 404);
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+      return createErrorResponse('Tournament not found', 404);
     }
 
-    return createErrorResponse("Failed to delete tournament", 500);
+    return createErrorResponse('Failed to delete tournament', 500);
   }
 }

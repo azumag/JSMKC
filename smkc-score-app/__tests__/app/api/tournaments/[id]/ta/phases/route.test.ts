@@ -147,7 +147,10 @@ jest.mock('next/server', () => {
           return h[key] || null;
         },
         forEach: (cb) => {
-          if (h instanceof Headers) { h.forEach(cb); return; }
+          if (h instanceof Headers) {
+            h.forEach(cb);
+            return;
+          }
           Object.entries(h).forEach(([k, v]) => cb(v, k));
         },
       };
@@ -208,9 +211,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
    * Helper: create a GET request with optional query params.
    */
   function createRequest(queryString = '') {
-    return new NextRequest(
-      `http://localhost:3000/api/tournaments/tournament-1/ta/phases${queryString}`
-    );
+    return new NextRequest(`http://localhost:3000/api/tournaments/tournament-1/ta/phases${queryString}`);
   }
 
   /** Default mock phase status returned by getPhaseStatus */
@@ -265,7 +266,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Tournament not found' }),
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -352,91 +353,94 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
             ]),
             rounds: [expect.objectContaining({ id: 'round-1' })],
           }),
-        })
+        }),
       );
     });
 
     it.each([
       ['phase1', ['player-17', 'player-18'], ['player-18']],
       ['phase2', ['player-13', 'player-14'], ['player-14']],
-    ])('reconstructs archived %s entries from round history with zero lives', async (phase, playerIds, eliminatedIds) => {
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
-      (getAvailableCourses as jest.Mock).mockReturnValue(['DP1']);
-      (readTournamentArchive as jest.Mock).mockResolvedValue({
-        schemaVersion: 1,
-        tournament: { id: 'tournament-1', slug: 'archived', name: 'Archived', status: 'completed' },
-        allPlayers: [],
-        modes: {
-          ta: {
-            entries: playerIds.map((playerId, index) => ({
-              id: `qual-${playerId}`,
-              tournamentId: 'tournament-1',
-              playerId,
-              stage: 'qualification',
-              lives: 3,
-              eliminated: false,
-              rank: index + 1,
-              totalTime: 60000 + index * 1000,
-              player: { id: playerId, name: `Player ${playerId}`, nickname: `P${index + 1}` },
-            })),
-            phaseRounds: [
-              {
-                id: `round-${phase}`,
+    ])(
+      'reconstructs archived %s entries from round history with zero lives',
+      async (phase, playerIds, eliminatedIds) => {
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+        (getAvailableCourses as jest.Mock).mockReturnValue(['DP1']);
+        (readTournamentArchive as jest.Mock).mockResolvedValue({
+          schemaVersion: 1,
+          tournament: { id: 'tournament-1', slug: 'archived', name: 'Archived', status: 'completed' },
+          allPlayers: [],
+          modes: {
+            ta: {
+              entries: playerIds.map((playerId, index) => ({
+                id: `qual-${playerId}`,
                 tournamentId: 'tournament-1',
-                phase,
-                roundNumber: 1,
-                course: 'MC1',
-                results: playerIds.map((playerId, index) => ({
-                  playerId,
-                  timeMs: 60000 + index * 1000,
-                  isRetry: false,
-                })),
-                eliminatedIds,
-                livesReset: false,
-                manualOverride: false,
-              },
-            ],
-          },
-          bm: {},
-          mr: {},
-          gp: {},
-        },
-      });
-
-      await phasesRoute.GET(createRequest(`?phase=${phase}`), { params: mockParams });
-
-      const call = NextResponse.json.mock.calls[0][0];
-      expect(call).toEqual(
-        expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            archived: true,
-            phaseStatus: expect.objectContaining({
-              [phase]: expect.objectContaining({
-                total: 2,
-                active: 1,
-                eliminated: 1,
-              }),
-            }),
-            entries: expect.arrayContaining([
-              expect.objectContaining({
-                playerId: playerIds[0],
-                stage: phase,
-                lives: 0,
+                playerId,
+                stage: 'qualification',
+                lives: 3,
                 eliminated: false,
+                rank: index + 1,
+                totalTime: 60000 + index * 1000,
+                player: { id: playerId, name: `Player ${playerId}`, nickname: `P${index + 1}` },
+              })),
+              phaseRounds: [
+                {
+                  id: `round-${phase}`,
+                  tournamentId: 'tournament-1',
+                  phase,
+                  roundNumber: 1,
+                  course: 'MC1',
+                  results: playerIds.map((playerId, index) => ({
+                    playerId,
+                    timeMs: 60000 + index * 1000,
+                    isRetry: false,
+                  })),
+                  eliminatedIds,
+                  livesReset: false,
+                  manualOverride: false,
+                },
+              ],
+            },
+            bm: {},
+            mr: {},
+            gp: {},
+          },
+        });
+
+        await phasesRoute.GET(createRequest(`?phase=${phase}`), { params: mockParams });
+
+        const call = NextResponse.json.mock.calls[0][0];
+        expect(call).toEqual(
+          expect.objectContaining({
+            success: true,
+            data: expect.objectContaining({
+              archived: true,
+              phaseStatus: expect.objectContaining({
+                [phase]: expect.objectContaining({
+                  total: 2,
+                  active: 1,
+                  eliminated: 1,
+                }),
               }),
-              expect.objectContaining({
-                playerId: playerIds[1],
-                stage: phase,
-                lives: 0,
-                eliminated: true,
-              }),
-            ]),
-            rounds: [expect.objectContaining({ id: `round-${phase}` })],
+              entries: expect.arrayContaining([
+                expect.objectContaining({
+                  playerId: playerIds[0],
+                  stage: phase,
+                  lives: 0,
+                  eliminated: false,
+                }),
+                expect.objectContaining({
+                  playerId: playerIds[1],
+                  stage: phase,
+                  lives: 0,
+                  eliminated: true,
+                }),
+              ]),
+              rounds: [expect.objectContaining({ id: `round-${phase}` })],
+            }),
           }),
-        })
-      );
-    });
+        );
+      },
+    );
   });
 
   describe('Phase parameter validation', () => {
@@ -452,7 +456,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
           error: 'Invalid phase parameter. Must be one of: phase1, phase2, phase3',
           code: 'VALIDATION_ERROR',
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -467,7 +471,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
           error: 'Invalid phase parameter. Must be one of: phase1, phase2, phase3',
           code: 'VALIDATION_ERROR',
         }),
-        { status: 400 }
+        { status: 400 },
       );
     });
   });
@@ -484,6 +488,15 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
         success: true,
         data: {
           phaseStatus: defaultPhaseStatus,
+          taMode: 'standard',
+          taBattleRoyaleMode: false,
+          phase3Rules: {
+            initialLives: 3,
+            lifeResetThresholds: [8, 4, 2],
+            survivorsNeeded: 1,
+            handicapEnabled: false,
+            retryAppliesHandicap: false,
+          },
         },
       });
       // Should NOT query entries or rounds when no phase is specified
@@ -503,12 +516,21 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(getPhaseStatus).toHaveBeenCalledTimes(1);
       expect(loggerInstance.warn).toHaveBeenCalledWith(
         'Retrying TA tournament read',
-        expect.objectContaining({ attempt: 1, tournamentId: 'tournament-1' })
+        expect.objectContaining({ attempt: 1, tournamentId: 'tournament-1' }),
       );
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
         data: {
           phaseStatus: defaultPhaseStatus,
+          taMode: 'standard',
+          taBattleRoyaleMode: false,
+          phase3Rules: {
+            initialLives: 3,
+            lifeResetThresholds: [8, 4, 2],
+            survivorsNeeded: 1,
+            handicapEnabled: false,
+            retryAppliesHandicap: false,
+          },
         },
       });
     });
@@ -522,9 +544,26 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
       (getPlayedCoursesWithSuddenDeath as jest.Mock).mockResolvedValue([]);
       (getAvailableCourses as jest.Mock).mockReturnValue([
-        'MC1', 'DP1', 'GV1', 'BC1', 'MC2', 'DP2', 'GV2', 'BC2',
-        'MC3', 'DP3', 'GV3', 'BC3', 'CI1', 'CI2', 'RR', 'VL1',
-        'VL2', 'KD', 'MC4', 'KB1',
+        'MC1',
+        'DP1',
+        'GV1',
+        'BC1',
+        'MC2',
+        'DP2',
+        'GV2',
+        'BC2',
+        'MC3',
+        'DP3',
+        'GV3',
+        'BC3',
+        'CI1',
+        'CI2',
+        'RR',
+        'VL1',
+        'VL2',
+        'KD',
+        'MC4',
+        'KB1',
       ]);
     });
 
@@ -542,7 +581,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
             availableCourses: expect.arrayContaining(['MC1', 'DP1']),
             playedCourses: [],
           }),
-        })
+        }),
       );
     });
 
@@ -552,7 +591,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { tournamentId: 'tournament-1', stage: 'phase3' },
-        })
+        }),
       );
     });
 
@@ -789,18 +828,14 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(prisma.tTPhaseRound.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { tournamentId: 'tournament-1', phase: 'phase3' },
-        })
+        }),
       );
     });
 
     it('should pass phase to getPlayedCoursesWithSuddenDeath', async () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
-      expect(getPlayedCoursesWithSuddenDeath).toHaveBeenCalledWith(
-        prisma,
-        'tournament-1',
-        'phase3'
-      );
+      expect(getPlayedCoursesWithSuddenDeath).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase3');
     });
 
     it('should include player relation in query (password globally omitted via lib/prisma.ts)', async () => {
@@ -811,7 +846,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        })
+        }),
       );
     });
 
@@ -853,7 +888,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
               }),
             ],
           }),
-        })
+        }),
       );
     });
   });
@@ -874,7 +909,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { tournamentId: 'tournament-1', stage: 'phase1' },
-        })
+        }),
       );
     });
 
@@ -884,7 +919,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { tournamentId: 'tournament-1', stage: 'phase2' },
-        })
+        }),
       );
     });
   });
@@ -898,13 +933,13 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Internal server error' }),
-        { status: 500 }
+        { status: 500 },
       );
       expect(loggerInstance.error).toHaveBeenCalledWith(
         'Failed to fetch phase data',
         expect.objectContaining({
           error: 'Database connection lost',
-        })
+        }),
       );
     });
 
@@ -916,7 +951,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Internal server error' }),
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -929,7 +964,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Internal server error' }),
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -937,15 +972,13 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 'tournament-1' });
       (getPhaseStatus as jest.Mock).mockResolvedValue(defaultPhaseStatus);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.tTPhaseRound.findMany as jest.Mock).mockRejectedValue(
-        new Error('Round query failed')
-      );
+      (prisma.tTPhaseRound.findMany as jest.Mock).mockRejectedValue(new Error('Round query failed'));
 
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Internal server error' }),
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -954,15 +987,13 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       (getPhaseStatus as jest.Mock).mockResolvedValue(defaultPhaseStatus);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
-      (getPlayedCoursesWithSuddenDeath as jest.Mock).mockRejectedValue(
-        new Error('Course query failed')
-      );
+      (getPlayedCoursesWithSuddenDeath as jest.Mock).mockRejectedValue(new Error('Course query failed'));
 
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Internal server error' }),
-        { status: 500 }
+        { status: 500 },
       );
     });
   });
@@ -1004,7 +1035,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
-      { status: 403 }
+      { status: 403 },
     );
   });
 
@@ -1015,7 +1046,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
-      { status: 403 }
+      { status: 403 },
     );
   });
 
@@ -1025,7 +1056,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     // handleValidationError includes code: 'VALIDATION_ERROR'
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, error: 'Invalid request', code: 'VALIDATION_ERROR' }),
-      { status: 400 }
+      { status: 400 },
     );
   });
 
@@ -1036,7 +1067,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, error: 'Tournament not found' }),
-      { status: 404 }
+      { status: 404 },
     );
   });
 
@@ -1080,37 +1111,52 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase1',
       undefined,
-      null
+      null,
     );
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 1, course: 'MC1', manualOverride: false } });
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: { roundNumber: 1, course: 'MC1', manualOverride: false },
+    });
   });
 
   it('should call startPhaseRound with manual course when course is provided', async () => {
     (startPhaseRound as jest.Mock).mockResolvedValue({ roundNumber: 2, course: 'DP1', manualOverride: true });
 
-    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1', course: 'DP1' }), { params: mockParams });
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1', course: 'DP1' }), {
+      params: mockParams,
+    });
 
     expect(startPhaseRound).toHaveBeenCalledWith(
       prisma,
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase1',
       'DP1',
-      null
+      null,
     );
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 2, course: 'DP1', manualOverride: true } });
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: { roundNumber: 2, course: 'DP1', manualOverride: true },
+    });
   });
 
   it('should pass tvNumber to startPhaseRound when provided', async () => {
-    (startPhaseRound as jest.Mock).mockResolvedValue({ roundNumber: 1, course: 'MC1', manualOverride: false, tvNumber: 2 });
+    (startPhaseRound as jest.Mock).mockResolvedValue({
+      roundNumber: 1,
+      course: 'MC1',
+      manualOverride: false,
+      tvNumber: 2,
+    });
 
-    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1', tvNumber: 2 }), { params: mockParams });
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1', tvNumber: 2 }), {
+      params: mockParams,
+    });
 
     expect(startPhaseRound).toHaveBeenCalledWith(
       prisma,
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase1',
       undefined,
-      2
+      2,
     );
   });
 
@@ -1128,17 +1174,16 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   it('should call cancelPhaseRound and return success', async () => {
     (cancelPhaseRound as jest.Mock).mockResolvedValue({ cancelled: true, roundNumber: 3 });
 
-    await phasesRoute.POST(
-      createPostRequest({ action: 'cancel_round', phase: 'phase2', roundNumber: 3 }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'cancel_round', phase: 'phase2', roundNumber: 3 }), {
+      params: mockParams,
+    });
 
     expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase2');
     expect(cancelPhaseRound).toHaveBeenCalledWith(
       prisma,
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase2',
-      3
+      3,
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { cancelled: true, roundNumber: 3 } });
   });
@@ -1146,16 +1191,13 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   it('should call undoLastPhaseRound and return success', async () => {
     (undoLastPhaseRound as jest.Mock).mockResolvedValue({ undoneRoundNumber: 5 });
 
-    await phasesRoute.POST(
-      createPostRequest({ action: 'undo_round', phase: 'phase3' }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'undo_round', phase: 'phase3' }), { params: mockParams });
 
     expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase3');
     expect(undoLastPhaseRound).toHaveBeenCalledWith(
       prisma,
       expect.objectContaining({ tournamentId: 'tournament-1' }),
-      'phase3'
+      'phase3',
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { undoneRoundNumber: 5 } });
   });
@@ -1163,16 +1205,13 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   it('should call cancelLastSubmittedPhaseRound and return success', async () => {
     (cancelLastSubmittedPhaseRound as jest.Mock).mockResolvedValue({ cancelledRoundNumber: 5, freedCourse: 'MC1' });
 
-    await phasesRoute.POST(
-      createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }), { params: mockParams });
 
     expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase3');
     expect(cancelLastSubmittedPhaseRound).toHaveBeenCalledWith(
       prisma,
       expect.objectContaining({ tournamentId: 'tournament-1' }),
-      'phase3'
+      'phase3',
     );
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
@@ -1182,13 +1221,12 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
   it('should return 409 when undoLastPhaseRound throws PhaseResetConflictError (later phase exists, #2779)', async () => {
     (undoLastPhaseRound as jest.Mock).mockRejectedValue(
-      new PhaseResetConflictError('Cannot undo the last round of phase1: phase2 already has entries. Reset phase2 first.')
+      new PhaseResetConflictError(
+        'Cannot undo the last round of phase1: phase2 already has entries. Reset phase2 first.',
+      ),
     );
 
-    await phasesRoute.POST(
-      createPostRequest({ action: 'undo_round', phase: 'phase1' }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'undo_round', phase: 'phase1' }), { params: mockParams });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1196,19 +1234,18 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
         error: 'Cannot undo the last round of phase1: phase2 already has entries. Reset phase2 first.',
         code: 'PHASE_RESET_CONFLICT',
       }),
-      { status: 409 }
+      { status: 409 },
     );
   });
 
   it('should return 409 when cancelLastSubmittedPhaseRound throws PhaseResetConflictError (later phase exists, #2779)', async () => {
     (cancelLastSubmittedPhaseRound as jest.Mock).mockRejectedValue(
-      new PhaseResetConflictError('Cannot cancel the last round of phase1: phase2 already has entries. Reset phase2 first.')
+      new PhaseResetConflictError(
+        'Cannot cancel the last round of phase1: phase2 already has entries. Reset phase2 first.',
+      ),
     );
 
-    await phasesRoute.POST(
-      createPostRequest({ action: 'cancel_last_round', phase: 'phase1' }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'cancel_last_round', phase: 'phase1' }), { params: mockParams });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1216,21 +1253,18 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
         error: 'Cannot cancel the last round of phase1: phase2 already has entries. Reset phase2 first.',
         code: 'PHASE_RESET_CONFLICT',
       }),
-      { status: 409 }
+      { status: 409 },
     );
   });
 
   it('should return 400 with business error when cancelLastSubmittedPhaseRound throws "No submitted rounds"', async () => {
     (cancelLastSubmittedPhaseRound as jest.Mock).mockRejectedValue(new Error('No submitted rounds found for phase3'));
 
-    await phasesRoute.POST(
-      createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }), { params: mockParams });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, error: 'No submitted rounds found for phase3' }),
-      { status: 400 }
+      { status: 400 },
     );
   });
 
@@ -1238,10 +1272,9 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     const frozenResponse = { status: 423, body: { success: false, error: 'Phase is frozen' } };
     (checkStageFrozen as jest.Mock).mockResolvedValueOnce(frozenResponse);
 
-    const result = await phasesRoute.POST(
-      createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }),
-      { params: mockParams }
-    );
+    const result = await phasesRoute.POST(createPostRequest({ action: 'cancel_last_round', phase: 'phase3' }), {
+      params: mockParams,
+    });
 
     expect(result).toBe(frozenResponse);
     expect(cancelLastSubmittedPhaseRound).not.toHaveBeenCalled();
@@ -1250,27 +1283,23 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   it('should return 400 with business error when undoLastPhaseRound throws "No submitted rounds"', async () => {
     (undoLastPhaseRound as jest.Mock).mockRejectedValue(new Error('No submitted rounds found for phase3'));
 
-    await phasesRoute.POST(
-      createPostRequest({ action: 'undo_round', phase: 'phase3' }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'undo_round', phase: 'phase3' }), { params: mockParams });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, error: 'No submitted rounds found for phase3' }),
-      { status: 400 }
+      { status: 400 },
     );
   });
 
   it('should return 400 for invalid phase in start_round', async () => {
-    await phasesRoute.POST(
-      createPostRequest({ action: 'start_round', phase: 'invalid_phase' }),
-      { params: mockParams }
-    );
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'invalid_phase' }), {
+      params: mockParams,
+    });
 
     // handleValidationError includes code: 'VALIDATION_ERROR'
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, error: 'Invalid request', code: 'VALIDATION_ERROR' }),
-      { status: 400 }
+      { status: 400 },
     );
   });
 
@@ -1294,7 +1323,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase1',
       1,
-      body.results
+      body.results,
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: ['player-1'] } });
   });
@@ -1320,7 +1349,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase3',
       2,
-      body.results
+      body.results,
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: [] } });
   });
@@ -1345,7 +1374,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase3',
       1,
-      body.results
+      body.results,
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: [] } });
   });
@@ -1365,7 +1394,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, code: 'VALIDATION_ERROR' }),
-      { status: 400 }
+      { status: 400 },
     );
   });
 
@@ -1374,10 +1403,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: false, error: 'Internal server error' }, { status: 500 });
   });
 
   describe('reset_phase action', () => {
@@ -1388,16 +1414,13 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
         deletedRoundCount: 3,
       });
 
-      await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', phase: 'phase2' }),
-        { params: mockParams }
-      );
+      await phasesRoute.POST(createPostRequest({ action: 'reset_phase', phase: 'phase2' }), { params: mockParams });
 
       expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase2');
       expect(resetPhase).toHaveBeenCalledWith(
         prisma,
         expect.objectContaining({ tournamentId: 'tournament-1' }),
-        'phase2'
+        'phase2',
       );
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
@@ -1407,13 +1430,10 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     it('should return 409 when resetPhase throws PhaseResetConflictError', async () => {
       (resetPhase as jest.Mock).mockRejectedValue(
-        new PhaseResetConflictError('Cannot reset phase1: phase2 already has entries. Reset phase2 first.')
+        new PhaseResetConflictError('Cannot reset phase1: phase2 already has entries. Reset phase2 first.'),
       );
 
-      await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', phase: 'phase1' }),
-        { params: mockParams }
-      );
+      await phasesRoute.POST(createPostRequest({ action: 'reset_phase', phase: 'phase1' }), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1421,21 +1441,18 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
           error: 'Cannot reset phase1: phase2 already has entries. Reset phase2 first.',
           code: 'PHASE_RESET_CONFLICT',
         }),
-        { status: 409 }
+        { status: 409 },
       );
     });
 
     it('should return 400 business error when resetPhase throws "nothing to reset"', async () => {
       (resetPhase as jest.Mock).mockRejectedValue(new Error('No phase3 entries to reset'));
 
-      await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', phase: 'phase3' }),
-        { params: mockParams }
-      );
+      await phasesRoute.POST(createPostRequest({ action: 'reset_phase', phase: 'phase3' }), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'No phase3 entries to reset' }),
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -1443,23 +1460,19 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       const frozenResponse = { status: 423, body: { success: false, error: 'Phase is frozen' } };
       (checkStageFrozen as jest.Mock).mockResolvedValue(frozenResponse);
 
-      await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', phase: 'phase1' }),
-        { params: mockParams }
-      );
+      await phasesRoute.POST(createPostRequest({ action: 'reset_phase', phase: 'phase1' }), { params: mockParams });
 
       expect(resetPhase).not.toHaveBeenCalled();
     });
 
     it('should return 400 for invalid stage in reset_phase', async () => {
-      await phasesRoute.POST(
-        createPostRequest({ action: 'reset_phase', phase: 'invalid_stage' }),
-        { params: mockParams }
-      );
+      await phasesRoute.POST(createPostRequest({ action: 'reset_phase', phase: 'invalid_stage' }), {
+        params: mockParams,
+      });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Invalid request', code: 'VALIDATION_ERROR' }),
-        { status: 400 }
+        { status: 400 },
       );
     });
   });
@@ -1491,7 +1504,7 @@ describe('sortPhaseEntriesForDisplay', () => {
     };
   }
 
-  it('TC-3007: phase3 bronze race — the sudden-death-resolved eliminatedIds order wins even though the bronze pair\'s raw main-course times differ', () => {
+  it("TC-3007: phase3 bronze race — the sudden-death-resolved eliminatedIds order wins even though the bronze pair's raw main-course times differ", () => {
     // p3 (Antistar-equivalent) is faster than p4 on the round's main course,
     // but LOSES the bronze sudden death — processPhase3Result already builds
     // eliminatedIds in the resolved order ([p4, p3]: winner-of-bottom-half

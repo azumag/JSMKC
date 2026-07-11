@@ -13,10 +13,14 @@ describe('TA battle royale rules', () => {
   });
 
   it('uses 10 lives with no reset thresholds in battle royale mode', () => {
-    expect(getTaPhase3Rules(true)).toEqual({ initialLives: 10, lifeResetThresholds: [] });
+    expect(getTaPhase3Rules(true)).toEqual(
+      expect.objectContaining({ initialLives: 10, lifeResetThresholds: [], handicapEnabled: true }),
+    );
   });
 
   it('preserves the normal Phase 3 rules outside battle royale mode', () => {
-    expect(getTaPhase3Rules(false)).toEqual({ initialLives: 3, lifeResetThresholds: [8, 4, 2] });
+    expect(getTaPhase3Rules(false)).toEqual(
+      expect.objectContaining({ initialLives: 3, lifeResetThresholds: [8, 4, 2], handicapEnabled: false }),
+    );
   });
 });

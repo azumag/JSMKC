@@ -114,7 +114,10 @@ jest.mock('next/server', () => {
           return h[key] || null;
         },
         forEach: (cb) => {
-          if (h instanceof Headers) { h.forEach(cb); return; }
+          if (h instanceof Headers) {
+            h.forEach(cb);
+            return;
+          }
           Object.entries(h).forEach(([k, v]) => cb(v, k));
         },
       };
@@ -214,10 +217,9 @@ describe('/api/tournaments/[id]/ta', () => {
       });
       (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(10);
 
-      await taRoute.GET(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
+      await taRoute.GET(new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`), {
+        params: Promise.resolve({ id: VALID_UUID }),
+      });
 
       // createSuccessResponse wraps the data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
@@ -231,7 +233,7 @@ describe('/api/tournaments/[id]/ta', () => {
             qualificationEditingLockedForPlayers: false,
             frozenStages: [],
           }),
-        })
+        }),
       );
     });
 
@@ -245,10 +247,9 @@ describe('/api/tournaments/[id]/ta', () => {
       (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(24);
       (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
 
-      await taRoute.GET(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
+      await taRoute.GET(new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`), {
+        params: Promise.resolve({ id: VALID_UUID }),
+      });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -257,7 +258,7 @@ describe('/api/tournaments/[id]/ta', () => {
             qualificationRegistrationLocked: true,
             qualificationEditingLockedForPlayers: true,
           }),
-        })
+        }),
       );
     });
 
@@ -266,20 +267,19 @@ describe('/api/tournaments/[id]/ta', () => {
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(0);
 
-      await taRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/jsmkc2026/ta'),
-        { params: Promise.resolve({ id: 'jsmkc2026' }) }
-      );
+      await taRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/jsmkc2026/ta'), {
+        params: Promise.resolve({ id: 'jsmkc2026' }),
+      });
 
       expect(prisma.tournament.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { OR: [{ id: 'jsmkc2026' }, { slug: 'jsmkc2026' }] },
-        })
+        }),
       );
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { tournamentId: VALID_UUID, stage: 'qualification' },
-        })
+        }),
       );
     });
 
@@ -304,10 +304,9 @@ describe('/api/tournaments/[id]/ta', () => {
         allPlayers: [archivedEntry.player],
       });
 
-      await taRoute.GET(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
+      await taRoute.GET(new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`), {
+        params: Promise.resolve({ id: VALID_UUID }),
+      });
 
       expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
       expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
@@ -327,16 +326,15 @@ describe('/api/tournaments/[id]/ta', () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
       (readTournamentArchive as jest.Mock).mockResolvedValue(null);
 
-      await taRoute.GET(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
+      await taRoute.GET(new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`), {
+        params: Promise.resolve({ id: VALID_UUID }),
+      });
 
       expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
       expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Tournament not found', code: 'NOT_FOUND' },
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -353,16 +351,15 @@ describe('/api/tournaments/[id]/ta', () => {
         allPlayers: [],
       });
 
-      await taRoute.GET(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
+      await taRoute.GET(new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`), {
+        params: Promise.resolve({ id: VALID_UUID }),
+      });
 
       expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
       expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Tournament not found', code: 'NOT_FOUND' },
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -374,20 +371,19 @@ describe('/api/tournaments/[id]/ta', () => {
       });
       (prisma.tTEntry.findMany as jest.Mock).mockRejectedValue(new Error('DB error'));
 
-      await taRoute.GET(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
+      await taRoute.GET(new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`), {
+        params: Promise.resolve({ id: VALID_UUID }),
+      });
 
       const sharedLogger = loggerMock.createLogger();
       expect(sharedLogger.error).toHaveBeenCalledWith(
         'Failed to fetch TA data',
-        expect.objectContaining({ tournamentId: VALID_UUID })
+        expect.objectContaining({ tournamentId: VALID_UUID }),
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to fetch time attack data', code: 'INTERNAL_ERROR' },
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -404,16 +400,15 @@ describe('/api/tournaments/[id]/ta', () => {
         allPlayers: [],
       });
 
-      await taRoute.GET(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
+      await taRoute.GET(new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`), {
+        params: Promise.resolve({ id: VALID_UUID }),
+      });
 
       expect(readTournamentArchive).toHaveBeenCalledWith(VALID_UUID);
       expect(getArchivedModePayload).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to fetch time attack data', code: 'INTERNAL_ERROR' },
-        { status: 500 }
+        { status: 500 },
       );
     });
   });
@@ -433,14 +428,10 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ action: 'recalculate_qualification' }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
-      expect(rankCalculationMock.recalculateRanks).toHaveBeenCalledWith(
-        VALID_UUID,
-        'qualification',
-        prisma,
-      );
+      expect(rankCalculationMock.recalculateRanks).toHaveBeenCalledWith(VALID_UUID, 'qualification', prisma);
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'UPDATE_TA_ENTRY',
@@ -467,14 +458,13 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ action: 'recalculate_qualification' }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(rankCalculationMock.recalculateRanks).not.toHaveBeenCalled();
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, code: 'FORBIDDEN' }),
-        { status: 403 },
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'FORBIDDEN' }), {
+        status: 403,
+      });
     });
 
     it('should add a player to qualification', async () => {
@@ -501,7 +491,7 @@ describe('/api/tournaments/[id]/ta', () => {
        * Mock the two findMany calls in order.
        */
       (prisma.tTEntry.findMany as jest.Mock)
-        .mockResolvedValueOnce([])           // duplicate-detection: nothing exists
+        .mockResolvedValueOnce([]) // duplicate-detection: nothing exists
         .mockResolvedValueOnce([mockEntry]); // re-fetch with player include
       (prisma.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
@@ -510,22 +500,25 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(prisma.tTEntry.createMany).toHaveBeenCalledWith({
-        data: [{
-          tournamentId: VALID_UUID,
-          playerId: VALID_UUID2,
-          stage: 'qualification',
-          times: {},
-          seeding: null,
-        }],
+        data: [
+          {
+            tournamentId: VALID_UUID,
+            playerId: VALID_UUID2,
+            stage: 'qualification',
+            times: {},
+            seeding: null,
+            taHandicapSeconds: 0,
+          },
+        ],
       });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: true, data: { entries: [mockEntry] }, message: 'Player(s) added to time attack' },
-        { status: 201 }
+        { status: 201 },
       );
       expect(auditLogMock.createAuditLogs).toHaveBeenCalledWith([
         expect.objectContaining({
@@ -547,12 +540,12 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Cannot add players after knockout stage has started', code: 'CONFLICT' },
-        { status: 409 }
+        { status: 409 },
       );
       expect(prisma.tTEntry.createMany).not.toHaveBeenCalled();
     });
@@ -568,12 +561,12 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Cannot add players after knockout stage has started', code: 'CONFLICT' },
-        { status: 409 }
+        { status: 409 },
       );
       expect(prisma.tTEntry.createMany).not.toHaveBeenCalled();
     });
@@ -584,14 +577,16 @@ describe('/api/tournaments/[id]/ta', () => {
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
       (prisma.tTEntry.findMany as jest.Mock)
-        .mockResolvedValueOnce([])  // duplicate-detection
-        .mockResolvedValueOnce([{
-          id: VALID_ENTRY_ID,
-          tournamentId: VALID_UUID,
-          playerId: VALID_UUID2,
-          stage: 'qualification',
-          player: { nickname: 'Player' },
-        }]);
+        .mockResolvedValueOnce([]) // duplicate-detection
+        .mockResolvedValueOnce([
+          {
+            id: VALID_ENTRY_ID,
+            tournamentId: VALID_UUID,
+            playerId: VALID_UUID2,
+            stage: 'qualification',
+            player: { nickname: 'Player' },
+          },
+        ]);
       (prisma.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       await taRoute.POST(
@@ -599,15 +594,13 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: 'jsmkc2026' }) }
+        { params: Promise.resolve({ id: 'jsmkc2026' }) },
       );
 
       expect(prisma.tTEntry.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.arrayContaining([
-            expect.objectContaining({ tournamentId: VALID_UUID }),
-          ]),
-        })
+          data: expect.arrayContaining([expect.objectContaining({ tournamentId: VALID_UUID })]),
+        }),
       );
     });
 
@@ -623,12 +616,12 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429 }
+        { status: 429 },
       );
     });
 
@@ -643,12 +636,12 @@ describe('/api/tournaments/[id]/ta', () => {
             players: [VALID_UUID2],
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ error: expect.stringContaining('Invalid') }),
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -661,12 +654,12 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -686,7 +679,7 @@ describe('/api/tournaments/[id]/ta', () => {
       };
 
       (prisma.tTEntry.findMany as jest.Mock)
-        .mockResolvedValueOnce([])           // duplicate-detection
+        .mockResolvedValueOnce([]) // duplicate-detection
         .mockResolvedValueOnce([mockEntry]); // re-fetch with player include
       (prisma.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
@@ -695,12 +688,12 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: true, data: { entries: [mockEntry] }, message: 'Player(s) added to time attack' },
-        { status: 201 }
+        { status: 201 },
       );
     });
 
@@ -717,12 +710,12 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ playerId: OTHER_PLAYER_ID }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden: Players can only add themselves', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -739,12 +732,12 @@ describe('/api/tournaments/[id]/ta', () => {
           method: 'POST',
           body: JSON.stringify({ players: [VALID_UUID2, OTHER_PLAYER_ID] }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden: Players can only add themselves', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
   });
@@ -771,9 +764,7 @@ describe('/api/tournaments/[id]/ta', () => {
         player: { id: 'p1', nickname: 'TestPlayer' },
       };
 
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce(existingEntry)
-        .mockResolvedValueOnce(updatedEntry);
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce(existingEntry).mockResolvedValueOnce(updatedEntry);
       (prisma.tTEntry.update as jest.Mock).mockResolvedValue(updatedEntry);
 
       await taRoute.PUT(
@@ -785,7 +776,7 @@ describe('/api/tournaments/[id]/ta', () => {
             time: '1:25.000',
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       // createSuccessResponse wraps the data in { success: true, data: ... }
@@ -830,13 +821,13 @@ describe('/api/tournaments/[id]/ta', () => {
             time: '1:20.000',
           }),
         }),
-        { params: Promise.resolve({ id: 'jsmkc2026' }) }
+        { params: Promise.resolve({ id: 'jsmkc2026' }) },
       );
 
       expect(prisma.tournament.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { OR: [{ id: 'jsmkc2026' }, { slug: 'jsmkc2026' }] },
-        })
+        }),
       );
     });
 
@@ -852,18 +843,18 @@ describe('/api/tournaments/[id]/ta', () => {
             time: '1:20.000',
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       const sharedLogger = loggerMock.createLogger();
       expect(sharedLogger.error).toHaveBeenCalledWith(
         'Failed to update times',
-        expect.objectContaining({ tournamentId: VALID_UUID })
+        expect.objectContaining({ tournamentId: VALID_UUID }),
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to update times', code: 'INTERNAL_ERROR' },
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -881,12 +872,12 @@ describe('/api/tournaments/[id]/ta', () => {
             eliminated: true,
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -902,12 +893,12 @@ describe('/api/tournaments/[id]/ta', () => {
             eliminated: true,
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -923,12 +914,12 @@ describe('/api/tournaments/[id]/ta', () => {
             livesDelta: 1,
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -943,12 +934,12 @@ describe('/api/tournaments/[id]/ta', () => {
             action: 'reset_lives',
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -964,12 +955,12 @@ describe('/api/tournaments/[id]/ta', () => {
             times: { MC1: '1:20.000' },
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -993,9 +984,7 @@ describe('/api/tournaments/[id]/ta', () => {
         player: { id: 'p1', nickname: 'TestPlayer' },
       };
 
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce(existingEntry)
-        .mockResolvedValueOnce(updatedEntry);
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce(existingEntry).mockResolvedValueOnce(updatedEntry);
       (prisma.tTEntry.update as jest.Mock).mockResolvedValue(updatedEntry);
 
       await taRoute.PUT(
@@ -1006,7 +995,7 @@ describe('/api/tournaments/[id]/ta', () => {
             times: { MC2: '1:25.000' },
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       // createSuccessResponse wraps the data in { success: true, data: ... }
@@ -1040,7 +1029,7 @@ describe('/api/tournaments/[id]/ta', () => {
             times: { MC2: '1:25.000' },
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
@@ -1049,12 +1038,12 @@ describe('/api/tournaments/[id]/ta', () => {
           error: 'Forbidden: Qualification times can only be edited by admins after knockout starts',
           code: 'FORBIDDEN',
         },
-        { status: 403 }
+        { status: 403 },
       );
       expect(prisma.tTEntry.update).not.toHaveBeenCalled();
     });
 
-    it('should return 403 when player tries to update another player\'s times', async () => {
+    it("should return 403 when player tries to update another player's times", async () => {
       // Player session with playerId 'p1' — attempting to update entry owned by 'p2'
       jest.mocked(auth).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
@@ -1078,12 +1067,12 @@ describe('/api/tournaments/[id]/ta', () => {
             times: { MC2: '1:25.000' },
           }),
         }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: "Forbidden: You can only update your own or your partner's times", code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
   });
@@ -1108,10 +1097,8 @@ describe('/api/tournaments/[id]/ta', () => {
       (prisma.tTEntry.delete as jest.Mock).mockResolvedValue(entryToDelete);
 
       await taRoute.DELETE(
-        new NextRequest(
-          `http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`
-        ),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`),
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       // createSuccessResponse wraps the data in { success: true, data: ... }
@@ -1121,11 +1108,7 @@ describe('/api/tournaments/[id]/ta', () => {
           message: 'Entry deleted successfully',
         },
       });
-      expect(rankCalculationMock.rerankStageAfterDelete).toHaveBeenCalledWith(
-        VALID_UUID,
-        'qualification',
-        prisma,
-      );
+      expect(rankCalculationMock.rerankStageAfterDelete).toHaveBeenCalledWith(VALID_UUID, 'qualification', prisma);
       expect(rankCalculationMock.recalculateRanks).not.toHaveBeenCalled();
     });
 
@@ -1133,15 +1116,13 @@ describe('/api/tournaments/[id]/ta', () => {
       jest.mocked(auth).mockResolvedValue(null);
 
       await taRoute.DELETE(
-        new NextRequest(
-          `http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`
-        ),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`),
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -1151,15 +1132,13 @@ describe('/api/tournaments/[id]/ta', () => {
       });
 
       await taRoute.DELETE(
-        new NextRequest(
-          `http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`
-        ),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`),
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -1171,15 +1150,13 @@ describe('/api/tournaments/[id]/ta', () => {
       (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
 
       await taRoute.DELETE(
-        new NextRequest(
-          `http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`
-        ),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`),
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Entry not found', code: 'NOT_FOUND' },
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -1191,22 +1168,112 @@ describe('/api/tournaments/[id]/ta', () => {
       (prisma.tTEntry.findUnique as jest.Mock).mockRejectedValue(new Error('DB error'));
 
       await taRoute.DELETE(
-        new NextRequest(
-          `http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`
-        ),
-        { params: Promise.resolve({ id: VALID_UUID }) }
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`),
+        { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
       const sharedLogger = loggerMock.createLogger();
       expect(sharedLogger.error).toHaveBeenCalledWith(
         'Failed to delete entry',
-        expect.objectContaining({ tournamentId: VALID_UUID })
+        expect.objectContaining({ tournamentId: VALID_UUID }),
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to delete entry', code: 'INTERNAL_ERROR' },
-        { status: 500 }
+        { status: 500 },
       );
     });
+  });
+});
+
+describe('PATCH /api/tournaments/[id]/ta handicaps', () => {
+  const { NextResponse } = jest.requireMock('next/server');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    configureNextResponseMock(NextResponse);
+    rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');
+    rateLimitMock.getUserAgent.mockReturnValue('test-agent');
+    (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
+    jest.mocked(auth).mockResolvedValue({
+      user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
+    });
+  });
+
+  async function patch(body: unknown) {
+    return taRoute.PATCH(
+      new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ id: VALID_UUID }) },
+    );
+  }
+
+  it('bulk-updates tournament-entry snapshots and audits old/new values', async () => {
+    const current = [
+      {
+        id: VALID_ENTRY_ID,
+        playerId: VALID_UUID2,
+        taHandicapSeconds: 0,
+        player: { id: VALID_UUID2, nickname: 'player' },
+      },
+    ];
+    const updated = [{ ...current[0], taHandicapSeconds: -3 }];
+    (prisma.tTEntry.findMany as jest.Mock).mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
+    (prisma.$executeRaw as jest.Mock).mockResolvedValue(1);
+    auditLogMock.createAuditLogs.mockResolvedValue(undefined);
+
+    await patch({
+      action: 'bulk_update_handicaps',
+      updates: [{ entryId: VALID_ENTRY_ID, taHandicapSeconds: -3 }],
+    });
+
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(auditLogMock.createAuditLogs).toHaveBeenCalledWith([
+      expect.objectContaining({
+        targetId: VALID_ENTRY_ID,
+        details: expect.objectContaining({
+          oldTaHandicapSeconds: 0,
+          newTaHandicapSeconds: -3,
+          source: 'manual',
+        }),
+      }),
+    ]);
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, data: { entries: updated } }),
+    );
+  });
+
+  it('locks handicap changes once a knockout entry exists', async () => {
+    (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValue({ id: 'phase3-entry' });
+
+    await patch({ action: 'update_handicap', entryId: VALID_ENTRY_ID, taHandicapSeconds: -1 });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, code: 'TA_HANDICAP_LOCKED' }),
+      { status: 409 },
+    );
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid handicap tiers and duplicate entry IDs', async () => {
+    await patch({ action: 'update_handicap', entryId: VALID_ENTRY_ID, taHandicapSeconds: -2 });
+    expect(NextResponse.json).toHaveBeenLastCalledWith(
+      expect.objectContaining({ success: false, code: 'VALIDATION_ERROR' }),
+      { status: 400 },
+    );
+
+    await patch({
+      action: 'bulk_update_handicaps',
+      updates: [
+        { entryId: VALID_ENTRY_ID, taHandicapSeconds: -1 },
+        { entryId: VALID_ENTRY_ID, taHandicapSeconds: -3 },
+      ],
+    });
+    expect(NextResponse.json).toHaveBeenLastCalledWith(
+      expect.objectContaining({ success: false, code: 'VALIDATION_ERROR' }),
+      { status: 400 },
+    );
   });
 });

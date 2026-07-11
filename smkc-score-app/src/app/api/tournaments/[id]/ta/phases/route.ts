@@ -16,7 +16,7 @@
  * to ensure proper test mocking per the project's mock architecture pattern.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
@@ -49,12 +49,19 @@ import { RETRY_PENALTY_MS } from '@/lib/constants';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { resolveAuditUserId } from '@/lib/audit-log';
 import { readTournamentArchive } from '@/lib/tournament-archive';
+import { buildPhase3RulesDto } from '@/lib/ta/phase-rules-dto';
+import { TA_HANDICAP_SECONDS } from '@/lib/ta/battle-royale';
+import { normalizeTaRoundResults } from '@/lib/ta/round-result';
+import type { ArchivedTaRules } from '@/lib/tournament-archive';
+import type { TaPhaseResponse } from '@/lib/ta/phase-api-types';
 
 function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
   return {
     ...round,
-    results: Array.isArray(round.results) ? round.results : [],
-    eliminatedIds: Array.isArray(round.eliminatedIds) ? round.eliminatedIds : [],
+    results: normalizeTaRoundResults(round.results),
+    eliminatedIds: Array.isArray(round.eliminatedIds)
+      ? round.eliminatedIds.filter((value): value is string => typeof value === 'string')
+      : [],
   };
 }
 
@@ -178,8 +185,8 @@ function getRoundResultPlayerIds(rounds: unknown[], phase: PhaseName) {
   return playerIds;
 }
 
-function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>) {
-  const livesByPlayer = new Map([...playerIds].map((playerId) => [playerId, 3]));
+function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>, rules: ArchivedTaRules) {
+  const livesByPlayer = new Map([...playerIds].map((playerId) => [playerId, rules.initialLives]));
   const eliminated = new Set<string>();
 
   const phase3Rounds = rounds
@@ -200,7 +207,7 @@ function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>) {
       for (const result of bottomHalf) {
         const playerId = (result as { playerId?: unknown }).playerId;
         if (typeof playerId !== 'string' || eliminated.has(playerId)) continue;
-        livesByPlayer.set(playerId, Math.max(0, (livesByPlayer.get(playerId) ?? 3) - 1));
+        livesByPlayer.set(playerId, Math.max(0, (livesByPlayer.get(playerId) ?? rules.initialLives) - 1));
       }
     }
 
@@ -215,7 +222,7 @@ function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>) {
 
     if ((round as { livesReset?: unknown }).livesReset === true) {
       for (const playerId of playerIds) {
-        if (!eliminated.has(playerId)) livesByPlayer.set(playerId, 3);
+        if (!eliminated.has(playerId)) livesByPlayer.set(playerId, rules.initialLives);
       }
     }
   }
@@ -223,7 +230,7 @@ function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>) {
   return { livesByPlayer, eliminated };
 }
 
-function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: PhaseName) {
+function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: PhaseName, rules: ArchivedTaRules) {
   const phaseEntries = entries.filter((entry) => (entry as { stage?: unknown }).stage === phase);
   if (phaseEntries.length > 0) return phaseEntries;
 
@@ -239,7 +246,7 @@ function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: P
   const livesByPlayer = new Map<string, number>();
 
   if (phase === 'phase3') {
-    const replay = replayArchivedPhase3Lives(rounds, playerIds);
+    const replay = replayArchivedPhase3Lives(rounds, playerIds, rules);
     replay.eliminated.forEach((playerId) => eliminated.add(playerId));
     replay.livesByPlayer.forEach((lives, playerId) => livesByPlayer.set(playerId, lives));
   } else {
@@ -260,7 +267,7 @@ function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: P
       id: `${String(source.id ?? playerId)}-${phase}`,
       playerId,
       stage: phase,
-      lives: phase === 'phase3' ? (livesByPlayer.get(playerId) ?? 3) : 0,
+      lives: phase === 'phase3' ? (livesByPlayer.get(playerId) ?? rules.initialLives) : 0,
       eliminated: eliminated.has(playerId),
       player: source.player ?? { id: playerId, name: playerId, nickname: playerId },
     };
@@ -273,10 +280,27 @@ async function getArchivedPhaseResponse(id: string, phase?: PhaseName) {
 
   const entries = archive.modes.ta.entries ?? [];
   const rounds = archive.modes.ta.phaseRounds ?? [];
-  const phase1Entries = getArchivedPhaseEntries(entries, rounds, 'phase1');
-  const phase2Entries = getArchivedPhaseEntries(entries, rounds, 'phase2');
-  const phase3Entries = getArchivedPhaseEntries(entries, rounds, 'phase3');
+  const storedRules = archive.modes.ta.rules;
+  const fallback = buildPhase3RulesDto(false).phase3Rules;
+  const rules: ArchivedTaRules = storedRules ?? {
+    mode: 'standard',
+    ...fallback,
+    allowedHandicapSeconds: [...TA_HANDICAP_SECONDS],
+    retryAppliesHandicap: false,
+  };
+  const phase1Entries = getArchivedPhaseEntries(entries, rounds, 'phase1', rules);
+  const phase2Entries = getArchivedPhaseEntries(entries, rounds, 'phase2', rules);
+  const phase3Entries = getArchivedPhaseEntries(entries, rounds, 'phase3', rules);
   const response: Record<string, unknown> = {
+    taMode: rules.mode,
+    taBattleRoyaleMode: rules.mode === 'battle_royale',
+    phase3Rules: {
+      initialLives: rules.initialLives,
+      lifeResetThresholds: [...rules.lifeResetThresholds],
+      survivorsNeeded: rules.survivorsNeeded,
+      handicapEnabled: rules.handicapEnabled,
+      retryAppliesHandicap: rules.retryAppliesHandicap,
+    },
     phaseStatus: {
       phase1: summarizeArchivedPhase(phase1Entries, 'phase1'),
       phase2: summarizeArchivedPhase(phase2Entries, 'phase2'),
@@ -463,7 +487,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         }),
     });
 
-    const response: Record<string, unknown> = { phaseStatus };
+    const response: TaPhaseResponse = {
+      phaseStatus,
+      ...buildPhase3RulesDto(tournament.taBattleRoyaleMode === true),
+    };
 
     if (phase?.success) {
       const phaseValue = phase.data;
@@ -624,6 +651,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (action === 'promote_phase3') {
+      if (tournament.taBattleRoyaleMode) {
+        const participantCount = await prisma.tTEntry.count({
+          where: { tournamentId, stage: 'qualification' },
+        });
+        if (participantCount < 2) {
+          return createErrorResponse(
+            'At least two players are required for TA battle royale',
+            400,
+            'MINIMUM_PARTICIPANTS',
+          );
+        }
+      }
       const result = await promoteToPhase3(prisma, context);
       return createSuccessResponse(result);
     }

@@ -74,6 +74,11 @@ import { useBroadcastReflect } from '@/lib/hooks/use-broadcast-reflect';
 import { CourseCycleStatusPanel } from '@/components/tournament/course-cycle-status-panel';
 import { RoundCorrectionControls } from '@/components/tournament/round-correction-controls';
 import { TASuddenDeathSection, useTaSuddenDeath } from '@/components/tournament/ta-sudden-death-panel';
+import { TaHandicapBadge } from '@/components/tournament/ta-handicap-badge';
+import { TaLivesIndicator } from '@/components/tournament/ta-lives-indicator';
+import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
+import { buildTaRoundPreview, type TaRoundPreviewRow } from '@/lib/ta/round-preview';
+import type { Phase3RulesDto, TaMode } from '@/lib/ta/phase-api-types';
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
 
@@ -87,6 +92,7 @@ interface TTEntry {
   times: Record<string, string> | null;
   totalTime: number | null;
   rank: number | null;
+  taHandicapSeconds: number;
   player: Player;
 }
 
@@ -97,7 +103,14 @@ interface PhaseRound {
   roundNumber: number;
   course: string;
   tvNumber?: number | null;
-  results: Array<{ playerId: string; timeMs: number; isRetry: boolean }>;
+  results: Array<{
+    playerId: string;
+    timeMs: number;
+    rawTimeMs?: number;
+    handicapSeconds?: number;
+    isRetry: boolean;
+    tvNumber?: number | null;
+  }>;
   eliminatedIds: string[] | null;
   livesReset: boolean;
   manualOverride: boolean;
@@ -110,26 +123,6 @@ interface PhaseRound {
     resolved: boolean;
   }>;
   createdAt: string;
-}
-
-/**
- * Render visual lives indicator with heart icons.
- * Hearts turn red when only 1 life remains (danger state).
- * eliminatedLabel is a translated string passed from the component to avoid i18n hooks at module scope.
- */
-function renderLives(lives: number, eliminated: boolean, eliminatedLabel: string) {
-  if (eliminated) {
-    return <span className="text-gray-400">{eliminatedLabel}</span>;
-  }
-  const hearts = [];
-  for (let i = 0; i < lives; i++) {
-    hearts.push(
-      <span key={i} className={lives === 1 ? 'text-red-500' : 'text-red-400'}>
-        &#10084;&#65039;
-      </span>,
-    );
-  }
-  return <span>{hearts}</span>;
 }
 
 export default function TimeAttackFinals({ params }: { params: Promise<{ id: string }> }) {
@@ -204,6 +197,20 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   /** Whether the round history section is expanded. Defaults to collapsed
    *  to keep the focus on the active round and standings. */
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [taMode, setTaMode] = useState<TaMode>('standard');
+  const [phase3Rules, setPhase3Rules] = useState<Phase3RulesDto>({
+    initialLives: 3,
+    lifeResetThresholds: [8, 4, 2],
+    survivorsNeeded: 1,
+    handicapEnabled: false,
+    retryAppliesHandicap: false,
+  });
+  const [archived, setArchived] = useState(false);
+  const [pendingSubmitResults, setPendingSubmitResults] = useState<
+    Array<{ playerId: string; timeMs: number; isRetry?: boolean; tvNumber?: number }>
+  >([]);
+  const [submitPreview, setSubmitPreview] = useState<TaRoundPreviewRow[]>([]);
+  const [submitPreviewOpen, setSubmitPreviewOpen] = useState(false);
 
   // === Data Fetching ===
   const fetchData = useCallback(async () => {
@@ -218,6 +225,11 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, rounds, ... } }
       const data = json.data ?? json;
+      setTaMode(data.taMode === 'battle_royale' ? 'battle_royale' : 'standard');
+      if (data.phase3Rules) {
+        setPhase3Rules(data.phase3Rules as Phase3RulesDto);
+      }
+      setArchived(data.archived === true);
       const fetchedEntries: TTEntry[] = data.entries || [];
       const fetchedRounds: PhaseRound[] = data.rounds || [];
       setEntries(fetchedEntries);
@@ -524,51 +536,62 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
    * - Elimination of players at 0 lives
    * - Life reset at thresholds (8, 4, 2 players)
    */
-  const handleSubmitResults = async () => {
+  const handleSubmitResults = () => {
     if (!currentRound) return;
-    setSubmitting(true);
     setSaveError(null);
 
-    try {
-      const activeEntries = entries.filter((e) => !e.eliminated);
-      const results: Array<{
-        playerId: string;
-        timeMs: number;
-        isRetry?: boolean;
-      }> = [];
+    const activeRoundEntries = entries.filter((entry) => !entry.eliminated);
+    const results: Array<{ playerId: string; timeMs: number; isRetry?: boolean; tvNumber?: number }> = [];
+    const rawTimesByPlayer: Record<string, number> = {};
 
-      for (const entry of activeEntries) {
-        const isRetry = retryFlags[entry.playerId];
-        const tvNumber = tvAssignments[entry.playerId] ?? null;
-        if (isRetry) {
-          results.push({
-            playerId: entry.playerId,
-            timeMs: RETRY_PENALTY_MS,
-            isRetry: true,
-            ...(tvNumber !== null ? { tvNumber } : {}),
-          });
-        } else {
-          const timeStr = courseTimes[entry.playerId] || '';
-          const timeMs = timeToMs(timeStr);
-          if (timeMs === null) {
-            setSaveError(tTaFinals('invalidTimeFor', { name: entry.player.nickname }));
-            setSubmitting(false);
-            return;
-          }
-          results.push({
-            playerId: entry.playerId,
-            timeMs,
-            ...(tvNumber !== null ? { tvNumber } : {}),
-          });
-        }
-      }
-
-      if (results.length < 2) {
-        setSaveError(tTaFinals('needAtLeast2Players'));
-        setSubmitting(false);
+    for (const entry of activeRoundEntries) {
+      const isRetry = retryFlags[entry.playerId] === true;
+      const tvNumber = tvAssignments[entry.playerId] ?? null;
+      const timeMs = isRetry ? RETRY_PENALTY_MS : timeToMs(courseTimes[entry.playerId] || '');
+      if (timeMs === null) {
+        setSaveError(tTaFinals('invalidTimeFor', { name: entry.player.nickname }));
         return;
       }
+      rawTimesByPlayer[entry.playerId] = timeMs;
+      results.push({
+        playerId: entry.playerId,
+        timeMs,
+        ...(isRetry ? { isRetry: true } : {}),
+        ...(tvNumber !== null ? { tvNumber } : {}),
+      });
+    }
 
+    if (results.length < 2) {
+      setSaveError(tTaFinals('needAtLeast2Players'));
+      return;
+    }
+
+    try {
+      setSubmitPreview(
+        buildTaRoundPreview(
+          activeRoundEntries.map((entry) => ({
+            playerId: entry.playerId,
+            playerName: entry.player.nickname,
+            taHandicapSeconds: entry.taHandicapSeconds,
+            lives: entry.lives,
+          })),
+          rawTimesByPlayer,
+          retryFlags,
+          taMode,
+        ),
+      );
+      setPendingSubmitResults(results);
+      setSubmitPreviewOpen(true);
+    } catch (previewError) {
+      setSaveError(previewError instanceof Error ? previewError.message : tTaFinals('previewError'));
+    }
+  };
+
+  const confirmSubmitResults = async () => {
+    if (!currentRound || pendingSubmitResults.length < 2) return;
+    setSubmitting(true);
+    setSaveError(null);
+    try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -576,37 +599,31 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
           action: 'submit_results',
           phase: 'phase3',
           roundNumber: currentRound.roundNumber,
-          results,
+          results: pendingSubmitResults,
         }),
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to submit results');
       }
       const json = await response.json();
       const data = json.data ?? json;
-      if (data.tieBreakRequired) {
-        setCurrentRound(null);
-        setCourseTimes({});
-        setRetryFlags({});
-        setTvAssignments({});
-        resetBroadcastStatus();
-        setIsEditing(false);
-        fetchData();
-        return;
-      }
-
+      setSubmitPreviewOpen(false);
+      setPendingSubmitResults([]);
+      setSubmitPreview([]);
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
       setTvAssignments({});
       resetBroadcastStatus();
       setIsEditing(false);
-      fetchData();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to submit results';
-      setSaveError(errorMessage);
+      if (data.tieBreakRequired) {
+        await fetchData();
+        return;
+      }
+      await fetchData();
+    } catch (submitError) {
+      setSaveError(submitError instanceof Error ? submitError.message : 'Failed to submit results');
     } finally {
       setSubmitting(false);
     }
@@ -740,6 +757,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   // is complete (champion decided) — the latter lets an admin fix a mistake in
   // the final round without a full phase reset. Buttons render only when at
   // least one round has been submitted; dialogs are rendered once at top level.
+  const canManage = Boolean(isAdmin) && !archived;
+
   const roundCorrectionControls =
     completedRoundsCount > 0 ? (
       <RoundCorrectionControls
@@ -761,8 +780,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">{tTaFinals('phase3Title')}</h1>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold">{tTaFinals('phase3Title')}</h1>
+            <TaModeBadge mode={taMode} verbose />
+            {archived && <Badge variant="outline">{tTaFinals('archivedBadge')}</Badge>}
+          </div>
           <p className="text-muted-foreground text-sm sm:text-base">
             {isComplete
               ? tFinals('tournamentComplete')
@@ -773,6 +796,22 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
           <a href={`/tournaments/${tournamentId}/ta`}>{tFinals('backToQualification')}</a>
         </Button>
       </div>
+
+      <Card>
+        <CardContent className="grid gap-2 py-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <span className="text-muted-foreground">{tTaFinals('initialLivesRule')}</span>{' '}
+            <strong>{phase3Rules.initialLives}</strong>
+          </div>
+          <div>
+            {taMode === 'battle_royale'
+              ? tTaFinals('noLifeResetRule')
+              : tTaFinals('resetThresholdRule', { thresholds: phase3Rules.lifeResetThresholds.join('/') })}
+          </div>
+          <div>{tTaFinals('bottomHalfLifeLossRule')}</div>
+          <div>{phase3Rules.handicapEnabled ? tTaFinals('handicapRule') : tTaFinals('noHandicapRule')}</div>
+        </CardContent>
+      </Card>
 
       {/* Champion Banner */}
       {isComplete && activeEntries.length === 1 && (
@@ -802,7 +841,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
 
       {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
-        isAdmin={Boolean(isAdmin)}
+        isAdmin={canManage}
         isComplete={isComplete}
         pendingSuddenDeath={pendingSuddenDeath}
         pendingSuddenDeathEntries={pendingSuddenDeathEntries}
@@ -821,7 +860,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         onSubmit={handleSubmitSuddenDeath}
       />
 
-      {isAdmin &&
+      {canManage &&
         !isComplete &&
         !pendingSuddenDeath &&
         (currentRound ? (
@@ -848,7 +887,14 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                     key={entry.id}
                     playerId={entry.playerId}
                     playerName={entry.player.nickname}
-                    livesLabel={renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
+                    livesLabel={
+                      <TaLivesIndicator
+                        lives={entry.lives}
+                        maxLives={phase3Rules.initialLives}
+                        eliminated={entry.eliminated}
+                        eliminatedLabel={tTaFinals('eliminated')}
+                      />
+                    }
                     tvNumber={tvAssignments[entry.playerId] ?? null}
                     tvLabel={`${tCommon('tvNumber')} ${entry.player.nickname}`}
                     timeValue={courseTimes[entry.playerId] || ''}
@@ -898,7 +944,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                 )}
               </div>
               {/* Debug mode: Fill random times for all active players (admin + debugMode only) */}
-              {isAdmin && isDebugMode && (
+              {canManage && isDebugMode && (
                 <div className="mt-4">
                   <Button
                     onClick={handleFillRandomTimes}
@@ -1027,7 +1073,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
           round must still be fixable without resetting the whole phase
           (reported issue). Undoing restores the eliminated player, reopening
           the phase and bringing back the normal controls. */}
-      {isAdmin && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && (
+      {canManage && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && (
         <Card className="border-amber-400">
           <CardHeader>
             <CardTitle>{tTaFinals('correctFinalRoundTitle')}</CardTitle>
@@ -1054,9 +1100,10 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
               <TableRow>
                 <TableHead className="w-16">#</TableHead>
                 <TableHead>{tCommon('player')}</TableHead>
+                {phase3Rules.handicapEnabled && <TableHead>{tTaFinals('handicap')}</TableHead>}
                 <TableHead className="text-center">{tTaFinals('lives')}</TableHead>
                 {/* Actions column: admin-only (manual elimination) */}
-                {isAdmin && <TableHead className="text-right">{tCommon('actions')}</TableHead>}
+                {canManage && <TableHead className="text-right">{tCommon('actions')}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1071,11 +1118,21 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                       </Badge>
                     )}
                   </TableCell>
+                  {phase3Rules.handicapEnabled && (
+                    <TableCell>
+                      <TaHandicapBadge value={entry.taHandicapSeconds} />
+                    </TableCell>
+                  )}
                   <TableCell className="text-center">
-                    {renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
+                    <TaLivesIndicator
+                      lives={entry.lives}
+                      maxLives={phase3Rules.initialLives}
+                      eliminated={entry.eliminated}
+                      eliminatedLabel={tTaFinals('eliminated')}
+                    />
                   </TableCell>
                   {/* Admin-only: manual elimination button */}
-                  {isAdmin && (
+                  {canManage && (
                     <TableCell className="text-right">
                       {!entry.eliminated && (
                         <Button
@@ -1178,7 +1235,19 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                                   {isBottomHalf && !isEliminated && ` ${tTaFinals('minusOneLife')}`}
                                   {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
                                 </span>
-                                <span className="font-mono">{msToDisplayTime(result.timeMs)}</span>
+                                <span className="text-right font-mono tabular-nums">
+                                  {phase3Rules.handicapEnabled ? (
+                                    <span className="flex flex-col">
+                                      <strong>{msToDisplayTime(result.timeMs)}</strong>
+                                      <span className="text-xs text-muted-foreground">
+                                        {tTaFinals('rawTimeShort')} {msToDisplayTime(result.rawTimeMs ?? result.timeMs)}{' '}
+                                        / {result.handicapSeconds ?? 0}s
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    msToDisplayTime(result.timeMs)
+                                  )}
+                                </span>
                               </div>
                             );
                           })}
@@ -1214,8 +1283,57 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         )}
       </Card>
 
+      <Dialog open={submitPreviewOpen} onOpenChange={(open) => !submitting && setSubmitPreviewOpen(open)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{tTaFinals('reviewBeforeSubmit')}</DialogTitle>
+            <DialogDescription>{tTaFinals('previewDescription')}</DialogDescription>
+          </DialogHeader>
+          {saveError && (
+            <p className="text-sm text-destructive" role="alert">
+              {saveError}
+            </p>
+          )}
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+            {submitPreview.map((row) => (
+              <div
+                key={row.playerId}
+                className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md border p-3 text-sm"
+              >
+                <strong>{row.projectedRank}</strong>
+                <div>
+                  <div className="font-medium">{row.playerName}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {tTaFinals('rawTimeShort')} {msToDisplayTime(row.rawTimeMs)} / {row.handicapSeconds}s
+                    {row.isRetry ? ` / ${tTaFinals('retryNoHandicap')}` : ''}
+                  </div>
+                </div>
+                <div className="text-right font-mono tabular-nums">
+                  <strong>{msToDisplayTime(row.adjustedTimeMs)}</strong>
+                  <div className="text-xs text-muted-foreground">
+                    {row.boundaryTie
+                      ? tTaFinals('mayRequireSuddenDeath')
+                      : row.projectedLifeLoss
+                        ? tTaFinals('projectedLifeLoss')
+                        : tTaFinals('projectedSafe')}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmitPreviewOpen(false)} disabled={submitting}>
+              {tTaFinals('backToEdit')}
+            </Button>
+            <Button onClick={confirmSubmitResults} disabled={submitting}>
+              {submitting ? tCommon('saving') : tTaFinals('confirmResults')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Manual Elimination Confirmation Dialog: admin-only */}
-      {isAdmin && (
+      {canManage && (
         <AlertDialog open={isEliminateDialogOpen} onOpenChange={setIsEliminateDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
