@@ -1,9 +1,12 @@
 name: D1 Migrate
 
 on:
-  # Production deploys run migrations in the Cloudflare Workers deploy command
-  # (`npm run deploy:cf`). Keep this workflow manual for emergency replays so
-  # GitHub Actions and Cloudflare Builds cannot race on the same D1 migration.
+  # Temporary push trigger for the emergency replay on 2026-07-11.
+  # Restore this file to workflow_dispatch-only after the run completes.
+  push:
+    branches: [ops/apply-missing-d1-migrations]
+    paths:
+      - ".github/workflows/d1-migrate.yml"
   workflow_dispatch:
 
 concurrency:
