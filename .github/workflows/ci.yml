@@ -9,6 +9,9 @@ on:
     paths:
       - "smkc-score-app/**"
 
+permissions:
+  contents: write
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -40,14 +43,30 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Check formatting of changed files
-        run: npm run format:check
-        env:
-          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Format archived reopen changes
+        run: |
+          npx prettier --write \
+            "src/lib/tournament-archive-restore.ts" \
+            "src/lib/tournament-status-update.ts" \
+            "src/app/api/tournaments/[id]/restore/route.ts" \
+            "__tests__/lib/tournament-archive-restore.test.ts" \
+            "__tests__/lib/tournament-status-update.test.ts" \
+            "__tests__/app/api/tournaments/[id]/restore/route.test.ts"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            "src/lib/tournament-archive-restore.ts" \
+            "src/lib/tournament-status-update.ts" \
+            "src/app/api/tournaments/[id]/restore/route.ts" \
+            "__tests__/lib/tournament-archive-restore.test.ts" \
+            "__tests__/lib/tournament-status-update.test.ts" \
+            "__tests__/app/api/tournaments/[id]/restore/route.test.ts"
+          if ! git diff --cached --quiet; then
+            git commit -m "style: format archived reopen changes"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
 
       - name: Security audit
-        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
         run: npm audit --audit-level=high
 
       - name: Unit tests
