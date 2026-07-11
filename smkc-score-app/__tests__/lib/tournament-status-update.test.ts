@@ -43,13 +43,15 @@ describe('tournament status updates', () => {
 
   it('restores an archived-only tournament when the ordinary reopen PUT returns 404', async () => {
     const restored = { id: 'archived-1', status: 'active', publicModes: [] };
-    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
-      responseWithUrl(
-        { success: true, data: restored },
-        200,
-        'https://example.test/api/tournaments/archived-1/restore',
-      ),
-    );
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        responseWithUrl(
+          { success: true, data: restored },
+          200,
+          'https://example.test/api/tournaments/archived-1/restore',
+        ),
+      );
     const response = responseWithUrl(
       { success: false, error: 'Tournament not found' },
       404,
@@ -61,13 +63,15 @@ describe('tournament status updates', () => {
   });
 
   it('surfaces a restore error when an archived-only tournament cannot be rebuilt', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValue(
-      responseWithUrl(
-        { success: false, error: 'Failed to restore tournament archive' },
-        500,
-        'https://example.test/api/tournaments/archived-1/restore',
-      ),
-    );
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        responseWithUrl(
+          { success: false, error: 'Failed to restore tournament archive' },
+          500,
+          'https://example.test/api/tournaments/archived-1/restore',
+        ),
+      );
     const response = responseWithUrl(
       { success: false, error: 'Tournament not found' },
       404,

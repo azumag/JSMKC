@@ -197,9 +197,7 @@ describe('restoreTournamentArchiveForReopen', () => {
       select: { id: true },
     });
     expect(prisma.bMQualification.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.not.objectContaining({ player: expect.anything(), _rank: expect.anything() }),
-      ],
+      data: [expect.not.objectContaining({ player: expect.anything(), _rank: expect.anything() })],
     });
     expect(prisma.bMMatch.createMany).toHaveBeenCalledWith({
       data: [expect.not.objectContaining({ player1: expect.anything(), player2: expect.anything() })],

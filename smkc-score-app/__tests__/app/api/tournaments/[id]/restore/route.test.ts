@@ -50,10 +50,9 @@ describe('POST /api/tournaments/[id]/restore', () => {
       params: Promise.resolve({ id: 'missing' }),
     });
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'NOT_FOUND' }),
-      { status: 404 },
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'NOT_FOUND' }), {
+      status: 404,
+    });
   });
 
   it('rejects non-admin callers', async () => {

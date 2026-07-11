@@ -50,7 +50,7 @@ function normalizeDateFields(record: ArchivedRecord): ArchivedRecord {
 }
 
 function remapPlayerId(value: unknown, playerIds: Map<string, string>): unknown {
-  return typeof value === 'string' ? playerIds.get(value) ?? value : value;
+  return typeof value === 'string' ? (playerIds.get(value) ?? value) : value;
 }
 
 function remapPlayerIdsDeep(value: unknown, playerIds: Map<string, string>): unknown {
