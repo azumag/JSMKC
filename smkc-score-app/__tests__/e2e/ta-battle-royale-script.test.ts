@@ -30,4 +30,11 @@ describe('TA battle royale E2E wiring', () => {
     expect(suite).toContain('Review Before Submit|送信前確認|補正後タイム順');
     expect(suite).toContain('/Confirm results|結果を確定/');
   });
+  it('keeps archived TA finals read-only for administrators', () => {
+    const page = read('src/app/tournaments/[id]/ta/finals/page.tsx');
+    expect(page).toContain('const canManage = Boolean(isAdmin) && !archived;');
+    expect(page).toContain('isAdmin={canManage}');
+    expect(page).not.toContain('isAdmin &&');
+  });
+
 });

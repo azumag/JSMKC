@@ -757,6 +757,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   // is complete (champion decided) — the latter lets an admin fix a mistake in
   // the final round without a full phase reset. Buttons render only when at
   // least one round has been submitted; dialogs are rendered once at top level.
+  const canManage = Boolean(isAdmin) && !archived;
+
   const roundCorrectionControls =
     completedRoundsCount > 0 ? (
       <RoundCorrectionControls
@@ -839,7 +841,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
 
       {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
-        isAdmin={Boolean(isAdmin)}
+        isAdmin={canManage}
         isComplete={isComplete}
         pendingSuddenDeath={pendingSuddenDeath}
         pendingSuddenDeathEntries={pendingSuddenDeathEntries}
@@ -858,7 +860,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         onSubmit={handleSubmitSuddenDeath}
       />
 
-      {isAdmin &&
+      {canManage &&
         !isComplete &&
         !pendingSuddenDeath &&
         (currentRound ? (
@@ -942,7 +944,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                 )}
               </div>
               {/* Debug mode: Fill random times for all active players (admin + debugMode only) */}
-              {isAdmin && isDebugMode && (
+              {canManage && isDebugMode && (
                 <div className="mt-4">
                   <Button
                     onClick={handleFillRandomTimes}
@@ -1071,7 +1073,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
           round must still be fixable without resetting the whole phase
           (reported issue). Undoing restores the eliminated player, reopening
           the phase and bringing back the normal controls. */}
-      {isAdmin && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && (
+      {canManage && isComplete && !pendingSuddenDeath && completedRoundsCount > 0 && (
         <Card className="border-amber-400">
           <CardHeader>
             <CardTitle>{tTaFinals('correctFinalRoundTitle')}</CardTitle>
@@ -1101,7 +1103,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                 {phase3Rules.handicapEnabled && <TableHead>{tTaFinals('handicap')}</TableHead>}
                 <TableHead className="text-center">{tTaFinals('lives')}</TableHead>
                 {/* Actions column: admin-only (manual elimination) */}
-                {isAdmin && <TableHead className="text-right">{tCommon('actions')}</TableHead>}
+                {canManage && <TableHead className="text-right">{tCommon('actions')}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1130,7 +1132,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                     />
                   </TableCell>
                   {/* Admin-only: manual elimination button */}
-                  {isAdmin && (
+                  {canManage && (
                     <TableCell className="text-right">
                       {!entry.eliminated && (
                         <Button
@@ -1331,7 +1333,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       </Dialog>
 
       {/* Manual Elimination Confirmation Dialog: admin-only */}
-      {isAdmin && (
+      {canManage && (
         <AlertDialog open={isEliminateDialogOpen} onOpenChange={setIsEliminateDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
