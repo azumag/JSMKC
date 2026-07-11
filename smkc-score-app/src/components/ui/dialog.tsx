@@ -15,23 +15,21 @@
  * part of the dialog (trigger, overlay, content, header, footer, etc.)
  * while maintaining consistent styling and accessibility behavior.
  */
-"use client"
+'use client';
 
-import * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { XIcon } from "lucide-react"
+import * as React from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { XIcon } from 'lucide-react';
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils';
 
 /**
  * Dialog root component.
  * Manages open/closed state and provides context to child components.
  * Can be controlled (open + onOpenChange props) or uncontrolled.
  */
-function Dialog({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
 /**
@@ -39,10 +37,8 @@ function Dialog({
  * The element that opens the dialog when clicked.
  * Radix automatically handles aria-haspopup and aria-expanded attributes.
  */
-function DialogTrigger({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
 /**
@@ -50,10 +46,8 @@ function DialogTrigger({
  * Renders dialog content into a React portal (document.body by default)
  * to avoid z-index and overflow issues from parent containers.
  */
-function DialogPortal({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
 /**
@@ -61,10 +55,8 @@ function DialogPortal({
  * A button that closes the dialog when clicked.
  * Can be placed anywhere inside the dialog content.
  */
-function DialogClose({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.Close>) {
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
 /**
@@ -74,22 +66,19 @@ function DialogClose({
  * Fixed positioning with inset-0 covers the entire viewport.
  * z-50 ensures it renders above all other content.
  */
-function DialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
         // paddock-overlay supplies the blur + scanline texture; the
         // animate-in/out classes layer Tailwind's tw-animate-css fade on top.
-        "paddock-overlay data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50",
-        className
+        'paddock-overlay data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50',
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 /**
@@ -111,7 +100,7 @@ function DialogContent({
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
+  showCloseButton?: boolean;
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -124,16 +113,16 @@ function DialogContent({
           // pt-9 leaves room under the 6px top stripe so the title doesn't
           // crowd the checker band. Bounding every dialog to the viewport here
           // prevents long forms from hiding their action buttons off-screen.
-          "paddock-modal fixed top-[50%] left-[50%] z-50 grid max-h-[90vh] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 overflow-y-auto px-6 pt-9 pb-6 outline-none sm:max-w-lg",
+          'paddock-modal fixed top-[50%] left-[50%] z-50 grid max-h-[90vh] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 overflow-y-auto px-6 pt-9 pb-6 outline-none sm:max-w-lg',
           // Use Radix's data-state-driven animations (via tw-animate-css) for
           // both open and close. A custom keyframe with `fill-mode: both`
           // would lock the dialog at its 0% frame (opacity:0, translated up)
           // if the animation failed to start, so the dialog could become
           // permanently invisible -- happened on the first ship and broke
           // every modal in production.
-          "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-4 data-[state=open]:duration-200",
-          "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150",
-          className
+          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-4 data-[state=open]:duration-200',
+          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150',
+          className,
         )}
         {...props}
       >
@@ -156,7 +145,7 @@ function DialogContent({
         )}
       </DialogPrimitive.Content>
     </DialogPortal>
-  )
+  );
 }
 
 /**
@@ -164,7 +153,7 @@ function DialogContent({
  * Provides consistent vertical spacing and text alignment for the
  * dialog title and description. Centered on mobile, left-aligned on sm+.
  */
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
@@ -172,12 +161,12 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
         // The header sits below the 6px top stripe; a thin checker hairline
         // under the title block reinforces the briefing-slip feel without
         // adding another DOM node.
-        "flex flex-col gap-1.5 pb-3 text-center sm:text-left border-b border-dashed border-foreground/15",
-        className
+        'flex flex-col gap-1.5 pb-3 text-center sm:text-left border-b border-dashed border-foreground/15',
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 /**
@@ -187,17 +176,14 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
  * The reverse order on mobile puts the primary action at the bottom,
  * which is the natural thumb reach area on mobile devices.
  */
-function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
-        className
-      )}
+      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
       {...props}
     />
-  )
+  );
 }
 
 /**
@@ -205,23 +191,17 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
  * Uses Radix's Title primitive which automatically sets aria-labelledby
  * on the dialog content for screen reader accessibility.
  */
-function DialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Title>) {
+function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
       // Display type (Anton, uppercase) elevates the title to FIA-bulletin
       // level without making the rest of the app heavy. Tracking is opened
       // up slightly for legibility at this size.
-      className={cn(
-        "font-display text-2xl leading-[0.95] tracking-[0.04em] text-foreground",
-        className
-      )}
+      className={cn('font-display text-2xl leading-[0.95] tracking-[0.04em] text-foreground', className)}
       {...props}
     />
-  )
+  );
 }
 
 /**
@@ -230,10 +210,7 @@ function DialogTitle({
  * aria-describedby on the dialog content for screen reader accessibility.
  * Styled with muted color and smaller text for visual hierarchy.
  */
-function DialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
@@ -242,13 +219,10 @@ function DialogDescription({
       // descriptions in Japanese fall back to system mono; uppercase is a
       // no-op on JP and 0.08em tracking visibly breaks JP kerning, so we
       // keep the styling readable in both languages.
-      className={cn(
-        "font-mono text-xs text-muted-foreground",
-        className
-      )}
+      className={cn('font-mono text-xs text-muted-foreground', className)}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -262,4 +236,4 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
-}
+};
