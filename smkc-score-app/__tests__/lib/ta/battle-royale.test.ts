@@ -1,10 +1,30 @@
-import { applyTaHandicap, getTaPhase3Rules, isTaHandicapSeconds, TA_HANDICAP_SECONDS } from '@/lib/ta/battle-royale';
+import {
+  applyTaHandicap,
+  getTaPhase3Rules,
+  isTaHandicapSeconds,
+  normalizeTaHandicapSeconds,
+  TA_HANDICAP_SECONDS,
+} from '@/lib/ta/battle-royale';
 
 describe('TA battle royale rules', () => {
   it('accepts only the four tournament handicap tiers', () => {
     expect(TA_HANDICAP_SECONDS).toEqual([0, -1, -3, -5]);
     for (const value of TA_HANDICAP_SECONDS) expect(isTaHandicapSeconds(value)).toBe(true);
     for (const value of [1, -2, -4, -6, '0', null]) expect(isTaHandicapSeconds(value)).toBe(false);
+  });
+
+  it.each([
+    [0, 0],
+    [-1, -1],
+    [-3, -3],
+    [-5, -5],
+    [1, 0],
+    [-2, 0],
+    ['-1', 0],
+    [null, 0],
+    [undefined, 0],
+  ])('normalizes %p to %p', (value, expected) => {
+    expect(normalizeTaHandicapSeconds(value)).toBe(expected);
   });
 
   it('subtracts the handicap from a raw course time without going below zero', () => {

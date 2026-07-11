@@ -141,4 +141,16 @@ describe('Prisma migration compatibility', () => {
       expect(wranglerMigration).toContain(column);
     }
   });
+
+  it('keeps TTEntry TA handicap schema and Prisma/Wrangler migrations aligned', () => {
+    const schema = fs.readFileSync(path.join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+    const prismaMigration = readMigration('0022_add_tt_entry_ta_handicap', 'migration.sql').trim();
+    const wranglerMigration = readWranglerMigration('0041_add_tt_entry_ta_handicap.sql').trim();
+    const expectedColumn = 'ADD COLUMN "taHandicapSeconds" INTEGER NOT NULL DEFAULT 0;';
+
+    expect(schema).toContain('taHandicapSeconds   Int        @default(0)');
+    expect(prismaMigration).toContain('ALTER TABLE "TTEntry"');
+    expect(prismaMigration).toContain(expectedColumn);
+    expect(wranglerMigration).toBe(prismaMigration);
+  });
 });
