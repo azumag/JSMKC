@@ -42,6 +42,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const tournament = await resolveTournament(id, {
       id: true,
+      status: true,
       taBattleRoyaleMode: true,
     });
     if (!tournament) {
@@ -49,6 +50,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (!tournament.taBattleRoyaleMode) {
       return createErrorResponse('Tournament is not configured for TA battle royale', 400, 'INVALID_TA_MODE');
+    }
+    if (tournament.status !== 'draft') {
+      return createErrorResponse('Tournament must be in draft status', 409, 'TOURNAMENT_NOT_DRAFT');
     }
 
     const parsed = StartBattleRoyaleSchema.safeParse(sanitizeInput(await request.json()));
