@@ -2,21 +2,19 @@
  * E2E TA battle royale follow-up coverage.
  *
  * Coverage:
- *   TC-TA-BR-01  BR mode/rules are exposed and mode changes lock after registration.
- *   TC-TA-BR-02  Tournament-entry handicap snapshots persist into Phase 3.
+ *   TC-TA-BR-01  BR starts directly in Phase 3 and mode changes lock after start.
+ *   TC-TA-BR-02  Selected handicap snapshots are stored on Phase 3 entries.
  *   TC-TA-BR-03  Adjusted time decides life loss; history keeps raw/handicap/adjusted fields.
- *   TC-TA-BR-04  Finals UI shows the mode badge, compact 10-life state, and preview flow.
+ *   TC-TA-BR-04  TA-only navigation, direct finals redirect, compact lives, and preview flow.
  *   TC-TA-BR-05  Archive v2 and archived phases API preserve the same BR rules/results.
  *
  * Run: node e2e/tc-ta-battle-royale.js
  */
 const {
-  apiAddTaEntries,
   apiCreatePlayer,
   apiCreateTournament,
   apiDeletePlayer,
   apiDeleteTournament,
-  apiFetchTa,
   apiFetchTaPhase,
   apiJson,
   apiPostTaPhase,
@@ -76,7 +74,7 @@ async function submitPhase3ResultsWithPreview(page, tournamentId, results) {
 
 async function setup(adminPage) {
   const stamp = Date.now();
-  for (let index = 1; index <= 6; index++) {
+  for (let index = 1; index <= 6; index += 1) {
     players.push(await apiCreatePlayer(adminPage, `TA BR Player ${index}`, `ta_br_${stamp}_${index}`));
   }
 
@@ -84,58 +82,51 @@ async function setup(adminPage) {
     taBattleRoyaleMode: true,
     taPlayerSelfEdit: false,
   });
-  const add = await apiAddTaEntries(adminPage, tournamentId, {
-    playerEntries: players.map((player, index) => ({ playerId: player.id, seeding: index + 1 })),
-  });
-  pass(add.s === 201, `registration failed (${add.s})`);
-
-  const qualification = await apiFetchTa(adminPage, tournamentId);
-  entries = qualification.b?.data?.entries ?? [];
-  pass(entries.length === 6, `expected 6 qualification entries, got ${entries.length}`);
 
   const handicaps = [0, -1, -3, -5, -3, -1];
-  handicapByPlayerId = new Map(entries.map((entry, index) => [entry.playerId, handicaps[index]]));
-  const patch = await apiJson(adminPage, `/api/tournaments/${tournamentId}/ta`, {
-    method: 'PATCH',
+  handicapByPlayerId = new Map(players.map((player, index) => [player.id, handicaps[index]]));
+  const started = await apiJson(adminPage, `/api/tournaments/${tournamentId}/ta/battle-royale`, {
+    method: 'POST',
     body: {
-      action: 'bulk_update_handicaps',
-      updates: entries.map((entry, index) => ({
-        entryId: entry.id,
-        taHandicapSeconds: handicapByPlayerId.get(entry.playerId),
+      players: players.map((player) => ({
+        playerId: player.id,
+        taHandicapSeconds: handicapByPlayerId.get(player.id),
       })),
     },
   });
-  pass(patch.status === 200, `handicap PATCH failed (${patch.status})`);
+  pass(started.status === 201, `direct Phase 3 start failed (${started.status})`);
+  entries = started.body?.data?.entries ?? [];
+  pass(entries.length === 6, `expected 6 Phase 3 entries, got ${entries.length}`);
 }
 
-async function tcModeAndPromotion(adminPage) {
+async function tcModeAndDirectStart(adminPage) {
   try {
-    const qualification = await apiFetchTa(adminPage, tournamentId);
-    const data = qualification.b?.data;
-    pass(data?.taBattleRoyaleMode === true, 'qualification API did not expose BR mode');
-    pass(
-      (data?.entries ?? []).every((entry) => entry.taHandicapSeconds === handicapByPlayerId.get(entry.playerId)),
-      'qualification handicap snapshots differ from configured values',
-    );
-
-    const locked = await apiUpdateTournament(adminPage, tournamentId, { taBattleRoyaleMode: false });
-    pass(locked.s === 409 && locked.b?.code === 'TA_MODE_LOCKED', `mode lock returned ${locked.s}/${locked.b?.code}`);
-
-    const promoted = await apiPostTaPhase(adminPage, tournamentId, { action: 'promote_phase3' });
-    pass(promoted.s === 200, `promote_phase3 failed (${promoted.s})`);
     const phase = await apiFetchTaPhase(adminPage, tournamentId, 'phase3');
     const phaseData = phase.b?.data;
     pass(phaseData?.taMode === 'battle_royale', 'phase API mode mismatch');
     pass(phaseData?.phase3Rules?.initialLives === 10, 'phase API initial lives mismatch');
     pass((phaseData?.phase3Rules?.lifeResetThresholds ?? []).length === 0, 'BR unexpectedly has reset thresholds');
+    pass((phaseData?.entries ?? []).every((entry) => entry.lives === 10), 'Phase 3 entries did not start at 10 lives');
     pass(
-      (phaseData?.entries ?? []).every((entry) => entry.lives === 10),
-      'promoted entries did not start at 10 lives',
+      (phaseData?.entries ?? []).every(
+        (entry) => entry.taHandicapSeconds === handicapByPlayerId.get(entry.playerId),
+      ),
+      'Phase 3 handicap snapshots differ from selected values',
     );
+
+    const locked = await apiUpdateTournament(adminPage, tournamentId, { taBattleRoyaleMode: false });
+    pass(locked.s === 409 && locked.b?.code === 'TA_MODE_LOCKED', `mode lock returned ${locked.s}/${locked.b?.code}`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta`);
+    await adminPage.waitForURL(new RegExp(`/tournaments/${tournamentId}/ta/finals(?:$|\\?)`), { timeout: 15_000 });
+    pass((await adminPage.locator(`a[href="/tournaments/${tournamentId}/bm"]`).count()) === 0, 'BM tab is visible');
+    pass((await adminPage.locator(`a[href="/tournaments/${tournamentId}/mr"]`).count()) === 0, 'MR tab is visible');
+    pass((await adminPage.locator(`a[href="/tournaments/${tournamentId}/gp"]`).count()) === 0, 'GP tab is visible');
     pass(
-      (phaseData?.entries ?? []).every((entry) => entry.taHandicapSeconds === handicapByPlayerId.get(entry.playerId)),
-      'Phase 3 did not preserve entry handicap snapshots',
+      (await adminPage.locator(`a[href="/tournaments/${tournamentId}/overall-ranking"]`).count()) === 0,
+      'Overall tab is visible',
     );
+
     log('TC-TA-BR-01', 'PASS');
     log('TC-TA-BR-02', 'PASS');
   } catch (error) {
@@ -288,7 +279,7 @@ function getSuite() {
       handicapByPlayerId = new Map();
     },
     tests: [
-      { name: 'TC-TA-BR-01/02', fn: tcModeAndPromotion },
+      { name: 'TC-TA-BR-01/02', fn: tcModeAndDirectStart },
       { name: 'TC-TA-BR-03/04', fn: tcAdjustedRoundAndUi },
       { name: 'TC-TA-BR-05', fn: tcArchiveParity },
     ],
