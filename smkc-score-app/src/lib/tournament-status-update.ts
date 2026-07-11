@@ -36,9 +36,7 @@ export async function parseTournamentStatusUpdateResponse<T extends object>(resp
   }
 
   const data =
-    payload && typeof payload === 'object' && 'data' in payload
-      ? (payload as { data?: unknown }).data
-      : payload;
+    payload && typeof payload === 'object' && 'data' in payload ? (payload as { data?: unknown }).data : payload;
 
   if (!data || typeof data !== 'object') {
     throw new Error('Invalid tournament status update response');
