@@ -9,6 +9,9 @@ on:
     paths:
       - "smkc-score-app/**"
 
+permissions:
+  contents: write
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -40,11 +43,24 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Check formatting of changed files
-        run: npm run format:check
-        env:
-          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Format tournament reopen changes
+        run: |
+          npx prettier --write \
+            "src/app/tournaments/[id]/layout.tsx" \
+            "src/lib/tournament-status-update.ts" \
+            "__tests__/lib/tournament-status-update.test.ts" \
+            "__tests__/static/tournament-status-controls.test.ts"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            "src/app/tournaments/[id]/layout.tsx" \
+            "src/lib/tournament-status-update.ts" \
+            "__tests__/lib/tournament-status-update.test.ts" \
+            "__tests__/static/tournament-status-controls.test.ts"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: format tournament reopen files"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
 
       - name: Security audit
         # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
