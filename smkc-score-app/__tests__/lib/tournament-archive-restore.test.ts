@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
+import { chunkRowsForD1, restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
 import type { TournamentArchiveBundle } from '@/lib/tournament-archive';
 
 const player = {
@@ -156,6 +156,25 @@ function makeArchive(): TournamentArchiveBundle {
   } as TournamentArchiveBundle;
 }
 
+describe('chunkRowsForD1', () => {
+  it('keeps every createMany statement below the D1 bound-parameter limit', () => {
+    const rows = Array.from({ length: 7 }, (_, rowIndex) =>
+      Object.fromEntries(Array.from({ length: 30 }, (_, columnIndex) => [`field${columnIndex}`, `${rowIndex}`])),
+    );
+
+    const chunks = chunkRowsForD1(rows);
+
+    expect(chunks.map((chunk) => chunk.length)).toEqual([2, 2, 2, 1]);
+    for (const chunk of chunks) {
+      const bindings = chunk.reduce(
+        (total, row) => total + Object.values(row).filter((value) => value !== undefined).length,
+        0,
+      );
+      expect(bindings).toBeLessThanOrEqual(80);
+    }
+  });
+});
+
 describe('restoreTournamentArchiveForReopen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -215,7 +234,9 @@ describe('restoreTournamentArchiveForReopen', () => {
     (prisma.bMQualification.createMany as jest.Mock).mockRejectedValueOnce(new Error('D1 write failed'));
     (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
 
-    await expect(restoreTournamentArchiveForReopen(makeArchive())).rejects.toThrow('D1 write failed');
+    await expect(restoreTournamentArchiveForReopen(makeArchive())).rejects.toThrow(
+      'Archive restore failed at BM qualifications',
+    );
     expect(prisma.tournament.deleteMany).toHaveBeenCalledWith({ where: { id: 'archived-1' } });
   });
 });

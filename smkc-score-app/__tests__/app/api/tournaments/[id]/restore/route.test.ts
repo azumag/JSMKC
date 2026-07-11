@@ -55,6 +55,21 @@ describe('POST /api/tournaments/[id]/restore', () => {
     });
   });
 
+  it('reports the failed restore stage to the admin caller', async () => {
+    jest
+      .mocked(restoreTournamentArchiveForReopen)
+      .mockRejectedValue(Object.assign(new Error('too many SQL variables'), { restoreStage: 'BM matches' }));
+
+    await POST(new NextRequest('http://localhost/api/tournaments/archived-1/restore', { method: 'POST' }), {
+      params: Promise.resolve({ id: 'archived-1' }),
+    });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'Failed to restore tournament archive (BM matches)' }),
+      { status: 500 },
+    );
+  });
+
   it('rejects non-admin callers', async () => {
     jest.mocked(auth).mockResolvedValue({ user: { id: 'member-1', role: 'member' } });
 
