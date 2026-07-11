@@ -12,6 +12,7 @@ describe('Phase 3 elimination boundaries', () => {
     [9, 8, 1],
     [8, 4, 4],
     [4, 2, 2],
+    [2, 1, 1],
   ] as const)(
     'standard TA with %i active players uses threshold %i and elimination limit %i',
     (activeCount, expectedThreshold, expectedLimit) => {
