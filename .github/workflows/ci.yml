@@ -2,17 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main, fix/archive-restore-narrow-tournament-read]
+    branches: [main]
     paths:
       - "smkc-score-app/**"
-      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "smkc-score-app/**"
-      - ".github/workflows/ci.yml"
-
-permissions:
-  contents: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -30,7 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix/archive-restore-narrow-tournament-read
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -43,208 +37,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Apply restore lookup patch
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('src/lib/tournament-archive-restore.ts')
-          text = path.read_text()
-          text = text.replace(
-              "import { normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';\n",
-              "import { normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';\nimport { retryDbRead } from '@/lib/db-read-retry';\n",
-          )
-          marker = """const NULLABLE_JSON_FIELDS = {
-  bmMatch: ['assignedCourses', 'rounds'],
-  mrMatch: ['assignedCourses', 'rounds', 'player1ReportedRaces', 'player2ReportedRaces'],
-  gpMatch: ['races', 'assignedCups', 'cupResults', 'player1ReportedRaces', 'player2ReportedRaces'],
-  ttEntry: ['times', 'courseScores'],
-  ttPhaseRound: ['eliminatedIds'],
-  ttSuddenDeathRound: ['results'],
-} as const;
-"""
-          addition = marker + """
-const RESTORED_TOURNAMENT_SELECT = {
-  id: true,
-  slug: true,
-  name: true,
-  date: true,
-  status: true,
-  taPlayerSelfEdit: true,
-  taBattleRoyaleMode: true,
-  frozenStages: true,
-  qualificationConfirmed: true,
-  bmQualificationConfirmed: true,
-  mrQualificationConfirmed: true,
-  gpQualificationConfirmed: true,
-  publicModes: true,
-  createdAt: true,
-  updatedAt: true,
-} as const satisfies Prisma.TournamentSelect;
-
-type RestoredTournament = Prisma.TournamentGetPayload<{ select: typeof RESTORED_TOURNAMENT_SELECT }>;
-"""
-          if 'const RESTORED_TOURNAMENT_SELECT' not in text:
-              text = text.replace(marker, addition)
-          text = text.replace(
-              "  tournament: Awaited<ReturnType<typeof prisma.tournament.findUnique>>;",
-              "  tournament: RestoredTournament;",
-          )
-          old = """  const existing = await runRestoreStage('existing tournament lookup', () =>
-    prisma.tournament.findUnique({ where: { id: tournamentId } }),
-  );
-"""
-          new = """  const existing = await runRestoreStage('existing tournament lookup', () =>
-    retryDbRead(() =>
-      prisma.tournament.findUnique({
-        where: { id: tournamentId },
-        select: RESTORED_TOURNAMENT_SELECT,
-      }),
-    ),
-  );
-"""
-          text = text.replace(old, new)
-          text = text.replace(
-              """    await runRestoreStage('tournament', () =>
-      prisma.tournament.create({
-""",
-              """    const tournament = await runRestoreStage('tournament', () =>
-      prisma.tournament.create({
-""",
-          )
-          text = text.replace(
-              """          updatedAt: new Date(),
-        },
-      }),
-    );
-""",
-              """          updatedAt: new Date(),
-        },
-        select: RESTORED_TOURNAMENT_SELECT,
-      }),
-    );
-""",
-              1,
-          )
-          old_final = """    const tournament = await runRestoreStage('restored tournament lookup', () =>
-      prisma.tournament.findUnique({ where: { id: tournamentId } }),
-    );
-    if (!tournament) throw createRestoreStageError('restored tournament lookup', new Error('Tournament missing'));
-    return { tournament, restoredPlayerCount, reusedPlayerCount };
-"""
-          new_final = """    return { tournament, restoredPlayerCount, reusedPlayerCount };
-"""
-          text = text.replace(old_final, new_final)
-          path.write_text(text)
-
-          test_path = Path('__tests__/lib/tournament-archive-restore.test.ts')
-          test = test_path.read_text()
-          test = test.replace(
-              """    tournamentCreate.mockReset().mockResolvedValue({ id: 'archived-1' });
-    tournamentFindUnique
-      .mockReset()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'archived-1', status: 'active', publicModes: [] });
-""",
-              """    tournamentCreate.mockReset().mockResolvedValue({
-      id: 'archived-1',
-      status: 'active',
-      publicModes: [],
-    });
-    tournamentFindUnique.mockReset().mockResolvedValue(null);
-""",
-          )
-          test = test.replace(
-              """    expect(prisma.tournament.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        id: 'archived-1',
-        slug: 'archived-one',
-        status: 'active',
-        publicModes: [],
-        bmQualificationConfirmed: true,
-      }),
-    });
-""",
-              """    expect(prisma.tournament.findUnique).toHaveBeenCalledWith({
-      where: { id: 'archived-1' },
-      select: expect.objectContaining({
-        id: true,
-        name: true,
-        status: true,
-        publicModes: true,
-      }),
-    });
-    expect(prisma.tournament.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        id: 'archived-1',
-        slug: 'archived-one',
-        status: 'active',
-        publicModes: [],
-        bmQualificationConfirmed: true,
-      }),
-      select: expect.objectContaining({
-        id: true,
-        name: true,
-        status: true,
-        publicModes: true,
-      }),
-    });
-""",
-          )
-          insertion = """
-  it('retries the narrow tournament existence lookup after a transient D1 read failure', async () => {
-    (prisma.tournament.findUnique as jest.Mock)
-      .mockReset()
-      .mockRejectedValueOnce(new Error('D1 temporarily unavailable'))
-      .mockResolvedValueOnce(null);
-
-    await restoreTournamentArchiveForReopen(makeArchive());
-
-    expect(prisma.tournament.findUnique).toHaveBeenCalledTimes(2);
-    for (const [query] of (prisma.tournament.findUnique as jest.Mock).mock.calls) {
-      expect(query).toEqual({
-        where: { id: 'archived-1' },
-        select: expect.objectContaining({
-          id: true,
-          status: true,
-          publicModes: true,
-        }),
-      });
-      expect(query.select).not.toHaveProperty('overlayLayout');
-      expect(query.select).not.toHaveProperty('dualReportEnabled');
-    }
-  });
-"""
-          anchor = """  it('normalizes nullable TA JSON columns to database NULL', async () => {
-"""
-          if 'retries the narrow tournament existence lookup' not in test:
-              test = test.replace(anchor, insertion + "\n" + anchor)
-          test_path.write_text(test)
-          PY
-          npx prettier --write \
-            "src/lib/tournament-archive-restore.ts" \
-            "__tests__/lib/tournament-archive-restore.test.ts"
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
-            "src/lib/tournament-archive-restore.ts" \
-            "__tests__/lib/tournament-archive-restore.test.ts"
-          if ! git diff --cached --quiet; then
-            git commit -m "fix: narrow archive restore tournament reads"
-            git push origin HEAD:fix/archive-restore-narrow-tournament-read
-          fi
-
       - name: Lint
         run: npm run lint
 
-      - name: Check formatting
+      - name: Check formatting of changed files
         run: npm run format:check
         env:
-          FORMAT_BASE_SHA: ${{ github.event.before }}
-          FORMAT_HEAD_SHA: ${{ github.sha }}
+          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Security audit
+        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
+        run: npm audit --audit-level=high
 
       - name: Unit tests
-        run: npm test -- --runInBand __tests__/lib/tournament-archive-restore.test.ts
+        run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
+          NODE_OPTIONS: "--max-old-space-size=4096"
