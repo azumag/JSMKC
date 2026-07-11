@@ -345,24 +345,9 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     const bmQualifications = qualificationRows(bundle.modes.bm.qualifications, tournamentId, playerIds);
     const mrQualifications = qualificationRows(bundle.modes.mr.qualifications, tournamentId, playerIds);
     const gpQualifications = qualificationRows(bundle.modes.gp.qualifications, tournamentId, playerIds);
-    const bmMatches = matchRows(
-      bundle.modes.bm.matches,
-      tournamentId,
-      playerIds,
-      NULLABLE_JSON_FIELDS.bmMatch,
-    );
-    const mrMatches = matchRows(
-      bundle.modes.mr.matches,
-      tournamentId,
-      playerIds,
-      NULLABLE_JSON_FIELDS.mrMatch,
-    );
-    const gpMatches = matchRows(
-      bundle.modes.gp.matches,
-      tournamentId,
-      playerIds,
-      NULLABLE_JSON_FIELDS.gpMatch,
-    );
+    const bmMatches = matchRows(bundle.modes.bm.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.bmMatch);
+    const mrMatches = matchRows(bundle.modes.mr.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.mrMatch);
+    const gpMatches = matchRows(bundle.modes.gp.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.gpMatch);
     const ttEntries = ttEntryRows(bundle, tournamentId, playerIds);
     const ttPhaseRounds = ttPhaseRoundRows(bundle, tournamentId, playerIds);
     const ttSuddenDeathRounds = ttSuddenDeathRows(bundle, tournamentId, playerIds);
