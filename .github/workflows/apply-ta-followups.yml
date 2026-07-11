@@ -1,38 +1,59 @@
-name: Apply TA follow-up patch
+name: Finalize TA follow-up PR
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [synchronize]
 
 permissions:
   contents: write
 
 jobs:
-  apply:
+  finalize:
     if: github.head_ref == 'codex/resolve-ta-battle-royale-followups'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 1
-          show-progress: false
-      - name: Apply verified patch
+          fetch-depth: 0
+      - name: Remove temporary tooling and fix localized label
         shell: bash
         run: |
           set -euxo pipefail
-          if [ ! -f .followup-patch/part00_00 ]; then
-            echo "Patch already applied"
-            exit 0
-          fi
-          cat .followup-patch/part* | tr -d '\r\n' > /tmp/followups.b64
-          echo "ae60f65acfcebb11db0f2aa7e472fb4e3c32dbe5665917531900598a1420e016  /tmp/followups.b64" | sha256sum --check
-          base64 --decode /tmp/followups.b64 | gzip --decompress > /tmp/followups.patch
-          echo "603b20403e5ade957d0c3249bc3d8cf46fc13afa75d51e8fb0fcd24d96de2b54  /tmp/followups.patch" | sha256sum --check
-          git apply --index /tmp/followups.patch
-          rm -rf .followup-patch
+          git fetch origin main
+          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
+          rm -f .github/workflows/export-followup-source.yml
+
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('smkc-score-app/src/app/tournaments/[id]/ta/page-client.tsx')
+          text = page.read_text()
+          old = '<TableHead>ハンデ</TableHead>'
+          if text.count(old) != 2:
+              raise SystemExit(f'expected two hard-coded handicap headings, found {text.count(old)}')
+          page.write_text(text.replace(old, "<TableHead>{t('handicap')}</TableHead>"))
+
+          replacements = {
+              Path('smkc-score-app/messages/en.json'): (
+                  '"manageTournamentHandicaps": "Manage tournament handicaps",',
+                  '"handicap": "Handicap",\n    "manageTournamentHandicaps": "Manage tournament handicaps",',
+              ),
+              Path('smkc-score-app/messages/ja.json'): (
+                  '"manageTournamentHandicaps": "大会内ハンデ管理",',
+                  '"handicap": "ハンデ",\n    "manageTournamentHandicaps": "大会内ハンデ管理",',
+              ),
+          }
+          for path, (old_text, new_text) in replacements.items():
+              content = path.read_text()
+              if content.count(old_text) != 1:
+                  raise SystemExit(f'expected one insertion point in {path}')
+              path.write_text(content.replace(old_text, new_text))
+          PY
+
+          rm -f .github/workflows/apply-ta-followups.yml
           git add -A
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix: resolve TA battle royale follow-ups"
+          git commit -m "chore: remove temporary tooling and localize handicap labels"
           git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
