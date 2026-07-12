@@ -2,7 +2,6 @@
  * @jest-environment jsdom
  */
 
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -10,17 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 describe('DialogContent viewport scrolling contract', () => {
   it('bounds rendered dialogs to the viewport and enables vertical scrolling by default', () => {
     render(
-      React.createElement(
-        Dialog,
-        { open: true },
-        React.createElement(
-          DialogContent,
-          { className: 'max-w-xl' },
-          React.createElement(DialogTitle, null, 'Long form'),
-          React.createElement(DialogDescription, null, 'A dialog whose content may exceed the viewport height.'),
-          React.createElement('div', null, 'Form content'),
-        ),
-      ),
+      <Dialog open>
+        <DialogContent className="max-w-xl">
+          <DialogTitle>Long form</DialogTitle>
+          <DialogDescription>A dialog whose content may exceed the viewport height.</DialogDescription>
+          <div>Form content</div>
+        </DialogContent>
+      </Dialog>,
     );
 
     const dialog = screen.getByRole('dialog', { name: 'Long form' });
