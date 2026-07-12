@@ -135,11 +135,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
       taBattleRoyaleMode: true,
     });
     await POST(createRequest(validPlayers()), params);
-    expect(createErrorResponse).toHaveBeenCalledWith(
-      'Tournament must be in draft status',
-      409,
-      'TOURNAMENT_NOT_DRAFT',
-    );
+    expect(createErrorResponse).toHaveBeenCalledWith('Tournament must be in draft status', 409, 'TOURNAMENT_NOT_DRAFT');
   });
 
   it('参加者が2人未満の場合はバリデーションエラーを返す', async () => {
@@ -234,11 +230,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
 
     await POST(createRequest(validPlayers()), params);
 
-    expect(createErrorResponse).toHaveBeenCalledWith(
-      'Failed to start TA battle royale',
-      500,
-      'INTERNAL_ERROR',
-    );
+    expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
     expect(createAuditLogs).not.toHaveBeenCalled();
     expect(NextResponse.json).not.toHaveBeenCalled();
   });
