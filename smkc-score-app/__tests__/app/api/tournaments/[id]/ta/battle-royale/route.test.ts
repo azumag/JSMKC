@@ -310,7 +310,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
 
   it('2チャンク目の作成に失敗した場合は監査ログや成功レスポンスを生成しない', async () => {
     const players = chunkedPlayers();
-    jest.mocked(prisma.player.findMany).mockResolvedValue(players.map(({ playerId }) => ({ id: playerId })));
+    mockPlayersForSuccessfulStart(players);
     jest
       .mocked(prisma.tTEntry.createMany)
       .mockResolvedValueOnce({ count: 14 })
