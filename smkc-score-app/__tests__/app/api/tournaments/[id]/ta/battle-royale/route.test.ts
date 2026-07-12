@@ -79,11 +79,23 @@ function validPlayers() {
   ];
 }
 
-function chunkedPlayers() {
-  return Array.from({ length: 15 }, (_, index) => ({
+function chunkedPlayers(count = 15) {
+  return Array.from({ length: count }, (_, index) => ({
     playerId: `cl${String(index + 1).padStart(23, '0')}`,
     taHandicapSeconds: 0 as const,
   }));
+}
+
+function mockPlayersForSuccessfulStart(players: ReturnType<typeof chunkedPlayers>) {
+  jest.mocked(prisma.player.findMany).mockResolvedValue(players.map(({ playerId }) => ({ id: playerId })));
+  jest.mocked(prisma.tTEntry.findMany).mockResolvedValue(
+    players.map(({ playerId }, index) => ({
+      id: `entry-${index + 1}`,
+      playerId,
+      taHandicapSeconds: 0,
+      player: { nickname: `Player ${index + 1}` },
+    })),
+  );
 }
 
 describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
@@ -232,21 +244,28 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     );
   });
 
+  it('14人の参加者を1チャンクで作成する', async () => {
+    const players = chunkedPlayers(14);
+    mockPlayersForSuccessfulStart(players);
+    jest.mocked(prisma.tTEntry.createMany).mockResolvedValueOnce({ count: 14 });
+
+    await POST(createRequest(players), params);
+
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toEqual(
+      players.map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
+    );
+    expect(createAuditLogs).toHaveBeenCalledTimes(1);
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }), { status: 201 });
+  });
+
   it('15人の参加者を14件と1件のチャンクに分割して作成する', async () => {
     const players = chunkedPlayers();
-    jest.mocked(prisma.player.findMany).mockResolvedValue(players.map(({ playerId }) => ({ id: playerId })));
+    mockPlayersForSuccessfulStart(players);
     jest
       .mocked(prisma.tTEntry.createMany)
       .mockResolvedValueOnce({ count: 14 })
       .mockResolvedValueOnce({ count: 1 });
-    jest.mocked(prisma.tTEntry.findMany).mockResolvedValue(
-      players.map(({ playerId }, index) => ({
-        id: `entry-${index + 1}`,
-        playerId,
-        taHandicapSeconds: 0,
-        player: { nickname: `Player ${index + 1}` },
-      })),
-    );
 
     await POST(createRequest(players), params);
 
@@ -260,6 +279,31 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(2, {
       data: [expect.objectContaining({ playerId: players[14].playerId, stage: 'phase3' })],
     });
+    expect(createAuditLogs).toHaveBeenCalledTimes(1);
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }), { status: 201 });
+  });
+
+  it('100人の参加者を14件ずつの8チャンクに分割して作成する', async () => {
+    const players = chunkedPlayers(100);
+    mockPlayersForSuccessfulStart(players);
+    jest.mocked(prisma.tTEntry.createMany).mockResolvedValue({ count: 14 });
+
+    await POST(createRequest(players), params);
+
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(8);
+    const chunkSizes = jest.mocked(prisma.tTEntry.createMany).mock.calls.map(([argument]) => argument.data.length);
+    expect(chunkSizes).toEqual([14, 14, 14, 14, 14, 14, 14, 2]);
+
+    for (let chunkIndex = 0; chunkIndex < 8; chunkIndex += 1) {
+      const start = chunkIndex * 14;
+      const end = Math.min(start + 14, players.length);
+      expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(chunkIndex + 1, {
+        data: players
+          .slice(start, end)
+          .map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
+      });
+    }
+
     expect(createAuditLogs).toHaveBeenCalledTimes(1);
     expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }), { status: 201 });
   });
