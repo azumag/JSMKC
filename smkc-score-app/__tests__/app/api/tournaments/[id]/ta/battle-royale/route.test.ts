@@ -59,7 +59,11 @@ import { requireAdminSession } from '@/lib/api-auth';
 import { createErrorResponse } from '@/lib/error-handling';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { createAuditLogs } from '@/lib/audit-log';
-import { POST } from '@/app/api/tournaments/[id]/ta/battle-royale/route';
+import {
+  POST,
+  TA_BATTLE_ROYALE_ENTRY_CHUNK,
+  TA_BATTLE_ROYALE_MAX_PLAYERS,
+} from '@/app/api/tournaments/[id]/ta/battle-royale/route';
 
 const PLAYER_1 = 'cl00000000000000000000001';
 const PLAYER_2 = 'cl00000000000000000000002';
@@ -79,7 +83,7 @@ function validPlayers() {
   ];
 }
 
-function chunkedPlayers(count = 15) {
+function chunkedPlayers(count = TA_BATTLE_ROYALE_ENTRY_CHUNK + 1) {
   return Array.from({ length: count }, (_, index) => ({
     playerId: `cl${String(index + 1).padStart(23, '0')}`,
     taHandicapSeconds: 0 as const,
@@ -244,10 +248,10 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     );
   });
 
-  it('14人の参加者を1チャンクで作成する', async () => {
-    const players = chunkedPlayers(14);
+  it('ENTRY_CHUNK人の参加者を1チャンクで作成する', async () => {
+    const players = chunkedPlayers(TA_BATTLE_ROYALE_ENTRY_CHUNK);
     mockPlayersForSuccessfulStart(players);
-    jest.mocked(prisma.tTEntry.createMany).mockResolvedValueOnce({ count: 14 });
+    jest.mocked(prisma.tTEntry.createMany).mockResolvedValueOnce({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK });
 
     await POST(createRequest(players), params);
 
@@ -259,12 +263,12 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }), { status: 201 });
   });
 
-  it('15人の参加者を14件と1件のチャンクに分割して作成する', async () => {
+  it('ENTRY_CHUNK+1人の参加者を2チャンクに分割して作成する', async () => {
     const players = chunkedPlayers();
     mockPlayersForSuccessfulStart(players);
     jest
       .mocked(prisma.tTEntry.createMany)
-      .mockResolvedValueOnce({ count: 14 })
+      .mockResolvedValueOnce({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK })
       .mockResolvedValueOnce({ count: 1 });
 
     await POST(createRequest(players), params);
@@ -272,31 +276,45 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(2);
     expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(1, {
       data: expect.arrayContaining(
-        players.slice(0, 14).map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
+        players
+          .slice(0, TA_BATTLE_ROYALE_ENTRY_CHUNK)
+          .map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
       ),
     });
-    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(14);
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(
+      TA_BATTLE_ROYALE_ENTRY_CHUNK,
+    );
     expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(2, {
-      data: [expect.objectContaining({ playerId: players[14].playerId, stage: 'phase3' })],
+      data: [
+        expect.objectContaining({
+          playerId: players[TA_BATTLE_ROYALE_ENTRY_CHUNK].playerId,
+          stage: 'phase3',
+        }),
+      ],
     });
     expect(createAuditLogs).toHaveBeenCalledTimes(1);
     expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }), { status: 201 });
   });
 
-  it('100人の参加者を14件ずつの8チャンクに分割して作成する', async () => {
-    const players = chunkedPlayers(100);
+  it('参加者上限をENTRY_CHUNK単位のチャンクに分割して作成する', async () => {
+    const players = chunkedPlayers(TA_BATTLE_ROYALE_MAX_PLAYERS);
+    const expectedChunkCount = Math.ceil(TA_BATTLE_ROYALE_MAX_PLAYERS / TA_BATTLE_ROYALE_ENTRY_CHUNK);
     mockPlayersForSuccessfulStart(players);
-    jest.mocked(prisma.tTEntry.createMany).mockResolvedValue({ count: 14 });
+    jest.mocked(prisma.tTEntry.createMany).mockResolvedValue({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK });
 
     await POST(createRequest(players), params);
 
-    expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(8);
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(expectedChunkCount);
     const chunkSizes = jest.mocked(prisma.tTEntry.createMany).mock.calls.map(([argument]) => argument.data.length);
-    expect(chunkSizes).toEqual([14, 14, 14, 14, 14, 14, 14, 2]);
+    const expectedChunkSizes = Array.from({ length: expectedChunkCount }, (_, chunkIndex) => {
+      const start = chunkIndex * TA_BATTLE_ROYALE_ENTRY_CHUNK;
+      return Math.min(TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS - start);
+    });
+    expect(chunkSizes).toEqual(expectedChunkSizes);
 
-    for (let chunkIndex = 0; chunkIndex < 8; chunkIndex += 1) {
-      const start = chunkIndex * 14;
-      const end = Math.min(start + 14, players.length);
+    for (let chunkIndex = 0; chunkIndex < expectedChunkCount; chunkIndex += 1) {
+      const start = chunkIndex * TA_BATTLE_ROYALE_ENTRY_CHUNK;
+      const end = Math.min(start + TA_BATTLE_ROYALE_ENTRY_CHUNK, players.length);
       expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(chunkIndex + 1, {
         data: players
           .slice(start, end)
@@ -313,13 +331,15 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     mockPlayersForSuccessfulStart(players);
     jest
       .mocked(prisma.tTEntry.createMany)
-      .mockResolvedValueOnce({ count: 14 })
+      .mockResolvedValueOnce({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK })
       .mockRejectedValueOnce(new Error('second chunk failed'));
 
     await POST(createRequest(players), params);
 
     expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(2);
-    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(14);
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(
+      TA_BATTLE_ROYALE_ENTRY_CHUNK,
+    );
     expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[1][0].data).toHaveLength(1);
     expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
     expect(createAuditLogs).not.toHaveBeenCalled();

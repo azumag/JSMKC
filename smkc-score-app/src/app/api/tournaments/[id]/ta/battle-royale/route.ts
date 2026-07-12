@@ -13,6 +13,9 @@ import { createLogger } from '@/lib/logger';
 
 const HandicapValueSchema = z.union([z.literal(0), z.literal(-1), z.literal(-3), z.literal(-5)]);
 
+export const TA_BATTLE_ROYALE_MAX_PLAYERS = 100;
+export const TA_BATTLE_ROYALE_ENTRY_CHUNK = 14;
+
 const StartBattleRoyaleSchema = z.object({
   players: z
     .array(
@@ -22,7 +25,7 @@ const StartBattleRoyaleSchema = z.object({
       }),
     )
     .min(2)
-    .max(100),
+    .max(TA_BATTLE_ROYALE_MAX_PLAYERS),
 });
 
 /**
@@ -103,9 +106,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // D1 allows roughly 100 bound parameters per statement. Each TTEntry row
     // binds 7 values, so 14 rows (98 parameters) is the largest safe chunk.
-    const ENTRY_CHUNK = 14;
-    for (let i = 0; i < entryData.length; i += ENTRY_CHUNK) {
-      await prisma.tTEntry.createMany({ data: entryData.slice(i, i + ENTRY_CHUNK) });
+    for (let i = 0; i < entryData.length; i += TA_BATTLE_ROYALE_ENTRY_CHUNK) {
+      await prisma.tTEntry.createMany({
+        data: entryData.slice(i, i + TA_BATTLE_ROYALE_ENTRY_CHUNK),
+      });
     }
 
     const createdEntries = await prisma.tTEntry.findMany({
