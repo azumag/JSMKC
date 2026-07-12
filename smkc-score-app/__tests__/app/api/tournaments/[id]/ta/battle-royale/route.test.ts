@@ -79,6 +79,13 @@ function validPlayers() {
   ];
 }
 
+function chunkedPlayers() {
+  return Array.from({ length: 15 }, (_, index) => ({
+    playerId: `cl${String(index + 1).padStart(23, '0')}`,
+    taHandicapSeconds: 0 as const,
+  }));
+}
+
 describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -223,6 +230,56 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
       }),
       { status: 201 },
     );
+  });
+
+  it('15人の参加者を14件と1件のチャンクに分割して作成する', async () => {
+    const players = chunkedPlayers();
+    jest.mocked(prisma.player.findMany).mockResolvedValue(players.map(({ playerId }) => ({ id: playerId })));
+    jest
+      .mocked(prisma.tTEntry.createMany)
+      .mockResolvedValueOnce({ count: 14 })
+      .mockResolvedValueOnce({ count: 1 });
+    jest.mocked(prisma.tTEntry.findMany).mockResolvedValue(
+      players.map(({ playerId }, index) => ({
+        id: `entry-${index + 1}`,
+        playerId,
+        taHandicapSeconds: 0,
+        player: { nickname: `Player ${index + 1}` },
+      })),
+    );
+
+    await POST(createRequest(players), params);
+
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(2);
+    expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(1, {
+      data: expect.arrayContaining(
+        players.slice(0, 14).map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
+      ),
+    });
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(14);
+    expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(2, {
+      data: [expect.objectContaining({ playerId: players[14].playerId, stage: 'phase3' })],
+    });
+    expect(createAuditLogs).toHaveBeenCalledTimes(1);
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }), { status: 201 });
+  });
+
+  it('2チャンク目の作成に失敗した場合は監査ログや成功レスポンスを生成しない', async () => {
+    const players = chunkedPlayers();
+    jest.mocked(prisma.player.findMany).mockResolvedValue(players.map(({ playerId }) => ({ id: playerId })));
+    jest
+      .mocked(prisma.tTEntry.createMany)
+      .mockResolvedValueOnce({ count: 14 })
+      .mockRejectedValueOnce(new Error('second chunk failed'));
+
+    await POST(createRequest(players), params);
+
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(2);
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(14);
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[1][0].data).toHaveLength(1);
+    expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
+    expect(createAuditLogs).not.toHaveBeenCalled();
+    expect(NextResponse.json).not.toHaveBeenCalled();
   });
 
   it('DB書き込みが失敗した場合は500を返す', async () => {
