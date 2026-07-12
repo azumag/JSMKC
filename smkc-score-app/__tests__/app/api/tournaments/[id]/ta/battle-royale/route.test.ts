@@ -1,0 +1,270 @@
+// @ts-nocheck - route tests use focused Jest mocks for Next.js and Prisma
+
+jest.mock('@/lib/prisma', () => {
+  const mockPrisma = {
+    tTEntry: {
+      count: jest.fn(),
+      createMany: jest.fn(),
+      findMany: jest.fn(),
+    },
+    tTPhaseRound: {
+      count: jest.fn(),
+    },
+    player: {
+      findMany: jest.fn(),
+    },
+  };
+  return {
+    __esModule: true,
+    default: mockPrisma,
+    prisma: mockPrisma,
+  };
+});
+
+jest.mock('@/lib/api-auth', () => ({
+  requireAdminSession: jest.fn(),
+}));
+
+jest.mock('@/lib/sanitize', () => ({
+  sanitizeInput: jest.fn((value) => value),
+}));
+
+jest.mock('@/lib/error-handling', () => ({
+  createErrorResponse: jest.fn((message, status, code) => ({ message, status, code })),
+}));
+
+jest.mock('@/lib/tournament-identifier', () => ({
+  resolveTournament: jest.fn(),
+}));
+
+jest.mock('@/lib/ta/battle-royale', () => ({
+  getTaPhase3Rules: jest.fn(() => ({ initialLives: 3 })),
+  normalizeTaHandicapSeconds: jest.fn((value) => value),
+}));
+
+jest.mock('@/lib/audit-log', () => ({
+  createAuditLogs: jest.fn(),
+  AUDIT_ACTIONS: { CREATE_TA_ENTRY: 'CREATE_TA_ENTRY' },
+  resolveAuditUserId: jest.fn(() => 'admin-1'),
+}));
+
+jest.mock('@/lib/request-utils', () => ({
+  getClientIdentifier: jest.fn(() => 'test-client'),
+  getUserAgent: jest.fn(() => 'test-agent'),
+}));
+
+jest.mock('@/lib/logger', () => ({
+  createLogger: jest.fn(() => ({
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  })),
+}));
+
+jest.mock('next/server', () => {
+  const json = jest.fn((body, init) => ({ body, init }));
+
+  class MockNextRequest {
+    url: string;
+    method: string;
+    private readonly body: unknown;
+    headers: { get: jest.Mock; forEach: jest.Mock };
+
+    constructor(url: string, init: { method?: string; body?: unknown } = {}) {
+      this.url = url;
+      this.method = init.method ?? 'GET';
+      this.body = init.body;
+      this.headers = {
+        get: jest.fn(() => null),
+        forEach: jest.fn(),
+      };
+    }
+
+    async json() {
+      return typeof this.body === 'string' ? JSON.parse(this.body) : this.body;
+    }
+  }
+
+  return {
+    __esModule: true,
+    NextRequest: MockNextRequest,
+    NextResponse: { json },
+  };
+});
+
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { requireAdminSession } from '@/lib/api-auth';
+import { createErrorResponse } from '@/lib/error-handling';
+import { resolveTournament } from '@/lib/tournament-identifier';
+import { createAuditLogs } from '@/lib/audit-log';
+import { POST } from '@/app/api/tournaments/[id]/ta/battle-royale/route';
+
+const PLAYER_1 = 'cl00000000000000000000001';
+const PLAYER_2 = 'cl00000000000000000000002';
+
+function createRequest(players: Array<{ playerId: string; taHandicapSeconds: 0 | -1 | -3 | -5 }>) {
+  return new NextRequest('http://localhost:3000/api/tournaments/tournament-1/ta/battle-royale', {
+    method: 'POST',
+    body: JSON.stringify({ players }),
+  });
+}
+
+const params = { params: Promise.resolve({ id: 'tournament-1' }) };
+
+describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(requireAdminSession).mockResolvedValue({
+      error: null,
+      session: { user: { id: 'admin-1', role: 'admin' } },
+    });
+    jest.mocked(resolveTournament).mockResolvedValue({
+      id: 'tournament-1',
+      taBattleRoyaleMode: true,
+    });
+    jest.mocked(prisma.tTEntry.count).mockResolvedValue(0);
+    jest.mocked(prisma.tTPhaseRound.count).mockResolvedValue(0);
+    jest.mocked(prisma.player.findMany).mockResolvedValue([{ id: PLAYER_1 }, { id: PLAYER_2 }]);
+    jest.mocked(prisma.tTEntry.createMany).mockResolvedValue({ count: 2 });
+    jest.mocked(prisma.tTEntry.findMany).mockResolvedValue([
+      {
+        id: 'entry-1',
+        playerId: PLAYER_1,
+        taHandicapSeconds: 0,
+        player: { nickname: 'Player 1' },
+      },
+      {
+        id: 'entry-2',
+        playerId: PLAYER_2,
+        taHandicapSeconds: -3,
+        player: { nickname: 'Player 2' },
+      },
+    ]);
+  });
+
+  it('管理者でない場合は処理を開始しない', async () => {
+    const authError = { status: 403 };
+    jest.mocked(requireAdminSession).mockResolvedValue({ error: authError, session: null });
+
+    const response = await POST(createRequest([]), params);
+
+    expect(response).toBe(authError);
+    expect(resolveTournament).not.toHaveBeenCalled();
+  });
+
+  it('大会が存在しない場合は404を返す', async () => {
+    jest.mocked(resolveTournament).mockResolvedValue(null);
+
+    await POST(createRequest([]), params);
+
+    expect(createErrorResponse).toHaveBeenCalledWith('Tournament not found', 404, 'NOT_FOUND');
+  });
+
+  it('通常TA大会では開始を拒否する', async () => {
+    jest.mocked(resolveTournament).mockResolvedValue({
+      id: 'tournament-1',
+      taBattleRoyaleMode: false,
+    });
+
+    await POST(createRequest([]), params);
+
+    expect(createErrorResponse).toHaveBeenCalledWith(
+      'Tournament is not configured for TA battle royale',
+      400,
+      'INVALID_TA_MODE',
+    );
+  });
+
+  it('参加者が2人未満の場合はバリデーションエラーを返す', async () => {
+    await POST(createRequest([{ playerId: PLAYER_1, taHandicapSeconds: 0 }]), params);
+
+    expect(createErrorResponse).toHaveBeenCalledWith(expect.any(String), 400, 'VALIDATION_ERROR');
+    expect(prisma.tTEntry.count).not.toHaveBeenCalled();
+  });
+
+  it('同じ参加者が重複している場合は拒否する', async () => {
+    await POST(
+      createRequest([
+        { playerId: PLAYER_1, taHandicapSeconds: 0 },
+        { playerId: PLAYER_1, taHandicapSeconds: -1 },
+      ]),
+      params,
+    );
+
+    expect(createErrorResponse).toHaveBeenCalledWith('Duplicate players are not allowed', 400, 'VALIDATION_ERROR');
+    expect(prisma.tTEntry.count).not.toHaveBeenCalled();
+  });
+
+  it('Phase 3が開始済みの場合は409を返す', async () => {
+    jest.mocked(prisma.tTEntry.count).mockResolvedValue(1);
+
+    await POST(
+      createRequest([
+        { playerId: PLAYER_1, taHandicapSeconds: 0 },
+        { playerId: PLAYER_2, taHandicapSeconds: -3 },
+      ]),
+      params,
+    );
+
+    expect(createErrorResponse).toHaveBeenCalledWith(
+      'TA battle royale has already started',
+      409,
+      'BATTLE_ROYALE_ALREADY_STARTED',
+    );
+    expect(prisma.tTEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  it('存在しない参加者IDが含まれる場合は拒否する', async () => {
+    jest.mocked(prisma.player.findMany).mockResolvedValue([{ id: PLAYER_1 }]);
+
+    await POST(
+      createRequest([
+        { playerId: PLAYER_1, taHandicapSeconds: 0 },
+        { playerId: PLAYER_2, taHandicapSeconds: -3 },
+      ]),
+      params,
+    );
+
+    expect(createErrorResponse).toHaveBeenCalledWith('One or more players were not found', 400, 'PLAYER_NOT_FOUND');
+    expect(prisma.tTEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  it('選択した参加者をPhase 3へ直接作成する', async () => {
+    await POST(
+      createRequest([
+        { playerId: PLAYER_1, taHandicapSeconds: 0 },
+        { playerId: PLAYER_2, taHandicapSeconds: -3 },
+      ]),
+      params,
+    );
+
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          tournamentId: 'tournament-1',
+          playerId: PLAYER_1,
+          stage: 'phase3',
+          lives: 3,
+          taHandicapSeconds: 0,
+        }),
+        expect.objectContaining({
+          tournamentId: 'tournament-1',
+          playerId: PLAYER_2,
+          stage: 'phase3',
+          lives: 3,
+          taHandicapSeconds: -3,
+        }),
+      ],
+    });
+    expect(createAuditLogs).toHaveBeenCalledTimes(1);
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ phase: 'phase3', initialLives: 3 }),
+      }),
+      { status: 201 },
+    );
+  });
+});
