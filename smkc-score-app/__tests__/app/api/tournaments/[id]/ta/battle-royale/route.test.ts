@@ -196,7 +196,30 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
         }),
       ],
     });
-    expect(createAuditLogs).toHaveBeenCalledTimes(1);
+    expect(createAuditLogs).toHaveBeenCalledWith([
+      expect.objectContaining({
+        action: 'CREATE_TA_ENTRY',
+        targetId: 'entry-1',
+        details: expect.objectContaining({
+          tournamentId: 'tournament-1',
+          playerId: PLAYER_1,
+          playerNickname: 'Player 1',
+          initialLives: 3,
+          taHandicapSeconds: 0,
+        }),
+      }),
+      expect.objectContaining({
+        action: 'CREATE_TA_ENTRY',
+        targetId: 'entry-2',
+        details: expect.objectContaining({
+          tournamentId: 'tournament-1',
+          playerId: PLAYER_2,
+          playerNickname: 'Player 2',
+          initialLives: 3,
+          taHandicapSeconds: -3,
+        }),
+      }),
+    ]);
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: true,
@@ -204,5 +227,19 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
       }),
       { status: 201 },
     );
+  });
+
+  it('DB書き込みが失敗した場合は500を返す', async () => {
+    jest.mocked(prisma.tTEntry.createMany).mockRejectedValue(new Error('database unavailable'));
+
+    await POST(createRequest(validPlayers()), params);
+
+    expect(createErrorResponse).toHaveBeenCalledWith(
+      'Failed to start TA battle royale',
+      500,
+      'INTERNAL_ERROR',
+    );
+    expect(createAuditLogs).not.toHaveBeenCalled();
+    expect(NextResponse.json).not.toHaveBeenCalled();
   });
 });
