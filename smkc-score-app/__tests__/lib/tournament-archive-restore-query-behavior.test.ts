@@ -73,7 +73,6 @@ describe('restoreTournamentArchiveForReopen query behavior', () => {
       prisma.gPMatch,
       prisma.tTEntry,
       prisma.tTPhaseRound,
-      prisma.tTPhaseSuddenDeathRound,
       prisma.tournamentPlayerScore,
     ]) {
       (model.createMany as jest.Mock).mockResolvedValue({ count: 0 });
