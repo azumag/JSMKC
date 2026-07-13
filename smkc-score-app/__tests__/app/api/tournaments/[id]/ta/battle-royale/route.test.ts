@@ -60,11 +60,8 @@ import { createErrorResponse } from '@/lib/error-handling';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { createAuditLogs } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
-import {
-  POST,
-  TA_BATTLE_ROYALE_ENTRY_CHUNK,
-  TA_BATTLE_ROYALE_MAX_PLAYERS,
-} from '@/app/api/tournaments/[id]/ta/battle-royale/route';
+import { TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS } from '@/lib/ta/battle-royale-constants';
+import { POST } from '@/app/api/tournaments/[id]/ta/battle-royale/route';
 
 const PLAYER_1 = 'cl00000000000000000000001';
 const PLAYER_2 = 'cl00000000000000000000002';

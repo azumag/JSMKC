@@ -13,8 +13,6 @@ import { createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
 import { createLogger } from '@/lib/logger';
 
-export { TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS } from '@/lib/ta/battle-royale-constants';
-
 const HandicapValueSchema = z.union([z.literal(0), z.literal(-1), z.literal(-3), z.literal(-5)]);
 
 const StartBattleRoyaleSchema = z.object({
