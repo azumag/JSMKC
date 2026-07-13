@@ -4,10 +4,10 @@ This document tracks columns that may remain physically present in deployed Clou
 
 ## Current inventory
 
-| Table    | Column              | Removed from Prisma                          | Replacement / reason                                                             | Physical cleanup status                         |
-| -------- | ------------------- | -------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `Player` | `ttSeeding`         | historical schema change                     | Seeding is tournament-specific and now belongs to `TTEntry.seeding`              | Intentionally retained in existing D1 databases |
-| `Player` | `taHandicapSeconds` | issue #2995                                  | See the `Player` model note in `prisma/schema.prisma`                             | Intentionally retained in existing D1 databases |
+| Table    | Column              | Removed from Prisma      | Replacement / reason                                                | Physical cleanup status                         |
+| -------- | ------------------- | ------------------------ | ------------------------------------------------------------------- | ----------------------------------------------- |
+| `Player` | `ttSeeding`         | historical schema change | Seeding is tournament-specific and now belongs to `TTEntry.seeding` | Intentionally retained in existing D1 databases |
+| `Player` | `taHandicapSeconds` | issue #2995              | See the `Player` model note in `prisma/schema.prisma`               | Intentionally retained in existing D1 databases |
 
 This inventory is authoritative for which physical columns are intentionally retained and their cleanup status. Field-specific rationale should live next to the canonical Prisma model or migration when such a source exists; otherwise, the inventory must retain a self-contained explanation instead of linking to a missing or unverifiable source.
 
