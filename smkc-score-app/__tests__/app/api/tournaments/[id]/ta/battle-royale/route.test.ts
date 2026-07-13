@@ -59,6 +59,7 @@ import { requireAdminSession } from '@/lib/api-auth';
 import { createErrorResponse } from '@/lib/error-handling';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { createAuditLogs } from '@/lib/audit-log';
+import { createLogger } from '@/lib/logger';
 import {
   POST,
   TA_BATTLE_ROYALE_ENTRY_CHUNK,
@@ -350,6 +351,47 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
       },
     });
     expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
+    expect(createAuditLogs).not.toHaveBeenCalled();
+    expect(NextResponse.json).not.toHaveBeenCalled();
+  });
+
+  it('ロールバック失敗を記録しつつ元の作成エラーを500として返す', async () => {
+    const players = chunkedPlayers();
+    const creationError = new Error('second chunk failed');
+    const rollbackError = new Error('rollback failed');
+    const createdPlayerIds = players.slice(0, TA_BATTLE_ROYALE_ENTRY_CHUNK).map(({ playerId }) => playerId);
+    mockPlayersForSuccessfulStart(players);
+    jest
+      .mocked(prisma.tTEntry.createMany)
+      .mockResolvedValueOnce({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK })
+      .mockRejectedValueOnce(creationError);
+    jest.mocked(prisma.tTEntry.deleteMany).mockRejectedValueOnce(rollbackError);
+
+    const response = await POST(createRequest(players), params);
+    const logger = jest.mocked(createLogger).mock.results[0].value;
+
+    expect(prisma.tTEntry.deleteMany).toHaveBeenCalledWith({
+      where: {
+        tournamentId: 'tournament-1',
+        stage: 'phase3',
+        playerId: { in: createdPlayerIds },
+      },
+    });
+    expect(logger.error).toHaveBeenNthCalledWith(1, 'Failed to rollback partial TA battle royale entries', {
+      error: rollbackError,
+      tournamentId: 'tournament-1',
+      playerIds: createdPlayerIds,
+    });
+    expect(logger.error).toHaveBeenNthCalledWith(2, 'Failed to start TA battle royale', {
+      error: creationError,
+      tournamentId: 'tournament-1',
+    });
+    expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
+    expect(response).toEqual({
+      message: 'Failed to start TA battle royale',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+    });
     expect(createAuditLogs).not.toHaveBeenCalled();
     expect(NextResponse.json).not.toHaveBeenCalled();
   });
