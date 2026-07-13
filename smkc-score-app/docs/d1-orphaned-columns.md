@@ -4,12 +4,12 @@ This document tracks columns that may remain physically present in deployed Clou
 
 ## Current inventory
 
-| Table    | Column              | Removed from Prisma                          | Replacement / reason                                      | Physical cleanup status                         |
-| -------- | ------------------- | -------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
-| `Player` | `ttSeeding`         | migration `0015_move_seeding_to_ttentry.sql` | See the migration comment; replaced by `TTEntry.seeding`  | Intentionally retained in existing D1 databases |
-| `Player` | `taHandicapSeconds` | issue #2995                                  | See the `Player` model note in `prisma/schema.prisma`      | Intentionally retained in existing D1 databases |
+| Table    | Column              | Removed from Prisma                          | Replacement / reason                                                             | Physical cleanup status                         |
+| -------- | ------------------- | -------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `Player` | `ttSeeding`         | historical schema change                     | Seeding is tournament-specific and now belongs to `TTEntry.seeding`              | Intentionally retained in existing D1 databases |
+| `Player` | `taHandicapSeconds` | issue #2995                                  | See the `Player` model note in `prisma/schema.prisma`                             | Intentionally retained in existing D1 databases |
 
-This inventory is authoritative for which physical columns are intentionally retained and their cleanup status. Field-specific rationale belongs next to the canonical Prisma model or migration that introduced the divergence; the inventory links to that source instead of duplicating the explanation.
+This inventory is authoritative for which physical columns are intentionally retained and their cleanup status. Field-specific rationale should live next to the canonical Prisma model or migration when such a source exists; otherwise, the inventory must retain a self-contained explanation instead of linking to a missing or unverifiable source.
 
 These columns are not application API and must not be reintroduced into `prisma/schema.prisma`, DTOs, selectors, or business logic merely because they are visible in a deployed database.
 
@@ -20,8 +20,8 @@ When a Prisma field must be removed but an in-place D1 migration cannot be safel
 1. Remove all application reads and writes first.
 2. Move or backfill required data into the replacement column before removing the Prisma field.
 3. Remove the field from `prisma/schema.prisma`.
-4. Add the physical column to the inventory above, including the originating issue or migration and a link to the canonical rationale.
-5. Keep the detailed rationale in one place only: the affected Prisma model note or the migration comment.
+4. Add the physical column to the inventory above, including the originating issue or migration when it is verifiable.
+5. Link to a canonical field-removal rationale when one exists; otherwise, keep a self-contained explanation in the inventory.
 6. Do not reuse the old column name for a different meaning.
 
 ## Physical cleanup plan
@@ -45,5 +45,5 @@ Before approving a field-removal PR:
 - [ ] required data has been migrated or deliberately discarded;
 - [ ] the Prisma schema represents the desired application schema;
 - [ ] this inventory is updated when the physical D1 column remains;
-- [ ] the inventory links to, rather than duplicates, the canonical field-removal rationale;
+- [ ] the inventory links to a valid canonical rationale or contains a self-contained explanation;
 - [ ] migration comments and the PR body explain the divergence and future cleanup path.
