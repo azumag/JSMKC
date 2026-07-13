@@ -1,6 +1,4 @@
-type PrismaErrorWithCode = {
-  code?: unknown;
-};
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 /**
  * Returns true when creating Phase 3 entries lost a race with another start
@@ -8,10 +6,5 @@ type PrismaErrorWithCode = {
  * makes Prisma report that race as P2002.
  */
 export function isTaBattleRoyaleStartConflict(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as PrismaErrorWithCode).code === 'P2002'
-  );
+  return error instanceof PrismaClientKnownRequestError && error.code === 'P2002';
 }
