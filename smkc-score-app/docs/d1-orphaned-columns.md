@@ -4,9 +4,9 @@ This document tracks columns that may remain physically present in deployed Clou
 
 ## Current inventory
 
-| Table    | Column              | Removed from Prisma                          | Replacement / reason                                                           | Physical cleanup status                          |
-| -------- | ------------------- | -------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------ |
-| `Player` | `ttSeeding`         | migration `0015_move_seeding_to_ttentry.sql` | Seeding is tournament-specific and now belongs to `TTEntry.seeding`            | Intentionally retained in existing D1 databases |
+| Table    | Column              | Removed from Prisma                          | Replacement / reason                                                             | Physical cleanup status                         |
+| -------- | ------------------- | -------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `Player` | `ttSeeding`         | migration `0015_move_seeding_to_ttentry.sql` | Seeding is tournament-specific and now belongs to `TTEntry.seeding`              | Intentionally retained in existing D1 databases |
 | `Player` | `taHandicapSeconds` | issue #2995                                  | Handicap is tournament-entry-specific and belongs to `TTEntry.taHandicapSeconds` | Intentionally retained in existing D1 databases |
 
 These columns are not application API and must not be reintroduced into `prisma/schema.prisma`, DTOs, selectors, or business logic merely because they are visible in a deployed database.
