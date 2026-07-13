@@ -7,15 +7,15 @@ import { createErrorResponse } from '@/lib/error-handling';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { getTaPhase3Rules, normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { rollbackTaBattleRoyaleEntries } from '@/lib/ta/battle-royale-entry-rollback';
+import { TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS } from '@/lib/ta/battle-royale-constants';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
 import { createLogger } from '@/lib/logger';
 
-const HandicapValueSchema = z.union([z.literal(0), z.literal(-1), z.literal(-3), z.literal(-5)]);
+export { TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS } from '@/lib/ta/battle-royale-constants';
 
-export const TA_BATTLE_ROYALE_MAX_PLAYERS = 100;
-export const TA_BATTLE_ROYALE_ENTRY_CHUNK = 14;
+const HandicapValueSchema = z.union([z.literal(0), z.literal(-1), z.literal(-3), z.literal(-5)]);
 
 const StartBattleRoyaleSchema = z.object({
   players: z
