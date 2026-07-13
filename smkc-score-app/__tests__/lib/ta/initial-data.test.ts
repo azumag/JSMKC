@@ -54,6 +54,10 @@ describe('fetchTaInitialData', () => {
     });
 
     const mockEntries = [{ id: 'e1', stage: 'qualification' }];
+    // No taHandicapSeconds: Player no longer carries a handicap default
+    // (removed — it only ever seeded a new tournament entry and never
+    // affected an already-entered player). PLAYER_PUBLIC_SELECT reflects
+    // this, so allPlayers rows from this query never include the field.
     const mockPlayers = [
       {
         id: 'p1',
@@ -61,7 +65,6 @@ describe('fetchTaInitialData', () => {
         nickname: 'alice',
         country: null,
         noCamera: false,
-        taHandicapSeconds: -3,
       },
     ];
 

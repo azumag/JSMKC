@@ -51,9 +51,6 @@ import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { createPlayerWithRetry } from '@/lib/create-player-retry';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
 import { createLogger } from '@/lib/client-logger';
-import { TaHandicapSelect } from '@/components/tournament/ta-handicap-select';
-import { TaHandicapBadge } from '@/components/tournament/ta-handicap-badge';
-import { TaHandicapLegend } from '@/components/tournament/ta-handicap-legend';
 
 /**
  * Client-side logger for the players page.
@@ -78,7 +75,6 @@ interface Player {
   nickname: string;
   country: string | null;
   noCamera: boolean;
-  taHandicapSeconds: 0 | -1 | -3 | -5;
   createdAt: string;
   /** Set by the API for admin users: true if the player is registered in any tournament. */
   hasTournamentData?: boolean;
@@ -132,7 +128,6 @@ export default function PlayersPage() {
     nickname: '',
     country: '',
     noCamera: false,
-    taHandicapSeconds: 0 as 0 | -1 | -3 | -5,
   });
 
   /* Currently editing player ID (null when adding a new player) */
@@ -236,12 +231,11 @@ export default function PlayersPage() {
           nickname: formData.nickname,
           country: resolveCountryCode(formData.country) ?? null,
           noCamera: formData.noCamera,
-          taHandicapSeconds: formData.taHandicapSeconds,
           createdAt: new Date().toISOString(),
         };
         setPlayers((prev) => [...prev, newPlayer]);
 
-        setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 });
+        setFormData({ name: '', nickname: '', country: '', noCamera: false });
         setIsAddDialogOpen(false);
 
         if (!result.recovered && data.temporaryPassword) {
@@ -307,14 +301,13 @@ export default function PlayersPage() {
                   nickname: formData.nickname,
                   country: resolveCountryCode(formData.country) ?? null,
                   noCamera: formData.noCamera,
-                  taHandicapSeconds: formData.taHandicapSeconds,
                 }
               : p,
           ),
         );
         setIsEditDialogOpen(false);
         setEditingPlayerId(null);
-        setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 });
+        setFormData({ name: '', nickname: '', country: '', noCamera: false });
       } else {
         const text = await response!.text();
         try {
@@ -433,7 +426,6 @@ export default function PlayersPage() {
       nickname: player.nickname,
       country: player.country || '',
       noCamera: player.noCamera,
-      taHandicapSeconds: player.taHandicapSeconds ?? 0,
     });
     setEditingPlayerId(player.id);
     setError('');
@@ -448,7 +440,7 @@ export default function PlayersPage() {
     setIsEditDialogOpen(open);
     if (!open) {
       setEditingPlayerId(null);
-      setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 });
+      setFormData({ name: '', nickname: '', country: '', noCamera: false });
     }
   };
 
@@ -495,11 +487,7 @@ export default function PlayersPage() {
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button
-                onClick={() =>
-                  setFormData({ name: '', nickname: '', country: '', noCamera: false, taHandicapSeconds: 0 })
-                }
-              >
+              <Button onClick={() => setFormData({ name: '', nickname: '', country: '', noCamera: false })}>
                 {tc('addPlayer')}
               </Button>
             </DialogTrigger>
@@ -549,16 +537,6 @@ export default function PlayersPage() {
                     />
                     <Label htmlFor="noCamera">{t('noCamera')}</Label>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="taHandicapSeconds">{t('taHandicap')}</Label>
-                    <TaHandicapSelect
-                      value={formData.taHandicapSeconds}
-                      onValueChange={(taHandicapSeconds) => setFormData({ ...formData, taHandicapSeconds })}
-                      aria-label={t('taHandicap')}
-                    />
-                    <p className="text-xs text-muted-foreground">{t('taHandicapHelp')}</p>
-                    <TaHandicapLegend compact />
-                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={submitting}>
@@ -607,7 +585,6 @@ export default function PlayersPage() {
                       <TableHead>{t('fullName')}</TableHead>
                       <TableHead>{t('country')}</TableHead>
                       <TableHead>{t('noCamera')}</TableHead>
-                      {isAdmin && <TableHead>{t('taHandicap')}</TableHead>}
                       {/* Actions column only visible to admins */}
                       {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
                     </TableRow>
@@ -624,11 +601,6 @@ export default function PlayersPage() {
                           </span>
                         </TableCell>
                         <TableCell>{player.noCamera ? '✗' : '-'}</TableCell>
-                        {isAdmin && (
-                          <TableCell>
-                            <TaHandicapBadge value={player.taHandicapSeconds} title={t('taHandicapHelp')} />
-                          </TableCell>
-                        )}
                         {/* Admin-only action buttons: Edit and Delete */}
                         {isAdmin && (
                           <TableCell className="text-right space-x-2">
@@ -738,16 +710,6 @@ export default function PlayersPage() {
                   onCheckedChange={(checked) => setFormData({ ...formData, noCamera: checked === true })}
                 />
                 <Label htmlFor="edit-noCamera">{t('noCamera')}</Label>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-taHandicapSeconds">{t('taHandicap')}</Label>
-                <TaHandicapSelect
-                  value={formData.taHandicapSeconds}
-                  onValueChange={(taHandicapSeconds) => setFormData({ ...formData, taHandicapSeconds })}
-                  aria-label={t('taHandicap')}
-                />
-                <p className="text-xs text-muted-foreground">{t('taHandicapHelp')}</p>
-                <TaHandicapLegend compact />
               </div>
             </div>
             <DialogFooter>

@@ -1276,4 +1276,20 @@ describe('PATCH /api/tournaments/[id]/ta handicaps', () => {
       { status: 400 },
     );
   });
+
+  // Player.taHandicapSeconds (the "player default" this action reset TTEntry
+  // rows back to) was removed: it only ever seeded a new tournament entry
+  // and never affected an already-entered player. The action was already
+  // dead — no UI ever called it — and is now rejected at the schema level
+  // rather than silently doing nothing meaningful.
+  it('rejects the removed reset-to-player-defaults action', async () => {
+    await patch({ action: 'reset_handicaps_to_player_defaults' });
+
+    expect(NextResponse.json).toHaveBeenLastCalledWith(
+      expect.objectContaining({ success: false, code: 'VALIDATION_ERROR' }),
+      { status: 400 },
+    );
+    expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
 });

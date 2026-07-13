@@ -153,4 +153,46 @@ describe('Prisma migration compatibility', () => {
     expect(prismaMigration).toContain(expectedColumn);
     expect(wranglerMigration).toBe(prismaMigration);
   });
+
+  it('removes the unused Player TA handicap default from the schema without a DROP COLUMN migration', () => {
+    const schema = fs.readFileSync(path.join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+
+    /*
+     * Player.taHandicapSeconds was a "new tournament default" that only ever
+     * seeded new TTEntry rows — editing it in Player Management never
+     * affected any player already entered in a tournament, which read
+     * exclusively from TTEntry.taHandicapSeconds. That made the Player
+     * Management control misleading, so it is removed from the schema;
+     * TTEntry.taHandicapSeconds remains the sole, authoritative handicap.
+     *
+     * No migration drops the underlying D1 column: SQLite/D1 does not
+     * support DROP COLUMN reliably here, per the same decision already made
+     * for Player.ttSeeding (migrations/0015_move_seeding_to_ttentry.sql).
+     * The orphaned column is left in place and ignored at the application
+     * level — see the schema.prisma comment above the Player model.
+     */
+    const playerModel = schema.match(/model Player \{[\s\S]*?\n\}/)?.[0];
+    const ttEntryModel = schema.match(/model TTEntry \{[\s\S]*?\n\}/)?.[0];
+    expect(playerModel).not.toContain('taHandicapSeconds');
+    expect(ttEntryModel).toContain('taHandicapSeconds');
+  });
+
+  it('never attempts to DROP COLUMN "taHandicapSeconds" from Player (D1 does not reliably support it here)', () => {
+    const prismaMigrationsDir = path.join(__dirname, '../../prisma/migrations');
+    const wranglerMigrationsDir = path.join(__dirname, '../../migrations');
+    const wranglerMigrationFiles = fs
+      .readdirSync(wranglerMigrationsDir)
+      .filter((file) => file.endsWith('.sql'))
+      .map((file) => path.join(wranglerMigrationsDir, file));
+    const allMigrationFiles = [...migrationSqlFiles(prismaMigrationsDir), ...wranglerMigrationFiles];
+
+    // Scoped to the Player table specifically — TTEntry.taHandicapSeconds is
+    // the surviving, authoritative field and must remain droppable if ever
+    // needed; only re-dropping it from Player would repeat the mistake this
+    // migration avoided.
+    const offending = allMigrationFiles.filter((file) =>
+      /ALTER TABLE\s+"Player"\b[^;]*DROP COLUMN\s+"taHandicapSeconds"/i.test(fs.readFileSync(file, 'utf8')),
+    );
+    expect(offending).toEqual([]);
+  });
 });

@@ -23,7 +23,6 @@ export const PLAYER_PUBLIC_SELECT = {
   nickname: true,
   country: true,
   noCamera: true,
-  taHandicapSeconds: true,
 } as const;
 
 /**

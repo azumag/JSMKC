@@ -22,7 +22,6 @@ import {
   handleAuthzError,
 } from '@/lib/error-handling';
 import { resolveCountryCode } from '@/lib/countries';
-import { isTaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
 
 /**
@@ -99,14 +98,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country, noCamera, taHandicapSeconds = 0 } = body;
+    const { name, nickname, country, noCamera } = body;
 
     // Validate required fields
     if (!name || !nickname) {
       return handleValidationError('Name and nickname are required');
-    }
-    if (!isTaHandicapSeconds(taHandicapSeconds)) {
-      return handleValidationError('TA handicap must be 0, -1, -3, or -5 seconds', 'taHandicapSeconds');
     }
 
     // Normalize to an ISO alpha-2 code server-side (issue #2766) — see the
@@ -123,7 +119,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         nickname,
         country: normalizedCountry,
         noCamera: noCamera === true,
-        taHandicapSeconds,
       },
     });
 
@@ -142,7 +137,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           name,
           nickname,
           country: normalizedCountry,
-          taHandicapSeconds,
         },
       }).catch((err) =>
         logger.warn('Failed to create audit log', {

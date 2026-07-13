@@ -80,7 +80,7 @@ import { TaHandicapSelect } from '@/components/tournament/ta-handicap-select';
 import { TaHandicapBadge } from '@/components/tournament/ta-handicap-badge';
 import { TaHandicapLegend } from '@/components/tournament/ta-handicap-legend';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
-import { normalizeTaHandicapSeconds, type TaHandicapSeconds } from '@/lib/ta/battle-royale';
+import type { TaHandicapSeconds } from '@/lib/ta/battle-royale';
 
 const logger = createLogger({ serviceName: 'tournaments-ta' });
 
@@ -110,7 +110,6 @@ interface Player {
   nickname: string;
   /** Stored country value (ISO code or legacy name); rendered as an inline flag. */
   country?: string | null;
-  taHandicapSeconds?: TaHandicapSeconds;
 }
 
 /** Time Trial entry data structure from the API */
@@ -897,7 +896,9 @@ export default function TimeAttackPageClient({
                                     playerId: p.id,
                                     seeding: undefined as number | undefined,
                                     partnerId: null as string | null,
-                                    taHandicapSeconds: normalizeTaHandicapSeconds(p.taHandicapSeconds),
+                                    // New entries always start at handicap 0; admins set the
+                                    // real per-tournament value below via TaHandicapSelect.
+                                    taHandicapSeconds: 0 as TaHandicapSeconds,
                                   }));
                                 setSetupEntries((prev) => [...prev, ...toAdd]);
                               } else {
@@ -935,7 +936,9 @@ export default function TimeAttackPageClient({
                                               playerId: player.id,
                                               seeding: undefined,
                                               partnerId: null,
-                                              taHandicapSeconds: player.taHandicapSeconds ?? 0,
+                                              // New entries always start at handicap 0; admins set
+                                              // the real per-tournament value via TaHandicapSelect.
+                                              taHandicapSeconds: 0,
                                             },
                                           ],
                                     );
@@ -970,26 +973,8 @@ export default function TimeAttackPageClient({
                         </Button>
                       </div>
                       {taBattleRoyaleMode && (
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-3">
+                        <div className="mb-3 rounded-md border bg-muted/30 p-3">
                           <TaHandicapLegend compact />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              setSetupEntries((previous) =>
-                                previous.map((entry) => ({
-                                  ...entry,
-                                  taHandicapSeconds: normalizeTaHandicapSeconds(
-                                    allPlayers.find((player) => player.id === entry.playerId)?.taHandicapSeconds,
-                                  ),
-                                })),
-                              )
-                            }
-                            disabled={qualificationRegistrationLocked}
-                          >
-                            {t('resetHandicapsToPlayerDefaults')}
-                          </Button>
                         </div>
                       )}
                       <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">

@@ -1,7 +1,6 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type { TournamentArchiveBundle } from '@/lib/tournament-archive';
-import { normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { retryDbRead } from '@/lib/db-read-retry';
 
 const DATE_FIELDS = new Set([
@@ -53,7 +52,6 @@ type ArchivedPlayer = {
   nickname: string;
   country?: string | null;
   noCamera?: boolean;
-  taHandicapSeconds?: number;
 };
 
 type ArchivedRecord = Record<string, unknown>;
@@ -230,7 +228,6 @@ async function restorePlayers(bundle: TournamentArchiveBundle): Promise<{
         nickname: archived.nickname,
         country: archived.country ?? null,
         noCamera: archived.noCamera === true,
-        taHandicapSeconds: normalizeTaHandicapSeconds(archived.taHandicapSeconds),
       },
       select: { id: true },
     });

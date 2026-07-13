@@ -21,7 +21,6 @@ export interface TaPlayer {
   nickname: string;
   country: string | null;
   noCamera: boolean;
-  taHandicapSeconds: number;
 }
 
 /**

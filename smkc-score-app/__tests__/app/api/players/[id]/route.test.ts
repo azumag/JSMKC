@@ -238,29 +238,6 @@ describe('PUT /api/players/[id]', () => {
   });
 
   describe('Validation', () => {
-    it('rejects an unsupported TA handicap', async () => {
-      sanitizeMock.sanitizeInput.mockReturnValue({
-        name: 'Updated Name',
-        nickname: 'updated',
-        taHandicapSeconds: 1,
-      });
-
-      const route = (await import('@/app/api/players/[id]/route')).PUT;
-      await route(
-        new NextRequest('http://localhost:3000/api/players/player-1', {
-          method: 'PUT',
-          body: JSON.stringify({ name: 'Updated Name', nickname: 'updated', taHandicapSeconds: 1 }),
-        }),
-        { params: Promise.resolve({ id: 'player-1' }) },
-      );
-
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: expect.stringContaining('0, -1, -3, or -5') }),
-        { status: 400 },
-      );
-      expect(prisma.player.update).not.toHaveBeenCalled();
-    });
-
     it('should return 400 when name is missing', async () => {
       sanitizeMock.sanitizeInput.mockReturnValue({ nickname: 'updated' });
 
@@ -313,7 +290,6 @@ describe('PUT /api/players/[id]', () => {
         name: 'Updated Name',
         nickname: 'updated',
         country: 'US',
-        taHandicapSeconds: -5,
       });
       prisma.player.update.mockResolvedValue(mockPlayer);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
@@ -340,8 +316,17 @@ describe('PUT /api/players/[id]', () => {
             nickname: 'updated',
             country: 'US',
             noCamera: false,
-            taHandicapSeconds: -5,
           },
+        }),
+      );
+
+      // Player.taHandicapSeconds was removed: it only ever seeded a new
+      // tournament entry's default and never affected an already-entered
+      // player. A client still sending the legacy field must be ignored
+      // rather than erroring or persisting a now-nonexistent column.
+      expect(prisma.player.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ taHandicapSeconds: expect.anything() }),
         }),
       );
 
