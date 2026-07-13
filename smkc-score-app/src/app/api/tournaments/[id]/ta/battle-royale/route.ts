@@ -16,6 +16,12 @@ import { createLogger } from '@/lib/logger';
 
 const HandicapValueSchema = z.union([z.literal(0), z.literal(-1), z.literal(-3), z.literal(-5)]);
 
+const BATTLE_ROYALE_ALREADY_STARTED_ERROR = {
+  message: 'TA battle royale has already started',
+  status: 409,
+  code: 'BATTLE_ROYALE_ALREADY_STARTED',
+} as const;
+
 const StartBattleRoyaleSchema = z.object({
   players: z
     .array(
@@ -84,7 +90,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     if (existingPhase3Count > 0 || phaseRoundCount > 0) {
-      return createErrorResponse('TA battle royale has already started', 409, 'BATTLE_ROYALE_ALREADY_STARTED');
+      return createErrorResponse(
+        BATTLE_ROYALE_ALREADY_STARTED_ERROR.message,
+        BATTLE_ROYALE_ALREADY_STARTED_ERROR.status,
+        BATTLE_ROYALE_ALREADY_STARTED_ERROR.code,
+      );
     }
     if (players.length !== playerIds.length) {
       return createErrorResponse('One or more players were not found', 400, 'PLAYER_NOT_FOUND');
@@ -126,7 +136,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
 
       if (isTaBattleRoyaleStartConflict(error)) {
-        return createErrorResponse('TA battle royale has already started', 409, 'BATTLE_ROYALE_ALREADY_STARTED');
+        return createErrorResponse(
+          BATTLE_ROYALE_ALREADY_STARTED_ERROR.message,
+          BATTLE_ROYALE_ALREADY_STARTED_ERROR.status,
+          BATTLE_ROYALE_ALREADY_STARTED_ERROR.code,
+        );
       }
 
       throw error;
