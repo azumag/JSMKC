@@ -7,6 +7,7 @@ import { createErrorResponse } from '@/lib/error-handling';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { getTaPhase3Rules, normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { rollbackTaBattleRoyaleEntries } from '@/lib/ta/battle-royale-entry-rollback';
+import { isTaBattleRoyaleStartConflict } from '@/lib/ta/battle-royale-start-conflict';
 import { TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS } from '@/lib/ta/battle-royale-constants';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
@@ -123,6 +124,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           playerIds: createdPlayerIds,
         });
       }
+
+      if (isTaBattleRoyaleStartConflict(error)) {
+        return createErrorResponse('TA battle royale has already started', 409, 'BATTLE_ROYALE_ALREADY_STARTED');
+      }
+
       throw error;
     }
 
