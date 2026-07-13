@@ -1,33 +1,21 @@
 /**
  * @module __tests__/lib/password-utils.test.ts
- * @description Test suite for the password utility functions from `@/lib/password-utils`.
+ * @description Test suite for password generation, hashing, and verification utilities.
  *
- * This suite validates three exported functions:
- *
- * - `generateSecurePassword`: Generates a cryptographically secure random password
- *   using `crypto.getRandomValues`. The character set includes all uppercase letters,
- *   lowercase letters, digits, and special characters (!@#$%^&*). Tests verify
- *   default length (12), custom lengths, character set compliance,
- *   randomness (uniqueness across 100 passwords), and that
- *   all generated characters belong to the allowed charset.
- *
- * - `hashPassword`: Hashes a password using bcrypt with 12 rounds of salting.
- *   Tests confirm the hash is 60 characters long, different hashes are produced
- *   for the same password (due to random salt), and special/unicode characters
- *   are handled correctly.
- *
- * - `verifyPassword`: Compares a plaintext password against a bcrypt hash. Tests
- *   cover correct password verification, incorrect password rejection, empty
- *   password handling, and graceful behavior with invalid/malformed hash strings.
- *
- * Integration tests verify bcrypt round count (12), direct bcrypt.compare
- * compatibility, and overall password security properties (salt uniqueness,
- *  statistical randomness of generated passwords).
+ * Generated passwords use the exported readable character set, which excludes
+ * visually ambiguous characters while retaining uppercase letters, lowercase
+ * letters, digits, and special characters.
  */
-// __tests__/lib/password-utils.test.ts
 import { describe, it, expect } from '@jest/globals';
-import { generateSecurePassword, hashPassword, verifyPassword } from '@/lib/password-utils';
+import {
+  generateSecurePassword,
+  hashPassword,
+  READABLE_PASSWORD_CHARSET,
+  verifyPassword,
+} from '@/lib/password-utils';
 import bcrypt from 'bcryptjs';
+
+const EXPECTED_READABLE_PASSWORD_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
 
 describe('Password Utilities', () => {
   describe('generateSecurePassword', () => {
@@ -49,16 +37,24 @@ describe('Password Utilities', () => {
       expect(typeof password).toBe('string');
     });
 
-    it('should generate password using valid characters from charset', () => {
-      const password = generateSecurePassword();
-      // The source charset includes all uppercase, lowercase, digits, and special characters
-      // including ambiguous characters (I, O, 0, 1, l) and the ^ character
-      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-      const passwordChars = password.split('');
+    it('should match the intended readable character set exactly', () => {
+      expect(READABLE_PASSWORD_CHARSET).toBe(EXPECTED_READABLE_PASSWORD_CHARSET);
+    });
 
-      passwordChars.forEach(char => {
-        expect(charset).toContain(char);
-      });
+    it('should exclude characters that are easy to confuse visually', () => {
+      const ambiguousCharacters = ['I', 'O', 'l', 'o', '0', '1'];
+
+      for (const character of ambiguousCharacters) {
+        expect(READABLE_PASSWORD_CHARSET).not.toContain(character);
+      }
+    });
+
+    it('should generate password using valid characters from the readable charset', () => {
+      const password = generateSecurePassword();
+
+      for (const character of password) {
+        expect(READABLE_PASSWORD_CHARSET).toContain(character);
+      }
     });
 
     it('should generate different passwords on each call (randomness)', () => {
@@ -74,15 +70,11 @@ describe('Password Utilities', () => {
       expect(password.length).toBeGreaterThan(0);
     });
 
-    it('should include all characters from the full charset including ambiguous ones', () => {
-      // The source charset does NOT exclude ambiguous characters.
-      // Generate a long password to increase the chance of including various chars.
+    it('should only generate characters from the readable charset', () => {
       const password = generateSecurePassword(1000);
-      // The full charset includes uppercase, lowercase, digits, and special chars
-      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-      // Verify every character in the generated password belongs to the charset
-      for (const char of password) {
-        expect(charset).toContain(char);
+
+      for (const character of password) {
+        expect(READABLE_PASSWORD_CHARSET).toContain(character);
       }
     });
   });
@@ -182,19 +174,14 @@ describe('Password Utilities', () => {
       const password = 'testPassword123!';
       const hashed = await hashPassword(password);
 
-      // Verify the hash was created with bcrypt
       const match = await bcrypt.compare(password, hashed);
       expect(match).toBe(true);
-
-      // Verify hash format starts with bcrypt prefix
       expect(hashed).toMatch(/^\$2[aby]\$/);
     });
 
     it('should use 10 rounds for hashing (as defined in BCRYPT_ROUNDS)', async () => {
       const password = 'testPassword123!';
       const hashed = await hashPassword(password);
-
-      // Extract rounds from hash (format: $2a$10$...)
       const hashParts = hashed.split('$');
       const rounds = parseInt(hashParts[2], 10);
 
@@ -215,7 +202,6 @@ describe('Password Utilities', () => {
       const passwords = Array.from({ length: 100 }, () => generateSecurePassword());
       const uniquePasswords = new Set(passwords);
 
-      // Verify that we're getting mostly unique passwords (statistical randomness)
       expect(uniquePasswords.size).toBeGreaterThan(90);
     });
 
@@ -224,10 +210,7 @@ describe('Password Utilities', () => {
       const hash1 = await hashPassword(password);
       const hash2 = await hashPassword(password);
 
-      // Same password should produce different hashes due to salt
       expect(hash1).not.toBe(hash2);
-
-      // But both should verify correctly
       expect(await verifyPassword(password, hash1)).toBe(true);
       expect(await verifyPassword(password, hash2)).toBe(true);
     });
