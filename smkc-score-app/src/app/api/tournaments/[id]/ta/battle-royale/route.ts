@@ -6,6 +6,7 @@ import { sanitizeInput } from '@/lib/sanitize';
 import { createErrorResponse } from '@/lib/error-handling';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { getTaPhase3Rules, normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';
+import { rollbackTaBattleRoyaleEntries } from '@/lib/ta/battle-royale-entry-rollback';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
@@ -106,10 +107,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // D1 allows roughly 100 bound parameters per statement. Each TTEntry row
     // binds 7 values, so 14 rows (98 parameters) is the largest safe chunk.
-    for (let i = 0; i < entryData.length; i += TA_BATTLE_ROYALE_ENTRY_CHUNK) {
-      await prisma.tTEntry.createMany({
-        data: entryData.slice(i, i + TA_BATTLE_ROYALE_ENTRY_CHUNK),
-      });
+    let createdPlayerCount = 0;
+    try {
+      for (let i = 0; i < entryData.length; i += TA_BATTLE_ROYALE_ENTRY_CHUNK) {
+        const chunk = entryData.slice(i, i + TA_BATTLE_ROYALE_ENTRY_CHUNK);
+        await prisma.tTEntry.createMany({ data: chunk });
+        createdPlayerCount += chunk.length;
+      }
+    } catch (error) {
+      const createdPlayerIds = playerIds.slice(0, createdPlayerCount);
+      try {
+        await rollbackTaBattleRoyaleEntries(prisma.tTEntry, tournament.id, createdPlayerIds);
+      } catch (rollbackError) {
+        logger.error('Failed to rollback partial TA battle royale entries', {
+          error: rollbackError,
+          tournamentId: tournament.id,
+          playerIds: createdPlayerIds,
+        });
+      }
+      throw error;
     }
 
     const createdEntries = await prisma.tTEntry.findMany({

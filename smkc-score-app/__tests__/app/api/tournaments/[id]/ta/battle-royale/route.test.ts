@@ -2,7 +2,7 @@
 
 jest.mock('@/lib/prisma', () => {
   const mockPrisma = {
-    tTEntry: { count: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
+    tTEntry: { count: jest.fn(), createMany: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
     tTPhaseRound: { count: jest.fn() },
     player: { findMany: jest.fn() },
   };
@@ -118,6 +118,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     jest.mocked(prisma.tTPhaseRound.count).mockResolvedValue(0);
     jest.mocked(prisma.player.findMany).mockResolvedValue([{ id: PLAYER_1 }, { id: PLAYER_2 }]);
     jest.mocked(prisma.tTEntry.createMany).mockResolvedValue({ count: 2 });
+    jest.mocked(prisma.tTEntry.deleteMany).mockResolvedValue({ count: 0 });
     jest.mocked(prisma.tTEntry.findMany).mockResolvedValue([
       { id: 'entry-1', playerId: PLAYER_1, taHandicapSeconds: 0, player: { nickname: 'Player 1' } },
       { id: 'entry-2', playerId: PLAYER_2, taHandicapSeconds: -3, player: { nickname: 'Player 2' } },
@@ -326,7 +327,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }), { status: 201 });
   });
 
-  it('2チャンク目の作成に失敗した場合は監査ログや成功レスポンスを生成しない', async () => {
+  it('2チャンク目の作成に失敗した場合は1チャンク目のエントリーをロールバックする', async () => {
     const players = chunkedPlayers();
     mockPlayersForSuccessfulStart(players);
     jest
@@ -341,6 +342,27 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
       TA_BATTLE_ROYALE_ENTRY_CHUNK,
     );
     expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[1][0].data).toHaveLength(1);
+    expect(prisma.tTEntry.deleteMany).toHaveBeenCalledWith({
+      where: {
+        tournamentId: 'tournament-1',
+        stage: 'phase3',
+        playerId: { in: players.slice(0, TA_BATTLE_ROYALE_ENTRY_CHUNK).map(({ playerId }) => playerId) },
+      },
+    });
+    expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
+    expect(createAuditLogs).not.toHaveBeenCalled();
+    expect(NextResponse.json).not.toHaveBeenCalled();
+  });
+
+  it('1チャンク目の作成に失敗した場合はロールバックを実行しない', async () => {
+    const players = chunkedPlayers();
+    mockPlayersForSuccessfulStart(players);
+    jest.mocked(prisma.tTEntry.createMany).mockRejectedValueOnce(new Error('first chunk failed'));
+
+    await POST(createRequest(players), params);
+
+    expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(1);
+    expect(prisma.tTEntry.deleteMany).not.toHaveBeenCalled();
     expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
     expect(createAuditLogs).not.toHaveBeenCalled();
     expect(NextResponse.json).not.toHaveBeenCalled();
