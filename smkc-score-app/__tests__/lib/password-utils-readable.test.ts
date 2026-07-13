@@ -1,8 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { generateSecurePassword, READABLE_PASSWORD_CHARSET } from '@/lib/password-utils';
 
-const EXPECTED_READABLE_PASSWORD_CHARSET =
-  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+const EXPECTED_READABLE_PASSWORD_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
 
 describe('readable generated passwords', () => {
   it('matches the intended readable character set exactly', () => {
