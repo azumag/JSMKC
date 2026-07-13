@@ -1,5 +1,3 @@
-export { TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS } from './battle-royale-constants';
-
 export const TA_HANDICAP_SECONDS = [0, -1, -3, -5] as const;
 export type TaHandicapSeconds = (typeof TA_HANDICAP_SECONDS)[number];
 
