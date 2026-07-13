@@ -52,7 +52,7 @@ export const BCRYPT_ROUNDS = 10;
  * - Digits: 0, 1
  */
 export const READABLE_PASSWORD_CHARSET =
-  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
 
 /**
  * Generates a cryptographically secure random password.

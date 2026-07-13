@@ -1,7 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 import { generateSecurePassword, READABLE_PASSWORD_CHARSET } from '@/lib/password-utils';
 
+const EXPECTED_READABLE_PASSWORD_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+
 describe('readable generated passwords', () => {
+  it('matches the intended readable character set exactly', () => {
+    expect(READABLE_PASSWORD_CHARSET).toBe(EXPECTED_READABLE_PASSWORD_CHARSET);
+  });
+
   it('excludes characters that are easy to confuse visually', () => {
     const ambiguousCharacters = ['I', 'O', 'l', 'o', '0', '1'];
 
@@ -22,6 +28,6 @@ describe('readable generated passwords', () => {
     expect(READABLE_PASSWORD_CHARSET).toMatch(/[A-Z]/);
     expect(READABLE_PASSWORD_CHARSET).toMatch(/[a-z]/);
     expect(READABLE_PASSWORD_CHARSET).toMatch(/[2-9]/);
-    expect(READABLE_PASSWORD_CHARSET).toMatch(/[!@#$%&*]/);
+    expect(READABLE_PASSWORD_CHARSET).toMatch(/[!@#$%^&*]/);
   });
 });
