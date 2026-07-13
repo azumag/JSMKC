@@ -131,7 +131,10 @@ it('createManyが2チャンク目でP2002になった場合は作成済み分を
 });
 
 it('createManyが1チャンク目でP2002になった場合はロールバックせず409を返す', async () => {
-  const players = [{ playerId: 'cl00000000000000000000001', taHandicapSeconds: 0 as const }];
+  const players = [
+    { playerId: 'cl00000000000000000000001', taHandicapSeconds: 0 as const },
+    { playerId: 'cl00000000000000000000002', taHandicapSeconds: 0 as const },
+  ];
 
   mockSuccessfulPreconditions(players);
   jest.mocked(prisma.tTEntry.createMany).mockRejectedValueOnce(createP2002Error());
