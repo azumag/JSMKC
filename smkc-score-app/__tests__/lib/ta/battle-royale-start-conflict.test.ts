@@ -13,10 +13,14 @@ describe('isTaBattleRoyaleStartConflict', () => {
     expect(isTaBattleRoyaleStartConflict(createPrismaError('P2002'))).toBe(true);
   });
 
-  it.each([new Error('database unavailable'), createPrismaError('P2024'), { code: 'P2002' }, { code: 2002 }, null, undefined])(
-    'ユニーク制約違反以外は開始競合として扱わない',
-    (error) => {
-      expect(isTaBattleRoyaleStartConflict(error)).toBe(false);
-    },
-  );
+  it.each([
+    new Error('database unavailable'),
+    createPrismaError('P2024'),
+    { code: 'P2002' },
+    { code: 2002 },
+    null,
+    undefined,
+  ])('ユニーク制約違反以外は開始競合として扱わない', (error) => {
+    expect(isTaBattleRoyaleStartConflict(error)).toBe(false);
+  });
 });
