@@ -52,6 +52,7 @@ jest.mock('next/server', () => {
   return { __esModule: true, NextRequest: MockNextRequest, NextResponse: { json: jest.fn() } };
 });
 
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/api-auth';
@@ -63,13 +64,14 @@ import { POST } from '@/app/api/tournaments/[id]/ta/battle-royale/route';
 
 const params = { params: Promise.resolve({ id: 'tournament-1' }) };
 
-it('createManyがP2002で競合した場合は作成済み分をロールバックして409を返す', async () => {
-  const players = Array.from({ length: TA_BATTLE_ROYALE_ENTRY_CHUNK + 1 }, (_, index) => ({
-    playerId: `cl${String(index + 1).padStart(23, '0')}`,
-    taHandicapSeconds: 0 as const,
-  }));
-  const createdPlayerIds = players.slice(0, TA_BATTLE_ROYALE_ENTRY_CHUNK).map(({ playerId }) => playerId);
+function createP2002Error() {
+  return new PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'test',
+  });
+}
 
+function mockSuccessfulPreconditions(players: Array<{ playerId: string; taHandicapSeconds: 0 }>) {
   jest.mocked(requireAdminSession).mockResolvedValue({
     error: null,
     session: { user: { id: 'admin-1', role: 'admin' } },
@@ -82,18 +84,30 @@ it('createManyがP2002で競合した場合は作成済み分をロールバッ�
   jest.mocked(prisma.tTEntry.count).mockResolvedValue(0);
   jest.mocked(prisma.tTPhaseRound.count).mockResolvedValue(0);
   jest.mocked(prisma.player.findMany).mockResolvedValue(players.map(({ playerId }) => ({ id: playerId })));
-  jest
-    .mocked(prisma.tTEntry.createMany)
-    .mockResolvedValueOnce({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK })
-    .mockRejectedValueOnce({ code: 'P2002' });
-  jest.mocked(prisma.tTEntry.deleteMany).mockResolvedValue({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK });
+}
 
-  const request = new NextRequest('http://localhost:3000/api/tournaments/tournament-1/ta/battle-royale', {
+function createRequest(players: Array<{ playerId: string; taHandicapSeconds: 0 }>) {
+  return new NextRequest('http://localhost:3000/api/tournaments/tournament-1/ta/battle-royale', {
     method: 'POST',
     body: JSON.stringify({ players }),
   });
+}
 
-  const response = await POST(request, params);
+it('createManyが2チャンク目でP2002になった場合は作成済み分をロールバックして409を返す', async () => {
+  const players = Array.from({ length: TA_BATTLE_ROYALE_ENTRY_CHUNK + 1 }, (_, index) => ({
+    playerId: `cl${String(index + 1).padStart(23, '0')}`,
+    taHandicapSeconds: 0 as const,
+  }));
+  const createdPlayerIds = players.slice(0, TA_BATTLE_ROYALE_ENTRY_CHUNK).map(({ playerId }) => playerId);
+
+  mockSuccessfulPreconditions(players);
+  jest
+    .mocked(prisma.tTEntry.createMany)
+    .mockResolvedValueOnce({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK })
+    .mockRejectedValueOnce(createP2002Error());
+  jest.mocked(prisma.tTEntry.deleteMany).mockResolvedValue({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK });
+
+  const response = await POST(createRequest(players), params);
 
   expect(prisma.tTEntry.deleteMany).toHaveBeenCalledWith({
     where: {
@@ -102,6 +116,29 @@ it('createManyがP2002で競合した場合は作成済み分をロールバッ�
       playerId: { in: createdPlayerIds },
     },
   });
+  expect(createErrorResponse).toHaveBeenCalledWith(
+    'TA battle royale has already started',
+    409,
+    'BATTLE_ROYALE_ALREADY_STARTED',
+  );
+  expect(response).toEqual({
+    message: 'TA battle royale has already started',
+    status: 409,
+    code: 'BATTLE_ROYALE_ALREADY_STARTED',
+  });
+  expect(createAuditLogs).not.toHaveBeenCalled();
+  expect(NextResponse.json).not.toHaveBeenCalled();
+});
+
+it('createManyが1チャンク目でP2002になった場合はロールバックせず409を返す', async () => {
+  const players = [{ playerId: 'cl00000000000000000000001', taHandicapSeconds: 0 as const }];
+
+  mockSuccessfulPreconditions(players);
+  jest.mocked(prisma.tTEntry.createMany).mockRejectedValueOnce(createP2002Error());
+
+  const response = await POST(createRequest(players), params);
+
+  expect(prisma.tTEntry.deleteMany).not.toHaveBeenCalled();
   expect(createErrorResponse).toHaveBeenCalledWith(
     'TA battle royale has already started',
     409,
