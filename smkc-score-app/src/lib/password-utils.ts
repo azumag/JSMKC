@@ -42,36 +42,32 @@ const logger = createLogger('password-utils');
 export const BCRYPT_ROUNDS = 10;
 
 /**
+ * Human-readable character set for generated temporary passwords.
+ *
+ * Ambiguous glyphs are intentionally excluded so passwords remain easy to
+ * transcribe even when rendered with fonts where similar characters are hard
+ * to distinguish:
+ * - Uppercase: I, O
+ * - Lowercase: l, o
+ * - Digits: 0, 1
+ */
+export const READABLE_PASSWORD_CHARSET =
+  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+
+/**
  * Generates a cryptographically secure random password.
  *
  * Used when creating player accounts programmatically (e.g., batch
  * player import) where the admin needs a temporary password that
  * players can use for initial login.
  *
- * The generated password contains a mix of uppercase letters, lowercase
- * letters, digits, and special characters to meet common password
- * policy requirements.
+ * The generated password contains uppercase letters, lowercase letters,
+ * digits, and special characters while excluding visually ambiguous glyphs.
  *
  * @param length - Desired password length (default: 12 characters)
  * @returns A random password string of the specified length
- *
- * @example
- *   const tempPassword = generateSecurePassword();
- *   // Returns something like: "kR7$mP2xNq!f"
- *
- *   const longPassword = generateSecurePassword(20);
- *   // Returns a 20-character random password
  */
 export function generateSecurePassword(length: number = 12): string {
-  // Character set includes all four categories for password complexity.
-  // This ensures generated passwords meet common password policy requirements:
-  // - Uppercase letters (A-Z)
-  // - Lowercase letters (a-z)
-  // - Digits (0-9)
-  // - Special characters (!@#$%^&*)
-  const charset =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-
   // Use the Web Crypto API for cryptographically secure randomness.
   // globalThis.crypto is available in browsers, Node.js, and
   // Cloudflare Workers, unlike the Node-specific crypto module import.
@@ -85,11 +81,11 @@ export function generateSecurePassword(length: number = 12): string {
 
   // Build the password by mapping each random value to a character.
   // Using modulo to index into the charset. While modulo can introduce
-  // slight bias, the charset length (70) is small enough relative to
-  // Uint32 range (4 billion) that the bias is negligible.
+  // slight bias, the charset is small enough relative to Uint32 range
+  // that the bias is negligible.
   let password = '';
   for (let i = 0; i < length; i++) {
-    password += charset[randomValues[i] % charset.length];
+    password += READABLE_PASSWORD_CHARSET[randomValues[i] % READABLE_PASSWORD_CHARSET.length];
   }
 
   return password;
@@ -104,10 +100,6 @@ export function generateSecurePassword(length: number = 12): string {
  *
  * @param plainPassword - The plain text password to hash
  * @returns The bcrypt hash string (60 characters)
- *
- * @example
- *   const hash = await hashPassword('myPassword123');
- *   // Store hash in database: "$2b$12$LJ3m4/V..."
  */
 export async function hashPassword(plainPassword: string): Promise<string> {
   // bcrypt.hash generates a random salt and computes the hash in one step.
@@ -129,12 +121,6 @@ export async function hashPassword(plainPassword: string): Promise<string> {
  * @param plainPassword - The plain text password to verify
  * @param hashedPassword - The stored bcrypt hash to verify against
  * @returns true if the password matches the hash, false otherwise
- *
- * @example
- *   const isValid = await verifyPassword(submittedPassword, storedHash);
- *   if (!isValid) {
- *     return handleAuthError('Invalid credentials');
- *   }
  */
 export async function verifyPassword(
   plainPassword: string,
