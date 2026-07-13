@@ -74,13 +74,21 @@ model VerificationToken {
 }
 
 // Player model
+// Note: taHandicapSeconds was removed from here (previously a "new tournament
+// default" that only ever seeded a new TTEntry and never affected an
+// already-entered player — a misleading Player Management control). The
+// column is intentionally left in place in D1/SQLite rather than dropped:
+// SQLite/D1 does not support DROP COLUMN reliably here (same decision made
+// for Player.ttSeeding, see migrations/0015_move_seeding_to_ttentry.sql).
+// The orphaned column is simply ignored at the application level.
+// TTEntry.taHandicapSeconds remains the sole, authoritative per-tournament
+// handicap.
 model Player {
   id        String    @id @default(cuid())
   name      String
   nickname  String    @unique
   country   String?
   noCamera  Boolean   @default(false) // カメラなしフラグ（配信時のオーバーレイ制御用）
-  taHandicapSeconds Int @default(0) // TAバトロワ用タイムハンデ: 0, -1, -3, -5
   password  String? // bcrypt hashed password for player authentication
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int       @default(0) // 楽観的ロック用

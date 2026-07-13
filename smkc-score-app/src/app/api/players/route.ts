@@ -24,7 +24,6 @@ import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, handleValidationError, handleAuthzError } from '@/lib/error-handling';
 import { resolveCountryCode } from '@/lib/countries';
-import { isTaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
 
 /**
@@ -226,14 +225,11 @@ export async function POST(request: NextRequest) {
 
     // Sanitize all input fields to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country, noCamera, taHandicapSeconds = 0 } = body;
+    const { name, nickname, country, noCamera } = body;
 
     // Validate required fields before database operations
     if (!name || !nickname) {
       return handleValidationError('Name and nickname are required');
-    }
-    if (!isTaHandicapSeconds(taHandicapSeconds)) {
-      return handleValidationError('TA handicap must be 0, -1, -3, or -5 seconds', 'taHandicapSeconds');
     }
 
     // Generate a cryptographically secure random password (12 characters).
@@ -260,7 +256,6 @@ export async function POST(request: NextRequest) {
         nickname,
         country: normalizedCountry,
         noCamera: noCamera === true,
-        taHandicapSeconds,
         password: hashedPassword,
       },
     });
@@ -280,7 +275,6 @@ export async function POST(request: NextRequest) {
           name,
           nickname,
           country: normalizedCountry,
-          taHandicapSeconds,
           passwordGenerated: true,
         },
       }).catch((err) =>

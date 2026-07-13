@@ -257,12 +257,10 @@
     "failedToResetPassword": "Failed to reset password",
     "fetchError": "Failed to load players. Please try again.",
     "noCamera": "No Camera",
-    "taHandicap": "TA battle royale handicap",
     "taHandicap0": "0 sec — Offline Top 8 / NTSC rank 30 or better",
     "taHandicapMinus1": "-1 sec — Offline Top 16 / NTSC rank 60 or better",
     "taHandicapMinus3": "-3 sec — Group stage qualifier",
-    "taHandicapMinus5": "-5 sec — Group stage elimination / no offline attendance",
-    "taHandicapHelp": "Applied only in TA battle royale-only tournaments."
+    "taHandicapMinus5": "-5 sec — Group stage elimination / no offline attendance"
   },
   "profile": {
     "title": "Profile",
@@ -445,7 +443,6 @@
     "manageTournamentHandicaps": "Manage tournament handicaps",
     "manageTournamentHandicapsDesc": "Bulk-edit the handicaps snapshotted for this tournament",
     "handicapLockedAfterKnockout": "Handicaps cannot be changed after knockout play starts",
-    "resetHandicapsToPlayerDefaults": "Reset to player defaults",
     "battleRoyalePhaseSummary": "All entrants go to Phase 3 with 10 lives, no resets, and tournament handicaps.",
     "standardPhaseSummary": "Players progress through Phases 1 and 2, then Phase 3 starts with 3 lives and resets at 8/4/2 remaining.",
     "handicapDistributionItem": "{handicap}s: {count}",

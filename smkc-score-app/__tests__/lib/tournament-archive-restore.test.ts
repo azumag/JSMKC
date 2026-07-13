@@ -220,8 +220,13 @@ describe('restoreTournamentArchiveForReopen', () => {
         bmQualificationConfirmed: true,
       }),
     });
+    // The archive fixture's player still carries a legacy taHandicapSeconds
+    // field (old archives captured Player.taHandicapSeconds before it was
+    // removed as a misleading, non-functional Player Management control).
+    // Restoring must ignore it rather than pass it to Player.create, which
+    // no longer has that column.
     expect(prisma.player.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ id: 'player-1', nickname: 'p1', taHandicapSeconds: -1 }),
+      data: { id: 'player-1', name: 'Player One', nickname: 'p1', country: 'JP', noCamera: false },
       select: { id: true },
     });
     expect(prisma.bMQualification.createMany).toHaveBeenCalledWith({

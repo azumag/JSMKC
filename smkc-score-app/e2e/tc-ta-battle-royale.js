@@ -7,6 +7,8 @@
  *   TC-TA-BR-03  Adjusted time decides life loss; history keeps raw/handicap/adjusted fields.
  *   TC-TA-BR-04  TA-only navigation, direct finals redirect, compact lives, and preview flow.
  *   TC-TA-BR-05  Archive v2 and archived phases API preserve the same BR rules/results.
+ *   TC-TA-BR-06  Player Management no longer exposes a (non-functional) TA handicap control;
+ *                the tournament entry screen remains the sole place to set it.
  *
  * Run: node e2e/tc-ta-battle-royale.js
  */
@@ -285,6 +287,38 @@ async function tcArchiveParity(adminPage) {
   }
 }
 
+/*
+ * Player.taHandicapSeconds (the "player default" shown in Player Management)
+ * was removed because it never affected an already-entered player — scoring
+ * only ever read the per-tournament TTEntry.taHandicapSeconds snapshot set on
+ * this same tournament's entry screen. This guards against the misleading
+ * control ever reappearing on /players while confirming the real control
+ * (already exercised by TC-TA-BR-01/02 above) still works.
+ */
+async function tcPlayerManagementHasNoHandicapControl(adminPage) {
+  try {
+    await nav(adminPage, '/players');
+    const openButton = adminPage.getByRole('button', { name: /^(Add Player|プレイヤー追加)$/ }).first();
+    await openButton.click();
+    const formDialog = adminPage
+      .getByRole('dialog')
+      .filter({ has: adminPage.locator('#nickname') })
+      .first();
+    await formDialog.waitFor({ state: 'visible', timeout: 15_000 });
+    const dialogText = await formDialog.innerText();
+    pass(!/ハンデ|handicap/i.test(dialogText), 'Add Player dialog still exposes a TA handicap control');
+    await adminPage.keyboard.press('Escape');
+    await formDialog.waitFor({ state: 'hidden', timeout: 15_000 });
+
+    const pageText = await adminPage.locator('body').innerText();
+    pass(!/ハンデ|handicap/i.test(pageText), 'Players page still references a TA handicap control');
+
+    log('TC-TA-BR-06', 'PASS');
+  } catch (error) {
+    log('TC-TA-BR-06', 'FAIL', error instanceof Error ? error.message : String(error));
+  }
+}
+
 function getSuite() {
   return {
     suiteName: 'TA-BATTLE-ROYALE',
@@ -303,6 +337,7 @@ function getSuite() {
       { name: 'TC-TA-BR-01/02', fn: tcModeAndDirectStart },
       { name: 'TC-TA-BR-03/04', fn: tcAdjustedRoundAndUi },
       { name: 'TC-TA-BR-05', fn: tcArchiveParity },
+      { name: 'TC-TA-BR-06', fn: tcPlayerManagementHasNoHandicapControl },
     ],
   };
 }

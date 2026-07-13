@@ -257,12 +257,10 @@
     "failedToResetPassword": "パスワードのリセットに失敗しました",
     "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。",
     "noCamera": "カメラなし",
-    "taHandicap": "TAバトルロワイヤル ハンデ",
     "taHandicap0": "0秒 — オフラインTop 8／NTSCランク30位以内",
     "taHandicapMinus1": "-1秒 — オフラインTop 16／NTSCランク60位以内",
     "taHandicapMinus3": "-3秒 — グループステージ通過",
-    "taHandicapMinus5": "-5秒 — グループステージ敗退／オフライン参加なし",
-    "taHandicapHelp": "TAバトルロワイヤル専用トーナメントでのみ適用されます。"
+    "taHandicapMinus5": "-5秒 — グループステージ敗退／オフライン参加なし"
   },
   "profile": {
     "title": "プロフィール",
@@ -445,7 +443,6 @@
     "manageTournamentHandicaps": "大会内ハンデ管理",
     "manageTournamentHandicapsDesc": "大会参加時点で固定されたハンデを一括編集します",
     "handicapLockedAfterKnockout": "ノックアウト開始後はハンデを変更できません",
-    "resetHandicapsToPlayerDefaults": "選手初期値へ戻す",
     "battleRoyalePhaseSummary": "参加者全員がPhase 3へ進出し、10ライフ・回復なし・大会内ハンデありで競います。",
     "standardPhaseSummary": "Phase 1・2を経てPhase 3へ進み、3ライフ・残り8/4/2人で回復します。",
     "handicapDistributionItem": "{handicap}s: {count}人",

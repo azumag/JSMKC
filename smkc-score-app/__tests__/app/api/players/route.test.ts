@@ -394,28 +394,6 @@ describe('POST /api/players', () => {
   });
 
   describe('Validation', () => {
-    it('rejects an unsupported TA handicap', async () => {
-      auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
-      sanitizeMock.sanitizeInput.mockReturnValue({
-        name: 'Test Player',
-        nickname: 'test',
-        taHandicapSeconds: -2,
-      });
-
-      await playerRoute.POST(
-        new NextRequest('http://localhost:3000/api/players', {
-          method: 'POST',
-          body: JSON.stringify({ name: 'Test Player', nickname: 'test', taHandicapSeconds: -2 }),
-        }),
-      );
-
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: expect.stringContaining('0, -1, -3, or -5') }),
-        { status: 400 },
-      );
-      expect(prisma.player.create).not.toHaveBeenCalled();
-    });
-
     it('should return 400 when name is missing', async () => {
       auth.mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
@@ -476,7 +454,6 @@ describe('POST /api/players', () => {
         name: 'Test Player',
         nickname: 'test',
         country: 'JP',
-        taHandicapSeconds: -3,
       });
       prisma.player.create.mockResolvedValue(mockPlayer);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
@@ -500,7 +477,6 @@ describe('POST /api/players', () => {
             name: 'Test Player',
             nickname: 'test',
             country: 'JP',
-            taHandicapSeconds: -3,
             password: 'hashed-password',
           }),
         }),
@@ -521,6 +497,36 @@ describe('POST /api/players', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: true, data: { player: mockPlayer, temporaryPassword: 'generated-password' } },
         { status: 201 },
+      );
+    });
+
+    // Player.taHandicapSeconds was removed: it only ever seeded a new
+    // tournament entry's default and never affected an already-entered
+    // player, which made it a misleading control in Player Management.
+    // A client that still sends the legacy field must be silently ignored
+    // rather than erroring or persisting a now-nonexistent column.
+    it('ignores a legacy client-supplied TA handicap field', async () => {
+      auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      sanitizeMock.sanitizeInput.mockReturnValue({
+        name: 'Test Player',
+        nickname: 'test',
+        taHandicapSeconds: -3,
+      });
+      prisma.player.create.mockResolvedValue(mockPlayer);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+
+      await playerRoute.POST(
+        new NextRequest('http://localhost:3000/api/players', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Test Player', nickname: 'test', taHandicapSeconds: -3 }),
+        }),
+      );
+
+      expect(prisma.player.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ taHandicapSeconds: expect.anything() }),
+        }),
       );
     });
 

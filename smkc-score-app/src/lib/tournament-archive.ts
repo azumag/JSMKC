@@ -21,7 +21,6 @@ type ArchivePlayer = {
   nickname: string;
   country: string | null;
   noCamera: boolean;
-  taHandicapSeconds?: number;
 };
 type QualWithPlayer = { playerId: string; player: ArchivePlayer; [k: string]: unknown };
 type BMQualificationArchiveRow = RankedQualification<QualWithPlayer>;

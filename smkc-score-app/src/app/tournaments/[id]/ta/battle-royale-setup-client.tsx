@@ -22,7 +22,7 @@ import { TaHandicapSelect } from '@/components/tournament/ta-handicap-select';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
 import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
 import { fetchAllPlayersForSetup } from '@/lib/qualification-page-data';
-import { normalizeTaHandicapSeconds, type TaHandicapSeconds } from '@/lib/ta/battle-royale';
+import type { TaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { createLogger } from '@/lib/client-logger';
 
 const logger = createLogger({ serviceName: 'ta-battle-royale-setup' });
@@ -31,7 +31,6 @@ interface Player {
   id: string;
   name: string;
   nickname: string;
-  taHandicapSeconds?: number;
 }
 
 interface SelectedPlayer {
@@ -90,17 +89,15 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
   const allFilteredSelected =
     filteredPlayers.length > 0 && filteredPlayers.every((player) => selectedByPlayerId.has(player.id));
 
+  // New selections always start at handicap 0 — Player no longer carries a
+  // default (that field only ever seeded new entries and never affected an
+  // already-entered player). Admins set the real per-player value below via
+  // TaHandicapSelect before starting the battle royale.
   const togglePlayer = (player: Player, checked: boolean) => {
     setSelectedPlayers((current) => {
       if (!checked) return current.filter((entry) => entry.playerId !== player.id);
       if (current.some((entry) => entry.playerId === player.id)) return current;
-      return [
-        ...current,
-        {
-          playerId: player.id,
-          taHandicapSeconds: normalizeTaHandicapSeconds(player.taHandicapSeconds),
-        },
-      ];
+      return [...current, { playerId: player.id, taHandicapSeconds: 0 }];
     });
   };
 
@@ -113,10 +110,7 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
         ...current,
         ...filteredPlayers
           .filter((player) => !selectedIds.has(player.id))
-          .map((player) => ({
-            playerId: player.id,
-            taHandicapSeconds: normalizeTaHandicapSeconds(player.taHandicapSeconds),
-          })),
+          .map((player) => ({ playerId: player.id, taHandicapSeconds: 0 as TaHandicapSeconds })),
       ];
     });
   };

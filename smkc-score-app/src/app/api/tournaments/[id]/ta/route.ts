@@ -172,10 +172,6 @@ const HandicapUpdateSchema = z.discriminatedUnion('action', [
       .min(1)
       .max(100),
   }),
-  z.object({
-    action: z.literal('reset_handicaps_to_player_defaults'),
-    entryIds: z.array(z.string().cuid()).min(1).max(100).optional(),
-  }),
 ]);
 
 /**
@@ -384,18 +380,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const newPlayerIds = playerIds.filter((pid) => !existingPlayerIds.has(pid));
 
       if (newPlayerIds.length > 0) {
-        const playerDefaults =
+        const existingPlayers =
           (await prisma.player.findMany({
             where: { id: { in: newPlayerIds }, deletedAt: null },
-            select: { id: true, taHandicapSeconds: true },
-          })) ?? newPlayerIds.map((id) => ({ id, taHandicapSeconds: 0 }));
-        if (playerDefaults.length !== newPlayerIds.length) {
+            select: { id: true },
+          })) ?? newPlayerIds.map((id) => ({ id }));
+        if (existingPlayers.length !== newPlayerIds.length) {
           return createErrorResponse('One or more players were not found', 400, 'PLAYER_NOT_FOUND');
         }
-        const defaultByPlayerId = new Map(
-          playerDefaults.map((player) => [player.id, normalizeTaHandicapSeconds(player.taHandicapSeconds)]),
-        );
 
+        /*
+         * New entries always start at handicap 0 — Player no longer carries a
+         * "default handicap" (that field only ever seeded new entries and
+         * never affected an already-entered player, which made it a
+         * misleading control in Player Management). Admins set the actual,
+         * authoritative per-tournament handicap on this TTEntry afterward via
+         * PATCH (update_handicap / bulk_update_handicaps).
+         */
         await prisma.tTEntry.createMany({
           data: newPlayerIds.map((pid) => ({
             tournamentId,
@@ -404,7 +405,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             // Empty times object — typed as InputJsonValue at runtime via Prisma
             times: {},
             seeding: seedingMap.get(pid) ?? null,
-            taHandicapSeconds: defaultByPlayerId.get(pid) ?? 0,
+            taHandicapSeconds: 0,
           })),
         });
 
@@ -429,9 +430,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               tournamentId,
               playerId: entry.playerId,
               playerNickname: entry.player.nickname,
-              taHandicapSeconds: normalizeTaHandicapSeconds(
-                (entry as TtEntryWithPlayer & { taHandicapSeconds?: number }).taHandicapSeconds,
-              ),
+              // New entries always start at handicap 0 (see comment above);
+              // admins set the real per-tournament value afterward via PATCH.
+              taHandicapSeconds: 0,
             },
           })),
         );
@@ -471,36 +472,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return createErrorResponse('TA handicaps are locked after the knockout stage starts', 409, 'TA_HANDICAP_LOCKED');
     }
 
-    let source: 'manual' | 'player_default_reset' = 'manual';
-    let updates: Array<{ entryId: string; taHandicapSeconds: TaHandicapSeconds }>;
-    if (parsed.data.action === 'update_handicap') {
-      updates = [{ entryId: parsed.data.entryId, taHandicapSeconds: parsed.data.taHandicapSeconds }];
-    } else if (parsed.data.action === 'bulk_update_handicaps') {
-      updates = parsed.data.updates;
-    } else {
-      source = 'player_default_reset';
-      const entries = await prisma.tTEntry.findMany({
-        where: {
-          tournamentId,
-          stage: 'qualification',
-          ...(parsed.data.entryIds && { id: { in: parsed.data.entryIds } }),
-        },
-        select: {
-          id: true,
-          player: { select: { taHandicapSeconds: true } },
-        },
-      });
-      if (parsed.data.entryIds && entries.length !== parsed.data.entryIds.length) {
-        return createErrorResponse('One or more TA entries were not found', 404, 'TA_ENTRY_NOT_FOUND');
-      }
-      updates = entries.map((entry) => ({
-        entryId: entry.id,
-        taHandicapSeconds: normalizeTaHandicapSeconds(entry.player.taHandicapSeconds),
-      }));
-      if (updates.length === 0) {
-        return createSuccessResponse({ entries: [] });
-      }
-    }
+    const updates: Array<{ entryId: string; taHandicapSeconds: TaHandicapSeconds }> =
+      parsed.data.action === 'update_handicap'
+        ? [{ entryId: parsed.data.entryId, taHandicapSeconds: parsed.data.taHandicapSeconds }]
+        : parsed.data.updates;
 
     if (new Set(updates.map((update) => update.entryId)).size !== updates.length) {
       return createErrorResponse('Duplicate entry IDs are not allowed', 400, 'VALIDATION_ERROR');
@@ -525,7 +500,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           action: 'update_ta_handicap',
           oldTaHandicapSeconds: previousById.get(entry.id) ?? 0,
           newTaHandicapSeconds: normalizeTaHandicapSeconds(entry.taHandicapSeconds),
-          source,
+          source: 'manual',
           bulkOperation: updates.length > 1,
         },
       })),
