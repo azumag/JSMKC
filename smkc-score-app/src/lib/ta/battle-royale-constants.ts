@@ -1,0 +1,2 @@
+export const TA_BATTLE_ROYALE_MAX_PLAYERS = 100;
+export const TA_BATTLE_ROYALE_ENTRY_CHUNK = 14;
