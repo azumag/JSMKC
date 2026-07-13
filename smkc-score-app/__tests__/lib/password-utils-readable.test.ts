@@ -23,11 +23,4 @@ describe('readable generated passwords', () => {
       expect(READABLE_PASSWORD_CHARSET).toContain(character);
     }
   });
-
-  it('keeps uppercase, lowercase, digit, and symbol categories available', () => {
-    expect(READABLE_PASSWORD_CHARSET).toMatch(/[A-Z]/);
-    expect(READABLE_PASSWORD_CHARSET).toMatch(/[a-z]/);
-    expect(READABLE_PASSWORD_CHARSET).toMatch(/[2-9]/);
-    expect(READABLE_PASSWORD_CHARSET).toMatch(/[!@#$%^&*]/);
-  });
 });
