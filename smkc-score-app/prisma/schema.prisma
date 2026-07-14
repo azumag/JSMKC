@@ -46,9 +46,9 @@ model Account {
   access_token      String?
   expires_at        Int?
   token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+  scope              String?
+  id_token           String?
+  session_state      String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -78,8 +78,9 @@ model VerificationToken {
 // default" that only ever seeded a new TTEntry and never affected an
 // already-entered player — a misleading Player Management control). The
 // column is intentionally left in place in D1/SQLite rather than dropped:
-// SQLite/D1 does not support DROP COLUMN reliably here (same decision made
-// for Player.ttSeeding, see migrations/0015_move_seeding_to_ttentry.sql).
+// SQLite/D1 does not support DROP COLUMN reliably here. Player.ttSeeding is
+// handled the same way; see docs/d1-orphaned-columns.md for the maintained
+// inventory and cleanup policy.
 // The orphaned column is simply ignored at the application level.
 // TTEntry.taHandicapSeconds remains the sole, authoritative per-tournament
 // handicap.
@@ -209,7 +210,7 @@ model BMQualification {
   score                  Int        @default(0) // Ranking score
   rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
   rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt         DateTime? // 上書き日時 (監査用)
+  rankOverrideAt         DateTime? // 上書き日時（監査用）
   combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
   combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
   combinedRankOverrideAt DateTime? // 横断順位の記録日時
@@ -286,7 +287,7 @@ model MRQualification {
   score                  Int        @default(0)
   rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
   rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt         DateTime? // 上書き日時 (監査用)
+  rankOverrideAt         DateTime? // 上書き日時（監査用）
   combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
   combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
   combinedRankOverrideAt DateTime? // 横断順位の記録日時
@@ -363,7 +364,7 @@ model GPQualification {
   score                  Int        @default(0)
   rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
   rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt         DateTime? // 上書き日時 (監査用)
+  rankOverrideAt         DateTime? // 上書き日時（監査用）
   combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
   combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
   combinedRankOverrideAt DateTime? // 横断順位の記録日時
