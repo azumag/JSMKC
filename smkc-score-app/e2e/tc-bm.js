@@ -26,12 +26,13 @@
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *   TC-3009 BM combined standings ranks same-bucket entrants by WDL score then point differential
- *   TC-535  BM Top-24 playoff seed labels use group-rank labels
+ *   TC-535  BM Top-24 playoff/finals seed display prefers the numeric seed over group-rank labels
  *   TC-1010 BM 16-player finals uses rankOverride seeding and standard points
  *   TC-1046 BM Top-24 preview uses a qualifier-count constant, not barrage count
  *   TC-1622 BM Top-24 28-to-23 reseed replaces qualification entries
- *   TC-1051 BM Top-24 direct-seed API no longer depends on legacy direct[]
+ *   TC-1051 BM Top-24 direct/barrage-seed API no longer depends on legacy direct[]/barrage[]
  *   TC-1052 BM Top-24 rejects unsupported 3-group seeding
+ *   TC-3026 BM cross-group sudden-death playoff result (combinedRankOverride) can be cleared
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -180,6 +181,17 @@ async function prepareSharedBmFinalsSetup(adminPage) {
   };
 }
 
+/*
+ * Mirrors selectFinalsEntrantsByGroup()'s bucket-stacked, contiguous seeding
+ * (src/lib/finals-group-selection.ts) for the 2-group case: direct seeds
+ * 1-12 = each group's rank1..6 interleaved (A1,B1,A2,B2,...); barrage seeds
+ * 13-24 = each group's rank7..12 interleaved the same way. Same-bucket ties
+ * (both groups' k-th-ranked entrant) sort by WDL score desc -> points desc,
+ * falling back to group order (A before B) when fully tied -- this replaced
+ * a hand-designed anti-collision paper layout that was never validated
+ * against a real event and did not match the CDM 2025 official results
+ * (see the module doc comment on finals-group-selection.ts).
+ */
 function expectedTwoGroupPaperSeedIds(qualifications) {
   const withIndex = (qualifications || []).map((q, index) => ({ ...q, __index: index }));
   const byGroup = new Map();
@@ -214,50 +226,54 @@ function expectedTwoGroupPaperSeedIds(qualifications) {
     }
   }
 
-  const playerIdForToken = (token) => {
-    const groupIndex = token[0] === 'A' ? 0 : 1;
-    const rank = Number(token.slice(1));
-    return buckets[groupIndex].entries[rank - 1]?.playerId;
-  };
+  const labelFor = (bucketIndex, entry) => `${buckets[bucketIndex].group}${entry.__bucketRank}`;
 
-  const directTokensByUpperSeed = [
-    [1, 'A1'],
-    [2, 'B3'],
-    [3, 'B1'],
-    [4, 'A3'],
-    [5, 'B2'],
-    [6, 'A4'],
-    [7, 'A2'],
-    [8, 'B4'],
-    [9, 'A5'],
-    [11, 'B5'],
-    [13, 'B6'],
-    [15, 'A6'],
-  ];
-  const barrageTokensBySeed = [
-    'B8', 'B7', 'A8', 'A7',
-    'B9', 'A11', 'B10', 'A12',
-    'A10', 'B12', 'A9', 'B11',
+  // Stamp each entry with its 1-based within-group bucket rank up front so
+  // labelFor can look it up after the cross-group sort below reorders them.
+  buckets.forEach((bucket) => {
+    bucket.entries.forEach((entry, i) => { entry.__bucketRank = i + 1; });
+  });
+
+  const stackBucket = (k) =>
+    buckets
+      .map((bucket, bucketIndex) => ({ entry: bucket.entries[k], bucketIndex }))
+      .sort((a, b) => (b.entry.score - a.entry.score) || (b.entry.points - a.entry.points));
+
+  const PER_GROUP = 6;
+  const direct = [];
+  for (let k = 0; k < PER_GROUP; k++) direct.push(...stackBucket(k));
+  const barrage = [];
+  for (let k = PER_GROUP; k < PER_GROUP * 2; k++) barrage.push(...stackBucket(k));
+
+  const directSeeds = direct.map(({ entry, bucketIndex }, index) => ({
+    seed: index + 1,
+    playerId: entry.playerId,
+    qualificationRankLabel: labelFor(bucketIndex, entry),
+  }));
+  const barrageSeeds = barrage.map(({ entry, bucketIndex }, index) => ({
+    seed: 13 + index,
+    playerId: entry.playerId,
+    qualificationRankLabel: labelFor(bucketIndex, entry),
+  }));
+
+  // Barrage bracket: generatePlayoffStructure() (double-elimination.ts) pairs
+  // R1 matchNumbers 1-4 as real seeds [17,24],[20,21],[18,23],[19,22] (local
+  // pool ranks [5,12],[8,9],[6,11],[7,10], where local rank = real seed - 12),
+  // each routing its winner into R2 matchNumbers 5-8 respectively, whose BYE
+  // seeds are real [16,13,15,14] (local [4,1,3,2]) in that exact order.
+  const byPlayoffLocalRank = new Map(barrageSeeds.map((s, i) => [i + 1, s.playerId]));
+  const barrageBlocks = [
+    [byPlayoffLocalRank.get(5), byPlayoffLocalRank.get(12), byPlayoffLocalRank.get(4)],
+    [byPlayoffLocalRank.get(8), byPlayoffLocalRank.get(9), byPlayoffLocalRank.get(1)],
+    [byPlayoffLocalRank.get(6), byPlayoffLocalRank.get(11), byPlayoffLocalRank.get(3)],
+    [byPlayoffLocalRank.get(7), byPlayoffLocalRank.get(10), byPlayoffLocalRank.get(2)],
   ];
 
   return {
-    directSeeds: directTokensByUpperSeed.map(([seed, token]) => ({
-      seed,
-      playerId: playerIdForToken(token),
-      qualificationRankLabel: token,
-    })),
-    barrage: barrageTokensBySeed.map(playerIdForToken),
-    barrageSeeds: barrageTokensBySeed.map((token, index) => ({
-      seed: index + 1,
-      playerId: playerIdForToken(token),
-      qualificationRankLabel: token,
-    })),
-    barrageBlocks: [
-      ['A9', 'B12', 'B8'],
-      ['B10', 'A11', 'A7'],
-      ['B9', 'A12', 'A8'],
-      ['A10', 'B11', 'B7'],
-    ].map((block) => block.map(playerIdForToken)),
+    directSeeds,
+    barrageSeeds,
+    barrage: barrageSeeds.map((s) => s.playerId),
+    barrageBlocks,
   };
 }
 
@@ -1094,11 +1110,13 @@ async function runTc510(adminPage) {
     }
 
     const r2WinnersByUpperSeed = new Map();
+    // A bye winner keeps their own seed number in the Upper Bracket (see
+    // double-elimination.ts) -- match N's target seed is just its own BYE seed.
     const upperSeedByR2Match = new Map([
       [5, 16],
-      [6, 12],
-      [7, 14],
-      [8, 10],
+      [6, 13],
+      [7, 15],
+      [8, 14],
     ]);
     let playoffCompleteSignal = false;
     for (let mn = 5; mn <= 8; mn++) {
@@ -1126,7 +1144,7 @@ async function runTc510(adminPage) {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.qualificationRankLabel === qualificationRankLabel;
     });
-    const playoffWinnersSeeded = [10, 12, 14, 16].every((seed) => {
+    const playoffWinnersSeeded = [13, 14, 15, 16].every((seed) => {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === r2WinnersByUpperSeed.get(seed);
     });
@@ -1430,6 +1448,55 @@ async function runTc2334(adminPage) {
       !latestWinsSeed1 ? `expected seed1=${players[15].id} got ${seededPlayers[0]?.playerId}` : '');
   } catch (err) {
     log('TC-2334', 'FAIL', err instanceof Error ? err.message : 'TC-2334 failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+  }
+}
+
+/* ───────── TC-3026: cross-group sudden-death playoff result can be cleared ─────────
+ * Regression for the "no way to undo a cross-group sudden-death playoff
+ * result" gap: the combinedRankOverride PATCH already supported clearing via
+ * null server-side, but nothing in the UI ever called it that way. This
+ * exercises the API contract directly (mirrors TC-2334's rankOverride PATCH
+ * pattern) so a live regression in either direction is caught even before
+ * the RankCell UI is driven end-to-end. */
+async function runTc3026(adminPage) {
+  let tournamentId = null;
+  try {
+    const players = sharedBmPlayers(16);
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM TC-3026 ${Date.now()}`);
+    await setupBmQualViaUi(adminPage, tournamentId, players, { randomize: true, resolveTies: false });
+
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const qualifications = bmData.qualifications || bmData.data?.qualifications || [];
+    const target = qualifications.find((q) => q.playerId === players[0].id);
+    if (!target) throw new Error('TC-3026: target qualification not found');
+
+    const setRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: target.id, combinedRankOverride: 1 }]);
+    if (setRes.s !== 200) throw new Error(`TC-3026: combinedRankOverride set PATCH failed (${setRes.s})`);
+
+    const afterSet = await apiFetchBm(adminPage, tournamentId);
+    const qualsAfterSet = afterSet.qualifications || afterSet.data?.qualifications || [];
+    const setValue = qualsAfterSet.find((q) => q.playerId === players[0].id)?.combinedRankOverride;
+
+    const clearRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: target.id, combinedRankOverride: null }]);
+    if (clearRes.s !== 200) throw new Error(`TC-3026: combinedRankOverride clear PATCH failed (${clearRes.s})`);
+
+    const afterClear = await apiFetchBm(adminPage, tournamentId);
+    const qualsAfterClear = afterClear.qualifications || afterClear.data?.qualifications || [];
+    const clearedValue = qualsAfterClear.find((q) => q.playerId === players[0].id)?.combinedRankOverride;
+
+    const ok = setValue === 1 && (clearedValue === null || clearedValue === undefined);
+    log('TC-3026', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `set=${setValue} clearedAfter=${clearedValue}`);
+  } catch (err) {
+    log('TC-3026', 'FAIL', err instanceof Error ? err.message : 'TC-3026 failed');
   } finally {
     if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
   }
@@ -2627,6 +2694,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-510', fn: runTc510 },
       { name: 'TC-1010', fn: runTc1010 },
       { name: 'TC-2334', fn: runTc2334 },
+      { name: 'TC-3026', fn: runTc3026 },
       { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },

@@ -2926,7 +2926,7 @@ describe('E2E case drift coverage', () => {
     expect(tcBm).toContain("log('TC-1051'");
     expect(tcBm).toContain('legacyDirectPayloadAbsent');
     expect(runTc510OkBlock).toContain('legacyDirectPayloadAbsent');
-    expect(unitTest).toContain('does not expose the redundant direct[] projection for 2 groups');
+    expect(unitTest).toContain('does not expose a redundant direct[]/barrage[] projection');
     expect(unitTest).toContain("expect('direct' in result).toBe(false)");
   });
 
