@@ -1112,6 +1112,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       'phase1',
       undefined,
       null,
+      undefined,
     );
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
@@ -1132,6 +1133,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       'phase1',
       'DP1',
       null,
+      undefined,
     );
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
@@ -1157,6 +1159,85 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       'phase1',
       undefined,
       2,
+      undefined,
+    );
+  });
+
+  it('should pass a custom lifeLoss to startPhaseRound for a TA battle royale phase3 round', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 'tournament-1',
+      taBattleRoyaleMode: true,
+    });
+    (startPhaseRound as jest.Mock).mockResolvedValue({
+      roundNumber: 1,
+      course: 'MC1',
+      manualOverride: false,
+      lifeLoss: 2,
+    });
+
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase3', lifeLoss: 2 }), {
+      params: mockParams,
+    });
+
+    expect(startPhaseRound).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase3',
+      undefined,
+      null,
+      2,
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({
+      success: true,
+      data: { roundNumber: 1, course: 'MC1', manualOverride: false, lifeLoss: 2 },
+    });
+  });
+
+  it('should reject a custom lifeLoss for a standard TA (non-battle-royale) round', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 'tournament-1',
+      taBattleRoyaleMode: false,
+    });
+
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase3', lifeLoss: 2 }), {
+      params: mockParams,
+    });
+
+    expect(startPhaseRound).not.toHaveBeenCalled();
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, code: 'INVALID_LIFE_LOSS' }),
+      { status: 400 },
+    );
+  });
+
+  it('should reject a custom lifeLoss for phase1/phase2 even in a TA battle royale tournament', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 'tournament-1',
+      taBattleRoyaleMode: true,
+    });
+
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1', lifeLoss: 2 }), {
+      params: mockParams,
+    });
+
+    // TA battle royale already rejects phase1/phase2 entirely (uses Phase 3 only);
+    // the lifeLoss restriction never needs to fire for this combination.
+    expect(startPhaseRound).not.toHaveBeenCalled();
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'TA battle royale mode uses Phase 3 only' }),
+      { status: 400 },
+    );
+  });
+
+  it('should return 400 when lifeLoss is out of range', async () => {
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase3', lifeLoss: 0 }), {
+      params: mockParams,
+    });
+
+    expect(startPhaseRound).not.toHaveBeenCalled();
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, code: 'VALIDATION_ERROR' }),
+      { status: 400 },
     );
   });
 

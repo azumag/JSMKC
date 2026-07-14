@@ -79,6 +79,7 @@ import { TaLivesIndicator } from '@/components/tournament/ta-lives-indicator';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
 import { buildTaRoundPreview, type TaRoundPreviewRow } from '@/lib/ta/round-preview';
 import type { Phase3RulesDto, TaMode } from '@/lib/ta/phase-api-types';
+import { TA_ROUND_LIFE_LOSS_MIN, TA_ROUND_LIFE_LOSS_MAX } from '@/lib/ta/battle-royale-constants';
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
 
@@ -114,6 +115,8 @@ interface PhaseRound {
   eliminatedIds: string[] | null;
   livesReset: boolean;
   manualOverride: boolean;
+  /** Lives phase3's bottom half loses this round. Defaults to 1; only TA battle royale admins may configure otherwise. */
+  lifeLoss?: number;
   suddenDeathRounds?: Array<{
     id: string;
     sequence: number;
@@ -156,6 +159,10 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   const [selectedCourse, setSelectedCourse] = useState<string>('__random__');
   // Per-player TV assignments for the active round: playerId → TV number (1-4) or null.
   const [tvAssignments, setTvAssignments] = useState<Record<string, number | null>>({});
+  // Admin-selected life loss for the NEXT round (TA battle royale phase3 only).
+  // A one-off override — resets to '1' after each round starts so a special
+  // round doesn't silently carry over into the next one.
+  const [roundLifeLoss, setRoundLifeLoss] = useState<string>('1');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,6 +170,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   const [currentRound, setCurrentRound] = useState<{
     roundNumber: number;
     course: string;
+    lifeLoss: number;
   } | null>(null);
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [retryFlags, setRetryFlags] = useState<Record<string, boolean>>({});
@@ -264,6 +272,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
           setCurrentRound({
             roundNumber: lastRound.roundNumber,
             course: lastRound.course,
+            lifeLoss: lastRound.lifeLoss ?? 1,
           });
           setCourseTimes(initialTimes);
           setRetryFlags(initialRetry);
@@ -318,6 +327,10 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
           // Only include course when admin has manually selected one;
           // omitting it lets the server choose randomly (default behaviour).
           ...(selectedCourse && selectedCourse !== '__random__' ? { course: selectedCourse } : {}),
+          // Custom life loss is a TA battle royale feature; the server rejects
+          // a non-default value outside battle royale phase3, so only send it
+          // when relevant.
+          ...(taMode === 'battle_royale' ? { lifeLoss: Number(roundLifeLoss) } : {}),
         }),
       });
       if (!response.ok) {
@@ -342,12 +355,14 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setCurrentRound({
         roundNumber: data.roundNumber,
         course: data.course,
+        lifeLoss: data.lifeLoss ?? 1,
       });
       setCourseTimes(initialTimes);
       setRetryFlags(initialRetry);
       setTvAssignments(initialTv);
       resetBroadcastStatus();
       setSelectedCourse('__random__'); // Reset manual selection after round is started
+      setRoundLifeLoss('1'); // Reset the one-off life-loss override after round is started
       fetchData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to start round';
@@ -866,11 +881,16 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         (currentRound ? (
           <Card>
             <CardHeader>
-              <CardTitle>
+              <CardTitle className="flex flex-wrap items-center gap-2">
                 {tTaFinals('roundCourse', {
                   number: currentRound.roundNumber,
                   course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course,
                 })}
+                {currentRound.lifeLoss !== 1 && (
+                  <Badge variant="outline" className="text-orange-600 border-orange-400 text-xs font-normal">
+                    {tTaFinals('lifeLossTag', { count: currentRound.lifeLoss })}
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>{tTaFinals('enterTimesDesc')}</CardDescription>
             </CardHeader>
@@ -1050,6 +1070,34 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                     </SelectContent>
                   </Select>
                 </div>
+                {/* TA battle royale only: override how many lives the bottom half
+                    loses THIS round (default 1). Standard TA keeps the fixed
+                    1-life-per-round rule, so the control is hidden there — the
+                    server also rejects a non-default value outside battle royale. */}
+                {taMode === 'battle_royale' && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">{tTaFinals('roundLifeLossLabel')}</Label>
+                    <Select
+                      value={roundLifeLoss}
+                      onValueChange={setRoundLifeLoss}
+                      disabled={startingRound || hasOpenRound}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from(
+                          { length: TA_ROUND_LIFE_LOSS_MAX - TA_ROUND_LIFE_LOSS_MIN + 1 },
+                          (_, index) => index + TA_ROUND_LIFE_LOSS_MIN,
+                        ).map((count) => (
+                          <SelectItem key={count} value={String(count)}>
+                            {tTaFinals('lifeLossTag', { count })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <Button
                   className="w-full"
                   size="lg"
@@ -1186,6 +1234,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                     const courseInfo = COURSE_INFO.find((c) => c.abbr === round.course);
                     const sortedResults = [...round.results].sort((a, b) => a.timeMs - b.timeMs);
                     const halfPoint = Math.ceil(sortedResults.length / 2);
+                    const roundLifeLossCount = round.lifeLoss ?? 1;
                     return (
                       <div key={round.id} className="border rounded-lg p-4 space-y-2">
                         <div className="flex justify-between items-center">
@@ -1199,6 +1248,11 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                             {round.tvNumber && (
                               <Badge variant="outline" className="text-blue-600 border-blue-400 text-xs">
                                 TV{round.tvNumber}
+                              </Badge>
+                            )}
+                            {roundLifeLossCount !== 1 && (
+                              <Badge variant="outline" className="text-orange-600 border-orange-400 text-xs">
+                                {tTaFinals('lifeLossTag', { count: roundLifeLossCount })}
                               </Badge>
                             )}
                             {round.livesReset && (
@@ -1232,7 +1286,9 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                                       {tCommon('retry')}
                                     </Badge>
                                   )}
-                                  {isBottomHalf && !isEliminated && ` ${tTaFinals('minusOneLife')}`}
+                                  {isBottomHalf &&
+                                    !isEliminated &&
+                                    ` ${tTaFinals('lifeLossTag', { count: roundLifeLossCount })}`}
                                   {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
                                 </span>
                                 <span className="text-right font-mono tabular-nums">
@@ -1314,7 +1370,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                     {row.boundaryTie
                       ? tTaFinals('mayRequireSuddenDeath')
                       : row.projectedLifeLoss
-                        ? tTaFinals('projectedLifeLoss')
+                        ? tTaFinals('projectedLifeLossCount', { count: currentRound?.lifeLoss ?? 1 })
                         : tTaFinals('projectedSafe')}
                   </div>
                 </div>

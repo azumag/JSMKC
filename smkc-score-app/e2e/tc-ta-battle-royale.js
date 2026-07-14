@@ -9,6 +9,8 @@
  *   TC-TA-BR-05  Archive v2 and archived phases API preserve the same BR rules/results.
  *   TC-TA-BR-06  Player Management no longer exposes a (non-functional) TA handicap control;
  *                the tournament entry screen remains the sole place to set it.
+ *   TC-TA-BR-07  Admin can configure a custom per-round life loss (e.g. -2) via the
+ *                finals UI; only the configured round's bottom half loses it.
  *
  * Run: node e2e/tc-ta-battle-royale.js
  */
@@ -21,6 +23,7 @@ const {
   apiJson,
   apiPostTaPhase,
   apiUpdateTournament,
+  clickWithDiagnostics,
   makeLog,
   makeResults,
   nav,
@@ -319,6 +322,100 @@ async function tcPlayerManagementHasNoHandicapControl(adminPage) {
   }
 }
 
+/*
+ * TC-TA-BR-07 (life-reduction-per-round feature): admins can configure a
+ * specific round to cost more than the default 1 life, e.g. "-2 lives" for a
+ * bonus/high-stakes round. Uses its own isolated tournament + players so it
+ * does not depend on the shared suite fixture's round history/eliminations.
+ */
+async function tcCustomLifeLoss(adminPage) {
+  let lifeLossTournamentId = null;
+  let lifeLossPlayers = [];
+  try {
+    const stamp = Date.now();
+    for (let index = 1; index <= 4; index += 1) {
+      lifeLossPlayers.push(await apiCreatePlayer(adminPage, `TA BR LifeLoss ${index}`, `ta_br_ll_${stamp}_${index}`));
+    }
+    lifeLossTournamentId = await apiCreateTournament(adminPage, `E2E TA BR LifeLoss ${stamp}`, {
+      taBattleRoyaleMode: true,
+      taPlayerSelfEdit: false,
+    });
+    const started = await apiJson(adminPage, `/api/tournaments/${lifeLossTournamentId}/ta/battle-royale`, {
+      method: 'POST',
+      body: {
+        players: lifeLossPlayers.map((player) => ({ playerId: player.id, taHandicapSeconds: 0 })),
+      },
+    });
+    pass(started.status === 201, `LifeLoss BR start failed (${started.status})`);
+    const lifeLossEntries = started.body?.data?.entries ?? [];
+    pass(lifeLossEntries.length === 4, `expected 4 Phase 3 entries, got ${lifeLossEntries.length}`);
+
+    await nav(adminPage, `/tournaments/${lifeLossTournamentId}/ta/finals`);
+    const roundControlTab = adminPage.getByRole('tab', { name: /^(Round Control|ラウンドコントロール|ラウンド管理)$/ });
+    if (await roundControlTab.count()) {
+      await roundControlTab
+        .first()
+        .click()
+        .catch(() => {});
+      await adminPage.waitForTimeout(300);
+    }
+
+    // Select a custom life loss (2) via the new UI control before starting the round.
+    const lifeLossLabel = adminPage.getByText(/Life loss for this round|このラウンドのライフ減少量/).first();
+    await lifeLossLabel.waitFor({ state: 'visible', timeout: 15_000 });
+    const lifeLossTrigger = lifeLossLabel.locator('xpath=following-sibling::button[@role="combobox"]').first();
+    await clickWithDiagnostics(lifeLossTrigger, 'TC-TA-BR-07 life-loss selector');
+    await adminPage.waitForTimeout(200);
+    await clickWithDiagnostics(
+      adminPage.getByRole('option', { name: /-2 lives|ライフ-2/ }).first(),
+      'TC-TA-BR-07 life-loss option 2',
+    );
+    await adminPage.waitForTimeout(200);
+
+    const responsePromise = adminPage.waitForResponse(
+      (res) =>
+        res.url().includes(`/api/tournaments/${lifeLossTournamentId}/ta/phases`) && res.request().method() === 'POST',
+      { timeout: 60_000 },
+    );
+    await clickWithDiagnostics(
+      adminPage.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ }).first(),
+      'TC-TA-BR-07 start round with custom lifeLoss',
+    );
+    const startResponse = await responsePromise;
+    pass(startResponse.status() === 200, `custom-lifeLoss start_round failed (${startResponse.status()})`);
+    const startBody = await startResponse.json().catch(() => ({}));
+    pass(startBody?.data?.lifeLoss === 2, `expected lifeLoss 2 on started round, got ${startBody?.data?.lifeLoss}`);
+
+    await submitPhase3ResultsWithPreview(
+      adminPage,
+      lifeLossTournamentId,
+      lifeLossEntries.map((entry, index) => ({
+        nickname: entry.player?.nickname,
+        timeMs: 100_000 + index * 5_000,
+      })),
+    );
+
+    const phase = await apiFetchTaPhase(adminPage, lifeLossTournamentId, 'phase3');
+    const byPlayer = new Map((phase.b?.data?.entries ?? []).map((entry) => [entry.playerId, entry]));
+    // 4 players, bottom half (2 slowest) lose the configured 2 lives: 10 -> 8.
+    pass(byPlayer.get(lifeLossEntries[0].playerId)?.lives === 10, 'fastest player should keep all lives');
+    pass(
+      byPlayer.get(lifeLossEntries[3].playerId)?.lives === 8,
+      'slowest player should lose the configured 2 lives, not the default 1',
+    );
+
+    const bodyText = await adminPage.locator('body').innerText();
+    pass(/-2 lives|ライフ-2/.test(bodyText), 'round history does not show the custom lifeLoss badge');
+
+    log('TC-TA-BR-07', 'PASS');
+  } catch (error) {
+    log('TC-TA-BR-07', 'FAIL', error instanceof Error ? error.message : String(error));
+  } finally {
+    if (lifeLossTournamentId) await apiDeleteTournament(adminPage, lifeLossTournamentId).catch(() => {});
+    await Promise.all(lifeLossPlayers.map((player) => apiDeletePlayer(adminPage, player.id).catch(() => {})));
+  }
+}
+
 function getSuite() {
   return {
     suiteName: 'TA-BATTLE-ROYALE',
@@ -338,6 +435,7 @@ function getSuite() {
       { name: 'TC-TA-BR-03/04', fn: tcAdjustedRoundAndUi },
       { name: 'TC-TA-BR-05', fn: tcArchiveParity },
       { name: 'TC-TA-BR-06', fn: tcPlayerManagementHasNoHandicapControl },
+      { name: 'TC-TA-BR-07', fn: tcCustomLifeLoss },
     ],
   };
 }

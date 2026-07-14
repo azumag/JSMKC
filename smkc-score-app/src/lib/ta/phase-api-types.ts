@@ -27,6 +27,8 @@ export interface TaPhaseRound {
   results: TaRoundResult[];
   eliminatedIds: string[];
   livesReset?: boolean;
+  /** Lives phase3's bottom half loses this round. Defaults to 1; only TA battle royale admins may set a different value. */
+  lifeLoss?: number;
   submittedAt?: string | Date | null;
   [key: string]: unknown;
 }

@@ -177,6 +177,19 @@ describe('Prisma migration compatibility', () => {
     expect(ttEntryModel).toContain('taHandicapSeconds');
   });
 
+  it('keeps TTPhaseRound.lifeLoss schema and Prisma/Wrangler migrations aligned', () => {
+    const schema = fs.readFileSync(path.join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+    const prismaMigration = readMigration('0023_add_tt_phase_round_life_loss', 'migration.sql').trim();
+    const wranglerMigration = readWranglerMigration('0042_add_tt_phase_round_life_loss.sql').trim();
+    const expectedColumn = 'ADD COLUMN "lifeLoss" INTEGER NOT NULL DEFAULT 1;';
+
+    const ttPhaseRoundModel = schema.match(/model TTPhaseRound \{[\s\S]*?\n\}/)?.[0];
+    expect(ttPhaseRoundModel).toContain('lifeLoss');
+    expect(prismaMigration).toContain('ALTER TABLE "TTPhaseRound"');
+    expect(prismaMigration).toContain(expectedColumn);
+    expect(wranglerMigration).toBe(prismaMigration);
+  });
+
   it('never attempts to DROP COLUMN "taHandicapSeconds" from Player (D1 does not reliably support it here)', () => {
     const prismaMigrationsDir = path.join(__dirname, '../../prisma/migrations');
     const wranglerMigrationsDir = path.join(__dirname, '../../migrations');

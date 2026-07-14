@@ -504,6 +504,7 @@ model TTPhaseRound {
   eliminatedIds     Json? // Array of player IDs eliminated this round
   livesReset        Boolean                   @default(false) // Whether lives were reset after this round
   manualOverride    Boolean                   @default(false) // True when admin manually specified the course
+  lifeLoss          Int                       @default(1) // Phase3のみ: このラウンドで下位半分が失うライフ数。既定1。TAバトルロワイヤルのみ管理者が変更可
   submittedAt       DateTime? // Set when the round has final results and elimination outcomes
   createdAt         DateTime                  @default(now())
   suddenDeathRounds TTPhaseSuddenDeathRound[]

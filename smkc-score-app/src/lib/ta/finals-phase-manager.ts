@@ -699,6 +699,10 @@ export async function processPhase3Result(
   courseResults: CourseResult[],
   resolvedOrder?: Phase3ResolvedOrder,
   preloadedActivePlayers?: TTEntry[],
+  // Lives lost by each bottom-half player this round. Defaults to 1 (both
+  // modes); TA battle royale admins may configure a specific round to cost
+  // more (see TTPhaseRound.lifeLoss / startPhaseRound).
+  lifeLoss = 1,
 ): Promise<{ eliminated: string[]; livesReset: boolean }> {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-phase-manager');
@@ -732,7 +736,7 @@ export async function processPhase3Result(
   const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
   const selectedEliminationIds = new Set(
     bottomHalf
-      .filter((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - 1 <= 0)
+      .filter((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - lifeLoss <= 0)
       .sort((a, b) => comparePhase3CourseResults(b, a, resolvedOrder))
       .slice(0, eliminationLimit)
       .map((result) => result.playerId),
@@ -752,7 +756,7 @@ export async function processPhase3Result(
     });
 
     if (entry && !entry.eliminated) {
-      const newLives = entry.lives - 1;
+      const newLives = entry.lives - lifeLoss;
       const isEliminated = newLives <= 0;
       const selectedForElimination = isEliminated && selectedEliminationIds.has(result.playerId);
 
@@ -1001,12 +1005,17 @@ interface TieBreakDecision {
  * @param orderedResults - Round results in final order (time-sorted, or
  *   sudden-death-resolved order when called after a tiebreak)
  * @param activePlayers  - Active phase3 entries (for lives lookup)
+ * @param lifeLoss - Lives the base round's bottom half loses (TA battle royale
+ *   Phase 3 rounds may configure more than the default 1 — see startPhaseRound).
+ *   "Last life" here means this round's loss would bring them to 0, so a
+ *   higher lifeLoss makes the bronze race trigger at a higher life count.
  * @returns The two player IDs to race for bronze, or null
  */
 function detectPhase3BronzeTargets(
   orderedResults: CourseResult[],
   activePlayers: TTEntry[],
   rules: Phase3Rules,
+  lifeLoss = 1,
 ): string[] | null {
   const activeCount = activePlayers.length || orderedResults.length;
   // Only the top-4 stage awards a medal to the eliminated pair; larger
@@ -1018,15 +1027,26 @@ function detectPhase3BronzeTargets(
   const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
   const allOnLastLife =
     bottomHalf.length === 2 &&
-    bottomHalf.every((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - 1 <= 0);
+    bottomHalf.every((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - lifeLoss <= 0);
   return allOnLastLife ? bottomHalf.map((result) => result.playerId) : null;
 }
 
+/**
+ * Decide whether this round's result needs a sudden-death tiebreak before
+ * elimination can be finalized (phase1/2 slowest-time tie, or phase3
+ * boundary/overflow/bronze ties — see SuddenDeathKind for each kind).
+ *
+ * @param lifeLoss - Lives the round's bottom half loses (phase3 only; TA
+ *   battle royale may configure a value other than the default 1 — see
+ *   startPhaseRound). Determines which players are "about to hit 0 lives"
+ *   for the revival-overflow and bronze-race checks below.
+ */
 function detectTieBreakRequired(
   phase: 'phase1' | 'phase2' | 'phase3',
   courseResults: CourseResult[],
   activePlayers: TTEntry[],
   rules: Phase3Rules,
+  lifeLoss = 1,
 ): TieBreakDecision | null {
   if (courseResults.length < 2) return null;
 
@@ -1051,7 +1071,7 @@ function detectTieBreakRequired(
   if (Number.isFinite(eliminationLimit)) {
     const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
     const eliminationCandidates = bottomHalf
-      .filter((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - 1 <= 0)
+      .filter((result) => getCurrentPhase3Lives(result.playerId, currentLivesByPlayer, rules) - lifeLoss <= 0)
       .sort((a, b) => b.timeMs - a.timeMs);
     if (rules.lifeResetThresholds.length > 0 && eliminationCandidates.length > eliminationLimit) {
       // Zero-life overflows at a reset threshold must send every candidate to sudden death:
@@ -1074,7 +1094,7 @@ function detectTieBreakRequired(
   }
 
   // No unresolved tie: check for the top-4 simultaneous last-life scenario.
-  const bronzeTargets = detectPhase3BronzeTargets(sorted, activePlayers, rules);
+  const bronzeTargets = detectPhase3BronzeTargets(sorted, activePlayers, rules, lifeLoss);
   if (bronzeTargets) {
     return { targetPlayerIds: bronzeTargets, kind: 'bronze' };
   }
@@ -1315,7 +1335,19 @@ export async function startPhaseRound(
   phase: 'phase1' | 'phase2' | 'phase3',
   manualCourse?: string,
   tvNumber?: number | null,
-): Promise<{ roundNumber: number; course: string; manualOverride: boolean; tvNumber: number | null }> {
+  // Lives the bottom half loses this round (phase3 only). Defaults to 1.
+  // Range (1-9) and the "TA battle royale phase3 only" restriction are
+  // enforced at the API boundary (src/app/api/.../ta/phases/route.ts), not
+  // here — this function trusts its caller like every other admin-only
+  // phase mutation in this module, so it stores whatever value it is given.
+  lifeLoss = 1,
+): Promise<{
+  roundNumber: number;
+  course: string;
+  manualOverride: boolean;
+  tvNumber: number | null;
+  lifeLoss: number;
+}> {
   const logger = createLogger('ta-phase-manager');
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
@@ -1378,6 +1410,7 @@ export async function startPhaseRound(
           course,
           manualOverride,
           tvNumber: tvNumber ?? null,
+          lifeLoss,
           results: [], // Will be populated by submitRoundResults
         },
       });
@@ -1418,6 +1451,7 @@ export async function startPhaseRound(
         roundNumber,
         course,
         manualOverride,
+        lifeLoss,
         activePlayers: activePlayers.length,
       },
     });
@@ -1427,7 +1461,7 @@ export async function startPhaseRound(
     });
   }
 
-  return { roundNumber, course, manualOverride, tvNumber: tvNumber ?? null };
+  return { roundNumber, course, manualOverride, tvNumber: tvNumber ?? null, lifeLoss };
 }
 
 /**
@@ -1519,6 +1553,10 @@ export async function submitRoundResults(
   // snapshot is authoritative; changing Player defaults must not affect an
   // in-progress tournament.
   const phase3Rules = getTaPhase3Rules(context.taBattleRoyaleMode === true);
+  // Only phase3 rounds carry a meaningful lifeLoss; phase1/2 have no life
+  // system, and the column defaults to 1 for every non-battle-royale round.
+  // The `?? 1` fallback also covers rows read before this column existed.
+  const lifeLoss = phase === 'phase3' ? (round.lifeLoss ?? 1) : 1;
   const handicapByPlayer = new Map(
     activePlayers.map((entry) => [
       entry.playerId,
@@ -1550,7 +1588,7 @@ export async function submitRoundResults(
   let eliminatedIds: string[] = [];
   let livesReset = false;
 
-  const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers, phase3Rules);
+  const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers, phase3Rules, lifeLoss);
   if (tieBreak) {
     const suddenDeathRound = await createSuddenDeathRound(
       prisma,
@@ -1587,7 +1625,7 @@ export async function submitRoundResults(
     eliminatedIds = await processEliminationPhaseResult(prisma, context, phase, processedResults);
   } else {
     // phase3 — life-based elimination
-    const phase3Result = await processPhase3Result(prisma, context, processedResults);
+    const phase3Result = await processPhase3Result(prisma, context, processedResults, undefined, undefined, lifeLoss);
     eliminatedIds = phase3Result.eliminated;
     livesReset = phase3Result.livesReset;
   }
@@ -1810,7 +1848,10 @@ export async function submitSuddenDeathResults(
      */
     const activePlayers = await getActivePhasePlayers(prisma, tournamentId, 'phase3');
     const phase3Rules = getTaPhase3Rules(context.taBattleRoyaleMode === true);
-    const bronzeTargets = detectPhase3BronzeTargets(orderedResults, activePlayers, phase3Rules);
+    // The base round's configured lifeLoss carries through every sudden death
+    // spawned from it (life-loss re-run and any chained bronze race).
+    const lifeLoss = suddenDeathRound.phaseRound.lifeLoss ?? 1;
+    const bronzeTargets = detectPhase3BronzeTargets(orderedResults, activePlayers, phase3Rules, lifeLoss);
     if (bronzeTargets && !hasSameTargetPlayers(suddenDeathRound.targetPlayerIds, bronzeTargets)) {
       const nextRound = await createSuddenDeathRound(
         prisma,
@@ -1830,7 +1871,14 @@ export async function submitSuddenDeathResults(
     }
 
     const resolvedOrder = new Map(orderedResults.map((result, index) => [result.playerId, index]));
-    const phase3Result = await processPhase3Result(prisma, context, orderedResults, resolvedOrder, activePlayers);
+    const phase3Result = await processPhase3Result(
+      prisma,
+      context,
+      orderedResults,
+      resolvedOrder,
+      activePlayers,
+      lifeLoss,
+    );
     eliminatedIds = phase3Result.eliminated;
     livesReset = phase3Result.livesReset;
   }
@@ -1980,7 +2028,7 @@ async function restorePhaseStateBeforeRound(
   tournamentId: string,
   phase: 'phase1' | 'phase2' | 'phase3',
   lastRound: { eliminatedIds: unknown },
-  previousRounds: Array<{ results: unknown; livesReset: boolean }>,
+  previousRounds: Array<{ results: unknown; livesReset: boolean; lifeLoss?: number }>,
   taBattleRoyaleMode = false,
 ): Promise<void> {
   if (phase === 'phase1' || phase === 'phase2') {
@@ -2027,15 +2075,19 @@ async function restorePhaseStateBeforeRound(
       return state && !state.eliminated;
     });
 
-    // Sort by time ascending (fastest first); bottom half loses a life
+    // Sort by time ascending (fastest first); bottom half loses lifeLoss lives
+    // (this round's own configured value — TA battle royale rounds can differ
+    // from the default 1, so each round in the replay reads its own column
+    // rather than reusing one value across the whole history).
     const sorted = [...activeResults].sort((a, b) => a.timeMs - b.timeMs);
     const halfwayPoint = Math.ceil(sorted.length / 2);
     const bottomHalf = sorted.slice(halfwayPoint);
 
+    const lifeLoss = round.lifeLoss ?? 1;
     for (const result of bottomHalf) {
       const state = playerState.get(result.playerId);
       if (!state || state.eliminated) continue;
-      const newLives = state.lives - 1;
+      const newLives = state.lives - lifeLoss;
       state.lives = Math.max(0, newLives);
       if (state.lives <= 0) {
         state.eliminated = true;
