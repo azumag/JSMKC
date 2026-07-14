@@ -346,13 +346,16 @@ describe('selectFinalsEntrantsByGroup', () => {
     };
 
     /*
-     * Two bucket positions are exact score+points ties across groups
-     * (Kasmo/Takashi at 833/38; Flo/Mark at 600/16), which the automatic
-     * bucket tiebreak alone cannot order -- exactly the scenario
-     * combinedRankOverride exists for (see "3-group complete-tie playoff
-     * order" above). The real event's published seed list has Takashi ahead
-     * of Kasmo and Mark ahead of Flo, so a manual cross-group sudden-death
-     * decision is encoded here to reproduce that real outcome.
+     * Four bucket positions are exact score+points ties across groups: two
+     * (Geo/Sami at 1000/58, bucket 0; Drew/Lafungo at 900/42, bucket 1)
+     * happen to resolve correctly via the stable-sort fallback (group A
+     * before B before C matches the real seed list there), but two others
+     * (Kasmo/Takashi at 833/38; Flo/Mark at 600/16) do not -- the real event
+     * has the later-lettered group ahead, opposite of the fallback order.
+     * combinedRankOverride exists for exactly this (see "3-group
+     * complete-tie playoff order" above), so a manual cross-group
+     * sudden-death decision is encoded here for those two positions only,
+     * to reproduce the real outcome.
      */
     const COMBINED_RANK_OVERRIDES: Record<string, number> = {
       Takashi: 1,
