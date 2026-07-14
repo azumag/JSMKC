@@ -129,6 +129,44 @@ const completePhasePayload = {
   }),
 };
 
+/**
+ * In-progress payload (no champion yet) with server-computed livesAfter/lifeLost
+ * on each result. Mario has the FASTER raw time (idx 0, which the legacy
+ * "idx >= halfPoint" fallback would call safe) but the server says he's the one
+ * who lost a life (lifeLost: true) -- e.g. a resolved sudden-death boundary tie
+ * flipped the outcome. Luigi is the reverse. This intentionally disagrees with
+ * the raw-time fallback so the test only passes if the component actually
+ * prefers server-computed `lifeLost` over its own index-based heuristic.
+ */
+const roundHistoryLivesPayload = {
+  ok: true,
+  json: jest.fn().mockResolvedValue({
+    data: {
+      entries: [
+        makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: 2 }),
+        makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi', lives: 3 }),
+      ],
+      rounds: [
+        {
+          id: 'r-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'GV1',
+          results: [
+            { playerId: 'p-1', timeMs: 50000, isRetry: false, livesAfter: 2, lifeLost: true },
+            { playerId: 'p-2', timeMs: 70000, isRetry: false, livesAfter: 3, lifeLost: false },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+          manualOverride: false,
+        },
+      ],
+      availableCourses: ['GV2'],
+      playedCourses: ['GV1'],
+    },
+  }),
+};
+
 async function renderFinals() {
   render(<TimeAttackFinals params={Promise.resolve({ id: 'tournament-1' })} />);
 }
@@ -200,5 +238,37 @@ describe('TimeAttackFinals — per-round life loss control (TA battle royale)', 
       expect(screen.getByRole('button', { name: /Start Round/ })).toBeInTheDocument();
     });
     expect(screen.queryByText('Life loss for this round')).not.toBeInTheDocument();
+  });
+});
+
+describe('TimeAttackFinals — round history remaining-life display', () => {
+  it('follows server-computed lifeLost rather than raw finish-time order when they disagree', async () => {
+    mockUseSession.mockReturnValue({ data: null } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(roundHistoryLivesPayload);
+
+    const { container } = render(<TimeAttackFinals params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Round History')).toBeInTheDocument();
+    });
+    // The name, retry badge, "(-1 lives)"/"left" tags all render as sibling text
+    // nodes inside one row <span>, so assert on the row's full text rather than
+    // an exact getByText match on a lone substring. Scope to the round-history
+    // section (after the "Round History" heading): the standings table above
+    // it also lists "Mario"/"Luigi", which would otherwise produce false regex
+    // matches spanning both sections.
+    const fullText = container.textContent ?? '';
+    const text = fullText.slice(fullText.indexOf('Round History'));
+    expect(text.length).toBeGreaterThan(0);
+    // Mario (p-1) has the FASTER raw time -- the legacy "idx >= halfPoint"
+    // fallback would call him safe -- but the fixture's lifeLost: true says he
+    // actually lost a life. This only passes if the component reads lifeLost.
+    // (Default round lifeLoss is 1, so the tag reads "(-1 lives)".)
+    expect(text).toMatch(/Mario.*\(-1 lives\).*2 left/);
+    // Luigi (p-2) has the SLOWER raw time -- the fallback would call him
+    // damaged -- but lifeLost: false says he was safe, so neither indicator
+    // (nor his numeric livesAfter, 3) should render.
+    expect(text).not.toContain('3 left');
+    expect(text).not.toMatch(/Luigi.*\(-1 lives\)/);
   });
 });

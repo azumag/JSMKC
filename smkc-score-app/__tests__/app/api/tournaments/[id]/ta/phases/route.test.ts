@@ -351,7 +351,15 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
                 player: expect.objectContaining({ nickname: 'Runner' }),
               }),
             ]),
-            rounds: [expect.objectContaining({ id: 'round-1' })],
+            rounds: [
+              expect.objectContaining({
+                id: 'round-1',
+                results: expect.arrayContaining([
+                  expect.objectContaining({ playerId: 'player-1', livesAfter: 3 }),
+                  expect.objectContaining({ playerId: 'player-2', livesAfter: 0 }),
+                ]),
+              }),
+            ],
           }),
         }),
       );
@@ -676,6 +684,130 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
         'player-eliminated-late',
         'player-eliminated-early',
       ]);
+    });
+
+    it('attaches the replayed remaining life to each round result for the round history display', async () => {
+      // player-eliminated-early loses a life in round 1, then is eliminated in round 2.
+      // player-eliminated-late stays untouched in round 1 (top half), then loses a life in round 2.
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([
+        {
+          ...mockEntries[0],
+          id: 'entry-eliminated-early',
+          playerId: 'player-eliminated-early',
+          lives: 0,
+          eliminated: true,
+          player: { ...mockEntries[0].player, id: 'player-eliminated-early', nickname: 'early-out' },
+        },
+        {
+          ...mockEntries[0],
+          id: 'entry-eliminated-late',
+          playerId: 'player-eliminated-late',
+          lives: 1,
+          eliminated: false,
+          player: { ...mockEntries[0].player, id: 'player-eliminated-late', nickname: 'late-out' },
+        },
+      ]);
+      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'round-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'MC1',
+          results: [
+            { playerId: 'player-eliminated-late', timeMs: 60000, isRetry: false },
+            { playerId: 'player-eliminated-early', timeMs: 95000, isRetry: false },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: 'round-2',
+          phase: 'phase3',
+          roundNumber: 2,
+          course: 'DP1',
+          results: [
+            { playerId: 'player-eliminated-late', timeMs: 96000, isRetry: false },
+            { playerId: 'player-eliminated-early', timeMs: 75000, isRetry: false },
+          ],
+          eliminatedIds: ['player-eliminated-early'],
+          livesReset: false,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ]);
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      const [round1, round2] = call.data.rounds;
+      expect(round1.results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: 'player-eliminated-late', livesAfter: 3 }),
+          expect.objectContaining({ playerId: 'player-eliminated-early', livesAfter: 2 }),
+        ]),
+      );
+      expect(round2.results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: 'player-eliminated-late', livesAfter: 2 }),
+          expect.objectContaining({ playerId: 'player-eliminated-early', livesAfter: 0 }),
+        ]),
+      );
+    });
+
+    it('uses the resolved sudden-death order (not raw tied time / submission order) to decide livesAfter/lifeLost at a boundary tie', async () => {
+      // player-b and player-c tie exactly at the safe/unsafe boundary (both
+      // 60000ms). Submission array order is [a, b, c, d], so a naive stable
+      // sort on raw time would keep the bottom half as {c, d} (array order
+      // preserved for ties). The resolved sudden-death race says the OPPOSITE:
+      // c was faster (safe), b was slower (unsafe) -- proving the response
+      // reflects the tiebreak outcome, not raw submission/time order.
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([
+        { ...mockEntries[0], id: 'entry-a', playerId: 'player-a', lives: 3, eliminated: false },
+        { ...mockEntries[0], id: 'entry-b', playerId: 'player-b', lives: 3, eliminated: false },
+        { ...mockEntries[0], id: 'entry-c', playerId: 'player-c', lives: 3, eliminated: false },
+        { ...mockEntries[0], id: 'entry-d', playerId: 'player-d', lives: 3, eliminated: false },
+      ]);
+      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'round-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'MC1',
+          results: [
+            { playerId: 'player-a', timeMs: 50000, isRetry: false },
+            { playerId: 'player-b', timeMs: 60000, isRetry: false },
+            { playerId: 'player-c', timeMs: 60000, isRetry: false },
+            { playerId: 'player-d', timeMs: 90000, isRetry: false },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+          createdAt: '2026-01-01T00:00:00Z',
+          suddenDeathRounds: [
+            {
+              id: 'sd-1',
+              sequence: 1,
+              resolved: true,
+              results: [
+                { playerId: 'player-c', timeMs: 10000, isRetry: false },
+                { playerId: 'player-b', timeMs: 15000, isRetry: false },
+              ],
+            },
+          ],
+        },
+      ]);
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      const [round1] = call.data.rounds;
+      expect(round1.results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: 'player-a', livesAfter: 3, lifeLost: false }),
+          expect.objectContaining({ playerId: 'player-b', livesAfter: 2, lifeLost: true }),
+          expect.objectContaining({ playerId: 'player-c', livesAfter: 3, lifeLost: false }),
+          expect.objectContaining({ playerId: 'player-d', livesAfter: 2, lifeLost: true }),
+        ]),
+      );
     });
 
     it('uses eliminatedIds order as the tiebreaker for same-round same-time eliminations', async () => {

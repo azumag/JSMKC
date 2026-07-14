@@ -819,6 +819,7 @@
     "lifeLossTag": "(-{count} lives)",
     "eliminatedTag": "(Eliminated)",
     "roundLifeLossLabel": "Life loss for this round",
+    "roundLivesRemaining": "{lives} left",
     "startRoundDesc": "Start a new round with a randomly selected course",
     "activePlayers": "Active Players:",
     "eliminatedPlayers": "Eliminated Players:",
