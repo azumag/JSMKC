@@ -128,10 +128,10 @@ function twentyFourPlayoffFixture(): CdmTournamentData {
       rank: 1,
     },
   ];
-  // generatePlayoffStructure(12) playoff_r1[0] has player1Seed=11, player2Seed=10
-  // (verified against double-elimination.ts), so slot1 -> B-position 12+11=23 and
-  // slot2 -> B-position 12+10=22. The exporter types those B-positions into the
-  // Barrage-1 block (D column, +1 seed offset => E5/E6).
+  // generatePlayoffStructure(12) playoff_r1[0] has player1Seed=17, player2Seed=24
+  // (verified against double-elimination.ts; these are already the real overall
+  // seed, so B-position == seed directly). The exporter types those B-positions
+  // into the Barrage-1 block (D column, +1 seed offset => E5/E6).
   const bmMatches: CdmMatch[] = [
     {
       matchNumber: 1,
@@ -304,10 +304,10 @@ describe("generateCdmWorkbook — patched input cells (24-player playoff)", () =
   });
 
   it("writes the BM Finals playoff seed cell and score on the faithful-24 path", () => {
-    // playoff_r1[0] slot1 -> B-position 23 typed into E5; Alice's score 4 into H5.
-    // slot2 -> B-position 22 into E6; Bob's score 2 into H6.
-    expect(bmFinals).toContain('<c r="E5" s="27"><v>23</v></c>');
-    expect(bmFinals).toContain('<c r="E6" s="27"><v>22</v></c>');
+    // playoff_r1[0] slot1 -> B-position 17 typed into E5; Alice's score 4 into H5.
+    // slot2 -> B-position 24 into E6; Bob's score 2 into H6.
+    expect(bmFinals).toContain('<c r="E5" s="27"><v>17</v></c>');
+    expect(bmFinals).toContain('<c r="E6" s="27"><v>24</v></c>');
     expect(bmFinals).toContain('<c r="H5" s="3"><v>4</v></c>');
     expect(bmFinals).toContain('<c r="H6" s="3"><v>2</v></c>');
   });

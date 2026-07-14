@@ -6,45 +6,17 @@
  *   3 groups: each group Top1-4 direct, Top5-8 barrage
  *   4 groups: each group Top1-3 direct, Top4-6 barrage
  *
- * Seed pattern:
- *   2 groups: fixed CDM two-group Top-24 layout
- *   3 groups: A1, B1, C1, A2, B2, C2, A3, B3, C3, A4, B4, C4
- *   4 groups: A1, B1, C1, D1, A2, B2, C2, D2, A3, B3, C3, D3
+ * Seed assignment is bucket-stacked and contiguous for every group count:
+ * direct seeds are 1-12 in bucket order, barrage seeds are 13-24 in bucket
+ * order. There is no same-qualifying-group Round-1 collision avoidance (see
+ * the module doc comment on finals-group-selection.ts for why that was
+ * removed: it was never validated against a real event and does not match
+ * the CDM 2025 official results, which has same-group Winners R1 matchups).
  */
 
-import { reseedDirectEntrantsAgainstPlayoffWinners, selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
+import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 
 type TestQual = { playerId: string; group: string; player: unknown; score: number; points: number };
-
-const FIXED_TWO_GROUP_DIRECT_SEEDS = [
-  [1, 'A1'],
-  [2, 'B3'],
-  [3, 'B1'],
-  [4, 'A3'],
-  [5, 'B2'],
-  [6, 'A4'],
-  [7, 'A2'],
-  [8, 'B4'],
-  [9, 'A5'],
-  [11, 'B5'],
-  [13, 'B6'],
-  [15, 'A6'],
-] as const;
-
-const FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS = [
-  'B8',
-  'B7',
-  'A8',
-  'A7',
-  'B9',
-  'A11',
-  'B10',
-  'A12',
-  'A10',
-  'B12',
-  'A9',
-  'B11',
-] as const;
 
 /**
  * Build an ordered qualification list: grouped alphabetically, and within each group
@@ -53,9 +25,9 @@ const FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS = [
  * score/points default to being *tied across groups at the same rank*
  * (score = 1000 - rank, points = 0 for everyone), so the within-bucket
  * WDL-score tiebreak is a no-op and stable-sort preserves the canonical
- * group order (A, B, C, D) -- this keeps every pre-existing "interleaved by
- * group" assertion valid unchanged. Pass `statsFor` to give specific players
- * a distinguishing score/points and exercise the real tiebreak.
+ * group order (A, B, C, D) -- this keeps every "interleaved by group"
+ * assertion valid unchanged. Pass `statsFor` to give specific players a
+ * distinguishing score/points and exercise the real tiebreak.
  */
 function buildQuals(
   groupSizes: Record<string, number>,
@@ -73,18 +45,7 @@ function buildQuals(
 }
 
 describe('selectFinalsEntrantsByGroup', () => {
-  const upperR1SeedPairs = [
-    [1, 16],
-    [8, 9],
-    [5, 12],
-    [4, 13],
-    [3, 14],
-    [6, 11],
-    [7, 10],
-    [2, 15],
-  ];
-
-  describe('2-group case (A=14, B=13)', () => {
+  describe('2-group case (A=14, B=13, all ranks tied -> stable A-then-B order)', () => {
     const quals = buildQuals({ A: 14, B: 13 });
     const result = selectFinalsEntrantsByGroup(quals);
 
@@ -92,52 +53,50 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(2);
     });
 
-    it('directSeeds[] maps direct players to the handwritten Upper Bracket seeds', () => {
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
-        FIXED_TWO_GROUP_DIRECT_SEEDS,
-      );
+    it('directSeeds[] is bucket-stacked 1-12 (A1,B1,A2,B2,...)', () => {
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [1, 'A1'],
+        [2, 'B1'],
+        [3, 'A2'],
+        [4, 'B2'],
+        [5, 'A3'],
+        [6, 'B3'],
+        [7, 'A4'],
+        [8, 'B4'],
+        [9, 'A5'],
+        [10, 'B5'],
+        [11, 'A6'],
+        [12, 'B6'],
+      ]);
     });
 
-    it('does not expose the redundant direct[] projection for 2 groups', () => {
+    it('barrageSeeds[] is bucket-stacked 13-24 (A7,B7,A8,B8,...)', () => {
+      expect(result.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [13, 'A7'],
+        [14, 'B7'],
+        [15, 'A8'],
+        [16, 'B8'],
+        [17, 'A9'],
+        [18, 'B9'],
+        [19, 'A10'],
+        [20, 'B10'],
+        [21, 'A11'],
+        [22, 'B11'],
+        [23, 'A12'],
+        [24, 'B12'],
+      ]);
+    });
+
+    // Issue #1051: directSeeds/barrageSeeds (each { seed, qualification }) are
+    // the sole public contract for every group count -- there is no redundant
+    // legacy direct[]/barrage[] projection a caller could drift against.
+    it('does not expose a redundant direct[]/barrage[] projection', () => {
       expect('direct' in result).toBe(false);
-    });
-
-    it('directSeeds[] renders top-to-bottom as the handwritten 2-group Upper R1 bracket', () => {
-      const directBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]));
-      const labelForSeed = (seed: number) => directBySeed.get(seed) ?? 'barrage';
-      expect(upperR1SeedPairs.map(([p1, p2]) => [labelForSeed(p1), labelForSeed(p2)])).toEqual([
-        ['A1', 'barrage'],
-        ['B4', 'A5'],
-        ['B2', 'barrage'],
-        ['A3', 'B6'],
-        ['B1', 'barrage'],
-        ['A4', 'B5'],
-        ['A2', 'barrage'],
-        ['B3', 'A6'],
-      ]);
-    });
-
-    it('barrage[] is ordered by playoff seeds 1-12 for the handwritten layout', () => {
-      expect(result.barrage.map((q) => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
-    });
-
-    it('barrage[] creates the handwritten R1-to-bye blocks with the existing playoff structure', () => {
-      const barrageBySeed = new Map(result.barrage.map((q, index) => [index + 1, q.playerId]));
-      expect([
-        [barrageBySeed.get(11), barrageBySeed.get(10), barrageBySeed.get(1)],
-        [barrageBySeed.get(7), barrageBySeed.get(6), barrageBySeed.get(4)],
-        [barrageBySeed.get(5), barrageBySeed.get(8), barrageBySeed.get(3)],
-        [barrageBySeed.get(9), barrageBySeed.get(12), barrageBySeed.get(2)],
-      ]).toEqual([
-        ['A9', 'B12', 'B8'],
-        ['B10', 'A11', 'A7'],
-        ['B9', 'A12', 'A8'],
-        ['A10', 'B11', 'B7'],
-      ]);
+      expect('barrage' in result).toBe(false);
     });
   });
 
-  describe('3-group case (A=9, B=9, C=9)', () => {
+  describe('3-group case (A=9, B=9, C=9, all ranks tied -> stable A-then-B-then-C order)', () => {
     const quals = buildQuals({ A: 9, B: 9, C: 9 });
     const result = selectFinalsEntrantsByGroup(quals);
 
@@ -145,132 +104,38 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(3);
     });
 
-    // Seed numbers are NOT sequential 1-12: seeds 10/12/14/16 are reserved for
-    // barrage-playoff winners (mirroring the 2-group Top-24 layout), so the 12
-    // direct advancers fill the gapped sequence 1,2,3,4,5,6,7,8,9,11,13,15.
-    // Placement is via anti-collision seeding (assignAntiCollisionSeeds): the
-    // top 4 overall (bucket 1's 3 + bucket 2's first) get the "solo" seeds
-    // (1,3,5,7 -- face a not-yet-known barrage survivor in round 1), and the
-    // remaining 8 are greedily paired from different groups into the 4 known
-    // round-1 pairs (2,15)/(4,13)/(6,11)/(8,9).
-    it('directSeeds[] fills the gapped seed sequence via anti-collision placement', () => {
+    it('directSeeds[] is bucket-stacked 1-12 (A1,B1,C1,A2,B2,C2,...)', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
         [1, 'A1'],
-        [2, 'B2'],
-        [3, 'B1'],
-        [4, 'A3'],
-        [5, 'C1'],
-        [6, 'C3'],
-        [7, 'A2'],
-        [8, 'B4'],
-        [9, 'C4'],
-        [11, 'A4'],
-        [13, 'B3'],
-        [15, 'C2'],
+        [2, 'B1'],
+        [3, 'C1'],
+        [4, 'A2'],
+        [5, 'B2'],
+        [6, 'C2'],
+        [7, 'A3'],
+        [8, 'B3'],
+        [9, 'C3'],
+        [10, 'A4'],
+        [11, 'B4'],
+        [12, 'C4'],
       ]);
     });
 
-    it('does not expose legacy direct[] because callers should use directSeeds[]', () => {
-      expect('direct' in result).toBe(false);
-    });
-
-    it('no round-1 direct-vs-direct pair shares a qualifying group', () => {
-      const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [a, b] of [
-        [2, 15],
-        [4, 13],
-        [6, 11],
-        [8, 9],
-      ] as const) {
-        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
-      }
-    });
-
-    it('barrage[] fills playoff seeds 1-12 via anti-collision placement (BYE seeds 1-4 first)', () => {
-      expect(result.barrage.map((q) => q.playerId)).toEqual([
-        'A5',
-        'B5',
-        'C5',
-        'A6',
-        'B6',
-        'A7',
-        'B7',
-        'C6',
-        'C7',
-        'B8',
-        'C8',
-        'A8',
+    it('barrageSeeds[] is bucket-stacked 13-24 (A5,B5,C5,A6,B6,C6,...)', () => {
+      expect(result.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [13, 'A5'],
+        [14, 'B5'],
+        [15, 'C5'],
+        [16, 'A6'],
+        [17, 'B6'],
+        [18, 'C6'],
+        [19, 'A7'],
+        [20, 'B7'],
+        [21, 'C7'],
+        [22, 'A8'],
+        [23, 'B8'],
+        [24, 'C8'],
       ]);
-    });
-
-    it('no round-1 barrage pair shares a qualifying group', () => {
-      const groupBySeed = new Map(result.barrage.map((q, i) => [i + 1, q.group]));
-      for (const [a, b] of [
-        [5, 8],
-        [6, 7],
-        [9, 12],
-        [10, 11],
-      ] as const) {
-        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
-      }
-    });
-
-    it('re-seeds direct entrants against resolved barrage winners without changing the field', () => {
-      const winnerGroupByUpperSeed = new Map([
-        [16, 'A'],
-        [12, 'A'],
-        [14, 'C'],
-        [10, 'B'],
-      ]);
-      const reseeded = reseedDirectEntrantsAgainstPlayoffWinners(result.directSeeds, winnerGroupByUpperSeed);
-      expect(reseeded.map(({ qualification }) => qualification.playerId).sort()).toEqual(
-        result.directSeeds.map(({ qualification }) => qualification.playerId).sort(),
-      );
-
-      const directGroupBySeed = new Map(reseeded.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [directSeed, playoffSeed] of [
-        [1, 16],
-        [5, 12],
-        [3, 14],
-        [7, 10],
-      ] as const) {
-        expect(directGroupBySeed.get(directSeed)).not.toBe(winnerGroupByUpperSeed.get(playoffSeed));
-      }
-      for (const [seed1, seed2] of [
-        [8, 9],
-        [4, 13],
-        [6, 11],
-        [2, 15],
-      ] as const) {
-        expect(directGroupBySeed.get(seed1)).not.toBe(directGroupBySeed.get(seed2));
-      }
-    });
-
-    it('finds a collision-free layout even when all four barrage winners are from one group', () => {
-      const winnerGroupByUpperSeed = new Map([
-        [16, 'A'],
-        [12, 'A'],
-        [14, 'A'],
-        [10, 'A'],
-      ]);
-      const reseeded = reseedDirectEntrantsAgainstPlayoffWinners(result.directSeeds, winnerGroupByUpperSeed);
-      const directGroupBySeed = new Map(reseeded.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [directSeed, playoffSeed] of [
-        [1, 16],
-        [5, 12],
-        [3, 14],
-        [7, 10],
-      ] as const) {
-        expect(directGroupBySeed.get(directSeed)).not.toBe(winnerGroupByUpperSeed.get(playoffSeed));
-      }
-      for (const [seed1, seed2] of [
-        [8, 9],
-        [4, 13],
-        [6, 11],
-        [2, 15],
-      ] as const) {
-        expect(directGroupBySeed.get(seed1)).not.toBe(directGroupBySeed.get(seed2));
-      }
     });
   });
 
@@ -291,22 +156,9 @@ describe('selectFinalsEntrantsByGroup', () => {
     );
     const result = selectFinalsEntrantsByGroup(quals);
 
-    it('gives the top 4 overall (B1 > C1 > A1 > A2) the protected solo seeds 1/3/5/7', () => {
-      const soloSeeds = [1, 3, 5, 7];
+    it('orders bucket 0 by score (B1 > C1 > A1) instead of group letter, as seeds 1-3', () => {
       const bySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]));
-      expect(soloSeeds.map((s) => bySeed.get(s))).toEqual(['B1', 'C1', 'A1', 'A2']);
-    });
-
-    it('still avoids same-group round-1 pairs after the tiebreak reshuffles bucket 0', () => {
-      const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [a, b] of [
-        [2, 15],
-        [4, 13],
-        [6, 11],
-        [8, 9],
-      ] as const) {
-        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
-      }
+      expect([1, 2, 3].map((s) => bySeed.get(s))).toEqual(['B1', 'C1', 'A1']);
     });
   });
 
@@ -326,11 +178,11 @@ describe('selectFinalsEntrantsByGroup', () => {
       const result = selectFinalsEntrantsByGroup(quals);
       const bySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]));
 
-      expect([1, 3, 5, 7].map((seed) => bySeed.get(seed))).toEqual(['B1', 'C1', 'A1', 'A2']);
+      expect([1, 2, 3].map((seed) => bySeed.get(seed))).toEqual(['B1', 'C1', 'A1']);
     });
   });
 
-  describe('4-group case (A=B=C=D=6)', () => {
+  describe('4-group case (A=B=C=D=6, all ranks tied -> stable A-B-C-D order)', () => {
     const quals = buildQuals({ A: 6, B: 6, C: 6, D: 6 });
     const result = selectFinalsEntrantsByGroup(quals);
 
@@ -338,73 +190,42 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(4);
     });
 
-    it('directSeeds[] fills the gapped seed sequence via anti-collision placement', () => {
+    it('directSeeds[] is bucket-stacked 1-12 (A1,B1,C1,D1,A2,B2,C2,D2,...)', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
         [1, 'A1'],
-        [2, 'A2'],
-        [3, 'B1'],
-        [4, 'C2'],
-        [5, 'C1'],
-        [6, 'A3'],
-        [7, 'D1'],
-        [8, 'C3'],
-        [9, 'D3'],
-        [11, 'B3'],
-        [13, 'D2'],
-        [15, 'B2'],
+        [2, 'B1'],
+        [3, 'C1'],
+        [4, 'D1'],
+        [5, 'A2'],
+        [6, 'B2'],
+        [7, 'C2'],
+        [8, 'D2'],
+        [9, 'A3'],
+        [10, 'B3'],
+        [11, 'C3'],
+        [12, 'D3'],
       ]);
     });
 
-    it('does not expose legacy direct[] because callers should use directSeeds[]', () => {
-      expect('direct' in result).toBe(false);
-    });
-
-    it('no round-1 direct-vs-direct pair shares a qualifying group', () => {
-      const groupBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]));
-      for (const [a, b] of [
-        [2, 15],
-        [4, 13],
-        [6, 11],
-        [8, 9],
-      ] as const) {
-        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
-      }
-    });
-
-    it('barrage[] is Top4-6 from each group, unaffected by anti-collision reordering when all ranks tie', () => {
-      expect(result.barrage.map((q) => q.playerId)).toEqual([
-        'A4',
-        'B4',
-        'C4',
-        'D4',
-        'A5',
-        'C5',
-        'D5',
-        'B5',
-        'A6',
-        'C6',
-        'D6',
-        'B6',
+    it('barrageSeeds[] is bucket-stacked 13-24 (A4,B4,C4,D4,A5,B5,C5,D5,...)', () => {
+      expect(result.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [13, 'A4'],
+        [14, 'B4'],
+        [15, 'C4'],
+        [16, 'D4'],
+        [17, 'A5'],
+        [18, 'B5'],
+        [19, 'C5'],
+        [20, 'D5'],
+        [21, 'A6'],
+        [22, 'B6'],
+        [23, 'C6'],
+        [24, 'D6'],
       ]);
-    });
-
-    it('no round-1 barrage pair shares a qualifying group', () => {
-      const groupBySeed = new Map(result.barrage.map((q, i) => [i + 1, q.group]));
-      for (const [a, b] of [
-        [5, 8],
-        [6, 7],
-        [9, 12],
-        [10, 11],
-      ] as const) {
-        expect(groupBySeed.get(a)).not.toBe(groupBySeed.get(b));
-      }
     });
   });
 
   describe('4-group barrage bucket tiebreak (WDL score -> points, not group letter)', () => {
-    // Same regression coverage as the 3-group direct-seed case, but for the
-    // barrage range, mirroring docs/qualification-combined-ranking.md §3's
-    // "B4(24) should outrank A4(23)" example -- here with a 4th group too.
     const rank4Stats: Record<string, { score: number; points: number }> = {
       A4: { score: 23, points: 0 },
       B4: { score: 24, points: 0 },
@@ -417,7 +238,12 @@ describe('selectFinalsEntrantsByGroup', () => {
     const result = selectFinalsEntrantsByGroup(quals);
 
     it('orders the barrage bucket by score (B4 > A4 > D4 > C4) instead of alphabetically', () => {
-      expect(result.barrage.slice(0, 4).map((q) => q.playerId)).toEqual(['B4', 'A4', 'D4', 'C4']);
+      expect(result.barrageSeeds.slice(0, 4).map(({ qualification }) => qualification.playerId)).toEqual([
+        'B4',
+        'A4',
+        'D4',
+        'C4',
+      ]);
     });
   });
 
@@ -425,89 +251,160 @@ describe('selectFinalsEntrantsByGroup', () => {
     it('2 groups A=20, B=12: each contributes Top1-6 direct, Top7-12 barrage', () => {
       const quals = buildQuals({ A: 20, B: 12 });
       const result = selectFinalsEntrantsByGroup(quals);
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
-        FIXED_TWO_GROUP_DIRECT_SEEDS,
-      );
-      expect(result.barrage.map((q) => q.playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
+      expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
+        'A1',
+        'B1',
+        'A2',
+        'B2',
+        'A3',
+        'B3',
+        'A4',
+        'B4',
+        'A5',
+        'B5',
+        'A6',
+        'B6',
+      ]);
+      expect(result.barrageSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
+        'A7',
+        'B7',
+        'A8',
+        'B8',
+        'A9',
+        'B9',
+        'A10',
+        'B10',
+        'A11',
+        'B11',
+        'A12',
+        'B12',
+      ]);
     });
   });
 
-  describe('anti-collision fuzz coverage', () => {
-    /* A deterministic LCG makes failures reproducible while exercising many
-     * score/point permutations and uneven valid group sizes. This is kept
-     * dependency-free deliberately: the invariant belongs in the ordinary
-     * Jest suite and must run wherever the project test suite runs. */
-    const random = (seed: number) => {
-      let state = seed >>> 0;
-      return () => {
-        state = (state * 1664525 + 1013904223) >>> 0;
-        return state / 0x1_0000_0000;
-      };
+  describe('CDM 2025 golden regression (real qualification results)', () => {
+    /*
+     * Real BM qualification data from the CDM 2025 official results workbook
+     * (uploaded by the user, cross-checked cell-by-cell): 3 groups of 15,
+     * score = the workbook's Q column, points = the O column. This locks in
+     * the exact real-world Top-24 seed list end-to-end (bucket stacking +
+     * WDL score -> points tiebreak), the concrete evidence behind removing
+     * anti-collision seeding (see module doc comment).
+     */
+    const CDM_2025_BM_QUALIFICATIONS: Record<string, Array<[string, number, number]>> = {
+      A: [
+        ['KVD', 966, 48],
+        ['Drew', 900, 42],
+        ['Kasmo', 833, 38],
+        ['Zarkov', 766, 24],
+        ['Thibault', 700, 18],
+        ['Patrick', 666, 28],
+        ['Sargoth', 633, 12],
+        ['Rune', 566, 8],
+        ['Rejemy', 466, 0],
+        ['Sjors', 400, -8],
+        ['Narnet', 333, -16],
+        ['Bluh', 300, -22],
+        ["L'escargot", 200, -30],
+        ['Ale', 166, -40],
+        ['Lio', 100, -40],
+      ],
+      B: [
+        ['Geo', 1000, 58],
+        ['Lafungo', 900, 42],
+        ['Antistar', 900, 34],
+        ['Moll', 766, 26],
+        ['Jarmou', 733, 32],
+        ['Rub', 666, 22],
+        ['Flo', 600, 16],
+        ['JDR', 466, -2],
+        ['Chachamaxx', 400, -12],
+        ['Oni', 400, -16],
+        ['FF', 300, -20],
+        ['Getarez', 300, -22],
+        ['Lenain', 233, -24],
+        ['Danny', 166, -34],
+        ['BigMountain', 166, -40],
+      ],
+      C: [
+        ['Sami', 1000, 58],
+        ['Champix', 933, 38],
+        ['Takashi', 833, 38],
+        ['Onwa', 766, 32],
+        ['Leyla', 733, 24],
+        ['tif', 700, 22],
+        ['Mark', 600, 16],
+        ['Banana', 500, 0],
+        ['Ours', 433, -8],
+        ['Edwin', 433, -8],
+        ['Ashley', 366, -16],
+        ['Cap', 233, -32],
+        ['Zip', 200, -26],
+        ['Titou', 166, -36],
+        ['Miku', 100, -42],
+      ],
     };
 
-    const assertNoKnownRoundOneCollision = (result: ReturnType<typeof selectFinalsEntrantsByGroup>) => {
-      const directGroupBySeed = new Map(
-        result.directSeeds.map(({ seed, qualification }) => [seed, qualification.group]),
-      );
-      for (const [a, b] of [
-        [2, 15],
-        [4, 13],
-        [6, 11],
-        [8, 9],
-      ] as const) {
-        expect(directGroupBySeed.get(a)).not.toBe(directGroupBySeed.get(b));
-      }
-
-      const barrageGroupBySeed = new Map(
-        result.barrage.map((qualification, index) => [index + 1, qualification.group]),
-      );
-      for (const [a, b] of [
-        [5, 8],
-        [6, 7],
-        [9, 12],
-        [10, 11],
-      ] as const) {
-        expect(barrageGroupBySeed.get(a)).not.toBe(barrageGroupBySeed.get(b));
-      }
+    /*
+     * Two bucket positions are exact score+points ties across groups
+     * (Kasmo/Takashi at 833/38; Flo/Mark at 600/16), which the automatic
+     * bucket tiebreak alone cannot order -- exactly the scenario
+     * combinedRankOverride exists for (see "3-group complete-tie playoff
+     * order" above). The real event's published seed list has Takashi ahead
+     * of Kasmo and Mark ahead of Flo, so a manual cross-group sudden-death
+     * decision is encoded here to reproduce that real outcome.
+     */
+    const COMBINED_RANK_OVERRIDES: Record<string, number> = {
+      Takashi: 1,
+      Kasmo: 2,
+      Mark: 1,
+      Flo: 2,
     };
 
-    const assertFixedTwoGroupLayout = (result: ReturnType<typeof selectFinalsEntrantsByGroup>) => {
-      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
-        FIXED_TWO_GROUP_DIRECT_SEEDS,
-      );
-      expect(result.barrage.map(({ playerId }) => playerId)).toEqual(FIXED_TWO_GROUP_BARRAGE_PLAYER_IDS);
-    };
+    const quals = Object.entries(CDM_2025_BM_QUALIFICATIONS).flatMap(([group, players]) =>
+      players.map(([playerId, score, points]) => ({
+        playerId,
+        group,
+        player: { id: playerId },
+        score,
+        points,
+        combinedRankOverride: COMBINED_RANK_OVERRIDES[playerId] ?? null,
+      })),
+    );
+    const result = selectFinalsEntrantsByGroup(quals);
 
-    it('keeps the fixed 2-group layout and all 2/3/4-group round-one pairs valid across random inputs', () => {
-      const groupKeys = ['A', 'B', 'C', 'D'];
-      const next = random(0x2799);
-      const totalFinalsSlots = 12;
+    it('reproduces the official CDM 2025 Top-12 direct seed order exactly', () => {
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [1, 'Geo'],
+        [2, 'Sami'],
+        [3, 'KVD'],
+        [4, 'Champix'],
+        [5, 'Drew'],
+        [6, 'Lafungo'],
+        [7, 'Antistar'],
+        [8, 'Takashi'],
+        [9, 'Kasmo'],
+        [10, 'Onwa'],
+        [11, 'Moll'],
+        [12, 'Zarkov'],
+      ]);
+    });
 
-      for (const groupCount of [2, 3, 4] as const) {
-        const minimumSize = (totalFinalsSlots / groupCount) * 2;
-        for (let sample = 0; sample < 100; sample++) {
-          const groupSizes = Object.fromEntries(
-            groupKeys.slice(0, groupCount).map((group) => [group, minimumSize + Math.floor(next() * 9)]),
-          );
-          // The two-group path uses fixed A/B rank tokens, so only uneven group
-          // sizes vary there. Random score/point tiebreaks are meaningful only
-          // for the combined-ranking buckets used by the 3/4-group paths.
-          const statsFor =
-            groupCount === 2
-              ? undefined
-              : () => ({
-                  score: Math.floor(next() * 31),
-                  points: Math.floor(next() * 101) - 50,
-                });
-          const qualifications = buildQuals(groupSizes, statsFor);
-
-          const result = selectFinalsEntrantsByGroup(qualifications);
-          expect(result.directSeeds).toHaveLength(12);
-          expect(result.barrage).toHaveLength(12);
-          if (groupCount === 2) assertFixedTwoGroupLayout(result);
-          assertNoKnownRoundOneCollision(result);
-        }
-      }
+    it('reproduces the official CDM 2025 seed-13-24 barrage order exactly (Jarmou=13, JDR=24)', () => {
+      expect(result.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [13, 'Jarmou'],
+        [14, 'Leyla'],
+        [15, 'Thibault'],
+        [16, 'tif'],
+        [17, 'Patrick'],
+        [18, 'Rub'],
+        [19, 'Sargoth'],
+        [20, 'Mark'],
+        [21, 'Flo'],
+        [22, 'Rune'],
+        [23, 'Banana'],
+        [24, 'JDR'],
+      ]);
     });
   });
 
@@ -557,19 +454,18 @@ describe('selectFinalsEntrantsByGroup', () => {
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1',
-        'B3',
         'B1',
-        'A3',
-        'B2',
-        'A4',
         'A2',
+        'B2',
+        'A3',
+        'B3',
+        'A4',
         'B4',
         'A5',
         'B5',
-        'B6',
         'A6',
+        'B6',
       ]);
-      expect('direct' in result).toBe(false);
     });
   });
 });

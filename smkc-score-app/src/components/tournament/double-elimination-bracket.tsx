@@ -115,8 +115,13 @@ function MatchCard<TMatch extends BMMatch>({
   const seededEntry2 = bracketMatch.player2Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
-  const seedLabel1 = seededEntry1?.qualificationRankLabel ?? bracketMatch.player1Seed;
-  const seedLabel2 = seededEntry2?.qualificationRankLabel ?? bracketMatch.player2Seed;
+  /* The numeric bracket seed is always preferred over the group+rank label
+   * (e.g. "B1") -- it's the same overall tournament seed number shown
+   * elsewhere in the bracket, and is at least as informative (a
+   * qualificationRankLabel can only exist when the numeric seed does too,
+   * since both come from the same seededPlayers lookup). */
+  const seedLabel1 = bracketMatch.player1Seed ?? seededEntry1?.qualificationRankLabel;
+  const seedLabel2 = bracketMatch.player2Seed ?? seededEntry2?.qualificationRankLabel;
 
   /* Use actual match players if available, fall back to seeded player data */
   const player1: Player | undefined = match?.player1 || seededEntry1?.player;

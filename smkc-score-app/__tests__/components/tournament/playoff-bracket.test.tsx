@@ -17,7 +17,7 @@ const playoffStructure = [
 ];
 
 describe("PlayoffBracket qualification rank labels", () => {
-  it("prefers group-rank labels over raw seed numbers", () => {
+  it("prefers raw seed numbers over group-rank labels", () => {
     render(
       <PlayoffBracket
         playoffMatches={[]}
@@ -30,20 +30,20 @@ describe("PlayoffBracket qualification rank labels", () => {
     const round1Match = screen.getByRole("button", {
       name: /Match 1: Alice vs Bob/,
     });
-    expect(round1Match.textContent).toContain("[A9]");
-    expect(round1Match.textContent).toContain("[B12]");
-    expect(round1Match.textContent).not.toContain("[1]");
-    expect(round1Match.textContent).not.toContain("[2]");
+    expect(round1Match.textContent).toContain("[1]");
+    expect(round1Match.textContent).toContain("[2]");
+    expect(round1Match.textContent).not.toContain("[A9]");
+    expect(round1Match.textContent).not.toContain("[B12]");
 
     const round2Match = screen.getByRole("button", {
       name: /Match 5: Carol vs Alice/,
     });
-    expect(round2Match.textContent).toContain("[B8]");
-    expect(round2Match.textContent).toContain("[A9]");
-    expect(round2Match.textContent).not.toContain("[5]");
+    expect(round2Match.textContent).toContain("[5]");
+    expect(round2Match.textContent).toContain("[1]");
+    expect(round2Match.textContent).not.toContain("[B8]");
   });
 
-  it("falls back to raw seed numbers when group-rank labels are absent", () => {
+  it("still shows raw seed numbers when group-rank labels are absent", () => {
     render(
       <PlayoffBracket
         playoffMatches={[]}

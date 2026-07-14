@@ -103,8 +103,10 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
   const seededEntry2 = bracketMatch.player2Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
-  const seedLabel1 = seededEntry1?.qualificationRankLabel ?? bracketMatch.player1Seed;
-  const seedLabel2 = seededEntry2?.qualificationRankLabel ?? bracketMatch.player2Seed;
+  /* The numeric seed (now the real overall qualifying seed 1-24, see
+   * double-elimination.ts) is always preferred over the group+rank label. */
+  const seedLabel1 = bracketMatch.player1Seed ?? seededEntry1?.qualificationRankLabel;
+  const seedLabel2 = bracketMatch.player2Seed ?? seededEntry2?.qualificationRankLabel;
 
   const player1: Player | undefined = match?.player1 || seededEntry1?.player;
   const player2: Player | undefined = match?.player2 || seededEntry2?.player;

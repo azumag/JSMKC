@@ -17,10 +17,12 @@
  * matching the app finals/playoff match records (by matchNumber) against the
  * canonical structures from double-elimination.ts (imported, never modified):
  *   - generateBracketStructure(16) → winners_r1 player1Seed/player2Seed (upper
- *     seeds); a direct qualifier at upper seed u sits at B-position
- *     FINALS_DIRECT_UPPER_SEEDS.indexOf(u)+1 (1..12).
- *   - generatePlayoffStructure(12) → playoff seed p sits at B-position
- *     FINALS_PLAYOFF_B_POSITION_OFFSET + p (13..24).
+ *     seeds 1-12 direct, 13-16 barrage); a direct qualifier at upper seed u
+ *     sits at B-position FINALS_DIRECT_UPPER_SEEDS.indexOf(u)+1 (1..12, the
+ *     identity mapping since seeds 1-12 are now contiguous).
+ *   - generatePlayoffStructure(12) → playoff seed p (already the real overall
+ *     seed 13..24 — a bye winner keeps their own seed number) sits at
+ *     B-position p directly.
  *   - generateBracketStructure(8) → 8-player upper seeds map directly to B 1..8.
  *
  * Bracket size (from which rounds exist) selects the mode:
@@ -52,7 +54,6 @@ import {
   FINALS_BLOCK_NAME_OFFSET,
   FINALS_BLOCK_SCORE_OFFSET,
   FINALS_DIRECT_UPPER_SEEDS,
-  FINALS_PLAYOFF_B_POSITION_OFFSET,
   FINALS_SEED_LIST_COLUMN,
   FINALS_SEED_LIST_FIRST_ROW,
   FINALS_SEED_LIST_MAX_ROWS,
@@ -303,9 +304,10 @@ function reconstruct24(byRound: Map<string, CdmMatch[]>): Reconstruction {
 
 /**
  * Assign one direct-qualifier typed slot. `upperSeed` is the structural upper
- * seed (1..16). Only direct seeds (those in FINALS_DIRECT_UPPER_SEEDS) are typed;
- * playoff-winner seeds (16/12/14/10) are formula slots and are skipped — which
- * is consistent with the slot-semantics table marking them winnerOf.
+ * seed (1..16). Only direct seeds (those in FINALS_DIRECT_UPPER_SEEDS, i.e.
+ * 1..12) are typed; playoff-winner seeds (13..16) are formula slots and are
+ * skipped — which is consistent with the slot-semantics table marking them
+ * winnerOf.
  */
 function assignTypedSeed(
   round: string,
@@ -332,7 +334,8 @@ function assignTypedSeed(
 /**
  * Assign the 12 playoff entrants to B-positions 13..24 from the playoff structure.
  * playoff_r1[k] slot1/slot2 = structural player1Seed/player2Seed; playoff_r2[k]
- * slot1 = structural BYE seed (player1Seed). B-pos = OFFSET + structural seed.
+ * slot1 = structural BYE seed (player1Seed). generatePlayoffStructure()'s seeds
+ * are already the real overall seed 13..24, so B-pos = structural seed directly.
  */
 function assignPlayoffSeeds(
   byRound: Map<string, CdmMatch[]>,
@@ -353,7 +356,7 @@ function assignPlayoffSeeds(
     player: CdmPlayer | undefined,
   ) => {
     if (structuralSeed == null || !player) return;
-    const bPos = FINALS_PLAYOFF_B_POSITION_OFFSET + structuralSeed; // 13..24
+    const bPos = structuralSeed; // already 13..24
     bPositionPlayers.set(bPos, player);
     seedBPositionBySlot.set(slotKey(round, matchIndex, slotIndex), bPos);
   };
@@ -792,7 +795,7 @@ function reconstructPlayoffOnly(
   const ranked = rankQualifiers(qualsForMode(data, mode)).filter(
     (q) => !playoffPlayerIds.has(q.player.id),
   );
-  ranked.slice(0, FINALS_PLAYOFF_B_POSITION_OFFSET).forEach((q, i) => {
+  ranked.slice(0, FINALS_DIRECT_UPPER_SEEDS.length).forEach((q, i) => {
     bPositionPlayers.set(i + 1, q.player); // B 1..12
   });
   return { bPositionPlayers, seedBPositionBySlot };

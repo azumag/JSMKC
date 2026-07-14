@@ -172,7 +172,7 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
     expect(winnersQF1!.textContent).toContain("[8]");
   });
 
-  it("shows qualification group-rank labels when seeded players include them", () => {
+  it("prefers the numeric seed over a qualification group-rank label when both are available", () => {
     const { container } = render(
       <DoubleEliminationBracket
         matches={buildInitialMatches()}
@@ -190,10 +190,10 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
     ).find((el) => el.querySelector("div.text-xs")?.textContent === "M1");
 
     expect(winnersQF1).toBeDefined();
-    expect(winnersQF1!.textContent).toContain("[A1]");
-    expect(winnersQF1!.textContent).toContain("[B8]");
-    expect(winnersQF1!.textContent).not.toContain("[1]");
-    expect(winnersQF1!.textContent).not.toContain("[8]");
+    expect(winnersQF1!.textContent).toContain("[1]");
+    expect(winnersQF1!.textContent).toContain("[8]");
+    expect(winnersQF1!.textContent).not.toContain("[A1]");
+    expect(winnersQF1!.textContent).not.toContain("[B8]");
   });
 
   it("renders unresolved Top-24 barrage seats as TBD in a previewed 16-player bracket", () => {
@@ -216,21 +216,25 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
       />,
     );
 
+    /* Barrage seeds 13-16 face direct seeds 4, 2, 3, and 1 respectively in
+     * Winners R1 (matches 3, 5, 7, 1 -- see generate16PlayerBracket's
+     * seedPairs16). Seed 16 (Mika) is resolved here, so only match 1 shows
+     * two real names; matches 3/5/7 still have a TBD barrage seat. */
     const winnersR1Cards = Array.from(
       container.querySelectorAll<HTMLElement>("[role='button']"),
     ).filter((el) => {
       const label = el.querySelector("div.text-xs");
-      return label && ["M1", "M4", "M5", "M8"].includes(label.textContent || "");
+      return label && ["M1", "M3", "M5", "M7"].includes(label.textContent || "");
     });
 
     expect(winnersR1Cards).toHaveLength(4);
-    expect(winnersR1Cards[0].textContent).toContain(seed1.nickname);
+    expect(winnersR1Cards[0].textContent).toContain(seed1.nickname); /* M1: seed1 vs seed16 */
     expect(winnersR1Cards[0].textContent).toContain("Mika");
-    expect(winnersR1Cards[1].textContent).toContain(seed4.nickname);
+    expect(winnersR1Cards[1].textContent).toContain(seed4.nickname); /* M3: seed4 vs seed13 */
     expect(winnersR1Cards[1].textContent).toContain("TBD");
-    expect(winnersR1Cards[2].textContent).toContain(seed3.nickname);
+    expect(winnersR1Cards[2].textContent).toContain(seed2.nickname); /* M5: seed2 vs seed15 */
     expect(winnersR1Cards[2].textContent).toContain("TBD");
-    expect(winnersR1Cards[3].textContent).toContain(seed2.nickname);
+    expect(winnersR1Cards[3].textContent).toContain(seed3.nickname); /* M7: seed3 vs seed14 */
     expect(winnersR1Cards[3].textContent).toContain("TBD");
   });
 

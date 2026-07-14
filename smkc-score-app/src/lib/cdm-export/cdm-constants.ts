@@ -109,13 +109,14 @@ export const FINALS_SEED_LIST_FIRST_ROW = 3;
 export const FINALS_SEED_LIST_MAX_ROWS = 24; // rows 3..26
 /**
  * Upper-bracket B-positions of the 12 direct qualifiers, in seed order.
- * generateBracketStructure(16) pairs [1,16],[8,9],[5,12],[4,13],[3,14],
- * [6,11],[7,10],[2,15]; playoff winners occupy upper seeds 16/12/14/10,
- * so direct players hold upper seeds 1..9,11,13,15 → B-positions 1..12.
+ * generateBracketStructure(16) pairs [1,16],[8,9],[4,13],[5,12],[2,15],
+ * [7,10],[3,14],[6,11]; playoff winners occupy upper seeds 13..16 (a bye
+ * winner keeps their own seed number — see double-elimination.ts), so
+ * direct players hold upper seeds 1..12 directly, one-to-one with
+ * B-positions 1..12 (verified against the CDM 2025 official results
+ * workbook, whose B3:B26 seed list is contiguous seeds 1-24).
  */
-export const FINALS_DIRECT_UPPER_SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 15] as const;
-/** Playoff seed p (1..12) sits at B-position 12 + p (rows 15..26). */
-export const FINALS_PLAYOFF_B_POSITION_OFFSET = 12;
+export const FINALS_DIRECT_UPPER_SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 export interface FinalsSlotGeometry {
   /** 1-based column of the block's label column (+0 offset). */

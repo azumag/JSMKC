@@ -102,45 +102,51 @@ function mk(spec: MatchSpec, mode: CdmVersusMode = "bm"): CdmMatch {
 
 /**
  * Build a full 24-player faithful bracket's winners_r1 + playoff matches with the
- * B-positions wired exactly as the structures dictate. The four playoff winners
- * are the BYE seeds (B13/B16/B15/B14), which advance into winners_r1 slot2 of the
- * even matches (upper seeds 16/12/14/10 -> winners_r1 idx 0/2/4/6).
+ * B-positions wired exactly as the structures dictate (B-position == real overall
+ * seed, 1-12 direct / 13-24 barrage — see double-elimination.ts). The four playoff
+ * winners are the BYE seeds (B13/B16/B15/B14), which advance into winners_r1
+ * slot2 of the even matches (idx 0/2/4/6 -- see generate16PlayerBracket's
+ * seedPairs16 = [1,16],[8,9],[4,13],[5,12],[2,15],[7,10],[3,14],[6,11]).
  */
 function build24WinnersAndPlayoff(mode: CdmVersusMode = "bm"): CdmMatch[] {
-  // winners_r1: [p1 Bpos, p2 Bpos]. slot1 always direct; even-match slot2 is the
-  // advanced playoff winner, odd-match slot2 is a direct qualifier.
+  // winners_r1: [p1 Bpos, p2 Bpos], mirroring seedPairs16 directly since
+  // B-position == seed now. Even matches (idx 0,2,4,6) pair a direct seed with
+  // a barrage seed (13-16); odd matches (idx 1,3,5,7) are direct-vs-direct.
   const wr1: Array<[number, number]> = [
-    [1, 13], // idx0: B1 vs playoff winner B13
+    [1, 16], // idx0: B1 vs playoff winner B16
     [8, 9], // idx1
-    [5, 16], // idx2: B5 vs playoff winner B16
-    [4, 11], // idx3
-    [3, 15], // idx4: B3 vs playoff winner B15
-    [6, 10], // idx5
-    [7, 14], // idx6: B7 vs playoff winner B14
-    [2, 12], // idx7
+    [4, 13], // idx2: B4 vs playoff winner B13
+    [5, 12], // idx3
+    [2, 15], // idx4: B2 vs playoff winner B15
+    [7, 10], // idx5
+    [3, 14], // idx6: B3 vs playoff winner B14
+    [6, 11], // idx7
   ];
   const winnersR1 = wr1.map(([p1, p2], i) =>
     mk({ matchNumber: i + 1, stage: "finals", round: "winners_r1", p1, p2, s1: 4, s2: 1 }, mode),
   );
 
-  // playoff_r1 (matches 1-4): structural pairs map to B-positions.
+  // playoff_r1 (matches 1-4): structural pairs map to B-positions directly
+  // (seeds 17-24, the standard 5v12/6v11/7v10/8v9 shape within the 12-entrant
+  // barrage pool -- see generatePlayoffStructure's r1Pairs).
   const pr1: Array<[number, number]> = [
-    [23, 22], // pSeed 11 vs 10
-    [19, 18], // 7 vs 6
-    [17, 20], // 5 vs 8
-    [21, 24], // 9 vs 12
+    [17, 24],
+    [20, 21],
+    [18, 23],
+    [19, 22],
   ];
   const playoffR1 = pr1.map(([p1, p2], i) =>
     mk({ matchNumber: i + 1, stage: "playoff", round: "playoff_r1", p1, p2, s1: 4, s2: 0 }, mode),
   );
 
-  // playoff_r2 (matches 5-8): BYE seed (B13/16/15/14) beats the r1 winner and
-  // advances. p2 = the r1 winner (the slot0 player of each r1 match).
+  // playoff_r2 (matches 5-8): BYE seed (B16/13/15/14) beats the r1 winner and
+  // advances, keeping its own seed number. p2 = the r1 winner (slot0 of the
+  // corresponding r1 match, which wins 4-0 above).
   const pr2: Array<[number, number]> = [
-    [13, 23], // bye seed1 B13 vs r1[0] winner B23
-    [16, 19], // bye seed4 B16 vs r1[1] winner B19
-    [15, 17], // bye seed3 B15 vs r1[2] winner B17
-    [14, 21], // bye seed2 B14 vs r1[3] winner B21
+    [16, 17], // bye seed16 vs r1[0] (17v24) winner B17
+    [13, 20], // bye seed13 vs r1[1] (20v21) winner B20
+    [15, 18], // bye seed15 vs r1[2] (18v23) winner B18
+    [14, 19], // bye seed14 vs r1[3] (19v22) winner B19
   ];
   const playoffR2 = pr2.map(([p1, p2], i) =>
     mk({ matchNumber: i + 5, stage: "playoff", round: "playoff_r2", p1, p2, s1: 4, s2: 1 }, mode),
@@ -180,27 +186,27 @@ describe("buildFinalsWrites — faithful 24-player bracket", () => {
     // winners_r1[1] both typed: S9 = B-pos 8, S10 = B-pos 9.
     expectNumber(map, "S9", 8);
     expectNumber(map, "S10", 9);
-    // winners_r1[3] both typed: S17 = B-pos 4, S18 = B-pos 11.
-    expectNumber(map, "S17", 4);
-    expectNumber(map, "S18", 11);
+    // winners_r1[3] both typed: S17 = B-pos 5, S18 = B-pos 12.
+    expectNumber(map, "S17", 5);
+    expectNumber(map, "S18", 12);
   });
 
   it("writes typed playoff seed cells (E both slots, L slot1 only)", () => {
-    // playoff_r1[0]: E5 = B23, E6 = B22 (both typed).
-    expectNumber(map, "E5", 23);
-    expectNumber(map, "E6", 22);
-    // playoff_r2[0]: L5 = B13 (BYE seed typed); M6 is a "Winner of B1,1" formula.
-    expectNumber(map, "L5", 13);
+    // playoff_r1[0]: E5 = B17, E6 = B24 (both typed).
+    expectNumber(map, "E5", 17);
+    expectNumber(map, "E6", 24);
+    // playoff_r2[0]: L5 = B16 (BYE seed typed); M6 is a "Winner of B1,1" formula.
+    expectNumber(map, "L5", 16);
     expectUntouched(map, "L6");
   });
 
   it("writes visible match names from the app record in faithful path", () => {
-    expect(map.get("F5")).toMatchObject({ op: "overwriteString", value: "B23" });
-    expect(map.get("F6")).toMatchObject({ op: "overwriteString", value: "B22" });
-    expect(map.get("M5")).toMatchObject({ op: "overwriteString", value: "B13" });
-    expect(map.get("M6")).toMatchObject({ op: "overwriteString", value: "B23" });
+    expect(map.get("F5")).toMatchObject({ op: "overwriteString", value: "B17" });
+    expect(map.get("F6")).toMatchObject({ op: "overwriteString", value: "B24" });
+    expect(map.get("M5")).toMatchObject({ op: "overwriteString", value: "B16" });
+    expect(map.get("M6")).toMatchObject({ op: "overwriteString", value: "B17" });
     expect(map.get("T5")).toMatchObject({ op: "overwriteString", value: "B1" });
-    expect(map.get("T6")).toMatchObject({ op: "overwriteString", value: "B13" });
+    expect(map.get("T6")).toMatchObject({ op: "overwriteString", value: "B16" });
     // Downstream matches that do not yet exist are still left alone.
     for (const ref of ["AA7", "AV19", "BC47"]) expectUntouched(map, ref);
   });
@@ -210,17 +216,17 @@ describe("buildFinalsWrites — faithful 24-player bracket", () => {
     expectNumber(map, "V9", 4);
     expectNumber(map, "V10", 1);
     // winners_r1[0]: slot0=bp1(score4)->V5; slot1 expects winner of playoff_r2[0]
-    // = bp13 (BYE seed won) which is this match's player2 (score1) -> V6.
+    // = bp16 (BYE seed won) which is this match's player2 (score1) -> V6.
     expectNumber(map, "V5", 4);
     expectNumber(map, "V6", 1);
   });
 
   it("writes playoff match scores by identity resolution", () => {
-    // playoff_r1[0]: bp23 (slot0, score 4) -> H5, bp22 (slot1, score 0) -> H6.
+    // playoff_r1[0]: bp17 (slot0, score 4) -> H5, bp24 (slot1, score 0) -> H6.
     expectNumber(map, "H5", 4);
     expectNumber(map, "H6", 0);
-    // playoff_r2[0]: bye seed bp13 (slot0, score 4) -> O5; slot1 expects the
-    // winner of playoff_r1[0] = bp23 (this match's player2, score 1) -> O6.
+    // playoff_r2[0]: bye seed bp16 (slot0, score 4) -> O5; slot1 expects the
+    // winner of playoff_r1[0] = bp17 (this match's player2, score 1) -> O6.
     expectNumber(map, "O5", 4);
     expectNumber(map, "O6", 1);
   });
@@ -370,8 +376,8 @@ describe("buildFinalsWrites — 24-player playoff-only partial", () => {
     // B13 = first playoff entrant (B13 player), B24 = last.
     expectString(map, "B15", "B13");
     expectString(map, "B26", "B24");
-    // Playoff seed cells still typed (E5 = B23).
-    expectNumber(map, "E5", 23);
+    // Playoff seed cells still typed (E5 = B17).
+    expectNumber(map, "E5", 17);
   });
 });
 
