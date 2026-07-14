@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import {
   CombinedStandingsTable,
   type CombinedStandingsTableLabels,
@@ -12,6 +12,7 @@ describe('CombinedStandingsTable', () => {
   const combinedTieProps = {
     isAdmin: false,
     onCombinedRankOverrideSave: jest.fn(async () => true),
+    onRankOverrideSave: jest.fn(async () => {}),
   };
   const labels = {
     title: 'Combined standings',
@@ -169,5 +170,81 @@ describe('CombinedStandingsTable', () => {
     expect(screen.getByText('Combined standings')).toBeInTheDocument();
     expect(screen.getByText('0 players')).toBeInTheDocument();
     expect(container.querySelectorAll('tbody tr')).toHaveLength(0);
+  });
+
+  // TC-3020 through TC-3022: the rank column reuses RankCell so a resolved
+  // cross-group sudden-death playoff gets the same amber "completed" badge,
+  // and an admin can edit or clear it — mirroring the in-group RankCell UX
+  // that combinedRankOverride previously lacked entirely.
+  const baseEntry = {
+    id: 'q1',
+    _autoRank: 1,
+    group: 'A',
+    player: { nickname: 'Mario' },
+    mp: 3,
+    wins: 2,
+    ties: 1,
+    losses: 0,
+    points: 5,
+    score: 5,
+  };
+
+  it('TC-3020: shows the auto rank with no badge when combinedRankOverride is null', () => {
+    render(
+      <CombinedStandingsTable
+        labels={labels}
+        locale="en"
+        rankings={[{ ...baseEntry, combinedRankOverride: null }]}
+        getGroupLabel={(group) => `Group ${group}`}
+        getQualificationPoints={(entry) => entry.score}
+        {...combinedTieProps}
+      />,
+    );
+
+    const row = screen.getByText('Mario').closest('tr');
+    const cells = cellsByHeader(row!);
+    expect(cells['#']).toHaveTextContent('1');
+    expect(screen.queryByRole('button', { name: 'Edit rank' })).toBeNull();
+  });
+
+  it('TC-3021: shows the amber override badge instead of the auto rank when combinedRankOverride is set', () => {
+    render(
+      <CombinedStandingsTable
+        labels={labels}
+        locale="en"
+        rankings={[{ ...baseEntry, _autoRank: 4, combinedRankOverride: 1 }]}
+        getGroupLabel={(group) => `Group ${group}`}
+        getQualificationPoints={(entry) => entry.score}
+        {...combinedTieProps}
+      />,
+    );
+
+    const row = screen.getByText('Mario').closest('tr');
+    const cells = cellsByHeader(row!);
+    expect(cells['#']).toHaveTextContent('1');
+    expect(cells['#']).not.toHaveTextContent('4');
+  });
+
+  it('TC-3022: admin can clear a resolved combinedRankOverride via the RankCell ✕ control', async () => {
+    const onRankOverrideSave = jest.fn(async () => {});
+    render(
+      <CombinedStandingsTable
+        labels={labels}
+        locale="en"
+        rankings={[{ ...baseEntry, combinedRankOverride: 2 }]}
+        getGroupLabel={(group) => `Group ${group}`}
+        getQualificationPoints={(entry) => entry.score}
+        {...combinedTieProps}
+        isAdmin={true}
+        onRankOverrideSave={onRankOverrideSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /✕/ }));
+    });
+
+    expect(onRankOverrideSave).toHaveBeenCalledWith('q1', null);
   });
 });

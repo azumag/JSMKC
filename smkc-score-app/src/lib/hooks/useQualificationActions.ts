@@ -93,6 +93,32 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
     [tournamentId, mode, refetch, logger],
   );
 
+  /**
+   * Save (or, with null, clear) a single cross-group rank override.
+   * Mirrors handleRankOverrideSave so the combined-standings RankCell badge
+   * gets the same edit/undo affordance the in-group rank column already has.
+   */
+  const handleCombinedRankOverrideSave = useCallback(
+    async (qualificationId: string, combinedRankOverride: number | null) => {
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qualificationId, combinedRankOverride }),
+        });
+        if (response.ok) {
+          refetch();
+        } else {
+          const err = await response.json().catch(() => ({}));
+          alert(err.error || 'Failed to update combined rank');
+        }
+      } catch (err) {
+        logger.error('Failed to update combined rank:', { error: err, tournamentId });
+      }
+    },
+    [tournamentId, mode, refetch, logger],
+  );
+
   /** Save a complete cross-group sudden-death order, then refresh once. */
   const handleBulkCombinedRankOverrideSave = useCallback(
     async (updates: CombinedRankOverrideUpdate[]) => {
@@ -186,6 +212,7 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
   return {
     handleRankOverrideSave,
     handleBulkRankOverrideSave,
+    handleCombinedRankOverrideSave,
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,

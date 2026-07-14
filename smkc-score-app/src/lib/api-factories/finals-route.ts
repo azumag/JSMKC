@@ -1151,8 +1151,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT) : [];
 
       /* Reconstruct playoff seeded players from DB match data + structure.
-       * R1 matches carry player1Seed (5-12) and player2Seed;
-       * R2 matches carry player1Seed for BYE seeds (1-4).
+       * R1 matches carry player1Seed (17-24) and player2Seed;
+       * R2 matches carry player1Seed for BYE seeds (13-16).
        * player2Seed is null for R2 (opponent comes from R1 winner),
        * so we only map seeds from structure-defined positions. */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

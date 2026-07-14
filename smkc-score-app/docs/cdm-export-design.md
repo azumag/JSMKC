@@ -146,8 +146,9 @@ UBF=AM(39), GF1=AT(46), GF2=BA(53)。下段 LB は R/Y/AF/AM/AT/BA の rows 41..
 ブロック内オフセット: +0=ラベル/試合番号, +1=シード#, +2=名前, +3=国旗, +4=スコア。
 
 **B3:B26 = シードリスト（B-position 順のニックネーム）**:
-- 24人（16+playoff）: B-pos 1..12 = 直行勢（upper seed `[1,2,…,9,11,13,15]` の順）、
-  B-pos 13..24 = playoff seed 1..12（= 予選13..24位相当）。
+- 24人（16+playoff）: B-pos 1..12 = 直行勢（upper seed 1..12、CDM 2025公式結果ワークブックで
+  検証済みの連番。同グループ対決を避けるための並び替えは行わない）、
+  B-pos 13..24 = playoff seed 13..24（構造シードそのものがB-posと一致する連番。予選13..24位相当）。
 - 16人: B-pos = upper seed 1..16。8人: 1..8。
 - 各シードの実選手は決勝試合レコードと `generateBracketStructure`/`generatePlayoffStructure`
   の構造シードを matchNumber で突合して復元する（DB に seed 列は無い）。

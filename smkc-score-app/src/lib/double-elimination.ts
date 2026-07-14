@@ -223,8 +223,19 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
 /**
  * Generate a 16-player double elimination bracket (31 matches).
  *
- * Seeding: 1v16, 8v9, 5v12, 4v13, 3v14, 6v11, 7v10, 2v15
- * Ensures seeds 1&2 on opposite halves, top 4 maximally separated.
+ * Seeding: 1v16, 8v9, 4v13, 5v12, 2v15, 7v10, 3v14, 6v11 (sum-17 pairing;
+ * seeds 1&2 on opposite halves, top 4 maximally separated).
+ *
+ * Match order and the direct/barrage seed split (1-12 direct, 13-16 barrage
+ * byes) are taken verbatim from the CDM 2025 official results workbook, not
+ * an independently-designed layout: an earlier version of this bracket used
+ * a same-group-collision-avoidance scheme (seeds 10/12/14/16 reserved for
+ * barrage) that was never validated against a real event and, when checked
+ * against CDM 2025, did not match — the real bracket has no collision
+ * avoidance at all (e.g. Drew vs Zarkov, both group A, met in Winners R1) and
+ * uses a plain contiguous 1-12/13-16 split. Matching the template's exact
+ * block order also keeps the CDM export's fixed winnerOf-index tables
+ * (src/lib/cdm-export/fill/finals-slot-semantics.ts) valid without changes.
  */
 function generate16PlayerBracket(): BracketMatch[] {
   const matches: BracketMatch[] = [];
@@ -232,8 +243,8 @@ function generate16PlayerBracket(): BracketMatch[] {
 
   // --- WINNERS R1 (Matches 1-8): 16 players → 8 winners ---
   const seedPairs16 = [
-    [1, 16], [8, 9], [5, 12], [4, 13],
-    [3, 14], [6, 11], [7, 10], [2, 15],
+    [1, 16], [8, 9], [4, 13], [5, 12],
+    [2, 15], [7, 10], [3, 14], [6, 11],
   ];
   for (let i = 0; i < 8; i++) {
     matches.push({
@@ -259,9 +270,8 @@ function generate16PlayerBracket(): BracketMatch[] {
       round: "winners_qf",
       bracket: "winners",
       winnerGoesTo: 13 + Math.floor(i / 2),
-      /* QF losers → Losers R2 in reverse visual order.
-       * With the two-group paper layout this pairs LR1 winners top-to-bottom
-       * against B3, A4, A3, B4 instead of B4, A3, A4, B3. */
+      /* QF losers → Losers R2 in reverse visual order (matches the CDM
+       * template's bracket-line routing, verified against the real sheet). */
       loserGoesTo: 23 - i,
       position: ((i % 2) + 1) as 1 | 2,
       loserPosition: 1,
@@ -385,20 +395,27 @@ function generate16PlayerBracket(): BracketMatch[] {
 /**
  * Generate the Pre-Bracket Playoff ("barrage") structure for 12 entrants.
  *
- * Resolves issue #454: Top 24 → Top 16. Qualification positions 13-24 enter
- * a single-elimination playoff whose 4 winners fill the Upper-Bracket barrage slots.
- * Top 4 playoff seeds (qualification 13-16) receive a Round 1 BYE.
+ * Resolves issue #454: Top 24 → Top 16. The 12 entrants holding real overall
+ * seeds 13-24 enter a single-elimination playoff whose 4 winners fill
+ * Upper-Bracket seeds 13-16. Seeds 13-16 (the 4 strongest of the 12) receive
+ * a Round 1 BYE.
  *
- * Structure (8 matches total):
- *   R1 (playoff_r1, 4 matches): Seeds 8v9, 5v12, 6v11, 7v10 — standard bracket pairing
- *                               for the non-BYE seeds, maximally separating stronger seeds.
- *   R2 (playoff_r2, 4 matches): BYE seeds 1-4 each face one R1 winner. Winners advance.
- *
- * Upper-Bracket seed assignment fills the paper-layout barrage slots:
- *   R2 match 5 (playoff seed 1) winner → Upper seed 16
- *   R2 match 6 (playoff seed 4) winner → Upper seed 12
- *   R2 match 7 (playoff seed 3) winner → Upper seed 14
- *   R2 match 8 (playoff seed 2) winner → Upper seed 10
+ * Structure (8 matches total), seed numbers and match order taken verbatim
+ * from the CDM 2025 official results workbook ("Barrage 1"/"Barrage 2"
+ * blocks) — see the same rationale note on generate16PlayerBracket() for why
+ * this replaced an earlier, unvalidated same-group-collision-avoidance
+ * design:
+ *   R1 (playoff_r1, 4 matches): seeds 17v24, 20v21, 18v23, 19v22 — the
+ *                               standard 5v12/6v11/7v10/8v9 shape applied to
+ *                               the 12-entrant pool (seed 17 = the pool's
+ *                               5th-best, seed 24 = its weakest, etc).
+ *   R2 (playoff_r2, 4 matches): BYE seeds 16, 13, 15, 14 each face the
+ *                               corresponding R1 winner. Winners advance to
+ *                               the Upper Bracket keeping their own seed
+ *                               number — a bye winner's slot in the Upper
+ *                               Bracket is simply their own seed (verified:
+ *                               Jarmou, seed 13, won their R2 and entered the
+ *                               Upper Bracket still as seed 13).
  *
  * Cross-stage advancement (playoff_r2 winner → Upper Bracket slot) is handled
  * by the finals-route PUT handler, not by the generic getNextMatchInfo mechanism,
@@ -415,20 +432,12 @@ export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
 
   const matches: BracketMatch[] = [];
 
-  /* --- PLAYOFF ROUND 1 (Matches 1-4): 8 lower seeds pair up ---
-   * With the CDM two-group seed list produced by finals-group-selection, this is:
-   *   M1: A9(seed11)  vs B12(seed10) → winner faces B8(seed1) in R2
-   *   M2: B10(seed7) vs A11(seed6)  → winner faces A7(seed4) in R2
-   *   M3: B9(seed5)  vs A12(seed8)  → winner faces A8(seed3) in R2
-   *   M4: A10(seed9) vs B11(seed12) → winner faces B7(seed2) in R2
-   *
-   *   seed 1   2   3   4   5   6    7    8    9   10   11   12
-   */
+  /* --- PLAYOFF ROUND 1 (Matches 1-4): seeds 17-24 pair up --- */
   const r1Pairs = [
-    [11, 10], // A12 vs B11
-    [7, 6],   // A10 vs B9
-    [5, 8],   // A9 vs B10
-    [9, 12],  // A11 vs B12
+    [17, 24],
+    [20, 21],
+    [18, 23],
+    [19, 22],
   ];
   for (let i = 0; i < 4; i++) {
     matches.push({
@@ -445,22 +454,17 @@ export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
   }
 
   /* --- PLAYOFF ROUND 2 (Matches 5-8): BYE seeds meet R1 winners ---
-   * Each R2 match is a "decider": winner advances to the Upper Bracket.
-   * advancesToUpperSeed specifies which Upper-Bracket barrage slot the winner claims. */
-  const byeSeedToUpperSeed: Array<{ byeSeed: number; upperSeed: number }> = [
-    { byeSeed: 1, upperSeed: 16 },
-    { byeSeed: 4, upperSeed: 12 },
-    { byeSeed: 3, upperSeed: 14 },
-    { byeSeed: 2, upperSeed: 10 },
-  ];
+   * Each R2 match is a "decider": winner advances to the Upper Bracket,
+   * keeping their own seed number (advancesToUpperSeed === player1Seed). */
+  const byeSeeds = [16, 13, 15, 14];
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: 5 + i,
       round: "playoff_r2",
       bracket: "winners",
-      player1Seed: byeSeedToUpperSeed[i].byeSeed,
+      player1Seed: byeSeeds[i],
       /* player2Seed intentionally omitted — filled at runtime by R1 winner. */
-      advancesToUpperSeed: byeSeedToUpperSeed[i].upperSeed,
+      advancesToUpperSeed: byeSeeds[i],
       /* No winnerGoesTo/loserGoesTo — cross-stage advancement is handled by
        * the finals route, and losers are eliminated. */
     });

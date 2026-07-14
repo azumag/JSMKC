@@ -49,15 +49,24 @@ describe('Double Elimination Bracket Structure', () => {
     });
 
     it('should have correct 16-player seeding in Winners R1', () => {
+      /* Seed pairs follow the CDM 2025 official bracket layout exactly (verified
+       * against the CDM 2025 results workbook): direct qualifiers occupy
+       * contiguous seeds 1-12, barrage byes occupy contiguous seeds 13-16, and
+       * match order mirrors the CDM Excel template's Top-16 block order so the
+       * cdm-export winnerOf-index tables stay valid unchanged. */
       const matches = generateBracketStructure(16);
       const r1 = matches.filter(m => m.round === 'winners_r1');
       expect(r1).toHaveLength(8);
-      /* Seed 1 vs Seed 16 */
-      expect(r1[0].player1Seed).toBe(1);
-      expect(r1[0].player2Seed).toBe(16);
-      /* Seed 2 vs Seed 15 (last R1 match) */
-      expect(r1[7].player1Seed).toBe(2);
-      expect(r1[7].player2Seed).toBe(15);
+      expect(r1.map(m => [m.player1Seed, m.player2Seed])).toEqual([
+        [1, 16],
+        [8, 9],
+        [4, 13],
+        [5, 12],
+        [2, 15],
+        [7, 10],
+        [3, 14],
+        [6, 11],
+      ]);
     });
 
     it('should have all bracket stages for 16 players', () => {
@@ -395,9 +404,14 @@ describe('Double Elimination Bracket Structure', () => {
   /**
    * Pre-Bracket Playoff (a.k.a. "barrage") — Top 24 → Top 16.
    *
-   * Resolves issue #454. 12 entrants from qualification positions 13-24
-   * compete in a single-elimination tournament whose 4 winners fill
-   * Upper-Bracket barrage slots. Top 4 playoff seeds receive a Round 1 BYE.
+   * Resolves issue #454. 12 entrants holding real overall seeds 13-24 compete
+   * in a single-elimination tournament whose 4 winners fill Upper-Bracket
+   * seeds 13-16. Seeds 13-16 (the 4 strongest barrage entrants) receive a
+   * Round 1 BYE; seeds 17-24 play a standard 5v12/6v11/7v10/8v9 shaped R1
+   * within the 12-entrant pool. A bye winner keeps their own seed number when
+   * advancing (e.g. seed 13 stays seed 13 in the Upper Bracket) — verified
+   * directly against the CDM 2025 results workbook (Jarmou: seed 13 bye, won
+   * their R2 match, entered the Upper Bracket still as seed 13).
    */
   describe('generatePlayoffStructure', () => {
     it('should generate 8 matches for 12 entrants (4 R1 + 4 R2, top 4 BYE)', () => {
@@ -419,33 +433,30 @@ describe('Double Elimination Bracket Structure', () => {
       expect(r2).toHaveLength(4);
     });
 
-    it('should pair cross-group seeds in R1 (A12vB11, A10vB9, A9vB10, A11vB12)', () => {
-      /* Cross-group pairing for 2-group qualification.
-       * barrage[] = [A7,B7,A8,B8,A9,B9,A10,B10,A11,B11,A12,B12]
-       *             seed 1, 2, 3, 4, 5, 6,  7,  8,  9, 10, 11, 12 */
+    it('should pair real seeds 17-24 in R1 as standard 5v12/6v11/7v10/8v9 within the barrage pool', () => {
+      /* Verified against the CDM 2025 results workbook "Barrage 1" block:
+       * B1,1 = seed17 vs seed24; B1,2 = seed20 vs seed21;
+       * B1,3 = seed18 vs seed23; B1,4 = seed19 vs seed22. */
       const matches = generatePlayoffStructure(12);
       const r1 = matches.filter(m => m.round === 'playoff_r1');
       const pairings = r1.map(m => [m.player1Seed, m.player2Seed]);
       expect(pairings).toEqual([
-        [11, 10], // A12 vs B11
-        [7, 6],   // A10 vs B9
-        [5, 8],   // A9 vs B10
-        [9, 12],  // A11 vs B12
+        [17, 24],
+        [20, 21],
+        [18, 23],
+        [19, 22],
       ]);
     });
 
-    it('should set the BYE seeds (1-4) as player1 on R2 matches', () => {
+    it('should set the real BYE seeds (13/14/15/16) as player1 on R2 matches', () => {
+      /* Verified against the CDM 2025 results workbook "Barrage 2" block order:
+       * R2 M5: seed16 vs R1 M1 (17v24) winner
+       * R2 M6: seed13 vs R1 M2 (20v21) winner
+       * R2 M7: seed15 vs R1 M3 (18v23) winner
+       * R2 M8: seed14 vs R1 M4 (19v22) winner */
       const matches = generatePlayoffStructure(12);
       const r2 = matches.filter(m => m.round === 'playoff_r2');
-      /* R2 match order mirrors R1 feeder order.
-       * R2 M5: seed 1 (A7)  vs R1 M1 (A12 vs B11) winner
-       * R2 M6: seed 4 (B8)  vs R1 M2 (A10 vs B9) winner
-       * R2 M7: seed 3 (A8)  vs R1 M3 (A9 vs B10) winner
-       * R2 M8: seed 2 (B7)  vs R1 M4 (A11 vs B12) winner */
-      expect(r2[0].player1Seed).toBe(1); // A7
-      expect(r2[1].player1Seed).toBe(4); // B8
-      expect(r2[2].player1Seed).toBe(3); // A8
-      expect(r2[3].player1Seed).toBe(2); // B7
+      expect(r2.map(m => m.player1Seed)).toEqual([16, 13, 15, 14]);
       /* player2 on each R2 match is filled by an R1 winner, not a direct seed. */
       r2.forEach(m => expect(m.player2Seed).toBeUndefined());
     });
@@ -468,16 +479,15 @@ describe('Double Elimination Bracket Structure', () => {
       r1.forEach(m => expect(m.loserGoesTo).toBeUndefined());
     });
 
-    it('should assign the Upper-Bracket barrage slots to R2 winners', () => {
-      /* Upper R1 pairings are [1,16], [8,9], [5,12], [4,13],
-       * [3,14], [6,11], [7,10], [2,15]. The paper layout places barrage
-       * winners in seeds 16, 12, 14, and 10. */
+    it('should assign the Upper-Bracket barrage slot identical to the bye winner seed', () => {
+      /* A barrage bye winner keeps their own seed number in the Upper Bracket
+       * (verified: Jarmou stayed seed 13, Leyla stayed seed 14 in the CDM 2025
+       * results). advancesToUpperSeed is therefore just the bye's own seed —
+       * no remapping to a different slot number. */
       const matches = generatePlayoffStructure(12);
       const r2 = matches.filter(m => m.round === 'playoff_r2');
-      expect(r2[0].advancesToUpperSeed).toBe(16);
-      expect(r2[1].advancesToUpperSeed).toBe(12);
-      expect(r2[2].advancesToUpperSeed).toBe(14);
-      expect(r2[3].advancesToUpperSeed).toBe(10);
+      expect(r2.map(m => m.advancesToUpperSeed)).toEqual(r2.map(m => m.player1Seed));
+      expect(r2.map(m => m.advancesToUpperSeed)).toEqual([16, 13, 15, 14]);
     });
 
     it('should not route R2 winners via winnerGoesTo (handled at upper-bracket level)', () => {
