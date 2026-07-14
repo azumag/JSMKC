@@ -484,6 +484,48 @@ describe("TA Finals Phase Manager", () => {
         })
       );
     });
+
+    it("deducts a custom lifeLoss amount instead of the default 1 when provided", async () => {
+      const activeEntries = [
+        { id: "e1", playerId: "p1", eliminated: false, lives: 10 },
+        { id: "e2", playerId: "p2", eliminated: false, lives: 10 },
+      ];
+
+      mockPrismaClient.tTEntry.findMany
+        .mockResolvedValueOnce(activeEntries)
+        .mockResolvedValueOnce(activeEntries);
+
+      mockPrismaClient.tTEntry.findUnique.mockImplementation(({ where }) => {
+        const entry = activeEntries.find(
+          (e: any) => e.playerId === where.tournamentId_playerId_stage.playerId
+        );
+        return Promise.resolve(entry);
+      });
+
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({});
+
+      const courseResults = [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 90000 }, // Bottom half — loses the custom amount
+      ];
+
+      await processPhase3Result(
+        mockPrismaClient as any,
+        context,
+        courseResults,
+        undefined,
+        undefined,
+        2
+      );
+
+      expect(mockPrismaClient.tTEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "e2" },
+          data: { lives: 8, eliminated: false },
+        })
+      );
+    });
   });
 
   describe("getNextPhase3ResetThreshold", () => {
@@ -779,6 +821,62 @@ describe("TA Finals Phase Manager", () => {
         expect.objectContaining({
           where: expect.objectContaining({ playerId: { in: expect.arrayContaining(["p3", "p4"]) } }),
           data: { lives: 2, eliminated: false },
+        })
+      );
+    });
+
+    it("should honor a custom per-round lifeLoss when replaying phase3 rounds for undo", async () => {
+      // Round 1 was started with lifeLoss: 2 (TA battle royale). Bottom half
+      // (p3,p4) must lose 2 lives during replay, not the default 1.
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase3",
+          course: "MC1",
+          lifeLoss: 2,
+          results: [
+            { playerId: "p1", timeMs: 50000 },
+            { playerId: "p2", timeMs: 60000 },
+            { playerId: "p3", timeMs: 70000 },
+            { playerId: "p4", timeMs: 80000 },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+        },
+        {
+          id: "round2",
+          roundNumber: 2,
+          phase: "phase3",
+          course: "DP1",
+          lifeLoss: 1,
+          results: [
+            { playerId: "p1", timeMs: 55000 },
+            { playerId: "p2", timeMs: 65000 },
+            { playerId: "p3", timeMs: 75000 },
+            { playerId: "p4", timeMs: 85000 },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 4 });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1" },
+        { playerId: "p2" },
+        { playerId: "p3" },
+        { playerId: "p4" },
+      ]);
+
+      await undoLastPhaseRound(mockPrismaClient as any, context, "phase3");
+
+      // After replaying round1 only (round2 is the one being undone):
+      // p1,p2 keep 3 lives; p3,p4 lose 2 lives → 1 life remaining.
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: expect.arrayContaining(["p3", "p4"]) } }),
+          data: { lives: 1, eliminated: false },
         })
       );
     });
@@ -1098,6 +1196,34 @@ describe("TA Finals Phase Manager", () => {
 
       // Only 1 attempt since non-P2002 errors don't trigger retry
       expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("defaults lifeLoss to 1 on the created round when not provided", async () => {
+      await startPhaseRound(mockPrismaClient as any, context, "phase3");
+
+      expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ lifeLoss: 1 }),
+        })
+      );
+    });
+
+    it("stores a custom lifeLoss on the created round when provided", async () => {
+      const result = await startPhaseRound(
+        mockPrismaClient as any,
+        context,
+        "phase3",
+        undefined,
+        undefined,
+        2
+      );
+
+      expect(result.lifeLoss).toBe(2);
+      expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ lifeLoss: 2 }),
+        })
+      );
     });
   });
 
@@ -2013,6 +2139,76 @@ describe("TA Finals Phase Manager", () => {
       expect([...result.eliminatedIds].sort()).toEqual(["p3", "p4"]);
       expect(result.livesReset).toBe(true);
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).not.toHaveBeenCalled();
+    });
+
+    it("honors the base round's custom lifeLoss when finalizing a bronze-race elimination", async () => {
+      // Base round was started with lifeLoss: 2 (TA battle royale). Both bronze
+      // racers hold exactly 2 lives — "on their last life" under lifeLoss 2,
+      // even though they would NOT be under the default lifeLoss 1.
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd-bronze",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "DP1",
+        targetPlayerIds: ["p3", "p4"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          lifeLoss: 2,
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 81000 },
+            { playerId: "p3", timeMs: 82000 },
+            { playerId: "p4", timeMs: 83000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      const bronzeRoster = [
+        { playerId: "p1", eliminated: false, lives: 4 },
+        { playerId: "p2", eliminated: false, lives: 4 },
+        { playerId: "p3", eliminated: false, lives: 2 },
+        { playerId: "p4", eliminated: false, lives: 2 },
+      ];
+      mockPrismaClient.tTEntry.findMany
+        .mockResolvedValueOnce(bronzeRoster) // bronze check + processPhase3Result (preloaded)
+        .mockResolvedValueOnce(bronzeRoster.slice(0, 2)); // remaining players → threshold 2
+      const bronzeLivesByPlayer = new Map(bronzeRoster.map((entry) => [entry.playerId, entry.lives]));
+      mockPrismaClient.tTEntry.findUnique.mockImplementation(({ where }) => {
+        const playerId = where.tournamentId_playerId_stage.playerId;
+        return Promise.resolve({
+          id: `entry-${playerId}`,
+          playerId,
+          eliminated: false,
+          lives: bronzeLivesByPlayer.get(playerId) ?? 4,
+        });
+      });
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 2 });
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd-bronze", [
+        { playerId: "p3", timeMs: 92000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBeUndefined();
+      expect([...result.eliminatedIds].sort()).toEqual(["p3", "p4"]);
+      expect(mockPrismaClient.tTEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "entry-p3" },
+          data: { lives: 0, eliminated: true },
+        })
+      );
+      expect(mockPrismaClient.tTEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "entry-p4" },
+          data: { lives: 0, eliminated: true },
+        })
+      );
     });
 
     it("re-races a bronze tie on a fresh course when both bronze racers post equal times", async () => {

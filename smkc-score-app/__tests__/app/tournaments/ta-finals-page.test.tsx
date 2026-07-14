@@ -80,6 +80,25 @@ function makeEntry(overrides: {
   };
 }
 
+/** In-progress payload: two active players remain, no rounds submitted yet. */
+function makeInProgressPayload(taMode: 'standard' | 'battle_royale') {
+  return {
+    ok: true,
+    json: jest.fn().mockResolvedValue({
+      data: {
+        taMode,
+        entries: [
+          makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario' }),
+          makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi' }),
+        ],
+        rounds: [],
+        availableCourses: ['GV1'],
+        playedCourses: [],
+      },
+    }),
+  };
+}
+
 /** Champion-decided payload: only one active player remains, one completed round. */
 const completePhasePayload = {
   ok: true,
@@ -89,14 +108,21 @@ const completePhasePayload = {
         makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: 3 }),
         makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi', lives: 0, eliminated: true }),
       ],
-      rounds: [{
-        id: 'r-1', phase: 'phase3', roundNumber: 1, course: 'GV1',
-        results: [
-          { playerId: 'p-1', timeMs: 60000, isRetry: false },
-          { playerId: 'p-2', timeMs: 70000, isRetry: false },
-        ],
-        eliminatedIds: ['p-2'], livesReset: false, manualOverride: false,
-      }],
+      rounds: [
+        {
+          id: 'r-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'GV1',
+          results: [
+            { playerId: 'p-1', timeMs: 60000, isRetry: false },
+            { playerId: 'p-2', timeMs: 70000, isRetry: false },
+          ],
+          eliminatedIds: ['p-2'],
+          livesReset: false,
+          manualOverride: false,
+        },
+      ],
       availableCourses: ['GV2'],
       playedCourses: ['GV1'],
     },
@@ -149,5 +175,30 @@ describe('TimeAttackFinals — final-round corrections card', () => {
     });
     expect(screen.queryByText('Correct the final round')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Undo Last Round' })).not.toBeInTheDocument();
+  });
+});
+
+describe('TimeAttackFinals — per-round life loss control (TA battle royale)', () => {
+  it('shows the life-loss selector for admins in a TA battle royale tournament', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('battle_royale'));
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getByText('Life loss for this round')).toBeInTheDocument();
+    });
+  });
+
+  it('hides the life-loss selector for a standard (non-battle-royale) TA tournament', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('standard'));
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Start Round/ })).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Life loss for this round')).not.toBeInTheDocument();
   });
 });

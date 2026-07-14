@@ -137,6 +137,48 @@ describe('TA battle royale phase manager', () => {
     expect(prisma.tTPhaseSuddenDeathRound.create).not.toHaveBeenCalled();
   });
 
+  it('deducts the round-configured lifeLoss instead of the default 1', async () => {
+    const entries = [makeEntry('p1', 0, 10), makeEntry('p2', 0, 10)];
+    const prisma = {
+      tTPhaseRound: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'round-1',
+          course: 'MC1',
+          results: [],
+          lifeLoss: 3,
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      tTEntry: {
+        // submitRoundResults' own validation read, then processPhase3Result's
+        // active-players read, then its post-update remaining-players read.
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce(entries)
+          .mockResolvedValueOnce(entries)
+          .mockResolvedValueOnce(entries),
+        findUnique: jest.fn(({ where }) =>
+          Promise.resolve(entries.find((entry) => entry.playerId === where.tournamentId_playerId_stage.playerId)),
+        ),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await submitRoundResults(prisma as never, context, 'phase3', 1, [
+      { playerId: 'p1', timeMs: 90_000 },
+      { playerId: 'p2', timeMs: 91_000 },
+    ]);
+
+    expect(result).toEqual({ eliminatedIds: [], livesReset: false, course: 'MC1' });
+    expect(prisma.tTEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'entry-p2' },
+        data: { lives: 7, eliminated: false },
+      }),
+    );
+  });
+
   it('uses adjusted times for life loss while retaining raw times in round history', async () => {
     const entries = [makeEntry('p1', 0), makeEntry('p2', -1), makeEntry('p3', -3), makeEntry('p4', -5)];
     const prisma = {

@@ -51,6 +51,7 @@ import { resolveAuditUserId } from '@/lib/audit-log';
 import { readTournamentArchive } from '@/lib/tournament-archive';
 import { buildPhase3RulesDto } from '@/lib/ta/phase-rules-dto';
 import { TA_HANDICAP_SECONDS } from '@/lib/ta/battle-royale';
+import { TA_ROUND_LIFE_LOSS_MIN, TA_ROUND_LIFE_LOSS_MAX } from '@/lib/ta/battle-royale-constants';
 import { normalizeTaRoundResults } from '@/lib/ta/round-result';
 import type { ArchivedTaRules } from '@/lib/tournament-archive';
 import type { TaPhaseResponse } from '@/lib/ta/phase-api-types';
@@ -204,10 +205,14 @@ function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>, ru
           ((b as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY),
       );
       const bottomHalf = sorted.slice(Math.ceil(sorted.length / 2));
+      // TA battle royale rounds may configure a non-default lifeLoss (see
+      // startPhaseRound); fall back to 1 for rounds archived before that
+      // column existed.
+      const lifeLoss = (round as { lifeLoss?: number }).lifeLoss ?? 1;
       for (const result of bottomHalf) {
         const playerId = (result as { playerId?: unknown }).playerId;
         if (typeof playerId !== 'string' || eliminated.has(playerId)) continue;
-        livesByPlayer.set(playerId, Math.max(0, (livesByPlayer.get(playerId) ?? rules.initialLives) - 1));
+        livesByPlayer.set(playerId, Math.max(0, (livesByPlayer.get(playerId) ?? rules.initialLives) - lifeLoss));
       }
     }
 
@@ -341,11 +346,14 @@ const PostRequestSchema = z.discriminatedUnion('action', [
   // Optional `course` allows admin to manually specify a course abbreviation (e.g. "MC1")
   // instead of using random selection. Must be a valid abbreviation in the current cycle.
   // Optional `tvNumber` (1-4) assigns a broadcast TV screen to the round.
+  // Optional `lifeLoss` overrides how many lives phase3's bottom half loses this
+  // round (default 1); restricted to TA battle royale phase3 rounds below.
   z.object({
     action: z.literal('start_round'),
     phase: PhaseSchema,
     course: z.string().optional(),
     tvNumber: z.number().int().min(1).max(4).nullable().optional(),
+    lifeLoss: z.number().int().min(TA_ROUND_LIFE_LOSS_MIN).max(TA_ROUND_LIFE_LOSS_MAX).optional(),
   }),
 
   // Cancel an unsubmitted round: deletes the TTPhaseRound record to free the course
@@ -669,12 +677,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // === Round Management Actions ===
     if (action === 'start_round') {
-      const { phase, course, tvNumber } = parsed.data;
+      const { phase, course, tvNumber, lifeLoss } = parsed.data;
       // Prevent starting rounds in a frozen phase (admin locked after completion)
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
+      // A non-default lifeLoss only makes sense for TA battle royale Phase 3
+      // (docs/ta-battle-royale-operations.ja.md): standard TA keeps a fixed
+      // 1-life-per-round rule, and phase1/2 have no life system at all.
+      if (lifeLoss !== undefined && lifeLoss !== 1 && !(phase === 'phase3' && tournament.taBattleRoyaleMode)) {
+        return createErrorResponse(
+          'Custom lifeLoss is only allowed for TA battle royale Phase 3 rounds',
+          400,
+          'INVALID_LIFE_LOSS',
+        );
+      }
       // Pass optional manual course; undefined = random selection (default behaviour)
-      const result = await startPhaseRound(prisma, context, phase, course, tvNumber ?? null);
+      const result = await startPhaseRound(prisma, context, phase, course, tvNumber ?? null, lifeLoss);
       return createSuccessResponse(result);
     }
 
