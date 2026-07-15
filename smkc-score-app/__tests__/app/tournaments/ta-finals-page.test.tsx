@@ -266,9 +266,11 @@ describe('TimeAttackFinals — round history remaining-life display', () => {
     // (Default round lifeLoss is 1, so the tag reads "(-1 lives)".)
     expect(text).toMatch(/Mario.*\(-1 lives\).*2 left/);
     // Luigi (p-2) has the SLOWER raw time -- the fallback would call him
-    // damaged -- but lifeLost: false says he was safe, so neither indicator
-    // (nor his numeric livesAfter, 3) should render.
-    expect(text).not.toContain('3 left');
+    // damaged -- but lifeLost: false says he was safe, so no "(-1 lives)" tag
+    // should render for him. His remaining life should still be shown though:
+    // every entrant's life-at-this-round is useful history, not just the ones
+    // who lost a life this round.
     expect(text).not.toMatch(/Luigi.*\(-1 lives\)/);
+    expect(text).toMatch(/Luigi.*3 left/);
   });
 });

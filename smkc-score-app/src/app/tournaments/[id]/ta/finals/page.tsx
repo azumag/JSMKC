@@ -1304,7 +1304,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                                     !isEliminated &&
                                     ` ${tTaFinals('lifeLossTag', { count: roundLifeLossCount })}`}
                                   {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
-                                  {isBottomHalf && typeof result.livesAfter === 'number' && (
+                                  {typeof result.livesAfter === 'number' && (
                                     <span className="ml-1 font-mono text-xs text-muted-foreground">
                                       {tTaFinals('roundLivesRemaining', { lives: result.livesAfter })}
                                     </span>
