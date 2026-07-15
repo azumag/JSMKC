@@ -298,6 +298,76 @@ describe('replayPhase3Lives', () => {
     expect(lifeLostByPlayer.get(1)?.has('c')).toBe(true);
     expect(lifeLostByPlayer.get(1)?.has('b')).toBe(false);
   });
+
+  it('deducts a round-configured lifeLoss instead of the default 1 (TA battle royale custom round)', () => {
+    const rounds = [
+      {
+        roundNumber: 1,
+        results: [
+          { playerId: 'fast', timeMs: 60000 },
+          { playerId: 'slow', timeMs: 90000 },
+        ],
+        eliminatedIds: [],
+        livesReset: false,
+        lifeLoss: 2,
+      },
+    ];
+
+    const { roundLivesByPlayer } = replayPhase3Lives(rounds, ['fast', 'slow'], battleRoyaleRules);
+
+    expect(roundLivesByPlayer.get(1)?.get('fast')).toBe(10); // top half: untouched regardless of lifeLoss
+    expect(roundLivesByPlayer.get(1)?.get('slow')).toBe(8); // bottom half: 10 - 2, not the default 10 - 1
+  });
+
+  it('falls back to a lifeLoss of 1 when the round has no lifeLoss column (legacy rounds)', () => {
+    const rounds = [
+      {
+        roundNumber: 1,
+        results: [
+          { playerId: 'fast', timeMs: 60000 },
+          { playerId: 'slow', timeMs: 90000 },
+        ],
+        eliminatedIds: [],
+        livesReset: false,
+        // lifeLoss intentionally omitted, mirroring a round recorded before
+        // the TTPhaseRound.lifeLoss column existed.
+      },
+    ];
+
+    const { roundLivesByPlayer } = replayPhase3Lives(rounds, ['fast', 'slow'], standardRules);
+
+    expect(roundLivesByPlayer.get(1)?.get('slow')).toBe(2);
+  });
+
+  it('accumulates a mix of default and custom lifeLoss across consecutive rounds', () => {
+    const rounds = [
+      {
+        roundNumber: 1,
+        results: [
+          { playerId: 'a', timeMs: 50000 },
+          { playerId: 'b', timeMs: 90000 },
+        ],
+        eliminatedIds: [],
+        livesReset: false,
+        lifeLoss: 3,
+      },
+      {
+        roundNumber: 2,
+        results: [
+          { playerId: 'a', timeMs: 55000 },
+          { playerId: 'b', timeMs: 95000 },
+        ],
+        eliminatedIds: [],
+        livesReset: false,
+        // Default lifeLoss (1) for this round.
+      },
+    ];
+
+    const { roundLivesByPlayer } = replayPhase3Lives(rounds, ['a', 'b'], battleRoyaleRules);
+
+    expect(roundLivesByPlayer.get(1)?.get('b')).toBe(7); // 10 - 3
+    expect(roundLivesByPlayer.get(2)?.get('b')).toBe(6); // 7 - 1
+  });
 });
 
 describe('attachLivesAfterToRounds', () => {

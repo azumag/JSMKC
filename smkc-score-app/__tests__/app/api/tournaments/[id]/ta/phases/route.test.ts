@@ -365,6 +365,97 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       );
     });
 
+    it("reconstructs archived phase3 round history using each round's own lifeLoss, not a hardcoded -1", async () => {
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+      (getAvailableCourses as jest.Mock).mockReturnValue(['DP1']);
+      (readTournamentArchive as jest.Mock).mockResolvedValue({
+        schemaVersion: 1,
+        tournament: { id: 'tournament-1', slug: 'archived', name: 'Archived', status: 'completed' },
+        allPlayers: [],
+        modes: {
+          ta: {
+            entries: [
+              {
+                id: 'qual-1',
+                tournamentId: 'tournament-1',
+                playerId: 'player-1',
+                stage: 'qualification',
+                lives: 3,
+                eliminated: false,
+                rank: 1,
+                totalTime: 60000,
+                player: { id: 'player-1', name: 'Winner', nickname: 'Winner' },
+              },
+              {
+                id: 'qual-2',
+                tournamentId: 'tournament-1',
+                playerId: 'player-2',
+                stage: 'qualification',
+                lives: 3,
+                eliminated: false,
+                rank: 2,
+                totalTime: 65000,
+                player: { id: 'player-2', name: 'Runner', nickname: 'Runner' },
+              },
+            ],
+            phaseRounds: [
+              {
+                id: 'round-1',
+                tournamentId: 'tournament-1',
+                phase: 'phase3',
+                roundNumber: 1,
+                course: 'MC1',
+                results: [
+                  { playerId: 'player-1', timeMs: 60000, isRetry: false },
+                  { playerId: 'player-2', timeMs: 70000, isRetry: false },
+                ],
+                eliminatedIds: [],
+                livesReset: false,
+                manualOverride: false,
+                lifeLoss: 2,
+              },
+            ],
+            rules: {
+              mode: 'battle_royale',
+              initialLives: 10,
+              lifeResetThresholds: [],
+              survivorsNeeded: 1,
+              handicapEnabled: true,
+              allowedHandicapSeconds: [0, -1, -3, -5],
+              retryAppliesHandicap: false,
+            },
+          },
+          bm: {},
+          mr: {},
+          gp: {},
+        },
+      });
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      expect(call).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            entries: expect.arrayContaining([
+              expect.objectContaining({ playerId: 'player-1', lives: 10 }),
+              expect.objectContaining({ playerId: 'player-2', lives: 8 }), // 10 - lifeLoss(2), not 10 - 1
+            ]),
+            rounds: [
+              expect.objectContaining({
+                id: 'round-1',
+                results: expect.arrayContaining([
+                  expect.objectContaining({ playerId: 'player-1', livesAfter: 10 }),
+                  expect.objectContaining({ playerId: 'player-2', livesAfter: 8 }),
+                ]),
+              }),
+            ],
+          }),
+        }),
+      );
+    });
+
     it.each([
       ['phase1', ['player-17', 'player-18'], ['player-18']],
       ['phase2', ['player-13', 'player-14'], ['player-14']],
