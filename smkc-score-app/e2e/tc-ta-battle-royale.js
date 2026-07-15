@@ -4,7 +4,8 @@
  * Coverage:
  *   TC-TA-BR-01  BR starts directly in Phase 3 and mode changes lock after start.
  *   TC-TA-BR-02  Selected handicap snapshots are stored on Phase 3 entries.
- *   TC-TA-BR-03  Adjusted time decides life loss; history keeps raw/handicap/adjusted fields.
+ *   TC-TA-BR-03  Adjusted time decides life loss; history keeps raw/handicap/adjusted fields,
+ *                and each round's results carry the replayed remaining life (livesAfter).
  *   TC-TA-BR-04  TA-only navigation, direct finals redirect, compact lives, and preview flow.
  *   TC-TA-BR-05  Archive v2 and archived phases API preserve the same BR rules/results.
  *   TC-TA-BR-06  Player Management no longer exposes a (non-functional) TA handicap control;
@@ -182,6 +183,14 @@ async function tcAdjustedRoundAndUi(adminPage) {
     pass(lastResult?.timeMs === 99_000, 'round history adjusted time mismatch');
     pass(storedRound?.livesReset !== true, 'BR round unexpectedly reset lives');
 
+    // Round history must carry the replayed remaining life (round-history "quick check" feature):
+    // a bottom-half (damaged) player shows their post-round total, and a safe top-half player's
+    // total is unchanged, both matching the current /ta/phases entries.lives at this point.
+    const damagedResult = storedRound?.results?.find((result) => result.playerId === entries[0].playerId);
+    const safeResult = storedRound?.results?.find((result) => result.playerId === entries[3].playerId);
+    pass(damagedResult?.livesAfter === 9, 'round history missing remaining life for a damaged player');
+    pass(safeResult?.livesAfter === 10, 'round history missing remaining life for a safe player');
+
     const simultaneousTargets = [entries[0], entries[4], entries[5]];
     for (const entry of simultaneousTargets) {
       const current = byPlayer.get(entry.playerId)?.lives ?? 10;
@@ -229,6 +238,27 @@ async function tcAdjustedRoundAndUi(adminPage) {
     pass(
       !(afterSimultaneous.b?.data?.pendingSuddenDeath?.kind === 'revival'),
       'battle royale must not create a standard-TA revival',
+    );
+
+    // Round history for an OLDER round must keep ITS OWN livesAfter even after
+    // later rounds change the player's current life — this is what actually
+    // differentiates the round-history remaining-life feature from just
+    // reading TTEntry.lives (which only ever reflects the CURRENT total).
+    // entries[0] was damaged (9 lives) after round 1, then reset to 1 life and
+    // eliminated (0) in round 2 above; round 1's own history must still say 9.
+    const round1AfterMore = (afterSimultaneous.b?.data?.rounds ?? []).find(
+      (round) => round.roundNumber === roundNumber,
+    );
+    const round1DamagedResultAfterMore = round1AfterMore?.results?.find(
+      (result) => result.playerId === entries[0].playerId,
+    );
+    pass(
+      round1DamagedResultAfterMore?.livesAfter === 9,
+      "round 1's history lost its own remaining-life value after round 2 changed the player's current life",
+    );
+    pass(
+      afterByPlayer.get(entries[0].playerId)?.lives === 0,
+      'sanity check: entries[0] current life should now be 0 (eliminated) after round 2, proving the round-1 check above is a real historical value, not a copy of the current total',
     );
 
     log('TC-TA-BR-03', 'PASS');

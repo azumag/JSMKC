@@ -53,6 +53,7 @@ import { buildPhase3RulesDto } from '@/lib/ta/phase-rules-dto';
 import { TA_HANDICAP_SECONDS } from '@/lib/ta/battle-royale';
 import { TA_ROUND_LIFE_LOSS_MIN, TA_ROUND_LIFE_LOSS_MAX } from '@/lib/ta/battle-royale-constants';
 import { normalizeTaRoundResults } from '@/lib/ta/round-result';
+import { attachLivesAfterToRounds, replayPhase3Lives, type Phase3RoundLike } from '@/lib/ta/phase3-life-replay';
 import type { ArchivedTaRules } from '@/lib/tournament-archive';
 import type { TaPhaseResponse } from '@/lib/ta/phase-api-types';
 
@@ -186,52 +187,59 @@ function getRoundResultPlayerIds(rounds: unknown[], phase: PhaseName) {
   return playerIds;
 }
 
-function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>, rules: ArchivedTaRules) {
-  const livesByPlayer = new Map([...playerIds].map((playerId) => [playerId, rules.initialLives]));
-  const eliminated = new Set<string>();
-
-  const phase3Rounds = rounds
+/**
+ * Coerces the untyped archive JSON round rows (TTPhaseRoundArchiveRow is a
+ * `{ [k: string]: unknown }` bag) into the shape replayPhase3Lives expects.
+ *
+ * A results entry with a missing/non-string playerId (only possible in
+ * malformed legacy archive data — the live write path always zod-validates
+ * playerId) is dropped entirely rather than kept as an inert placeholder.
+ * This can shift which real players land in a round's bottom half by one
+ * slot versus the pre-refactor inline version, which kept such entries in
+ * the sorted array (just never applied a life change for them). Since such
+ * an entry was never a genuine race participant, treating it as absent is
+ * the more correct interpretation, not merely an implementation shortcut.
+ *
+ * Sudden-death sub-rounds are intentionally NOT included here: the archive
+ * creation query (readTournamentArchive callers) never fetches
+ * TTPhaseSuddenDeathRound rows, so a boundary-tied archived round falls back
+ * to raw-time order — a pre-existing archived-history limitation, not a
+ * regression introduced by this replay.
+ */
+function normalizeArchivedPhase3Rounds(rounds: unknown[]): Phase3RoundLike[] {
+  return rounds
     .filter((round) => (round as { phase?: unknown }).phase === 'phase3')
-    .sort(
-      (a, b) => ((a as { roundNumber?: number }).roundNumber ?? 0) - ((b as { roundNumber?: number }).roundNumber ?? 0),
-    );
+    .map((round) => {
+      const results = (round as { results?: unknown }).results;
+      const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
+      return {
+        roundNumber: (round as { roundNumber?: number }).roundNumber ?? 0,
+        results: Array.isArray(results)
+          ? results
+              .map((result) => ({
+                playerId: (result as { playerId?: unknown }).playerId,
+                timeMs: (result as { timeMs?: unknown }).timeMs,
+              }))
+              .filter((result): result is { playerId: string; timeMs: number } => typeof result.playerId === 'string')
+          : [],
+        eliminatedIds: Array.isArray(eliminatedIds)
+          ? eliminatedIds.filter((id): id is string => typeof id === 'string')
+          : [],
+        livesReset: (round as { livesReset?: unknown }).livesReset === true,
+        // TA battle royale rounds may configure a non-default lifeLoss (see
+        // startPhaseRound); replayPhase3Lives falls back to 1 itself for
+        // rounds archived before that column existed (or any other
+        // non-numeric value here).
+        lifeLoss:
+          typeof (round as { lifeLoss?: unknown }).lifeLoss === 'number'
+            ? (round as { lifeLoss?: number }).lifeLoss
+            : undefined,
+      };
+    });
+}
 
-  for (const round of phase3Rounds) {
-    const results = (round as { results?: unknown }).results;
-    if (Array.isArray(results)) {
-      const sorted = [...results].sort(
-        (a, b) =>
-          ((a as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY) -
-          ((b as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY),
-      );
-      const bottomHalf = sorted.slice(Math.ceil(sorted.length / 2));
-      // TA battle royale rounds may configure a non-default lifeLoss (see
-      // startPhaseRound); fall back to 1 for rounds archived before that
-      // column existed.
-      const lifeLoss = (round as { lifeLoss?: number }).lifeLoss ?? 1;
-      for (const result of bottomHalf) {
-        const playerId = (result as { playerId?: unknown }).playerId;
-        if (typeof playerId !== 'string' || eliminated.has(playerId)) continue;
-        livesByPlayer.set(playerId, Math.max(0, (livesByPlayer.get(playerId) ?? rules.initialLives) - lifeLoss));
-      }
-    }
-
-    const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
-    if (Array.isArray(eliminatedIds)) {
-      for (const playerId of eliminatedIds) {
-        if (typeof playerId !== 'string') continue;
-        eliminated.add(playerId);
-        livesByPlayer.set(playerId, 0);
-      }
-    }
-
-    if ((round as { livesReset?: unknown }).livesReset === true) {
-      for (const playerId of playerIds) {
-        if (!eliminated.has(playerId)) livesByPlayer.set(playerId, rules.initialLives);
-      }
-    }
-  }
-
+function replayArchivedPhase3Lives(rounds: unknown[], playerIds: Set<string>, rules: ArchivedTaRules) {
+  const { livesByPlayer, eliminated } = replayPhase3Lives(normalizeArchivedPhase3Rounds(rounds), playerIds, rules);
   return { livesByPlayer, eliminated };
 }
 
@@ -319,12 +327,23 @@ async function getArchivedPhaseResponse(id: string, phase?: PhaseName) {
     const phaseEntries = phase === 'phase1' ? phase1Entries : phase === 'phase2' ? phase2Entries : phase3Entries;
     const phaseRounds = rounds
       .filter((round) => (round as { phase?: unknown }).phase === phase)
-      .map((round) => normalizePhaseRound(round as { results: unknown; eliminatedIds?: unknown }));
+      .map((round) =>
+        normalizePhaseRound(
+          round as { results: unknown; eliminatedIds?: unknown; roundNumber: number; livesReset?: boolean | null },
+        ),
+      );
     const playedCourses = phaseRounds
       .map((round) => (round as { course?: unknown }).course)
       .filter((course): course is string => typeof course === 'string');
     response.entries = sortPhaseEntriesForDisplay(phaseEntries as never[], phaseRounds as never[]);
-    response.rounds = phaseRounds;
+    response.rounds =
+      phase === 'phase3'
+        ? attachLivesAfterToRounds(
+            phaseRounds,
+            (phaseEntries as { playerId: string }[]).map((entry) => entry.playerId),
+            rules,
+          )
+        : phaseRounds;
     response.availableCourses = getAvailableCourses(playedCourses);
     response.playedCourses = playedCourses;
   }
@@ -565,7 +584,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const normalizedRounds = rounds.map(normalizePhaseRound);
 
       response.entries = sortPhaseEntriesForDisplay(entries, normalizedRounds);
-      response.rounds = normalizedRounds;
+      response.rounds =
+        phaseValue === 'phase3'
+          ? attachLivesAfterToRounds(
+              normalizedRounds,
+              entries.map((entry: { playerId: string }) => entry.playerId),
+              response.phase3Rules,
+            )
+          : normalizedRounds;
       response.availableCourses = getAvailableCourses(playedCourses);
       response.playedCourses = playedCourses;
     }

@@ -50,21 +50,12 @@
  * This module performs NO database access and is exhaustively unit-tested.
  */
 
-import type {
-  CdmTournamentData,
-  CdmTTEntry,
-  CdmTTPhaseRound,
-} from "../types";
-import {
-  compareQualificationRankOrder,
-  type EntryWithTotal,
-} from "@/lib/ta/rank-calculation";
-import {
-  orderResultsWithSuddenDeathChain,
-  type CourseResult,
-} from "@/lib/ta/finals-phase-manager";
-import { createLogger } from "@/lib/logger";
-import { TT_FINALS_MAX_ROUNDS, TT_FINALS_MAX_FINALISTS } from "../cdm-constants";
+import type { CdmTournamentData, CdmTTEntry, CdmTTPhaseRound } from '../types';
+import { compareQualificationRankOrder, type EntryWithTotal } from '@/lib/ta/rank-calculation';
+import { type CourseResult } from '@/lib/ta/finals-phase-manager';
+import { orderResultsWithSuddenDeathChain } from '@/lib/ta/sudden-death-order';
+import { createLogger } from '@/lib/logger';
+import { TT_FINALS_MAX_ROUNDS, TT_FINALS_MAX_FINALISTS } from '../cdm-constants';
 
 /** Mirrors PHASE_CONFIG.phase3.initialLives (finals-phase-manager.ts:70). */
 const PHASE3_INITIAL_LIVES = 3;
@@ -76,7 +67,7 @@ const PHASE3_INITIAL_LIVES = 3;
 // elimination cap. Reading the stored flag is both simpler and authoritative.
 
 /** Phase order in which the engine plays rounds, lowest first. */
-const PHASE_SEQUENCE = ["phase1", "phase2", "phase3"] as const;
+const PHASE_SEQUENCE = ['phase1', 'phase2', 'phase3'] as const;
 type FinalsPhase = (typeof PHASE_SEQUENCE)[number];
 
 /**
@@ -124,18 +115,15 @@ interface ResultRow {
  * dropped with a warning so the writer never addresses a non-existent block.
  */
 export function replayTTFinals(data: CdmTournamentData): TTFinalsReplayRound[] {
-  const logger = createLogger("cdm-tt-finals-replay");
+  const logger = createLogger('cdm-tt-finals-replay');
 
   // ---- 1. Build the 24-player universe from the qualification ranking. ----
   // The sheet's round-1 rows are qualification ranks 1..24 in finishing order.
   // We honour the persisted `rank` when present (it is the canonical TT final
   // rank) and fall back to the documented comparator (qualificationPoints DESC,
   // totalTime ASC) for any ties / missing ranks so the ordering is total.
-  const qualEntries = data.ttEntries.filter((e) => e.stage === "qualification");
-  const universe = orderQualificationUniverse(qualEntries).slice(
-    0,
-    TT_FINALS_MAX_FINALISTS,
-  );
+  const qualEntries = data.ttEntries.filter((e) => e.stage === 'qualification');
+  const universe = orderQualificationUniverse(qualEntries).slice(0, TT_FINALS_MAX_FINALISTS);
   const universeIds = universe.map((e) => e.playerId);
   const universeSet = new Set(universeIds);
 
@@ -144,9 +132,7 @@ export function replayTTFinals(data: CdmTournamentData): TTFinalsReplayRound[] {
 
   // ---- 3. Carry life ledger forward, one round at a time. ----
   // Every universe row starts round 1 with one life (template C3..C26 = 1).
-  const livesCarried = new Map<string, number>(
-    universeIds.map((id) => [id, 1]),
-  );
+  const livesCarried = new Map<string, number>(universeIds.map((id) => [id, 1]));
   // Tracks which players have already been topped-up to phase-3 initial lives,
   // so the +2 entry grant is emitted exactly once (on a player's first phase-3
   // round) regardless of how the rounds are interleaved.
@@ -182,7 +168,7 @@ export function replayTTFinals(data: CdmTournamentData): TTFinalsReplayRound[] {
 
     // --- Gains: phase-3 entry top-up (applied BEFORE this round's loss). ---
     const gains = new Map<string, number>();
-    if (phase === "phase3") {
+    if (phase === 'phase3') {
       for (const id of participants.keys()) {
         if (!phase3Entered.has(id)) {
           phase3Entered.add(id);
@@ -203,19 +189,20 @@ export function replayTTFinals(data: CdmTournamentData): TTFinalsReplayRound[] {
     // (computeLostLife's early branch), so skip the computation there — it
     // would otherwise be built and discarded on every phase1/phase2 round
     // (issue #2784).
-    const resolvedOrder = phase === "phase3"
-      ? buildResolvedOrder(results, round.suddenDeathRounds, {
-          logger,
-          phase,
-          roundNumber: round.roundNumber,
-        })
-      : new Map<string, number>();
+    const resolvedOrder =
+      phase === 'phase3'
+        ? buildResolvedOrder(results, round.suddenDeathRounds, {
+            logger,
+            phase,
+            roundNumber: round.roundNumber,
+          })
+        : new Map<string, number>();
 
     // --- Who lost a life this round. ---
     const lostLife = computeLostLife(phase, round, participants, results, resolvedOrder);
 
     // --- Detect a life reset for this round (phase-3 only, after the loss). ---
-    const isResetRound = phase === "phase3" && detectLivesReset(round);
+    const isResetRound = phase === 'phase3' && detectLivesReset(round);
 
     // --- Apply per-row life arithmetic to obtain display "Left". ---
     const livesAfter = new Map<string, number>();
@@ -282,7 +269,7 @@ function orderQualificationUniverse(entries: CdmTTEntry[]): CdmTTEntry[] {
 /** Entries without a usable rank sort after ranked ones (sentinel = +∞). */
 function rankOf(entry: CdmTTEntry): number {
   const raw = (entry as { rank?: number | null }).rank;
-  return typeof raw === "number" && raw > 0 ? raw : Number.POSITIVE_INFINITY;
+  return typeof raw === 'number' && raw > 0 ? raw : Number.POSITIVE_INFINITY;
 }
 
 /**
@@ -310,12 +297,10 @@ function toComparable(entry: CdmTTEntry): EntryWithTotal {
  * phase2, then phase3. Unknown phase labels are dropped with a warning.
  */
 function orderPhaseRounds(phaseRounds: CdmTTPhaseRound[]): OrderedRound[] {
-  const logger = createLogger("cdm-tt-finals-replay");
+  const logger = createLogger('cdm-tt-finals-replay');
   const ordered: OrderedRound[] = [];
   for (const phase of PHASE_SEQUENCE) {
-    const inPhase = phaseRounds
-      .filter((r) => r.phase === phase)
-      .sort((a, b) => a.roundNumber - b.roundNumber);
+    const inPhase = phaseRounds.filter((r) => r.phase === phase).sort((a, b) => a.roundNumber - b.roundNumber);
     for (const round of inPhase) {
       ordered.push({ phase, round });
     }
@@ -323,9 +308,7 @@ function orderPhaseRounds(phaseRounds: CdmTTPhaseRound[]): OrderedRound[] {
   const known = new Set<string>(PHASE_SEQUENCE);
   for (const r of phaseRounds) {
     if (!known.has(r.phase)) {
-      logger.warn(
-        `TT Finals: ignoring round with unknown phase "${r.phase}"`,
-      );
+      logger.warn(`TT Finals: ignoring round with unknown phase "${r.phase}"`);
     }
   }
   return ordered;
@@ -354,7 +337,7 @@ function computeLostLife(
   results: ResultRow[],
   resolvedOrder: Map<string, number>,
 ): Set<string> {
-  if (phase === "phase1" || phase === "phase2") {
+  if (phase === 'phase1' || phase === 'phase2') {
     const eliminated = parseStringArray(round.eliminatedIds);
     return new Set(eliminated.filter((id) => participants.has(id)));
   }
@@ -402,10 +385,7 @@ function detectLivesReset(round: CdmTTPhaseRound): boolean {
  *   stable. Non-runners have Time=0, which sorts them to the top ahead of any
  *   positive recorded time, preserving input order among themselves.
  */
-function assignRowOrders(
-  rounds: TTFinalsReplayRound[],
-  universeIds: string[],
-): void {
+function assignRowOrders(rounds: TTFinalsReplayRound[], universeIds: string[]): void {
   for (let i = 0; i < rounds.length; i++) {
     const round = rounds[i];
 
@@ -473,14 +453,11 @@ function parseRoundResults(
   if (!Array.isArray(raw)) return [];
   const rows: ResultRow[] = [];
   for (const item of raw) {
-    if (item && typeof item === "object" && "playerId" in item) {
+    if (item && typeof item === 'object' && 'playerId' in item) {
       const playerId = (item as { playerId: unknown }).playerId;
       const timeMs = (item as { timeMs?: unknown }).timeMs;
-      if (typeof playerId === "string") {
-        const usableTime =
-          typeof timeMs === "number" && Number.isFinite(timeMs) && timeMs >= 0
-            ? timeMs
-            : null;
+      if (typeof playerId === 'string') {
+        const usableTime = typeof timeMs === 'number' && Number.isFinite(timeMs) && timeMs >= 0 ? timeMs : null;
         if (timeMs !== undefined && timeMs !== null && usableTime === null) {
           context?.logger.warn(
             `TT Finals ${context.phase} round ${context.roundNumber}: invalid timeMs for player ${playerId}; treating as missing time`,
@@ -499,7 +476,7 @@ function parseRoundResults(
 /** Parse a JSON value expected to be a string[] (e.g. eliminatedIds). */
 function parseStringArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter((x): x is string => typeof x === "string");
+  return raw.filter((x): x is string => typeof x === 'string');
 }
 
 /** Parse a resolved TTPhaseSuddenDeathRound.results JSON value (defensive). */
@@ -510,13 +487,11 @@ function parseSuddenDeathResults(
   if (!Array.isArray(raw)) return [];
   const rows: CourseResult[] = [];
   for (const item of raw) {
-    const playerId = item && typeof item === "object" && "playerId" in item
-      ? (item as { playerId: unknown }).playerId
-      : undefined;
-    const timeMs = item && typeof item === "object" && "timeMs" in item
-      ? (item as { timeMs: unknown }).timeMs
-      : undefined;
-    if (typeof playerId === "string" && typeof timeMs === "number" && Number.isFinite(timeMs)) {
+    const playerId =
+      item && typeof item === 'object' && 'playerId' in item ? (item as { playerId: unknown }).playerId : undefined;
+    const timeMs =
+      item && typeof item === 'object' && 'timeMs' in item ? (item as { timeMs: unknown }).timeMs : undefined;
+    if (typeof playerId === 'string' && typeof timeMs === 'number' && Number.isFinite(timeMs)) {
       rows.push({ playerId, timeMs });
     } else {
       context?.logger.warn(

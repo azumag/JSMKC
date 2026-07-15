@@ -111,6 +111,15 @@ interface PhaseRound {
     handicapSeconds?: number;
     isRetry: boolean;
     tvNumber?: number | null;
+    /** Remaining life immediately after this round, replayed server-side from round history. */
+    livesAfter?: number | null;
+    /**
+     * Whether this round's outcome cost the player a life, computed server-side
+     * (via the resolved sudden-death order when a boundary tie occurred). Prefer
+     * this over re-deriving "bottom half" from raw times client-side, which
+     * cannot see sudden-death sub-round results and gets tied boundaries wrong.
+     */
+    lifeLost?: boolean;
   }>;
   eliminatedIds: string[] | null;
   livesReset: boolean;
@@ -1272,8 +1281,13 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                         <div className="space-y-1">
                           {sortedResults.map((result, idx) => {
                             const isEliminated = round.eliminatedIds?.includes(result.playerId);
-                            // Bottom half loses a life (shown with visual indicator)
-                            const isBottomHalf = idx >= halfPoint;
+                            // Prefer the server-computed lifeLost (accounts for a resolved
+                            // sudden-death tiebreak on a boundary tie); a plain "slower half
+                            // of raw time" split gets the boundary wrong for tied rounds.
+                            // The raw-time fallback only applies to stale/legacy responses
+                            // that predate this field.
+                            const isBottomHalf =
+                              typeof result.lifeLost === 'boolean' ? result.lifeLost : idx >= halfPoint;
                             return (
                               <div
                                 key={result.playerId}
@@ -1290,6 +1304,11 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                                     !isEliminated &&
                                     ` ${tTaFinals('lifeLossTag', { count: roundLifeLossCount })}`}
                                   {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
+                                  {isBottomHalf && typeof result.livesAfter === 'number' && (
+                                    <span className="ml-1 font-mono text-xs text-muted-foreground">
+                                      {tTaFinals('roundLivesRemaining', { lives: result.livesAfter })}
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="text-right font-mono tabular-nums">
                                   {phase3Rules.handicapEnabled ? (

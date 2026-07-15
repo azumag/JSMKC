@@ -17,6 +17,10 @@ export interface TaRoundResult {
   handicapSeconds: TaHandicapSeconds;
   isRetry: boolean;
   tvNumber: number | null;
+  /** Phase 3 only: the player's remaining life immediately after this round, replayed from round history. Null for phase1/phase2 (no life system). */
+  livesAfter?: number | null;
+  /** Phase 3 only: whether this round's outcome cost the player a life (accounts for a resolved sudden-death boundary tie). Absent for phase1/phase2. */
+  lifeLost?: boolean;
 }
 
 export interface TaPhaseRound {
