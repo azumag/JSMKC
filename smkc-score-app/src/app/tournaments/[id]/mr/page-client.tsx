@@ -263,6 +263,7 @@ export default function MatchRacePageClient({
   const {
     handleRankOverrideSave,
     handleBulkRankOverrideSave,
+    handleCombinedRankOverrideSave,
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
@@ -726,6 +727,7 @@ export default function MatchRacePageClient({
               locale={locale}
               isAdmin={!!isAdmin}
               onCombinedRankOverrideSave={handleBulkCombinedRankOverrideSave}
+              onRankOverrideSave={handleCombinedRankOverrideSave}
               onBroadcast={handleBroadcastReflect}
             />
           </TabsContent>

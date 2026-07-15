@@ -14,24 +14,24 @@
  *   import type { BracketMatch, BracketRound } from '@/types/bracket';
  */
 
-import type { Player } from "@/lib/types";
+import type { Player } from '@/lib/types';
 
 /** Bracket type for double elimination tournament */
-export type BracketType = "winners" | "losers" | "grand_final";
+export type BracketType = 'winners' | 'losers' | 'grand_final';
 
 /** All possible round identifiers in a double elimination bracket */
 export type BracketRound =
-  | "playoff_r1"      // Pre-Bracket Playoff Round 1 — Top 24 → Top 16 barrage (4 matches)
-  | "playoff_r2"      // Pre-Bracket Playoff Round 2 — decider producing 4 Upper-Bracket entrants (4 matches)
-  | "winners_qf"      // Winners Bracket Quarter-Finals (4 matches)
-  | "winners_sf"      // Winners Bracket Semi-Finals (2 matches)
-  | "winners_final"   // Winners Bracket Final (1 match)
-  | "losers_r1"       // Losers Bracket Round 1 (2 matches)
-  | "losers_r2"       // Losers Bracket Round 2 (2 matches)
-  | "losers_r3"       // Losers Bracket Round 3 (2 matches)
-  | "losers_sf"       // Losers Bracket Semi-Final (1 match)
-  | "losers_final"    // Losers Bracket Final (1 match)
-  | "grand_final";    // Grand Final (1 match)
+  | 'playoff_r1' // Pre-Bracket Playoff Round 1 — Top 24 → Top 16 barrage (4 matches)
+  | 'playoff_r2' // Pre-Bracket Playoff Round 2 — decider producing 4 Upper-Bracket entrants (4 matches)
+  | 'winners_qf' // Winners Bracket Quarter-Finals (4 matches)
+  | 'winners_sf' // Winners Bracket Semi-Finals (2 matches)
+  | 'winners_final' // Winners Bracket Final (1 match)
+  | 'losers_r1' // Losers Bracket Round 1 (2 matches)
+  | 'losers_r2' // Losers Bracket Round 2 (2 matches)
+  | 'losers_r3' // Losers Bracket Round 3 (2 matches)
+  | 'losers_sf' // Losers Bracket Semi-Final (1 match)
+  | 'losers_final' // Losers Bracket Final (1 match)
+  | 'grand_final'; // Grand Final (1 match)
 
 /** Structure of a single bracket match with routing information */
 export interface BracketMatch {
@@ -54,9 +54,12 @@ export interface BracketMatch {
   /** Display position within the loser's receiving match (1 or 2) */
   loserPosition?: 1 | 2;
   /**
-   * For playoff matches only: the Upper-Bracket seed (1-16) the winner receives
-   * when entering the 16-player double-elimination bracket. Only set on final
-   * playoff round matches (playoff_r2) whose winners advance to Upper Bracket.
+   * For playoff matches only: the Upper-Bracket seed (13-16) the winner receives
+   * when entering the 16-player double-elimination bracket. Always equal to the
+   * bye's own player1Seed — a barrage bye winner keeps their own seed number
+   * rather than being remapped to a different slot (verified against the CDM
+   * 2025 results workbook). Only set on final playoff round matches (playoff_r2)
+   * whose winners advance to Upper Bracket.
    */
   advancesToUpperSeed?: number;
 }

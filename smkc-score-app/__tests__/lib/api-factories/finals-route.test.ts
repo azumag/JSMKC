@@ -401,8 +401,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 3,
         round: 'winners_r1',
         bracket: 'winners',
-        player1Seed: 5,
-        player2Seed: 12,
+        player1Seed: 4,
+        player2Seed: 13,
         winnerGoesTo: 10,
         loserGoesTo: 17,
         position: 1,
@@ -412,8 +412,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 4,
         round: 'winners_r1',
         bracket: 'winners',
-        player1Seed: 4,
-        player2Seed: 13,
+        player1Seed: 5,
+        player2Seed: 12,
         winnerGoesTo: 10,
         loserGoesTo: 17,
         position: 2,
@@ -423,8 +423,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 5,
         round: 'winners_r1',
         bracket: 'winners',
-        player1Seed: 3,
-        player2Seed: 14,
+        player1Seed: 2,
+        player2Seed: 15,
         winnerGoesTo: 11,
         loserGoesTo: 18,
         position: 1,
@@ -434,8 +434,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 6,
         round: 'winners_r1',
         bracket: 'winners',
-        player1Seed: 6,
-        player2Seed: 11,
+        player1Seed: 7,
+        player2Seed: 10,
         winnerGoesTo: 11,
         loserGoesTo: 18,
         position: 2,
@@ -445,8 +445,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 7,
         round: 'winners_r1',
         bracket: 'winners',
-        player1Seed: 7,
-        player2Seed: 10,
+        player1Seed: 3,
+        player2Seed: 14,
         winnerGoesTo: 12,
         loserGoesTo: 19,
         position: 1,
@@ -456,8 +456,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 8,
         round: 'winners_r1',
         bracket: 'winners',
-        player1Seed: 2,
-        player2Seed: 15,
+        player1Seed: 6,
+        player2Seed: 11,
         winnerGoesTo: 12,
         loserGoesTo: 19,
         position: 2,
@@ -557,14 +557,16 @@ describe('Finals Route Factory', () => {
 
     // Default playoff structure (issue #454) — 8 matches, 4 R1 + 4 R2.
     // Mirrors real generatePlayoffStructure(12) so handleTop24Post tests
-    // exercise the real routing/mapping semantics end-to-end.
+    // exercise the real routing/mapping semantics end-to-end. Seeds 17-24 in
+    // R1 and BYE seeds 13-16 in R2 (a bye winner keeps their own seed number)
+    // per the CDM 2025 official results workbook.
     mockGeneratePlayoffStructure.mockReturnValue([
       {
         matchNumber: 1,
         round: 'playoff_r1',
         bracket: 'winners',
-        player1Seed: 8,
-        player2Seed: 9,
+        player1Seed: 17,
+        player2Seed: 24,
         winnerGoesTo: 5,
         position: 2,
       },
@@ -572,8 +574,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 2,
         round: 'playoff_r1',
         bracket: 'winners',
-        player1Seed: 5,
-        player2Seed: 12,
+        player1Seed: 20,
+        player2Seed: 21,
         winnerGoesTo: 6,
         position: 2,
       },
@@ -581,8 +583,8 @@ describe('Finals Route Factory', () => {
         matchNumber: 3,
         round: 'playoff_r1',
         bracket: 'winners',
-        player1Seed: 6,
-        player2Seed: 11,
+        player1Seed: 18,
+        player2Seed: 23,
         winnerGoesTo: 7,
         position: 2,
       },
@@ -590,15 +592,15 @@ describe('Finals Route Factory', () => {
         matchNumber: 4,
         round: 'playoff_r1',
         bracket: 'winners',
-        player1Seed: 7,
-        player2Seed: 10,
+        player1Seed: 19,
+        player2Seed: 22,
         winnerGoesTo: 8,
         position: 2,
       },
-      { matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 1, advancesToUpperSeed: 16 },
-      { matchNumber: 6, round: 'playoff_r2', bracket: 'winners', player1Seed: 4, advancesToUpperSeed: 12 },
-      { matchNumber: 7, round: 'playoff_r2', bracket: 'winners', player1Seed: 3, advancesToUpperSeed: 14 },
-      { matchNumber: 8, round: 'playoff_r2', bracket: 'winners', player1Seed: 2, advancesToUpperSeed: 10 },
+      { matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 16, advancesToUpperSeed: 16 },
+      { matchNumber: 6, round: 'playoff_r2', bracket: 'winners', player1Seed: 13, advancesToUpperSeed: 13 },
+      { matchNumber: 7, round: 'playoff_r2', bracket: 'winners', player1Seed: 15, advancesToUpperSeed: 15 },
+      { matchNumber: 8, round: 'playoff_r2', bracket: 'winners', player1Seed: 14, advancesToUpperSeed: 14 },
     ]);
 
     // Default paginated result
@@ -1043,9 +1045,9 @@ describe('Finals Route Factory', () => {
           completed: true,
           score1: 5,
           score2: 0,
-          player1Id: 'W12',
+          player1Id: 'W13',
           player2Id: 'x',
-          player1: { id: 'W12', name: 'W12' },
+          player1: { id: 'W13', name: 'W13' },
           player2: { id: 'x' },
         }),
         createMockMatch({
@@ -1055,9 +1057,9 @@ describe('Finals Route Factory', () => {
           completed: true,
           score1: 5,
           score2: 0,
-          player1Id: 'W14',
+          player1Id: 'W15',
           player2Id: 'x',
-          player1: { id: 'W14', name: 'W14' },
+          player1: { id: 'W15', name: 'W15' },
           player2: { id: 'x' },
         }),
         createMockMatch({
@@ -1067,9 +1069,9 @@ describe('Finals Route Factory', () => {
           completed: true,
           score1: 5,
           score2: 0,
-          player1Id: 'W10',
+          player1Id: 'W14',
           player2Id: 'x',
-          player1: { id: 'W10', name: 'W10' },
+          player1: { id: 'W14', name: 'W14' },
           player2: { id: 'x' },
         }),
       ];
@@ -1098,14 +1100,18 @@ describe('Finals Route Factory', () => {
         seedMap.get(m.player1Seed),
         seedMap.get(m.player2Seed),
       ]);
+      /* Contiguous bucket-stacked seeding (finals-group-selection.ts): direct
+       * seeds 1-12 interleave A1,B1,A2,B2,...; barrage byes keep their own
+       * seed 13-16 when they win (double-elimination.ts). Verified against
+       * the CDM 2025 official results workbook. */
       expect(pairLabels).toEqual([
         ['A1', 'W16'],
         ['B4', 'A5'],
-        ['B2', 'W12'],
+        ['B2', 'W13'],
         ['A3', 'B6'],
-        ['B1', 'W14'],
+        ['B1', 'W15'],
         ['A4', 'B5'],
-        ['A2', 'W10'],
+        ['A2', 'W14'],
         ['B3', 'A6'],
       ]);
     });
@@ -1758,22 +1764,25 @@ describe('Finals Route Factory', () => {
       expect(createManyCall.data).toHaveLength(8);
       const createdStages = createManyCall.data.map((d: { stage: string }) => d.stage);
       expect(createdStages.every((s: string) => s === 'playoff')).toBe(true);
+      /* Bucket-stacked, contiguous seeding (finals-group-selection.ts): barrage
+       * bucket order is A-rank7,B-rank7,A-rank8,B-rank8,...,A-rank12,B-rank12
+       * (all tied by score in this fixture, so stable sort keeps group A
+       * before group B), assigned seeds 13-24 in that order. */
       expect(json.data.playoffSeededPlayers.map((p: { playerId: string }) => p.playerId)).toEqual([
-        'player-19',
+        'player-6',
         'player-18',
         'player-7',
-        'player-6',
-        'player-20',
-        'player-10',
-        'player-21',
-        'player-11',
-        'player-9',
-        'player-23',
+        'player-19',
         'player-8',
+        'player-20',
+        'player-9',
+        'player-21',
+        'player-10',
         'player-22',
+        'player-11',
+        'player-23',
       ]);
-      /* Per issue #454 the barrage pool = each group's rank 7..12 in the
-       * fixed CDM two-group layout.
+      /* Per issue #454 the barrage pool = each group's rank 7..12.
        * Top-6 of each group (A: player-0..5, B: player-12..17) must NOT appear
        * as player1 in any playoff match — they advance directly to the Upper
        * Bracket. Top 7-12 of each group (player-6..11, player-18..23) are the
@@ -1818,18 +1827,14 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).create).not.toHaveBeenCalled();
     });
 
-    it('Phase 1 (3 groups): creates 8 playoff matches using anti-collision seed placement', async () => {
-      /* Issue #1052 originally rejected 3+ groups here because the old 3-group
-       * interleave assigned direct advancers to seeds 10/12, colliding with the
-       * barrage-reserved seeds 10/12/14/16. assignAntiCollisionSeeds()
-       * (finals-group-selection.ts) now places direct advancers on the correct
-       * gapped sequence (1,2,3,4,5,6,7,8,9,11,13,15), so 3-group Top-24 creation
-       * is supported (docs/qualification-combined-ranking.md §2-§3, §7).
-       * createMockQualifications(27, 3) ties every player's score to their raw
-       * rank only (not group), so group letter order (A,B,C) breaks ties --
-       * matching the fixture used in __tests__/lib/finals-group-selection.test.ts
-       * ("3-group case (A=9, B=9, C=9)"), just with player-N ids instead of
-       * A1/B1/C1 labels: group A = player-0..8, B = player-9..17, C = player-18..26. */
+    it('Phase 1 (3 groups): creates 8 playoff matches using bucket-stacked contiguous seed placement', async () => {
+      /* 3-group Top-24 creation is supported per
+       * docs/qualification-combined-ranking.md §2-§3, §7. createMockQualifications(27, 3)
+       * ties every player's score to their raw rank only (not group), so group
+       * letter order (A,B,C) breaks ties -- matching the fixture used in
+       * __tests__/lib/finals-group-selection.test.ts ("3-group case (A=9, B=9, C=9)"),
+       * just with player-N ids instead of A1/B1/C1 labels: group A = player-0..8,
+       * B = player-9..17, C = player-18..26. */
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(27, 3));
       const expectedPlayoffRows = Array.from({ length: 8 }, (_, i) => ({
         id: `playoff-${i + 1}`,
@@ -1863,43 +1868,24 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(201);
       const json = await response.json();
       expect(json.data.phase).toBe('playoff');
-      /* Playoff seed order (barrage[] from selectFinalsEntrantsByGroup): each
-       * group's rank-5..8, anti-collision-placed so BYE seeds 1-4 get the best
-       * 4 overall. Pair order reflects *this test file's* mocked
-       * generatePlayoffStructure() (playoff_r1 pairs (8,9)/(5,12)/(6,11)/(7,10)),
-       * which differs from the real implementation's pairs -- the exact-order
-       * assertion here is this integration test's contract with its own mock,
-       * not a re-verification of the seeding algorithm itself (that's covered
-       * against the real bracket structure in finals-group-selection.test.ts). */
+      /* Playoff seed order (barrageSeeds[] from selectFinalsEntrantsByGroup):
+       * bucket-stacked across each group's rank 5-8 (A5,B5,C5,A6,B6,C6,...),
+       * assigned seeds 13-24 in that order -- ties broken alphabetically by
+       * group (A,B,C) since every player's score is tied to raw rank only. */
       expect(json.data.playoffSeededPlayers.map((p: { playerId: string }) => p.playerId)).toEqual([
         'player-4',
         'player-13',
         'player-22',
         'player-5',
         'player-14',
+        'player-23',
         'player-6',
+        'player-15',
         'player-24',
+        'player-7',
         'player-16',
         'player-25',
-        'player-7',
-        'player-15',
-        'player-23',
       ]);
-      /* Regardless of which mocked pairing is used, the anti-collision
-       * invariant must still hold: no playoff_r1 pair shares a group. */
-      const seededGroup = (playerId: string) => {
-        const n = Number(playerId.replace('player-', ''));
-        return n < 9 ? 'A' : n < 18 ? 'B' : 'C';
-      };
-      const seedGroups = json.data.playoffSeededPlayers.map((p: { playerId: string }) => seededGroup(p.playerId));
-      for (const [a, b] of [
-        [8, 9],
-        [5, 12],
-        [6, 11],
-        [7, 10],
-      ]) {
-        expect(seedGroups[a - 1]).not.toBe(seedGroups[b - 1]);
-      }
       /* Direct advancers (each group's rank 1-4: A=player-0..3, B=player-9..12,
        * C=player-18..21) must never appear in the playoff pool. */
       const createManyCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
@@ -2056,11 +2042,13 @@ describe('Finals Route Factory', () => {
 
     it('Phase 2: builds 16-player finals bracket from qual top-12 + 4 playoff winners', async () => {
       /* All 4 playoff_r2 matches completed with player1 winning each time.
-       * Expected Upper-seed mapping (R2 match → Upper seed):
-       *   match 5 → Upper seed 16 (winner = B8/player-19)
-       *   match 6 → Upper seed 12 (winner = A7/player-6)
-       *   match 7 → Upper seed 14 (winner = A8/player-7)
-       *   match 8 → Upper seed 10 (winner = B7/player-18). */
+       * A bye winner keeps their own seed number in the Upper Bracket
+       * (double-elimination.ts), so the R2 match → Upper seed mapping is just
+       * each match's own advancesToUpperSeed:
+       *   match 5 → Upper seed 16 (winner = player-19)
+       *   match 6 → Upper seed 13 (winner = player-6)
+       *   match 7 → Upper seed 15 (winner = player-7)
+       *   match 8 → Upper seed 14 (winner = player-18). */
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
       const playoffRows = [
         /* R1 rows — completed but irrelevant to seat assignment (R2 winners
@@ -2174,20 +2162,22 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).deleteMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals' },
       });
-      /* Verify barrage-slot mapping: playoff R2 match → Upper-bracket seed. */
+      /* Verify barrage-slot mapping: playoff R2 match → Upper-bracket seed
+       * (a bye winner keeps their own seed number). */
       const seededPlayers: Array<{ seed: number; playerId: string }> = json.data.seededPlayers;
       const seedMap = new Map(seededPlayers.map((p) => [p.seed, p.playerId]));
       expect(seedMap.get(16)).toBe('player-19'); /* From playoff R2 match 5 */
-      expect(seedMap.get(12)).toBe('player-6'); /* From playoff R2 match 6 */
-      expect(seedMap.get(14)).toBe('player-7'); /* From playoff R2 match 7 */
-      expect(seedMap.get(10)).toBe('player-18'); /* From playoff R2 match 8 */
-      /* Direct-advance qualifiers occupy non-barrage seeds using the fixed
-       * two-group paper layout. */
-      expect(seedMap.get(1)).toBe('player-0');
-      expect(seedMap.get(2)).toBe('player-14'); /* B-rank-3 */
-      expect(seedMap.get(11)).toBe('player-16'); /* B-rank-5 */
-      expect(seedMap.get(13)).toBe('player-17'); /* B-rank-6 */
-      expect(seedMap.get(15)).toBe('player-5'); /* A-rank-6 */
+      expect(seedMap.get(13)).toBe('player-6'); /* From playoff R2 match 6 */
+      expect(seedMap.get(15)).toBe('player-7'); /* From playoff R2 match 7 */
+      expect(seedMap.get(14)).toBe('player-18'); /* From playoff R2 match 8 */
+      /* Direct-advance qualifiers occupy contiguous seeds 1-12, bucket-stacked
+       * A1,B1,A2,B2,... (tied scores in this fixture, so stable sort keeps
+       * group A before group B). */
+      expect(seedMap.get(1)).toBe('player-0'); /* A1 */
+      expect(seedMap.get(2)).toBe('player-12'); /* B1 */
+      expect(seedMap.get(10)).toBe('player-16'); /* B5 */
+      expect(seedMap.get(11)).toBe('player-5'); /* A6 */
+      expect(seedMap.get(12)).toBe('player-17'); /* B6 */
 
       const structure = json.data.bracketStructure.filter((m: { round: string }) => m.round === 'winners_r1');
       const pairLabels = structure.map((m: { player1Seed: number; player2Seed: number }) => [
@@ -2195,25 +2185,25 @@ describe('Finals Route Factory', () => {
         seedMap.get(m.player2Seed),
       ]);
       expect(pairLabels).toEqual([
-        ['player-0', 'player-19'] /* A1 vs barrage */,
+        ['player-0', 'player-19'] /* A1 vs barrage(seed16) */,
         ['player-15', 'player-4'] /* B4 vs A5 */,
-        ['player-13', 'player-6'] /* B2 vs barrage */,
+        ['player-13', 'player-6'] /* B2 vs barrage(seed13) */,
         ['player-2', 'player-17'] /* A3 vs B6 */,
-        ['player-12', 'player-7'] /* B1 vs barrage */,
+        ['player-12', 'player-7'] /* B1 vs barrage(seed15) */,
         ['player-3', 'player-16'] /* A4 vs B5 */,
-        ['player-1', 'player-18'] /* A2 vs barrage */,
+        ['player-1', 'player-18'] /* A2 vs barrage(seed14) */,
         ['player-14', 'player-5'] /* B3 vs A6 */,
       ]);
     });
 
-    it('Phase 2 (3 groups): builds 16-player finals bracket via assignAntiCollisionSeeds()', async () => {
+    it('Phase 2 (3 groups): builds 16-player finals bracket with contiguous bucket-stacked seeds', async () => {
       /* 3-group counterpart to the 2-group Phase 2 test above. Uses the same
        * createMockQualifications(27, 3) fixture as the "Phase 1 (3 groups)"
-       * test, so the direct-advancer seed map (seeds 1-9,11,13,15) and the
-       * barrage seed map that feeds seeds 10/12/14/16 are derived the same
-       * way from this file's mocked generateBracketStructure(16) /
-       * generatePlayoffStructure(12) -- see that test's comment for the
-       * player-N -> group mapping (A=0-8, B=9-17, C=18-26). */
+       * test, so the direct-advancer seed map (contiguous seeds 1-12) and the
+       * barrage seed map (13-16) are derived the same way from this file's
+       * mocked generateBracketStructure(16) / generatePlayoffStructure(12) --
+       * see that test's comment for the player-N -> group mapping (A=0-8,
+       * B=9-17, C=18-26). */
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(27, 3));
       const playoffRows = [
         /* R1 rows — completed but irrelevant to seat assignment (R2 winners
@@ -2352,49 +2342,48 @@ describe('Finals Route Factory', () => {
 
       const seededPlayers: Array<{ seed: number; playerId: string }> = json.data.seededPlayers;
       const seedMap = new Map(seededPlayers.map((p) => [p.seed, p.playerId]));
-      /* The same 12 direct advancers (each group's rank 1-4) occupy the
-       * gapped direct-seed sequence. Phase 2 may permute those seeds now that
-       * the barrage winners' groups are known. */
-      const directSeedNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 15];
-      expect(directSeedNumbers.map((seed) => seedMap.get(seed)).sort()).toEqual(
-        [
-          'player-0',
-          'player-1',
-          'player-10',
-          'player-11',
-          'player-12',
-          'player-18',
-          'player-19',
-          'player-2',
-          'player-20',
-          'player-21',
-          'player-3',
-          'player-9',
-        ].sort(),
-      );
-      /* Barrage-fed seeds 10/12/14/16 come from the playoff R2 winners. */
+      /* Direct advancers (each group's rank 1-4) occupy contiguous seeds 1-12,
+       * bucket-stacked A1,B1,C1,A2,B2,C2,... (tied scores in this fixture, so
+       * stable sort keeps group A before B before C). */
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((seed) => seedMap.get(seed))).toEqual([
+        'player-0' /* A1 */,
+        'player-9' /* B1 */,
+        'player-18' /* C1 */,
+        'player-1' /* A2 */,
+        'player-10' /* B2 */,
+        'player-19' /* C2 */,
+        'player-2' /* A3 */,
+        'player-11' /* B3 */,
+        'player-20' /* C3 */,
+        'player-3' /* A4 */,
+        'player-12' /* B4 */,
+        'player-21' /* C4 */,
+      ]);
+      /* Barrage-fed seeds 13-16 come from the playoff R2 winners, keeping
+       * their own bye seed number. */
       expect(seedMap.get(16)).toBe('player-4'); /* From playoff R2 match 5 */
-      expect(seedMap.get(12)).toBe('player-5'); /* From playoff R2 match 6 */
-      expect(seedMap.get(14)).toBe('player-22'); /* From playoff R2 match 7 */
-      expect(seedMap.get(10)).toBe('player-13'); /* From playoff R2 match 8 */
+      expect(seedMap.get(13)).toBe('player-5'); /* From playoff R2 match 6 */
+      expect(seedMap.get(15)).toBe('player-22'); /* From playoff R2 match 7 */
+      expect(seedMap.get(14)).toBe('player-13'); /* From playoff R2 match 8 */
 
       const structure = json.data.bracketStructure.filter((m: { round: string }) => m.round === 'winners_r1');
       const pairLabels = structure.map((m: { player1Seed: number; player2Seed: number }) => [
         seedMap.get(m.player1Seed),
         seedMap.get(m.player2Seed),
       ]);
-      expect(pairLabels).toHaveLength(8);
-      /* Phase 2 knows the four barrage winners, so every Winners R1 matchup
-       * must be cross-group. This covers both the direct-vs-direct pairs and
-       * the four formerly "solo" direct seeds that now face a resolved
-       * barrage winner (regression: TC-3010 produced A vs A in match 1). */
-      const seededGroup = (playerId: string) => {
-        const n = Number(playerId.replace('player-', ''));
-        return n < 9 ? 'A' : n < 18 ? 'B' : 'C';
-      };
-      for (const match of structure) {
-        expect(seededGroup(seedMap.get(match.player1Seed)!)).not.toBe(seededGroup(seedMap.get(match.player2Seed)!));
-      }
+      /* No anti-collision guarantee: matches 1 [1,16] and 6 [7,10] are both
+       * same-group (A vs A) here, matching the real CDM 2025 event where
+       * same-group Winners R1 matchups did occur (e.g. Drew vs Zarkov). */
+      expect(pairLabels).toEqual([
+        ['player-0', 'player-4'] /* [1,16]: A1 vs barrage(A5) */,
+        ['player-11', 'player-20'] /* [8,9]: B3 vs C3 */,
+        ['player-1', 'player-5'] /* [4,13]: A2 vs barrage */,
+        ['player-10', 'player-21'] /* [5,12]: B2 vs C4 */,
+        ['player-9', 'player-22'] /* [2,15]: B1 vs barrage */,
+        ['player-2', 'player-3'] /* [7,10]: A3 vs A4 */,
+        ['player-18', 'player-13'] /* [3,14]: C1 vs barrage */,
+        ['player-19', 'player-12'] /* [6,11]: C2 vs B4 */,
+      ]);
     });
 
     it('Phase 2 fails fast when the malformed playoff structure is missing R2 upper seeds', async () => {
@@ -2566,10 +2555,10 @@ describe('Finals Route Factory', () => {
           points2: 0,
           score1: 0,
           score2: 9,
-          player1Id: 'winner-12',
-          player2Id: 'loser-12',
-          player1: { id: 'winner-12' },
-          player2: { id: 'loser-12' },
+          player1Id: 'winner-13',
+          player2Id: 'loser-13',
+          player1: { id: 'winner-13' },
+          player2: { id: 'loser-13' },
         },
         {
           id: 'p-r2-7',
@@ -2581,10 +2570,10 @@ describe('Finals Route Factory', () => {
           points2: 4,
           score1: 9,
           score2: 0,
-          player1Id: 'loser-14',
-          player2Id: 'winner-14',
-          player1: { id: 'loser-14' },
-          player2: { id: 'winner-14' },
+          player1Id: 'loser-15',
+          player2Id: 'winner-15',
+          player1: { id: 'loser-15' },
+          player2: { id: 'winner-15' },
         },
         {
           id: 'p-r2-8',
@@ -2596,10 +2585,10 @@ describe('Finals Route Factory', () => {
           points2: 0,
           score1: 0,
           score2: 9,
-          player1Id: 'winner-10',
-          player2Id: 'loser-10',
-          player1: { id: 'winner-10' },
-          player2: { id: 'loser-10' },
+          player1Id: 'winner-14',
+          player2Id: 'loser-14',
+          player1: { id: 'winner-14' },
+          player2: { id: 'loser-14' },
         },
       ];
       (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
@@ -2628,9 +2617,9 @@ describe('Finals Route Factory', () => {
         json.data.seededPlayers.map((p: { seed: number; playerId: string }) => [p.seed, p.playerId]),
       );
       expect(seedMap.get(16)).toBe('winner-16');
-      expect(seedMap.get(12)).toBe('winner-12');
+      expect(seedMap.get(13)).toBe('winner-13');
+      expect(seedMap.get(15)).toBe('winner-15');
       expect(seedMap.get(14)).toBe('winner-14');
-      expect(seedMap.get(10)).toBe('winner-10');
     });
 
     it('GET Top-24 preview warns when a completed playoff R2 winner cannot be resolved', async () => {

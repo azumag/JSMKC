@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlayerName } from '@/components/ui/player-name';
+import { RankCell } from '@/components/tournament/rank-cell';
 import {
   CombinedTieResolution,
   type CombinedRankOverrideUpdate,
@@ -52,6 +53,12 @@ interface CombinedStandingsTableProps<T extends CombinedStandingsEntry> {
   locale: string;
   isAdmin: boolean;
   onCombinedRankOverrideSave: (updates: CombinedRankOverrideUpdate[]) => Promise<boolean>;
+  /**
+   * Per-row combined-rank override save/clear, used by the RankCell badge so a
+   * cross-group sudden-death result can be corrected the same way an in-group
+   * one already can (issue: cross-group playoff had no undo/edit affordance).
+   */
+  onRankOverrideSave: (qualificationId: string, combinedRankOverride: number | null) => Promise<void>;
   onBroadcast?: (
     player1Name: string,
     player2Name: string,
@@ -72,6 +79,7 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
   locale,
   isAdmin,
   onCombinedRankOverrideSave,
+  onRankOverrideSave,
   onBroadcast,
 }: CombinedStandingsTableProps<T>) {
   return (
@@ -107,7 +115,18 @@ export function CombinedStandingsTable<T extends CombinedStandingsEntry>({
           <TableBody>
             {rankings.map((entry) => (
               <TableRow key={entry.id}>
-                <TableCell className="font-semibold">{entry._autoRank}</TableCell>
+                <TableCell className="font-semibold">
+                  {/* RankCell shows the same amber "resolved by sudden-death" badge,
+                      edit pencil, and clear (✕) control as the in-group rank column,
+                      so a cross-group playoff result can be corrected the same way. */}
+                  <RankCell
+                    qualificationId={entry.id}
+                    rankOverride={entry.combinedRankOverride}
+                    autoRank={entry._autoRank}
+                    isAdmin={isAdmin}
+                    onSave={onRankOverrideSave}
+                  />
+                </TableCell>
                 <TableCell>{getGroupLabel(entry.group)}</TableCell>
                 <TableCell className="font-medium">
                   <PlayerName player={entry.player} locale={locale} />

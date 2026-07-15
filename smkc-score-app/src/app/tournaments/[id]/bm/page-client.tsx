@@ -274,6 +274,7 @@ export default function BattleModePageClient({
   const {
     handleRankOverrideSave,
     handleBulkRankOverrideSave,
+    handleCombinedRankOverrideSave,
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
@@ -685,6 +686,7 @@ export default function BattleModePageClient({
               locale={locale}
               isAdmin={!!isAdmin}
               onCombinedRankOverrideSave={handleBulkCombinedRankOverrideSave}
+              onRankOverrideSave={handleCombinedRankOverrideSave}
               onBroadcast={handleBroadcastReflect}
             />
           </TabsContent>

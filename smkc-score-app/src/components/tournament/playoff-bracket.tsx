@@ -5,15 +5,16 @@
  * The playoff is a single-elimination tournament for 12 players (barrage entrants)
  * who compete for 4 spots in the Upper Bracket barrage slots.
  *
- * Structure:
- * - Playoff Round 1: 4 matches (seeds 8v9, 5v12, 6v11, 7v10) — losers eliminated
- * - Playoff Round 2: 4 matches (BYE seeds 1-4 vs R1 winners) — winners advance to Upper Bracket
+ * Structure (verified against the CDM 2025 official results workbook):
+ * - Playoff Round 1: 4 matches (seeds 17v24, 20v21, 18v23, 19v22) — losers eliminated
+ * - Playoff Round 2: 4 matches (BYE seeds 16/13/15/14 vs R1 winners) — winners advance to Upper Bracket
  *
- * After each playoff_r2 match completes, the winner fills a specific Upper Bracket seed:
- * - M5 (BYE seed 1) winner → Upper seed 16
- * - M6 (BYE seed 4) winner → Upper seed 12
- * - M7 (BYE seed 3) winner → Upper seed 14
- * - M8 (BYE seed 2) winner → Upper seed 10
+ * After each playoff_r2 match completes, the winner fills the Upper Bracket seed matching
+ * that match's own BYE seed — a bye winner keeps their own seed number, no remapping:
+ * - M5 (BYE seed 16) winner → Upper seed 16
+ * - M6 (BYE seed 13) winner → Upper seed 13
+ * - M7 (BYE seed 15) winner → Upper seed 15
+ * - M8 (BYE seed 14) winner → Upper seed 14
  */
 
 'use client';
@@ -102,8 +103,10 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
   const seededEntry2 = bracketMatch.player2Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
-  const seedLabel1 = seededEntry1?.qualificationRankLabel ?? bracketMatch.player1Seed;
-  const seedLabel2 = seededEntry2?.qualificationRankLabel ?? bracketMatch.player2Seed;
+  /* The numeric seed (now the real overall qualifying seed 1-24, see
+   * double-elimination.ts) is always preferred over the group+rank label. */
+  const seedLabel1 = bracketMatch.player1Seed ?? seededEntry1?.qualificationRankLabel;
+  const seedLabel2 = bracketMatch.player2Seed ?? seededEntry2?.qualificationRankLabel;
 
   const player1: Player | undefined = match?.player1 || seededEntry1?.player;
   const player2: Player | undefined = match?.player2 || seededEntry2?.player;

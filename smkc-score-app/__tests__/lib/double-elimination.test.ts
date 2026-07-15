@@ -27,7 +27,7 @@ import {
   generateBracketStructure,
   generatePlayoffStructure,
   getNextMatchInfo,
-  roundNames
+  roundNames,
 } from '@/lib/double-elimination';
 
 describe('Double Elimination Bracket Structure', () => {
@@ -49,20 +49,29 @@ describe('Double Elimination Bracket Structure', () => {
     });
 
     it('should have correct 16-player seeding in Winners R1', () => {
+      /* Seed pairs follow the CDM 2025 official bracket layout exactly (verified
+       * against the CDM 2025 results workbook): direct qualifiers occupy
+       * contiguous seeds 1-12, barrage byes occupy contiguous seeds 13-16, and
+       * match order mirrors the CDM Excel template's Top-16 block order so the
+       * cdm-export winnerOf-index tables stay valid unchanged. */
       const matches = generateBracketStructure(16);
-      const r1 = matches.filter(m => m.round === 'winners_r1');
+      const r1 = matches.filter((m) => m.round === 'winners_r1');
       expect(r1).toHaveLength(8);
-      /* Seed 1 vs Seed 16 */
-      expect(r1[0].player1Seed).toBe(1);
-      expect(r1[0].player2Seed).toBe(16);
-      /* Seed 2 vs Seed 15 (last R1 match) */
-      expect(r1[7].player1Seed).toBe(2);
-      expect(r1[7].player2Seed).toBe(15);
+      expect(r1.map((m) => [m.player1Seed, m.player2Seed])).toEqual([
+        [1, 16],
+        [8, 9],
+        [4, 13],
+        [5, 12],
+        [2, 15],
+        [7, 10],
+        [3, 14],
+        [6, 11],
+      ]);
     });
 
     it('should have all bracket stages for 16 players', () => {
       const matches = generateBracketStructure(16);
-      const rounds = new Set(matches.map(m => m.round));
+      const rounds = new Set(matches.map((m) => m.round));
       expect(rounds.has('winners_r1')).toBe(true);
       expect(rounds.has('winners_qf')).toBe(true);
       expect(rounds.has('winners_sf')).toBe(true);
@@ -79,15 +88,15 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should have Grand Final as match 30 and Reset as 31 for 16 players', () => {
       const matches = generateBracketStructure(16);
-      const gf = matches.find(m => m.round === 'grand_final');
-      const gfr = matches.find(m => m.round === 'grand_final_reset');
+      const gf = matches.find((m) => m.round === 'grand_final');
+      const gfr = matches.find((m) => m.round === 'grand_final_reset');
       expect(gf?.matchNumber).toBe(30);
       expect(gfr?.matchNumber).toBe(31);
     });
 
     it('should create correct Winners Bracket Round 1 (Quarter Finals) structure', () => {
       const matches = generateBracketStructure(8);
-      const quarterFinals = matches.filter(m => m.round === 'winners_qf');
+      const quarterFinals = matches.filter((m) => m.round === 'winners_qf');
 
       expect(quarterFinals).toHaveLength(4);
 
@@ -104,10 +113,10 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should set correct winnerGoesTo and loserGoesTo for Winners QF', () => {
       const matches = generateBracketStructure(8);
-      const qfMatch1 = matches.find(m => m.matchNumber === 1);
-      const qfMatch2 = matches.find(m => m.matchNumber === 2);
-      const qfMatch3 = matches.find(m => m.matchNumber === 3);
-      const qfMatch4 = matches.find(m => m.matchNumber === 4);
+      const qfMatch1 = matches.find((m) => m.matchNumber === 1);
+      const qfMatch2 = matches.find((m) => m.matchNumber === 2);
+      const qfMatch3 = matches.find((m) => m.matchNumber === 3);
+      const qfMatch4 = matches.find((m) => m.matchNumber === 4);
 
       expect(qfMatch1?.winnerGoesTo).toBe(5);
       expect(qfMatch1?.loserGoesTo).toBe(8);
@@ -121,7 +130,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Winners Bracket Semi Finals structure', () => {
       const matches = generateBracketStructure(8);
-      const semiFinals = matches.filter(m => m.round === 'winners_sf');
+      const semiFinals = matches.filter((m) => m.round === 'winners_sf');
 
       expect(semiFinals).toHaveLength(2);
       expect(semiFinals[0].matchNumber).toBe(5);
@@ -132,8 +141,8 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should set correct loserGoesTo for Winners SF', () => {
       const matches = generateBracketStructure(8);
-      const sfMatch1 = matches.find(m => m.matchNumber === 5);
-      const sfMatch2 = matches.find(m => m.matchNumber === 6);
+      const sfMatch1 = matches.find((m) => m.matchNumber === 5);
+      const sfMatch2 = matches.find((m) => m.matchNumber === 6);
 
       expect(sfMatch1?.loserGoesTo).toBe(12);
       expect(sfMatch2?.loserGoesTo).toBe(13);
@@ -141,7 +150,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Winners Final structure', () => {
       const matches = generateBracketStructure(8);
-      const winnersFinal = matches.find(m => m.round === 'winners_final');
+      const winnersFinal = matches.find((m) => m.round === 'winners_final');
 
       expect(winnersFinal).toBeDefined();
       expect(winnersFinal?.matchNumber).toBe(7);
@@ -151,7 +160,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Losers Bracket Round 1 structure', () => {
       const matches = generateBracketStructure(8);
-      const losersR1 = matches.filter(m => m.round === 'losers_r1');
+      const losersR1 = matches.filter((m) => m.round === 'losers_r1');
 
       expect(losersR1).toHaveLength(2);
       expect(losersR1[0].matchNumber).toBe(8);
@@ -162,7 +171,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Losers Bracket Round 2 structure', () => {
       const matches = generateBracketStructure(8);
-      const losersR2 = matches.filter(m => m.round === 'losers_r2');
+      const losersR2 = matches.filter((m) => m.round === 'losers_r2');
 
       expect(losersR2).toHaveLength(2);
       expect(losersR2[0].matchNumber).toBe(10);
@@ -173,7 +182,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Losers Bracket Round 3 structure', () => {
       const matches = generateBracketStructure(8);
-      const losersR3 = matches.filter(m => m.round === 'losers_r3');
+      const losersR3 = matches.filter((m) => m.round === 'losers_r3');
 
       expect(losersR3).toHaveLength(2);
       expect(losersR3[0].matchNumber).toBe(12);
@@ -184,7 +193,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Losers Semi Final structure', () => {
       const matches = generateBracketStructure(8);
-      const losersSF = matches.find(m => m.round === 'losers_sf');
+      const losersSF = matches.find((m) => m.round === 'losers_sf');
 
       expect(losersSF).toBeDefined();
       expect(losersSF?.matchNumber).toBe(14);
@@ -193,7 +202,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Losers Final structure', () => {
       const matches = generateBracketStructure(8);
-      const losersFinal = matches.find(m => m.round === 'losers_final');
+      const losersFinal = matches.find((m) => m.round === 'losers_final');
 
       expect(losersFinal).toBeDefined();
       expect(losersFinal?.matchNumber).toBe(15);
@@ -202,7 +211,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create correct Grand Final structure', () => {
       const matches = generateBracketStructure(8);
-      const grandFinal = matches.find(m => m.round === 'grand_final');
+      const grandFinal = matches.find((m) => m.round === 'grand_final');
 
       expect(grandFinal).toBeDefined();
       expect(grandFinal?.matchNumber).toBe(16);
@@ -212,7 +221,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should create Grand Final Reset match', () => {
       const matches = generateBracketStructure(8);
-      const grandFinalReset = matches.find(m => m.round === 'grand_final_reset');
+      const grandFinalReset = matches.find((m) => m.round === 'grand_final_reset');
 
       expect(grandFinalReset).toBeDefined();
       expect(grandFinalReset?.matchNumber).toBe(17);
@@ -220,9 +229,9 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should have correct bracket types for all matches', () => {
       const matches = generateBracketStructure(8);
-      const winnersMatches = matches.filter(m => m.bracket === 'winners');
-      const losersMatches = matches.filter(m => m.bracket === 'losers');
-      const grandFinalMatches = matches.filter(m => m.bracket === 'grand_final');
+      const winnersMatches = matches.filter((m) => m.bracket === 'winners');
+      const losersMatches = matches.filter((m) => m.bracket === 'losers');
+      const grandFinalMatches = matches.filter((m) => m.bracket === 'grand_final');
 
       expect(winnersMatches).toHaveLength(7); // 4 QF + 2 SF + 1 Final
       expect(losersMatches).toHaveLength(8); // 2 R1 + 2 R2 + 2 R3 + 1 SF + 1 Final = 8
@@ -233,19 +242,19 @@ describe('Double Elimination Bracket Structure', () => {
       const matches = generateBracketStructure(8);
 
       // Winners QF should have positions 1 and 2
-      const qfMatches = matches.filter(m => m.round === 'winners_qf');
+      const qfMatches = matches.filter((m) => m.round === 'winners_qf');
       expect(qfMatches[0].position).toBe(1);
       expect(qfMatches[1].position).toBe(2);
       expect(qfMatches[2].position).toBe(1);
       expect(qfMatches[3].position).toBe(2);
 
       // Winners SF should have positions 1 and 2
-      const sfMatches = matches.filter(m => m.round === 'winners_sf');
+      const sfMatches = matches.filter((m) => m.round === 'winners_sf');
       expect(sfMatches[0].position).toBe(1);
       expect(sfMatches[1].position).toBe(2);
 
       // Winners Final should have position 1
-      const winnersFinal = matches.find(m => m.round === 'winners_final');
+      const winnersFinal = matches.find((m) => m.round === 'winners_final');
       expect(winnersFinal?.position).toBe(1);
     });
   });
@@ -266,7 +275,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 1, true);
       expect(result).toEqual({
         nextMatchNumber: 5,
-        position: 1
+        position: 1,
       });
     });
 
@@ -274,7 +283,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 2, true);
       expect(result).toEqual({
         nextMatchNumber: 5,
-        position: 2
+        position: 2,
       });
     });
 
@@ -282,7 +291,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 5, true);
       expect(result).toEqual({
         nextMatchNumber: 7,
-        position: 1
+        position: 1,
       });
     });
 
@@ -290,7 +299,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 7, true);
       expect(result).toEqual({
         nextMatchNumber: 16,
-        position: 1
+        position: 1,
       });
     });
 
@@ -298,7 +307,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 15, true);
       expect(result).toEqual({
         nextMatchNumber: 16,
-        position: 2
+        position: 2,
       });
     });
 
@@ -306,7 +315,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 1, false);
       expect(result).toEqual({
         nextMatchNumber: 8,
-        position: 1
+        position: 1,
       });
     });
 
@@ -314,7 +323,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 2, false);
       expect(result).toEqual({
         nextMatchNumber: 8,
-        position: 2
+        position: 2,
       });
     });
 
@@ -322,7 +331,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 3, false);
       expect(result).toEqual({
         nextMatchNumber: 9,
-        position: 1
+        position: 1,
       });
     });
 
@@ -330,7 +339,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 4, false);
       expect(result).toEqual({
         nextMatchNumber: 9,
-        position: 2
+        position: 2,
       });
     });
 
@@ -338,7 +347,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 5, false);
       expect(result).toEqual({
         nextMatchNumber: 12,
-        position: 1
+        position: 1,
       });
     });
 
@@ -346,7 +355,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 6, false);
       expect(result).toEqual({
         nextMatchNumber: 13,
-        position: 1
+        position: 1,
       });
     });
 
@@ -354,7 +363,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 7, false);
       expect(result).toEqual({
         nextMatchNumber: 15,
-        position: 2
+        position: 2,
       });
     });
 
@@ -364,14 +373,18 @@ describe('Double Elimination Bracket Structure', () => {
     });
 
     it('should use a nullish loserPosition fallback when the shared field is absent', () => {
-      const result = getNextMatchInfo([
-        {
-          matchNumber: 1,
-          round: 'winners_qf',
-          bracket: 'winners',
-          loserGoesTo: 8,
-        },
-      ], 1, false);
+      const result = getNextMatchInfo(
+        [
+          {
+            matchNumber: 1,
+            round: 'winners_qf',
+            bracket: 'winners',
+            loserGoesTo: 8,
+          },
+        ],
+        1,
+        false,
+      );
 
       expect(result).toEqual({
         nextMatchNumber: 8,
@@ -395,9 +408,14 @@ describe('Double Elimination Bracket Structure', () => {
   /**
    * Pre-Bracket Playoff (a.k.a. "barrage") — Top 24 → Top 16.
    *
-   * Resolves issue #454. 12 entrants from qualification positions 13-24
-   * compete in a single-elimination tournament whose 4 winners fill
-   * Upper-Bracket barrage slots. Top 4 playoff seeds receive a Round 1 BYE.
+   * Resolves issue #454. 12 entrants holding real overall seeds 13-24 compete
+   * in a single-elimination tournament whose 4 winners fill Upper-Bracket
+   * seeds 13-16. Seeds 13-16 (the 4 strongest barrage entrants) receive a
+   * Round 1 BYE; seeds 17-24 play a standard 5v12/6v11/7v10/8v9 shaped R1
+   * within the 12-entrant pool. A bye winner keeps their own seed number when
+   * advancing (e.g. seed 13 stays seed 13 in the Upper Bracket) — verified
+   * directly against the CDM 2025 results workbook (Jarmou: seed 13 bye, won
+   * their R2 match, entered the Upper Bracket still as seed 13).
    */
   describe('generatePlayoffStructure', () => {
     it('should generate 8 matches for 12 entrants (4 R1 + 4 R2, top 4 BYE)', () => {
@@ -413,79 +431,75 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should split matches into playoff_r1 (4) and playoff_r2 (4)', () => {
       const matches = generatePlayoffStructure(12);
-      const r1 = matches.filter(m => m.round === 'playoff_r1');
-      const r2 = matches.filter(m => m.round === 'playoff_r2');
+      const r1 = matches.filter((m) => m.round === 'playoff_r1');
+      const r2 = matches.filter((m) => m.round === 'playoff_r2');
       expect(r1).toHaveLength(4);
       expect(r2).toHaveLength(4);
     });
 
-    it('should pair cross-group seeds in R1 (A12vB11, A10vB9, A9vB10, A11vB12)', () => {
-      /* Cross-group pairing for 2-group qualification.
-       * barrage[] = [A7,B7,A8,B8,A9,B9,A10,B10,A11,B11,A12,B12]
-       *             seed 1, 2, 3, 4, 5, 6,  7,  8,  9, 10, 11, 12 */
+    it('should pair real seeds 17-24 in R1 as standard 5v12/6v11/7v10/8v9 within the barrage pool', () => {
+      /* Verified against the CDM 2025 results workbook "Barrage 1" block:
+       * B1,1 = seed17 vs seed24; B1,2 = seed20 vs seed21;
+       * B1,3 = seed18 vs seed23; B1,4 = seed19 vs seed22. */
       const matches = generatePlayoffStructure(12);
-      const r1 = matches.filter(m => m.round === 'playoff_r1');
-      const pairings = r1.map(m => [m.player1Seed, m.player2Seed]);
+      const r1 = matches.filter((m) => m.round === 'playoff_r1');
+      const pairings = r1.map((m) => [m.player1Seed, m.player2Seed]);
       expect(pairings).toEqual([
-        [11, 10], // A12 vs B11
-        [7, 6],   // A10 vs B9
-        [5, 8],   // A9 vs B10
-        [9, 12],  // A11 vs B12
+        [17, 24],
+        [20, 21],
+        [18, 23],
+        [19, 22],
       ]);
     });
 
-    it('should set the BYE seeds (1-4) as player1 on R2 matches', () => {
+    it('should set the real BYE seeds (13/14/15/16) as player1 on R2 matches', () => {
+      /* Verified against the CDM 2025 results workbook "Barrage 2" block order:
+       * R2 M5: seed16 vs R1 M1 (17v24) winner
+       * R2 M6: seed13 vs R1 M2 (20v21) winner
+       * R2 M7: seed15 vs R1 M3 (18v23) winner
+       * R2 M8: seed14 vs R1 M4 (19v22) winner */
       const matches = generatePlayoffStructure(12);
-      const r2 = matches.filter(m => m.round === 'playoff_r2');
-      /* R2 match order mirrors R1 feeder order.
-       * R2 M5: seed 1 (A7)  vs R1 M1 (A12 vs B11) winner
-       * R2 M6: seed 4 (B8)  vs R1 M2 (A10 vs B9) winner
-       * R2 M7: seed 3 (A8)  vs R1 M3 (A9 vs B10) winner
-       * R2 M8: seed 2 (B7)  vs R1 M4 (A11 vs B12) winner */
-      expect(r2[0].player1Seed).toBe(1); // A7
-      expect(r2[1].player1Seed).toBe(4); // B8
-      expect(r2[2].player1Seed).toBe(3); // A8
-      expect(r2[3].player1Seed).toBe(2); // B7
+      const r2 = matches.filter((m) => m.round === 'playoff_r2');
+      expect(r2.map((m) => m.player1Seed)).toEqual([16, 13, 15, 14]);
       /* player2 on each R2 match is filled by an R1 winner, not a direct seed. */
-      r2.forEach(m => expect(m.player2Seed).toBeUndefined());
+      r2.forEach((m) => expect(m.player2Seed).toBeUndefined());
     });
 
     it('should route R1 winners to their corresponding R2 match at position 2', () => {
       const matches = generatePlayoffStructure(12);
-      const r1 = matches.filter(m => m.round === 'playoff_r1');
+      const r1 = matches.filter((m) => m.round === 'playoff_r1');
       /* R1 matches 1-4 → R2 matches 5-8 respectively */
       expect(r1[0].winnerGoesTo).toBe(5);
       expect(r1[1].winnerGoesTo).toBe(6);
       expect(r1[2].winnerGoesTo).toBe(7);
       expect(r1[3].winnerGoesTo).toBe(8);
-      r1.forEach(m => expect(m.position).toBe(2));
+      r1.forEach((m) => expect(m.position).toBe(2));
     });
 
     it('should eliminate R1 losers (no loserGoesTo)', () => {
       const matches = generatePlayoffStructure(12);
-      const r1 = matches.filter(m => m.round === 'playoff_r1');
+      const r1 = matches.filter((m) => m.round === 'playoff_r1');
       /* Single-elimination: one loss eliminates. No drop-down destination. */
-      r1.forEach(m => expect(m.loserGoesTo).toBeUndefined());
+      r1.forEach((m) => expect(m.loserGoesTo).toBeUndefined());
     });
 
-    it('should assign the Upper-Bracket barrage slots to R2 winners', () => {
-      /* Upper R1 pairings are [1,16], [8,9], [5,12], [4,13],
-       * [3,14], [6,11], [7,10], [2,15]. The paper layout places barrage
-       * winners in seeds 16, 12, 14, and 10. */
+    it('should assign the Upper-Bracket barrage slot identical to the bye winner seed', () => {
+      /* A barrage bye winner keeps their own seed number in the Upper Bracket
+       * (verified: Jarmou stayed seed 13, Leyla stayed seed 14 in the CDM 2025
+       * results). advancesToUpperSeed is therefore just the bye's own seed —
+       * no remapping to a different slot number. */
       const matches = generatePlayoffStructure(12);
-      const r2 = matches.filter(m => m.round === 'playoff_r2');
-      expect(r2[0].advancesToUpperSeed).toBe(16);
-      expect(r2[1].advancesToUpperSeed).toBe(12);
-      expect(r2[2].advancesToUpperSeed).toBe(14);
-      expect(r2[3].advancesToUpperSeed).toBe(10);
+      const r2 = matches.filter((m) => m.round === 'playoff_r2');
+      expect(r2.map((m) => m.advancesToUpperSeed)).toEqual(r2.map((m) => m.player1Seed));
+      expect(r2.map((m) => m.advancesToUpperSeed)).toEqual([16, 13, 15, 14]);
     });
 
     it('should not route R2 winners via winnerGoesTo (handled at upper-bracket level)', () => {
       const matches = generatePlayoffStructure(12);
-      const r2 = matches.filter(m => m.round === 'playoff_r2');
+      const r2 = matches.filter((m) => m.round === 'playoff_r2');
       /* R2 is the terminal round for the playoff stage. Cross-stage routing to
        * the Upper Bracket uses advancesToUpperSeed, not winnerGoesTo. */
-      r2.forEach(m => {
+      r2.forEach((m) => {
         expect(m.winnerGoesTo).toBeUndefined();
         expect(m.loserGoesTo).toBeUndefined();
       });
@@ -493,7 +507,7 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should number matches 1-8 sequentially', () => {
       const matches = generatePlayoffStructure(12);
-      expect(matches.map(m => m.matchNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(matches.map((m) => m.matchNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     });
   });
 
@@ -556,9 +570,7 @@ describe('Double Elimination Bracket Structure', () => {
       const matches16 = generateBracketStructure(16);
 
       expect(
-        matches16
-          .filter((m) => m.round === 'winners_qf')
-          .map((m) => [m.matchNumber, m.loserGoesTo, m.loserPosition]),
+        matches16.filter((m) => m.round === 'winners_qf').map((m) => [m.matchNumber, m.loserGoesTo, m.loserPosition]),
       ).toEqual([
         [9, 23, 1],
         [10, 22, 1],
@@ -581,14 +593,8 @@ describe('Double Elimination Bracket Structure', () => {
     it('should pair two-group LR2 matches from both source rounds in the requested order', () => {
       const matches16 = generateBracketStructure(16);
 
-      expect(matches16
-        .filter((m) => m.round === 'winners_qf')
-        .map((m) => m.loserGoesTo),
-      ).toEqual([23, 22, 21, 20]);
-      expect(matches16
-        .filter((m) => m.round === 'losers_r1')
-        .map((m) => m.winnerGoesTo),
-      ).toEqual([20, 21, 22, 23]);
+      expect(matches16.filter((m) => m.round === 'winners_qf').map((m) => m.loserGoesTo)).toEqual([23, 22, 21, 20]);
+      expect(matches16.filter((m) => m.round === 'losers_r1').map((m) => m.winnerGoesTo)).toEqual([20, 21, 22, 23]);
     });
   });
 
@@ -622,10 +628,10 @@ describe('Double Elimination Bracket Structure', () => {
         'losers_sf',
         'losers_final',
         'grand_final',
-        'grand_final_reset'
+        'grand_final_reset',
       ];
 
-      expectedRounds.forEach(round => {
+      expectedRounds.forEach((round) => {
         expect(roundNames[round]).toBeDefined();
         expect(typeof roundNames[round]).toBe('string');
       });

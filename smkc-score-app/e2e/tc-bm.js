@@ -26,12 +26,13 @@
  *   TC-532  BM qualification standings show 0-1000 qualification points
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *   TC-3009 BM combined standings ranks same-bucket entrants by WDL score then point differential
- *   TC-535  BM Top-24 playoff seed labels use group-rank labels
+ *   TC-535  BM Top-24 playoff/finals seed display prefers the numeric seed over group-rank labels
  *   TC-1010 BM 16-player finals uses rankOverride seeding and standard points
  *   TC-1046 BM Top-24 preview uses a qualifier-count constant, not barrage count
  *   TC-1622 BM Top-24 28-to-23 reseed replaces qualification entries
- *   TC-1051 BM Top-24 direct-seed API no longer depends on legacy direct[]
+ *   TC-1051 BM Top-24 direct/barrage-seed API no longer depends on legacy direct[]/barrage[]
  *   TC-1052 BM Top-24 rejects unsupported 3-group seeding
+ *   TC-3026 BM cross-group sudden-death playoff result (combinedRankOverride) can be cleared
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -47,11 +48,18 @@
  * Run: node e2e/tc-bm.js  (from smkc-score-app/)  or:  npm run e2e:bm
  */
 const {
-  makeResults, makeLog, nav, escapeRegex,
+  makeResults,
+  makeLog,
+  nav,
+  escapeRegex,
   matchUpdateUsesLeanPayload,
-  apiFetchBm, apiPutBmQualScore,
+  apiFetchBm,
+  apiPutBmQualScore,
   apiSetupBmGroup,
-  apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches, apiFetchBmFinalsState,
+  apiSetBmFinalsScore,
+  apiGenerateBmFinals,
+  apiFetchBmFinalsMatches,
+  apiFetchBmFinalsState,
   apiPutAllBmQualScores,
   apiUpdateTournament,
   loginPlayerBrowser,
@@ -87,7 +95,10 @@ async function loginSharedPlayer(adminPage, player) {
 }
 
 async function readBodyText(page) {
-  return page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+  return page
+    .locator('body')
+    .innerText({ timeout: 5_000 })
+    .catch(() => '');
 }
 
 async function waitForBmMatchGuidance(page, labels, contextLabel) {
@@ -99,7 +110,8 @@ async function waitForBmMatchGuidance(page, labels, contextLabel) {
      * and preview D1 cold starts can leave useSession() in "loading" longer than
      * ordinary UI waits; a single shared timeout keeps all three session branches
      * consistent while still failing fast enough for the suite. */
-    await page.locator('body')
+    await page
+      .locator('body')
       .filter({ hasText: guidanceTextPattern })
       .waitFor({ timeout: BM_MATCH_GUIDANCE_TIMEOUT_MS });
   } catch (err) {
@@ -108,7 +120,7 @@ async function waitForBmMatchGuidance(page, labels, contextLabel) {
     const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
     throw new Error(
       `${contextLabel} guidance did not appear within ${BM_MATCH_GUIDANCE_TIMEOUT_MS}ms; ` +
-      `url=${page.url()}; readyState=${readyState}; body="${body}"; cause=${reason}`,
+        `url=${page.url()}; readyState=${readyState}; body="${body}"; cause=${reason}`,
     );
   }
 
@@ -118,12 +130,8 @@ async function waitForBmMatchGuidance(page, labels, contextLabel) {
 async function prepareSharedBmPair(adminPage, { dualReport = false } = {}) {
   if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
 
-  const players = dualReport
-    ? sharedFixture.players.slice(2, 4)
-    : sharedFixture.players.slice(0, 2);
-  const tournament = dualReport
-    ? sharedFixture.dualTournament
-    : sharedFixture.normalTournament;
+  const players = dualReport ? sharedFixture.players.slice(2, 4) : sharedFixture.players.slice(0, 2);
+  const tournament = dualReport ? sharedFixture.dualTournament : sharedFixture.normalTournament;
 
   /* The shared fixture tournament persists across suite invocations.
    * If a previous run left qualificationConfirmed=true, score PUTs are
@@ -180,6 +188,17 @@ async function prepareSharedBmFinalsSetup(adminPage) {
   };
 }
 
+/*
+ * Mirrors selectFinalsEntrantsByGroup()'s bucket-stacked, contiguous seeding
+ * (src/lib/finals-group-selection.ts) for the 2-group case: direct seeds
+ * 1-12 = each group's rank1..6 interleaved (A1,B1,A2,B2,...); barrage seeds
+ * 13-24 = each group's rank7..12 interleaved the same way. Same-bucket ties
+ * (both groups' k-th-ranked entrant) sort by WDL score desc -> points desc,
+ * falling back to group order (A before B) when fully tied -- this replaced
+ * a hand-designed anti-collision paper layout that was never validated
+ * against a real event and did not match the CDM 2025 official results
+ * (see the module doc comment on finals-group-selection.ts).
+ */
 function expectedTwoGroupPaperSeedIds(qualifications) {
   const withIndex = (qualifications || []).map((q, index) => ({ ...q, __index: index }));
   const byGroup = new Map();
@@ -194,70 +213,78 @@ function expectedTwoGroupPaperSeedIds(qualifications) {
     throw new Error(`TC-510 expected 2 qualification groups, found ${[...byGroup.keys()].join(',')}`);
   }
 
-  const rankOf = (q) => typeof q._rank === 'number'
-    ? q._rank
-    : (typeof q.rankOverride === 'number' ? q.rankOverride : Number.POSITIVE_INFINITY);
+  const rankOf = (q) =>
+    typeof q._rank === 'number'
+      ? q._rank
+      : typeof q.rankOverride === 'number'
+        ? q.rankOverride
+        : Number.POSITIVE_INFINITY;
 
   const buckets = groups.map((group) => ({
     group,
-    entries: [...byGroup.get(group)].sort((a, b) =>
-      rankOf(a) - rankOf(b) ||
-      b.score - a.score ||
-      b.points - a.points ||
-      a.__index - b.__index,
+    entries: [...byGroup.get(group)].sort(
+      (a, b) => rankOf(a) - rankOf(b) || b.score - a.score || b.points - a.points || a.__index - b.__index,
     ),
   }));
 
   for (const bucket of buckets) {
     if (bucket.entries.length < 12) {
-      throw new Error(`TC-510 expected at least 12 qualifiers in group ${bucket.group}, found ${bucket.entries.length}`);
+      throw new Error(
+        `TC-510 expected at least 12 qualifiers in group ${bucket.group}, found ${bucket.entries.length}`,
+      );
     }
   }
 
-  const playerIdForToken = (token) => {
-    const groupIndex = token[0] === 'A' ? 0 : 1;
-    const rank = Number(token.slice(1));
-    return buckets[groupIndex].entries[rank - 1]?.playerId;
-  };
+  const labelFor = (bucketIndex, entry) => `${buckets[bucketIndex].group}${entry.__bucketRank}`;
 
-  const directTokensByUpperSeed = [
-    [1, 'A1'],
-    [2, 'B3'],
-    [3, 'B1'],
-    [4, 'A3'],
-    [5, 'B2'],
-    [6, 'A4'],
-    [7, 'A2'],
-    [8, 'B4'],
-    [9, 'A5'],
-    [11, 'B5'],
-    [13, 'B6'],
-    [15, 'A6'],
-  ];
-  const barrageTokensBySeed = [
-    'B8', 'B7', 'A8', 'A7',
-    'B9', 'A11', 'B10', 'A12',
-    'A10', 'B12', 'A9', 'B11',
+  // Stamp each entry with its 1-based within-group bucket rank up front so
+  // labelFor can look it up after the cross-group sort below reorders them.
+  buckets.forEach((bucket) => {
+    bucket.entries.forEach((entry, i) => {
+      entry.__bucketRank = i + 1;
+    });
+  });
+
+  const stackBucket = (k) =>
+    buckets
+      .map((bucket, bucketIndex) => ({ entry: bucket.entries[k], bucketIndex }))
+      .sort((a, b) => b.entry.score - a.entry.score || b.entry.points - a.entry.points);
+
+  const PER_GROUP = 6;
+  const direct = [];
+  for (let k = 0; k < PER_GROUP; k++) direct.push(...stackBucket(k));
+  const barrage = [];
+  for (let k = PER_GROUP; k < PER_GROUP * 2; k++) barrage.push(...stackBucket(k));
+
+  const directSeeds = direct.map(({ entry, bucketIndex }, index) => ({
+    seed: index + 1,
+    playerId: entry.playerId,
+    qualificationRankLabel: labelFor(bucketIndex, entry),
+  }));
+  const barrageSeeds = barrage.map(({ entry, bucketIndex }, index) => ({
+    seed: 13 + index,
+    playerId: entry.playerId,
+    qualificationRankLabel: labelFor(bucketIndex, entry),
+  }));
+
+  // Barrage bracket: generatePlayoffStructure() (double-elimination.ts) pairs
+  // R1 matchNumbers 1-4 as real seeds [17,24],[20,21],[18,23],[19,22] (local
+  // pool ranks [5,12],[8,9],[6,11],[7,10], where local rank = real seed - 12),
+  // each routing its winner into R2 matchNumbers 5-8 respectively, whose BYE
+  // seeds are real [16,13,15,14] (local [4,1,3,2]) in that exact order.
+  const byPlayoffLocalRank = new Map(barrageSeeds.map((s, i) => [i + 1, s.playerId]));
+  const barrageBlocks = [
+    [byPlayoffLocalRank.get(5), byPlayoffLocalRank.get(12), byPlayoffLocalRank.get(4)],
+    [byPlayoffLocalRank.get(8), byPlayoffLocalRank.get(9), byPlayoffLocalRank.get(1)],
+    [byPlayoffLocalRank.get(6), byPlayoffLocalRank.get(11), byPlayoffLocalRank.get(3)],
+    [byPlayoffLocalRank.get(7), byPlayoffLocalRank.get(10), byPlayoffLocalRank.get(2)],
   ];
 
   return {
-    directSeeds: directTokensByUpperSeed.map(([seed, token]) => ({
-      seed,
-      playerId: playerIdForToken(token),
-      qualificationRankLabel: token,
-    })),
-    barrage: barrageTokensBySeed.map(playerIdForToken),
-    barrageSeeds: barrageTokensBySeed.map((token, index) => ({
-      seed: index + 1,
-      playerId: playerIdForToken(token),
-      qualificationRankLabel: token,
-    })),
-    barrageBlocks: [
-      ['A9', 'B12', 'B8'],
-      ['B10', 'A11', 'A7'],
-      ['B9', 'A12', 'A8'],
-      ['A10', 'B11', 'B7'],
-    ].map((block) => block.map(playerIdForToken)),
+    directSeeds,
+    barrageSeeds,
+    barrage: barrageSeeds.map((s) => s.playerId),
+    barrageBlocks,
   };
 }
 
@@ -285,8 +312,11 @@ async function runTc501(adminPage) {
     const after = await apiFetchBm(adminPage, tournamentId);
     const updated = (after.matches || []).find((m) => m.id === match.id);
     const ok = updated?.completed === true && updated.score1 === 3 && updated.score2 === 1;
-    log('TC-501', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `completed=${updated?.completed} score=${updated?.score1}-${updated?.score2}`);
+    log(
+      'TC-501',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `completed=${updated?.completed} score=${updated?.score1}-${updated?.score2}`,
+    );
   } catch (err) {
     log('TC-501', 'FAIL', err instanceof Error ? err.message : 'BM 501 failed');
   } finally {
@@ -321,10 +351,15 @@ async function runTc502(adminPage) {
     const after = await apiFetchBm(adminPage, tournamentId);
     const updated = (after.matches || []).find((m) => m.id === match.id);
     const ok = enabledBefore && updated?.completed === true && updated.score1 === 2 && updated.score2 === 2;
-    log('TC-502', ok ? 'PASS' : 'FAIL',
-      ok ? '' :
-      !enabledBefore ? 'Submit button disabled — 2-2 should be valid per §4.1'
-      : `completed=${updated?.completed} score=${updated?.score1}-${updated?.score2}`);
+    log(
+      'TC-502',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : !enabledBefore
+          ? 'Submit button disabled — 2-2 should be valid per §4.1'
+          : `completed=${updated?.completed} score=${updated?.score1}-${updated?.score2}`,
+    );
   } catch (err) {
     log('TC-502', 'FAIL', err instanceof Error ? err.message : 'BM 502 failed');
   } finally {
@@ -357,10 +392,14 @@ async function runTc322(adminPage) {
     playerPage.once('dialog', (d) => d.accept());
     await playerPage.getByRole('button', { name: /スコア送信|Submit Scores/ }).click();
     /* Wait for correction affordance (= match completed and re-rendered). */
-    await playerPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return text.includes('スコアを修正') || text.includes('Correct Score');
-    }, null, { timeout: 15000 });
+    await playerPage.waitForFunction(
+      () => {
+        const text = document.body.innerText;
+        return text.includes('スコアを修正') || text.includes('Correct Score');
+      },
+      null,
+      { timeout: 15000 },
+    );
 
     /* Open correction UI and flip to 2-2. */
     await playerPage.getByRole('button', { name: /スコアを修正|Correct Score/ }).click();
@@ -373,15 +412,17 @@ async function runTc322(adminPage) {
 
     const correctedBm = await apiFetchBm(adminPage, tournamentId);
     const correctedMatch = (correctedBm.matches || []).find((m) => m.id === match.id);
-    const ok =
-      correctedMatch?.completed === true &&
-      correctedMatch.score1 === 2 &&
-      correctedMatch.score2 === 2;
+    const ok = correctedMatch?.completed === true && correctedMatch.score1 === 2 && correctedMatch.score2 === 2;
 
-    log('TC-322', ok ? 'PASS' : 'FAIL',
-      ok ? '' :
-      !correctedMatch ? 'Corrected match not found'
-      : `completed=${correctedMatch.completed} score=${correctedMatch.score1}-${correctedMatch.score2}`);
+    log(
+      'TC-322',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : !correctedMatch
+          ? 'Corrected match not found'
+          : `completed=${correctedMatch.completed} score=${correctedMatch.score1}-${correctedMatch.score2}`,
+    );
   } catch (err) {
     log('TC-322', 'FAIL', err instanceof Error ? err.message : 'BM correction flow failed');
   } finally {
@@ -402,25 +443,13 @@ async function runTc511(adminPage) {
 
   try {
     const stamp = Date.now();
-    const player1 = await uiCreatePlayer(
-      adminPage,
-      `E2E BM NoSlug P1 ${stamp}`,
-      `e2e_bm_noslug_p1_${stamp}`,
-    );
-    const player2 = await uiCreatePlayer(
-      adminPage,
-      `E2E BM NoSlug P2 ${stamp}`,
-      `e2e_bm_noslug_p2_${stamp}`,
-    );
+    const player1 = await uiCreatePlayer(adminPage, `E2E BM NoSlug P1 ${stamp}`, `e2e_bm_noslug_p1_${stamp}`);
+    const player2 = await uiCreatePlayer(adminPage, `E2E BM NoSlug P2 ${stamp}`, `e2e_bm_noslug_p2_${stamp}`);
     player1Id = player1.id;
     player2Id = player2.id;
 
     /* Intentionally omit `slug` so the tournament is reachable only by id. */
-    tournamentId = await uiCreateTournament(
-      adminPage,
-      `E2E BM NoSlug ${stamp}`,
-      { dualReportEnabled: false },
-    );
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM NoSlug ${stamp}`, { dualReportEnabled: false });
     await uiActivateTournament(adminPage, tournamentId);
 
     await setupModePlayersViaUi(adminPage, 'bm', tournamentId, [
@@ -435,24 +464,24 @@ async function runTc511(adminPage) {
     await nav(adminPage, `/tournaments/${tournamentId}/bm`);
     await adminPage.getByRole('tab', { name: /試合一覧|Matches/ }).click();
     await adminPage.locator(`a[href="/tournaments/${tournamentId}/bm/match/${match.id}"]`).first().click();
-    await adminPage.waitForURL(
-      (url) => url.pathname === `/tournaments/${tournamentId}/bm/match/${match.id}`,
-      { timeout: 15000 },
-    );
+    await adminPage.waitForURL((url) => url.pathname === `/tournaments/${tournamentId}/bm/match/${match.id}`, {
+      timeout: 15000,
+    });
     await adminPage.waitForTimeout(2000);
 
     const pageText = await adminPage.locator('body').innerText();
-    const showsPlayers =
-      pageText.includes(match.player1.nickname) &&
-      pageText.includes(match.player2.nickname);
-    const notFoundShown =
-      pageText.includes('試合が見つかりません') ||
-      pageText.includes('Match not found');
+    const showsPlayers = pageText.includes(match.player1.nickname) && pageText.includes(match.player2.nickname);
+    const notFoundShown = pageText.includes('試合が見つかりません') || pageText.includes('Match not found');
 
-    log('TC-511', showsPlayers && !notFoundShown ? 'PASS' : 'FAIL',
-      !showsPlayers ? 'Match detail did not render both player nicknames from id URL'
-      : notFoundShown ? 'Id-based match detail showed not-found state'
-      : '');
+    log(
+      'TC-511',
+      showsPlayers && !notFoundShown ? 'PASS' : 'FAIL',
+      !showsPlayers
+        ? 'Match detail did not render both player nicknames from id URL'
+        : notFoundShown
+          ? 'Id-based match detail showed not-found state'
+          : '',
+    );
   } catch (err) {
     log('TC-511', 'FAIL', err instanceof Error ? err.message : 'BM no-slug match detail test failed');
   } finally {
@@ -479,40 +508,52 @@ async function runTc512(adminPage) {
     if (!match) throw new Error('No non-BYE match found for TC-512');
 
     /* PATCH with tvNumber=4 — must return 200 */
-    const ok4 = await adminPage.evaluate(async ([tid, mid]) => {
-      const r = await fetch(`/api/tournaments/${tid}/bm`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: mid, tvNumber: 4 }),
-      });
-      return r.status;
-    }, [tournamentId, match.id]);
+    const ok4 = await adminPage.evaluate(
+      async ([tid, mid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: mid, tvNumber: 4 }),
+        });
+        return r.status;
+      },
+      [tournamentId, match.id],
+    );
 
     /* PATCH with tvNumber=5 — must return 400 (handleValidationError returns
      * HTTP 400 with code=VALIDATION_ERROR; older comments said 422 but the
      * factory in src/lib/error-handling.ts has always emitted 400). */
-    const bad5 = await adminPage.evaluate(async ([tid, mid]) => {
-      const r = await fetch(`/api/tournaments/${tid}/bm`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: mid, tvNumber: 5 }),
-      });
-      return r.status;
-    }, [tournamentId, match.id]);
+    const bad5 = await adminPage.evaluate(
+      async ([tid, mid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: mid, tvNumber: 5 }),
+        });
+        return r.status;
+      },
+      [tournamentId, match.id],
+    );
 
     /* PATCH with tvNumber=null — must return 200 (clear TV) */
-    const okNull = await adminPage.evaluate(async ([tid, mid]) => {
-      const r = await fetch(`/api/tournaments/${tid}/bm`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: mid, tvNumber: null }),
-      });
-      return r.status;
-    }, [tournamentId, match.id]);
+    const okNull = await adminPage.evaluate(
+      async ([tid, mid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: mid, tvNumber: null }),
+        });
+        return r.status;
+      },
+      [tournamentId, match.id],
+    );
 
     const pass = ok4 === 200 && bad5 === 400 && okNull === 200;
-    log('TC-512', pass ? 'PASS' : 'FAIL',
-      !pass ? `tvNumber=4 → ${ok4}, tvNumber=5 → ${bad5}, tvNumber=null → ${okNull}` : '');
+    log(
+      'TC-512',
+      pass ? 'PASS' : 'FAIL',
+      !pass ? `tvNumber=4 → ${ok4}, tvNumber=5 → ${bad5}, tvNumber=null → ${okNull}` : '',
+    );
   } catch (err) {
     log('TC-512', 'FAIL', err instanceof Error ? err.message : 'TC-512 TV assignment test failed');
   }
@@ -571,8 +612,8 @@ async function runTc513(adminPage) {
       if (anonContext) await anonContext.close().catch(() => {});
       if (anonBrowser) await anonBrowser.close().catch(() => {});
     }
-    const anonHasPrompt = anonText.includes('Sign in to report scores')
-      || anonText.includes('スコアを報告するにはログインしてください');
+    const anonHasPrompt =
+      anonText.includes('Sign in to report scores') || anonText.includes('スコアを報告するにはログインしてください');
 
     /* 2. Authenticated admin (persistent profile) sees admin guidance CTA
      * (commit 05b0625: separate admin branch linking to /bm page). */
@@ -585,9 +626,7 @@ async function runTc513(adminPage) {
     const adminHasGuidance =
       adminText.includes('Admins can view this shared page') ||
       adminText.includes('管理者はこの共有ページを閲覧できます');
-    const adminHasButton =
-      adminText.includes('Open score entry page') ||
-      adminText.includes('スコア入力ページを開く');
+    const adminHasButton = adminText.includes('Open score entry page') || adminText.includes('スコア入力ページを開く');
 
     /* 3. Authenticated player sees score entry guidance + button.
      *  loginPlayerBrowser returns `{ browser, context, page }` — destructure
@@ -599,15 +638,18 @@ async function runTc513(adminPage) {
     let playerText = '';
     let playerHasButton = false;
     try {
-      ({ browser: playerBrowser, page: playerPage } =
-        await loginPlayerBrowser(player1.nickname, player1.password));
+      ({ browser: playerBrowser, page: playerPage } = await loginPlayerBrowser(player1.nickname, player1.password));
       await playerPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
       playerText = await waitForBmMatchGuidance(
         playerPage,
         ['Score entry is on the participant page', 'スコア入力は参加者ページで行えます'],
         'TC-513 player',
       );
-      playerHasButton = await playerPage.locator('a').filter({ hasText: /Go to Score Entry|スコア入力へ/ }).count() > 0;
+      playerHasButton =
+        (await playerPage
+          .locator('a')
+          .filter({ hasText: /Go to Score Entry|スコア入力へ/ })
+          .count()) > 0;
     } finally {
       if (playerBrowser) await playerBrowser.close().catch(() => {});
     }
@@ -616,13 +658,21 @@ async function runTc513(adminPage) {
       playerText.includes('スコア入力は参加者ページで行えます');
 
     const ok = anonHasPrompt && adminHasGuidance && adminHasButton && playerHasGuidance && playerHasButton;
-    log('TC-513', ok ? 'PASS' : 'FAIL',
-      !anonHasPrompt ? `anon missing sign-in prompt: ${anonText.replace(/\s+/g, ' ').slice(0, 240)}`
-      : !adminHasGuidance ? 'admin missing guidance text'
-      : !adminHasButton ? 'admin missing score-entry link button'
-      : !playerHasGuidance ? 'player missing guidance'
-      : !playerHasButton ? 'player missing button'
-      : '');
+    log(
+      'TC-513',
+      ok ? 'PASS' : 'FAIL',
+      !anonHasPrompt
+        ? `anon missing sign-in prompt: ${anonText.replace(/\s+/g, ' ').slice(0, 240)}`
+        : !adminHasGuidance
+          ? 'admin missing guidance text'
+          : !adminHasButton
+            ? 'admin missing score-entry link button'
+            : !playerHasGuidance
+              ? 'player missing guidance'
+              : !playerHasButton
+                ? 'player missing button'
+                : '',
+    );
   } catch (err) {
     log('TC-513', 'FAIL', err instanceof Error ? err.message : 'TC-513 failed');
   } finally {
@@ -666,14 +716,23 @@ async function runTc503(adminPage) {
     const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
 
     const qualificationPointsOk = qualificationPoints.length >= 28;
-    const ok = qualificationPointsOk && bracketCount && firstToFiveRejected && scoreSaved && winnerRouted && loserRouted;
-    log('TC-503', ok ? 'PASS' : 'FAIL',
-      !qualificationPointsOk ? `qualification points rows=${qualificationPoints.length} expected>=28`
-      : !bracketCount ? `bracket size=${after.length} (expected 17)`
-      : !firstToFiveRejected ? `3-0 not rejected (status=${reject.s})`
-      : !scoreSaved ? `score not saved: ${updated?.score1}-${updated?.score2} completed=${updated?.completed}`
-      : !winnerRouted || !loserRouted ? `routing mismatch w=${winnerRouted} l=${loserRouted}`
-      : '');
+    const ok =
+      qualificationPointsOk && bracketCount && firstToFiveRejected && scoreSaved && winnerRouted && loserRouted;
+    log(
+      'TC-503',
+      ok ? 'PASS' : 'FAIL',
+      !qualificationPointsOk
+        ? `qualification points rows=${qualificationPoints.length} expected>=28`
+        : !bracketCount
+          ? `bracket size=${after.length} (expected 17)`
+          : !firstToFiveRejected
+            ? `3-0 not rejected (status=${reject.s})`
+            : !scoreSaved
+              ? `score not saved: ${updated?.score1}-${updated?.score2} completed=${updated?.completed}`
+              : !winnerRouted || !loserRouted
+                ? `routing mismatch w=${winnerRouted} l=${loserRouted}`
+                : '',
+    );
   } catch (err) {
     log('TC-503', 'FAIL', err instanceof Error ? err.message : 'BM 503 failed');
   } finally {
@@ -690,8 +749,7 @@ async function runTc533(adminPage) {
     setup = await prepareSharedBmFinalsSetup(adminPage);
     const ranks = await assertCombinedStandingsTab(adminPage, 'bm', setup.tournamentId);
     const ok = ranks.length >= 28;
-    log('TC-533', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
+    log('TC-533', ok ? 'PASS' : 'FAIL', ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
   } catch (err) {
     log('TC-533', 'FAIL', err instanceof Error ? err.message : 'BM 533 failed');
   } finally {
@@ -720,19 +778,23 @@ async function runTc3009(adminPage) {
 
     const setup = await apiFetchBm(adminPage, tournamentId);
     const qualifications = setup.qualifications || [];
-    const groups = new Map(['A', 'B'].map((group) => [
-      group,
-      qualifications
-        .filter((qualification) => qualification.group === group)
-        .sort((a, b) => Number(a.seeding) - Number(b.seeding)),
-    ]));
+    const groups = new Map(
+      ['A', 'B'].map((group) => [
+        group,
+        qualifications
+          .filter((qualification) => qualification.group === group)
+          .sort((a, b) => Number(a.seeding) - Number(b.seeding)),
+      ]),
+    );
     const groupA = groups.get('A') || [];
     const groupB = groups.get('B') || [];
     if (groupA.length !== 4 || groupB.length !== 4) {
       throw new Error(`expected two groups of four, got A=${groupA.length} B=${groupB.length}`);
     }
 
-    const groupForPlayer = new Map(qualifications.map((qualification) => [qualification.playerId, qualification.group]));
+    const groupForPlayer = new Map(
+      qualifications.map((qualification) => [qualification.playerId, qualification.group]),
+    );
     const rankForPlayer = new Map([
       ...groupA.map((qualification, index) => [qualification.playerId, index]),
       ...groupB.map((qualification, index) => [qualification.playerId, index]),
@@ -772,19 +834,19 @@ async function runTc3009(adminPage) {
       throw new Error(`expected B4 score > A4, got B4=${bFourth?.score} A4=${aFourth?.score}`);
     }
 
-    const { rowTexts: renderedRows } = await assertCombinedStandingsTab(
-      adminPage,
-      'bm',
-      tournamentId,
-      { includeRowTexts: true },
-    );
+    const { rowTexts: renderedRows } = await assertCombinedStandingsTab(adminPage, 'bm', tournamentId, {
+      includeRowTexts: true,
+    });
     const aFourthNickname = nicknameForPlayer.get(groupA[3].playerId);
     const bFourthNickname = nicknameForPlayer.get(groupB[3].playerId);
     const aFourthIndex = renderedRows.findIndex((row) => row.includes(aFourthNickname));
     const bFourthIndex = renderedRows.findIndex((row) => row.includes(bFourthNickname));
     const ok = aFourthIndex >= 0 && bFourthIndex >= 0 && bFourthIndex < aFourthIndex;
-    log('TC-3009', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `combined rows: A4=${aFourthNickname}@${aFourthIndex} B4=${bFourthNickname}@${bFourthIndex}`);
+    log(
+      'TC-3009',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `combined rows: A4=${aFourthNickname}@${aFourthIndex} B4=${bFourthNickname}@${bFourthIndex}`,
+    );
   } catch (err) {
     log('TC-3009', 'FAIL', err instanceof Error ? err.message : 'TC-3009 failed');
   } finally {
@@ -810,8 +872,9 @@ async function runTc504(adminPage) {
     const score = await apiSetBmFinalsScore(adminPage, setup.tournamentId, m1.id, 5, 0);
     if (score.s !== 200) throw new Error(`Score put failed (${score.s})`);
 
-    const completedBefore = (await apiFetchBmFinalsMatches(adminPage, setup.tournamentId))
-      .filter((m) => m.completed).length;
+    const completedBefore = (await apiFetchBmFinalsMatches(adminPage, setup.tournamentId)).filter(
+      (m) => m.completed,
+    ).length;
     if (completedBefore < 1) throw new Error('Pre-reset score not persisted');
 
     const reset = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
@@ -820,8 +883,11 @@ async function runTc504(adminPage) {
     const after = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
     const completedAfter = after.filter((m) => m.completed).length;
     const ok = completedBefore >= 1 && completedAfter === 0 && after.length === 17;
-    log('TC-504', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `before=${completedBefore} after=${completedAfter} total=${after.length}`);
+    log(
+      'TC-504',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `before=${completedBefore} after=${completedAfter} total=${after.length}`,
+    );
   } catch (err) {
     log('TC-504', 'FAIL', err instanceof Error ? err.message : 'BM 504 failed');
   } finally {
@@ -921,13 +987,21 @@ async function runTc515(adminPage) {
      * handlers, so the Phase-2 card only appears after the finals page performs
      * its next data fetch. Wait for the server-backed text instead of racing the
      * first post-navigation render. */
-    await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return text.includes('Create Upper Bracket') ||
-        text.includes('上位ブラケット作成') ||
-        text.includes('Playoff Complete') ||
-        text.includes('プレーオフ完了');
-    }, null, { timeout: 30000 }).catch(() => {});
+    await adminPage
+      .waitForFunction(
+        () => {
+          const text = document.body.innerText;
+          return (
+            text.includes('Create Upper Bracket') ||
+            text.includes('上位ブラケット作成') ||
+            text.includes('Playoff Complete') ||
+            text.includes('プレーオフ完了')
+          );
+        },
+        null,
+        { timeout: 30000 },
+      )
+      .catch(() => {});
     const phase2ActionVisible = await adminPage
       .getByRole('button', { name: /Create Upper Bracket|上位ブラケット作成/ })
       .isVisible()
@@ -941,15 +1015,30 @@ async function runTc515(adminPage) {
     const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
 
     const playoffGenerated = finalState.playoffMatches.length >= 8;
-    const ok = (hasPlayoffLabel || playoffGenerated) && hasM1 && playoffComplete && phase2ActionVisible && phase2Ok && hasFinalsPhase;
-    log('TC-515', ok ? 'PASS' : 'FAIL',
-      !hasPlayoffLabel && !playoffGenerated ? 'Playoff label missing on finals page'
-      : !hasM1 ? 'M1 missing on playoff bracket'
-      : !playoffComplete ? 'playoffComplete not true'
-      : !phase2ActionVisible ? 'Create Upper Bracket action missing after playoff completion'
-      : !phase2Ok ? `Phase 2 failed (${phase2.s})`
-      : !hasFinalsPhase ? 'Finals phase not shown after Upper Bracket creation'
-      : '');
+    const ok =
+      (hasPlayoffLabel || playoffGenerated) &&
+      hasM1 &&
+      playoffComplete &&
+      phase2ActionVisible &&
+      phase2Ok &&
+      hasFinalsPhase;
+    log(
+      'TC-515',
+      ok ? 'PASS' : 'FAIL',
+      !hasPlayoffLabel && !playoffGenerated
+        ? 'Playoff label missing on finals page'
+        : !hasM1
+          ? 'M1 missing on playoff bracket'
+          : !playoffComplete
+            ? 'playoffComplete not true'
+            : !phase2ActionVisible
+              ? 'Create Upper Bracket action missing after playoff completion'
+              : !phase2Ok
+                ? `Phase 2 failed (${phase2.s})`
+                : !hasFinalsPhase
+                  ? 'Finals phase not shown after Upper Bracket creation'
+                  : '',
+    );
   } catch (err) {
     log('TC-515', 'FAIL', err instanceof Error ? err.message : 'BM 515 failed');
   } finally {
@@ -978,7 +1067,9 @@ async function runTc516(adminPage) {
      * <Button asChild>, so the DOM element is an <a> tag (role=link).
      * Use getByText so we match regardless of the underlying element. */
     /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
-    await adminPage.getByText(/View Tournament|トーナメントを見る/).first()
+    await adminPage
+      .getByText(/View Tournament|トーナメントを見る/)
+      .first()
       .waitFor({ state: 'visible', timeout: 25000 });
 
     const qualText = await adminPage.locator('body').innerText();
@@ -993,14 +1084,18 @@ async function runTc516(adminPage) {
     const unlockRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: false });
     if (unlockRes.s !== 200) throw new Error(`Failed to unlock qualification (${unlockRes.s})`);
     await nav(adminPage, `/tournaments/${tournamentId}/bm`);
-    await adminPage.getByText(/View Tournament|トーナメントを見る/).first()
+    await adminPage
+      .getByText(/View Tournament|トーナメントを見る/)
+      .first()
       .waitFor({ state: 'visible', timeout: 25000 });
 
     const unlockedText = await adminPage.locator('body').innerText();
-    const hasViewTournamentUnlocked = unlockedText.includes('View Tournament') || unlockedText.includes('トーナメントを見る');
-    const hasResetBracketUnlocked = unlockedText.includes('Reset Bracket') || unlockedText.includes('ブラケットリセット');
+    const hasViewTournamentUnlocked =
+      unlockedText.includes('View Tournament') || unlockedText.includes('トーナメントを見る');
+    const hasResetBracketUnlocked =
+      unlockedText.includes('Reset Bracket') || unlockedText.includes('ブラケットリセット');
 
-    const resetVisible = await resetBtn.count() > 0;
+    const resetVisible = (await resetBtn.count()) > 0;
     if (resetVisible) {
       adminPage.once('dialog', async (dialog) => {
         await dialog.accept();
@@ -1010,19 +1105,43 @@ async function runTc516(adminPage) {
     }
 
     const postResetText = await adminPage.locator('body').innerText();
-    const resetHiddenAfterReset = !postResetText.includes('Reset Bracket') && !postResetText.includes('ブラケットリセット');
-    const generateHiddenWhileUnlocked = !postResetText.includes('Generate Finals Bracket') && !postResetText.includes('Generate Bracket') && !postResetText.includes('ブラケット生成') && !postResetText.includes('generateFinalsBracket') && !postResetText.includes('Start Playoff') && !postResetText.includes('バラッジ開始');
+    const resetHiddenAfterReset =
+      !postResetText.includes('Reset Bracket') && !postResetText.includes('ブラケットリセット');
+    const generateHiddenWhileUnlocked =
+      !postResetText.includes('Generate Finals Bracket') &&
+      !postResetText.includes('Generate Bracket') &&
+      !postResetText.includes('ブラケット生成') &&
+      !postResetText.includes('generateFinalsBracket') &&
+      !postResetText.includes('Start Playoff') &&
+      !postResetText.includes('バラッジ開始');
 
-    const ok = hasViewTournament && resetHiddenWhileLocked && hasViewTournamentUnlocked && hasResetBracketUnlocked && resetVisible && resetHiddenAfterReset && generateHiddenWhileUnlocked;
-    log('TC-516', ok ? 'PASS' : 'FAIL',
-      !hasViewTournament ? 'View Tournament button missing after bracket creation'
-      : !resetHiddenWhileLocked ? 'Reset Bracket visible while qualification is locked'
-      : !hasViewTournamentUnlocked ? 'View Tournament button missing after unlocking qualification'
-      : !hasResetBracketUnlocked ? 'Reset Bracket button missing after qualification unlock'
-      : !resetVisible ? 'Reset Bracket not found as button element'
-      : !resetHiddenAfterReset ? 'Reset Bracket still visible after bracket reset'
-      : !generateHiddenWhileUnlocked ? 'Generate/Start Playoff visible while qualification remains unlocked'
-      : '');
+    const ok =
+      hasViewTournament &&
+      resetHiddenWhileLocked &&
+      hasViewTournamentUnlocked &&
+      hasResetBracketUnlocked &&
+      resetVisible &&
+      resetHiddenAfterReset &&
+      generateHiddenWhileUnlocked;
+    log(
+      'TC-516',
+      ok ? 'PASS' : 'FAIL',
+      !hasViewTournament
+        ? 'View Tournament button missing after bracket creation'
+        : !resetHiddenWhileLocked
+          ? 'Reset Bracket visible while qualification is locked'
+          : !hasViewTournamentUnlocked
+            ? 'View Tournament button missing after unlocking qualification'
+            : !hasResetBracketUnlocked
+              ? 'Reset Bracket button missing after qualification unlock'
+              : !resetVisible
+                ? 'Reset Bracket not found as button element'
+                : !resetHiddenAfterReset
+                  ? 'Reset Bracket still visible after bracket reset'
+                  : !generateHiddenWhileUnlocked
+                    ? 'Generate/Start Playoff visible while qualification remains unlocked'
+                    : '',
+    );
   } catch (err) {
     log('TC-516', 'FAIL', err instanceof Error ? err.message : 'BM 516 failed');
   } finally {
@@ -1065,16 +1184,11 @@ async function runTc510(adminPage) {
      * will wipe + regenerate the finals bracket once all playoff_r2 matches
      * complete — so state.matches is not the right signal for playoff
      * creation. */
-    const playoffCreated =
-      state.playoffMatches.length === 8 &&
-      r1.length === 4 &&
-      r2.length === 4;
+    const playoffCreated = state.playoffMatches.length === 8 && r1.length === 4 && r2.length === 4;
     const playoffBlocksOk = expectedSeedIds.barrageBlocks.every((block, index) => {
       const r1Match = state.playoffMatches.find((m) => m.matchNumber === index + 1);
       const r2Match = state.playoffMatches.find((m) => m.matchNumber === index + 5);
-      return r1Match?.player1Id === block[0] &&
-        r1Match?.player2Id === block[1] &&
-        r2Match?.player1Id === block[2];
+      return r1Match?.player1Id === block[0] && r1Match?.player2Id === block[1] && r2Match?.player1Id === block[2];
     });
 
     const blocked = await apiGenerateBmFinals(adminPage, tournamentId, 24);
@@ -1094,11 +1208,13 @@ async function runTc510(adminPage) {
     }
 
     const r2WinnersByUpperSeed = new Map();
+    // A bye winner keeps their own seed number in the Upper Bracket (see
+    // double-elimination.ts) -- match N's target seed is just its own BYE seed.
     const upperSeedByR2Match = new Map([
       [5, 16],
-      [6, 12],
-      [7, 14],
-      [8, 10],
+      [6, 13],
+      [7, 15],
+      [8, 14],
     ]);
     let playoffCompleteSignal = false;
     for (let mn = 5; mn <= 8; mn++) {
@@ -1126,7 +1242,7 @@ async function runTc510(adminPage) {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.qualificationRankLabel === qualificationRankLabel;
     });
-    const playoffWinnersSeeded = [10, 12, 14, 16].every((seed) => {
+    const playoffWinnersSeeded = [13, 14, 15, 16].every((seed) => {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === r2WinnersByUpperSeed.get(seed);
     });
@@ -1139,23 +1255,49 @@ async function runTc510(adminPage) {
       directSeedLabelsOk &&
       playoffWinnersSeeded;
 
-    log('TC-1051', legacyDirectPayloadAbsent && directSeedOrderOk ? 'PASS' : 'FAIL',
-      !legacyDirectPayloadAbsent ? 'Top-24 response exposed legacy direct[] payload'
-      : !directSeedOrderOk ? `direct seed order mismatch expected=${JSON.stringify(expectedSeedIds.directSeeds)} actual=${JSON.stringify(seededPlayers)}`
-      : '');
+    log(
+      'TC-1051',
+      legacyDirectPayloadAbsent && directSeedOrderOk ? 'PASS' : 'FAIL',
+      !legacyDirectPayloadAbsent
+        ? 'Top-24 response exposed legacy direct[] payload'
+        : !directSeedOrderOk
+          ? `direct seed order mismatch expected=${JSON.stringify(expectedSeedIds.directSeeds)} actual=${JSON.stringify(seededPlayers)}`
+          : '',
+    );
 
-    const ok = playoffCreated && playoffSeedOrderOk && playoffSeedLabelsOk && playoffBlocksOk && phase2Blocked && r1Routed && playoffCompleteSignal && legacyDirectPayloadAbsent && finalsCreated;
-    log('TC-510', ok ? 'PASS' : 'FAIL',
-      !playoffCreated ? `playoff=${state.playoffMatches.length} finals=${state.matches.length} r1=${r1.length} r2=${r2.length}`
-      : !playoffSeedOrderOk ? `playoff seed order mismatch expected=${expectedSeedIds.barrage.join(',')} actual=${playoffSeedIds.join(',')}`
-      : !playoffSeedLabelsOk ? `playoff qualification labels mismatch expected=${JSON.stringify(expectedSeedIds.barrageSeeds)} actual=${JSON.stringify(phase1Data.playoffSeededPlayers || [])}`
-      : !playoffBlocksOk ? `playoff blocks mismatch expected=${JSON.stringify(expectedSeedIds.barrageBlocks)}`
-      : !phase2Blocked ? `Phase 2 was not blocked before completion (${blocked.s}, ${blocked.b?.code || blocked.b?.error})`
-      : !r1Routed ? 'R1 winner did not route into R2 player2'
-      : !playoffCompleteSignal ? 'Last R2 PUT did not signal playoffComplete=true'
-      : !legacyDirectPayloadAbsent ? 'Top-24 response exposed legacy direct[] payload'
-      : !finalsCreated ? `finals=${state.matches.length} bracketSize=${state.bracketSize} directSeedOrder=${directSeedOrderOk} directSeedLabels=${directSeedLabelsOk} winnersSeeded=${playoffWinnersSeeded}`
-      : '');
+    const ok =
+      playoffCreated &&
+      playoffSeedOrderOk &&
+      playoffSeedLabelsOk &&
+      playoffBlocksOk &&
+      phase2Blocked &&
+      r1Routed &&
+      playoffCompleteSignal &&
+      legacyDirectPayloadAbsent &&
+      finalsCreated;
+    log(
+      'TC-510',
+      ok ? 'PASS' : 'FAIL',
+      !playoffCreated
+        ? `playoff=${state.playoffMatches.length} finals=${state.matches.length} r1=${r1.length} r2=${r2.length}`
+        : !playoffSeedOrderOk
+          ? `playoff seed order mismatch expected=${expectedSeedIds.barrage.join(',')} actual=${playoffSeedIds.join(',')}`
+          : !playoffSeedLabelsOk
+            ? `playoff qualification labels mismatch expected=${JSON.stringify(expectedSeedIds.barrageSeeds)} actual=${JSON.stringify(phase1Data.playoffSeededPlayers || [])}`
+            : !playoffBlocksOk
+              ? `playoff blocks mismatch expected=${JSON.stringify(expectedSeedIds.barrageBlocks)}`
+              : !phase2Blocked
+                ? `Phase 2 was not blocked before completion (${blocked.s}, ${blocked.b?.code || blocked.b?.error})`
+                : !r1Routed
+                  ? 'R1 winner did not route into R2 player2'
+                  : !playoffCompleteSignal
+                    ? 'Last R2 PUT did not signal playoffComplete=true'
+                    : !legacyDirectPayloadAbsent
+                      ? 'Top-24 response exposed legacy direct[] payload'
+                      : !finalsCreated
+                        ? `finals=${state.matches.length} bracketSize=${state.bracketSize} directSeedOrder=${directSeedOrderOk} directSeedLabels=${directSeedLabelsOk} winnersSeeded=${playoffWinnersSeeded}`
+                        : '',
+    );
   } catch (err) {
     log('TC-510', 'FAIL', err instanceof Error ? err.message : 'BM 510 failed');
   } finally {
@@ -1185,8 +1327,8 @@ async function runTc1046(adminPage) {
 
     await setupBmQualViaUi(adminPage, tournamentId, players.slice(0, 23));
     const bmAfterReseed = await apiFetchBm(adminPage, tournamentId);
-    const qualificationCountAfterReseed =
-      (bmAfterReseed.qualifications || bmAfterReseed.data?.qualifications || []).length;
+    const qualificationCountAfterReseed = (bmAfterReseed.qualifications || bmAfterReseed.data?.qualifications || [])
+      .length;
     const state = await apiFetchBmFinalsState(adminPage, tournamentId);
     const seededPlayersAbsent = !Object.prototype.hasOwnProperty.call(state.raw?.data || {}, 'seededPlayers');
     const ok =
@@ -1197,13 +1339,19 @@ async function runTc1046(adminPage) {
       state.bracketSize === 8 &&
       state.matches.length === 0;
     const reason =
-      qualificationCountAfterReseed !== 23 ? `TC-1622 qualification count after 23-player reseed=${qualificationCountAfterReseed}`
-      : state.phase !== 'playoff' ? `phase=${state.phase}`
-      : state.playoffMatches.length !== 8 ? `playoffMatches=${state.playoffMatches.length}`
-      : !seededPlayersAbsent ? 'seededPlayers preview was present with fewer than 24 qualifiers'
-      : state.bracketSize !== 8 ? `bracketSize=${state.bracketSize}`
-      : state.matches.length !== 0 ? `finals matches=${state.matches.length}`
-      : '';
+      qualificationCountAfterReseed !== 23
+        ? `TC-1622 qualification count after 23-player reseed=${qualificationCountAfterReseed}`
+        : state.phase !== 'playoff'
+          ? `phase=${state.phase}`
+          : state.playoffMatches.length !== 8
+            ? `playoffMatches=${state.playoffMatches.length}`
+            : !seededPlayersAbsent
+              ? 'seededPlayers preview was present with fewer than 24 qualifiers'
+              : state.bracketSize !== 8
+                ? `bracketSize=${state.bracketSize}`
+                : state.matches.length !== 0
+                  ? `finals matches=${state.matches.length}`
+                  : '';
 
     log('TC-1046', ok ? 'PASS' : 'FAIL', reason);
   } catch (err) {
@@ -1237,9 +1385,13 @@ async function runTc1052(adminPage) {
     if (setupRes.s === 400) {
       const state = await apiFetchBmFinalsState(adminPage, tournamentId);
       const ok = state.matches.length === 0 && state.playoffMatches.length === 0;
-      log('TC-1052', ok ? 'PASS' : 'FAIL',
-        ok ? '3-group setup rejected before unsafe Top-24 finals creation'
-        : `setup rejected but created matches finals=${state.matches.length} playoff=${state.playoffMatches.length}`);
+      log(
+        'TC-1052',
+        ok ? 'PASS' : 'FAIL',
+        ok
+          ? '3-group setup rejected before unsafe Top-24 finals creation'
+          : `setup rejected but created matches finals=${state.matches.length} playoff=${state.playoffMatches.length}`,
+      );
       return;
     }
     if (setupRes.s !== 201) throw new Error(`3-group BM setup failed (${setupRes.s})`);
@@ -1254,12 +1406,19 @@ async function runTc1052(adminPage) {
       state.matches.length === 0 &&
       state.playoffMatches.length === 0;
 
-    log('TC-1052', ok ? 'PASS' : 'FAIL',
-      rejected.s !== 400 ? `expected 400, got ${rejected.s}`
-      : rejected.b?.code !== 'VALIDATION_ERROR' ? `expected VALIDATION_ERROR, got ${rejected.b?.code}`
-      : !/at most 2 qualification groups/.test(rejected.b?.error || '') ? `unexpected error=${rejected.b?.error}`
-      : state.matches.length !== 0 || state.playoffMatches.length !== 0 ? `created matches finals=${state.matches.length} playoff=${state.playoffMatches.length}`
-      : '');
+    log(
+      'TC-1052',
+      ok ? 'PASS' : 'FAIL',
+      rejected.s !== 400
+        ? `expected 400, got ${rejected.s}`
+        : rejected.b?.code !== 'VALIDATION_ERROR'
+          ? `expected VALIDATION_ERROR, got ${rejected.b?.code}`
+          : !/at most 2 qualification groups/.test(rejected.b?.error || '')
+            ? `unexpected error=${rejected.b?.error}`
+            : state.matches.length !== 0 || state.playoffMatches.length !== 0
+              ? `created matches finals=${state.matches.length} playoff=${state.playoffMatches.length}`
+              : '',
+    );
   } catch (err) {
     log('TC-1052', 'FAIL', err instanceof Error ? err.message : 'TC-1052 failed');
   } finally {
@@ -1311,14 +1470,17 @@ async function runTc1010(adminPage) {
     const overrideTarget = qualifications.find((q) => q.playerId === players[15].id);
     if (!overrideTarget) throw new Error('TC-1010 override target qualification not found');
 
-    const overrideRes = await adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: overrideTarget.id, rankOverride: 1 }]);
+    const overrideRes = await adminPage.evaluate(
+      async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm`, { qualificationId: overrideTarget.id, rankOverride: 1 }],
+    );
     if (overrideRes.s !== 200) {
       throw new Error(`rankOverride PATCH failed (${overrideRes.s}): ${JSON.stringify(overrideRes.b).slice(0, 160)}`);
     }
@@ -1364,11 +1526,17 @@ async function runTc1010(adminPage) {
     const losersR3Points = rankings.find((row) => row.playerId === losersR3LoserId)?.bmFinalsPoints;
 
     const ok = rankOverrideSeededFirst && losersR4Points === 750 && losersR3Points === 550;
-    log('TC-1010', ok ? 'PASS' : 'FAIL',
-      !rankOverrideSeededFirst ? `rankOverride seed first=${seededPlayers[0]?.playerId}`
-      : losersR4Points !== 750 ? `losers_r4 points=${losersR4Points}`
-      : losersR3Points !== 550 ? `losers_r3 points=${losersR3Points}`
-      : '');
+    log(
+      'TC-1010',
+      ok ? 'PASS' : 'FAIL',
+      !rankOverrideSeededFirst
+        ? `rankOverride seed first=${seededPlayers[0]?.playerId}`
+        : losersR4Points !== 750
+          ? `losers_r4 points=${losersR4Points}`
+          : losersR3Points !== 550
+            ? `losers_r3 points=${losersR3Points}`
+            : '',
+    );
   } catch (err) {
     log('TC-1010', 'FAIL', err instanceof Error ? err.message : 'TC-1010 failed');
   } finally {
@@ -1391,19 +1559,33 @@ async function runTc2334(adminPage) {
     if (!earlyTarget || !latestTarget) throw new Error('TC-2334: override targets not found');
 
     // PATCH player[0] first to record its rankOverrideAt, then player[15] second (should be later).
-    const res0 = await adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: earlyTarget.id, rankOverride: 1 }]);
+    const res0 = await adminPage.evaluate(
+      async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm`, { qualificationId: earlyTarget.id, rankOverride: 1 }],
+    );
     if (res0.s !== 200) throw new Error(`TC-2334: first rankOverride PATCH failed (${res0.s})`);
 
     // Ensure timestamps are distinct across clock ticks in CI environments with low clock resolution.
     await new Promise((r) => setTimeout(r, 50));
 
-    const res15 = await adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/bm`, { qualificationId: latestTarget.id, rankOverride: 1 }]);
+    const res15 = await adminPage.evaluate(
+      async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm`, { qualificationId: latestTarget.id, rankOverride: 1 }],
+    );
     if (res15.s !== 200) throw new Error(`TC-2334: second rankOverride PATCH failed (${res15.s})`);
 
     // Guard: confirm the server assigned distinct timestamps so the tie-breaker path is exercised.
@@ -1416,7 +1598,10 @@ async function runTc2334(adminPage) {
     if (!q0?.rankOverrideAt || !q15?.rankOverrideAt) throw new Error('TC-2334: rankOverrideAt missing after PATCH');
     const t0 = new Date(q0.rankOverrideAt).getTime();
     const t15 = new Date(q15.rankOverrideAt).getTime();
-    if (t15 <= t0) throw new Error(`TC-2334: timestamps not distinct — both PATCHes in the same clock tick (q0=${q0.rankOverrideAt} q15=${q15.rankOverrideAt})`);
+    if (t15 <= t0)
+      throw new Error(
+        `TC-2334: timestamps not distinct — both PATCHes in the same clock tick (q0=${q0.rankOverrideAt} q15=${q15.rankOverrideAt})`,
+      );
 
     const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`TC-2334: qualification confirm failed (${confirmRes.s})`);
@@ -1426,10 +1611,75 @@ async function runTc2334(adminPage) {
     const seededPlayers = gen.b?.data?.seededPlayers || [];
 
     const latestWinsSeed1 = seededPlayers[0]?.playerId === players[15].id;
-    log('TC-2334', latestWinsSeed1 ? 'PASS' : 'FAIL',
-      !latestWinsSeed1 ? `expected seed1=${players[15].id} got ${seededPlayers[0]?.playerId}` : '');
+    log(
+      'TC-2334',
+      latestWinsSeed1 ? 'PASS' : 'FAIL',
+      !latestWinsSeed1 ? `expected seed1=${players[15].id} got ${seededPlayers[0]?.playerId}` : '',
+    );
   } catch (err) {
     log('TC-2334', 'FAIL', err instanceof Error ? err.message : 'TC-2334 failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+  }
+}
+
+/* ───────── TC-3026: cross-group sudden-death playoff result can be cleared ─────────
+ * Regression for the "no way to undo a cross-group sudden-death playoff
+ * result" gap: the combinedRankOverride PATCH already supported clearing via
+ * null server-side, but nothing in the UI ever called it that way. This
+ * exercises the API contract directly (mirrors TC-2334's rankOverride PATCH
+ * pattern) so a live regression in either direction is caught even before
+ * the RankCell UI is driven end-to-end. */
+async function runTc3026(adminPage) {
+  let tournamentId = null;
+  try {
+    const players = sharedBmPlayers(16);
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM TC-3026 ${Date.now()}`);
+    await setupBmQualViaUi(adminPage, tournamentId, players, { randomize: true, resolveTies: false });
+
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const qualifications = bmData.qualifications || bmData.data?.qualifications || [];
+    const target = qualifications.find((q) => q.playerId === players[0].id);
+    if (!target) throw new Error('TC-3026: target qualification not found');
+
+    const setRes = await adminPage.evaluate(
+      async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm`, { qualificationId: target.id, combinedRankOverride: 1 }],
+    );
+    if (setRes.s !== 200) throw new Error(`TC-3026: combinedRankOverride set PATCH failed (${setRes.s})`);
+
+    const afterSet = await apiFetchBm(adminPage, tournamentId);
+    const qualsAfterSet = afterSet.qualifications || afterSet.data?.qualifications || [];
+    const setValue = qualsAfterSet.find((q) => q.playerId === players[0].id)?.combinedRankOverride;
+
+    const clearRes = await adminPage.evaluate(
+      async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm`, { qualificationId: target.id, combinedRankOverride: null }],
+    );
+    if (clearRes.s !== 200) throw new Error(`TC-3026: combinedRankOverride clear PATCH failed (${clearRes.s})`);
+
+    const afterClear = await apiFetchBm(adminPage, tournamentId);
+    const qualsAfterClear = afterClear.qualifications || afterClear.data?.qualifications || [];
+    const clearedValue = qualsAfterClear.find((q) => q.playerId === players[0].id)?.combinedRankOverride;
+
+    const ok = setValue === 1 && (clearedValue === null || clearedValue === undefined);
+    log('TC-3026', ok ? 'PASS' : 'FAIL', ok ? '' : `set=${setValue} clearedAfter=${clearedValue}`);
+  } catch (err) {
+    log('TC-3026', 'FAIL', err instanceof Error ? err.message : 'TC-3026 failed');
   } finally {
     if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
   }
@@ -1454,7 +1704,8 @@ async function runTc505(adminPage) {
       if (!match || !match.player1Id || !match.player2Id) {
         throw new Error(`Match ${mn} not ready (p1=${match?.player1Id} p2=${match?.player2Id})`);
       }
-      const targetWins = match.round === 'winners_qf' || match.round === 'losers_r1' || match.round === 'losers_r2' ? 5 : 7;
+      const targetWins =
+        match.round === 'winners_qf' || match.round === 'losers_r1' || match.round === 'losers_r2' ? 5 : 7;
       const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, targetWins, 0);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
@@ -1467,15 +1718,21 @@ async function runTc505(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
     const pageText = await adminPage.locator('body').innerText();
-    const championShown = pageText.includes(championNickname) &&
+    const championShown =
+      pageText.includes(championNickname) &&
       (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
     /* Grand Final targetWins is 7 (best-of-13), so the saved score is 7-0. */
     const m16Ok = m16.completed === true && m16.score1 === 7 && m16.score2 === 0;
 
-    log('TC-505', m16Ok && championShown ? 'PASS' : 'FAIL',
-      !m16Ok ? `M16 not completed: score=${m16?.score1}-${m16?.score2}`
-      : !championShown ? `Champion banner missing nickname ${championNickname}`
-      : '');
+    log(
+      'TC-505',
+      m16Ok && championShown ? 'PASS' : 'FAIL',
+      !m16Ok
+        ? `M16 not completed: score=${m16?.score1}-${m16?.score2}`
+        : !championShown
+          ? `Champion banner missing nickname ${championNickname}`
+          : '',
+    );
   } catch (err) {
     log('TC-505', 'FAIL', err instanceof Error ? err.message : 'BM 505 failed');
   } finally {
@@ -1500,7 +1757,8 @@ async function runTc506(adminPage) {
       const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === mn);
       if (!match || !match.player1Id || !match.player2Id) throw new Error(`Match ${mn} not ready`);
-      const targetWins = match.round === 'winners_qf' || match.round === 'losers_r1' || match.round === 'losers_r2' ? 5 : 7;
+      const targetWins =
+        match.round === 'winners_qf' || match.round === 'losers_r1' || match.round === 'losers_r2' ? 5 : 7;
       const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, targetWins, 0);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
@@ -1522,19 +1780,28 @@ async function runTc506(adminPage) {
     /* Play M17. The L-side champion's slot may be P1 or P2 depending on routing. */
     const m17ScoreP1Wins = m17.player1Id === expectedResetChampionId;
     const m17Target = m17.round === 'grand_final_reset' ? 7 : 5;
-    const m17Res = await apiSetBmFinalsScore(adminPage, tournamentId, m17.id,
+    const m17Res = await apiSetBmFinalsScore(
+      adminPage,
+      tournamentId,
+      m17.id,
       m17ScoreP1Wins ? m17Target : 0,
-      m17ScoreP1Wins ? 0 : m17Target);
+      m17ScoreP1Wins ? 0 : m17Target,
+    );
     if (m17Res.s !== 200) throw new Error(`M17 put failed (${m17Res.s})`);
 
     const finalMatches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
     const finalM17 = finalMatches.find((m) => m.matchNumber === 17);
     const m17Completed = finalM17?.completed === true;
 
-    log('TC-506', m17Populated && m17Completed ? 'PASS' : 'FAIL',
-      !m17Populated ? `M17 not populated p1=${m17.player1Id} p2=${m17.player2Id}`
-      : !m17Completed ? 'M17 not completed'
-      : '');
+    log(
+      'TC-506',
+      m17Populated && m17Completed ? 'PASS' : 'FAIL',
+      !m17Populated
+        ? `M17 not populated p1=${m17.player1Id} p2=${m17.player2Id}`
+        : !m17Completed
+          ? 'M17 not completed'
+          : '',
+    );
   } catch (err) {
     log('TC-506', 'FAIL', err instanceof Error ? err.message : 'BM 506 failed');
   } finally {
@@ -1551,55 +1818,58 @@ async function runTc507(adminPage) {
     /* P1 reports 3-1 → response should include waitingFor=player2 */
     const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
-    const r1 = await ctx1.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
-      { reportingPlayer: 1, score1: 3, score2: 1 },
-    ]);
-    const r1WaitingForP2 = r1.s === 200 &&
-      (r1.b?.data?.waitingFor === 'player2' || r1.b?.waitingFor === 'player2');
+    const r1 = await ctx1.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm/match/${match.id}/report`, { reportingPlayer: 1, score1: 3, score2: 1 }],
+    );
+    const r1WaitingForP2 = r1.s === 200 && (r1.b?.data?.waitingFor === 'player2' || r1.b?.waitingFor === 'player2');
 
     const mid = await apiFetchBm(adminPage, tournamentId);
     const midMatch = (mid.matches || []).find((m) => m.id === match.id);
-    const midOk = midMatch?.completed === false &&
-      midMatch.player1ReportedScore1 === 3 &&
-      midMatch.player1ReportedScore2 === 1;
+    const midOk =
+      midMatch?.completed === false && midMatch.player1ReportedScore1 === 3 && midMatch.player1ReportedScore2 === 1;
 
     /* P2 reports identical 3-1 → autoConfirmed */
     const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
-    const r2 = await ctx2.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
-      { reportingPlayer: 2, score1: 3, score2: 1 },
-    ]);
-    const autoConfirmed = r2.s === 200 &&
-      (r2.b?.data?.autoConfirmed === true || r2.b?.autoConfirmed === true);
+    const r2 = await ctx2.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm/match/${match.id}/report`, { reportingPlayer: 2, score1: 3, score2: 1 }],
+    );
+    const autoConfirmed = r2.s === 200 && (r2.b?.data?.autoConfirmed === true || r2.b?.autoConfirmed === true);
 
     const finalData = await apiFetchBm(adminPage, tournamentId);
     const finalMatch = (finalData.matches || []).find((m) => m.id === match.id);
-    const persisted = finalMatch?.completed === true &&
-      finalMatch.score1 === 3 && finalMatch.score2 === 1;
+    const persisted = finalMatch?.completed === true && finalMatch.score1 === 3 && finalMatch.score2 === 1;
 
     const ok = r1WaitingForP2 && midOk && autoConfirmed && persisted;
-    log('TC-507', ok ? 'PASS' : 'FAIL',
-      !r1WaitingForP2 ? `P1 missing waitingFor (status=${r1.s})`
-      : !midOk ? `mid state wrong: completed=${midMatch?.completed} reportedP1=${midMatch?.player1ReportedScore1}-${midMatch?.player1ReportedScore2}`
-      : !autoConfirmed ? `P2 missing autoConfirmed (status=${r2.s})`
-      : !persisted ? `final not persisted: ${finalMatch?.score1}-${finalMatch?.score2}`
-      : '');
+    log(
+      'TC-507',
+      ok ? 'PASS' : 'FAIL',
+      !r1WaitingForP2
+        ? `P1 missing waitingFor (status=${r1.s})`
+        : !midOk
+          ? `mid state wrong: completed=${midMatch?.completed} reportedP1=${midMatch?.player1ReportedScore1}-${midMatch?.player1ReportedScore2}`
+          : !autoConfirmed
+            ? `P2 missing autoConfirmed (status=${r2.s})`
+            : !persisted
+              ? `final not persisted: ${finalMatch?.score1}-${finalMatch?.score2}`
+              : '',
+    );
   } catch (err) {
     log('TC-507', 'FAIL', err instanceof Error ? err.message : 'BM 507 failed');
   } finally {
@@ -1617,33 +1887,32 @@ async function runTc508(adminPage) {
 
     const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
-    await ctx1.page.evaluate(async ([u, body]) => {
-      await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    }, [
-      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
-      { reportingPlayer: 1, score1: 3, score2: 1 },
-    ]);
+    await ctx1.page.evaluate(
+      async ([u, body]) => {
+        await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      },
+      [`/api/tournaments/${tournamentId}/bm/match/${match.id}/report`, { reportingPlayer: 1, score1: 3, score2: 1 }],
+    );
 
     const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
     /* P2 disagrees: 1-3 instead of 3-1 → mismatch */
-    const r2 = await ctx2.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
-      { reportingPlayer: 2, score1: 1, score2: 3 },
-    ]);
-    const mismatchFlag = r2.s === 200 &&
-      (r2.b?.data?.mismatch === true || r2.b?.mismatch === true);
+    const r2 = await ctx2.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/bm/match/${match.id}/report`, { reportingPlayer: 2, score1: 1, score2: 3 }],
+    );
+    const mismatchFlag = r2.s === 200 && (r2.b?.data?.mismatch === true || r2.b?.mismatch === true);
 
     const mid = await apiFetchBm(adminPage, tournamentId);
     const midMatch = (mid.matches || []).find((m) => m.id === match.id);
@@ -1657,12 +1926,19 @@ async function runTc508(adminPage) {
     const leanUpdatePayload = matchUpdateUsesLeanPayload(adminPut);
 
     const ok = mismatchFlag && stillIncomplete && adminConfirmed && leanUpdatePayload;
-    log('TC-508', ok ? 'PASS' : 'FAIL',
-      !mismatchFlag ? `mismatch flag missing (status=${r2.s})`
-      : !stillIncomplete ? 'match auto-completed despite mismatch'
-      : !adminConfirmed ? `admin PUT failed (${adminPut.s}) or not completed`
-      : !leanUpdatePayload ? 'admin PUT returned expanded player payload'
-      : '');
+    log(
+      'TC-508',
+      ok ? 'PASS' : 'FAIL',
+      !mismatchFlag
+        ? `mismatch flag missing (status=${r2.s})`
+        : !stillIncomplete
+          ? 'match auto-completed despite mismatch'
+          : !adminConfirmed
+            ? `admin PUT failed (${adminPut.s}) or not completed`
+            : !leanUpdatePayload
+              ? 'admin PUT returned expanded player payload'
+              : '',
+    );
   } catch (err) {
     log('TC-508', 'FAIL', err instanceof Error ? err.message : 'BM 508 failed');
   } finally {
@@ -1681,16 +1957,16 @@ async function runTc509(adminPage) {
     /* P1 reports first */
     const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
-    await ctx1.page.evaluate(async ([u, body]) => {
-      await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    }, [
-      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
-      { reportingPlayer: 1, score1: 3, score2: 1 },
-    ]);
+    await ctx1.page.evaluate(
+      async ([u, body]) => {
+        await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      },
+      [`/api/tournaments/${tournamentId}/bm/match/${match.id}/report`, { reportingPlayer: 1, score1: 3, score2: 1 }],
+    );
 
     /* P2 opens participant page and should see P1's report. */
     const ctx2 = await loginSharedPlayer(adminPage, p2);
@@ -1699,16 +1975,22 @@ async function runTc509(adminPage) {
     const pageText = await ctx2.page.locator('body').innerText();
 
     /* Either an English or Japanese label may appear; accept the common variants. */
-    const labelShown = pageText.includes('Previous Reports') ||
+    const labelShown =
+      pageText.includes('Previous Reports') ||
       pageText.includes('前回の報告') ||
       pageText.includes('過去の報告') ||
       pageText.includes('既に報告');
     const scoreShown = /3\s*[-−]\s*1/.test(pageText);
 
-    log('TC-509', labelShown && scoreShown ? 'PASS' : 'FAIL',
-      !labelShown ? 'Previous Reports section not found in page text'
-      : !scoreShown ? `P1 report (3-1) not visible — page snippet: ${pageText.slice(0, 200)}`
-      : '');
+    log(
+      'TC-509',
+      labelShown && scoreShown ? 'PASS' : 'FAIL',
+      !labelShown
+        ? 'Previous Reports section not found in page text'
+        : !scoreShown
+          ? `P1 report (3-1) not visible — page snippet: ${pageText.slice(0, 200)}`
+          : '',
+    );
   } catch (err) {
     log('TC-509', 'FAIL', err instanceof Error ? err.message : 'BM 509 failed');
   } finally {
@@ -1739,16 +2021,19 @@ async function runTc517(adminPage) {
 
     /* Enter partial scores (1-1) to trigger the need-winner warning. */
     const score1Input = adminPage.locator('input[aria-label*="score"]').first();
-    if (await score1Input.count() > 0) {
+    if ((await score1Input.count()) > 0) {
       await score1Input.fill('1');
     }
     const score2Input = adminPage.locator('input[aria-label*="score"]').nth(1);
-    if (await score2Input.count() > 0) {
+    if ((await score2Input.count()) > 0) {
       await score2Input.fill('1');
     }
     await adminPage.waitForTimeout(500);
 
-    const dialogText = await adminPage.locator('[role="dialog"]').innerText().catch(() => '');
+    const dialogText = await adminPage
+      .locator('[role="dialog"]')
+      .innerText()
+      .catch(() => '');
     const r1ShowsTarget = dialogText.includes('FT3') || dialogText.includes('3勝先取');
 
     /* Close dialog and open a playoff_r2 match (M5). */
@@ -1761,24 +2046,32 @@ async function runTc517(adminPage) {
     await adminPage.waitForTimeout(1000);
 
     const score1Input2 = adminPage.locator('input[aria-label*="score"]').first();
-    if (await score1Input2.count() > 0) {
+    if ((await score1Input2.count()) > 0) {
       await score1Input2.fill('1');
     }
     const score2Input2 = adminPage.locator('input[aria-label*="score"]').nth(1);
-    if (await score2Input2.count() > 0) {
+    if ((await score2Input2.count()) > 0) {
       await score2Input2.fill('1');
     }
     await adminPage.waitForTimeout(500);
 
-    const dialogText2 = await adminPage.locator('[role="dialog"]').innerText().catch(() => '');
+    const dialogText2 = await adminPage
+      .locator('[role="dialog"]')
+      .innerText()
+      .catch(() => '');
     const r2ShowsTarget = dialogText2.includes('FT4') || dialogText2.includes('4勝先取');
 
     await adminPage.keyboard.press('Escape');
 
-    log('TC-517', r1ShowsTarget && r2ShowsTarget ? 'PASS' : 'FAIL',
-      !r1ShowsTarget ? 'Playoff R1 dialog missing FT3 target-wins indicator'
-      : !r2ShowsTarget ? 'Playoff R2 dialog missing FT4 target-wins indicator'
-      : '');
+    log(
+      'TC-517',
+      r1ShowsTarget && r2ShowsTarget ? 'PASS' : 'FAIL',
+      !r1ShowsTarget
+        ? 'Playoff R1 dialog missing FT3 target-wins indicator'
+        : !r2ShowsTarget
+          ? 'Playoff R2 dialog missing FT4 target-wins indicator'
+          : '',
+    );
   } catch (err) {
     log('TC-517', 'FAIL', err instanceof Error ? err.message : 'BM 517 failed');
   } finally {
@@ -1822,12 +2115,15 @@ async function runTc519(adminPage) {
      * compact bracket UI the title can be adjacent to TV metadata ("M8TV#"),
      * so match the start of the card text instead of relying on a word
      * boundary after the digit. */
-    const matchCardTitle = (matchNumber) =>
-      new RegExp(`^M${matchNumber}(?!\\d)|\\bMatch ${matchNumber}\\b`);
-    const m8Card = adminPage.locator('[data-testid="bracket-match-card"]')
-      .filter({ hasText: matchCardTitle(8) }).first();
-    const m9Card = adminPage.locator('[data-testid="bracket-match-card"]')
-      .filter({ hasText: matchCardTitle(9) }).first();
+    const matchCardTitle = (matchNumber) => new RegExp(`^M${matchNumber}(?!\\d)|\\bMatch ${matchNumber}\\b`);
+    const m8Card = adminPage
+      .locator('[data-testid="bracket-match-card"]')
+      .filter({ hasText: matchCardTitle(8) })
+      .first();
+    const m9Card = adminPage
+      .locator('[data-testid="bracket-match-card"]')
+      .filter({ hasText: matchCardTitle(9) })
+      .first();
     /* Wait for the exact losers_r1 cards instead of any bracket card. The page
      * fetches bracket data client-side, and D1 cold starts can render M1-M4
      * before later losers-bracket cards are mounted. */
@@ -1835,9 +2131,9 @@ async function runTc519(adminPage) {
       m8Card.waitFor({ state: 'visible', timeout: 40000 }),
       m9Card.waitFor({ state: 'visible', timeout: 40000 }),
     ]);
-    const cardTexts = await adminPage.locator('[data-testid="bracket-match-card"]').evaluateAll(
-      (cards) => cards.map((card) => (card.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120)),
-    );
+    const cardTexts = await adminPage
+      .locator('[data-testid="bracket-match-card"]')
+      .evaluateAll((cards) => cards.map((card) => (card.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120)));
 
     /* TBD should be rendered as player names in the losers_r1 cards. The
      * label is i18n: en="TBD", ja="未定". Persistent profile may run in either
@@ -1847,15 +2143,19 @@ async function runTc519(adminPage) {
     m8Text = await m8Card.innerText();
     m9Text = await m9Card.innerText();
 
-    const countTbd = (t) =>
-      (t.match(/TBD/g)?.length ?? 0) + (t.match(/未定/g)?.length ?? 0);
+    const countTbd = (t) => (t.match(/TBD/g)?.length ?? 0) + (t.match(/未定/g)?.length ?? 0);
     const m8Tbd = countTbd(m8Text) >= 2; /* both players TBD */
     const m9Tbd = countTbd(m9Text) >= 2;
 
-    log('TC-519', m8Tbd && m9Tbd ? 'PASS' : 'FAIL',
-      !m8Tbd ? `M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})`
-      : !m9Tbd ? `M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})`
-      : '');
+    log(
+      'TC-519',
+      m8Tbd && m9Tbd ? 'PASS' : 'FAIL',
+      !m8Tbd
+        ? `M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})`
+        : !m9Tbd
+          ? `M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)}; cards=${JSON.stringify(cardTexts)})`
+          : '',
+    );
   } catch (err) {
     log('TC-519', 'FAIL', err instanceof Error ? err.message : 'BM 519 failed');
   } finally {
@@ -1905,14 +2205,11 @@ async function runTc520(adminPage) {
     if (gen24.s !== 201 && gen24.s !== 200) throw new Error(`24-player bracket gen failed (${gen24.s})`);
 
     const state24 = await apiFetchBmFinalsState(adminPage, tournamentId);
-    const r1Match = (state24.playoffMatches || []).find(
-      (m) => m.round === 'playoff_r1' && m.player1Id && m.player2Id,
-    );
-    const r2Match = (state24.playoffMatches || []).find(
-      (m) => m.round === 'playoff_r2' && m.player1Id && m.player2Id,
-    );
+    const r1Match = (state24.playoffMatches || []).find((m) => m.round === 'playoff_r1' && m.player1Id && m.player2Id);
+    const r2Match = (state24.playoffMatches || []).find((m) => m.round === 'playoff_r2' && m.player1Id && m.player2Id);
 
-    let r1Rejected = true, r1Accepted = true;
+    let r1Rejected = true,
+      r1Accepted = true;
     if (r1Match) {
       /* Score 4-0 should be rejected (FT3 max = 3). */
       const rR1 = await apiSetBmFinalsScore(adminPage, tournamentId, r1Match.id, 4, 0);
@@ -1922,7 +2219,8 @@ async function runTc520(adminPage) {
       r1Accepted = aR1.s === 200;
     }
 
-    let r2Rejected = true, r2Accepted = true;
+    let r2Rejected = true,
+      r2Accepted = true;
     if (r2Match) {
       /* Score 5-0 should be rejected (FT4 max = 4). */
       const rR2 = await apiSetBmFinalsScore(adminPage, tournamentId, r2Match.id, 5, 0);
@@ -1933,14 +2231,23 @@ async function runTc520(adminPage) {
     }
 
     const ok = qfRejected && qfAccepted && r1Rejected && r1Accepted && r2Rejected && r2Accepted;
-    log('TC-520', ok ? 'PASS' : 'FAIL',
-      !qfRejected ? `winners_qf 6-0 not rejected (${rejectQf.s})`
-      : !qfAccepted ? `winners_qf 5-2 not accepted (${acceptQf.s})`
-      : !r1Rejected ? 'playoff_r1 4-0 not rejected'
-      : !r1Accepted ? 'playoff_r1 3-1 not accepted'
-      : !r2Rejected ? 'playoff_r2 5-0 not rejected'
-      : !r2Accepted ? 'playoff_r2 4-0 not accepted'
-      : '');
+    log(
+      'TC-520',
+      ok ? 'PASS' : 'FAIL',
+      !qfRejected
+        ? `winners_qf 6-0 not rejected (${rejectQf.s})`
+        : !qfAccepted
+          ? `winners_qf 5-2 not accepted (${acceptQf.s})`
+          : !r1Rejected
+            ? 'playoff_r1 4-0 not rejected'
+            : !r1Accepted
+              ? 'playoff_r1 3-1 not accepted'
+              : !r2Rejected
+                ? 'playoff_r2 5-0 not rejected'
+                : !r2Accepted
+                  ? 'playoff_r2 4-0 not accepted'
+                  : '',
+    );
   } catch (err) {
     log('TC-520', 'FAIL', err instanceof Error ? err.message : 'BM 520 failed');
   } finally {
@@ -1978,7 +2285,7 @@ async function runTc521(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/bm`);
     const matchesTab = adminPage.getByRole('tab', { name: /^(Matches|試合一覧)$/ });
-    if (await matchesTab.count() > 0) {
+    if ((await matchesTab.count()) > 0) {
       await matchesTab.first().click();
     }
     await adminPage.waitForTimeout(3000);
@@ -1998,13 +2305,19 @@ async function runTc521(adminPage) {
     // assertion is visual bounds rather than raw text scroll width.
     const overflows = await adminPage.evaluate(() => {
       const dialog = document.querySelector('[role="dialog"]');
-      if (!dialog) return { dialogWidth: 0, viewportWidth: window.innerWidth, bodyWidth: document.documentElement.scrollWidth, labels: [] };
+      if (!dialog)
+        return {
+          dialogWidth: 0,
+          viewportWidth: window.innerWidth,
+          bodyWidth: document.documentElement.scrollWidth,
+          labels: [],
+        };
       const labels = Array.from(dialog.querySelectorAll('label'));
       return {
         dialogWidth: dialog.getBoundingClientRect().width,
         viewportWidth: window.innerWidth,
         bodyWidth: document.documentElement.scrollWidth,
-        labels: labels.map(l => ({
+        labels: labels.map((l) => ({
           width: l.getBoundingClientRect().width,
           parentWidth: l.parentElement?.getBoundingClientRect().width ?? 0,
         })),
@@ -2013,15 +2326,22 @@ async function runTc521(adminPage) {
 
     const dialogFitsViewport = overflows.dialogWidth <= overflows.viewportWidth;
     const pageDoesNotOverflow = overflows.bodyWidth <= overflows.viewportWidth + 1;
-    const labelsStayCapped = overflows.labels.every(l => l.width <= l.parentWidth + 1 && l.parentWidth <= 141);
+    const labelsStayCapped = overflows.labels.every((l) => l.width <= l.parentWidth + 1 && l.parentWidth <= 141);
 
     const pass = dialogVisible && dialogFitsViewport && pageDoesNotOverflow && labelsStayCapped;
-    log('TC-521', pass ? 'PASS' : 'FAIL',
-      !dialogVisible ? 'Score dialog did not open'
-      : !dialogFitsViewport ? `Dialog ${overflows.dialogWidth}px wider than viewport ${overflows.viewportWidth}px`
-      : !pageDoesNotOverflow ? `Page overflow detected: body=${overflows.bodyWidth}px viewport=${overflows.viewportWidth}px`
-      : !labelsStayCapped ? `Label layout exceeded cap: ${JSON.stringify(overflows.labels)}`
-      : '');
+    log(
+      'TC-521',
+      pass ? 'PASS' : 'FAIL',
+      !dialogVisible
+        ? 'Score dialog did not open'
+        : !dialogFitsViewport
+          ? `Dialog ${overflows.dialogWidth}px wider than viewport ${overflows.viewportWidth}px`
+          : !pageDoesNotOverflow
+            ? `Page overflow detected: body=${overflows.bodyWidth}px viewport=${overflows.viewportWidth}px`
+            : !labelsStayCapped
+              ? `Label layout exceeded cap: ${JSON.stringify(overflows.labels)}`
+              : '',
+    );
   } catch (err) {
     log('TC-521', 'FAIL', err instanceof Error ? err.message : 'TC-521 long name overflow test failed');
   } finally {
@@ -2050,14 +2370,18 @@ async function runTc522(adminPage) {
     const m1 = matches.find((m) => m.matchNumber === 1);
     if (!m1) throw new Error('Bracket missing match 1');
 
-    const patchTv = async (tvNumber) => adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status };
-    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber }]);
+    const patchTv = async (tvNumber) =>
+      adminPage.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status };
+        },
+        [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber }],
+      );
 
     const res2 = await patchTv(2);
     const after2 = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
@@ -2067,8 +2391,11 @@ async function runTc522(adminPage) {
     const resNull = await patchTv(null);
 
     const pass = res2.s === 200 && tvSaved && res5.s === 400 && resNull.s === 200;
-    log('TC-522', pass ? 'PASS' : 'FAIL',
-      !pass ? `tvNumber=2 → ${res2.s} (saved=${tvSaved}), tvNumber=5 → ${res5.s}, tvNumber=null → ${resNull.s}` : '');
+    log(
+      'TC-522',
+      pass ? 'PASS' : 'FAIL',
+      !pass ? `tvNumber=2 → ${res2.s} (saved=${tvSaved}), tvNumber=5 → ${res5.s}, tvNumber=null → ${resNull.s}` : '',
+    );
   } catch (err) {
     log('TC-522', 'FAIL', err instanceof Error ? err.message : 'TC-522 failed');
   } finally {
@@ -2130,11 +2457,19 @@ async function runTc523(adminPage) {
     const tvSaved = m1?.tvNumber === 3;
 
     const pass = dialogVisible && noSaveBtn && stillOpen && tvSaved;
-    log('TC-523', pass ? 'PASS' : 'FAIL',
-      !dialogVisible ? 'Score dialog did not open' :
-      !noSaveBtn ? 'Explicit "TV# 保存" button is still rendered (should be removed)' :
-      !stillOpen ? 'Dialog closed unexpectedly after TV# select' :
-      !tvSaved ? `tvNumber not saved: got ${m1?.tvNumber}` : '');
+    log(
+      'TC-523',
+      pass ? 'PASS' : 'FAIL',
+      !dialogVisible
+        ? 'Score dialog did not open'
+        : !noSaveBtn
+          ? 'Explicit "TV# 保存" button is still rendered (should be removed)'
+          : !stillOpen
+            ? 'Dialog closed unexpectedly after TV# select'
+            : !tvSaved
+              ? `tvNumber not saved: got ${m1?.tvNumber}`
+              : '',
+    );
   } catch (err) {
     log('TC-523', 'FAIL', err instanceof Error ? err.message : 'TC-523 failed');
   } finally {
@@ -2178,12 +2513,15 @@ async function runTc524(adminPage) {
     const roundsUniform = [...byRound.values()].every((vals) => vals.size === 1);
 
     const pass = allHaveValidCourse && roundsUniform;
-    log('TC-524', pass ? 'PASS' : 'FAIL',
+    log(
+      'TC-524',
+      pass ? 'PASS' : 'FAIL',
       !allHaveValidCourse
         ? `Some matches have invalid startingCourseNumber: ${JSON.stringify(finalsMatches.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
         : !roundsUniform
-        ? `Matches in the same round have different startingCourseNumbers: ${JSON.stringify([...byRound.entries()].map(([r, s]) => ({ round: r, values: [...s] })))}`
-        : '');
+          ? `Matches in the same round have different startingCourseNumbers: ${JSON.stringify([...byRound.entries()].map(([r, s]) => ({ round: r, values: [...s] })))}`
+          : '',
+    );
   } catch (err) {
     log('TC-524', 'FAIL', err instanceof Error ? err.message : 'TC-524 failed');
   } finally {
@@ -2255,17 +2593,27 @@ async function runTc525(adminPage) {
     /* After clear PATCH, normalization on GET is allowed to refill values; we
      * only require that the round stays uniform (all same value, possibly
      * non-null) — a per-match clear must not leave the round desynced. */
-    const clearedRoundUniform = sameRoundCleared.length > 0 &&
-      new Set(sameRoundCleared.map((m) => m.startingCourseNumber)).size === 1;
+    const clearedRoundUniform =
+      sameRoundCleared.length > 0 && new Set(sameRoundCleared.map((m) => m.startingCourseNumber)).size === 1;
 
     const pass = dialogVisible && stillOpen && courseSaved && propagatedToAll && courseCleared && clearedRoundUniform;
-    log('TC-525', pass ? 'PASS' : 'FAIL',
-      !dialogVisible ? 'Score dialog did not open' :
-      !stillOpen ? 'Dialog closed unexpectedly after start-course select' :
-      !courseSaved ? `startingCourseNumber not saved: got ${m1?.startingCourseNumber}` :
-      !propagatedToAll ? `startingCourseNumber did not propagate to round '${m1Round}': ${JSON.stringify(sameRound.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}` :
-      !courseCleared ? `startingCourseNumber not cleared: got ${m1Clear?.startingCourseNumber}` :
-      !clearedRoundUniform ? `Round '${m1Round}' desynced after clear: ${JSON.stringify(sameRoundCleared.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}` : '');
+    log(
+      'TC-525',
+      pass ? 'PASS' : 'FAIL',
+      !dialogVisible
+        ? 'Score dialog did not open'
+        : !stillOpen
+          ? 'Dialog closed unexpectedly after start-course select'
+          : !courseSaved
+            ? `startingCourseNumber not saved: got ${m1?.startingCourseNumber}`
+            : !propagatedToAll
+              ? `startingCourseNumber did not propagate to round '${m1Round}': ${JSON.stringify(sameRound.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
+              : !courseCleared
+                ? `startingCourseNumber not cleared: got ${m1Clear?.startingCourseNumber}`
+                : !clearedRoundUniform
+                  ? `Round '${m1Round}' desynced after clear: ${JSON.stringify(sameRoundCleared.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
+                  : '',
+    );
   } catch (err) {
     log('TC-525', 'FAIL', err instanceof Error ? err.message : 'TC-525 failed');
   } finally {
@@ -2318,14 +2666,17 @@ async function runTc526(adminPage) {
     p1Nickname = playerData?.nickname ?? 'unknown';
 
     /* Set noCamera=true on player1. */
-    const setNoCamera = await adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status };
-    }, [`/api/players/${p1Id}`, { name: p1Name, nickname: p1Nickname, noCamera: true }]);
+    const setNoCamera = await adminPage.evaluate(
+      async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status };
+      },
+      [`/api/players/${p1Id}`, { name: p1Name, nickname: p1Nickname, noCamera: true }],
+    );
     if (setNoCamera.s !== 200) throw new Error(`Failed to set noCamera on player (${setNoCamera.s})`);
 
     /* Confirm GET response exposes noCamera for the match. */
@@ -2334,14 +2685,17 @@ async function runTc526(adminPage) {
     const noCameraVisible = m1After?.player1?.noCamera === true;
 
     /* PATCH TV#1 — must succeed even with a noCamera player (advisory only). */
-    const patchRes = await adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status };
-    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: 1 }]);
+    const patchRes = await adminPage.evaluate(
+      async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status };
+      },
+      [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: 1 }],
+    );
     const tvPatchOk = patchRes.s === 200;
 
     /* UI: navigate to finals page, open score dialog for M1, change TV# to 2,
@@ -2350,7 +2704,7 @@ async function runTc526(adminPage) {
     await adminPage.waitForTimeout(3000);
 
     const matchCards = adminPage.locator('[data-testid="bracket-match-card"]');
-    if (await matchCards.count() === 0) throw new Error('No bracket match cards found');
+    if ((await matchCards.count()) === 0) throw new Error('No bracket match cards found');
     await matchCards.first().click();
     await adminPage.waitForTimeout(800);
 
@@ -2361,27 +2715,37 @@ async function runTc526(adminPage) {
 
     /* Sonner renders warnings as <li data-type="warning"> inside the toaster. */
     const warningToast = adminPage.locator('[data-sonner-toast][data-type="warning"]');
-    const warningShown = await warningToast.count() > 0;
+    const warningShown = (await warningToast.count()) > 0;
 
     const pass = noCameraVisible && tvPatchOk && dialogVisible && warningShown;
-    log('TC-526', pass ? 'PASS' : 'FAIL',
-      !noCameraVisible ? `player1.noCamera not visible in GET response (got ${m1After?.player1?.noCamera})`
-      : !tvPatchOk ? `TV# PATCH failed for noCamera match (${patchRes.s})`
-      : !dialogVisible ? 'Score dialog did not open'
-      : !warningShown ? 'No warning toast shown for noCamera player TV# assignment'
-      : '');
+    log(
+      'TC-526',
+      pass ? 'PASS' : 'FAIL',
+      !noCameraVisible
+        ? `player1.noCamera not visible in GET response (got ${m1After?.player1?.noCamera})`
+        : !tvPatchOk
+          ? `TV# PATCH failed for noCamera match (${patchRes.s})`
+          : !dialogVisible
+            ? 'Score dialog did not open'
+            : !warningShown
+              ? 'No warning toast shown for noCamera player TV# assignment'
+              : '',
+    );
   } catch (err) {
     log('TC-526', 'FAIL', err instanceof Error ? err.message : 'TC-526 failed');
   } finally {
     /* Restore player noCamera flag before bracket cleanup. */
     if (p1Id && p1Name && p1Nickname) {
-      await adminPage.evaluate(async ([url, body]) => {
-        await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        }).catch(() => {});
-      }, [`/api/players/${p1Id}`, { name: p1Name, nickname: p1Nickname, noCamera: false }]);
+      await adminPage.evaluate(
+        async ([url, body]) => {
+          await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }).catch(() => {});
+        },
+        [`/api/players/${p1Id}`, { name: p1Name, nickname: p1Nickname, noCamera: false }],
+      );
     }
     if (setup) {
       await adminPage.evaluate(async (url) => {
@@ -2403,12 +2767,17 @@ async function runTc528(adminPage) {
     const qualMatches = (bmData.matches || []).filter((m) => m.stage === 'qualification' || !m.stage);
     if (qualMatches.length === 0) throw new Error('No qualification matches found');
 
-    const violators = qualMatches.filter((m) => m.startingCourseNumber !== null && m.startingCourseNumber !== undefined);
+    const violators = qualMatches.filter(
+      (m) => m.startingCourseNumber !== null && m.startingCourseNumber !== undefined,
+    );
     const pass = violators.length === 0;
-    log('TC-528', pass ? 'PASS' : 'FAIL',
+    log(
+      'TC-528',
+      pass ? 'PASS' : 'FAIL',
       !pass
         ? `Qualification rows with non-null startingCourseNumber: ${JSON.stringify(violators.slice(0, 5).map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
-        : '');
+        : '',
+    );
   } catch (err) {
     log('TC-528', 'FAIL', err instanceof Error ? err.message : 'TC-528 failed');
   }
@@ -2466,14 +2835,17 @@ async function runTc529(adminPage) {
     const hasBothRounds = byRound.has('playoff_r1') && byRound.has('playoff_r2');
 
     const pass = allValid && roundsUniform && hasBothRounds;
-    log('TC-529', pass ? 'PASS' : 'FAIL',
+    log(
+      'TC-529',
+      pass ? 'PASS' : 'FAIL',
       !allValid
         ? `Some playoff matches have invalid startingCourseNumber: ${JSON.stringify(playoff.map((m) => ({ mn: m.matchNumber, r: m.round, sn: m.startingCourseNumber })))}`
         : !hasBothRounds
-        ? `Missing playoff_r1 or playoff_r2 in result: rounds=${[...byRound.keys()].join(',')}`
-        : !roundsUniform
-        ? `Playoff round desynced: ${JSON.stringify([...byRound.entries()].map(([r, s]) => ({ round: r, values: [...s] })))}`
-        : '');
+          ? `Missing playoff_r1 or playoff_r2 in result: rounds=${[...byRound.keys()].join(',')}`
+          : !roundsUniform
+            ? `Playoff round desynced: ${JSON.stringify([...byRound.entries()].map(([r, s]) => ({ round: r, values: [...s] })))}`
+            : '',
+    );
   } catch (err) {
     log('TC-529', 'FAIL', err instanceof Error ? err.message : 'TC-529 failed');
   } finally {
@@ -2508,14 +2880,17 @@ async function runTc530(adminPage) {
 
     /* One PATCH propagates null across the whole round; we don't need to
      * iterate every match. */
-    const seedNull = await adminPage.evaluate(async ([url, body]) => {
-      const res = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: res.status };
-    }, [`/api/tournaments/${tournamentId}/bm/finals`, { matchId: targetMatches[0].id, startingCourseNumber: null }]);
+    const seedNull = await adminPage.evaluate(
+      async ([url, body]) => {
+        const res = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: res.status };
+      },
+      [`/api/tournaments/${tournamentId}/bm/finals`, { matchId: targetMatches[0].id, startingCourseNumber: null }],
+    );
     if (seedNull.s !== 200) throw new Error(`Initial null PATCH failed (${seedNull.s})`);
 
     /* First GET — the intentional clear should remain all-null. */
@@ -2529,12 +2904,15 @@ async function runTc530(adminPage) {
     const stable = secondTarget.every((m) => m.startingCourseNumber === null);
 
     const pass = allNull && stable;
-    log('TC-530', pass ? 'PASS' : 'FAIL',
+    log(
+      'TC-530',
+      pass ? 'PASS' : 'FAIL',
       !allNull
         ? `Round ${targetRound} clear was unexpectedly refilled: ${JSON.stringify(repairedTarget.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
         : !stable
-        ? `Round ${targetRound} clear drifted between GETs: second=${JSON.stringify(secondTarget.map((m) => m.startingCourseNumber))}`
-        : '');
+          ? `Round ${targetRound} clear drifted between GETs: second=${JSON.stringify(secondTarget.map((m) => m.startingCourseNumber))}`
+          : '',
+    );
   } catch (err) {
     log('TC-530', 'FAIL', err instanceof Error ? err.message : 'TC-530 failed');
   } finally {
@@ -2553,7 +2931,10 @@ async function runTc530(adminPage) {
  * Uses an isolated tournament (not prepareSharedBmFinalsSetup) to avoid
  * inheriting state from TC-530 and to guarantee a valid tournamentId (#750). */
 async function runTc531(adminPage) {
-  if (!sharedFixture) { log('TC-531', 'SKIP', 'No shared fixture'); return; }
+  if (!sharedFixture) {
+    log('TC-531', 'SKIP', 'No shared fixture');
+    return;
+  }
   let tournamentId = null;
   try {
     const stamp = Date.now();
@@ -2572,13 +2953,15 @@ async function runTc531(adminPage) {
     /* startingCourseNumber may not be set if the bracket was just generated
      * without an explicit course selection — skip instead of timing out (#740). */
     const bodyText = await adminPage.evaluate(() => document.body.textContent || '');
-    const hasCourseLabel =
-      bodyText.includes('バトルコース') || bodyText.includes('Battle Course');
+    const hasCourseLabel = bodyText.includes('バトルコース') || bodyText.includes('Battle Course');
     if (!hasCourseLabel && !bodyText.includes('Winners') && !bodyText.includes('ウィナーズ')) {
       log('TC-531', 'FAIL', 'Finals page did not load bracket content');
     } else {
-      log('TC-531', hasCourseLabel ? 'PASS' : 'SKIP',
-        hasCourseLabel ? '' : 'startingCourseNumber not yet set — course label absent');
+      log(
+        'TC-531',
+        hasCourseLabel ? 'PASS' : 'SKIP',
+        hasCourseLabel ? '' : 'startingCourseNumber not yet set — course label absent',
+      );
     }
   } catch (err) {
     log('TC-531', 'FAIL', err instanceof Error ? err.message : 'TC-531 failed');
@@ -2601,7 +2984,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     results,
     log,
     beforeAll: async (adminPage) => {
-      sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
+      sharedFixture = externalFixture ?? (await createSharedE2eFixture(adminPage));
     },
     afterAll: async () => {
       if (ownsFixture && sharedFixture) {
@@ -2627,6 +3010,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-510', fn: runTc510 },
       { name: 'TC-1010', fn: runTc1010 },
       { name: 'TC-2334', fn: runTc2334 },
+      { name: 'TC-3026', fn: runTc3026 },
       { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },
@@ -2651,12 +3035,46 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533, runTc3009, runTc1010, runTc2334, runTc1046, runTc1052,
+  runTc501,
+  runTc502,
+  runTc322,
+  runTc503,
+  runTc504,
+  runTc505,
+  runTc506,
+  runTc511,
+  runTc512,
+  runTc513,
+  runTc507,
+  runTc508,
+  runTc509,
+  runTc515,
+  runTc516,
+  runTc517,
+  runTc519,
+  runTc520,
+  runTc521,
+  runTc522,
+  runTc523,
+  runTc524,
+  runTc525,
+  runTc526,
+  runTc528,
+  runTc529,
+  runTc530,
+  runTc531,
+  runTc533,
+  runTc3009,
+  runTc1010,
+  runTc2334,
+  runTc1046,
+  runTc1052,
   bmFinalsTargetWinsForMatch,
   getSuite,
   results,
-  setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },
+  setSharedBmFinalsReady: (v) => {
+    sharedBmFinalsReady = v;
+  },
 };
 
 if (require.main === module) {

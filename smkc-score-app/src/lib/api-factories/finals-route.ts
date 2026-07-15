@@ -20,7 +20,7 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
-import { reseedDirectEntrantsAgainstPlayoffWinners, selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
+import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 import type { ScorePointsEntry } from '@/lib/ranking-utils';
 import { getGpFinalsMaxCups, getMrFinalsMaxRounds } from '@/lib/finals-target-wins';
 import { paginate } from '@/lib/pagination';
@@ -735,21 +735,23 @@ export function createFinalsHandlers(config: FinalsConfig) {
     };
   }
 
-  function resolvePlayoffWinnerGroups(
-    rankedQualifications: Array<{ playerId: string; group: string }>,
+  /**
+   * Resolve each completed playoff_r2 match's winner and the Upper-Bracket
+   * seed they advance to (== the bye's own seed — see double-elimination.ts).
+   * No longer resolves a "winner group" map: that only existed to feed the
+   * anti-collision direct-seed reshuffle, which was removed because it was
+   * never validated against a real event and did not match CDM 2025 (see
+   * finals-group-selection.ts module doc comment).
+   */
+  function resolvePlayoffWinners(
     playoffStructure: ReturnType<typeof generatePlayoffStructure>,
     r2Matches: Top24FinalsPreviewMatch[],
-    groupCount: number,
     options: {
       requireWinner: boolean;
       tournamentId: string;
       logger: ReturnType<typeof createLogger>;
     },
   ) {
-    const qualificationGroupByPlayerId = new Map(
-      rankedQualifications.map((qualification) => [qualification.playerId, qualification.group]),
-    );
-    const winnerGroupByUpperSeed = new Map<number, string>();
     const resolvedWinners: Array<{
       upperSeed: number;
       winner: { winnerId: string; winnerPlayer: PublicFinalsPlayer };
@@ -774,15 +776,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
         continue;
       }
 
-      const winnerGroup = qualificationGroupByPlayerId.get(winner.winnerId);
-      if (groupCount >= 3 && !winnerGroup) {
-        throw new Error(`Qualification group for playoff winner ${winner.winnerId} not resolved`);
-      }
-      if (winnerGroup) winnerGroupByUpperSeed.set(bracketMatch.advancesToUpperSeed, winnerGroup);
       resolvedWinners.push({ upperSeed: bracketMatch.advancesToUpperSeed, winner });
     }
 
-    return { resolvedWinners, winnerGroupByUpperSeed };
+    return { resolvedWinners };
   }
 
   function buildDirectSeededPlayers(
@@ -986,13 +983,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
       const r2Matches = playoffMatches.filter((m) => m.round === 'playoff_r2');
-      const { resolvedWinners, winnerGroupByUpperSeed } = resolvePlayoffWinnerGroups(
-        rankedQualifications,
-        playoffStructure,
-        r2Matches,
-        selection.groupCount,
-        { requireWinner: false, tournamentId, logger },
-      );
+      const { resolvedWinners } = resolvePlayoffWinners(playoffStructure, r2Matches, {
+        requireWinner: false,
+        tournamentId,
+        logger,
+      });
       const playoffWinnerSeeds: SeededFinalsPlayer[] = resolvedWinners.map(({ upperSeed, winner }) => ({
         seed: upperSeed,
         playerId: winner.winnerId,
@@ -1000,12 +995,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
         qualificationRankLabel: qualificationRankLabels.get(winner.winnerId),
       }));
 
-      const collisionFreeDirectSeeds =
-        selection.groupCount >= 3 && winnerGroupByUpperSeed.size === PLAYOFF_R2_UPPER_SEED_COUNT
-          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, winnerGroupByUpperSeed)
-          : selection.directSeeds;
       const seededPlayers = [
-        ...buildDirectSeededPlayers(collisionFreeDirectSeeds, qualificationRankLabels, tournamentId, logger),
+        ...buildDirectSeededPlayers(selection.directSeeds, qualificationRankLabels, tournamentId, logger),
         ...playoffWinnerSeeds,
       ];
 
@@ -1151,8 +1142,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT) : [];
 
       /* Reconstruct playoff seeded players from DB match data + structure.
-       * R1 matches carry player1Seed (5-12) and player2Seed;
-       * R2 matches carry player1Seed for BYE seeds (1-4).
+       * R1 matches carry player1Seed (17-24) and player2Seed;
+       * R2 matches carry player1Seed for BYE seeds (13-16).
        * player2Seed is null for R2 (opponent comes from R1 winner),
        * so we only map seeds from structure-defined positions. */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1633,15 +1624,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
         );
       }
       if (selection.groupCount > TOP24_SUPPORTED_GROUP_COUNT) {
-        /* 3-group selection uses assignAntiCollisionSeeds() (finals-group-selection.ts),
-         * which correctly places direct advancers on the gapped seed sequence
-         * 1,2,3,4,5,6,7,8,9,11,13,15 (never colliding with the barrage-reserved
-         * 10/12/14/16) and guarantees no same-group round-1 matchup. Only 2 and 3
-         * groups are exposed at this API boundary (docs/qualification-combined-ranking.md
-         * §7: 4+ groups are out of scope for now) -- selectFinalsEntrantsByGroup()
-         * itself also supports 4 groups and has dedicated tests for it, but nothing
-         * upstream (UI, qualification-route.ts) can create a 4-group tournament, so
-         * this gate rejects groupCount=4 the same as groupCount>=5. */
+        /* Only 2 and 3 groups are exposed at this API boundary
+         * (docs/qualification-combined-ranking.md §7: 4+ groups are out of
+         * scope for now) -- selectFinalsEntrantsByGroup() itself also
+         * supports 4 groups and has dedicated tests for it, but nothing
+         * upstream (UI, qualification-route.ts) can create a 4-group
+         * tournament, so this gate rejects groupCount=4 the same as
+         * groupCount>=5. */
         return handleValidationError(
           `Top-24 playoff currently supports at most ${TOP24_SUPPORTED_GROUP_COUNT} qualification groups; found ${selection.groupCount}`,
           'qualifications',
@@ -1686,16 +1675,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
           ? createBmRoundStartingCourses(playoffStructure)
           : undefined;
 
-        /* Playoff-local seeds 1-12 are the barrage entrants, already in seed
-         * order from selection.barrage: for 2 groups this is the handwritten
-         * A/B barrage block layout; for 3 groups it's assignAntiCollisionSeeds()'s
-         * algorithmic placement (finals-group-selection.ts). Either way this
-         * code just consumes the array position as the seed number. */
-        const playoffSeededPlayers = selection.barrage.map((q, index) => ({
-          seed: index + 1,
-          playerId: q.playerId,
-          player: q.player,
-          qualificationRankLabel: qualificationRankLabels.get(q.playerId),
+        /* selection.barrageSeeds already carries the real overall seed
+         * (13-24, bucket-stacked -- finals-group-selection.ts) for each
+         * barrage entrant, matching generatePlayoffStructure()'s seed
+         * numbering directly. */
+        const playoffSeededPlayers = selection.barrageSeeds.map(({ seed, qualification }) => ({
+          seed,
+          playerId: qualification.playerId,
+          player: qualification.player,
+          qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
         }));
 
         /*
@@ -1789,13 +1777,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* Derive each playoff winner and map to its advancesToUpperSeed target. */
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
-      const { resolvedWinners, winnerGroupByUpperSeed } = resolvePlayoffWinnerGroups(
-        rankedQualifications,
-        playoffStructure,
-        r2Matches,
-        selection.groupCount,
-        { requireWinner: true, tournamentId, logger },
-      );
+      const { resolvedWinners } = resolvePlayoffWinners(playoffStructure, r2Matches, {
+        requireWinner: true,
+        tournamentId,
+        logger,
+      });
       const upperSeedToPlayer = new Map(
         resolvedWinners.map(
           ({ upperSeed, winner }) =>
@@ -1809,16 +1795,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ),
       );
 
-      /* Build the 16 seeded players: direct advancers use their actual Upper
-       * Bracket seed numbers (2 groups: fixed CDM paper layout; 3 groups:
-       * assignAntiCollisionSeeds() in finals-group-selection.ts), and playoff
-       * winners fill the barrage slots declared by generatePlayoffStructure. */
-      const collisionFreeDirectSeeds =
-        selection.groupCount >= 3
-          ? reseedDirectEntrantsAgainstPlayoffWinners(selection.directSeeds, winnerGroupByUpperSeed)
-          : selection.directSeeds;
+      /* Build the 16 seeded players: direct advancers use their real overall
+       * seed 1-12 (finals-group-selection.ts), and playoff winners fill the
+       * barrage slots (13-16) declared by generatePlayoffStructure. */
       const directPlayers = buildDirectSeededPlayers(
-        collisionFreeDirectSeeds,
+        selection.directSeeds,
         qualificationRankLabels,
         tournamentId,
         logger,

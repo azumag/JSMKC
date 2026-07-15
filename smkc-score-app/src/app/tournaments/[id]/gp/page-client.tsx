@@ -299,6 +299,7 @@ export default function GrandPrixPageClient({
   const {
     handleRankOverrideSave,
     handleBulkRankOverrideSave,
+    handleCombinedRankOverrideSave,
     handleBulkCombinedRankOverrideSave,
     handleTvAssign,
     handleBroadcastReflect,
@@ -837,7 +838,17 @@ export default function GrandPrixPageClient({
                   <TableBody>
                     {combinedRankings.map((q) => (
                       <TableRow key={q.id}>
-                        <TableCell className="font-semibold">{q._autoRank}</TableCell>
+                        <TableCell className="font-semibold">
+                          {/* Same badge/edit/clear affordance as the in-group RankCell above
+                              (issue: cross-group playoff result had no undo/edit control). */}
+                          <RankCell
+                            qualificationId={q.id}
+                            rankOverride={q.combinedRankOverride}
+                            autoRank={q._autoRank}
+                            isAdmin={!!isAdmin}
+                            onSave={handleCombinedRankOverrideSave}
+                          />
+                        </TableCell>
                         <TableCell>{tc('groupLabel', { group: q.group })}</TableCell>
                         <TableCell className="font-medium">
                           <PlayerName player={q.player} locale={locale} />

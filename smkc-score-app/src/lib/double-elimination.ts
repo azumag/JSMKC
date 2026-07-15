@@ -46,7 +46,7 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
     return generate16PlayerBracket();
   }
   if (playerCount !== 8) {
-    throw new Error("Only 8-player and 16-player brackets are supported");
+    throw new Error('Only 8-player and 16-player brackets are supported');
   }
 
   const matches: BracketMatch[] = [];
@@ -71,8 +71,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: matchNumber,
-      round: "winners_qf",
-      bracket: "winners",
+      round: 'winners_qf',
+      bracket: 'winners',
       player1Seed: seedPairs[i][0],
       player2Seed: seedPairs[i][1],
       // Winners of QF matches 1&2 go to SF match 5; QF matches 3&4 go to SF match 6
@@ -90,8 +90,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   for (let i = 0; i < 2; i++) {
     matches.push({
       matchNumber: matchNumber,
-      round: "winners_sf",
-      bracket: "winners",
+      round: 'winners_sf',
+      bracket: 'winners',
       // Both SF winners advance to the Winners Final (match 7)
       winnerGoesTo: 7,
       // SF losers drop to Losers R3 (matches 12-13), giving them another
@@ -107,8 +107,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   // Winners Final (Match 7): Determines the Winners Bracket champion
   matches.push({
     matchNumber: matchNumber,
-    round: "winners_final",
-    bracket: "winners",
+    round: 'winners_final',
+    bracket: 'winners',
     // Winner goes to Grand Final as the undefeated player
     winnerGoesTo: 16,
     // Loser drops to Losers Final (match 15) -- still alive with one loss
@@ -127,8 +127,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   for (let i = 0; i < 2; i++) {
     matches.push({
       matchNumber: matchNumber,
-      round: "losers_r1",
-      bracket: "losers",
+      round: 'losers_r1',
+      bracket: 'losers',
       // Winners advance to Losers R2 (matches 10-11)
       winnerGoesTo: 10 + i,
       // No loserGoesTo -- losing here means elimination (second loss)
@@ -142,8 +142,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   for (let i = 0; i < 2; i++) {
     matches.push({
       matchNumber: matchNumber,
-      round: "losers_r2",
-      bracket: "losers",
+      round: 'losers_r2',
+      bracket: 'losers',
       // Winners advance to Losers R3 (matches 12-13)
       winnerGoesTo: 12 + i,
       // Position 2: enters as the second player in the next losers match
@@ -158,8 +158,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   for (let i = 0; i < 2; i++) {
     matches.push({
       matchNumber: matchNumber,
-      round: "losers_r3",
-      bracket: "losers",
+      round: 'losers_r3',
+      bracket: 'losers',
       // Winners advance to Losers SF (match 14)
       winnerGoesTo: 14,
       // Position alternates for the Losers SF slots
@@ -171,8 +171,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   // Losers Semi Final (Match 14): Last match before the Losers Final
   matches.push({
     matchNumber: matchNumber,
-    round: "losers_sf",
-    bracket: "losers",
+    round: 'losers_sf',
+    bracket: 'losers',
     // Winner advances to Losers Final (match 15)
     winnerGoesTo: 15,
     position: 1,
@@ -183,8 +183,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   // The Winners Final loser enters as player 2 (set by getNextMatchInfo).
   matches.push({
     matchNumber: matchNumber,
-    round: "losers_final",
-    bracket: "losers",
+    round: 'losers_final',
+    bracket: 'losers',
     // Winner becomes the Losers Bracket champion and enters Grand Final (match 16)
     winnerGoesTo: 16,
     // Enters Grand Final as player 2 (the one-loss challenger)
@@ -202,8 +202,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   // by special-case logic in the finals route (uses round: 'grand_final_reset' lookup).
   matches.push({
     matchNumber: matchNumber,
-    round: "grand_final",
-    bracket: "grand_final",
+    round: 'grand_final',
+    bracket: 'grand_final',
   });
   matchNumber++;
 
@@ -212,8 +212,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   // This ensures the true champion has either zero or one loss advantage.
   matches.push({
     matchNumber: matchNumber,
-    round: "grand_final_reset",
-    bracket: "grand_final",
+    round: 'grand_final_reset',
+    bracket: 'grand_final',
     // No further routing -- this is the absolute final match
   });
 
@@ -223,8 +223,19 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
 /**
  * Generate a 16-player double elimination bracket (31 matches).
  *
- * Seeding: 1v16, 8v9, 5v12, 4v13, 3v14, 6v11, 7v10, 2v15
- * Ensures seeds 1&2 on opposite halves, top 4 maximally separated.
+ * Seeding: 1v16, 8v9, 4v13, 5v12, 2v15, 7v10, 3v14, 6v11 (sum-17 pairing;
+ * seeds 1&2 on opposite halves, top 4 maximally separated).
+ *
+ * Match order and the direct/barrage seed split (1-12 direct, 13-16 barrage
+ * byes) are taken verbatim from the CDM 2025 official results workbook, not
+ * an independently-designed layout: an earlier version of this bracket used
+ * a same-group-collision-avoidance scheme (seeds 10/12/14/16 reserved for
+ * barrage) that was never validated against a real event and, when checked
+ * against CDM 2025, did not match — the real bracket has no collision
+ * avoidance at all (e.g. Drew vs Zarkov, both group A, met in Winners R1) and
+ * uses a plain contiguous 1-12/13-16 split. Matching the template's exact
+ * block order also keeps the CDM export's fixed winnerOf-index tables
+ * (src/lib/cdm-export/fill/finals-slot-semantics.ts) valid without changes.
  */
 function generate16PlayerBracket(): BracketMatch[] {
   const matches: BracketMatch[] = [];
@@ -232,14 +243,20 @@ function generate16PlayerBracket(): BracketMatch[] {
 
   // --- WINNERS R1 (Matches 1-8): 16 players → 8 winners ---
   const seedPairs16 = [
-    [1, 16], [8, 9], [5, 12], [4, 13],
-    [3, 14], [6, 11], [7, 10], [2, 15],
+    [1, 16],
+    [8, 9],
+    [4, 13],
+    [5, 12],
+    [2, 15],
+    [7, 10],
+    [3, 14],
+    [6, 11],
   ];
   for (let i = 0; i < 8; i++) {
     matches.push({
       matchNumber: mn,
-      round: "winners_r1",
-      bracket: "winners",
+      round: 'winners_r1',
+      bracket: 'winners',
       player1Seed: seedPairs16[i][0],
       player2Seed: seedPairs16[i][1],
       /* R1 winners → QF: pairs of 2 map to one QF match (9-12) */
@@ -256,12 +273,11 @@ function generate16PlayerBracket(): BracketMatch[] {
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: mn,
-      round: "winners_qf",
-      bracket: "winners",
+      round: 'winners_qf',
+      bracket: 'winners',
       winnerGoesTo: 13 + Math.floor(i / 2),
-      /* QF losers → Losers R2 in reverse visual order.
-       * With the two-group paper layout this pairs LR1 winners top-to-bottom
-       * against B3, A4, A3, B4 instead of B4, A3, A4, B3. */
+      /* QF losers → Losers R2 in reverse visual order (matches the CDM
+       * template's bracket-line routing, verified against the real sheet). */
       loserGoesTo: 23 - i,
       position: ((i % 2) + 1) as 1 | 2,
       loserPosition: 1,
@@ -273,8 +289,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   for (let i = 0; i < 2; i++) {
     matches.push({
       matchNumber: mn,
-      round: "winners_sf",
-      bracket: "winners",
+      round: 'winners_sf',
+      bracket: 'winners',
       winnerGoesTo: 15,
       /* SF losers → Losers R4 (26-27) */
       loserGoesTo: 26 + i,
@@ -287,8 +303,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   // --- WINNERS FINAL (Match 15) ---
   matches.push({
     matchNumber: mn,
-    round: "winners_final",
-    bracket: "winners",
+    round: 'winners_final',
+    bracket: 'winners',
     winnerGoesTo: 30,
     loserGoesTo: 29,
     position: 1,
@@ -300,8 +316,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: mn,
-      round: "losers_r1",
-      bracket: "losers",
+      round: 'losers_r1',
+      bracket: 'losers',
       winnerGoesTo: 20 + i,
       position: 2,
     });
@@ -312,8 +328,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: mn,
-      round: "losers_r2",
-      bracket: "losers",
+      round: 'losers_r2',
+      bracket: 'losers',
       winnerGoesTo: 24 + Math.floor(i / 2),
       position: ((i % 2) + 1) as 1 | 2,
     });
@@ -324,8 +340,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   for (let i = 0; i < 2; i++) {
     matches.push({
       matchNumber: mn,
-      round: "losers_r3",
-      bracket: "losers",
+      round: 'losers_r3',
+      bracket: 'losers',
       winnerGoesTo: 26 + i,
       position: 2,
     });
@@ -336,8 +352,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   for (let i = 0; i < 2; i++) {
     matches.push({
       matchNumber: mn,
-      round: "losers_r4",
-      bracket: "losers",
+      round: 'losers_r4',
+      bracket: 'losers',
       winnerGoesTo: 28,
       position: (i + 1) as 1 | 2,
     });
@@ -347,8 +363,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   // --- LOSERS SF (Match 28) ---
   matches.push({
     matchNumber: mn,
-    round: "losers_sf",
-    bracket: "losers",
+    round: 'losers_sf',
+    bracket: 'losers',
     winnerGoesTo: 29,
     position: 1,
   });
@@ -357,8 +373,8 @@ function generate16PlayerBracket(): BracketMatch[] {
   // --- LOSERS FINAL (Match 29): LSF winner vs WF loser ---
   matches.push({
     matchNumber: mn,
-    round: "losers_final",
-    bracket: "losers",
+    round: 'losers_final',
+    bracket: 'losers',
     winnerGoesTo: 30,
     position: 2,
   });
@@ -367,16 +383,16 @@ function generate16PlayerBracket(): BracketMatch[] {
   // --- GRAND FINAL (Match 30) ---
   matches.push({
     matchNumber: mn,
-    round: "grand_final",
-    bracket: "grand_final",
+    round: 'grand_final',
+    bracket: 'grand_final',
   });
   mn++;
 
   // --- GRAND FINAL RESET (Match 31) ---
   matches.push({
     matchNumber: mn,
-    round: "grand_final_reset",
-    bracket: "grand_final",
+    round: 'grand_final_reset',
+    bracket: 'grand_final',
   });
 
   return matches;
@@ -385,20 +401,27 @@ function generate16PlayerBracket(): BracketMatch[] {
 /**
  * Generate the Pre-Bracket Playoff ("barrage") structure for 12 entrants.
  *
- * Resolves issue #454: Top 24 → Top 16. Qualification positions 13-24 enter
- * a single-elimination playoff whose 4 winners fill the Upper-Bracket barrage slots.
- * Top 4 playoff seeds (qualification 13-16) receive a Round 1 BYE.
+ * Resolves issue #454: Top 24 → Top 16. The 12 entrants holding real overall
+ * seeds 13-24 enter a single-elimination playoff whose 4 winners fill
+ * Upper-Bracket seeds 13-16. Seeds 13-16 (the 4 strongest of the 12) receive
+ * a Round 1 BYE.
  *
- * Structure (8 matches total):
- *   R1 (playoff_r1, 4 matches): Seeds 8v9, 5v12, 6v11, 7v10 — standard bracket pairing
- *                               for the non-BYE seeds, maximally separating stronger seeds.
- *   R2 (playoff_r2, 4 matches): BYE seeds 1-4 each face one R1 winner. Winners advance.
- *
- * Upper-Bracket seed assignment fills the paper-layout barrage slots:
- *   R2 match 5 (playoff seed 1) winner → Upper seed 16
- *   R2 match 6 (playoff seed 4) winner → Upper seed 12
- *   R2 match 7 (playoff seed 3) winner → Upper seed 14
- *   R2 match 8 (playoff seed 2) winner → Upper seed 10
+ * Structure (8 matches total), seed numbers and match order taken verbatim
+ * from the CDM 2025 official results workbook ("Barrage 1"/"Barrage 2"
+ * blocks) — see the same rationale note on generate16PlayerBracket() for why
+ * this replaced an earlier, unvalidated same-group-collision-avoidance
+ * design:
+ *   R1 (playoff_r1, 4 matches): seeds 17v24, 20v21, 18v23, 19v22 — the
+ *                               standard 5v12/6v11/7v10/8v9 shape applied to
+ *                               the 12-entrant pool (seed 17 = the pool's
+ *                               5th-best, seed 24 = its weakest, etc).
+ *   R2 (playoff_r2, 4 matches): BYE seeds 16, 13, 15, 14 each face the
+ *                               corresponding R1 winner. Winners advance to
+ *                               the Upper Bracket keeping their own seed
+ *                               number — a bye winner's slot in the Upper
+ *                               Bracket is simply their own seed (verified:
+ *                               Jarmou, seed 13, won their R2 and entered the
+ *                               Upper Bracket still as seed 13).
  *
  * Cross-stage advancement (playoff_r2 winner → Upper Bracket slot) is handled
  * by the finals-route PUT handler, not by the generic getNextMatchInfo mechanism,
@@ -410,31 +433,23 @@ function generate16PlayerBracket(): BracketMatch[] {
  */
 export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
   if (entrantCount !== 12) {
-    throw new Error("Only 12-entrant playoff is supported");
+    throw new Error('Only 12-entrant playoff is supported');
   }
 
   const matches: BracketMatch[] = [];
 
-  /* --- PLAYOFF ROUND 1 (Matches 1-4): 8 lower seeds pair up ---
-   * With the CDM two-group seed list produced by finals-group-selection, this is:
-   *   M1: A9(seed11)  vs B12(seed10) → winner faces B8(seed1) in R2
-   *   M2: B10(seed7) vs A11(seed6)  → winner faces A7(seed4) in R2
-   *   M3: B9(seed5)  vs A12(seed8)  → winner faces A8(seed3) in R2
-   *   M4: A10(seed9) vs B11(seed12) → winner faces B7(seed2) in R2
-   *
-   *   seed 1   2   3   4   5   6    7    8    9   10   11   12
-   */
+  /* --- PLAYOFF ROUND 1 (Matches 1-4): seeds 17-24 pair up --- */
   const r1Pairs = [
-    [11, 10], // A12 vs B11
-    [7, 6],   // A10 vs B9
-    [5, 8],   // A9 vs B10
-    [9, 12],  // A11 vs B12
+    [17, 24],
+    [20, 21],
+    [18, 23],
+    [19, 22],
   ];
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: i + 1,
-      round: "playoff_r1",
-      bracket: "winners",
+      round: 'playoff_r1',
+      bracket: 'winners',
       player1Seed: r1Pairs[i][0],
       player2Seed: r1Pairs[i][1],
       /* R1 winners enter R2 as player 2 (the BYE seed holds player 1). */
@@ -445,22 +460,17 @@ export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
   }
 
   /* --- PLAYOFF ROUND 2 (Matches 5-8): BYE seeds meet R1 winners ---
-   * Each R2 match is a "decider": winner advances to the Upper Bracket.
-   * advancesToUpperSeed specifies which Upper-Bracket barrage slot the winner claims. */
-  const byeSeedToUpperSeed: Array<{ byeSeed: number; upperSeed: number }> = [
-    { byeSeed: 1, upperSeed: 16 },
-    { byeSeed: 4, upperSeed: 12 },
-    { byeSeed: 3, upperSeed: 14 },
-    { byeSeed: 2, upperSeed: 10 },
-  ];
+   * Each R2 match is a "decider": winner advances to the Upper Bracket,
+   * keeping their own seed number (advancesToUpperSeed === player1Seed). */
+  const byeSeeds = [16, 13, 15, 14];
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: 5 + i,
-      round: "playoff_r2",
-      bracket: "winners",
-      player1Seed: byeSeedToUpperSeed[i].byeSeed,
+      round: 'playoff_r2',
+      bracket: 'winners',
+      player1Seed: byeSeeds[i],
       /* player2Seed intentionally omitted — filled at runtime by R1 winner. */
-      advancesToUpperSeed: byeSeedToUpperSeed[i].upperSeed,
+      advancesToUpperSeed: byeSeeds[i],
       /* No winnerGoesTo/loserGoesTo — cross-stage advancement is handled by
        * the finals route, and losers are eliminated. */
     });
@@ -490,7 +500,7 @@ export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
 export function getNextMatchInfo(
   matches: BracketMatch[],
   completedMatchNumber: number,
-  isWinner: boolean
+  isWinner: boolean,
 ): { nextMatchNumber: number; position: 1 | 2 } | null {
   const match = matches.find((m) => m.matchNumber === completedMatchNumber);
   if (!match) return null;
@@ -517,18 +527,18 @@ export function getNextMatchInfo(
  * Used in the tournament UI to label match phases clearly.
  */
 export const roundNames: Record<string, string> = {
-  playoff_r1: "Playoff Round 1",
-  playoff_r2: "Playoff Round 2",
-  winners_r1: "Winners Round 1",
-  winners_qf: "Winners Quarter Final",
-  winners_sf: "Winners Semi Final",
-  winners_final: "Winners Final",
-  losers_r1: "Losers Round 1",
-  losers_r2: "Losers Round 2",
-  losers_r3: "Losers Round 3",
-  losers_r4: "Losers Round 4",
-  losers_sf: "Losers Semi Final",
-  losers_final: "Losers Final",
-  grand_final: "Grand Final",
-  grand_final_reset: "Grand Final Reset",
+  playoff_r1: 'Playoff Round 1',
+  playoff_r2: 'Playoff Round 2',
+  winners_r1: 'Winners Round 1',
+  winners_qf: 'Winners Quarter Final',
+  winners_sf: 'Winners Semi Final',
+  winners_final: 'Winners Final',
+  losers_r1: 'Losers Round 1',
+  losers_r2: 'Losers Round 2',
+  losers_r3: 'Losers Round 3',
+  losers_r4: 'Losers Round 4',
+  losers_sf: 'Losers Semi Final',
+  losers_final: 'Losers Final',
+  grand_final: 'Grand Final',
+  grand_final_reset: 'Grand Final Reset',
 };

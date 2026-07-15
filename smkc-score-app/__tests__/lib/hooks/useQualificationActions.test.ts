@@ -139,6 +139,63 @@ describe('useQualificationActions', () => {
     });
   });
 
+  describe('handleCombinedRankOverrideSave', () => {
+    it('TC-3023: sends PATCH with qualificationId and combinedRankOverride, calls refetch on success', async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({ ok: true } as Response);
+      const refetch = jest.fn();
+      const { result } = makeHook(refetch);
+
+      await act(async () => {
+        await result.current.handleCombinedRankOverrideSave('qual-1', 2);
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        `/api/tournaments/${TOURNAMENT_ID}/${MODE}`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ qualificationId: 'qual-1', combinedRankOverride: 2 }),
+        }),
+      );
+      expect(refetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('TC-3024: passing null clears the override', async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({ ok: true } as Response);
+      const refetch = jest.fn();
+      const { result } = makeHook(refetch);
+
+      await act(async () => {
+        await result.current.handleCombinedRankOverrideSave('qual-1', null);
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        `/api/tournaments/${TOURNAMENT_ID}/${MODE}`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ qualificationId: 'qual-1', combinedRankOverride: null }),
+        }),
+      );
+      expect(refetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('TC-3025: shows alert with error message on non-ok response', async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'Not found' }),
+      } as unknown as Response);
+      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const refetch = jest.fn();
+      const { result } = makeHook(refetch);
+
+      await act(async () => {
+        await result.current.handleCombinedRankOverrideSave('qual-1', 1);
+      });
+
+      expect(alertSpy).toHaveBeenCalledWith('Not found');
+      expect(refetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('handleBulkCombinedRankOverrideSave', () => {
     it('sends the cross-group override field for every tied player and refreshes once', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({ ok: true } as Response);

@@ -73,14 +73,14 @@ route.ts は CSV パスを温存し、CDM パスのみ `generateCdmWorkbook` を
 
 ### 3.1 Main Hub（Registration テーブル A1:L61）
 
-| 列 | 内容 | 備考 |
-|----|------|------|
-| B,C | name, nickname | rows 2..61（最大60人、超過は切捨て+log） |
-| D | country（プレーンテキスト） | 元はリッチバリュー画像。テキスト化で国旗表示は劣化（許容・後述） |
-| E..H | TT/BM/MR/GP Order = **合成順序** | 下記 3.1.1 |
-| I..L | "Yes"/"No"（モード参加） | TT=TTEntry(qualification)有無、他=Qualification有無 |
-| O3..R3 | Qualifying 人数 | TT=**min(24, TT予選人数)**（O3 は TT Finals の名簿スピル長。replay のユニバースと一致必須。予選ゼロ時のみ distinct phase 選手数へフォールバック）、BM/MR/GP=ブラケット規模(24/16/8) |
-| O4..R4 | グループ数 | TT=0、他=予選の distinct group 数 |
+| 列     | 内容                             | 備考                                                                                                                                                                                |
+| ------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B,C    | name, nickname                   | rows 2..61（最大60人、超過は切捨て+log）                                                                                                                                            |
+| D      | country（プレーンテキスト）      | 元はリッチバリュー画像。テキスト化で国旗表示は劣化（許容・後述）                                                                                                                    |
+| E..H   | TT/BM/MR/GP Order = **合成順序** | 下記 3.1.1                                                                                                                                                                          |
+| I..L   | "Yes"/"No"（モード参加）         | TT=TTEntry(qualification)有無、他=Qualification有無                                                                                                                                 |
+| O3..R3 | Qualifying 人数                  | TT=**min(24, TT予選人数)**（O3 は TT Finals の名簿スピル長。replay のユニバースと一致必須。予選ゼロ時のみ distinct phase 選手数へフォールバック）、BM/MR/GP=ブラケット規模(24/16/8) |
+| O4..R4 | グループ数                       | TT=0、他=予選の distinct group 数                                                                                                                                                   |
 
 - A列（`=ROW()-1`）、N2:R2（COUNTIF）、T/U（集計スピル）は**非接触**。
 - 余剰行（プレイヤー数+2 .. 61）は B..L の値をクリア。
@@ -122,17 +122,17 @@ seeding（なければ予選順位）をそのまま 1..N で振る。
   各試合は**両選手のブロックに1行ずつ（計2回）**現れる。
 - ブロック内行（オーナー視点・roundNumber, matchNumber 昇順）:
 
-| 列 | 内容 |
-|----|------|
-| S | matchNumber |
-| T | tvNumber（null はクリア） |
-| U | オーナーの side（player1Side/player2Side） |
-| V | オーナーのニックネーム |
-| W | オーナーのスコア（BM/MR: ラウンド取得数 0..4、GP: ドライバーポイント 0..45） |
-| Z | 相手ニックネーム（BYE は `Break`） |
-| AA | 相手の side |
-| Y | **GPのみ**相手ポイントを書く（BM/MR は `=4-W` 数式のため非接触） |
-| AB..AE | **MRのみ** assignedCourses 略称4つ / **GPのみ** AB=cup名 |
+| 列     | 内容                                                                         |
+| ------ | ---------------------------------------------------------------------------- |
+| S      | matchNumber                                                                  |
+| T      | tvNumber（null はクリア）                                                    |
+| U      | オーナーの side（player1Side/player2Side）                                   |
+| V      | オーナーのニックネーム                                                       |
+| W      | オーナーのスコア（BM/MR: ラウンド取得数 0..4、GP: ドライバーポイント 0..45） |
+| Z      | 相手ニックネーム（BYE は `Break`）                                           |
+| AA     | 相手の side                                                                  |
+| Y      | **GPのみ**相手ポイントを書く（BM/MR は `=4-W` 数式のため非接触）             |
+| AB..AE | **MRのみ** assignedCourses 略称4つ / **GPのみ** AB=cup名                     |
 
 - X(`-`)・AB..AD(BM)/AF..AH(MR)/AC..AE(GP) の W/T/L 判定数式は非接触。
 - 未完了試合はスコアセルをクリア（数式が空欄を無害に処理する）。
@@ -146,8 +146,10 @@ UBF=AM(39), GF1=AT(46), GF2=BA(53)。下段 LB は R/Y/AF/AM/AT/BA の rows 41..
 ブロック内オフセット: +0=ラベル/試合番号, +1=シード#, +2=名前, +3=国旗, +4=スコア。
 
 **B3:B26 = シードリスト（B-position 順のニックネーム）**:
-- 24人（16+playoff）: B-pos 1..12 = 直行勢（upper seed `[1,2,…,9,11,13,15]` の順）、
-  B-pos 13..24 = playoff seed 1..12（= 予選13..24位相当）。
+
+- 24人（16+playoff）: B-pos 1..12 = 直行勢（upper seed 1..12、CDM 2025公式結果ワークブックで
+  検証済みの連番。同グループ対決を避けるための並び替えは行わない）、
+  B-pos 13..24 = playoff seed 13..24（構造シードそのものがB-posと一致する連番。予選13..24位相当）。
 - 16人: B-pos = upper seed 1..16。8人: 1..8。
 - 各シードの実選手は決勝試合レコードと `generateBracketStructure`/`generatePlayoffStructure`
   の構造シードを matchNumber で突合して復元する（DB に seed 列は無い）。
@@ -159,6 +161,7 @@ UBF=AM(39), GF1=AT(46), GF2=BA(53)。下段 LB は R/Y/AF/AM/AT/BA の rows 41..
   実装は `fill/finals.ts` の `seedListIsFormula(mode)` で分岐する。
 
 **書込セル（faithful モード = 16+playoff）**:
+
 - 型付きシードセルのみ書く:
   - playoff_r1[k]: E{row},E{row+1}（rows 5/13/21/29）
   - playoff_r2[k]: L{row} のみ（slot2 は `Winner of B1,k` 数式 → 非接触）
@@ -177,29 +180,30 @@ UBF=AM(39), GF1=AT(46), GF2=BA(53)。下段 LB は R/Y/AF/AM/AT/BA の rows 41..
 
 テンプレート数式が定めるスロット帰属（検証済み）:
 
-| round[idx] | slot1 | slot2 |
-|---|---|---|
-| playoff_r1[k] | typed seed | typed seed |
-| playoff_r2[k] | typed seed (bye) | winnerOf playoff_r1[k] |
-| winners_r1[2k] | typed seed | winnerOf playoff_r2[k] |
-| winners_r1[2k+1] | typed seed | typed seed |
-| winners_qf[k] | winnerOf winners_r1[2k] | winnerOf winners_r1[2k+1] |
-| winners_sf[k] | winnerOf winners_qf[2k] | winnerOf winners_qf[2k+1] |
-| winners_final | winnerOf winners_sf[0] | winnerOf winners_sf[1] |
-| losers_r1[k] | loserOf winners_r1[2k] | loserOf winners_r1[2k+1] |
-| losers_r2[k] | loserOf winners_qf[3-k] | winnerOf losers_r1[k] |
-| losers_r3[k] | winnerOf losers_r2[2k] | winnerOf losers_r2[2k+1] |
-| losers_r4[k] | loserOf winners_sf[k] | winnerOf losers_r3[k] |
-| losers_sf | winnerOf losers_r4[0] | winnerOf losers_r4[1] |
-| losers_final | **loserOf winners_final** | winnerOf losers_sf |
-| grand_final | winnerOf winners_final | winnerOf losers_final |
-| grand_final_reset | winnerOf grand_final | loserOf grand_final |
+| round[idx]        | slot1                     | slot2                     |
+| ----------------- | ------------------------- | ------------------------- |
+| playoff_r1[k]     | typed seed                | typed seed                |
+| playoff_r2[k]     | typed seed (bye)          | winnerOf playoff_r1[k]    |
+| winners_r1[2k]    | typed seed                | winnerOf playoff_r2[k]    |
+| winners_r1[2k+1]  | typed seed                | typed seed                |
+| winners_qf[k]     | winnerOf winners_r1[2k]   | winnerOf winners_r1[2k+1] |
+| winners_sf[k]     | winnerOf winners_qf[2k]   | winnerOf winners_qf[2k+1] |
+| winners_final     | winnerOf winners_sf[0]    | winnerOf winners_sf[1]    |
+| losers_r1[k]      | loserOf winners_r1[2k]    | loserOf winners_r1[2k+1]  |
+| losers_r2[k]      | loserOf winners_qf[3-k]   | winnerOf losers_r1[k]     |
+| losers_r3[k]      | winnerOf losers_r2[2k]    | winnerOf losers_r2[2k+1]  |
+| losers_r4[k]      | loserOf winners_sf[k]     | winnerOf losers_r3[k]     |
+| losers_sf         | winnerOf losers_r4[0]     | winnerOf losers_r4[1]     |
+| losers_final      | **loserOf winners_final** | winnerOf losers_sf        |
+| grand_final       | winnerOf winners_final    | winnerOf losers_final     |
+| grand_final_reset | winnerOf grand_final      | loserOf grand_final       |
 
 アプリの p1/p2 とスロット順は **losers_final で反転**している（他は一致を検証済み）。
 よってスコアは「スロット意味論を解決した期待選手の実スコア」を書く。
 期待選手と実レコードが一致しない場合（手動運用等）は p1/p2 順にフォールバックし `logger.warn`。
 
 **縮退モード**:
+
 - 16人（playoff 無し）: winners_r1 idx0,2,4,6 の slot2（S/T セル）を**値で上書き**
   （数式除去）。Barrage ブロックの入力/数式セルを除去。
 - 8人: winners_qf 以降へ同様にマップし、UBQ/LB 各スロットの**名前セルを解決済み値で上書き**。
@@ -241,6 +245,7 @@ UBF=AM(39), GF1=AT(46), GF2=BA(53)。下段 LB は R/Y/AF/AM/AT/BA の rows 41..
 ## 4. データ取得
 
 現行 `CDM_EXPORT_INCLUDE` から `playerScores` を除去。追加で必要なもの:
+
 - 決勝シード復元のための finals/playoff 試合（既に bmMatches 等に含まれる）。
 - TT finals: `ttPhaseRounds`（含まれる）+ SuddenDeath（必要なら追加 include）。
 
