@@ -10,38 +10,69 @@
  * dynamic-array spill ranges that compute standings and brackets.
  */
 
-import type { CdmSheetName, CdmVersusMode } from "./types";
+import type { CdmSheetName, CdmVersusMode } from './types';
 
 /**
  * The 20 SMK courses in the exact column order of the TT Qualifications
  * sheet (G1..Z1 headers) and of TTEntry.times keys.
  */
 export const CDM_COURSES = [
-  "MC1", "DP1", "GV1", "BC1", "MC2", "CI1", "GV2", "DP2", "BC2", "MC3",
-  "KB1", "CI2", "VL1", "BC3", "MC4", "DP3", "KB2", "GV3", "VL2", "RR",
+  'MC1',
+  'DP1',
+  'GV1',
+  'BC1',
+  'MC2',
+  'CI1',
+  'GV2',
+  'DP2',
+  'BC2',
+  'MC3',
+  'KB1',
+  'CI2',
+  'VL1',
+  'BC3',
+  'MC4',
+  'DP3',
+  'KB2',
+  'GV3',
+  'VL2',
+  'RR',
 ] as const;
 
 /** Course abbreviation → full display name (Parameters!C2:D21 "Tracks" table). */
 export const CDM_COURSE_NAMES: Record<string, string> = {
-  MC1: "Mario Circuit 1", DP1: "Donut Plains 1", GV1: "Ghost Valley 1",
-  BC1: "Bowser Castle 1", MC2: "Mario Circuit 2", CI1: "Choco Island 1",
-  GV2: "Ghost Valley 2", DP2: "Donut Plains 2", BC2: "Bowser Castle 2",
-  MC3: "Mario Circuit 3", KB1: "Koopa Beach 1", CI2: "Choco Island 2",
-  VL1: "Vanilla Lake 1", BC3: "Bowser Castle 3", MC4: "Mario Circuit 4",
-  DP3: "Donut Plains 3", KB2: "Koopa Beach 2", GV3: "Ghost Valley 3",
-  VL2: "Vanilla Lake 2", RR: "Rainbow Road",
+  MC1: 'Mario Circuit 1',
+  DP1: 'Donut Plains 1',
+  GV1: 'Ghost Valley 1',
+  BC1: 'Bowser Castle 1',
+  MC2: 'Mario Circuit 2',
+  CI1: 'Choco Island 1',
+  GV2: 'Ghost Valley 2',
+  DP2: 'Donut Plains 2',
+  BC2: 'Bowser Castle 2',
+  MC3: 'Mario Circuit 3',
+  KB1: 'Koopa Beach 1',
+  CI2: 'Choco Island 2',
+  VL1: 'Vanilla Lake 1',
+  BC3: 'Bowser Castle 3',
+  MC4: 'Mario Circuit 4',
+  DP3: 'Donut Plains 3',
+  KB2: 'Koopa Beach 2',
+  GV3: 'Ghost Valley 3',
+  VL2: 'Vanilla Lake 2',
+  RR: 'Rainbow Road',
 };
 
 export const CDM_QUALIFICATION_SHEETS: Record<CdmVersusMode, CdmSheetName> = {
-  bm: "BM Qualifications",
-  mr: "MR Qualifications",
-  gp: "GP Qualifications",
+  bm: 'BM Qualifications',
+  mr: 'MR Qualifications',
+  gp: 'GP Qualifications',
 };
 
 export const CDM_FINALS_SHEETS: Record<CdmVersusMode, CdmSheetName> = {
-  bm: "BM Finals",
-  mr: "MR Finals",
-  gp: "GP Finals",
+  bm: 'BM Finals',
+  mr: 'MR Finals',
+  gp: 'GP Finals',
 };
 
 /* ------------------------------------------------------------------ *
@@ -51,14 +82,13 @@ export const CDM_FINALS_SHEETS: Record<CdmVersusMode, CdmSheetName> = {
  * ------------------------------------------------------------------ */
 export const MAIN_HUB_FIRST_PLAYER_ROW = 2;
 export const MAIN_HUB_MAX_PLAYERS = 60;
-export const MAIN_HUB_LAST_PLAYER_ROW =
-  MAIN_HUB_FIRST_PLAYER_ROW + MAIN_HUB_MAX_PLAYERS - 1; // 61
+export const MAIN_HUB_LAST_PLAYER_ROW = MAIN_HUB_FIRST_PLAYER_ROW + MAIN_HUB_MAX_PLAYERS - 1; // 61
 /** Mode column order for Order (E..H) and participation Yes/No (I..L). */
-export const MAIN_HUB_MODE_ORDER = ["tt", "bm", "mr", "gp"] as const;
+export const MAIN_HUB_MODE_ORDER = ['tt', 'bm', 'mr', 'gp'] as const;
 export const MAIN_HUB_QUALIFYING_ROW = 3; // O3..R3
 export const MAIN_HUB_GROUPS_ROW = 4; // O4..R4
 /** O..R column letters indexed like MAIN_HUB_MODE_ORDER. */
-export const MAIN_HUB_COUNT_COLUMNS = ["O", "P", "Q", "R"] as const;
+export const MAIN_HUB_COUNT_COLUMNS = ['O', 'P', 'Q', 'R'] as const;
 
 /* ------------------------------------------------------------------ *
  * TT Qualifications — time inputs only.
@@ -85,16 +115,16 @@ export const QUAL_BLOCK_STRIDE = 16;
 export const QUAL_BLOCK_DATA_ROWS = 15;
 export const QUAL_BLOCK_MAX_BLOCKS = 48;
 export const QUAL_MATCH_COLUMNS = {
-  matchNumber: "S",
-  tvNumber: "T",
-  ownerSide: "U",
-  ownerNickname: "V",
-  ownerScore: "W",
-  opponentScore: "Y", // GP only — BM/MR keep the template formula =4-W
-  opponentNickname: "Z",
-  opponentSide: "AA",
+  matchNumber: 'S',
+  tvNumber: 'T',
+  ownerSide: 'U',
+  ownerNickname: 'V',
+  ownerScore: 'W',
+  opponentScore: 'Y', // GP only — BM/MR keep the template formula =4-W
+  opponentNickname: 'Z',
+  opponentSide: 'AA',
   /** MR: assignedCourses[0..3] → AB..AE. GP: cup name → AB. */
-  extraFirstColumn: "AB",
+  extraFirstColumn: 'AB',
 } as const;
 
 /* ------------------------------------------------------------------ *
@@ -104,7 +134,7 @@ export const QUAL_MATCH_COLUMNS = {
  * Only the seed cells listed as "typed" in the design doc and the score
  * cells are inputs; name/advancement cells are formulas.
  * ------------------------------------------------------------------ */
-export const FINALS_SEED_LIST_COLUMN = "B"; // B3:B26 qualified nicknames
+export const FINALS_SEED_LIST_COLUMN = 'B'; // B3:B26 qualified nicknames
 export const FINALS_SEED_LIST_FIRST_ROW = 3;
 export const FINALS_SEED_LIST_MAX_ROWS = 24; // rows 3..26
 /**
@@ -175,7 +205,7 @@ export const TT_FINALS_DISPLAY_LOST_OFFSET = 4;
 
 /** Convert a 1-based column number to its A1 letters (1→A, 27→AA). */
 export function toColumnLetters(column: number): string {
-  let result = "";
+  let result = '';
   let n = column;
   while (n > 0) {
     const rem = (n - 1) % 26;

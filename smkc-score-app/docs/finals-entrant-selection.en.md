@@ -71,15 +71,15 @@ This remains covered by the existing logic and tests, but cannot currently be se
 
 ## 5. Comparison table
 
-| | 2 groups (supported) | 3 groups (supported) | 4 groups (internal logic) |
-|---|---|---|---|
-| perGroup | 6 | 4 | 3 |
-| Direct-advancer selection | Each group's places 1-6 (group-internal rank as-is) | Buckets 1-4 (each group's Nth place, stacked and tie-broken by match points -> point differential) | Buckets 1-3 |
-| Barrage selection | Each group's places 7-12 | Buckets 5-8 | Buckets 4-6 |
-| Cross-group comparison needed? | No (coincides with the bucket method) | Yes (within-bucket tiebreak by match points -> point differential) | Yes (same) |
-| Seed placement | Straight numbering over bucket order (1-12, 13-24) | Straight numbering over bucket order (same) | Straight numbering over bucket order (same) |
-| Avoids same-group matchups? | No (matches the real CDM 2025 event) | No (same) | No (same) |
-| Usable from the UI? | Yes | Yes | No |
+|                                | 2 groups (supported)                                | 3 groups (supported)                                                                               | 4 groups (internal logic)                   |
+| ------------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| perGroup                       | 6                                                   | 4                                                                                                  | 3                                           |
+| Direct-advancer selection      | Each group's places 1-6 (group-internal rank as-is) | Buckets 1-4 (each group's Nth place, stacked and tie-broken by match points -> point differential) | Buckets 1-3                                 |
+| Barrage selection              | Each group's places 7-12                            | Buckets 5-8                                                                                        | Buckets 4-6                                 |
+| Cross-group comparison needed? | No (coincides with the bucket method)               | Yes (within-bucket tiebreak by match points -> point differential)                                 | Yes (same)                                  |
+| Seed placement                 | Straight numbering over bucket order (1-12, 13-24)  | Straight numbering over bucket order (same)                                                        | Straight numbering over bucket order (same) |
+| Avoids same-group matchups?    | No (matches the real CDM 2025 event)                | No (same)                                                                                          | No (same)                                   |
+| Usable from the UI?            | Yes                                                 | Yes                                                                                                | No                                          |
 
 ## 6. Out of scope / known limitations
 

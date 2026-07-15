@@ -1172,8 +1172,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('bracketPosition.includes("reset")');
     expect(section).toContain('normalizeRound');
     // Round normalization moved into the finals fill map's normalizeRound.
-    expect(finalsFill).toContain('if (bracketPosition.includes("reset")) return "grand_final_reset"');
-    expect(finalsFill).not.toContain('round === "grand_final_reset" || bracketPosition.includes("reset")');
+    expect(finalsFill).toContain("if (bracketPosition.includes('reset')) return 'grand_final_reset'");
+    expect(finalsFill).not.toContain("round === 'grand_final_reset' || bracketPosition.includes('reset')");
     expect(exportRoute).not.toContain('function cdmFinalsSlotRound');
   });
 
@@ -2917,13 +2917,13 @@ describe('E2E case drift coverage', () => {
   it('documents TC-1051 as the Top-24 directSeeds-only contract', () => {
     const section = e2eCaseSection('TC-1051');
     const unitTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'finals-group-selection.test.ts');
-    const runTc510OkBlock = sectionBetween(tcBm, 'const ok = playoffCreated', "log('TC-510'");
+    const runTc510OkBlock = sectionBetween(tcBm, 'const ok =\n      playoffCreated', "log(\n      'TC-510'");
 
     expect(section).toContain('issue #1051');
     expect(section).toContain('legacy `direct[]`');
     expect(section).toContain('`directSeeds`');
     expect(section).toContain('tc-bm.js TC-510');
-    expect(tcBm).toContain("log('TC-1051'");
+    expect(tcBm).toContain("log(\n      'TC-1051'");
     expect(tcBm).toContain('legacyDirectPayloadAbsent');
     expect(runTc510OkBlock).toContain('legacyDirectPayloadAbsent');
     expect(unitTest).toContain('does not expose a redundant direct[]/barrage[] projection');

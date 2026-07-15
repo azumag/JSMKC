@@ -42,12 +42,9 @@
  *     bracket (its formulas already handle empty inputs).
  */
 
-import { createLogger } from "@/lib/logger";
-import {
-  generateBracketStructure,
-  generatePlayoffStructure,
-} from "@/lib/double-elimination";
-import type { BracketMatch } from "@/types/bracket";
+import { createLogger } from '@/lib/logger';
+import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
+import type { BracketMatch } from '@/types/bracket';
 import {
   FINALS_BRACKET_SLOTS,
   FINALS_BLOCK_SEED_OFFSET,
@@ -59,7 +56,7 @@ import {
   FINALS_SEED_LIST_MAX_ROWS,
   CDM_FINALS_SHEETS,
   toColumnLetters,
-} from "../cdm-constants";
+} from '../cdm-constants';
 import type {
   CdmCellWrite,
   CdmMatch,
@@ -68,10 +65,10 @@ import type {
   CdmSheetName,
   CdmTournamentData,
   CdmVersusMode,
-} from "../types";
-import { getSlotSemantics, type FinalsSlotSemantics } from "./finals-slot-semantics";
+} from '../types';
+import { getSlotSemantics, type FinalsSlotSemantics } from './finals-slot-semantics';
 
-const logger = createLogger("cdm-export");
+const logger = createLogger('cdm-export');
 
 const FULL_SEED_COUNT = 24;
 const SIXTEEN = 16;
@@ -91,32 +88,32 @@ class FinalsWriteBuilder {
 
   /** Set a numeric value on a non-formula cell (typed seed / score). */
   setNumber(ref: string, value: number): void {
-    this.ops.set(ref, { sheet: this.sheet, ref, op: "number", value });
+    this.ops.set(ref, { sheet: this.sheet, ref, op: 'number', value });
   }
 
   /** Set an inline string on a non-formula cell. */
   setString(ref: string, value: string): void {
-    this.ops.set(ref, { sheet: this.sheet, ref, op: "inlineString", value });
+    this.ops.set(ref, { sheet: this.sheet, ref, op: 'inlineString', value });
   }
 
   /** Drop the cached value but keep the cell, style and any formula. */
   clear(ref: string): void {
-    this.ops.set(ref, { sheet: this.sheet, ref, op: "clearValue" });
+    this.ops.set(ref, { sheet: this.sheet, ref, op: 'clearValue' });
   }
 
   /** Replace value AND remove any formula (degraded modes only). */
   overwriteNumber(ref: string, value: number): void {
-    this.ops.set(ref, { sheet: this.sheet, ref, op: "overwriteNumber", value });
+    this.ops.set(ref, { sheet: this.sheet, ref, op: 'overwriteNumber', value });
   }
 
   /** Replace value AND remove any formula with an inline string (degraded only). */
   overwriteString(ref: string, value: string): void {
-    this.ops.set(ref, { sheet: this.sheet, ref, op: "overwriteString", value });
+    this.ops.set(ref, { sheet: this.sheet, ref, op: 'overwriteString', value });
   }
 
   /** Remove value and formula but keep the styled cell shell. */
   strip(ref: string): void {
-    this.ops.set(ref, { sheet: this.sheet, ref, op: "strip" });
+    this.ops.set(ref, { sheet: this.sheet, ref, op: 'strip' });
   }
 
   /** Set a number or, when null/undefined, clear the cell. */
@@ -142,11 +139,7 @@ interface SlotCells {
 }
 
 /** A1 refs for the seed/name/score cells of a slot, or null if no such slot. */
-function slotCells(
-  round: string,
-  matchIndex: number,
-  slotIndex: number,
-): SlotCells | null {
+function slotCells(round: string, matchIndex: number, slotIndex: number): SlotCells | null {
   const geometries = FINALS_BRACKET_SLOTS[round];
   if (!geometries) return null;
   const geometry = geometries[matchIndex];
@@ -161,7 +154,7 @@ function slotCells(
 
 /** True if the template stores a typed seed value (not a formula) in this slot. */
 function isTypedSeedSlot(round: string, matchIndex: number, slotIndex: number): boolean {
-  return getSlotSemantics(round, matchIndex, slotIndex)?.kind === "seed";
+  return getSlotSemantics(round, matchIndex, slotIndex)?.kind === 'seed';
 }
 
 /**
@@ -171,12 +164,7 @@ function isTypedSeedSlot(round: string, matchIndex: number, slotIndex: number): 
  * for "seed" slots; the name cell is always a formula; the score cell is always a
  * typed input.
  */
-function emptyUnusedSlot(
-  builder: FinalsWriteBuilder,
-  round: string,
-  matchIndex: number,
-  slotIndex: number,
-): void {
+function emptyUnusedSlot(builder: FinalsWriteBuilder, round: string, matchIndex: number, slotIndex: number): void {
   const cells = slotCells(round, matchIndex, slotIndex);
   if (!cells) return;
   if (isTypedSeedSlot(round, matchIndex, slotIndex)) builder.clear(cells.seedRef);
@@ -217,12 +205,12 @@ function matchesByRound(matches: CdmMatch[]): Map<string, CdmMatch[]> {
  * aliases are normalized before any geometry lookup.
  */
 function normalizeRound(match: CdmMatch): string | null {
-  const round = match.round ?? "";
-  const bracketPosition = (match.bracketPosition ?? "").toLowerCase();
+  const round = match.round ?? '';
+  const bracketPosition = (match.bracketPosition ?? '').toLowerCase();
   if (round && FINALS_BRACKET_SLOTS[round]) return round;
-  if (bracketPosition.includes("reset")) return "grand_final_reset";
-  if (round === "gf" || bracketPosition === "gf" || match.isGrandFinal) {
-    return "grand_final";
+  if (bracketPosition.includes('reset')) return 'grand_final_reset';
+  if (round === 'gf' || bracketPosition === 'gf' || match.isGrandFinal) {
+    return 'grand_final';
   }
   return null; // unmapped: caller skips (+ warns at the call site if relevant).
 }
@@ -232,7 +220,7 @@ function normalizeRound(match: CdmMatch): string | null {
  * ------------------------------------------------------------------ */
 
 function scoreFor(match: CdmMatch, mode: CdmVersusMode, slotIndex: number): number | null {
-  if (mode === "gp") {
+  if (mode === 'gp') {
     const value = slotIndex === 0 ? match.points1 : match.points2;
     return value ?? null;
   }
@@ -241,17 +229,13 @@ function scoreFor(match: CdmMatch, mode: CdmVersusMode, slotIndex: number): numb
 }
 
 /** The winner (or loser) player of a completed match, by comparing its scores. */
-function matchOutcome(
-  match: CdmMatch | undefined,
-  mode: CdmVersusMode,
-  want: "winner" | "loser",
-): CdmPlayer | null {
+function matchOutcome(match: CdmMatch | undefined, mode: CdmVersusMode, want: 'winner' | 'loser'): CdmPlayer | null {
   if (!match || !match.completed) return null;
   const s1 = scoreFor(match, mode, 0);
   const s2 = scoreFor(match, mode, 1);
   if (s1 == null || s2 == null || s1 === s2) return null; // undecided / tie
   const player1Wins = s1 > s2;
-  if (want === "winner") return player1Wins ? match.player1 : match.player2;
+  if (want === 'winner') return player1Wins ? match.player1 : match.player2;
   return player1Wins ? match.player2 : match.player1;
 }
 
@@ -284,15 +268,33 @@ function reconstruct24(byRound: Map<string, CdmMatch[]>): Reconstruction {
   const seedBPositionBySlot = new Map<string, number>();
 
   const structure16 = generateBracketStructure(SIXTEEN);
-  const r1Structure = structure16.filter((m) => m.round === "winners_r1");
-  const appR1 = byRound.get("winners_r1") ?? [];
+  const r1Structure = structure16.filter((m) => m.round === 'winners_r1');
+  const appR1 = byRound.get('winners_r1') ?? [];
 
   // Direct qualifiers: each TYPED winners_r1 slot maps an upper seed -> B-pos.
   appR1.forEach((appMatch, matchIndex) => {
     const struct = r1Structure[matchIndex];
     if (!struct) return;
-    assignTypedSeed("winners_r1", matchIndex, 0, struct.player1Seed, appMatch.player1, true, bPositionPlayers, seedBPositionBySlot);
-    assignTypedSeed("winners_r1", matchIndex, 1, struct.player2Seed, appMatch.player2, true, bPositionPlayers, seedBPositionBySlot);
+    assignTypedSeed(
+      'winners_r1',
+      matchIndex,
+      0,
+      struct.player1Seed,
+      appMatch.player1,
+      true,
+      bPositionPlayers,
+      seedBPositionBySlot,
+    );
+    assignTypedSeed(
+      'winners_r1',
+      matchIndex,
+      1,
+      struct.player2Seed,
+      appMatch.player2,
+      true,
+      bPositionPlayers,
+      seedBPositionBySlot,
+    );
   });
 
   // Playoff entrants: playoff_r1 both slots + playoff_r2 slot1 (the BYE seed).
@@ -321,9 +323,7 @@ function assignTypedSeed(
 ): void {
   if (upperSeed == null) return;
   if (asDirect) {
-    const directIndex = FINALS_DIRECT_UPPER_SEEDS.indexOf(
-      upperSeed as (typeof FINALS_DIRECT_UPPER_SEEDS)[number],
-    );
+    const directIndex = FINALS_DIRECT_UPPER_SEEDS.indexOf(upperSeed as (typeof FINALS_DIRECT_UPPER_SEEDS)[number]);
     if (directIndex < 0) return; // playoff-winner slot -> formula, not typed.
     const bPos = directIndex + 1; // B-positions 1..12.
     bPositionPlayers.set(bPos, player);
@@ -343,10 +343,10 @@ function assignPlayoffSeeds(
   bPositionPlayers: Map<number, CdmPlayer>,
   seedBPositionBySlot: Map<string, number>,
 ): void {
-  const r1Structure = playoffStructure.filter((m) => m.round === "playoff_r1");
-  const r2Structure = playoffStructure.filter((m) => m.round === "playoff_r2");
-  const appR1 = byRound.get("playoff_r1") ?? [];
-  const appR2 = byRound.get("playoff_r2") ?? [];
+  const r1Structure = playoffStructure.filter((m) => m.round === 'playoff_r1');
+  const r2Structure = playoffStructure.filter((m) => m.round === 'playoff_r2');
+  const appR1 = byRound.get('playoff_r1') ?? [];
+  const appR2 = byRound.get('playoff_r2') ?? [];
 
   const place = (
     round: string,
@@ -364,14 +364,14 @@ function assignPlayoffSeeds(
   appR1.forEach((appMatch, matchIndex) => {
     const struct = r1Structure[matchIndex];
     if (!struct) return;
-    place("playoff_r1", matchIndex, 0, struct.player1Seed, appMatch.player1);
-    place("playoff_r1", matchIndex, 1, struct.player2Seed, appMatch.player2);
+    place('playoff_r1', matchIndex, 0, struct.player1Seed, appMatch.player1);
+    place('playoff_r1', matchIndex, 1, struct.player2Seed, appMatch.player2);
   });
   appR2.forEach((appMatch, matchIndex) => {
     const struct = r2Structure[matchIndex];
     if (!struct) return;
     // Only slot1 (the BYE seed) is typed; slot2 is a "Winner of B1,k" formula.
-    place("playoff_r2", matchIndex, 0, struct.player1Seed, appMatch.player1);
+    place('playoff_r2', matchIndex, 0, struct.player1Seed, appMatch.player1);
   });
 }
 
@@ -393,7 +393,7 @@ function assignPlayoffSeeds(
 
 /** True when the mode's B3:B26 seed list is a formula spill (GP only). */
 function seedListIsFormula(mode: CdmVersusMode): boolean {
-  return mode === "gp";
+  return mode === 'gp';
 }
 
 function writeSeedList(
@@ -433,13 +433,13 @@ function resolveSlotPlayer(
   mode: CdmVersusMode,
   recon: Reconstruction,
 ): CdmPlayer | null {
-  if (semantics.kind === "seed") {
+  if (semantics.kind === 'seed') {
     const bPos = recon.seedBPositionBySlot.get(slotKey(round, matchIndex, slotIndex));
     if (bPos == null) return null;
     return recon.bPositionPlayers.get(bPos) ?? null;
   }
   const feeder = (byRound.get(semantics.round) ?? [])[semantics.index];
-  return matchOutcome(feeder, mode, semantics.kind === "winnerOf" ? "winner" : "loser");
+  return matchOutcome(feeder, mode, semantics.kind === 'winnerOf' ? 'winner' : 'loser');
 }
 
 /**
@@ -458,7 +458,7 @@ function writeMatchScores(
   const slot0 = slotCells(round, matchIndex, 0);
   const slot1 = slotCells(round, matchIndex, 1);
   if (!slot0 || !slot1) {
-    logger.warn("Finals match has no slot geometry; skipping scores", {
+    logger.warn('Finals match has no slot geometry; skipping scores', {
       mode,
       round,
       matchIndex,
@@ -510,7 +510,7 @@ function writeMatchScores(
   }
 
   // Fallback: positional mapping (slot1<-player1, slot2<-player2) + warn.
-  logger.warn("Finals slot resolution disagreed with match record; positional fallback", {
+  logger.warn('Finals slot resolution disagreed with match record; positional fallback', {
     mode,
     round,
     matchIndex,
@@ -535,11 +535,9 @@ function writeMatchNames(
   mode: CdmVersusMode,
   recon: Reconstruction,
 ): void {
-  const nameRefs = [0, 1].map((slotIndex) =>
-    slotCells(round, matchIndex, slotIndex)?.nameRef ?? null,
-  );
+  const nameRefs = [0, 1].map((slotIndex) => slotCells(round, matchIndex, slotIndex)?.nameRef ?? null);
   if (!nameRefs[0] || !nameRefs[1]) {
-    logger.warn("Finals match has no slot geometry; skipping names", {
+    logger.warn('Finals match has no slot geometry; skipping names', {
       mode,
       round,
       matchIndex,
@@ -589,12 +587,9 @@ function writeMatchNames(
  * Write the B-position number into every TYPED seed cell (per slot-semantics).
  * Formula slots are left untouched so the template's advancement keeps working.
  */
-function writeTypedSeedCells(
-  builder: FinalsWriteBuilder,
-  recon: Reconstruction,
-): void {
+function writeTypedSeedCells(builder: FinalsWriteBuilder, recon: Reconstruction): void {
   for (const [key, bPos] of recon.seedBPositionBySlot) {
-    const [round, matchIndexStr, slotIndexStr] = key.split(":");
+    const [round, matchIndexStr, slotIndexStr] = key.split(':');
     const cells = slotCells(round, Number(matchIndexStr), Number(slotIndexStr));
     if (cells) builder.setNumber(cells.seedRef, bPos);
   }
@@ -640,7 +635,7 @@ function clearAllTypedSeedCells(builder: FinalsWriteBuilder): void {
     geometries.forEach((_, matchIndex) => {
       for (const slotIndex of [0, 1]) {
         const semantics = getSlotSemantics(round, matchIndex, slotIndex);
-        if (!semantics || semantics.kind !== "seed") continue; // formula -> skip.
+        if (!semantics || semantics.kind !== 'seed') continue; // formula -> skip.
         const cells = slotCells(round, matchIndex, slotIndex);
         if (cells) builder.clear(cells.seedRef);
       }
@@ -656,18 +651,15 @@ function clearAllTypedSeedCells(builder: FinalsWriteBuilder): void {
  * Build the BM/MR/GP Finals cell writes for one mode. Clears precede writes so a
  * partially-filled bracket never leaves stale values behind.
  */
-export function buildFinalsWrites(
-  data: CdmTournamentData,
-  mode: CdmVersusMode,
-): CdmCellWrite[] {
+export function buildFinalsWrites(data: CdmTournamentData, mode: CdmVersusMode): CdmCellWrite[] {
   const sheet = CDM_FINALS_SHEETS[mode];
   const builder = new FinalsWriteBuilder(sheet);
   const matches = matchesForMode(data, mode);
   const byRound = matchesByRound(matches);
 
-  const hasPlayoff = matches.some((m) => m.stage === "playoff");
-  const hasR1 = byRound.has("winners_r1");
-  const hasQf = byRound.has("winners_qf");
+  const hasPlayoff = matches.some((m) => m.stage === 'playoff');
+  const hasR1 = byRound.has('winners_r1');
+  const hasQf = byRound.has('winners_qf');
 
   if (matches.length === 0) {
     // No finals at all: clear every input cell so the template shows a blank
@@ -688,7 +680,7 @@ export function buildFinalsWrites(
 
   // Matches exist but none map to a known bracket round (e.g. only a stray
   // unmapped match): treat as blank to avoid corrupting the template.
-  logger.warn("Finals matches present but no recognizable bracket rounds; clearing", {
+  logger.warn('Finals matches present but no recognizable bracket rounds; clearing', {
     mode,
     count: matches.length,
   });
@@ -699,11 +691,11 @@ export function buildFinalsWrites(
 /** Select a mode's match list from the tournament data. */
 function matchesForMode(data: CdmTournamentData, mode: CdmVersusMode): CdmMatch[] {
   switch (mode) {
-    case "bm":
+    case 'bm':
       return data.bmMatches;
-    case "mr":
+    case 'mr':
       return data.mrMatches;
-    case "gp":
+    case 'gp':
       return data.gpMatches;
   }
 }
@@ -711,11 +703,11 @@ function matchesForMode(data: CdmTournamentData, mode: CdmVersusMode): CdmMatch[
 /** Select a mode's qualifications (for the playoff-only B 1..12 fallback). */
 function qualsForMode(data: CdmTournamentData, mode: CdmVersusMode): CdmModeQualification[] {
   switch (mode) {
-    case "bm":
+    case 'bm':
       return data.bmQualifications;
-    case "mr":
+    case 'mr':
       return data.mrQualifications;
-    case "gp":
+    case 'gp':
       return data.gpQualifications;
   }
 }
@@ -753,9 +745,7 @@ function buildFaithfulOr16(
   hasPlayoff: boolean,
 ): CdmCellWrite[] {
   if (hasPlayoff) {
-    const recon = byRound.has("winners_r1")
-      ? reconstruct24(byRound)
-      : reconstructPlayoffOnly(byRound, data, mode);
+    const recon = byRound.has('winners_r1') ? reconstruct24(byRound) : reconstructPlayoffOnly(byRound, data, mode);
     // Clear-then-write: clear every typed seed cell and every score cell first so
     // unfilled inputs never keep stale data, then write the resolved values
     // (last-wins). Formula cells are never touched.
@@ -789,12 +779,8 @@ function reconstructPlayoffOnly(
 
   // B 1..12: top-12 qualifiers by the documented tiebreak, excluding anyone who
   // is already a playoff entrant (they hold B 13..24).
-  const playoffPlayerIds = new Set(
-    [...bPositionPlayers.values()].map((p) => p.id),
-  );
-  const ranked = rankQualifiers(qualsForMode(data, mode)).filter(
-    (q) => !playoffPlayerIds.has(q.player.id),
-  );
+  const playoffPlayerIds = new Set([...bPositionPlayers.values()].map((p) => p.id));
+  const ranked = rankQualifiers(qualsForMode(data, mode)).filter((q) => !playoffPlayerIds.has(q.player.id));
   ranked.slice(0, FINALS_DIRECT_UPPER_SEEDS.length).forEach((q, i) => {
     bPositionPlayers.set(i + 1, q.player); // B 1..12
   });
@@ -837,12 +823,12 @@ function writeAllScores(
 ): void {
   for (const [round, list] of byRound) {
     if (!FINALS_BRACKET_SLOTS[round]) {
-      logger.warn("Finals round has no geometry; skipping", { mode, round });
+      logger.warn('Finals round has no geometry; skipping', { mode, round });
       continue;
     }
     list.forEach((match, matchIndex) => {
       if (matchIndex >= FINALS_BRACKET_SLOTS[round].length) {
-        logger.warn("Finals match index exceeds round geometry; skipping", {
+        logger.warn('Finals match index exceeds round geometry; skipping', {
           mode,
           round,
           matchIndex,
@@ -884,15 +870,15 @@ function build16Player(
   byRound: Map<string, CdmMatch[]>,
   mode: CdmVersusMode,
 ): CdmCellWrite[] {
-  logger.warn("Finals: 16-player bracket (no playoff) — Barrage formulas value-overwritten", {
+  logger.warn('Finals: 16-player bracket (no playoff) — Barrage formulas value-overwritten', {
     mode,
   });
 
   const bPositionPlayers = new Map<number, CdmPlayer>();
   const seedBPositionBySlot = new Map<string, number>();
   const structure16 = generateBracketStructure(SIXTEEN);
-  const r1Structure = structure16.filter((m) => m.round === "winners_r1");
-  const appR1 = byRound.get("winners_r1") ?? [];
+  const r1Structure = structure16.filter((m) => m.round === 'winners_r1');
+  const appR1 = byRound.get('winners_r1') ?? [];
 
   // Every winners_r1 slot is a direct qualifier here; B-position = upper seed.
   appR1.forEach((appMatch, matchIndex) => {
@@ -904,7 +890,7 @@ function build16Player(
     ] as const) {
       if (upperSeed == null) continue;
       bPositionPlayers.set(upperSeed, player); // B 1..16 = upper seed.
-      seedBPositionBySlot.set(slotKey("winners_r1", matchIndex, slotIndex), upperSeed);
+      seedBPositionBySlot.set(slotKey('winners_r1', matchIndex, slotIndex), upperSeed);
     }
   });
   const recon: Reconstruction = { bPositionPlayers, seedBPositionBySlot };
@@ -913,7 +899,7 @@ function build16Player(
   // (value+formula removed, shell kept) wins over the clear on the Barrage's own
   // score cells. The Barrage is entirely unused in a 16-player bracket.
   clearAllScores(builder, ALL_FINALS_ROUNDS);
-  for (const c of regionCells(["playoff_r1", "playoff_r2"])) {
+  for (const c of regionCells(['playoff_r1', 'playoff_r2'])) {
     builder.strip(c.seedRef);
     builder.strip(c.nameRef);
     builder.strip(c.scoreRef);
@@ -927,13 +913,13 @@ function build16Player(
     const struct = r1Structure[matchIndex];
     if (!struct) return;
     for (const slotIndex of [0, 1] as const) {
-      const cells = slotCells("winners_r1", matchIndex, slotIndex);
+      const cells = slotCells('winners_r1', matchIndex, slotIndex);
       if (!cells) continue;
-      const bPos = seedBPositionBySlot.get(slotKey("winners_r1", matchIndex, slotIndex));
+      const bPos = seedBPositionBySlot.get(slotKey('winners_r1', matchIndex, slotIndex));
       if (bPos == null) continue;
       const player = slotIndex === 0 ? appMatch.player1 : appMatch.player2;
-      const semantics = getSlotSemantics("winners_r1", matchIndex, slotIndex);
-      if (semantics && semantics.kind !== "seed") {
+      const semantics = getSlotSemantics('winners_r1', matchIndex, slotIndex);
+      if (semantics && semantics.kind !== 'seed') {
         // Former "Winner of B2,k" slot -> value-overwrite seed + name.
         builder.overwriteNumber(cells.seedRef, bPos);
         builder.overwriteString(cells.nameRef, player.nickname);
@@ -973,16 +959,16 @@ function build16Player(
 
 /** Rounds an 8-player bracket actually uses (others are stripped wholesale). */
 const EIGHT_PLAYER_ROUNDS = [
-  "winners_qf",
-  "winners_sf",
-  "winners_final",
-  "losers_r1",
-  "losers_r2",
-  "losers_r3",
-  "losers_sf",
-  "losers_final",
-  "grand_final",
-  "grand_final_reset",
+  'winners_qf',
+  'winners_sf',
+  'winners_final',
+  'losers_r1',
+  'losers_r2',
+  'losers_r3',
+  'losers_sf',
+  'losers_final',
+  'grand_final',
+  'grand_final_reset',
 ] as const;
 
 /** How many matches an 8-player bracket has per round (extras are stripped). */
@@ -1004,14 +990,14 @@ function build8Player(
   byRound: Map<string, CdmMatch[]>,
   mode: CdmVersusMode,
 ): CdmCellWrite[] {
-  logger.warn("Finals: 8-player bracket — advancement formulas value-overwritten (no Excel recompute)", {
+  logger.warn('Finals: 8-player bracket — advancement formulas value-overwritten (no Excel recompute)', {
     mode,
   });
 
   // B-position list (1..8) from the 8-player structure's winners_qf seeds.
   const structure8 = generateBracketStructure(EIGHT);
-  const qfStructure = structure8.filter((m) => m.round === "winners_qf");
-  const appQf = byRound.get("winners_qf") ?? [];
+  const qfStructure = structure8.filter((m) => m.round === 'winners_qf');
+  const appQf = byRound.get('winners_qf') ?? [];
   const bPositionPlayers = new Map<number, CdmPlayer>();
   appQf.forEach((appMatch, matchIndex) => {
     const struct = qfStructure[matchIndex];
@@ -1027,7 +1013,7 @@ function build8Player(
   const usedRounds = new Set<string>(EIGHT_PLAYER_ROUNDS);
   for (const round of ALL_FINALS_ROUNDS) {
     const geometries = FINALS_BRACKET_SLOTS[round];
-    const usedCount = usedRounds.has(round) ? EIGHT_PLAYER_ROUND_SIZES[round] ?? 0 : 0;
+    const usedCount = usedRounds.has(round) ? (EIGHT_PLAYER_ROUND_SIZES[round] ?? 0) : 0;
     geometries.forEach((_, matchIndex) => {
       if (matchIndex < usedCount) return; // used slot handled in the write pass.
       for (const slotIndex of [0, 1]) emptyUnusedSlot(builder, round, matchIndex, slotIndex);
@@ -1046,7 +1032,7 @@ function build8Player(
     const usedCount = EIGHT_PLAYER_ROUND_SIZES[round] ?? 0;
     list.forEach((match, matchIndex) => {
       if (matchIndex >= usedCount) {
-        logger.warn("8-player finals: match index exceeds bracket size; skipping", {
+        logger.warn('8-player finals: match index exceeds bracket size; skipping', {
           mode,
           round,
           matchIndex,
@@ -1070,9 +1056,9 @@ function writeEightPlayerSlot(
 ): void {
   // losers_final: template slot1 = Winners-Final loser, slot2 = Losers-SF winner.
   // The app stores the Losers-SF winner as player1, so map player1 -> slot2.
-  const reversed = round === "losers_final";
+  const reversed = round === 'losers_final';
   for (const appSlot of [0, 1] as const) {
-    const targetSlot = reversed ? (1 - appSlot) : appSlot;
+    const targetSlot = reversed ? 1 - appSlot : appSlot;
     const cells = slotCells(round, matchIndex, targetSlot);
     if (!cells) continue;
     const player = appSlot === 0 ? match.player1 : match.player2;
