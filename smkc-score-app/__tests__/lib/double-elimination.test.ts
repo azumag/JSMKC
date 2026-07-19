@@ -37,6 +37,20 @@ describe('Double Elimination Bracket Structure', () => {
       expect(matches).toHaveLength(17);
     });
 
+    it('uses the fixed two-group Upper R1 visual order when requested', () => {
+      const r1 = generateBracketStructure(16, 2).filter((m) => m.round === 'winners_r1');
+      expect(r1.map((m) => [m.player1Seed, m.player2Seed])).toEqual([
+        [1, 16],
+        [8, 9],
+        [5, 12],
+        [4, 13],
+        [3, 14],
+        [6, 11],
+        [7, 10],
+        [2, 15],
+      ]);
+    });
+
     it('should throw error for unsupported player counts', () => {
       expect(() => generateBracketStructure(4)).toThrow('Only 8-player and 16-player brackets are supported');
       expect(() => generateBracketStructure(0)).toThrow('Only 8-player and 16-player brackets are supported');
@@ -508,6 +522,24 @@ describe('Double Elimination Bracket Structure', () => {
     it('should number matches 1-8 sequentially', () => {
       const matches = generatePlayoffStructure(12);
       expect(matches.map((m) => m.matchNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    });
+
+    describe('two-group fixed paper layout', () => {
+      it('uses the handwritten cross-group R1 pairings', () => {
+        const matches = generatePlayoffStructure(12, 2);
+        expect(matches.filter((m) => m.round === 'playoff_r1').map((m) => [m.player1Seed, m.player2Seed])).toEqual([
+          [23, 22],
+          [19, 18],
+          [17, 20],
+          [21, 24],
+        ]);
+      });
+
+      it('routes the fixed BYE slots to Upper seeds 16/12/14/10', () => {
+        const r2 = generatePlayoffStructure(12, 2).filter((m) => m.round === 'playoff_r2');
+        expect(r2.map((m) => m.player1Seed)).toEqual([13, 16, 15, 14]);
+        expect(r2.map((m) => m.advancesToUpperSeed)).toEqual([16, 12, 14, 10]);
+      });
     });
   });
 

@@ -735,14 +735,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     };
   }
 
-  /**
-   * Resolve each completed playoff_r2 match's winner and the Upper-Bracket
-   * seed they advance to (== the bye's own seed — see double-elimination.ts).
-   * No longer resolves a "winner group" map: that only existed to feed the
-   * anti-collision direct-seed reshuffle, which was removed because it was
-   * never validated against a real event and did not match CDM 2025 (see
-   * finals-group-selection.ts module doc comment).
-   */
+  /** Resolve each completed playoff_r2 winner and its group-specific Upper slot. */
   function resolvePlayoffWinners(
     playoffStructure: ReturnType<typeof generatePlayoffStructure>,
     r2Matches: Top24FinalsPreviewMatch[],
@@ -981,7 +974,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         rankedQualifications as Top24FinalsQualification[],
       );
 
-      const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+      const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, selection.groupCount);
       const r2Matches = playoffMatches.filter((m) => m.round === 'playoff_r2');
       const { resolvedWinners } = resolvePlayoffWinners(playoffStructure, r2Matches, {
         requireWinner: false,
@@ -1001,7 +994,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       ];
 
       return {
-        bracketStructure: generateBracketStructure(16),
+        bracketStructure: generateBracketStructure(16, selection.groupCount),
         seededPlayers,
       };
     } catch (error) {
@@ -1139,7 +1132,31 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
-      const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT) : [];
+      let top24GroupCount: 2 | 3 = 3;
+      if (playoffMatches.length > 0) {
+        try {
+          const qualificationGroups = await qualModel(prisma).findMany({
+            where: { tournamentId },
+            select: { group: true },
+          });
+          if (Array.isArray(qualificationGroups)) {
+            const detectedGroupCount = new Set(
+              (qualificationGroups as Array<{ group?: string | null }>).map((row) => row.group).filter(Boolean),
+            ).size;
+            if (detectedGroupCount === 2 || detectedGroupCount === 3) {
+              top24GroupCount = detectedGroupCount;
+            }
+          }
+        } catch (error) {
+          logger.warn('Could not detect qualification group count for playoff layout; using three-group layout', {
+            ...getSafeErrorLogFields(error),
+            tournamentId,
+            eventTypeCode: config.eventTypeCode,
+          });
+        }
+      }
+      const playoffStructure =
+        playoffMatches.length > 0 ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, top24GroupCount) : [];
 
       /* Reconstruct playoff seeded players from DB match data + structure.
        * R1 matches carry player1Seed (17-24) and player2Seed;
@@ -1260,7 +1277,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const bracketSize = (result.meta.total ?? 0) > BRACKET_SIZE_THRESHOLD ? 16 : top24FinalsPreview ? 16 : 8;
 
         const bracketStructure =
-          result.data.length > 0 ? generateBracketStructure(bracketSize) : (top24FinalsPreview?.bracketStructure ?? []);
+          result.data.length > 0
+            ? bracketSize === 16
+              ? generateBracketStructure(bracketSize, top24GroupCount)
+              : generateBracketStructure(bracketSize)
+            : (top24FinalsPreview?.bracketStructure ?? []);
 
         return createSuccessResponse({
           ...result,
@@ -1287,7 +1308,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const bracketSize = matches.length > BRACKET_SIZE_THRESHOLD ? 16 : top24FinalsPreview ? 16 : 8;
 
       const bracketStructure =
-        matches.length > 0 ? generateBracketStructure(bracketSize) : (top24FinalsPreview?.bracketStructure ?? []);
+        matches.length > 0
+          ? bracketSize === 16
+            ? generateBracketStructure(bracketSize, top24GroupCount)
+            : generateBracketStructure(bracketSize)
+          : (top24FinalsPreview?.bracketStructure ?? []);
       const seededPlayers = top24FinalsPreview?.seededPlayers ?? [];
 
       if (config.getStyle === 'grouped') {
@@ -1664,7 +1689,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             where: { tournamentId, stage: 'finals' },
           });
         }
-        const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+        const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, selection.groupCount);
         const playoffMrAssignments = config.assignMrCoursesByRound
           ? createMrRoundAssignments(playoffStructure, 'playoff')
           : undefined;
@@ -1675,10 +1700,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
           ? createBmRoundStartingCourses(playoffStructure)
           : undefined;
 
-        /* selection.barrageSeeds already carries the real overall seed
-         * (13-24, bucket-stacked -- finals-group-selection.ts) for each
-         * barrage entrant, matching generatePlayoffStructure()'s seed
-         * numbering directly. */
+        /* selection.barrageSeeds carries displayed slots 13-24 in the active
+         * group-count layout, matching generatePlayoffStructure() directly. */
         const playoffSeededPlayers = selection.barrageSeeds.map(({ seed, qualification }) => ({
           seed,
           playerId: qualification.playerId,
@@ -1776,7 +1799,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
 
       /* Derive each playoff winner and map to its advancesToUpperSeed target. */
-      const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+      const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, selection.groupCount);
       const { resolvedWinners } = resolvePlayoffWinners(playoffStructure, r2Matches, {
         requireWinner: true,
         tournamentId,
@@ -1795,9 +1818,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ),
       );
 
-      /* Build the 16 seeded players: direct advancers use their real overall
-       * seed 1-12 (finals-group-selection.ts), and playoff winners fill the
-       * barrage slots (13-16) declared by generatePlayoffStructure. */
+      /* Build the 16 seeded players from the group-specific direct slots and
+       * the playoff winners' advancesToUpperSeed destinations. */
       const directPlayers = buildDirectSeededPlayers(
         selection.directSeeds,
         qualificationRankLabels,
@@ -1826,7 +1848,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
       const seededPlayers = [...directPlayers, ...playoffWinnerSeeds];
 
-      const bracketStructure = generateBracketStructure(16);
+      const bracketStructure = generateBracketStructure(16, selection.groupCount);
       const finalsMrAssignments = config.assignMrCoursesByRound
         ? createMrRoundAssignments(bracketStructure, 'finals')
         : undefined;

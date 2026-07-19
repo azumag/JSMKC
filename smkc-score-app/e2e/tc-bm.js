@@ -189,15 +189,10 @@ async function prepareSharedBmFinalsSetup(adminPage) {
 }
 
 /*
- * Mirrors selectFinalsEntrantsByGroup()'s bucket-stacked, contiguous seeding
- * (src/lib/finals-group-selection.ts) for the 2-group case: direct seeds
- * 1-12 = each group's rank1..6 interleaved (A1,B1,A2,B2,...); barrage seeds
- * 13-24 = each group's rank7..12 interleaved the same way. Same-bucket ties
- * (both groups' k-th-ranked entrant) sort by WDL score desc -> points desc,
- * falling back to group order (A before B) when fully tied -- this replaced
- * a hand-designed anti-collision paper layout that was never validated
- * against a real event and did not match the CDM 2025 official results
- * (see the module doc comment on finals-group-selection.ts).
+ * Mirrors selectFinalsEntrantsByGroup()'s handwritten fixed map for two
+ * groups. Unlike the three-group CDM 2025 layout, A/B entrants are not
+ * reordered by cross-group WDL score or points: their group rank determines
+ * both the direct Upper-Bracket slot and the barrage slot.
  */
 function expectedTwoGroupPaperSeedIds(qualifications) {
   const withIndex = (qualifications || []).map((q, index) => ({ ...q, __index: index }));
@@ -235,49 +230,51 @@ function expectedTwoGroupPaperSeedIds(qualifications) {
     }
   }
 
-  const labelFor = (bucketIndex, entry) => `${buckets[bucketIndex].group}${entry.__bucketRank}`;
+  const byToken = (token) => {
+    const group = token[0];
+    const rank = Number(token.slice(1));
+    const bucket = buckets.find((candidate) => candidate.group === group);
+    const entry = bucket?.entries[rank - 1];
+    if (!entry) throw new Error(`TC-510 qualification token ${token} could not be resolved`);
+    return entry.playerId;
+  };
 
-  // Stamp each entry with its 1-based within-group bucket rank up front so
-  // labelFor can look it up after the cross-group sort below reorders them.
-  buckets.forEach((bucket) => {
-    bucket.entries.forEach((entry, i) => {
-      entry.__bucketRank = i + 1;
-    });
-  });
-
-  const stackBucket = (k) =>
-    buckets
-      .map((bucket, bucketIndex) => ({ entry: bucket.entries[k], bucketIndex }))
-      .sort((a, b) => b.entry.score - a.entry.score || b.entry.points - a.entry.points);
-
-  const PER_GROUP = 6;
-  const direct = [];
-  for (let k = 0; k < PER_GROUP; k++) direct.push(...stackBucket(k));
-  const barrage = [];
-  for (let k = PER_GROUP; k < PER_GROUP * 2; k++) barrage.push(...stackBucket(k));
-
-  const directSeeds = direct.map(({ entry, bucketIndex }, index) => ({
-    seed: index + 1,
-    playerId: entry.playerId,
-    qualificationRankLabel: labelFor(bucketIndex, entry),
-  }));
-  const barrageSeeds = barrage.map(({ entry, bucketIndex }, index) => ({
-    seed: 13 + index,
-    playerId: entry.playerId,
-    qualificationRankLabel: labelFor(bucketIndex, entry),
+  const directLayout = [
+    [1, 'A1'],
+    [2, 'B3'],
+    [3, 'B1'],
+    [4, 'A3'],
+    [5, 'B2'],
+    [6, 'A4'],
+    [7, 'A2'],
+    [8, 'B4'],
+    [9, 'A5'],
+    [11, 'B5'],
+    [13, 'B6'],
+    [15, 'A6'],
+  ];
+  const directSeeds = directLayout.map(([seed, qualificationRankLabel]) => ({
+    seed,
+    playerId: byToken(qualificationRankLabel),
+    qualificationRankLabel,
   }));
 
-  // Barrage bracket: generatePlayoffStructure() (double-elimination.ts) pairs
-  // R1 matchNumbers 1-4 as real seeds [17,24],[20,21],[18,23],[19,22] (local
-  // pool ranks [5,12],[8,9],[6,11],[7,10], where local rank = real seed - 12),
-  // each routing its winner into R2 matchNumbers 5-8 respectively, whose BYE
-  // seeds are real [16,13,15,14] (local [4,1,3,2]) in that exact order.
-  const byPlayoffLocalRank = new Map(barrageSeeds.map((s, i) => [i + 1, s.playerId]));
+  const barrageTokens = ['B8', 'B7', 'A8', 'A7', 'B9', 'A11', 'B10', 'A12', 'A10', 'B12', 'A9', 'B11'];
+  const barrageSeeds = barrageTokens.map((qualificationRankLabel, index) => ({
+    seed: index + 13,
+    playerId: byToken(qualificationRankLabel),
+    qualificationRankLabel,
+  }));
+
+  // Fixed two-group barrage: R1 uses [23,22], [19,18], [17,20], [21,24].
+  // The corresponding BYEs are [13,16,15,14], and the four winners enter
+  // the Upper Bracket at seeds [16,12,14,10].
+  const byBarrageSeed = new Map(barrageSeeds.map((seeded) => [seeded.seed, seeded.playerId]));
   const barrageBlocks = [
-    [byPlayoffLocalRank.get(5), byPlayoffLocalRank.get(12), byPlayoffLocalRank.get(4)],
-    [byPlayoffLocalRank.get(8), byPlayoffLocalRank.get(9), byPlayoffLocalRank.get(1)],
-    [byPlayoffLocalRank.get(6), byPlayoffLocalRank.get(11), byPlayoffLocalRank.get(3)],
-    [byPlayoffLocalRank.get(7), byPlayoffLocalRank.get(10), byPlayoffLocalRank.get(2)],
+    [byBarrageSeed.get(23), byBarrageSeed.get(22), byBarrageSeed.get(13)],
+    [byBarrageSeed.get(19), byBarrageSeed.get(18), byBarrageSeed.get(16)],
+    [byBarrageSeed.get(17), byBarrageSeed.get(20), byBarrageSeed.get(15)],
+    [byBarrageSeed.get(21), byBarrageSeed.get(24), byBarrageSeed.get(14)],
   ];
 
   return {
@@ -1208,13 +1205,13 @@ async function runTc510(adminPage) {
     }
 
     const r2WinnersByUpperSeed = new Map();
-    // A bye winner keeps their own seed number in the Upper Bracket (see
-    // double-elimination.ts) -- match N's target seed is just its own BYE seed.
+    // The fixed two-group paper layout remaps each barrage survivor to the
+    // corresponding empty Upper-Bracket slot (see double-elimination.ts).
     const upperSeedByR2Match = new Map([
       [5, 16],
-      [6, 13],
-      [7, 15],
-      [8, 14],
+      [6, 12],
+      [7, 14],
+      [8, 10],
     ]);
     let playoffCompleteSignal = false;
     for (let mn = 5; mn <= 8; mn++) {
@@ -1242,7 +1239,7 @@ async function runTc510(adminPage) {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.qualificationRankLabel === qualificationRankLabel;
     });
-    const playoffWinnersSeeded = [13, 14, 15, 16].every((seed) => {
+    const playoffWinnersSeeded = [10, 12, 14, 16].every((seed) => {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === r2WinnersByUpperSeed.get(seed);
     });
