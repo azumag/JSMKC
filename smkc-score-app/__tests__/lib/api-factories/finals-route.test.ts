@@ -374,185 +374,204 @@ describe('Finals Route Factory', () => {
       ];
     };
 
-    const create16PlayerBracketStructure = () => [
-      {
-        matchNumber: 1,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 1,
-        player2Seed: 16,
-        winnerGoesTo: 9,
-        loserGoesTo: 16,
-        position: 1,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 2,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 8,
-        player2Seed: 9,
-        winnerGoesTo: 9,
-        loserGoesTo: 16,
-        position: 2,
-        loserPosition: 2,
-      },
-      {
-        matchNumber: 3,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 4,
-        player2Seed: 13,
-        winnerGoesTo: 10,
-        loserGoesTo: 17,
-        position: 1,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 4,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 5,
-        player2Seed: 12,
-        winnerGoesTo: 10,
-        loserGoesTo: 17,
-        position: 2,
-        loserPosition: 2,
-      },
-      {
-        matchNumber: 5,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 2,
-        player2Seed: 15,
-        winnerGoesTo: 11,
-        loserGoesTo: 18,
-        position: 1,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 6,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 7,
-        player2Seed: 10,
-        winnerGoesTo: 11,
-        loserGoesTo: 18,
-        position: 2,
-        loserPosition: 2,
-      },
-      {
-        matchNumber: 7,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 3,
-        player2Seed: 14,
-        winnerGoesTo: 12,
-        loserGoesTo: 19,
-        position: 1,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 8,
-        round: 'winners_r1',
-        bracket: 'winners',
-        player1Seed: 6,
-        player2Seed: 11,
-        winnerGoesTo: 12,
-        loserGoesTo: 19,
-        position: 2,
-        loserPosition: 2,
-      },
-      {
-        matchNumber: 9,
-        round: 'winners_qf',
-        bracket: 'winners',
-        winnerGoesTo: 13,
-        loserGoesTo: 23,
-        position: 1,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 10,
-        round: 'winners_qf',
-        bracket: 'winners',
-        winnerGoesTo: 13,
-        loserGoesTo: 22,
-        position: 2,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 11,
-        round: 'winners_qf',
-        bracket: 'winners',
-        winnerGoesTo: 14,
-        loserGoesTo: 21,
-        position: 1,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 12,
-        round: 'winners_qf',
-        bracket: 'winners',
-        winnerGoesTo: 14,
-        loserGoesTo: 20,
-        position: 2,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 13,
-        round: 'winners_sf',
-        bracket: 'winners',
-        winnerGoesTo: 15,
-        loserGoesTo: 26,
-        position: 1,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 14,
-        round: 'winners_sf',
-        bracket: 'winners',
-        winnerGoesTo: 15,
-        loserGoesTo: 27,
-        position: 2,
-        loserPosition: 1,
-      },
-      {
-        matchNumber: 15,
-        round: 'winners_final',
-        bracket: 'winners',
-        winnerGoesTo: 30,
-        loserGoesTo: 29,
-        position: 1,
-        loserPosition: 2,
-      },
-      { matchNumber: 16, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 20, position: 2 },
-      { matchNumber: 17, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 21, position: 2 },
-      { matchNumber: 18, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 22, position: 2 },
-      { matchNumber: 19, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 23, position: 2 },
-      ...Array.from({ length: 12 }, (_, i) => ({
-        matchNumber: i + 20,
-        round:
-          i < 4
-            ? 'losers_r2'
-            : i < 6
-              ? 'losers_r3'
-              : i < 8
-                ? 'losers_r4'
-                : i === 8
-                  ? 'losers_sf'
-                  : i === 9
-                    ? 'losers_final'
-                    : i === 10
-                      ? 'grand_final'
-                      : 'grand_final_reset',
-        bracket: i >= 10 ? 'grand_final' : 'losers',
-      })),
-    ];
+    const create16PlayerBracketStructure = (groupCount: 2 | 3 | 4 = 3) => {
+      const structure = [
+        {
+          matchNumber: 1,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 1,
+          player2Seed: 16,
+          winnerGoesTo: 9,
+          loserGoesTo: 16,
+          position: 1,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 2,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 8,
+          player2Seed: 9,
+          winnerGoesTo: 9,
+          loserGoesTo: 16,
+          position: 2,
+          loserPosition: 2,
+        },
+        {
+          matchNumber: 3,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 4,
+          player2Seed: 13,
+          winnerGoesTo: 10,
+          loserGoesTo: 17,
+          position: 1,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 4,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 5,
+          player2Seed: 12,
+          winnerGoesTo: 10,
+          loserGoesTo: 17,
+          position: 2,
+          loserPosition: 2,
+        },
+        {
+          matchNumber: 5,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 2,
+          player2Seed: 15,
+          winnerGoesTo: 11,
+          loserGoesTo: 18,
+          position: 1,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 6,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 7,
+          player2Seed: 10,
+          winnerGoesTo: 11,
+          loserGoesTo: 18,
+          position: 2,
+          loserPosition: 2,
+        },
+        {
+          matchNumber: 7,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 3,
+          player2Seed: 14,
+          winnerGoesTo: 12,
+          loserGoesTo: 19,
+          position: 1,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 8,
+          round: 'winners_r1',
+          bracket: 'winners',
+          player1Seed: 6,
+          player2Seed: 11,
+          winnerGoesTo: 12,
+          loserGoesTo: 19,
+          position: 2,
+          loserPosition: 2,
+        },
+        {
+          matchNumber: 9,
+          round: 'winners_qf',
+          bracket: 'winners',
+          winnerGoesTo: 13,
+          loserGoesTo: 23,
+          position: 1,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 10,
+          round: 'winners_qf',
+          bracket: 'winners',
+          winnerGoesTo: 13,
+          loserGoesTo: 22,
+          position: 2,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 11,
+          round: 'winners_qf',
+          bracket: 'winners',
+          winnerGoesTo: 14,
+          loserGoesTo: 21,
+          position: 1,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 12,
+          round: 'winners_qf',
+          bracket: 'winners',
+          winnerGoesTo: 14,
+          loserGoesTo: 20,
+          position: 2,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 13,
+          round: 'winners_sf',
+          bracket: 'winners',
+          winnerGoesTo: 15,
+          loserGoesTo: 26,
+          position: 1,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 14,
+          round: 'winners_sf',
+          bracket: 'winners',
+          winnerGoesTo: 15,
+          loserGoesTo: 27,
+          position: 2,
+          loserPosition: 1,
+        },
+        {
+          matchNumber: 15,
+          round: 'winners_final',
+          bracket: 'winners',
+          winnerGoesTo: 30,
+          loserGoesTo: 29,
+          position: 1,
+          loserPosition: 2,
+        },
+        { matchNumber: 16, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 20, position: 2 },
+        { matchNumber: 17, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 21, position: 2 },
+        { matchNumber: 18, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 22, position: 2 },
+        { matchNumber: 19, round: 'losers_r1', bracket: 'losers', winnerGoesTo: 23, position: 2 },
+        ...Array.from({ length: 12 }, (_, i) => ({
+          matchNumber: i + 20,
+          round:
+            i < 4
+              ? 'losers_r2'
+              : i < 6
+                ? 'losers_r3'
+                : i < 8
+                  ? 'losers_r4'
+                  : i === 8
+                    ? 'losers_sf'
+                    : i === 9
+                      ? 'losers_final'
+                      : i === 10
+                        ? 'grand_final'
+                        : 'grand_final_reset',
+          bracket: i >= 10 ? 'grand_final' : 'losers',
+        })),
+      ];
+      if (groupCount === 2) {
+        const fixedPairs = [
+          [1, 16],
+          [8, 9],
+          [5, 12],
+          [4, 13],
+          [3, 14],
+          [6, 11],
+          [7, 10],
+          [2, 15],
+        ];
+        structure.slice(0, 8).forEach((match, index) => {
+          match.player1Seed = fixedPairs[index][0];
+          match.player2Seed = fixedPairs[index][1];
+        });
+      }
+      return structure;
+    };
 
     // Default bracket structure with 17 or 31 matches based on requested size.
-    mockGenerateBracketStructure.mockImplementation((count: number) =>
-      count === 16 ? create16PlayerBracketStructure() : createFullBracketStructure(),
+    mockGenerateBracketStructure.mockImplementation((count: number, groupCount?: 2 | 3 | 4) =>
+      count === 16 ? create16PlayerBracketStructure(groupCount) : createFullBracketStructure(),
     );
 
     // Default playoff structure (issue #454) — 8 matches, 4 R1 + 4 R2.
@@ -560,48 +579,42 @@ describe('Finals Route Factory', () => {
     // exercise the real routing/mapping semantics end-to-end. Seeds 17-24 in
     // R1 and BYE seeds 13-16 in R2 (a bye winner keeps their own seed number)
     // per the CDM 2025 official results workbook.
-    mockGeneratePlayoffStructure.mockReturnValue([
-      {
-        matchNumber: 1,
-        round: 'playoff_r1',
-        bracket: 'winners',
-        player1Seed: 17,
-        player2Seed: 24,
-        winnerGoesTo: 5,
-        position: 2,
-      },
-      {
-        matchNumber: 2,
-        round: 'playoff_r1',
-        bracket: 'winners',
-        player1Seed: 20,
-        player2Seed: 21,
-        winnerGoesTo: 6,
-        position: 2,
-      },
-      {
-        matchNumber: 3,
-        round: 'playoff_r1',
-        bracket: 'winners',
-        player1Seed: 18,
-        player2Seed: 23,
-        winnerGoesTo: 7,
-        position: 2,
-      },
-      {
-        matchNumber: 4,
-        round: 'playoff_r1',
-        bracket: 'winners',
-        player1Seed: 19,
-        player2Seed: 22,
-        winnerGoesTo: 8,
-        position: 2,
-      },
-      { matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 16, advancesToUpperSeed: 16 },
-      { matchNumber: 6, round: 'playoff_r2', bracket: 'winners', player1Seed: 13, advancesToUpperSeed: 13 },
-      { matchNumber: 7, round: 'playoff_r2', bracket: 'winners', player1Seed: 15, advancesToUpperSeed: 15 },
-      { matchNumber: 8, round: 'playoff_r2', bracket: 'winners', player1Seed: 14, advancesToUpperSeed: 14 },
-    ]);
+    mockGeneratePlayoffStructure.mockImplementation((_count: number, groupCount: 2 | 3 | 4 = 3) => {
+      const r1Pairs =
+        groupCount === 2
+          ? [
+              [23, 22],
+              [19, 18],
+              [17, 20],
+              [21, 24],
+            ]
+          : [
+              [17, 24],
+              [20, 21],
+              [18, 23],
+              [19, 22],
+            ];
+      const byeSeeds = groupCount === 2 ? [13, 16, 15, 14] : [16, 13, 15, 14];
+      const upperSeeds = groupCount === 2 ? [16, 12, 14, 10] : byeSeeds;
+      return [
+        ...r1Pairs.map(([player1Seed, player2Seed], index) => ({
+          matchNumber: index + 1,
+          round: 'playoff_r1',
+          bracket: 'winners',
+          player1Seed,
+          player2Seed,
+          winnerGoesTo: index + 5,
+          position: 2,
+        })),
+        ...byeSeeds.map((player1Seed, index) => ({
+          matchNumber: index + 5,
+          round: 'playoff_r2',
+          bracket: 'winners',
+          player1Seed,
+          advancesToUpperSeed: upperSeeds[index],
+        })),
+      ];
+    });
 
     // Default paginated result
     mockPaginate.mockResolvedValue({
@@ -660,7 +673,7 @@ describe('Finals Route Factory', () => {
       });
 
       expect(response.status).toBe(200);
-      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16, 3);
       const json = await response.json();
       expect(json.data.bracketSize).toBe(16);
     });
@@ -747,7 +760,7 @@ describe('Finals Route Factory', () => {
       });
 
       expect(response.status).toBe(200);
-      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16, 3);
       const json = await response.json();
       expect(json.data.bracketSize).toBe(16);
     });
@@ -1764,24 +1777,24 @@ describe('Finals Route Factory', () => {
       expect(createManyCall.data).toHaveLength(8);
       const createdStages = createManyCall.data.map((d: { stage: string }) => d.stage);
       expect(createdStages.every((s: string) => s === 'playoff')).toBe(true);
-      /* Bucket-stacked, contiguous seeding (finals-group-selection.ts): barrage
-       * bucket order is A-rank7,B-rank7,A-rank8,B-rank8,...,A-rank12,B-rank12
-       * (all tied by score in this fixture, so stable sort keeps group A
-       * before group B), assigned seeds 13-24 in that order. */
+      /* Fixed two-group paper layout. Slots are global labels 13-24, but
+       * placement is the handwritten B8,B7,A8,A7,... order rather than a
+       * cross-group score sort. */
       expect(json.data.playoffSeededPlayers.map((p: { playerId: string }) => p.playerId)).toEqual([
-        'player-6',
+        'player-19',
         'player-18',
         'player-7',
-        'player-19',
-        'player-8',
+        'player-6',
         'player-20',
-        'player-9',
-        'player-21',
         'player-10',
-        'player-22',
+        'player-21',
         'player-11',
+        'player-9',
         'player-23',
+        'player-8',
+        'player-22',
       ]);
+      expect(mockGeneratePlayoffStructure).toHaveBeenCalledWith(12, 2);
       /* Per issue #454 the barrage pool = each group's rank 7..12.
        * Top-6 of each group (A: player-0..5, B: player-12..17) must NOT appear
        * as player1 in any playoff match — they advance directly to the Upper
@@ -2156,28 +2169,26 @@ describe('Finals Route Factory', () => {
         }),
       );
       /* 16-player bracket generator is invoked once we have 4 playoff winners. */
-      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16, 2);
       /* Existing finals (if any) must be cleared before Phase-2 creation —
        * this supports reset scenarios where Phase-2 is retried. */
       expect((prisma.bMMatch as any).deleteMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals' },
       });
-      /* Verify barrage-slot mapping: playoff R2 match → Upper-bracket seed
-       * (a bye winner keeps their own seed number). */
+      /* Verify the fixed two-group barrage-to-Upper remap. */
       const seededPlayers: Array<{ seed: number; playerId: string }> = json.data.seededPlayers;
       const seedMap = new Map(seededPlayers.map((p) => [p.seed, p.playerId]));
       expect(seedMap.get(16)).toBe('player-19'); /* From playoff R2 match 5 */
-      expect(seedMap.get(13)).toBe('player-6'); /* From playoff R2 match 6 */
-      expect(seedMap.get(15)).toBe('player-7'); /* From playoff R2 match 7 */
-      expect(seedMap.get(14)).toBe('player-18'); /* From playoff R2 match 8 */
-      /* Direct-advance qualifiers occupy contiguous seeds 1-12, bucket-stacked
-       * A1,B1,A2,B2,... (tied scores in this fixture, so stable sort keeps
-       * group A before group B). */
+      expect(seedMap.get(12)).toBe('player-6'); /* From playoff R2 match 6 */
+      expect(seedMap.get(14)).toBe('player-7'); /* From playoff R2 match 7 */
+      expect(seedMap.get(10)).toBe('player-18'); /* From playoff R2 match 8 */
+      /* Direct-advance qualifiers occupy the fixed handwritten Upper slots. */
       expect(seedMap.get(1)).toBe('player-0'); /* A1 */
-      expect(seedMap.get(2)).toBe('player-12'); /* B1 */
-      expect(seedMap.get(10)).toBe('player-16'); /* B5 */
-      expect(seedMap.get(11)).toBe('player-5'); /* A6 */
-      expect(seedMap.get(12)).toBe('player-17'); /* B6 */
+      expect(seedMap.get(2)).toBe('player-14'); /* B3 */
+      expect(seedMap.get(3)).toBe('player-12'); /* B1 */
+      expect(seedMap.get(11)).toBe('player-16'); /* B5 */
+      expect(seedMap.get(13)).toBe('player-17'); /* B6 */
+      expect(seedMap.get(15)).toBe('player-5'); /* A6 */
 
       const structure = json.data.bracketStructure.filter((m: { round: string }) => m.round === 'winners_r1');
       const pairLabels = structure.map((m: { player1Seed: number; player2Seed: number }) => [
@@ -2187,11 +2198,11 @@ describe('Finals Route Factory', () => {
       expect(pairLabels).toEqual([
         ['player-0', 'player-19'] /* A1 vs barrage(seed16) */,
         ['player-15', 'player-4'] /* B4 vs A5 */,
-        ['player-13', 'player-6'] /* B2 vs barrage(seed13) */,
+        ['player-13', 'player-6'] /* B2 vs barrage(seed12) */,
         ['player-2', 'player-17'] /* A3 vs B6 */,
-        ['player-12', 'player-7'] /* B1 vs barrage(seed15) */,
+        ['player-12', 'player-7'] /* B1 vs barrage(seed14) */,
         ['player-3', 'player-16'] /* A4 vs B5 */,
-        ['player-1', 'player-18'] /* A2 vs barrage(seed14) */,
+        ['player-1', 'player-18'] /* A2 vs barrage(seed10) */,
         ['player-14', 'player-5'] /* B3 vs A6 */,
       ]);
     });
@@ -2338,7 +2349,7 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(201);
       const json = await response.json();
       expect(json.data.phase).toBe('finals');
-      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16, 3);
 
       const seededPlayers: Array<{ seed: number; playerId: string }> = json.data.seededPlayers;
       const seedMap = new Map(seededPlayers.map((p) => [p.seed, p.playerId]));
@@ -2617,9 +2628,9 @@ describe('Finals Route Factory', () => {
         json.data.seededPlayers.map((p: { seed: number; playerId: string }) => [p.seed, p.playerId]),
       );
       expect(seedMap.get(16)).toBe('winner-16');
-      expect(seedMap.get(13)).toBe('winner-13');
-      expect(seedMap.get(15)).toBe('winner-15');
-      expect(seedMap.get(14)).toBe('winner-14');
+      expect(seedMap.get(12)).toBe('winner-13');
+      expect(seedMap.get(14)).toBe('winner-15');
+      expect(seedMap.get(10)).toBe('winner-14');
     });
 
     it('GET Top-24 preview warns when a completed playoff R2 winner cannot be resolved', async () => {

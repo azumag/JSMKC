@@ -351,9 +351,20 @@ export function getArchivedFinalsPayload(
   const allMatches = bundle.modes[mode].matches ?? [];
   const matches = allMatches.filter((match) => match.stage === 'finals');
   const playoffMatches = allMatches.filter((match) => match.stage === 'playoff');
+  const qualificationGroups = new Set(
+    ((bundle.modes[mode].qualifications ?? []) as Array<{ group?: string | null }>)
+      .map((qualification) => qualification.group)
+      .filter(Boolean),
+  );
+  const groupCount: 2 | 3 = qualificationGroups.size === 2 ? 2 : 3;
   const bracketSize = matches.length > 20 ? 16 : 8;
-  const bracketStructure = matches.length > 0 ? generateBracketStructure(bracketSize) : [];
-  const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(12) : [];
+  const bracketStructure =
+    matches.length > 0
+      ? bracketSize === 16
+        ? generateBracketStructure(bracketSize, groupCount)
+        : generateBracketStructure(bracketSize)
+      : [];
+  const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(12, groupCount) : [];
   const playoffComplete = playoffMatches
     .filter((match) => match.round === 'playoff_r2')
     .every((match) => match.completed === true);

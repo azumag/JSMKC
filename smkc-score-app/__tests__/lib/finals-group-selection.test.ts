@@ -6,12 +6,12 @@
  *   3 groups: each group Top1-4 direct, Top5-8 barrage
  *   4 groups: each group Top1-3 direct, Top4-6 barrage
  *
- * Seed assignment is bucket-stacked and contiguous for every group count:
- * direct seeds are 1-12 in bucket order, barrage seeds are 13-24 in bucket
- * order. There is no same-qualifying-group Round-1 collision avoidance (see
- * the module doc comment on finals-group-selection.ts for why that was
- * removed: it was never validated against a real event and does not match
- * the CDM 2025 official results, which has same-group Winners R1 matchups).
+ * Seed assignment differs by group count:
+ *   2 groups: the fixed CDM paper-layout token map keeps the two groups evenly
+ *             distributed and avoids same-group first-round matchups.
+ *   3 groups: bucket order is numbered contiguously because a fixed balanced
+ *             placement cannot be constructed for three groups.
+ *   4 groups: remains internal-only until the official fixed map is supplied.
  */
 
 import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
@@ -45,7 +45,7 @@ function buildQuals(
 }
 
 describe('selectFinalsEntrantsByGroup', () => {
-  describe('2-group case (A=14, B=13, all ranks tied -> stable A-then-B order)', () => {
+  describe('2-group case (A=14, B=13, fixed CDM paper layout)', () => {
     const quals = buildQuals({ A: 14, B: 13 });
     const result = selectFinalsEntrantsByGroup(quals);
 
@@ -53,38 +53,53 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(2);
     });
 
-    it('directSeeds[] is bucket-stacked 1-12 (A1,B1,A2,B2,...)', () => {
+    it('places direct entrants in the handwritten two-group Upper Bracket slots', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
         [1, 'A1'],
-        [2, 'B1'],
-        [3, 'A2'],
-        [4, 'B2'],
-        [5, 'A3'],
-        [6, 'B3'],
-        [7, 'A4'],
+        [2, 'B3'],
+        [3, 'B1'],
+        [4, 'A3'],
+        [5, 'B2'],
+        [6, 'A4'],
+        [7, 'A2'],
         [8, 'B4'],
         [9, 'A5'],
-        [10, 'B5'],
-        [11, 'A6'],
-        [12, 'B6'],
+        [11, 'B5'],
+        [13, 'B6'],
+        [15, 'A6'],
       ]);
     });
 
-    it('barrageSeeds[] is bucket-stacked 13-24 (A7,B7,A8,B8,...)', () => {
+    it('places barrage entrants in the handwritten two-group playoff slots with labels 13-24', () => {
       expect(result.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [13, 'A7'],
+        [13, 'B8'],
         [14, 'B7'],
         [15, 'A8'],
-        [16, 'B8'],
-        [17, 'A9'],
-        [18, 'B9'],
-        [19, 'A10'],
-        [20, 'B10'],
-        [21, 'A11'],
-        [22, 'B11'],
-        [23, 'A12'],
-        [24, 'B12'],
+        [16, 'A7'],
+        [17, 'B9'],
+        [18, 'A11'],
+        [19, 'B10'],
+        [20, 'A12'],
+        [21, 'A10'],
+        [22, 'B12'],
+        [23, 'A9'],
+        [24, 'B11'],
       ]);
+    });
+
+    it('does not reorder fixed two-group slots from cross-group score differences', () => {
+      const scoredQuals = buildQuals({ A: 14, B: 13 }, (playerId, rank) => ({
+        score: playerId.startsWith('B') ? 10_000 + rank : rank,
+        points: playerId.startsWith('B') ? 10_000 + rank : rank,
+      }));
+      const scoredResult = selectFinalsEntrantsByGroup(scoredQuals);
+
+      expect(scoredResult.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
+        result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]),
+      );
+      expect(scoredResult.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual(
+        result.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]),
+      );
     });
 
     // Issue #1051: directSeeds/barrageSeeds (each { seed, qualification }) are
@@ -253,31 +268,31 @@ describe('selectFinalsEntrantsByGroup', () => {
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1',
-        'B1',
-        'A2',
-        'B2',
-        'A3',
         'B3',
+        'B1',
+        'A3',
+        'B2',
         'A4',
+        'A2',
         'B4',
         'A5',
         'B5',
-        'A6',
         'B6',
+        'A6',
       ]);
       expect(result.barrageSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
-        'A7',
+        'B8',
         'B7',
         'A8',
-        'B8',
-        'A9',
+        'A7',
         'B9',
-        'A10',
-        'B10',
         'A11',
-        'B11',
+        'B10',
         'A12',
+        'A10',
         'B12',
+        'A9',
+        'B11',
       ]);
     });
   });
@@ -457,17 +472,17 @@ describe('selectFinalsEntrantsByGroup', () => {
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1',
-        'B1',
-        'A2',
-        'B2',
-        'A3',
         'B3',
+        'B1',
+        'A3',
+        'B2',
         'A4',
+        'A2',
         'B4',
         'A5',
         'B5',
-        'A6',
         'B6',
+        'A6',
       ]);
     });
   });

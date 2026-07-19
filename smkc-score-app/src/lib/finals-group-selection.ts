@@ -5,36 +5,30 @@
  * selection rules with worked examples.
  *
  * Spec (Issue #454, Top-24 → Top-16 flow):
- *   - 12 direct advancers fill Upper Bracket seeds 1-12.
- *   - 12 barrage entrants fill seeds 13-24 (single-elim R1+R2 → 4 winners,
- *     each keeping their own seed number when they enter the Upper Bracket).
+ *   - 12 direct advancers fill the layout's direct Upper-Bracket slots.
+ *   - 12 barrage entrants fill displayed seeds 13-24 (single-elim R1+R2 →
+ *     4 winners; their Upper destinations depend on the group-count layout).
  *
  * Per-group split (based on group count G):
  *   perGroup = 12 / G (2→6, 3→4, 4→3)
  *   Each group contributes: Top 1..perGroup direct, Top (perGroup+1)..(2*perGroup) barrage.
  *
- * Seed assignment (all group counts, 2-4) per
- * docs/qualification-combined-ranking.md §2-§3 (confirmed by tournament
- * operations, §7 Q1/Q2): entries are stacked bucket by bucket (bucket k =
- * every group's (k+1)-th-ranked player), tie-broken within a bucket by WDL
- * score -> point differential -> combinedRankOverride. Bucket order IS the
- * final seed order (seed 1 = bucket 0's top entrant, seed 12 = bucket
- * (perGroup-1)'s last entrant, seed 13 = the barrage range's bucket 0, etc.)
+ * Seed assignment is intentionally different by group count:
+ *   - 2 groups use the fixed CDM paper-layout token maps below. A balanced
+ *     bracket and same-group Round-1 avoidance are both possible, so actual
+ *     cross-group WDL statistics must not move those placements.
+ *   - 3 groups use the dynamic bucket order from
+ *     docs/qualification-combined-ranking.md §2-§3. A fixed layout cannot
+ *     distribute three groups evenly, so each same-rank bucket is ordered by
+ *     WDL score -> point differential -> combinedRankOverride.
+ *   - 4 groups remain internal-only until tournament operations supplies the
+ *     official fixed placement map.
  *
- * This used to additionally reorder seeds within a group count to avoid a
- * same-qualifying-group Round-1 matchup (a hand-designed token map for 2
- * groups, a general backtracking algorithm for 3-4). That scheme was never
- * validated against a real event and, when checked against the CDM 2025
- * official results workbook, did not match: the real Upper Bracket has no
- * collision avoidance at all (Drew vs Zarkov, both group A, met in Winners
- * R1; Lafungo vs Moll, both group B, likewise) and simply uses the plain
- * bucket-stacked seed order below. It has been removed so the app's bracket
- * placement matches the verified real-world behavior instead of an
- * unvalidated assumption.
- *
- * Example (2 groups, A=14, B=13, all bucket ties resolved alphabetically):
- *   direct seeds:  1:A1  2:B1  3:A2  4:B2  5:A3  6:B3  7:A4  8:B4  9:A5 10:B5 11:A6 12:B6
- *   barrage seeds: 13:A7 14:B7 15:A8 16:B8 17:A9 18:B9 19:A10 20:B10 21:A11 22:B11 23:A12 24:B12
+ * Example (2 groups, A=14, B=13):
+ *   direct Upper slots: 1:A1 2:B3 3:B1 4:A3 5:B2 6:A4
+ *                       7:A2 8:B4 9:A5 11:B5 13:B6 15:A6
+ *   barrage slots 13-24: B8, B7, A8, A7, B9, A11,
+ *                         B10, A12, A10, B12, A9, B11
  *
  * Caller contract: `allQualifications` must already be ordered per-group by final
  * ranking (score, tiebreakers, H2H). Group bucketing preserves caller-provided order.
@@ -50,22 +44,52 @@ export interface FinalsQualInput<TPlayer = unknown> extends CombinedOverrideEntr
   player: TPlayer;
 }
 
-/** A qualification assigned to a specific Upper Bracket (1-12) or barrage (13-24) seed. */
+/** A qualification assigned to a specific Upper-Bracket slot or displayed barrage seed. */
 export type FinalsSeedEntry<TPlayer = unknown> = {
   seed: number;
   qualification: FinalsQualInput<TPlayer>;
 };
 
 interface FinalsGroupSelection<TPlayer = unknown> {
-  /** Direct advancers, seeds 1-12. */
+  /** Direct advancers in their group-count-specific Upper-Bracket slots. */
   directSeeds: FinalsSeedEntry<TPlayer>[];
-  /** 12 barrage entrants, seeds 13-24 (a bye winner keeps this same seed in the Upper Bracket). */
+  /** 12 barrage entrants with displayed seeds 13-24. */
   barrageSeeds: FinalsSeedEntry<TPlayer>[];
   /** Detected group count (2, 3, or 4). */
   groupCount: 2 | 3 | 4;
 }
 
 const TOTAL_FINALS_SLOTS = 12;
+
+export const TWO_GROUP_DIRECT_UPPER_SEEDS = [
+  { seed: 1, token: 'A1' },
+  { seed: 2, token: 'B3' },
+  { seed: 3, token: 'B1' },
+  { seed: 4, token: 'A3' },
+  { seed: 5, token: 'B2' },
+  { seed: 6, token: 'A4' },
+  { seed: 7, token: 'A2' },
+  { seed: 8, token: 'B4' },
+  { seed: 9, token: 'A5' },
+  { seed: 11, token: 'B5' },
+  { seed: 13, token: 'B6' },
+  { seed: 15, token: 'A6' },
+] as const;
+
+const TWO_GROUP_BARRAGE_TOKENS = [
+  'B8',
+  'B7',
+  'A8',
+  'A7',
+  'B9',
+  'A11',
+  'B10',
+  'A12',
+  'A10',
+  'B12',
+  'A9',
+  'B11',
+] as const;
 
 /**
  * Select finals direct-advancers and barrage entrants from group-based qualifications.
@@ -112,7 +136,33 @@ export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
     }
   }
 
-  /* Bucket-stack (qualification-combined-ranking.md §2-§3): for slot k in
+  if (groupCount === 2) {
+    const bucketByGroup = new Map(orderedGroupKeys.map((group, index) => [group, buckets[index]]));
+    const playerForToken = (token: string): FinalsQualInput<TPlayer> => {
+      const group = token[0];
+      const rank = Number(token.slice(1));
+      const player = bucketByGroup.get(group)?.[rank - 1];
+      if (!player) {
+        throw new Error(`selectFinalsEntrantsByGroup: Missing player for ${token}`);
+      }
+      return player;
+    };
+
+    return {
+      directSeeds: TWO_GROUP_DIRECT_UPPER_SEEDS.map(({ seed, token }) => ({
+        seed,
+        qualification: playerForToken(token),
+      })),
+      barrageSeeds: TWO_GROUP_BARRAGE_TOKENS.map((token, index) => ({
+        seed: TOTAL_FINALS_SLOTS + index + 1,
+        qualification: playerForToken(token),
+      })),
+      groupCount: 2,
+    };
+  }
+
+  /* Bucket-stack for the three-group production path (and provisional four-group
+   * internal path; qualification-combined-ranking.md §2-§3): for slot k in
    * [0, perGroup), bucket k = every group's k-th player, tie-broken within
    * the bucket by WDL score -> point differential -> combinedRankOverride.
    * Every group is guaranteed a k-th player here by the perGroup*2 validation
@@ -128,8 +178,8 @@ export function selectFinalsEntrantsByGroup<TPlayer = unknown>(
 
   return {
     directSeeds: direct.map((qualification, index) => ({ seed: index + 1, qualification })),
-    /* Barrage seeds start at 13 so a bye winner's seed number is already the
-     * real overall seed they keep when entering the Upper Bracket. */
+    /* In the three-group production path, the bye winner keeps this displayed
+     * seed when entering the Upper Bracket. Four groups remain provisional. */
     barrageSeeds: barrage.map((qualification, index) => ({ seed: TOTAL_FINALS_SLOTS + index + 1, qualification })),
     groupCount: groupCount as 2 | 3 | 4,
   };

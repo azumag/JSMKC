@@ -54,12 +54,9 @@ export interface BracketMatch {
   /** Display position within the loser's receiving match (1 or 2) */
   loserPosition?: 1 | 2;
   /**
-   * For playoff matches only: the Upper-Bracket seed (13-16) the winner receives
-   * when entering the 16-player double-elimination bracket. Always equal to the
-   * bye's own player1Seed — a barrage bye winner keeps their own seed number
-   * rather than being remapped to a different slot (verified against the CDM
-   * 2025 results workbook). Only set on final playoff round matches (playoff_r2)
-   * whose winners advance to Upper Bracket.
+   * For playoff_r2 matches only: the Upper-Bracket slot the winner receives.
+   * Three groups preserve the BYE seed (CDM 2025); two groups remap to the
+   * fixed paper-layout slots 16/12/14/10.
    */
   advancesToUpperSeed?: number;
 }

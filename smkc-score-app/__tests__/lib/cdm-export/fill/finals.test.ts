@@ -231,6 +231,65 @@ describe('buildFinalsWrites — faithful 24-player bracket', () => {
   });
 });
 
+describe('buildFinalsWrites — faithful two-group paper layout', () => {
+  const player = (token: string): CdmPlayer => ({ id: token, name: token, nickname: token });
+  const match = (
+    matchNumber: number,
+    stage: 'playoff' | 'finals',
+    round: 'playoff_r1' | 'playoff_r2' | 'winners_r1',
+    player1: string,
+    player2: string,
+  ): CdmMatch => ({
+    matchNumber,
+    stage,
+    round,
+    player1: player(player1),
+    player2: player(player2),
+    score1: 4,
+    score2: 1,
+    completed: true,
+  });
+
+  const matches: CdmMatch[] = [
+    match(1, 'playoff', 'playoff_r1', 'A9', 'B12'),
+    match(2, 'playoff', 'playoff_r1', 'B10', 'A11'),
+    match(3, 'playoff', 'playoff_r1', 'B9', 'A12'),
+    match(4, 'playoff', 'playoff_r1', 'A10', 'B11'),
+    match(5, 'playoff', 'playoff_r2', 'B8', 'A9'),
+    match(6, 'playoff', 'playoff_r2', 'A7', 'B10'),
+    match(7, 'playoff', 'playoff_r2', 'A8', 'B9'),
+    match(8, 'playoff', 'playoff_r2', 'B7', 'A10'),
+    match(1, 'finals', 'winners_r1', 'A1', 'B8'),
+    match(2, 'finals', 'winners_r1', 'B4', 'A5'),
+    match(3, 'finals', 'winners_r1', 'B2', 'A7'),
+    match(4, 'finals', 'winners_r1', 'A3', 'B6'),
+    match(5, 'finals', 'winners_r1', 'B1', 'A8'),
+    match(6, 'finals', 'winners_r1', 'A4', 'B5'),
+    match(7, 'finals', 'winners_r1', 'A2', 'B7'),
+    match(8, 'finals', 'winners_r1', 'B3', 'A6'),
+  ];
+  const qualifications: CdmModeQualification[] = ['A', 'B'].flatMap((group) =>
+    Array.from({ length: 12 }, (_, index) => ({
+      player: player(`${group}${index + 1}`),
+      group,
+      seeding: index + 1,
+      points: 12 - index,
+      score: 12 - index,
+    })),
+  );
+
+  it('reconstructs the fixed direct and barrage seed-list order', () => {
+    const data = emptyData({ bmMatches: matches, bmQualifications: qualifications });
+    const map = indexWrites(buildFinalsWrites(data, 'bm'), 'BM Finals');
+
+    expectString(map, 'B3', 'A1');
+    expectString(map, 'B4', 'B3');
+    expectString(map, 'B14', 'A6');
+    expectString(map, 'B15', 'B8');
+    expectString(map, 'B26', 'B11');
+  });
+});
+
 describe('buildFinalsWrites — losers_final slot reversal (faithful)', () => {
   it("writes the WF loser's score to slot1 and the LSF winner's score to slot2", () => {
     // App losers_final: player1 = Losers-SF winner, player2 = Winners-Final loser.
