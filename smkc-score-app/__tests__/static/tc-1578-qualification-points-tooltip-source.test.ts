@@ -2,12 +2,7 @@ import { e2eCaseSection, readRepoFile } from '../helpers/e2e-cases';
 
 describe('TC-1578 qualification points tooltip source', () => {
   const helper = readRepoFile('smkc-score-app', 'e2e', 'lib', 'common.js');
-  const driftTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'docs',
-    'e2e-cases-drift.test.ts',
-  );
+  const driftTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
   const testFile = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -49,8 +44,15 @@ describe('TC-1578 qualification points tooltip source', () => {
     expect(tc1585).toContain('LOCALE_COMMON_MESSAGES');
     expect(helper).toContain('function getRequiredCommonMessage');
     expect(helper).toContain('messages/${locale}.json common.${key} is required');
-    expect(helper).toMatch(/const QUALIFICATION_POINTS_HEADER_LABELS = LOCALE_COMMON_MESSAGES\s+\.map\(\(entry\) => getRequiredCommonMessage\(entry, 'qualificationPointsShort'\)\);/);
-    expect(helper).toMatch(/const QUALIFICATION_POINTS_TOOLTIP_TITLES = LOCALE_COMMON_MESSAGES\s+\.map\(\(entry\) => getRequiredCommonMessage\(entry, 'qualificationPointsTooltip'\)\);/);
+    /* Whitespace/line-break tolerant: Prettier decides whether `.map(...)`
+     * chains onto the same line or wraps, and that layout choice isn't the
+     * behavior this guard cares about. */
+    expect(helper).toMatch(
+      /const QUALIFICATION_POINTS_HEADER_LABELS = LOCALE_COMMON_MESSAGES\s*\.?\s*map\(\s*\(entry\)\s*=>\s*getRequiredCommonMessage\(entry, 'qualificationPointsShort'\)/,
+    );
+    expect(helper).toMatch(
+      /const QUALIFICATION_POINTS_TOOLTIP_TITLES = LOCALE_COMMON_MESSAGES\s*\.?\s*map\(\s*\(entry\)\s*=>\s*getRequiredCommonMessage\(entry, 'qualificationPointsTooltip'\)/,
+    );
     expect(helper).not.toMatch(/QUALIFICATION_POINTS_(?:HEADER_LABELS|TOOLTIP_TITLES)[\s\S]{0,200}filter\(Boolean\)/);
     expect(helper).not.toContain('Object.values(COMMON_MESSAGES_BY_LOCALE)');
   });

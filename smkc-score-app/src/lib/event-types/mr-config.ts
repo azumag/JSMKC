@@ -126,10 +126,7 @@ export const mrConfig: EventTypeConfig = {
       const isPlayer1 = m.player1Id === playerId;
       stats.winRounds += isPlayer1 ? m.score1 : m.score2;
       stats.lossRounds += isPlayer1 ? m.score2 : m.score1;
-      const { result1 } = calcResult(
-        isPlayer1 ? m.score1 : m.score2,
-        isPlayer1 ? m.score2 : m.score1,
-      );
+      const { result1 } = calcResult(isPlayer1 ? m.score1 : m.score2, isPlayer1 ? m.score2 : m.score1);
       if (result1 === 'win') stats.wins++;
       else if (result1 === 'loss') stats.losses++;
       else stats.ties++;

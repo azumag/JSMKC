@@ -18,11 +18,16 @@
  */
 // @ts-nocheck
 
-
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
-jest.mock('@/lib/standings-cache', () => ({ invalidate: jest.fn().mockResolvedValue(undefined), generateETag: jest.fn().mockReturnValue('mock-etag') }));
+jest.mock('@/lib/standings-cache', () => ({
+  invalidate: jest.fn().mockResolvedValue(undefined),
+  generateETag: jest.fn().mockReturnValue('mock-etag'),
+}));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
+jest.mock('@/lib/rate-limit', () => ({
+  getServerSideIdentifier: jest.fn(),
+  checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }),
+}));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: {} }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
@@ -52,15 +57,19 @@ class MockNextRequest {
   constructor(
     private url: string,
     private body?: Record<string, unknown>,
-    headersMap?: Map<string, string>
+    headersMap?: Map<string, string>,
   ) {
     this._headersMap = headersMap || new Map();
     this.headers = {
       get: (key: string) => this._headersMap.get(key) ?? null,
     };
   }
-  async json() { return this.body; }
-  get header() { return { get: (key: string) => this._headersMap.get(key) ?? null }; }
+  async json() {
+    return this.body;
+  }
+  get header() {
+    return { get: (key: string) => this._headersMap.get(key) ?? null };
+  }
 }
 
 describe('MR API Route - /api/tournaments/[id]/mr', () => {
@@ -68,7 +77,9 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', mrQualificationConfirmed: false }));
+    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) =>
+      Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', mrQualificationConfirmed: false }),
+    );
     jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
@@ -79,10 +90,25 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     // Success case - Returns qualifications and matches with valid tournament ID
     it('should return qualifications and matches for a valid tournament', async () => {
       const mockQualifications = [
-        { id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A', score: 6, points: 10, player: { id: 'p1', name: 'Player 1' } },
+        {
+          id: 'q1',
+          tournamentId: 't1',
+          playerId: 'p1',
+          group: 'A',
+          score: 6,
+          points: 10,
+          player: { id: 'p1', name: 'Player 1' },
+        },
       ];
       const mockMatches = [
-        { id: 'm1', tournamentId: 't1', matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Player 1' }, player2: { id: 'p2', name: 'Player 2' } },
+        {
+          id: 'm1',
+          tournamentId: 't1',
+          matchNumber: 1,
+          stage: 'qualification',
+          player1: { id: 'p1', name: 'Player 1' },
+          player2: { id: 'p2', name: 'Player 2' },
+        },
       ];
 
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
@@ -93,7 +119,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const result = await GET(request, { params });
 
       /* qualificationConfirmed is now included in the GET response */
-      expect(result.data).toEqual({ qualifications: [{ ...mockQualifications[0], _rank: 1 }], matches: mockMatches, qualificationConfirmed: false });
+      expect(result.data).toEqual({
+        qualifications: [{ ...mockQualifications[0], _rank: 1 }],
+        matches: mockMatches,
+        qualificationConfirmed: false,
+      });
       expect(result.status).toBe(200);
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -130,7 +160,10 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
       expect(result.data).toEqual({ success: false, error: 'Failed to fetch match race data', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match race data', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match race data', {
+        error: expect.any(Error),
+        tournamentId: 't1',
+      });
     });
 
     // Edge case - Handles invalid tournament ID gracefully
@@ -250,7 +283,12 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Players array is required', code: 'VALIDATION_ERROR', details: { field: 'players' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Players array is required',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'players' },
+      });
       expect(result.status).toBe(400);
     });
 
@@ -263,7 +301,12 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Players array is required', code: 'VALIDATION_ERROR', details: { field: 'players' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Players array is required',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'players' },
+      });
       expect(result.status).toBe(400);
     });
 
@@ -276,7 +319,12 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Players array is required', code: 'VALIDATION_ERROR', details: { field: 'players' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Players array is required',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'players' },
+      });
       expect(result.status).toBe(400);
     });
 
@@ -288,13 +336,18 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
       (prisma.mRQualification.deleteMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [{ playerId: 'p1', group: 'A' }] });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        players: [{ playerId: 'p1', group: 'A' }],
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
       expect(result.data).toEqual({ success: false, error: 'Failed to setup match race', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup match race', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup match race', {
+        error: expect.any(Error),
+        tournamentId: 't1',
+      });
     });
   });
 
@@ -303,7 +356,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     it('should return 403 when user is not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 3,
+        score2: 1,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -315,7 +372,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     it('should return 403 when user is not admin', async () => {
       jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 3,
+        score2: 1,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -342,7 +403,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 3,
+        score2: 1,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -374,7 +439,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 2, score2: 2 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 2,
+        score2: 2,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -398,10 +467,17 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
       /* Rounds must have course and winner fields per MR validation */
       const validRounds = [
-        { course: 'MC1', winner: 1 }, { course: 'DP1', winner: 1 },
-        { course: 'GV1', winner: 1 }, { course: 'BC1', winner: 2 },
+        { course: 'MC1', winner: 1 },
+        { course: 'DP1', winner: 1 },
+        { course: 'GV1', winner: 1 },
+        { course: 'BC1', winner: 2 },
       ];
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1, rounds: validRounds });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 3,
+        score2: 1,
+        rounds: validRounds,
+      });
       const params = Promise.resolve({ id: 't1' });
       const _result = await PUT(request, { params });
 
@@ -418,7 +494,12 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'matchId, score1, and score2 are required',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'scores' },
+      });
       expect(result.status).toBe(400);
     });
 
@@ -428,7 +509,12 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'matchId, score1, and score2 are required',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'scores' },
+      });
       expect(result.status).toBe(400);
     });
 
@@ -438,29 +524,52 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'matchId, score1, and score2 are required',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'scores' },
+      });
       expect(result.status).toBe(400);
     });
 
     // Validation error case - Rejects out-of-range scores (MR max is 4, one per course)
     it('should return 400 when score exceeds MAX_RACE_WIN_SCORE', async () => {
       // score1=5 exceeds the 4-race maximum
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 5, score2: 0 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 5,
+        score2: 0,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 4', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Match race score must be an integer between 0 and 4',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'scores' },
+      });
       expect(result.status).toBe(400);
       expect(prisma.mRMatch.update).not.toHaveBeenCalled();
     });
 
     // Validation error case - Rejects negative scores
     it('should return 400 when score is negative', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: -1, score2: 4 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: -1,
+        score2: 4,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 4', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Match race score must be an integer between 0 and 4',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'scores' },
+      });
       expect(result.status).toBe(400);
       expect(prisma.mRMatch.update).not.toHaveBeenCalled();
     });
@@ -469,13 +578,20 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     it('should return 500 when database operation fails', async () => {
       (prisma.mRMatch.update as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 3,
+        score2: 1,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
       expect(result.data).toEqual({ success: false, error: 'Failed to update match', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', {
+        error: expect.any(Error),
+        tournamentId: 't1',
+      });
     });
 
     // Edge case - Recalculates stats correctly for multiple matches
@@ -492,9 +608,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         { ...mockMatch, id: 'm1', score1: 3, score2: 1, player1Id: 'p1', player2Id: 'p2' },
         { id: 'm2', score1: 2, score2: 2, player1Id: 'p1', player2Id: 'p3' },
       ];
-      const mockPlayer2Matches = [
-        { id: 'm1', score1: 3, score2: 1, player1Id: 'p1', player2Id: 'p2' },
-      ];
+      const mockPlayer2Matches = [{ id: 'm1', score1: 3, score2: 1, player1Id: 'p1', player2Id: 'p2' }];
 
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.findMany as jest.Mock)
@@ -502,7 +616,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         .mockResolvedValueOnce(mockPlayer2Matches);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 3,
+        score2: 1,
+      });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 

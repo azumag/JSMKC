@@ -41,10 +41,12 @@ function getRequiredCommonMessage({ locale, messages }, key) {
   return value;
 }
 
-const QUALIFICATION_POINTS_HEADER_LABELS = LOCALE_COMMON_MESSAGES
-  .map((entry) => getRequiredCommonMessage(entry, 'qualificationPointsShort'));
-const QUALIFICATION_POINTS_TOOLTIP_TITLES = LOCALE_COMMON_MESSAGES
-  .map((entry) => getRequiredCommonMessage(entry, 'qualificationPointsTooltip'));
+const QUALIFICATION_POINTS_HEADER_LABELS = LOCALE_COMMON_MESSAGES.map((entry) =>
+  getRequiredCommonMessage(entry, 'qualificationPointsShort'),
+);
+const QUALIFICATION_POINTS_TOOLTIP_TITLES = LOCALE_COMMON_MESSAGES.map((entry) =>
+  getRequiredCommonMessage(entry, 'qualificationPointsTooltip'),
+);
 
 initializePlaywrightBrowserRuntimeEnv();
 const { chromium } = require('playwright');
@@ -192,14 +194,17 @@ async function findPlayerByNickname(page, nickname) {
 /* ───────── Player / Tournament CRUD ───────── */
 
 async function apiCreatePlayer(page, name, nickname) {
-  const res = await page.evaluate(async (d) => {
-    const r = await fetch('/api/players', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, { name, nickname, country: 'JP' });
+  const res = await page.evaluate(
+    async (d) => {
+      const r = await fetch('/api/players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    { name, nickname, country: 'JP' },
+  );
   const id = res.b?.data?.player?.id ?? null;
   const password = res.b?.data?.temporaryPassword ?? null;
   if (res.s !== 201 || !id) throw new Error(`Failed to create player ${nickname} (${res.s})`);
@@ -207,55 +212,69 @@ async function apiCreatePlayer(page, name, nickname) {
 }
 
 async function apiCreateTournament(page, name, opts = {}) {
-  const res = await page.evaluate(async (d) => {
-    const r = await fetch('/api/tournaments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, { name, date: new Date().toISOString(), ...opts });
+  const res = await page.evaluate(
+    async (d) => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    { name, date: new Date().toISOString(), ...opts },
+  );
   const id = res.b?.data?.id ?? null;
   if (res.s !== 201 || !id) throw new Error(`Failed to create tournament (${res.s})`);
   return id;
 }
 
 async function apiJson(page, path, options = {}) {
-  return page.evaluate(async ([url, init]) => {
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init.headers || {}),
-      },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-    return {
-      status: response.status,
-      body: await response.json().catch(() => ({})),
-    };
-  }, [path, options]);
+  return page.evaluate(
+    async ([url, init]) => {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(init.headers || {}),
+        },
+        body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      });
+      return {
+        status: response.status,
+        body: await response.json().catch(() => ({})),
+      };
+    },
+    [path, options],
+  );
 }
 
 async function apiDeletePlayer(page, id) {
   if (!id) return;
-  await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-    `/api/players/${id}`).catch(() => {});
+  await page
+    .evaluate(async (u) => {
+      await fetch(u, { method: 'DELETE' });
+    }, `/api/players/${id}`)
+    .catch(() => {});
 }
 
 /** DELETE /api/tournaments/:id only accepts status='draft'.
  *  Demote first, then DELETE. Both calls are best-effort. */
 async function apiDeleteTournament(page, id) {
   if (!id) return;
-  await page.evaluate(async (u) => {
-    await fetch(u, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'draft' }),
-    });
-  }, `/api/tournaments/${id}`).catch(() => {});
-  await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-    `/api/tournaments/${id}`).catch(() => {});
+  await page
+    .evaluate(async (u) => {
+      await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'draft' }),
+      });
+    }, `/api/tournaments/${id}`)
+    .catch(() => {});
+  await page
+    .evaluate(async (u) => {
+      await fetch(u, { method: 'DELETE' });
+    }, `/api/tournaments/${id}`)
+    .catch(() => {});
 }
 
 /* ───────── Snake-draft helpers ─────────
@@ -267,7 +286,7 @@ const GROUP_LETTERS = ['A', 'B'];
 function snakeDraft28(playerIds) {
   return playerIds.map((playerId, i) => {
     const row = Math.floor(i / 2);
-    const col = row % 2 === 0 ? (i % 2) : (1 - (i % 2));
+    const col = row % 2 === 0 ? i % 2 : 1 - (i % 2);
     return { playerId, group: GROUP_LETTERS[col], seeding: i + 1 };
   });
 }
@@ -417,9 +436,7 @@ function addPersistentContextCrashHelp(error, profileDir) {
 
   if (!isGpuCrash && !isBrowserClosed) return error;
 
-  const lockPath = profileDir
-    ? `${profileDir}/SingletonLock`
-    : '/tmp/playwright-smkc-preview-profile/SingletonLock';
+  const lockPath = profileDir ? `${profileDir}/SingletonLock` : '/tmp/playwright-smkc-preview-profile/SingletonLock';
   const hint = [
     '',
     'Persistent Chromium context crashed before first page (GPU process / SIGSEGV).',
@@ -546,7 +563,10 @@ async function loginPlayerBrowser(nickname, password) {
 }
 
 function truncateDiagnosticText(value, max = 80) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  return String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 }
 
 function formatClickDiagnosticValue(value) {
@@ -574,34 +594,40 @@ async function collectClickDiagnostics(locator) {
 
   let elementState = null;
   if (box && typeof box === 'object' && typeof locator.evaluate === 'function') {
-    elementState = await read('element', () => locator.evaluate((element, rect) => {
-      const centerX = rect.x + rect.width / 2;
-      const centerY = rect.y + rect.height / 2;
-      const topElement = document.elementFromPoint(centerX, centerY);
-      const targetStyle = window.getComputedStyle(element);
-      const topStyle = topElement ? window.getComputedStyle(topElement) : null;
-      const describe = (node) => node ? {
-        tag: node.tagName,
-        text: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
-      } : { tag: 'null', text: '' };
+    elementState = await read('element', () =>
+      locator.evaluate((element, rect) => {
+        const centerX = rect.x + rect.width / 2;
+        const centerY = rect.y + rect.height / 2;
+        const topElement = document.elementFromPoint(centerX, centerY);
+        const targetStyle = window.getComputedStyle(element);
+        const topStyle = topElement ? window.getComputedStyle(topElement) : null;
+        const describe = (node) =>
+          node
+            ? {
+                tag: node.tagName,
+                text: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+              }
+            : { tag: 'null', text: '' };
 
-      const target = describe(element);
-      const top = describe(topElement);
-      return {
-        targetTag: target.tag,
-        targetText: target.text,
-        topTag: top.tag,
-        topText: top.text,
-        topPointerEvents: topStyle?.pointerEvents ?? 'n/a',
-        targetPointerEvents: targetStyle.pointerEvents,
-        activeTag: document.activeElement?.tagName ?? 'null',
-      };
-    }, box));
+        const target = describe(element);
+        const top = describe(topElement);
+        return {
+          targetTag: target.tag,
+          targetText: target.text,
+          topTag: top.tag,
+          topText: top.text,
+          topPointerEvents: topStyle?.pointerEvents ?? 'n/a',
+          targetPointerEvents: targetStyle.pointerEvents,
+          activeTag: document.activeElement?.tagName ?? 'null',
+        };
+      }, box),
+    );
   }
 
-  const boxText = box && typeof box === 'object'
-    ? `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)},${Math.round(box.height)}`
-    : formatClickDiagnosticValue(box);
+  const boxText =
+    box && typeof box === 'object'
+      ? `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)},${Math.round(box.height)}`
+      : formatClickDiagnosticValue(box);
   const parts = [
     `count=${formatClickDiagnosticValue(count)}`,
     `visible=${formatClickDiagnosticValue(visible)}`,
@@ -674,14 +700,17 @@ async function withRetry(fn, { attempts = 3, label = 'op' } = {}) {
 /* ───────── BM helpers ───────── */
 
 async function apiSetupBmGroup(page, tournamentId, players) {
-  return page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/bm`, { players }]);
+  return page.evaluate(
+    async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/bm`, { players }],
+  );
 }
 
 async function apiFetchBm(page, tournamentId) {
@@ -693,39 +722,57 @@ async function apiFetchBm(page, tournamentId) {
 }
 
 async function apiPutBmQualScore(page, tournamentId, matchId, score1, score2) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/bm`, { matchId, score1, score2 }]),
-  { label: `BM qual PUT ${matchId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/bm`, { matchId, score1, score2 }],
+      ),
+    { label: `BM qual PUT ${matchId}` },
+  );
 }
 
 async function apiSetBmFinalsScore(page, tournamentId, matchId, score1, score2) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/bm/finals`, { matchId, score1, score2 }]),
-  { label: `BM finals PUT ${matchId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/bm/finals`, { matchId, score1, score2 }],
+      ),
+    { label: `BM finals PUT ${matchId}` },
+  );
 }
 
 async function apiGenerateBmFinals(page, tournamentId, topN = 8) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/bm/finals`, { topN }]),
-  { label: `BM finals POST` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/bm/finals`, { topN }],
+      ),
+    { label: `BM finals POST` },
+  );
 }
 
 async function apiFetchBmFinalsMatches(page, tournamentId) {
@@ -748,9 +795,7 @@ async function apiFetchBmFinalsState(page, tournamentId) {
   return {
     raw: json,
     matches: arr.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
-    playoffMatches: (wrapped?.playoffMatches || [])
-      .slice()
-      .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    playoffMatches: (wrapped?.playoffMatches || []).slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
     bracketSize: wrapped?.bracketSize,
     playoffComplete: wrapped?.playoffComplete,
     phase: wrapped?.phase,
@@ -795,14 +840,17 @@ async function setupBm28PlayerFinals(adminPage, label, opts = {}) {
 /* ───────── MR helpers ───────── */
 
 async function apiSetupMrGroup(page, tournamentId, players) {
-  return page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/mr`, { players }]);
+  return page.evaluate(
+    async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/mr`, { players }],
+  );
 }
 
 async function apiFetchMr(page, tournamentId) {
@@ -814,39 +862,57 @@ async function apiFetchMr(page, tournamentId) {
 }
 
 async function apiPutMrQualScore(page, tournamentId, matchId, score1, score2) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/mr`, { matchId, score1, score2 }]),
-  { label: `MR qual PUT ${matchId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/mr`, { matchId, score1, score2 }],
+      ),
+    { label: `MR qual PUT ${matchId}` },
+  );
 }
 
 async function apiGenerateMrFinals(page, tournamentId, topN = 8) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/mr/finals`, { topN }]),
-  { label: `MR finals POST` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/mr/finals`, { topN }],
+      ),
+    { label: `MR finals POST` },
+  );
 }
 
 async function apiSetMrFinalsScore(page, tournamentId, matchId, score1, score2) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/mr/finals`, { matchId, score1, score2 }]),
-  { label: `MR finals PUT ${matchId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/mr/finals`, { matchId, score1, score2 }],
+      ),
+    { label: `MR finals PUT ${matchId}` },
+  );
 }
 
 async function apiFetchMrFinalsMatches(page, tournamentId) {
@@ -865,9 +931,7 @@ async function apiFetchMrFinalsState(page, tournamentId) {
   return {
     raw: json,
     matches: matches.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
-    playoffMatches: (wrapped?.playoffMatches || [])
-      .slice()
-      .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    playoffMatches: (wrapped?.playoffMatches || []).slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
     phase: wrapped?.phase,
     playoffComplete: wrapped?.playoffComplete ?? false,
     bracketSize: wrapped?.bracketSize,
@@ -881,15 +945,16 @@ async function apiFetchGpFinalsState(page, tournamentId) {
   }, `/api/tournaments/${tournamentId}/gp/finals`);
   /* GP uses 'paginated' GET style: json.data = { data: [...matches], meta: {...}, playoffMatches, phase, playoffComplete } */
   const wrapped = json.data;
-  const raw = (wrapped && typeof wrapped === 'object' && !Array.isArray(wrapped))
-    ? (wrapped.data || [])
-    : (Array.isArray(wrapped) ? wrapped : []);
+  const raw =
+    wrapped && typeof wrapped === 'object' && !Array.isArray(wrapped)
+      ? wrapped.data || []
+      : Array.isArray(wrapped)
+        ? wrapped
+        : [];
   return {
     raw: json,
     matches: raw.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
-    playoffMatches: (wrapped?.playoffMatches || [])
-      .slice()
-      .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    playoffMatches: (wrapped?.playoffMatches || []).slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
     phase: wrapped?.phase,
     playoffComplete: wrapped?.playoffComplete ?? false,
     bracketSize: wrapped?.bracketSize,
@@ -955,14 +1020,17 @@ function makeRacesP2Wins(cup = 'Mushroom') {
 }
 
 async function apiSetupGpGroup(page, tournamentId, players) {
-  return page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/gp`, { players }]);
+  return page.evaluate(
+    async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/gp`, { players }],
+  );
 }
 
 async function apiFetchGp(page, tournamentId) {
@@ -974,15 +1042,21 @@ async function apiFetchGp(page, tournamentId) {
 }
 
 async function apiPutGpQualScore(page, tournamentId, matchId, cup, races) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/gp`, { matchId, cup, races }]),
-  { label: `GP qual PUT ${matchId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/gp`, { matchId, cup, races }],
+      ),
+    { label: `GP qual PUT ${matchId}` },
+  );
 }
 
 function matchUpdateUsesLeanPayload(putResult) {
@@ -995,39 +1069,57 @@ async function apiSetGpFinalsScore(page, tournamentId, matchId, score1, score2, 
   if (suddenDeathWinnerId) {
     body.suddenDeathWinnerId = suddenDeathWinnerId;
   }
-  return withRetry(() => page.evaluate(async ([url, reqBody]) => {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reqBody),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/gp/finals`, body]),
-  { label: `GP finals PUT ${matchId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, reqBody]) => {
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reqBody),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/gp/finals`, body],
+      ),
+    { label: `GP finals PUT ${matchId}` },
+  );
 }
 
 async function apiSetGpFinalsCupResults(page, tournamentId, matchId, cupResults, extra = {}) {
-  return withRetry(() => page.evaluate(async ([url, reqBody]) => {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reqBody),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/gp/finals`, { matchId, cupResults, ...extra }]),
-  { label: `GP finals cupResults PUT ${matchId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, reqBody]) => {
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reqBody),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/gp/finals`, { matchId, cupResults, ...extra }],
+      ),
+    { label: `GP finals cupResults PUT ${matchId}` },
+  );
 }
 
 async function apiGenerateGpFinals(page, tournamentId, topN = 8) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/gp/finals`, { topN }]),
-  { label: `GP finals POST` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([url, body]) => {
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/gp/finals`, { topN }],
+      ),
+    { label: `GP finals POST` },
+  );
 }
 
 async function assertResetApiBlocked(page, tournamentId, mode) {
@@ -1035,14 +1127,17 @@ async function assertResetApiBlocked(page, tournamentId, mode) {
     throw new Error(`Unsupported finals reset mode: ${mode}`);
   }
 
-  const result = await page.evaluate(async ([tid, eventMode]) => {
-    const r = await fetch(`/api/tournaments/${tid}/${eventMode}/finals`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reset: true }),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [tournamentId, mode]);
+  const result = await page.evaluate(
+    async ([tid, eventMode]) => {
+      const r = await fetch(`/api/tournaments/${tid}/${eventMode}/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [tournamentId, mode],
+  );
 
   if (result.s !== 409 || result.b?.code !== 'QUALIFICATION_LOCKED') {
     throw new Error(`${mode.toUpperCase()} reset API allowed locked qualification (${result.s})`);
@@ -1058,15 +1153,21 @@ async function assertResetApiBlocked(page, tournamentId, mode) {
 async function apiFetchGpFinalsMatches(page, tournamentId) {
   const all = [];
   for (let p = 1; p <= 5; p++) {
-    const json = await page.evaluate(async ([u, pp]) => {
-      const r = await fetch(`${u}?page=${pp}&limit=50&ts=${Date.now()}`, { cache: 'no-store' });
-      return r.json().catch(() => ({}));
-    }, [`/api/tournaments/${tournamentId}/gp/finals`, p]);
+    const json = await page.evaluate(
+      async ([u, pp]) => {
+        const r = await fetch(`${u}?page=${pp}&limit=50&ts=${Date.now()}`, { cache: 'no-store' });
+        return r.json().catch(() => ({}));
+      },
+      [`/api/tournaments/${tournamentId}/gp/finals`, p],
+    );
     /* Unwrap createSuccessResponse: json.data = { data: [...matches], meta: { total, page, limit, totalPages } } */
     const wrapped = json.data;
-    const raw = (wrapped && typeof wrapped === 'object' && !Array.isArray(wrapped))
-      ? (wrapped.data || [])
-      : (Array.isArray(wrapped) ? wrapped : []);
+    const raw =
+      wrapped && typeof wrapped === 'object' && !Array.isArray(wrapped)
+        ? wrapped.data || []
+        : Array.isArray(wrapped)
+          ? wrapped
+          : [];
     if (raw.length === 0) break;
     all.push(...raw);
     const totalPages = wrapped?.meta?.totalPages || 1;
@@ -1087,23 +1188,42 @@ async function apiFetchGpFinalsMatches(page, tournamentId) {
  *   update_lives, reset_lives, eliminate. */
 
 const TA_COURSES = [
-  'MC1', 'DP1', 'GV1', 'BC1', 'MC2',
-  'CI1', 'GV2', 'DP2', 'BC2', 'MC3',
-  'KB1', 'CI2', 'VL1', 'BC3', 'MC4',
-  'DP3', 'KB2', 'GV3', 'VL2', 'RR',
+  'MC1',
+  'DP1',
+  'GV1',
+  'BC1',
+  'MC2',
+  'CI1',
+  'GV2',
+  'DP2',
+  'BC2',
+  'MC3',
+  'KB1',
+  'CI2',
+  'VL1',
+  'BC3',
+  'MC4',
+  'DP3',
+  'KB2',
+  'GV3',
+  'VL2',
+  'RR',
 ];
 
 /** PUT /api/tournaments/:id with arbitrary patch body. Used to activate (status)
  *  or toggle feature flags (taPlayerSelfEdit, dualReportEnabled, etc.). */
 async function apiUpdateTournament(page, tournamentId, body) {
-  return page.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}`, body]);
+  return page.evaluate(
+    async ([u, d]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}`, body],
+  );
 }
 
 /** Convenience wrapper — throws so callers can early-exit on activation failure. */
@@ -1118,14 +1238,17 @@ async function apiActivateTournament(page, tournamentId) {
 /** Add TA qualification entries. Supports both legacy single-player shape
  *  (`{ playerId }`) and the preferred seeded form (`{ playerEntries: [...] }`). */
 async function apiAddTaEntries(page, tournamentId, payload) {
-  return page.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/ta`, payload]);
+  return page.evaluate(
+    async ([u, d]) => {
+      const r = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/ta`, payload],
+  );
 }
 
 async function apiGetTtEntry(page, tournamentId, entryId) {
@@ -1138,15 +1261,21 @@ async function apiGetTtEntry(page, tournamentId, entryId) {
 /** Admin PUT: overwrite qualification times + totalTime + rank. Optimistic-locked
  *  via `version`. Retried on 5xx since D1 occasionally 503s under load. */
 async function apiUpdateTtEntry(page, tournamentId, entryId, payload) {
-  return withRetry(() => page.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/tt/entries/${entryId}`, payload]),
-  { label: `TT entry PUT ${entryId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([u, d]) => {
+          const r = await fetch(u, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/tt/entries/${entryId}`, payload],
+      ),
+    { label: `TT entry PUT ${entryId}` },
+  );
 }
 
 /**
@@ -1168,7 +1297,9 @@ async function apiForceRankOnly(page, tournamentId, entryId, rank) {
   }
   const res = await apiUpdateTtEntry(page, tournamentId, entryId, { version, rank });
   if (res.s !== 200) {
-    throw new Error(`Failed to force rank ${rank} for entry ${entryId} (${res.s}): ${JSON.stringify(res.b).slice(0, 120)}`);
+    throw new Error(
+      `Failed to force rank ${rank} for entry ${entryId} (${res.s}): ${JSON.stringify(res.b).slice(0, 120)}`,
+    );
   }
   return res;
 }
@@ -1194,25 +1325,31 @@ async function apiSeedTtEntry(page, tournamentId, entryId, times, totalTimeMs, r
 }
 
 async function apiPromoteTaPhase(page, tournamentId, action) {
-  return page.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/ta/phases`, { action }]);
+  return page.evaluate(
+    async ([u, d]) => {
+      const r = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/ta/phases`, { action }],
+  );
 }
 
 async function apiSetTaPartner(page, tournamentId, entryId, partnerId) {
-  return page.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'set_partner', partnerId }]);
+  return page.evaluate(
+    async ([u, d]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'set_partner', partnerId }],
+  );
 }
 
 async function apiUpdateTaSeeding(page, tournamentId, entryId, seeding) {
@@ -1221,55 +1358,73 @@ async function apiUpdateTaSeeding(page, tournamentId, entryId, seeding) {
    * can tear down the page.evaluate execution context mid-fetch, producing a
    * transient "Failed to fetch" on the first attempt. withRetry treats
    * thrown errors as retryable, so this recovers on the next tick. */
-  return withRetry(() => page.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_seeding', seeding }]),
-  { label: `TA seeding PUT ${entryId}` });
+  return withRetry(
+    () =>
+      page.evaluate(
+        async ([u, d]) => {
+          const r = await fetch(u, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        },
+        [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_seeding', seeding }],
+      ),
+    { label: `TA seeding PUT ${entryId}` },
+  );
 }
 
 /** Participant PUT: single-course time update. Works for self or partner per
  *  taPlayerSelfEdit / partnerId rules. Admin can bypass. */
 async function apiTaParticipantEditTime(page, tournamentId, entryId, course, time) {
-  return page.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, course, time }]);
+  return page.evaluate(
+    async ([u, d]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/ta`, { entryId, course, time }],
+  );
 }
 
 async function apiFetchTa(page, tournamentId, stage = 'qualification') {
-  return page.evaluate(async ([id, stageName]) => {
-    const u = `/api/tournaments/${id}/ta?stage=${encodeURIComponent(stageName)}&ts=${Date.now()}`;
-    const r = await fetch(u, { cache: 'no-store' });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [tournamentId, stage]);
+  return page.evaluate(
+    async ([id, stageName]) => {
+      const u = `/api/tournaments/${id}/ta?stage=${encodeURIComponent(stageName)}&ts=${Date.now()}`;
+      const r = await fetch(u, { cache: 'no-store' });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [tournamentId, stage],
+  );
 }
 
 async function apiFetchTaPhase(page, tournamentId, phase) {
-  return page.evaluate(async ([id, phaseName]) => {
-    const u = `/api/tournaments/${id}/ta/phases?phase=${encodeURIComponent(phaseName)}&ts=${Date.now()}`;
-    const r = await fetch(u, { cache: 'no-store' });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [tournamentId, phase]);
+  return page.evaluate(
+    async ([id, phaseName]) => {
+      const u = `/api/tournaments/${id}/ta/phases?phase=${encodeURIComponent(phaseName)}&ts=${Date.now()}`;
+      const r = await fetch(u, { cache: 'no-store' });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [tournamentId, phase],
+  );
 }
 
 async function apiPostTaPhase(page, tournamentId, body) {
-  return page.evaluate(async ([id, d]) => {
-    const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [tournamentId, body]);
+  return page.evaluate(
+    async ([id, d]) => {
+      const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [tournamentId, body],
+  );
 }
 
 /** Format a ms duration as the "M:SS.mm" string the TT API accepts. */
@@ -1315,11 +1470,10 @@ async function setupTa28PlayerQual(adminPage, label, opts = {}) {
       const p = await uiCreatePlayer(adminPage, name, nickname);
       players.push({ id: p.id, name, nickname });
     }
-    tournamentId = await uiCreateTournament(
-      adminPage,
-      `E2E TA ${label} ${stamp}`,
-      { dualReportEnabled: false, ...opts },
-    );
+    tournamentId = await uiCreateTournament(adminPage, `E2E TA ${label} ${stamp}`, {
+      dualReportEnabled: false,
+      ...opts,
+    });
 
     const { entries } = await setupTaQualViaUi(adminPage, tournamentId, players);
     return {
@@ -1385,9 +1539,12 @@ async function uiCreatePlayer(page, name, nickname) {
   const openButton = page.getByRole('button', { name: /^(Add Player|プレイヤー追加)$/ }).first();
   await openButton.click();
 
-  const formDialog = page.getByRole('dialog').filter({
-    has: page.locator('#nickname'),
-  }).first();
+  const formDialog = page
+    .getByRole('dialog')
+    .filter({
+      has: page.locator('#nickname'),
+    })
+    .first();
   await formDialog.waitFor({ state: 'visible', timeout: 15000 });
   await formDialog.locator('#name').fill(name);
   await formDialog.locator('#nickname').fill(nickname);
@@ -1399,9 +1556,10 @@ async function uiCreatePlayer(page, name, nickname) {
   await submitButton.click();
 
   for (let attempt = 1; attempt <= UI_PLAYER_CREATE_MAX_OBSERVED_POSTS; attempt += 1) {
-    const response = attempt === 1
-      ? await firstResponsePromise
-      : await page.waitForResponse(isPlayerCreateResponse, { timeout: 5000 }).catch(() => null);
+    const response =
+      attempt === 1
+        ? await firstResponsePromise
+        : await page.waitForResponse(isPlayerCreateResponse, { timeout: 5000 }).catch(() => null);
     if (!response) break;
 
     const post = { status: response.status(), body: await readResponseSummary(response) };
@@ -1414,7 +1572,7 @@ async function uiCreatePlayer(page, name, nickname) {
   if (finalPost.status !== 201 && !retryEndedWithConflict) {
     throw new Error(
       `UI player creation failed for ${nickname} after ${observedPosts.length} observed POST(s) ` +
-      `(${finalPost.status}): ${summarizeResponseBody(finalPost.body)}`,
+        `(${finalPost.status}): ${summarizeResponseBody(finalPost.body)}`,
     );
   }
 
@@ -1433,9 +1591,12 @@ async function uiCreatePlayer(page, name, nickname) {
   if (!id) throw new Error(`UI player creation missing id for ${nickname}`);
 
   /* Post-create temporary-password dialog. Dismiss via "I've Saved It". */
-  const passwordDialog = page.getByRole('dialog').filter({
-    hasText: /Temporary Password|一時パスワード/,
-  }).first();
+  const passwordDialog = page
+    .getByRole('dialog')
+    .filter({
+      hasText: /Temporary Password|一時パスワード/,
+    })
+    .first();
   try {
     await passwordDialog.waitFor({ state: 'visible', timeout: 5000 });
     await passwordDialog.getByRole('button', { name: /I've Saved It|保存しました/ }).click();
@@ -1463,7 +1624,10 @@ async function uiCreateTournament(page, name, opts = {}) {
   const openButton = page.getByRole('button', { name: /^(Create Tournament|大会作成|トーナメント作成)$/ }).first();
   await openButton.click();
 
-  const dialog = page.getByRole('dialog').filter({ has: page.locator('#name') }).first();
+  const dialog = page
+    .getByRole('dialog')
+    .filter({ has: page.locator('#name') })
+    .first();
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
   await dialog.locator('#name').fill(name);
@@ -1484,9 +1648,10 @@ async function uiCreateTournament(page, name, opts = {}) {
     await dialog.locator('#debugMode').check();
   }
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes('/api/tournaments') &&
-    res.request().method() === 'POST', { timeout: 30000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes('/api/tournaments') && res.request().method() === 'POST',
+    { timeout: 30000 },
+  );
   await dialog.getByRole('button', { name: /^(Create Tournament|大会作成|トーナメント作成)$/ }).click();
   const response = await responsePromise;
   const body = await response.json().catch(() => ({}));
@@ -1508,9 +1673,10 @@ async function uiActivateTournament(page, tournamentId) {
   /* If already active / completed the button isn't rendered. */
   if ((await startBtn.count()) === 0) return;
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}`) &&
-    res.request().method() === 'PUT', { timeout: 30000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}`) && res.request().method() === 'PUT',
+    { timeout: 30000 },
+  );
   await startBtn.first().click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -1537,9 +1703,10 @@ async function uiFreezeTaQualification(page, tournamentId) {
    * doesn't block the suite. */
   if ((await freezeBtn.count()) === 0) return;
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}`) &&
-    res.request().method() === 'PUT', { timeout: 30000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}`) && res.request().method() === 'PUT',
+    { timeout: 30000 },
+  );
   await freezeBtn.first().click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -1577,9 +1744,10 @@ async function uiPromoteTaPhase(page, tournamentId, action) {
    * the promotion and hang the waitForResponse below. */
   page.once('dialog', (dialog) => dialog.accept());
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST', { timeout: 60000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) && res.request().method() === 'POST',
+    { timeout: 60000 },
+  );
   await button.click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -1611,9 +1779,10 @@ async function uiResetTaPhase(page, tournamentId, stage) {
 
   page.once('dialog', (dialog) => dialog.accept());
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST', { timeout: 60000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) && res.request().method() === 'POST',
+    { timeout: 60000 },
+  );
   await button.click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -1640,7 +1809,10 @@ async function uiPhaseStartRound(page, tournamentId, phase) {
    * if the tab exists. */
   const roundControlTab = page.getByRole('tab', { name: /^(Round Control|ラウンドコントロール|ラウンド管理)$/ });
   if (await roundControlTab.count()) {
-    await roundControlTab.first().click().catch(() => {});
+    await roundControlTab
+      .first()
+      .click()
+      .catch(() => {});
     await page.waitForTimeout(300);
   }
   const startBtn = page.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ }).first();
@@ -1648,19 +1820,26 @@ async function uiPhaseStartRound(page, tournamentId, phase) {
 
   if (!startBtnVisible) {
     const phaseData = await apiFetchTaPhase(page, tournamentId, phase);
-    const activeRound = (phaseData.b?.data?.rounds ?? []).find((round) =>
-      Array.isArray(round.results) && round.results.length === 0);
+    const activeRound = (phaseData.b?.data?.rounds ?? []).find(
+      (round) => Array.isArray(round.results) && round.results.length === 0,
+    );
     if (activeRound?.roundNumber) {
       return activeRound.roundNumber;
     }
 
-    const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
-    throw new Error(`Start Round button not visible for ${phase}; entries=${phaseData.b?.data?.entries?.length ?? 0}; body=${bodyText.slice(0, 240)}`);
+    const bodyText = await page
+      .locator('body')
+      .innerText({ timeout: 5000 })
+      .catch(() => '');
+    throw new Error(
+      `Start Round button not visible for ${phase}; entries=${phaseData.b?.data?.entries?.length ?? 0}; body=${bodyText.slice(0, 240)}`,
+    );
   }
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST', { timeout: 60000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) && res.request().method() === 'POST',
+    { timeout: 60000 },
+  );
   await startBtn.click();
   const response = await responsePromise;
   const body = await response.json().catch(() => ({}));
@@ -1679,14 +1858,18 @@ async function uiPhaseStartRound(page, tournamentId, phase) {
  *  Nth input in document order. Phase 1/2 use "Submit & Eliminate Slowest";
  *  Phase 3 uses "Submit & Deduct Lives". */
 async function uiPhaseSubmitResults(page, tournamentId, phase, results) {
-  const submitPattern = phase === 'phase3'
-    ? /^(Submit & Deduct Lives|送信＆ライフ減算)$/
-    : /^(Submit & Eliminate Slowest|送信＆最遅者敗退)$/;
+  const submitPattern =
+    phase === 'phase3'
+      ? /^(Submit & Deduct Lives|送信＆ライフ減算)$/
+      : /^(Submit & Eliminate Slowest|送信＆最遅者敗退)$/;
 
   /* Switch to Current Round tab if it's distinct from Round Control. */
   const currentTab = page.getByRole('tab', { name: /^(Current Round|現在のラウンド)$/ });
   if (await currentTab.count()) {
-    await currentTab.first().click().catch(() => {});
+    await currentTab
+      .first()
+      .click()
+      .catch(() => {});
     await page.waitForTimeout(300);
   }
 
@@ -1709,9 +1892,10 @@ async function uiPhaseSubmitResults(page, tournamentId, phase, results) {
     await timeInputs.nth(i).fill(timeStr);
   }
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST', { timeout: 60000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) && res.request().method() === 'POST',
+    { timeout: 60000 },
+  );
   await page.getByRole('button', { name: submitPattern }).first().click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -1732,7 +1916,10 @@ async function uiPhaseCancelRound(page, tournamentId, phase) {
 
   const currentTab = page.getByRole('tab', { name: /^(Current Round|現在のラウンド)$/ });
   if (await currentTab.count()) {
-    await currentTab.first().click().catch(() => {});
+    await currentTab
+      .first()
+      .click()
+      .catch(() => {});
     await page.waitForTimeout(300);
   }
 
@@ -1740,14 +1927,18 @@ async function uiPhaseCancelRound(page, tournamentId, phase) {
   await cancelBtn.waitFor({ state: 'visible', timeout: 15000 });
   await cancelBtn.click();
 
-  const dialog = page.getByRole('dialog').filter({
-    hasText: /^(?:.|\n)*(Cancel Round\?|ラウンドをキャンセルしますか？)/,
-  }).first();
+  const dialog = page
+    .getByRole('dialog')
+    .filter({
+      hasText: /^(?:.|\n)*(Cancel Round\?|ラウンドをキャンセルしますか？)/,
+    })
+    .first();
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST', { timeout: 60000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) && res.request().method() === 'POST',
+    { timeout: 60000 },
+  );
   await dialog.getByRole('button', { name: /^(Yes, Cancel Round|はい、キャンセル)$/ }).click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -1768,7 +1959,10 @@ async function uiPhaseUndoRound(page, tournamentId, phase) {
 
   const roundControlTab = page.getByRole('tab', { name: /^(Round Control|ラウンドコントロール|ラウンド管理)$/ });
   if (await roundControlTab.count()) {
-    await roundControlTab.first().click().catch(() => {});
+    await roundControlTab
+      .first()
+      .click()
+      .catch(() => {});
     await page.waitForTimeout(300);
   }
 
@@ -1776,14 +1970,18 @@ async function uiPhaseUndoRound(page, tournamentId, phase) {
   await undoBtn.waitFor({ state: 'visible', timeout: 15000 });
   await undoBtn.click();
 
-  const dialog = page.getByRole('dialog').filter({
-    hasText: /^(?:.|\n)*(Undo Last Round\?|直前ラウンドを取り消しますか？)/,
-  }).first();
+  const dialog = page
+    .getByRole('dialog')
+    .filter({
+      hasText: /^(?:.|\n)*(Undo Last Round\?|直前ラウンドを取り消しますか？)/,
+    })
+    .first();
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST', { timeout: 60000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) && res.request().method() === 'POST',
+    { timeout: 60000 },
+  );
   await dialog.getByRole('button', { name: /^(Yes, Undo Round|はい、取り消す)$/ }).click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -1893,9 +2091,8 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players, options 
   const save = dialog.getByRole('button', {
     name: /Create Groups & Matches|Update Groups|グループ＆試合作成|グループ更新/,
   });
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/${mode}`) &&
-    res.request().method() === 'POST',
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/${mode}`) && res.request().method() === 'POST',
   );
   await save.click();
   const response = await responsePromise;
@@ -1919,14 +2116,19 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players, options 
  *  Accepts `players: Array<{ id, name, nickname, seeding? }>`. */
 async function uiSetupTaPlayers(page, tournamentId, players) {
   await nav(page, `/tournaments/${tournamentId}/ta`);
-  const trigger = page.getByRole('button', {
-    name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
-  }).first();
+  const trigger = page
+    .getByRole('button', {
+      name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
+    })
+    .first();
   await trigger.click();
 
-  const dialog = page.getByRole('dialog').filter({
-    hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
-  }).first();
+  const dialog = page
+    .getByRole('dialog')
+    .filter({
+      hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
+    })
+    .first();
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
   /* Left column: search + check each target player. Search resets the visible
@@ -2006,9 +2208,10 @@ async function openNextMatchDialog(page) {
 async function resolveAllTies(page, tournamentId, mode) {
   const MODES_WITH_STANDINGS_ROUTE = { bm: 'bm', mr: 'mr', gp: 'gp' };
   if (!MODES_WITH_STANDINGS_ROUTE[mode]) return;
-  const compareQualification = mode === 'gp'
-    ? (a, b) => b.points - a.points || b.score - a.score
-    : (a, b) => b.score - a.score || b.points - a.points;
+  const compareQualification =
+    mode === 'gp'
+      ? (a, b) => b.points - a.points || b.score - a.score
+      : (a, b) => b.score - a.score || b.points - a.points;
 
   const apiPath = `/api/tournaments/${tournamentId}/${mode}`;
   /* Fetch full qualification data to build a playerId→qualId lookup per group. */
@@ -2067,17 +2270,22 @@ async function resolveAllTies(page, tournamentId, mode) {
         const qualification = tiedQualifications[i];
         const qualId = playerIdToQualId.get(`${group}:${qualification.playerId}`);
         if (!qualId) {
-          console.warn(`[resolveAllTies] no qualification found for playerId ${qualification.playerId} in group ${group}`);
+          console.warn(
+            `[resolveAllTies] no qualification found for playerId ${qualification.playerId} in group ${group}`,
+          );
           continue;
         }
-        const patch = await page.evaluate(async ([u, d]) => {
-          const r = await fetch(u, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(d),
-          });
-          return { s: r.status };
-        }, [apiPath, { qualificationId: qualId, rankOverride: autoRank + i }]);
+        const patch = await page.evaluate(
+          async ([u, d]) => {
+            const r = await fetch(u, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(d),
+            });
+            return { s: r.status };
+          },
+          [apiPath, { qualificationId: qualId, rankOverride: autoRank + i }],
+        );
         if (patch.s !== 200) {
           console.warn(`[resolveAllTies] PATCH rankOverride failed for qual ${qualId} (${patch.s})`);
         }
@@ -2090,7 +2298,10 @@ async function resolveAllTies(page, tournamentId, mode) {
 async function openMatchesTab(page) {
   const matchesTab = page.getByRole('tab', { name: /^(Matches|試合一覧)$/ });
   if ((await matchesTab.count()) > 0) {
-    await matchesTab.first().click().catch(() => {});
+    await matchesTab
+      .first()
+      .click()
+      .catch(() => {});
     await page.waitForTimeout(200);
   }
 }
@@ -2185,18 +2396,22 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
     await target.scrollIntoViewIfNeeded().catch(() => {});
     await target.click();
 
-    const dialog = page.getByRole('dialog').filter({
-      hasText: /enterMatchScore|試合スコア入力|Enter Match Score/,
-    }).first();
+    const dialog = page
+      .getByRole('dialog')
+      .filter({
+        hasText: /enterMatchScore|試合スコア入力|Enter Match Score/,
+      })
+      .first();
     await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
     const inputs = dialog.locator('input[type="number"]');
     await inputs.nth(0).fill(String(score1));
     await inputs.nth(1).fill(String(score2));
 
-    const responsePromise = page.waitForResponse((res) =>
-      res.url().includes(`/api/tournaments/${tournamentId}/bm`) &&
-      res.request().method() === 'PUT', { timeout: 30000 });
+    const responsePromise = page.waitForResponse(
+      (res) => res.url().includes(`/api/tournaments/${tournamentId}/bm`) && res.request().method() === 'PUT',
+      { timeout: 30000 },
+    );
     await dialog.getByRole('button', { name: /^(Save Score|スコア保存)$/ }).click();
     const response = await responsePromise;
     if (response.status() !== 200) {
@@ -2212,15 +2427,18 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
     /* Wait for the Enter Score count to drop so the next iteration targets
      * a genuinely different match. Bail out after 5s if the UI never
      * refreshes — the iter cap is still the last line of defense. */
-    await page.waitForFunction(
-      ([prev]) => {
-        const buttons = Array.from(document.querySelectorAll('button'))
-          .filter((b) => /^(Enter Score|スコア入力|Enter Result|結果入力)$/.test(b.textContent?.trim() ?? ''));
-        return buttons.length < prev;
-      },
-      [currentCount],
-      { timeout: 5000 },
-    ).catch(() => {});
+    await page
+      .waitForFunction(
+        ([prev]) => {
+          const buttons = Array.from(document.querySelectorAll('button')).filter((b) =>
+            /^(Enter Score|スコア入力|Enter Result|結果入力)$/.test(b.textContent?.trim() ?? ''),
+          );
+          return buttons.length < prev;
+        },
+        [currentCount],
+        { timeout: 5000 },
+      )
+      .catch(() => {});
   }
   throw new Error('BM UI score entry exceeded iteration cap');
 }
@@ -2249,9 +2467,12 @@ async function uiPutAllMrQualScores(page, tournamentId, opts = {}) {
     const clicked = await openNextMatchDialog(page);
     if (!clicked) return;
 
-    const dialog = page.getByRole('dialog').filter({
-      hasText: /enterMatchResult|試合結果|Enter Match Result/,
-    }).first();
+    const dialog = page
+      .getByRole('dialog')
+      .filter({
+        hasText: /enterMatchResult|試合結果|Enter Match Result/,
+      })
+      .first();
     await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
     let score1, score2;
@@ -2268,9 +2489,10 @@ async function uiPutAllMrQualScores(page, tournamentId, opts = {}) {
     await inputs.nth(0).fill(String(score1));
     await inputs.nth(1).fill(String(score2));
 
-    const responsePromise = page.waitForResponse((res) =>
-      res.url().includes(`/api/tournaments/${tournamentId}/mr`) &&
-      res.request().method() === 'PUT', { timeout: 30000 });
+    const responsePromise = page.waitForResponse(
+      (res) => res.url().includes(`/api/tournaments/${tournamentId}/mr`) && res.request().method() === 'PUT',
+      { timeout: 30000 },
+    );
     await dialog.getByRole('button', { name: /^(Save Result|結果保存|保存)$/ }).click();
     const response = await responsePromise;
     if (response.status() !== 200) {
@@ -2304,32 +2526,40 @@ async function uiPutAllGpQualScores(page, tournamentId, opts = {}) {
     const clicked = await openNextMatchDialog(page);
     if (!clicked) return;
 
-    const dialog = page.getByRole('dialog').filter({
-      hasText: /enterMatchResult|試合結果|Enter Match Result/,
-    }).first();
+    const dialog = page
+      .getByRole('dialog')
+      .filter({
+        hasText: /enterMatchResult|試合結果|Enter Match Result/,
+      })
+      .first();
     await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
-    const { points1, points2 } = randomize
-      ? pickRandomGpPoints()
-      : { points1: fixedP1 ?? 45, points2: fixedP2 ?? 0 };
+    const { points1, points2 } = randomize ? pickRandomGpPoints() : { points1: fixedP1 ?? 45, points2: fixedP2 ?? 0 };
 
     /* Toggle manual-total-score; the id is stable. */
     await dialog.locator('#gp-manual-score').check();
     await dialog.locator('#manual-points1').fill(String(points1));
     await dialog.locator('#manual-points2').fill(String(points2));
 
-    const responsePromise = page.waitForResponse((res) => {
-      const url = res.url();
-      return (url.includes(`/api/tournaments/${tournamentId}/gp/match/`) ||
-        url.includes(`/api/tournaments/${tournamentId}/gp`)) &&
-        res.request().method() === 'PUT';
-    }, { timeout: 30000 });
+    const responsePromise = page.waitForResponse(
+      (res) => {
+        const url = res.url();
+        return (
+          (url.includes(`/api/tournaments/${tournamentId}/gp/match/`) ||
+            url.includes(`/api/tournaments/${tournamentId}/gp`)) &&
+          res.request().method() === 'PUT'
+        );
+      },
+      { timeout: 30000 },
+    );
     /* When manual total-score is toggled the button flips to Save Score /
      * スコア保存; without the toggle it's Save Result / 結果保存. Accept
      * either so this helper works regardless of the dialog's current mode. */
-    await dialog.getByRole('button', {
-      name: /^(Save Result|結果保存|Save Score|スコア保存|保存)$/,
-    }).click();
+    await dialog
+      .getByRole('button', {
+        name: /^(Save Result|結果保存|Save Score|スコア保存|保存)$/,
+      })
+      .click();
     const response = await responsePromise;
     if (response.status() !== 200) {
       const body = await response.json().catch(() => ({}));
@@ -2358,7 +2588,10 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
    * aria-selected on click; repeated clicks are a safe no-op. */
   const timesTab = page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ });
   if (await timesTab.count()) {
-    await timesTab.first().click().catch(() => {});
+    await timesTab
+      .first()
+      .click()
+      .catch(() => {});
   }
 
   /* Each entry row has an "Edit Times" button; filter the row by nickname.
@@ -2368,9 +2601,12 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
   await row.waitFor({ state: 'visible', timeout: D1_COLD_START_TIMEOUT_MS });
   await row.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).click();
 
-  const dialog = page.getByRole('dialog').filter({
-    has: page.locator('input[placeholder="M:SS.mm"]'),
-  }).first();
+  const dialog = page
+    .getByRole('dialog')
+    .filter({
+      has: page.locator('input[placeholder="M:SS.mm"]'),
+    })
+    .first();
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
   /* Inputs render in a fixed cup/course order that matches TA_COURSES. */
@@ -2386,9 +2622,10 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
    * entry id in the body (see handleSaveTimes in ta/page.tsx). The former
    * matcher waited on /tt/entries/ which is only used by the single-entry
    * detail route, and would never fire for this flow — tests timed out. */
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta`) &&
-    res.request().method() === 'PUT', { timeout: 30000 });
+  const responsePromise = page.waitForResponse(
+    (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta`) && res.request().method() === 'PUT',
+    { timeout: 30000 },
+  );
   await dialog.getByRole('button', { name: /^(Save Times|タイム保存|保存)$/ }).click();
   const response = await responsePromise;
   if (response.status() !== 200) {
@@ -2418,36 +2655,41 @@ async function apiPutAllBmQualScores(page, tournamentId, opts = {}) {
   const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
 
   for (const match of matches) {
-    const result = await withRetry(() => page.evaluate(async ([url, match, randomize, fixedS1, fixedS2]) => {
-      const scores = randomize
-        ? null
-        : { score1: fixedS1 ?? 3, score2: fixedS2 ?? 1 };
+    const result = await withRetry(
+      () =>
+        page.evaluate(
+          async ([url, match, randomize, fixedS1, fixedS2]) => {
+            const scores = randomize ? null : { score1: fixedS1 ?? 3, score2: fixedS2 ?? 1 };
 
-      let score1;
-      let score2;
-      if (randomize) {
-        const picks = [
-          { score1: 3, score2: 1 },
-          { score1: 2, score2: 2 },
-          { score1: 1, score2: 3 },
-        ];
-        const pick = picks[Math.floor(Math.random() * picks.length)];
-        score1 = pick.score1;
-        score2 = pick.score2;
-      } else {
-        score1 = scores.score1;
-        score2 = scores.score2;
-      }
+            let score1;
+            let score2;
+            if (randomize) {
+              const picks = [
+                { score1: 3, score2: 1 },
+                { score1: 2, score2: 2 },
+                { score1: 1, score2: 3 },
+              ];
+              const pick = picks[Math.floor(Math.random() * picks.length)];
+              score1 = pick.score1;
+              score2 = pick.score2;
+            } else {
+              score1 = scores.score1;
+              score2 = scores.score2;
+            }
 
-      const r = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: match.id, score1, score2 }),
-      });
-      return { s: r.status, id: match.id };
-    }, [`/api/tournaments/${tournamentId}/bm`, match, randomize, fixedS1, fixedS2]), {
-      label: `BM qual API PUT ${match.id}`,
-    });
+            const r = await fetch(url, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ matchId: match.id, score1, score2 }),
+            });
+            return { s: r.status, id: match.id };
+          },
+          [`/api/tournaments/${tournamentId}/bm`, match, randomize, fixedS1, fixedS2],
+        ),
+      {
+        label: `BM qual API PUT ${match.id}`,
+      },
+    );
 
     if (result.s !== 200) {
       throw new Error(`apiPutAllBmQualScores failed for match ${match.id} (${result.s})`);
@@ -2468,18 +2710,28 @@ async function apiPutAllMrQualScores(page, tournamentId, opts = {}) {
 
   for (const match of matches) {
     const profile = randomize ? pickRandomMrScoreProfile() : { score1: fixedS1 ?? 3, score2: fixedS2 ?? 1 };
-    const result = await withRetry(() => page.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, id: body.matchId };
-    }, [`/api/tournaments/${tournamentId}/mr`, {
-      matchId: match.id,
-      score1: profile.score1,
-      score2: profile.score2,
-    }]), { label: `MR qual API PUT ${match.id}` });
+    const result = await withRetry(
+      () =>
+        page.evaluate(
+          async ([url, body]) => {
+            const r = await fetch(url, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            return { s: r.status, id: body.matchId };
+          },
+          [
+            `/api/tournaments/${tournamentId}/mr`,
+            {
+              matchId: match.id,
+              score1: profile.score1,
+              score2: profile.score2,
+            },
+          ],
+        ),
+      { label: `MR qual API PUT ${match.id}` },
+    );
 
     if (result.s !== 200) {
       throw new Error(`apiPutAllMrQualScores failed for match ${match.id} (${result.s})`);
@@ -2500,19 +2752,29 @@ async function apiPutAllGpQualScores(page, tournamentId, opts = {}) {
   for (const match of matches) {
     const pts = randomize ? pickRandomGpPoints() : { points1: fixedP1 ?? 45, points2: fixedP2 ?? 0 };
 
-    const result = await withRetry(() => page.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status };
-    }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}`, {
-      points1: pts.points1,
-      points2: pts.points2,
-      completed: true,
-      version: match.version,
-    }]), { label: `GP qual API PUT ${match.id}` });
+    const result = await withRetry(
+      () =>
+        page.evaluate(
+          async ([url, body]) => {
+            const r = await fetch(url, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            return { s: r.status };
+          },
+          [
+            `/api/tournaments/${tournamentId}/gp/match/${match.id}`,
+            {
+              points1: pts.points1,
+              points2: pts.points2,
+              completed: true,
+              version: match.version,
+            },
+          ],
+        ),
+      { label: `GP qual API PUT ${match.id}` },
+    );
 
     if (result.s !== 200) {
       throw new Error(`apiPutAllGpQualScores failed for match ${match.id} (${result.s})`);
@@ -2537,28 +2799,29 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
 
     for (const table of tables) {
       const style = window.getComputedStyle(table);
-      const isVisible = table.offsetParent !== null &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden';
+      const isVisible = table.offsetParent !== null && style.display !== 'none' && style.visibility !== 'hidden';
       if (!isVisible) continue;
 
-      const headers = Array.from(table.querySelectorAll('thead th'))
-        .map((th) => (th.textContent || '').trim());
+      const headers = Array.from(table.querySelectorAll('thead th')).map((th) => (th.textContent || '').trim());
       const columnIndex = headers.findIndex(headerMatches);
       if (columnIndex === -1) continue;
       matchedHeaders = headers;
       matchedTitle = table.querySelectorAll('thead th')[columnIndex]?.getAttribute('title') || '';
 
-      values.push(...Array.from(table.querySelectorAll('tbody tr'))
-        .map((row) => {
-          const cell = row.querySelectorAll('td')[columnIndex];
-          return (cell?.textContent || '').trim();
-        })
-        .filter(Boolean)
-        .map((value) => Number(value)));
+      values.push(
+        ...Array.from(table.querySelectorAll('tbody tr'))
+          .map((row) => {
+            const cell = row.querySelectorAll('td')[columnIndex];
+            return (cell?.textContent || '').trim();
+          })
+          .filter(Boolean)
+          .map((value) => Number(value)),
+      );
     }
 
-    return matchedHeaders ? { headers: matchedHeaders, title: matchedTitle, titleOk: titleMatches(matchedTitle), values } : null;
+    return matchedHeaders
+      ? { headers: matchedHeaders, title: matchedTitle, titleOk: titleMatches(matchedTitle), values }
+      : null;
   }, expectedLabels);
 
   if (!column) {
@@ -2568,12 +2831,12 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
     throw new Error(`${mode.toUpperCase()} qualification points column has no row values`);
   }
   if (!column.titleOk) {
-    throw new Error(`${mode.toUpperCase()} qualification points header missing tooltip title: ${column.title || '(empty)'}`);
+    throw new Error(
+      `${mode.toUpperCase()} qualification points header missing tooltip title: ${column.title || '(empty)'}`,
+    );
   }
 
-  const invalid = column.values.filter((value) =>
-    !Number.isInteger(value) || value < 0 || value > 1000
-  );
+  const invalid = column.values.filter((value) => !Number.isInteger(value) || value < 0 || value > 1000);
   if (invalid.length > 0) {
     throw new Error(`${mode.toUpperCase()} qualification points out of range: ${invalid.join(', ')}`);
   }
@@ -2592,9 +2855,12 @@ async function assertCombinedStandingsTab(page, mode, tournamentId, options = {}
   await tab.waitFor({ state: 'visible', timeout: 15000 });
   await tab.click();
 
-  const content = page.locator('[role="tabpanel"][data-state="active"]').filter({
-    hasText: /合算順位|Combined/,
-  }).first();
+  const content = page
+    .locator('[role="tabpanel"][data-state="active"]')
+    .filter({
+      hasText: /合算順位|Combined/,
+    })
+    .first();
   await content.waitFor({ state: 'visible', timeout: 15000 });
 
   const text = await content.innerText().catch(() => '');
@@ -2640,7 +2906,12 @@ async function assertCombinedStandingsTab(page, mode, tournamentId, options = {}
  *  re-adding. That replacement contract matters for Top-24 guard tests:
  *  re-running with fewer players replaces the qualification set instead of
  *  leaving stale higher-count rows behind. */
-async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, score2 = 1, randomize = true, resolveTies = true } = {}) {
+async function setupBmQualViaUi(
+  adminPage,
+  tournamentId,
+  players,
+  { score1 = 3, score2 = 1, randomize = true, resolveTies = true } = {},
+) {
   /* Freshly created tournaments start in draft status. The setup dialog
    * opens on draft pages but score PUTs require status='active' — without
    * this activation the save click never fires a response and the test
@@ -2730,9 +3001,8 @@ async function ensureTaQualificationRanksSettled(adminPage, tournamentId, player
       .map((entry) => `${entry.player?.nickname ?? entry.playerId}:${entry.rank ?? 'null'}`)
       .join(',');
 
-    const ranksOk = relevantEntries.length === players.length &&
-      ranks.length === players.length &&
-      ranks.join(',') === expectedRanks;
+    const ranksOk =
+      relevantEntries.length === players.length && ranks.length === players.length && ranks.join(',') === expectedRanks;
     if (ranksOk) {
       const rankByPlayerId = new Map(relevantEntries.map((entry) => [entry.playerId, entry.rank]));
       for (const entry of entries) {
@@ -2743,9 +3013,7 @@ async function ensureTaQualificationRanksSettled(adminPage, tournamentId, player
     await adminPage.waitForTimeout(1000);
   }
 
-  throw new Error(
-    `TA qualification ranks did not settle to 1..${players.length} within timeout: ${lastSummary}`
-  );
+  throw new Error(`TA qualification ranks did not settle to 1..${players.length} within timeout: ${lastSummary}`);
 }
 
 /** UI-driven TA qualification: entry addition + times entry.
@@ -2901,11 +3169,10 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
         nickname: nicknames[i],
       }));
 
-      tournamentId = await uiCreateTournament(
-        adminPage,
-        `E2E All Modes ${label} ${stamp}`,
-        { dualReportEnabled: false, ...tournamentOpts },
-      );
+      tournamentId = await uiCreateTournament(adminPage, `E2E All Modes ${label} ${stamp}`, {
+        dualReportEnabled: false,
+        ...tournamentOpts,
+      });
       ownedTournamentId = tournamentId;
       await uiActivateTournament(adminPage, tournamentId);
     }
