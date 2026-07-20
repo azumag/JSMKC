@@ -65,17 +65,19 @@ const MAX_AUDIT_LOG_FIELD_LENGTH = 500;
 function sanitizeForAuditLog(str: string, maxLength = MAX_AUDIT_LOG_FIELD_LENGTH): string {
   if (!str) return '';
 
-  return str
-    // Strip ANSI escape sequences FIRST — the control-character pass below
-    // includes ESC (0x1B) in its range, which would otherwise eat the ESC
-    // byte and leave the trailing `[31m ... [0m` as plain text.
-    .replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')
-    // Remove control characters including LF (0x0A) and CR (0x0D)
-    // which are the primary vectors for log injection attacks
-    .replace(/[\x00-\x08\x0A-\x0D\x0E-\x1F\x7F]/g, '')
-    // Trim whitespace and limit length
-    .trim()
-    .slice(0, maxLength);
+  return (
+    str
+      // Strip ANSI escape sequences FIRST — the control-character pass below
+      // includes ESC (0x1B) in its range, which would otherwise eat the ESC
+      // byte and leave the trailing `[31m ... [0m` as plain text.
+      .replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')
+      // Remove control characters including LF (0x0A) and CR (0x0D)
+      // which are the primary vectors for log injection attacks
+      .replace(/[\x00-\x08\x0A-\x0D\x0E-\x1F\x7F]/g, '')
+      // Trim whitespace and limit length
+      .trim()
+      .slice(0, maxLength)
+  );
 }
 
 /**
@@ -88,7 +90,7 @@ function sanitizeForAuditLog(str: string, maxLength = MAX_AUDIT_LOG_FIELD_LENGTH
  */
 function sanitizeObjectForAuditLog(
   obj: Record<string, unknown>,
-  maxLength = MAX_AUDIT_LOG_FIELD_LENGTH
+  maxLength = MAX_AUDIT_LOG_FIELD_LENGTH,
 ): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
 
@@ -96,9 +98,7 @@ function sanitizeObjectForAuditLog(
     if (typeof value === 'string') {
       sanitized[key] = sanitizeForAuditLog(value, maxLength);
     } else if (Array.isArray(value)) {
-      sanitized[key] = value.map((item) =>
-        typeof item === 'string' ? sanitizeForAuditLog(item, maxLength) : item
-      );
+      sanitized[key] = value.map((item) => (typeof item === 'string' ? sanitizeForAuditLog(item, maxLength) : item));
     } else if (value !== null && typeof value === 'object') {
       sanitized[key] = sanitizeObjectForAuditLog(value as Record<string, unknown>, maxLength);
     } else {
@@ -234,9 +234,7 @@ export async function createAuditLog(params: AuditLogParams): Promise<void> {
 }
 
 function sanitizeAuditLogParams(params: AuditLogParams) {
-  const sanitizedDetails = params.details
-    ? sanitizeObjectForAuditLog(params.details)
-    : undefined;
+  const sanitizedDetails = params.details ? sanitizeObjectForAuditLog(params.details) : undefined;
 
   return {
     userId: params.userId || null,
@@ -336,6 +334,10 @@ export const AUDIT_ACTIONS = {
   // Bracket management actions
   /** A finals bracket was generated (double elimination) */
   CREATE_BRACKET: 'CREATE_BRACKET',
+  /** An admin manually reassigned a finals/playoff bracket slot (issue #3017) */
+  OVERRIDE_FINALS_SLOT: 'OVERRIDE_FINALS_SLOT',
+  /** Automatic bracket advancement overwrote a slot that had a manual override */
+  AUTO_ADVANCE_OVERRODE_MANUAL_SLOT: 'AUTO_ADVANCE_OVERRODE_MANUAL_SLOT',
 
   // Debug-mode actions (only available on tournaments with debugMode === true)
   /** Admin auto-filled qualification scores for a debug tournament */

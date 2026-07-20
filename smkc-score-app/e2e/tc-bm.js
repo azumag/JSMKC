@@ -62,6 +62,7 @@ const {
   apiFetchBmFinalsState,
   apiPutAllBmQualScores,
   apiUpdateTournament,
+  apiJson,
   loginPlayerBrowser,
   setupBmQualViaUi,
   apiDeletePlayer,
@@ -1682,6 +1683,294 @@ async function runTc3026(adminPage) {
   }
 }
 
+/* ───────── TC-3027: manual bracket slot adjustment — same-match swap (issue #3017) ─────────
+ * CDM emergency-correction feature (E2E-A): once both QF1/QF2 feeders
+ * complete and populate SF1's two slots, an admin swaps SF1's 1P/2P via
+ * PATCH slotEdit (op=swap). Verifies the swap lands atomically (single
+ * version increment, players actually exchanged, "manually adjusted" badge
+ * field set) and that QF1's already-recorded score is left completely
+ * untouched — manual slot edits must never lose recorded results. */
+async function runTc3027(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    let matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const qf1 = matches.find((m) => m.matchNumber === 1);
+    const qf2 = matches.find((m) => m.matchNumber === 2);
+    if (!qf1 || !qf2) throw new Error('QF1/QF2 not found');
+
+    const qf1Score = await apiSetBmFinalsScore(adminPage, tournamentId, qf1.id, 5, 0);
+    if (qf1Score.s !== 200) throw new Error(`QF1 score PUT failed (${qf1Score.s})`);
+    const qf2Score = await apiSetBmFinalsScore(adminPage, tournamentId, qf2.id, 5, 0);
+    if (qf2Score.s !== 200) throw new Error(`QF2 score PUT failed (${qf2Score.s})`);
+
+    matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const sf1Before = matches.find((m) => m.matchNumber === 5);
+    if (!sf1Before?.player1Id || !sf1Before?.player2Id) {
+      throw new Error(`SF1 slots not both confirmed after QF1/QF2: ${JSON.stringify(sf1Before)}`);
+    }
+
+    const swap = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { matchId: sf1Before.id, slotEdit: { op: 'swap', expectedVersion: sf1Before.version } },
+    });
+    if (swap.status !== 200) throw new Error(`slotEdit swap failed (${swap.status}): ${JSON.stringify(swap.body)}`);
+
+    matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const sf1After = matches.find((m) => m.matchNumber === 5);
+    const qf1After = matches.find((m) => m.id === qf1.id);
+
+    const swapped = sf1After.player1Id === sf1Before.player2Id && sf1After.player2Id === sf1Before.player1Id;
+    const versionBumped = sf1After.version === sf1Before.version + 1;
+    const badgeSet = !!sf1After.slotOverrideAt;
+    const qf1ScoreKept = qf1After.completed === true && qf1After.score1 === 5 && qf1After.score2 === 0;
+
+    const ok = swapped && versionBumped && badgeSet && qf1ScoreKept;
+    log(
+      'TC-3027',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `swapped=${swapped} versionBumped=${versionBumped} badgeSet=${badgeSet} qf1ScoreKept=${qf1ScoreKept}`,
+    );
+  } catch (err) {
+    log('TC-3027', 'FAIL', err instanceof Error ? err.message : 'TC-3027 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-3028: manual bracket slot adjustment — assign + duplicate-placement guard (issue #3017) ─────────
+ * CDM emergency-correction feature (E2E-B): an admin replaces an unplayed
+ * QF slot's player with a qualification participant who isn't currently in
+ * the 8-player bracket (a withdrawal/DQ replacement scenario). Then confirms
+ * that assigning the same, now-placed player into a second slot is always
+ * rejected (409 DUPLICATE_PLACEMENT) rather than silently creating a double
+ * booking — the design explicitly forbids any allow-duplicate escape hatch. */
+async function runTc3028(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const qf1 = matches.find((m) => m.matchNumber === 1);
+    const qf2 = matches.find((m) => m.matchNumber === 2);
+    if (!qf1 || !qf2) throw new Error('QF1/QF2 not found');
+
+    const placedIds = new Set();
+    for (const m of matches) {
+      if (m.player1Id) placedIds.add(m.player1Id);
+      if (m.player2Id) placedIds.add(m.player2Id);
+    }
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const qualifications = bmData.qualifications || bmData.data?.qualifications || [];
+    const outsider = qualifications.find((q) => !placedIds.has(q.playerId));
+    if (!outsider) throw new Error('No qualification participant outside the 8-player bracket');
+
+    const assign = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: {
+        matchId: qf1.id,
+        slotEdit: { op: 'assign', slot: 1, playerId: outsider.playerId, expectedVersion: qf1.version },
+      },
+    });
+    if (assign.status !== 200) {
+      throw new Error(`slotEdit assign failed (${assign.status}): ${JSON.stringify(assign.body)}`);
+    }
+
+    const afterAssign = (await apiFetchBmFinalsMatches(adminPage, tournamentId)).find((m) => m.id === qf1.id);
+    const assigned = afterAssign?.player1Id === outsider.playerId;
+
+    const dup = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: {
+        matchId: qf2.id,
+        slotEdit: { op: 'assign', slot: 1, playerId: outsider.playerId, expectedVersion: qf2.version },
+      },
+    });
+    const duplicateRejected = dup.status === 409 && dup.body?.code === 'DUPLICATE_PLACEMENT';
+
+    const ok = assigned && duplicateRejected;
+    log(
+      'TC-3028',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `assigned=${assigned} dupStatus=${dup.status} dupBody=${JSON.stringify(dup.body)}`,
+    );
+  } catch (err) {
+    log('TC-3028', 'FAIL', err instanceof Error ? err.message : 'TC-3028 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-3029: manual bracket slot adjustment — cross-match swapSlots (issue #3017) ─────────
+ * CDM emergency-correction feature (E2E-C): an admin atomically swaps a slot
+ * between two different, unplayed QF matches in the same round (a shuffled-
+ * seed correction). Confirms both matches exchange players in one operation
+ * with exactly one version bump each, and that the MVP's same-round-only
+ * restriction is enforced (QF1 ↔ SF1 must be rejected as ROUND_MISMATCH even
+ * though both matches otherwise look editable). */
+async function runTc3029(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    let matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const qf1 = matches.find((m) => m.matchNumber === 1);
+    const qf2 = matches.find((m) => m.matchNumber === 2);
+    const sf1 = matches.find((m) => m.matchNumber === 5);
+    if (!qf1 || !qf2 || !sf1) throw new Error('QF1/QF2/SF1 not found');
+
+    const qf1P1Before = qf1.player1Id;
+    const qf2P1Before = qf2.player1Id;
+
+    const swapSlots = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: {
+        matchId: qf1.id,
+        slotEdit: {
+          op: 'swapSlots',
+          slot: 1,
+          targetMatchId: qf2.id,
+          targetSlot: 1,
+          expectedVersion: qf1.version,
+          targetExpectedVersion: qf2.version,
+        },
+      },
+    });
+    if (swapSlots.status !== 200) {
+      throw new Error(`slotEdit swapSlots failed (${swapSlots.status}): ${JSON.stringify(swapSlots.body)}`);
+    }
+
+    matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const qf1After = matches.find((m) => m.id === qf1.id);
+    const qf2After = matches.find((m) => m.id === qf2.id);
+    const swapped = qf1After.player1Id === qf2P1Before && qf2After.player1Id === qf1P1Before;
+    const versionsBumped = qf1After.version === qf1.version + 1 && qf2After.version === qf2.version + 1;
+
+    const crossRound = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: {
+        matchId: qf1After.id,
+        slotEdit: {
+          op: 'swapSlots',
+          slot: 1,
+          targetMatchId: sf1.id,
+          targetSlot: 1,
+          expectedVersion: qf1After.version,
+          targetExpectedVersion: sf1.version,
+        },
+      },
+    });
+    const roundMismatchRejected = crossRound.status === 400 && crossRound.body?.code === 'ROUND_MISMATCH';
+
+    const ok = swapped && versionsBumped && roundMismatchRejected;
+    log(
+      'TC-3029',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `swapped=${swapped} versionsBumped=${versionsBumped} roundMismatchRejected=${roundMismatchRejected} crossRoundStatus=${crossRound.status}`,
+    );
+  } catch (err) {
+    log('TC-3029', 'FAIL', err instanceof Error ? err.message : 'TC-3029 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-3030: manual bracket slot adjustment — guards (issue #3017) ─────────
+ * CDM emergency-correction feature (E2E-D): three independent guard checks
+ * that the design explicitly requires —
+ *  1. a completed match's slots can never be edited (409 MATCH_COMPLETED,
+ *     protects recorded results from being rewritten as "adjustments"),
+ *  2. non-admin sessions are forbidden from slot-editing (403, same admin
+ *     gate as tvNumber/startingCourseNumber PATCH), and
+ *  3. slot editing keeps working even while qualification is locked — this
+ *     is the feature's whole reason for existing: CDM live-op corrections
+ *     happen after quals are already confirmed. */
+async function runTc3030(adminPage) {
+  let setup = null;
+  let restoreLock = false;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const qf1 = matches.find((m) => m.matchNumber === 1);
+    const qf2 = matches.find((m) => m.matchNumber === 2);
+    if (!qf1 || !qf2) throw new Error('QF1/QF2 not found');
+
+    const scoreRes = await apiSetBmFinalsScore(adminPage, tournamentId, qf1.id, 5, 0);
+    if (scoreRes.s !== 200) throw new Error(`QF1 score PUT failed (${scoreRes.s})`);
+    const qf1Completed = (await apiFetchBmFinalsMatches(adminPage, tournamentId)).find((m) => m.id === qf1.id);
+
+    const editCompleted = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { matchId: qf1Completed.id, slotEdit: { op: 'swap', expectedVersion: qf1Completed.version } },
+    });
+    const completedRejected = editCompleted.status === 409 && editCompleted.body?.code === 'MATCH_COMPLETED';
+
+    const nonAdminPlayer = sharedBmPlayers(28)[0];
+    await ensurePlayerPassword(adminPage, nonAdminPlayer);
+    let playerBrowser = null;
+    let nonAdminStatus = null;
+    try {
+      const { browser, page: playerPage } = await loginPlayerBrowser(nonAdminPlayer.nickname, nonAdminPlayer.password);
+      playerBrowser = browser;
+      const res = await apiJson(playerPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+        method: 'PATCH',
+        body: { matchId: qf2.id, slotEdit: { op: 'swap', expectedVersion: qf2.version } },
+      });
+      nonAdminStatus = res.status;
+    } finally {
+      if (playerBrowser) await playerBrowser.close().catch(() => {});
+    }
+    const nonAdminForbidden = nonAdminStatus === 403;
+
+    const lockRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
+    if (lockRes.s !== 200) throw new Error(`Failed to lock qualification (${lockRes.s})`);
+    restoreLock = true;
+
+    const qf2Fresh = (await apiFetchBmFinalsMatches(adminPage, tournamentId)).find((m) => m.id === qf2.id);
+    const editWhileLocked = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { matchId: qf2Fresh.id, slotEdit: { op: 'swap', expectedVersion: qf2Fresh.version } },
+    });
+    const editableWhileLocked = editWhileLocked.status === 200;
+
+    const ok = completedRejected && nonAdminForbidden && editableWhileLocked;
+    log(
+      'TC-3030',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `completedRejected=${completedRejected} nonAdminForbidden=${nonAdminForbidden}(status=${nonAdminStatus}) editableWhileLocked=${editableWhileLocked}`,
+    );
+  } catch (err) {
+    log('TC-3030', 'FAIL', err instanceof Error ? err.message : 'TC-3030 failed');
+  } finally {
+    if (restoreLock) {
+      await apiUpdateTournament(adminPage, setup.tournamentId, { bmQualificationConfirmed: false }).catch(() => {});
+    }
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-505: BM Grand Final → champion (28-player full) ─────────
  * Drives M1..M16 with player1 sweeping 5-0 each so seeds propagate
  * deterministically. Winners-side champion takes the GF; the champion
@@ -3008,6 +3297,10 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-1010', fn: runTc1010 },
       { name: 'TC-2334', fn: runTc2334 },
       { name: 'TC-3026', fn: runTc3026 },
+      { name: 'TC-3027', fn: runTc3027 },
+      { name: 'TC-3028', fn: runTc3028 },
+      { name: 'TC-3029', fn: runTc3029 },
+      { name: 'TC-3030', fn: runTc3030 },
       { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },

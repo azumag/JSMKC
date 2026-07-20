@@ -23,22 +23,16 @@
  * - Client-side logging for error tracking
  */
 
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef, use } from "react";
-import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useState, useEffect, useCallback, useRef, use } from 'react';
+import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -46,7 +40,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,30 +51,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
-import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { PlayoffCompleteCard } from "@/components/tournament/playoff-complete-card";
-import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
-import { getBmFinalsTargetWins } from "@/lib/finals-target-wins";
-import { usePolling } from "@/lib/hooks/usePolling";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { createLogger } from "@/lib/client-logger";
-import { canResetFinalsFromQualification } from "@/lib/finals-action-availability";
-import { parseManualScore } from "@/lib/parse-manual-score";
-import { BRACKET_TABS, type BracketTab } from "@/lib/bracket-tabs";
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DoubleEliminationBracket } from '@/components/tournament/double-elimination-bracket';
+import { BracketSlotEditDialog } from '@/components/tournament/bracket-slot-edit-dialog';
+import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
+import { PlayoffCompleteCard } from '@/components/tournament/playoff-complete-card';
+import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from '@/lib/constants';
+import { getBmFinalsTargetWins } from '@/lib/finals-target-wins';
+import { usePolling } from '@/lib/hooks/usePolling';
+import { UpdateIndicator } from '@/components/ui/update-indicator';
+import { LoadingOverlay } from '@/components/ui/loading-overlay';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { createLogger } from '@/lib/client-logger';
+import { canResetFinalsFromQualification } from '@/lib/finals-action-availability';
+import { parseManualScore } from '@/lib/parse-manual-score';
+import { BRACKET_TABS, type BracketTab } from '@/lib/bracket-tabs';
 
 /**
  * Client-side logger for the finals page.
  * Used for tracking bracket generation and score update errors.
  * Note: Client logger is created at module level (unlike server API loggers).
  */
-import type { Player } from "@/lib/types";
-import { buildMatchLabel } from "@/lib/overlay/phase";
+import type { Player } from '@/lib/types';
+import { buildMatchLabel } from '@/lib/overlay/phase';
 
 const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
 
@@ -97,6 +92,9 @@ interface BMMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  isBye?: boolean;
+  version: number;
+  slotOverrideAt?: string | null;
   player1: Player;
   player2: Player;
 }
@@ -105,7 +103,7 @@ interface BMMatch {
 interface BracketMatch {
   matchNumber: number;
   round: string;
-  bracket: "winners" | "losers" | "grand_final";
+  bracket: 'winners' | 'losers' | 'grand_final';
   player1Seed?: number;
   player2Seed?: number;
 }
@@ -118,7 +116,7 @@ interface SeededPlayer {
 }
 
 function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
-  if (json && typeof json === "object" && "success" in json && "data" in json) {
+  if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
     const data = (json as { data: T }).data;
     if (data !== undefined) return data;
   }
@@ -133,10 +131,10 @@ function getMatchWinner(match: BMMatch): Player | null {
 }
 
 function getCompletedChampion(matches: BMMatch[]): Player | null {
-  const reset = matches.find((m) => m.round === "grand_final_reset" && m.completed);
+  const reset = matches.find((m) => m.round === 'grand_final_reset' && m.completed);
   if (reset) return getMatchWinner(reset);
 
-  const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
+  const grandFinal = matches.find((m) => m.round === 'grand_final' && m.completed);
   if (!grandFinal || grandFinal.score1 <= grandFinal.score2) return null;
   return grandFinal.player1;
 }
@@ -145,11 +143,7 @@ function getCompletedChampion(matches: BMMatch[]): Player | null {
  * Battle Mode Finals page component.
  * Uses React 19's `use()` hook to unwrap the async params.
  */
-export default function BattleModeFinals({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function BattleModeFinals({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
   const { data: session } = useSession();
 
@@ -199,7 +193,19 @@ export default function BattleModeFinals({
   /* Score entry dialog state */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0, tvNumber: null as number | null, startingCourseNumber: null as number | null });
+  const [scoreForm, setScoreForm] = useState({
+    score1: 0,
+    score2: 0,
+    tvNumber: null as number | null,
+    startingCourseNumber: null as number | null,
+  });
+
+  /* Manual bracket slot placement adjustment (issue #3017): admins toggle
+   * "adjustment mode" to expose per-slot edit affordances on the bracket
+   * cards; clicking one opens BracketSlotEditDialog. */
+  const [slotEditMode, setSlotEditMode] = useState(false);
+  const [slotEditTarget, setSlotEditTarget] = useState<{ match: BMMatch; slot: 1 | 2 } | null>(null);
+  const handleSlotClick = (match: BMMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
   const selectedMatchTargetWins = selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins();
 
   /* Tournament completion state */
@@ -266,7 +272,13 @@ export default function BattleModeFinals({
   }, [tournamentId]);
 
   /* Set up polling with the standard interval */
-  const { data: pollData, isLoading: pollLoading, error, lastETag, refetch } = usePolling(fetchFinalsData, {
+  const {
+    data: pollData,
+    isLoading: pollLoading,
+    error,
+    lastETag,
+    refetch,
+  } = usePolling(fetchFinalsData, {
     interval: POLLING_INTERVAL,
   });
 
@@ -304,8 +316,8 @@ export default function BattleModeFinals({
     setCreating(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topN: bracketSize }),
       });
 
@@ -347,7 +359,7 @@ export default function BattleModeFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create bracket:", metadata);
+      logger.error('Failed to create bracket:', metadata);
       alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
@@ -363,8 +375,8 @@ export default function BattleModeFinals({
     setCreating(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topN: 24 }),
       });
 
@@ -389,7 +401,7 @@ export default function BattleModeFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create upper bracket:", metadata);
+      logger.error('Failed to create upper bracket:', metadata);
       alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
@@ -403,10 +415,7 @@ export default function BattleModeFinals({
    * surface a toast; on failure, surface a toast with the server error so the
    * admin notices (the bracket card otherwise looks identical).
    */
-  const handleBracketTvNumberChange = async (
-    match: BMMatch,
-    tvNumber: number | null,
-  ) => {
+  const handleBracketTvNumberChange = async (match: BMMatch, tvNumber: number | null) => {
     /* Cancel any in-flight TV# PATCH so a slower earlier response cannot
      * overwrite the latest selection. */
     tvAbortRef.current?.abort();
@@ -414,8 +423,8 @@ export default function BattleModeFinals({
     tvAbortRef.current = controller;
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId: match.id, tvNumber }),
         signal: controller.signal,
       });
@@ -451,10 +460,7 @@ export default function BattleModeFinals({
    * starts on. The PATCH endpoint accepts `startingCourseNumber: 1..4 | null`
    * and is shared with the TV# autosave path.
    */
-  const handleBracketStartingCourseChange = async (
-    match: BMMatch,
-    startingCourseNumber: number | null,
-  ) => {
+  const handleBracketStartingCourseChange = async (match: BMMatch, startingCourseNumber: number | null) => {
     courseAbortRef.current?.abort();
     const controller = new AbortController();
     courseAbortRef.current = controller;
@@ -487,7 +493,12 @@ export default function BattleModeFinals({
   /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
-    setScoreForm({ score1: match.score1, score2: match.score2, tvNumber: match.tvNumber ?? null, startingCourseNumber: match.startingCourseNumber ?? null });
+    setScoreForm({
+      score1: match.score1,
+      score2: match.score2,
+      tvNumber: match.tvNumber ?? null,
+      startingCourseNumber: match.startingCourseNumber ?? null,
+    });
     setIsScoreDialogOpen(true);
   };
 
@@ -502,8 +513,8 @@ export default function BattleModeFinals({
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           matchId: selectedMatch.id,
           score1: currentScores.score1,
@@ -530,15 +541,9 @@ export default function BattleModeFinals({
 
         /* Check if the tournament is complete and set champion */
         if (data.isComplete && data.champion) {
-          const winnerMatch = matches.find(
-            (m) =>
-              m.player1Id === data.champion || m.player2Id === data.champion
-          );
+          const winnerMatch = matches.find((m) => m.player1Id === data.champion || m.player2Id === data.champion);
           if (winnerMatch) {
-            const champPlayer =
-              winnerMatch.player1Id === data.champion
-                ? winnerMatch.player1
-                : winnerMatch.player2;
+            const champPlayer = winnerMatch.player1Id === data.champion ? winnerMatch.player1 : winnerMatch.player2;
             setChampion(champPlayer);
           }
         }
@@ -548,7 +553,7 @@ export default function BattleModeFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update score:", metadata);
+      logger.error('Failed to update score:', metadata);
       alert(tFinals('failedUpdateScore'));
     }
   };
@@ -559,10 +564,12 @@ export default function BattleModeFinals({
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
   const bracketExists = matches.length > 0 || phase === 'playoff' || playoffMatches.length > 0;
   const canGenerateBracket = isAdmin && qualificationConfirmed && !bracketExists;
-  const canResetBracket = isAdmin && canResetFinalsFromQualification({
-    qualificationConfirmed,
-    finalsExists: bracketExists,
-  });
+  const canResetBracket =
+    isAdmin &&
+    canResetFinalsFromQualification({
+      qualificationConfirmed,
+      finalsExists: bracketExists,
+    });
   /* Top-24 Phase 1 returns a preview Upper Bracket structure before the actual
    * finals rows are created. If the tabs default to "finals" in that state,
    * admins land on an empty/non-actionable preview while the required Phase-2
@@ -590,186 +597,211 @@ export default function BattleModeFinals({
       {/* Full-screen loading overlay during bracket generation */}
       <LoadingOverlay isOpen={creating} message={tFinals('generatingBracket')} />
       <div className="space-y-6">
-      {/* Page header with title, update indicator, and action buttons */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">{tBm('finalsTitle')}</h1>
-          <p className="text-muted-foreground">
-            {tFinals('doubleElimination')}
-          </p>
-          <div className="mt-2">
-            {lastETag && <UpdateIndicator lastUpdated={new Date(lastETag)} isPolling={!error && pollLoading} />}
+        {/* Page header with title, update indicator, and action buttons */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">{tBm('finalsTitle')}</h1>
+            <p className="text-muted-foreground">{tFinals('doubleElimination')}</p>
+            <div className="mt-2">
+              {lastETag && <UpdateIndicator lastUpdated={new Date(lastETag)} isPolling={!error && pollLoading} />}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {/* Generate or Reset bracket buttons: admin-only */}
+            {canGenerateBracket && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button disabled={creating} aria-label="Generate finals bracket">
+                    {creating ? tFinals('creating') : tFinals('generateBracket')}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
+                    <AlertDialogDescription>{tFinals('generateConfirmDesc')}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {/* §4.2 / issue #454: Bracket size selection — 8, 16, or 24 (Top 12 + playoff) */}
+                  <div className="flex gap-2 justify-center py-2">
+                    <Button
+                      size="sm"
+                      variant={bracketSize === 8 ? 'default' : 'outline'}
+                      onClick={() => setBracketSize(8)}
+                    >
+                      {tFinals('top8')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={bracketSize === 16 ? 'default' : 'outline'}
+                      onClick={() => setBracketSize(16)}
+                    >
+                      {tFinals('top16')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={bracketSize === 24 ? 'default' : 'outline'}
+                      onClick={() => setBracketSize(24)}
+                    >
+                      {tFinals('top24')}
+                    </Button>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCreateBracket}>
+                      {tFinals('generate')} ({bracketSize} players)
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {canResetBracket && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={creating} aria-label="Reset finals bracket">
+                    {tFinals('resetBracket')}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{tFinals('resetConfirmTitle')}</AlertDialogTitle>
+                    <AlertDialogDescription>{tFinals('resetConfirmDesc')}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCreateBracket}>{tFinals('reset')}</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {/* Manual slot placement adjustment mode toggle: admin-only, only
+             * meaningful once a bracket exists. */}
+            {isAdmin && matches.length > 0 && (
+              <Button
+                variant={slotEditMode ? 'default' : 'outline'}
+                className={slotEditMode ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}
+                onClick={() => setSlotEditMode((v) => !v)}
+                aria-pressed={slotEditMode}
+                data-testid="slot-edit-mode-toggle"
+              >
+                {slotEditMode ? tFinals('slotEditModeActive') : tFinals('slotEditModeToggle')}
+              </Button>
+            )}
+            {/* Back navigation to qualification page */}
+            <Button variant="outline" asChild>
+              <a href={`/tournaments/${tournamentId}/bm`}>{tFinals('backToQualification')}</a>
+            </Button>
           </div>
         </div>
-        <div className="flex gap-2">
-          {/* Generate or Reset bracket buttons: admin-only */}
-          {canGenerateBracket && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button disabled={creating} aria-label="Generate finals bracket">
-                   {creating ? tFinals('creating') : tFinals('generateBracket')}
-                 </Button>
-               </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {tFinals('generateConfirmDesc')}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                {/* §4.2 / issue #454: Bracket size selection — 8, 16, or 24 (Top 12 + playoff) */}
-                <div className="flex gap-2 justify-center py-2">
-                  <Button
-                    size="sm"
-                    variant={bracketSize === 8 ? "default" : "outline"}
-                    onClick={() => setBracketSize(8)}
-                  >
-                    {tFinals('top8')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={bracketSize === 16 ? "default" : "outline"}
-                    onClick={() => setBracketSize(16)}
-                  >
-                    {tFinals('top16')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={bracketSize === 24 ? "default" : "outline"}
-                    onClick={() => setBracketSize(24)}
-                  >
-                    {tFinals('top24')}
-                  </Button>
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleCreateBracket}>
-                    {tFinals('generate')} ({bracketSize} players)
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          {canResetBracket && (
-            <AlertDialog>
-               <AlertDialogTrigger asChild>
-                 <Button variant="outline" disabled={creating} aria-label="Reset finals bracket">
-                   {tFinals('resetBracket')}
-                 </Button>
-               </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{tFinals('resetConfirmTitle')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {tFinals('resetConfirmDesc')}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleCreateBracket}>
-                    {tFinals('reset')}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          {/* Back navigation to qualification page */}
-          <Button variant="outline" asChild>
-            <a href={`/tournaments/${tournamentId}/bm`}>
-              {tFinals('backToQualification')}
-            </a>
-          </Button>
-        </div>
-      </div>
 
-      {/* Champion announcement card - shown when tournament is complete */}
-      {champion && (
-        <Card className="border-accent bg-accent/10">
-          <CardContent className="py-6 text-center">
-            <h2 className="text-sm font-semibold text-muted-foreground">{tFinals('champion')}</h2>
-            <p className="font-display text-3xl sm:text-4xl tracking-wide text-foreground mt-2">
-              {champion.nickname}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        {/* Champion announcement card - shown when tournament is complete */}
+        {champion && (
+          <Card className="border-accent bg-accent/10">
+            <CardContent className="py-6 text-center">
+              <h2 className="text-sm font-semibold text-muted-foreground">{tFinals('champion')}</h2>
+              <p className="font-display text-3xl sm:text-4xl tracking-wide text-foreground mt-2">
+                {champion.nickname}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Progress badges showing match completion status */}
-      {matches.length > 0 && (
-        <div className="flex items-center gap-4">
-          <Badge variant="outline" className="text-sm">
-            {tFinals('progressMatches', { completed: completedMatches, total: totalMatches })}
-          </Badge>
-          {completedMatches === totalMatches && totalMatches > 0 && (
-            <Badge className="bg-green-500">{tFinals('tournamentComplete')}</Badge>
-          )}
-        </div>
-      )}
+        {/* Progress badges showing match completion status */}
+        {matches.length > 0 && (
+          <div className="flex items-center gap-4">
+            <Badge variant="outline" className="text-sm">
+              {tFinals('progressMatches', { completed: completedMatches, total: totalMatches })}
+            </Badge>
+            {completedMatches === totalMatches && totalMatches > 0 && (
+              <Badge className="bg-green-500">{tFinals('tournamentComplete')}</Badge>
+            )}
+          </div>
+        )}
 
-      {/* Playoff progress badges — shown during playoff phase */}
-      {phase === 'playoff' && (
-        <div className="flex items-center gap-4">
-          <Badge variant="outline" className="text-sm border-blue-500/50 text-blue-500">
-            {tFinals('playoffPhase')}
-          </Badge>
-          <Badge variant="outline" className="text-sm">
-            {playoffMatches.filter((m) => m.completed).length} / {playoffMatches.length} matches
-          </Badge>
-          {playoffComplete && (
-            <Badge className="bg-green-500">{tFinals('playoffComplete')}</Badge>
-          )}
-        </div>
-      )}
+        {/* Playoff progress badges — shown during playoff phase */}
+        {phase === 'playoff' && (
+          <div className="flex items-center gap-4">
+            <Badge variant="outline" className="text-sm border-blue-500/50 text-blue-500">
+              {tFinals('playoffPhase')}
+            </Badge>
+            <Badge variant="outline" className="text-sm">
+              {playoffMatches.filter((m) => m.completed).length} / {playoffMatches.length} matches
+            </Badge>
+            {playoffComplete && <Badge className="bg-green-500">{tFinals('playoffComplete')}</Badge>}
+          </div>
+        )}
 
-      {/* Main content: playoff bracket, empty state, or bracket visualization */}
-      {matches.length === 0 && playoffMatches.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{tFinals('noBracketYet')}</CardTitle>
-            <CardDescription>
-              {tFinals('generateBracketDesc')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              {tFinals('bracketExplanation')}
-            </p>
-            <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
-              <li>
-                <strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}
-              </li>
-              <li>
-                <strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}
-              </li>
-              <li>
-                <strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}
-              </li>
-              <li>
-                <strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
-      ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
-        /* Both playoff and finals exist — show tabs so the admin can review
-         * the playoff (barrage) results after the Upper Bracket is created. */
-        <Tabs defaultValue={defaultBracketTab} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value={BRACKET_TABS.finals}>{tFinals('upperBracket')}</TabsTrigger>
-            <TabsTrigger value={BRACKET_TABS.playoff}>{tFinals('playoffBracket')}</TabsTrigger>
-          </TabsList>
-          <TabsContent value="finals">
-            <DoubleEliminationBracket
-              matches={matches}
-              bracketStructure={bracketStructure}
-              roundNames={roundNames}
-              seededPlayers={seededPlayers}
-              getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
-              onMatchClick={isAdmin ? openScoreDialog : undefined}
-              onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
-            />
-          </TabsContent>
-          <TabsContent value="playoff">
+        {/* Main content: playoff bracket, empty state, or bracket visualization */}
+        {matches.length === 0 && playoffMatches.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{tFinals('noBracketYet')}</CardTitle>
+              <CardDescription>{tFinals('generateBracketDesc')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">{tFinals('bracketExplanation')}</p>
+              <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
+                <li>
+                  <strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}
+                </li>
+                <li>
+                  <strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}
+                </li>
+                <li>
+                  <strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}
+                </li>
+                <li>
+                  <strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+        ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
+          /* Both playoff and finals exist — show tabs so the admin can review
+           * the playoff (barrage) results after the Upper Bracket is created. */
+          <Tabs defaultValue={defaultBracketTab} className="space-y-4">
+            <TabsList>
+              <TabsTrigger value={BRACKET_TABS.finals}>{tFinals('upperBracket')}</TabsTrigger>
+              <TabsTrigger value={BRACKET_TABS.playoff}>{tFinals('playoffBracket')}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="finals">
+              <DoubleEliminationBracket
+                matches={matches}
+                bracketStructure={bracketStructure}
+                roundNames={roundNames}
+                seededPlayers={seededPlayers}
+                getTargetWins={(match, bracketMatch) =>
+                  getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+                }
+                onMatchClick={isAdmin ? openScoreDialog : undefined}
+                onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+                slotEditMode={isAdmin ? slotEditMode : undefined}
+                onSlotClick={isAdmin ? handleSlotClick : undefined}
+              />
+            </TabsContent>
+            <TabsContent value="playoff">
+              <PlayoffBracket
+                playoffMatches={playoffMatches}
+                playoffStructure={playoffStructure}
+                roundNames={roundNames}
+                seededPlayers={playoffSeededPlayers}
+                onMatchClick={isAdmin ? openScoreDialog : undefined}
+                onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+                getTargetWins={(match, bracketMatch) =>
+                  getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+                }
+              />
+              {matches.length === 0 && playoffComplete && isAdmin && (
+                <PlayoffCompleteCard
+                  className="mt-4 border-green-500/50 bg-green-500/10"
+                  description={tFinals('allPlayoffMatchesComplete')}
+                  actionLabel={tFinals('createUpperBracket')}
+                  onCreateUpperBracket={handleCreateUpperBracket}
+                />
+              )}
+            </TabsContent>
+          </Tabs>
+        ) : playoffMatches.length > 0 ? (
+          /* Playoff only (Phase 1) */
+          <>
             <PlayoffBracket
               playoffMatches={playoffMatches}
               playoffStructure={playoffStructure}
@@ -777,256 +809,270 @@ export default function BattleModeFinals({
               seededPlayers={playoffSeededPlayers}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
-              getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
+              getTargetWins={(match, bracketMatch) =>
+                getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+              }
             />
-            {matches.length === 0 && playoffComplete && isAdmin && (
+            {playoffComplete && isAdmin && (
               <PlayoffCompleteCard
-                className="mt-4 border-green-500/50 bg-green-500/10"
                 description={tFinals('allPlayoffMatchesComplete')}
                 actionLabel={tFinals('createUpperBracket')}
                 onCreateUpperBracket={handleCreateUpperBracket}
               />
             )}
-          </TabsContent>
-        </Tabs>
-      ) : playoffMatches.length > 0 ? (
-        /* Playoff only (Phase 1) */
-        <>
-          <PlayoffBracket
-            playoffMatches={playoffMatches}
-            playoffStructure={playoffStructure}
+          </>
+        ) : (
+          /* Finals only */
+          <DoubleEliminationBracket
+            matches={matches}
+            bracketStructure={bracketStructure}
             roundNames={roundNames}
-            seededPlayers={playoffSeededPlayers}
+            seededPlayers={seededPlayers}
+            getTargetWins={(match, bracketMatch) =>
+              getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+            }
             onMatchClick={isAdmin ? openScoreDialog : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
-            getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
+            slotEditMode={isAdmin ? slotEditMode : undefined}
+            onSlotClick={isAdmin ? handleSlotClick : undefined}
           />
-          {playoffComplete && isAdmin && (
-            <PlayoffCompleteCard
-              description={tFinals('allPlayoffMatchesComplete')}
-              actionLabel={tFinals('createUpperBracket')}
-              onCreateUpperBracket={handleCreateUpperBracket}
-            />
-          )}
-        </>
-      ) : (
-        /* Finals only */
-        <DoubleEliminationBracket
-          matches={matches}
-          bracketStructure={bracketStructure}
-          roundNames={roundNames}
-          seededPlayers={seededPlayers}
-          getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
-          onMatchClick={isAdmin ? openScoreDialog : undefined}
-          onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
-        />
-      )}
+        )}
 
-      {/* Score Entry Dialog: admin-only */}
-      {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent
-          className="sm:max-w-2xl"
-          onOpenAutoFocus={(e) => {
-            /* Auto-focus the first score input for keyboard usability */
-            e.preventDefault();
-            const firstInput = document.getElementById(`score1-${selectedMatch?.id}`);
-            firstInput?.focus();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
-            <DialogDescription>
-              {selectedMatch && (
-                <>
-                  <span className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1">
-                    <span className="shrink-0">Match #{selectedMatch.matchNumber}:</span>
-                    <span className="min-w-0 max-w-[180px] truncate sm:max-w-[240px]">
-                      {selectedMatch.player1.nickname}
-                    </span>
-                    <span className="shrink-0">vs</span>
-                    <span className="min-w-0 max-w-[180px] truncate sm:max-w-[240px]">
-                      {selectedMatch.player2.nickname}
-                    </span>
-                  </span>
-                  {/* Show the round name if available */}
-                  {selectedMatch.round && (
-                    <span className="block text-xs mt-1">
-                      {roundNames[selectedMatch.round] || selectedMatch.round}
-                    </span>
+        {/* Score Entry Dialog: admin-only */}
+        {isAdmin && (
+          <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
+            <DialogContent
+              className="sm:max-w-2xl"
+              onOpenAutoFocus={(e) => {
+                /* Auto-focus the first score input for keyboard usability */
+                e.preventDefault();
+                const firstInput = document.getElementById(`score1-${selectedMatch?.id}`);
+                firstInput?.focus();
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
+                <DialogDescription>
+                  {selectedMatch && (
+                    <>
+                      <span className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1">
+                        <span className="shrink-0">Match #{selectedMatch.matchNumber}:</span>
+                        <span className="min-w-0 max-w-[180px] truncate sm:max-w-[240px]">
+                          {selectedMatch.player1.nickname}
+                        </span>
+                        <span className="shrink-0">vs</span>
+                        <span className="min-w-0 max-w-[180px] truncate sm:max-w-[240px]">
+                          {selectedMatch.player2.nickname}
+                        </span>
+                      </span>
+                      {/* Show the round name if available */}
+                      {selectedMatch.round && (
+                        <span className="block text-xs mt-1">
+                          {roundNames[selectedMatch.round] || selectedMatch.round}
+                        </span>
+                      )}
+                      <span className="block text-xs mt-1">FT{selectedMatchTargetWins}</span>
+                    </>
                   )}
-                  <span className="block text-xs mt-1">FT{selectedMatchTargetWins}</span>
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-center gap-4">
-               {/* Player 1 score input with accessible label */}
-               <div className="min-w-0 text-center">
-                 <Label htmlFor={`score1-${selectedMatch?.id}`} className="block max-w-[140px] truncate">
-                   {selectedMatch?.player1.nickname}
-                 </Label>
-                 <Input
-                   id={`score1-${selectedMatch?.id}`}
-                   type="number"
-                   min={0}
-                   max={selectedMatchTargetWins}
-                   value={scoreForm.score1}
-                   onChange={(e) =>
-                     /* Strict parse: reject "2.5"/"1e2" that parseInt would
-                      * silently coerce into a valid-looking target-wins value. */
-                     setScoreForm((current) => ({
-                       ...current,
-                       score1: parseManualScore(e.target.value) ?? 0,
-                     }))
-                   }
-                   className="w-20 text-center text-2xl"
-                   aria-label={`${selectedMatch?.player1.nickname} score`}
-                 />
-               </div>
-               <span className="text-2xl" aria-hidden="true">-</span>
-               {/* Player 2 score input with accessible label */}
-               <div className="min-w-0 text-center">
-                 <Label htmlFor={`score2-${selectedMatch?.id}`} className="block max-w-[140px] truncate">
-                   {selectedMatch?.player2.nickname}
-                 </Label>
-                 <Input
-                   id={`score2-${selectedMatch?.id}`}
-                   type="number"
-                   min={0}
-                   max={selectedMatchTargetWins}
-                   value={scoreForm.score2}
-                   onChange={(e) =>
-                     setScoreForm((current) => ({
-                       ...current,
-                       score2: parseManualScore(e.target.value) ?? 0,
-                     }))
-                   }
-                   className="w-20 text-center text-2xl"
-                   aria-label={`${selectedMatch?.player2.nickname} score`}
-                 />
-              </div>
-            </div>
-            {/* §5.4: Start course — randomly assigned per round at bracket creation (issue #671).
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="flex items-center justify-center gap-4">
+                  {/* Player 1 score input with accessible label */}
+                  <div className="min-w-0 text-center">
+                    <Label htmlFor={`score1-${selectedMatch?.id}`} className="block max-w-[140px] truncate">
+                      {selectedMatch?.player1.nickname}
+                    </Label>
+                    <Input
+                      id={`score1-${selectedMatch?.id}`}
+                      type="number"
+                      min={0}
+                      max={selectedMatchTargetWins}
+                      value={scoreForm.score1}
+                      onChange={(e) =>
+                        /* Strict parse: reject "2.5"/"1e2" that parseInt would
+                         * silently coerce into a valid-looking target-wins value. */
+                        setScoreForm((current) => ({
+                          ...current,
+                          score1: parseManualScore(e.target.value) ?? 0,
+                        }))
+                      }
+                      className="w-20 text-center text-2xl"
+                      aria-label={`${selectedMatch?.player1.nickname} score`}
+                    />
+                  </div>
+                  <span className="text-2xl" aria-hidden="true">
+                    -
+                  </span>
+                  {/* Player 2 score input with accessible label */}
+                  <div className="min-w-0 text-center">
+                    <Label htmlFor={`score2-${selectedMatch?.id}`} className="block max-w-[140px] truncate">
+                      {selectedMatch?.player2.nickname}
+                    </Label>
+                    <Input
+                      id={`score2-${selectedMatch?.id}`}
+                      type="number"
+                      min={0}
+                      max={selectedMatchTargetWins}
+                      value={scoreForm.score2}
+                      onChange={(e) =>
+                        setScoreForm((current) => ({
+                          ...current,
+                          score2: parseManualScore(e.target.value) ?? 0,
+                        }))
+                      }
+                      className="w-20 text-center text-2xl"
+                      aria-label={`${selectedMatch?.player2.nickname} score`}
+                    />
+                  </div>
+                </div>
+                {/* §5.4: Start course — randomly assigned per round at bracket creation (issue #671).
                 Admins can override per-match from this dropdown. The selection
                 autosaves via PATCH the moment the value changes (matches the
                 TV# autosave UX below); no explicit save button is needed. */}
-            <div className="flex items-center justify-center gap-3">
-              <Label htmlFor="bm-finals-start-course" className="text-sm text-muted-foreground shrink-0">
-                {tFinals('startCourse')}
-              </Label>
-              {isAdmin ? (
-                <select
-                  id="bm-finals-start-course"
-                  className="h-8 px-2 text-sm border rounded bg-background"
-                  value={scoreForm.startingCourseNumber ?? ""}
-                  onChange={(e) => {
-                    const next = e.target.value ? parseInt(e.target.value) : null;
-                    setScoreForm({ ...scoreForm, startingCourseNumber: next });
-                    if (selectedMatch) {
-                      void handleBracketStartingCourseChange(selectedMatch, next);
-                    }
-                  }}
-                >
-                  <option value="">-</option>
-                  {[1, 2, 3, 4].map((n) => (
-                    <option key={n} value={n}>{tFinals('battleCourse', { number: n })}</option>
-                  ))}
-                </select>
-              ) : (
-                <Badge variant="outline" className="text-sm px-3 py-1">
-                  {scoreForm.startingCourseNumber
-                    ? tFinals('battleCourse', { number: scoreForm.startingCourseNumber })
-                    : '-'}
-                </Badge>
-              )}
-            </div>
-            {/* TV number assignment for broadcast: admin selects TV 1–4.
+                <div className="flex items-center justify-center gap-3">
+                  <Label htmlFor="bm-finals-start-course" className="text-sm text-muted-foreground shrink-0">
+                    {tFinals('startCourse')}
+                  </Label>
+                  {isAdmin ? (
+                    <select
+                      id="bm-finals-start-course"
+                      className="h-8 px-2 text-sm border rounded bg-background"
+                      value={scoreForm.startingCourseNumber ?? ''}
+                      onChange={(e) => {
+                        const next = e.target.value ? parseInt(e.target.value) : null;
+                        setScoreForm({ ...scoreForm, startingCourseNumber: next });
+                        if (selectedMatch) {
+                          void handleBracketStartingCourseChange(selectedMatch, next);
+                        }
+                      }}
+                    >
+                      <option value="">-</option>
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          {tFinals('battleCourse', { number: n })}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Badge variant="outline" className="text-sm px-3 py-1">
+                      {scoreForm.startingCourseNumber
+                        ? tFinals('battleCourse', { number: scoreForm.startingCourseNumber })
+                        : '-'}
+                    </Badge>
+                  )}
+                </div>
+                {/* TV number assignment for broadcast: admin selects TV 1–4.
                 The dropdown autosaves on change via PATCH (same UX as the
                 start-course selector above and the bracket-card TV# inline
                 select), so the previous explicit "Save TV#" button is no
                 longer needed. */}
-            <div className="flex items-center justify-center gap-3">
-              <Label htmlFor="bm-finals-tv" className="text-sm text-muted-foreground shrink-0">
-                TV#
-              </Label>
-              <select
-                id="bm-finals-tv"
-                className="w-20 h-8 text-center text-sm border rounded bg-background"
-                value={scoreForm.tvNumber ?? ""}
-                onChange={(e) => {
-                  const next = e.target.value ? parseInt(e.target.value) : null;
-                  setScoreForm({ ...scoreForm, tvNumber: next });
-                  if (selectedMatch) {
-                    void handleBracketTvNumberChange(selectedMatch, next);
-                  }
-                }}
-              >
-                <option value="">-</option>
-                {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-            {/* Always rendered to reserve vertical space and prevent layout shift. */}
-            <p className={`text-sm text-center ${
-              scoreForm.score1 + scoreForm.score2 > 0 &&
-              scoreForm.score1 < selectedMatchTargetWins &&
-              scoreForm.score2 < selectedMatchTargetWins
-                ? 'text-yellow-600' : 'invisible'
-            }`}>
-              {tFinals('matchNeedWinner', { targetWins: selectedMatchTargetWins })}
-            </p>
-          </div>
-          <DialogFooter className="flex-wrap gap-2">
-            {selectedMatch && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={broadcasting}
-                onClick={async () => {
-                  setBroadcasting(true);
-                  try {
-                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "bm");
-                    const currentScores = currentScoreForm();
-                    const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        player1Name: selectedMatch.player1.nickname,
-                        player2Name: selectedMatch.player2.nickname,
-                        player1NoCamera: selectedMatch.player1.noCamera === true,
-                        player2NoCamera: selectedMatch.player2.noCamera === true,
-                        /* Include score and round info (#645, #649) */
-                        matchLabel,
-                        player1Wins: currentScores.score1,
-                        player2Wins: currentScores.score2,
-                        matchFt: selectedMatchTargetWins,
-                      }),
-                    });
-                    if (res.ok) {
-                      toast.success(tCommon("broadcastReflected"));
-                    } else {
-                      toast.error(tCommon("broadcastError"));
-                    }
-                  } catch {
-                    toast.error(tCommon("broadcastError"));
-                  } finally {
-                    setBroadcasting(false);
-                  }
-                }}
-              >
-                {broadcasting ? tCommon('saving') : tCommon('broadcastReflect')}
-              </Button>
-            )}
-            <Button
-              onClick={handleScoreSubmit}
-              disabled={scoreForm.score1 < selectedMatchTargetWins && scoreForm.score2 < selectedMatchTargetWins}
-            >
-              {tCommon('saveScore')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>}
-    </div>
+                <div className="flex items-center justify-center gap-3">
+                  <Label htmlFor="bm-finals-tv" className="text-sm text-muted-foreground shrink-0">
+                    TV#
+                  </Label>
+                  <select
+                    id="bm-finals-tv"
+                    className="w-20 h-8 text-center text-sm border rounded bg-background"
+                    value={scoreForm.tvNumber ?? ''}
+                    onChange={(e) => {
+                      const next = e.target.value ? parseInt(e.target.value) : null;
+                      setScoreForm({ ...scoreForm, tvNumber: next });
+                      if (selectedMatch) {
+                        void handleBracketTvNumberChange(selectedMatch, next);
+                      }
+                    }}
+                  >
+                    <option value="">-</option>
+                    {TV_NUMBER_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* Always rendered to reserve vertical space and prevent layout shift. */}
+                <p
+                  className={`text-sm text-center ${
+                    scoreForm.score1 + scoreForm.score2 > 0 &&
+                    scoreForm.score1 < selectedMatchTargetWins &&
+                    scoreForm.score2 < selectedMatchTargetWins
+                      ? 'text-yellow-600'
+                      : 'invisible'
+                  }`}
+                >
+                  {tFinals('matchNeedWinner', { targetWins: selectedMatchTargetWins })}
+                </p>
+              </div>
+              <DialogFooter className="flex-wrap gap-2">
+                {selectedMatch && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={broadcasting}
+                    onClick={async () => {
+                      setBroadcasting(true);
+                      try {
+                        const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, 'bm');
+                        const currentScores = currentScoreForm();
+                        const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            player1Name: selectedMatch.player1.nickname,
+                            player2Name: selectedMatch.player2.nickname,
+                            player1NoCamera: selectedMatch.player1.noCamera === true,
+                            player2NoCamera: selectedMatch.player2.noCamera === true,
+                            /* Include score and round info (#645, #649) */
+                            matchLabel,
+                            player1Wins: currentScores.score1,
+                            player2Wins: currentScores.score2,
+                            matchFt: selectedMatchTargetWins,
+                          }),
+                        });
+                        if (res.ok) {
+                          toast.success(tCommon('broadcastReflected'));
+                        } else {
+                          toast.error(tCommon('broadcastError'));
+                        }
+                      } catch {
+                        toast.error(tCommon('broadcastError'));
+                      } finally {
+                        setBroadcasting(false);
+                      }
+                    }}
+                  >
+                    {broadcasting ? tCommon('saving') : tCommon('broadcastReflect')}
+                  </Button>
+                )}
+                <Button
+                  onClick={handleScoreSubmit}
+                  disabled={scoreForm.score1 < selectedMatchTargetWins && scoreForm.score2 < selectedMatchTargetWins}
+                >
+                  {tCommon('saveScore')}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Manual slot placement adjustment dialog: admin-only (issue #3017) */}
+        {isAdmin && (
+          <BracketSlotEditDialog
+            open={slotEditTarget !== null}
+            onOpenChange={(open) => {
+              if (!open) setSlotEditTarget(null);
+            }}
+            finalsApiPath={`/api/tournaments/${tournamentId}/bm/finals`}
+            qualificationApiPath={`/api/tournaments/${tournamentId}/bm`}
+            match={slotEditTarget?.match ?? null}
+            slot={slotEditTarget?.slot ?? null}
+            matches={matches}
+            bracketStructure={bracketStructure}
+            onSaved={refetch}
+          />
+        )}
+      </div>
     </>
   );
 }

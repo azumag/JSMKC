@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -40,6 +41,9 @@ import { computeQualificationRanks } from '@/lib/server-ranking';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
 import { getArchivedFinalsPayload, readTournamentArchive } from '@/lib/tournament-archive';
+import { createAuditLog, resolveAuditUserId, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { getFinalsSlotStatus, isFinalsSlotConfirmed, type SlotStatusMatch } from '@/lib/finals-slot-status';
+import type { BracketMatch } from '@/types/bracket';
 
 /**
  * Bracket size inference thresholds.
@@ -57,6 +61,19 @@ const TOP24_QUALIFIER_COUNT = 24;
 const PLAYOFF_ENTRANT_COUNT = 12;
 const PLAYOFF_R2_UPPER_SEED_COUNT = 4;
 const TOP24_SUPPORTED_GROUP_COUNT = 3;
+
+/**
+ * Quoted D1 table name for each finals match model, used only by the
+ * `swapSlots` raw-SQL path (issue #3017 §6). Selected from this static map —
+ * never built from request input — so `Prisma.raw()` embedding it in a
+ * `Prisma.sql` template stays safe from injection. Mirrors the
+ * `QUALIFICATION_MATCH_INSERT_SQL` static-map pattern in qualification-route.ts.
+ */
+const SLOT_SWAP_TABLE_NAME: Record<string, string> = {
+  bMMatch: '"BMMatch"',
+  mRMatch: '"MRMatch"',
+  gPMatch: '"GPMatch"',
+};
 
 type QualificationConfirmedField = 'bmQualificationConfirmed' | 'mrQualificationConfirmed' | 'gpQualificationConfirmed';
 
@@ -620,6 +637,216 @@ async function normalizeRoundStartingCoursesToSingleValue(
   }
 
   return { repaired: true, canonicalByRound };
+}
+
+interface SlotOverrideStamp {
+  by: string;
+  at: Date;
+}
+
+/** A finals/playoff match row shape sufficient for TBD detection and duplicate-placement scanning. */
+interface SlotEditMatch extends SlotStatusMatch {
+  id: string;
+  isBye: boolean;
+}
+
+/**
+ * Scans every other confirmed (non-TBD) slot in the stage for `playerId`,
+ * excluding the slot currently being written into (`excludeMatchNumber`/
+ * `excludeSlot`) — this also catches assigning the same player into both
+ * slots of the match being edited, not just a different match.
+ *
+ * TBD slots are skipped: they hold a placeholder ID (the #1 seed's
+ * playerId, used as filler until a real result propagates in — see the
+ * `seededPlayers[0].playerId` fallback at bracket generation), not a real
+ * placement, so they can never be a genuine duplicate (issue #3017 §8).
+ *
+ * This check is read-then-write, not enforced atomically in the same SQL
+ * statement as `applySlotWrite`'s `assign` write: unlike `swapSlots` (whose
+ * guard subquery only needs `id`+`version` equality), "no one else holds
+ * this playerId" can only be evaluated correctly with the same TBD-vs-real
+ * distinction this function makes above — and that distinction depends on
+ * bracket routing structure that isn't representable as a plain SQL WHERE
+ * clause (it isn't stored data; it's computed from bracket size). A naive
+ * `NOT EXISTS` guard comparing raw `player1Id`/`player2Id` columns would
+ * misfire on the placeholder ID and reject legitimate assigns for whoever
+ * happens to be the #1 seed. So a narrow race remains: two `assign` requests
+ * placing the same outsider player into two different matches within the
+ * same request-handling window can both pass this check before either write
+ * lands. Preventing it atomically isn't practical, so instead the `assign`
+ * handler re-runs this same check against freshly-read data immediately
+ * after its own write succeeds and warns (`duplicatePlacementWarning` on the
+ * response + a `logger.warn`) if the race was lost — see the post-write
+ * re-check in the `op === 'assign'` branch below. A resulting double-
+ * placement is also visible in the bracket UI and self-correctable via
+ * another slotEdit either way.
+ */
+function findDuplicatePlacementConflict(
+  playerId: string,
+  excludeMatchNumber: number,
+  excludeSlot: 1 | 2,
+  matches: SlotEditMatch[],
+  bracketStructure: BracketMatch[],
+): SlotEditMatch | null {
+  for (const candidate of matches) {
+    if (candidate.completed || candidate.isBye) continue;
+    const status = getFinalsSlotStatus(candidate.matchNumber, matches, bracketStructure);
+    const isExcluded = (slot: 1 | 2) => candidate.matchNumber === excludeMatchNumber && slot === excludeSlot;
+    if (!status.player1 && candidate.player1Id === playerId && !isExcluded(1)) return candidate;
+    if (!status.player2 && candidate.player2Id === playerId && !isExcluded(2)) return candidate;
+  }
+  return null;
+}
+
+interface ApplySlotWriteOptions {
+  /** Present for manual slotEdit writes: requires this exact `version` (optimistic lock).
+   * Omitted for automatic bracket advancement, which is authoritative — the upstream
+   * match's own completion is the source of truth, not the destination row's version. */
+  expectedVersion?: number;
+  /** Manual-adjustment audit stamp to record on the row. Omit (or pass null) to clear
+   * it — automatic advancement is never a "manual adjustment", so it always nulls
+   * these fields even if the slot previously carried one (issue #3017 §9). */
+  slotOverride?: SlotOverrideStamp | null;
+}
+
+/**
+ * Writes a finals/playoff match's bracket slot(s) (player1Id/player2Id) via a
+ * single conditional `updateMany`, always incrementing `version` and always
+ * excluding completed rows from the WHERE clause so a completed downstream
+ * match can never be clobbered.
+ *
+ * This is the sole write path for every place bracket slots are populated —
+ * automatic winner/loser advancement, grand-final-reset prefill, and manual
+ * slotEdit (assign/swap/swapSlots) — so version increments are consistent
+ * across all of them and the two write kinds can detect each other's races:
+ * a manual edit that read an older `version` gets rejected (0 rows affected)
+ * if advancement already moved the slot, and vice versa.
+ *
+ * @returns the number of rows affected (0 if the target is missing, already
+ *   completed, or — for a manual edit — the version no longer matches).
+ */
+async function applySlotWrite(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  modelInstance: any,
+  where: { tournamentId?: string; matchNumber?: number; id?: string; stage?: string; round?: string },
+  slotData: Record<string, unknown>,
+  options: ApplySlotWriteOptions = {},
+): Promise<number> {
+  const versionWhere = options.expectedVersion !== undefined ? { version: options.expectedVersion } : {};
+  const result = await modelInstance.updateMany({
+    where: { ...where, completed: false, ...versionWhere },
+    data: {
+      ...slotData,
+      version: { increment: 1 },
+      slotOverrideBy: options.slotOverride ? options.slotOverride.by : null,
+      slotOverrideAt: options.slotOverride ? options.slotOverride.at : null,
+    },
+  });
+  return result.count;
+}
+
+/**
+ * Fire-and-forget audit log for the case where automatic bracket advancement
+ * (an `applySlotWrite` call with no `slotOverride`) is about to overwrite a
+ * slot that carries a manual adjustment. Callers that already fetched the
+ * destination row (winner/loser advance, GF reset prefill) pass its current
+ * `slotOverrideBy`/`slotOverrideAt` here; fallback paths that never fetched
+ * the row (partially generated brackets, playoff advancement) skip this —
+ * a manual edit landing in that narrow window is not worth an extra query.
+ */
+function logAutoAdvanceOverrideIfNeeded(
+  previousRow: { slotOverrideBy?: string | null; slotOverrideAt?: Date | string | null } | null | undefined,
+  targetType: string,
+  targetId: string,
+  extraDetails: Record<string, unknown>,
+): void {
+  if (!previousRow?.slotOverrideAt) return;
+  createAuditLog({
+    ipAddress: 'internal',
+    userAgent: 'system:bracket-advancement',
+    action: AUDIT_ACTIONS.AUTO_ADVANCE_OVERRODE_MANUAL_SLOT,
+    targetType,
+    targetId,
+    details: {
+      overriddenManualBy: previousRow.slotOverrideBy ?? null,
+      overriddenManualAt: previousRow.slotOverrideAt,
+      ...extraDetails,
+    },
+  }).catch(() => {
+    /* fail-silent: audit logging must never affect bracket advancement */
+  });
+}
+
+interface SwapSlotsWriteParams {
+  tournamentId: string;
+  round: string;
+  idA: string;
+  versionA: number;
+  newPlayer1A: string;
+  newPlayer2A: string;
+  idB: string;
+  versionB: number;
+  newPlayer1B: string;
+  newPlayer2B: string;
+  slotOverride: SlotOverrideStamp;
+}
+
+/**
+ * Atomically swaps player slots between two different finals/playoff
+ * matches in the same round via a single CASE-expression UPDATE, guarded by
+ * a duplicated-predicate existence subquery so the write is strictly
+ * all-or-nothing (issue #3017 §6). Empirically verified against preview D1
+ * (issue #3017 Step 0 — see the issue for the exact Case A–D results):
+ * either both rows update and `version` increments once each, or neither
+ * row is touched.
+ *
+ * The WHERE clause and the guard subquery deliberately repeat every
+ * predicate (tournamentId/stage/round/completed/isBye/id+version) — a
+ * mismatch between the two would let a row that fails the outer WHERE still
+ * count toward the subquery's `= 2` check, producing a partial update.
+ *
+ * @returns 0 (no rows matched — stale version, completed, or BYE) or 2
+ *   (both rows updated). Any other value indicates a broken invariant and
+ *   is treated as a fatal error by the caller.
+ */
+async function applySwapSlotsWrite(tableName: string, params: SwapSlotsWriteParams): Promise<number> {
+  const table = Prisma.raw(tableName);
+  const affected = await prisma.$executeRaw(Prisma.sql`
+    UPDATE ${table}
+    SET
+      "player1Id" = CASE "id"
+        WHEN ${params.idA} THEN ${params.newPlayer1A}
+        WHEN ${params.idB} THEN ${params.newPlayer1B}
+        ELSE "player1Id" END,
+      "player2Id" = CASE "id"
+        WHEN ${params.idA} THEN ${params.newPlayer2A}
+        WHEN ${params.idB} THEN ${params.newPlayer2B}
+        ELSE "player2Id" END,
+      "version" = "version" + 1,
+      "slotOverrideBy" = ${params.slotOverride.by},
+      "slotOverrideAt" = ${params.slotOverride.at},
+      "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "tournamentId" = ${params.tournamentId}
+      AND "stage" IN ('finals', 'playoff')
+      AND "round" = ${params.round}
+      AND "completed" = 0 AND "isBye" = 0
+      AND (
+        ("id" = ${params.idA} AND "version" = ${params.versionA})
+        OR ("id" = ${params.idB} AND "version" = ${params.versionB})
+      )
+      AND (
+        SELECT COUNT(*) FROM ${table} g
+        WHERE g."tournamentId" = ${params.tournamentId}
+          AND g."stage" IN ('finals', 'playoff')
+          AND g."round" = ${params.round}
+          AND g."completed" = 0 AND g."isBye" = 0
+          AND (
+            (g."id" = ${params.idA} AND g."version" = ${params.versionA})
+            OR (g."id" = ${params.idB} AND g."version" = ${params.versionB})
+          )
+      ) = 2
+  `);
+  return Number(affected);
 }
 
 /**
@@ -2112,14 +2339,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         if (currentPlayoff?.winnerGoesTo) {
           const position = currentPlayoff.position || 1;
-          await model(prisma).updateMany({
-            where: {
-              tournamentId,
-              stage: 'playoff',
-              matchNumber: currentPlayoff.winnerGoesTo,
-            },
-            data: position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
-          });
+          await applySlotWrite(
+            model(prisma),
+            { tournamentId, stage: 'playoff', matchNumber: currentPlayoff.winnerGoesTo },
+            position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
+          );
         }
 
         return createSuccessResponse({
@@ -2186,16 +2410,36 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return handleValidationError('Completed match must have a winner and loser', 'score');
       }
 
+      /* Advancement writes go through applySlotWrite's `completed: false` guard
+       * (issue #3017 §6), so a downstream match that's already been scored
+       * silently keeps its existing slots instead of being clobbered. Surface
+       * every such skip here — via a warn log immediately and via this
+       * response field for the client — so a mis-scored-card correction
+       * (PUT re-send after fixing a wrong result) doesn't leave stale
+       * downstream placements unnoticed. */
+      const advancementWarnings: Array<{ matchNumber: number; slot: 1 | 2; playerId: string; reason: string }> = [];
+      const recordSkippedAdvancement = (targetMatchNumber: number, slot: 1 | 2, playerId: string) => {
+        advancementWarnings.push({
+          matchNumber: targetMatchNumber,
+          slot,
+          playerId,
+          reason: 'DOWNSTREAM_MATCH_COMPLETED',
+        });
+        logger.warn('Skipped bracket advancement: downstream match already completed', {
+          tournamentId,
+          sourceMatchNumber: currentBracketMatch.matchNumber,
+          targetMatchNumber,
+          slot,
+        });
+      };
+
       const updateRoutedMatch = async (targetMatchNumber: number, position: 1 | 2, playerId: string) => {
         try {
-          await model(prisma).updateMany({
-            where: {
-              tournamentId,
-              matchNumber: targetMatchNumber,
-              stage: 'finals',
-            },
-            data: position === 1 ? { player1Id: playerId } : { player2Id: playerId },
-          });
+          await applySlotWrite(
+            model(prisma),
+            { tournamentId, matchNumber: targetMatchNumber, stage: 'finals' },
+            position === 1 ? { player1Id: playerId } : { player2Id: playerId },
+          );
         } catch {
           /* Missing future bracket slots are tolerated for partially generated brackets. */
         }
@@ -2213,10 +2457,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         if (nextWinnerMatch) {
           const position = currentBracketMatch.position || 1;
-          await model(prisma).update({
-            where: { id: nextWinnerMatch.id },
-            data: position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
-          });
+          const affected = await applySlotWrite(
+            model(prisma),
+            { id: nextWinnerMatch.id },
+            position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
+          );
+          if (affected === 0) {
+            recordSkippedAdvancement(currentBracketMatch.winnerGoesTo, position, winnerId);
+          } else {
+            logAutoAdvanceOverrideIfNeeded(nextWinnerMatch, 'FinalsMatch', nextWinnerMatch.id, {
+              matchNumber: currentBracketMatch.winnerGoesTo,
+              slot: position,
+              sourceMatchNumber: currentBracketMatch.matchNumber,
+            });
+          }
         } else {
           await updateRoutedMatch(currentBracketMatch.winnerGoesTo, currentBracketMatch.position || 1, winnerId);
         }
@@ -2235,10 +2489,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const loserPosition = currentBracketMatch.loserPosition ?? 1;
 
         if (nextLoserMatch) {
-          await model(prisma).update({
-            where: { id: nextLoserMatch.id },
-            data: loserPosition === 1 ? { player1Id: loserId } : { player2Id: loserId },
-          });
+          const affected = await applySlotWrite(
+            model(prisma),
+            { id: nextLoserMatch.id },
+            loserPosition === 1 ? { player1Id: loserId } : { player2Id: loserId },
+          );
+          if (affected === 0) {
+            recordSkippedAdvancement(currentBracketMatch.loserGoesTo, loserPosition, loserId);
+          } else {
+            logAutoAdvanceOverrideIfNeeded(nextLoserMatch, 'FinalsMatch', nextLoserMatch.id, {
+              matchNumber: currentBracketMatch.loserGoesTo,
+              slot: loserPosition,
+              sourceMatchNumber: currentBracketMatch.matchNumber,
+            });
+          }
         } else {
           await updateRoutedMatch(currentBracketMatch.loserGoesTo, loserPosition, loserId);
         }
@@ -2257,26 +2521,25 @@ export function createFinalsHandlers(config: FinalsConfig) {
             },
           });
 
+          const resetSlotData = { player1Id: winnerId, player2Id: loserId };
+
           if (resetMatch) {
-            await model(prisma).update({
-              where: { id: resetMatch.id },
-              data: {
-                player1Id: winnerId,
-                player2Id: loserId,
-              },
-            });
-          } else {
-            await model(prisma).updateMany({
-              where: {
-                tournamentId,
-                stage: 'finals',
+            const affected = await applySlotWrite(model(prisma), { id: resetMatch.id }, resetSlotData);
+            if (affected === 0) {
+              recordSkippedAdvancement(resetMatch.matchNumber, 1, winnerId);
+              recordSkippedAdvancement(resetMatch.matchNumber, 2, loserId);
+            } else {
+              logAutoAdvanceOverrideIfNeeded(resetMatch, 'FinalsMatch', resetMatch.id, {
                 round: 'grand_final_reset',
-              },
-              data: {
-                player1Id: winnerId,
-                player2Id: loserId,
-              },
-            });
+                sourceMatchNumber: currentBracketMatch.matchNumber,
+              });
+            }
+          } else {
+            await applySlotWrite(
+              model(prisma),
+              { tournamentId, stage: 'finals', round: 'grand_final_reset' },
+              resetSlotData,
+            );
           }
         }
       }
@@ -2302,11 +2565,384 @@ export function createFinalsHandlers(config: FinalsConfig) {
         loserId,
         isComplete,
         champion,
+        ...(advancementWarnings.length > 0 ? { advancementWarnings } : {}),
       });
     } catch (error) {
       logger.error('Failed to update finals match', { error, tournamentId });
       return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
     }
+  }
+
+  /**
+   * Handles the `slotEdit` branch of PATCH: manual bracket slot placement
+   * adjustment (issue #3017). Three mutually exclusive operations:
+   *   - `assign`: replace one slot's player with another qualification participant.
+   *   - `swap`: swap the two slots of the same match.
+   *   - `swapSlots`: swap one slot each between two different matches in the
+   *     same round, atomically via `applySwapSlotsWrite`.
+   *
+   * `existing` is the already-fetched, already-IDOR-checked row for
+   * `matchId` (fetched once by PATCH before dispatching here).
+   */
+  async function handleSlotEdit(
+    tournamentId: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    existing: any,
+    slotEditInput: unknown,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    session: any,
+    request: NextRequest,
+    logger: ReturnType<typeof createLogger>,
+  ): Promise<Response> {
+    if (!slotEditInput || typeof slotEditInput !== 'object') {
+      return handleValidationError('slotEdit must be an object', 'slotEdit');
+    }
+    const body = slotEditInput as Record<string, unknown>;
+    const op = body.op;
+    if (op !== 'assign' && op !== 'swap' && op !== 'swapSlots') {
+      return handleValidationError("slotEdit.op must be 'assign', 'swap', or 'swapSlots'", 'slotEdit.op');
+    }
+
+    const isNonNegativeInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+    if (!isNonNegativeInt(body.expectedVersion)) {
+      return handleValidationError(
+        'slotEdit.expectedVersion must be a non-negative integer',
+        'slotEdit.expectedVersion',
+      );
+    }
+    const expectedVersion = body.expectedVersion;
+
+    /* Shared state guards, checked against the already-fetched row before
+     * any write is attempted. The write itself re-checks completed/version
+     * (via applySlotWrite's WHERE clause) to close the race against a
+     * concurrent write landing between this check and the write. */
+    if (existing.completed) {
+      return createErrorResponse('Cannot edit a completed match', 409, 'MATCH_COMPLETED');
+    }
+    if (existing.isBye) {
+      return createErrorResponse('Cannot edit a BYE match', 422, 'BYE_MATCH');
+    }
+    if (existing.version !== expectedVersion) {
+      return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT', {
+        currentVersion: existing.version,
+      });
+    }
+
+    /* Bracket structure for the TBD guard: finals infers bracket size the
+     * same way PUT does (17 vs 31 total finals matches); playoff always
+     * uses the fixed 12-entrant structure (matches PUT's playoff branch). */
+    const stage: 'finals' | 'playoff' = existing.stage;
+    const bracketStructure =
+      stage === 'playoff'
+        ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
+        : generateBracketStructure(
+            (await model(prisma).count({ where: { tournamentId, stage: 'finals' } })) > BRACKET_SIZE_THRESHOLD ? 16 : 8,
+          );
+
+    const stageMatches: SlotEditMatch[] = await model(prisma).findMany({
+      where: { tournamentId, stage },
+      select: {
+        id: true,
+        matchNumber: true,
+        round: true,
+        completed: true,
+        isBye: true,
+        player1Id: true,
+        player2Id: true,
+      },
+    });
+
+    const adminUserId = session?.user?.id as string | undefined;
+    const slotOverride: SlotOverrideStamp = { by: adminUserId ?? 'unknown', at: new Date() };
+    const ipAddress = getClientIdentifier(request);
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+
+    const logSlotEditAudit = (details: Record<string, unknown>) => {
+      createAuditLog({
+        userId: resolveAuditUserId(session),
+        ipAddress,
+        userAgent,
+        action: AUDIT_ACTIONS.OVERRIDE_FINALS_SLOT,
+        targetType: stage === 'playoff' ? 'PlayoffMatch' : 'FinalsMatch',
+        targetId: existing.id,
+        details: { eventType: config.eventTypeCode, stage, ...details },
+      }).catch(() => {
+        /* fail-silent: audit logging must never block the response (matches AUDIT_ACTIONS convention) */
+      });
+    };
+
+    const matchIncludes = { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } };
+
+    if (op === 'swap') {
+      const matchNumber = existing.matchNumber;
+      if (
+        !isFinalsSlotConfirmed(matchNumber, 1, stageMatches, bracketStructure) ||
+        !isFinalsSlotConfirmed(matchNumber, 2, stageMatches, bracketStructure)
+      ) {
+        return createErrorResponse(
+          'Cannot swap a slot that has not been confirmed by bracket progress (TBD)',
+          422,
+          'SLOT_TBD',
+        );
+      }
+
+      const affected = await applySlotWrite(
+        model(prisma),
+        { id: existing.id },
+        { player1Id: existing.player2Id, player2Id: existing.player1Id },
+        { expectedVersion, slotOverride },
+      );
+      if (affected === 0) {
+        const latest = await model(prisma).findUnique({ where: { id: existing.id } });
+        return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT', {
+          currentVersion: latest?.version,
+        });
+      }
+
+      logSlotEditAudit({
+        op: 'swap',
+        matchNumber,
+        beforePlayer1Id: existing.player1Id,
+        beforePlayer2Id: existing.player2Id,
+        afterPlayer1Id: existing.player2Id,
+        afterPlayer2Id: existing.player1Id,
+      });
+
+      const match = await model(prisma).findUnique({ where: { id: existing.id }, include: matchIncludes });
+      return createSuccessResponse({ match, newVersion: expectedVersion + 1 });
+    }
+
+    if (op === 'assign') {
+      const slot = body.slot;
+      if (slot !== 1 && slot !== 2) {
+        return handleValidationError('slotEdit.slot must be 1 or 2', 'slotEdit.slot');
+      }
+      const playerId = body.playerId;
+      if (typeof playerId !== 'string' || !playerId) {
+        return handleValidationError('slotEdit.playerId is required', 'slotEdit.playerId');
+      }
+
+      const matchNumber = existing.matchNumber;
+      if (!isFinalsSlotConfirmed(matchNumber, slot, stageMatches, bracketStructure)) {
+        return createErrorResponse(
+          'Cannot edit a slot that has not been confirmed by bracket progress (TBD)',
+          422,
+          'SLOT_TBD',
+        );
+      }
+
+      const participant = await qualModel(prisma).findFirst({ where: { tournamentId, playerId } });
+      if (!participant) {
+        return handleValidationError(
+          'playerId is not a qualification participant for this tournament',
+          'slotEdit.playerId',
+        );
+      }
+
+      const conflict = findDuplicatePlacementConflict(playerId, matchNumber, slot, stageMatches, bracketStructure);
+      if (conflict) {
+        return createErrorResponse(
+          `Player is already placed in match ${conflict.matchNumber}`,
+          409,
+          'DUPLICATE_PLACEMENT',
+          { matchNumber: conflict.matchNumber },
+        );
+      }
+
+      const beforePlayerId = slot === 1 ? existing.player1Id : existing.player2Id;
+      const affected = await applySlotWrite(
+        model(prisma),
+        { id: existing.id },
+        slot === 1 ? { player1Id: playerId } : { player2Id: playerId },
+        { expectedVersion, slotOverride },
+      );
+      if (affected === 0) {
+        const latest = await model(prisma).findUnique({ where: { id: existing.id } });
+        return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT', {
+          currentVersion: latest?.version,
+        });
+      }
+
+      logSlotEditAudit({ op: 'assign', matchNumber, slot, beforePlayerId, afterPlayerId: playerId });
+
+      /* Post-write duplicate-placement re-check. The pre-write check above
+       * (findDuplicatePlacementConflict against `stageMatches`, fetched at
+       * the top of this handler) is read-then-write: two near-simultaneous
+       * assign requests placing the same player into different matches can
+       * both pass it before either write lands. A DB-level guard can't
+       * safely close this — see the comment on findDuplicatePlacementConflict
+       * for why a raw-SQL NOT EXISTS check would misfire on placeholder IDs.
+       * So instead we detect the race after the fact: re-read the stage
+       * fresh and re-run the same check. Losing this race doesn't corrupt
+       * anything (both writes individually succeeded and are each valid
+       * optimistic-lock updates), but it does leave two matches pointing at
+       * the same player, so surface it the same way an automatic-advancement
+       * skip is surfaced (issue #3017 §6) rather than staying silent. */
+      const freshStageMatches: SlotEditMatch[] = await model(prisma).findMany({
+        where: { tournamentId, stage },
+        select: {
+          id: true,
+          matchNumber: true,
+          round: true,
+          completed: true,
+          isBye: true,
+          player1Id: true,
+          player2Id: true,
+        },
+      });
+      const postWriteConflict = findDuplicatePlacementConflict(
+        playerId,
+        matchNumber,
+        slot,
+        freshStageMatches,
+        bracketStructure,
+      );
+      if (postWriteConflict) {
+        logger.warn('Duplicate placement detected after assign write (concurrent slotEdit race)', {
+          tournamentId,
+          matchNumber,
+          slot,
+          playerId,
+          conflictMatchNumber: postWriteConflict.matchNumber,
+        });
+      }
+
+      const match = await model(prisma).findUnique({ where: { id: existing.id }, include: matchIncludes });
+      return createSuccessResponse({
+        match,
+        newVersion: expectedVersion + 1,
+        ...(postWriteConflict ? { duplicatePlacementWarning: { matchNumber: postWriteConflict.matchNumber } } : {}),
+      });
+    }
+
+    /* op === 'swapSlots': atomic cross-match slot exchange, same round only. */
+    const slot = body.slot;
+    if (slot !== 1 && slot !== 2) {
+      return handleValidationError('slotEdit.slot must be 1 or 2', 'slotEdit.slot');
+    }
+    const targetMatchId = body.targetMatchId;
+    if (typeof targetMatchId !== 'string' || !targetMatchId) {
+      return handleValidationError('slotEdit.targetMatchId is required', 'slotEdit.targetMatchId');
+    }
+    const targetSlot = body.targetSlot;
+    if (targetSlot !== 1 && targetSlot !== 2) {
+      return handleValidationError('slotEdit.targetSlot must be 1 or 2', 'slotEdit.targetSlot');
+    }
+    if (!isNonNegativeInt(body.targetExpectedVersion)) {
+      return handleValidationError(
+        'slotEdit.targetExpectedVersion must be a non-negative integer',
+        'slotEdit.targetExpectedVersion',
+      );
+    }
+    const targetExpectedVersion = body.targetExpectedVersion;
+
+    if (targetMatchId === existing.id) {
+      return handleValidationError(
+        'swapSlots requires two different matches; use "swap" for the same match',
+        'slotEdit.targetMatchId',
+      );
+    }
+
+    const targetExisting = await model(prisma).findFirst({ where: { id: targetMatchId, tournamentId } });
+    if (!targetExisting) {
+      return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+    }
+    if (targetExisting.stage !== 'finals' && targetExisting.stage !== 'playoff') {
+      return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+    }
+    if (existing.round !== targetExisting.round) {
+      return createErrorResponse('swapSlots is only allowed between matches in the same round', 400, 'ROUND_MISMATCH');
+    }
+    if (targetExisting.completed) {
+      return createErrorResponse('Cannot edit a completed match', 409, 'MATCH_COMPLETED');
+    }
+    if (targetExisting.isBye) {
+      return createErrorResponse('Cannot edit a BYE match', 422, 'BYE_MATCH');
+    }
+    if (targetExisting.version !== targetExpectedVersion) {
+      return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT', {
+        currentVersion: targetExisting.version,
+      });
+    }
+
+    const matchNumber = existing.matchNumber;
+    const targetMatchNumber = targetExisting.matchNumber;
+    if (
+      !isFinalsSlotConfirmed(matchNumber, slot, stageMatches, bracketStructure) ||
+      !isFinalsSlotConfirmed(targetMatchNumber, targetSlot, stageMatches, bracketStructure)
+    ) {
+      return createErrorResponse(
+        'Cannot edit a slot that has not been confirmed by bracket progress (TBD)',
+        422,
+        'SLOT_TBD',
+      );
+    }
+
+    const existingSlotValue = slot === 1 ? existing.player1Id : existing.player2Id;
+    const targetSlotValue = targetSlot === 1 ? targetExisting.player1Id : targetExisting.player2Id;
+    const newExistingPlayer1 = slot === 1 ? targetSlotValue : existing.player1Id;
+    const newExistingPlayer2 = slot === 2 ? targetSlotValue : existing.player2Id;
+    const newTargetPlayer1 = targetSlot === 1 ? existingSlotValue : targetExisting.player1Id;
+    const newTargetPlayer2 = targetSlot === 2 ? existingSlotValue : targetExisting.player2Id;
+
+    const tableName = SLOT_SWAP_TABLE_NAME[config.matchModel];
+    if (!tableName) {
+      logger.error('swapSlots: no static table name mapped for matchModel', { matchModel: config.matchModel });
+      return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
+    }
+
+    const affected = await applySwapSlotsWrite(tableName, {
+      tournamentId,
+      round: existing.round,
+      idA: existing.id,
+      versionA: expectedVersion,
+      newPlayer1A: newExistingPlayer1,
+      newPlayer2A: newExistingPlayer2,
+      idB: targetExisting.id,
+      versionB: targetExpectedVersion,
+      newPlayer1B: newTargetPlayer1,
+      newPlayer2B: newTargetPlayer2,
+      slotOverride,
+    });
+
+    if (affected === 0) {
+      const [latestA, latestB] = await Promise.all([
+        model(prisma).findUnique({ where: { id: existing.id } }),
+        model(prisma).findUnique({ where: { id: targetExisting.id } }),
+      ]);
+      return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT', {
+        currentVersion: latestA?.version,
+        targetCurrentVersion: latestB?.version,
+      });
+    }
+    if (affected !== 2) {
+      logger.error('swapSlots: unexpected affected row count (invariant violation)', {
+        affected,
+        tournamentId,
+        matchId: existing.id,
+        targetMatchId: targetExisting.id,
+      });
+      return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
+    }
+
+    logSlotEditAudit({
+      op: 'swapSlots',
+      changes: [
+        { matchNumber, slot, beforePlayerId: existingSlotValue, afterPlayerId: targetSlotValue },
+        {
+          matchNumber: targetMatchNumber,
+          slot: targetSlot,
+          beforePlayerId: targetSlotValue,
+          afterPlayerId: existingSlotValue,
+        },
+      ],
+    });
+
+    const [matchA, matchB] = await Promise.all([
+      model(prisma).findUnique({ where: { id: existing.id }, include: matchIncludes }),
+      model(prisma).findUnique({ where: { id: targetExisting.id }, include: matchIncludes }),
+    ]);
+    return createSuccessResponse({ matches: [matchA, matchB] });
   }
 
   /**
@@ -2341,19 +2977,25 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     try {
       const body = sanitizeInput(await request.json());
-      const { matchId, tvNumber, startingCourseNumber } = body;
+      const { matchId, tvNumber, startingCourseNumber, slotEdit } = body;
 
       if (!matchId || typeof matchId !== 'string') {
         return handleValidationError('matchId is required', 'matchId');
       }
 
-      /* PATCH supports two field types: tvNumber (broadcast slot) and
-       * startingCourseNumber (BM start course). At least one must be supplied
-       * — otherwise the request is a no-op and very likely a client bug. */
+      /* PATCH supports three field types: tvNumber (broadcast slot),
+       * startingCourseNumber (BM start course), and slotEdit (manual bracket
+       * placement adjustment, issue #3017). Exactly one "kind" of edit must
+       * be supplied — slotEdit is a heavier, differently-validated write
+       * path and must not be combined with the other two in one request. */
       const hasTv = tvNumber !== undefined;
       const hasCourse = startingCourseNumber !== undefined;
-      if (!hasTv && !hasCourse) {
-        return handleValidationError('tvNumber or startingCourseNumber is required', 'body');
+      const hasSlotEdit = slotEdit !== undefined && slotEdit !== null;
+      if (!hasTv && !hasCourse && !hasSlotEdit) {
+        return handleValidationError('tvNumber, startingCourseNumber, or slotEdit is required', 'body');
+      }
+      if (hasSlotEdit && (hasTv || hasCourse)) {
+        return handleValidationError('slotEdit cannot be combined with tvNumber or startingCourseNumber', 'slotEdit');
       }
 
       if (
@@ -2393,6 +3035,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
       if (existing.stage !== 'finals' && existing.stage !== 'playoff') {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+      }
+
+      if (hasSlotEdit) {
+        return handleSlotEdit(tournamentId, existing, slotEdit, session, request, logger);
       }
 
       /* Uniqueness guard: prevent the same TV number being assigned to two

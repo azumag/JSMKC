@@ -6,6 +6,7 @@ import { retryDbRead } from '@/lib/db-read-retry';
 const DATE_FIELDS = new Set([
   'rankOverrideAt',
   'combinedRankOverrideAt',
+  'slotOverrideAt',
   'deletedAt',
   'createdAt',
   'updatedAt',
