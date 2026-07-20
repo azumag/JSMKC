@@ -488,6 +488,76 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       });
     });
 
+    // Success case - 0-0 clear wipes stale rounds even though the caller didn't send any
+    it('should null out rounds when clearing a match to 0-0, even without sending rounds', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      /* Admin qualification dialog's "Clear" button submits { matchId, score1: 0,
+       * score2: 0 } with no rounds key. A 0-0 clear voids the match entirely, so
+       * any rounds[] left over from an earlier per-race report must not survive —
+       * otherwise the completed-match view would show a "0-0" final score next to
+       * a per-race breakdown that still names race winners. */
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 0,
+        score2: 0,
+      });
+      const params = Promise.resolve({ id: 't1' });
+      await PUT(request, { params });
+
+      expect(prisma.mRMatch.update).toHaveBeenCalledWith({
+        where: { id: 'm1', tournamentId: 't1' },
+        data: { score1: 0, score2: 0, rounds: null, completed: true },
+        select: BM_MR_MATCH_LEAN_SELECT,
+      });
+    });
+
+    // Success case - 0-0 clear wipes rounds even if the caller explicitly sends some
+    it('should null out rounds on a 0-0 clear even if the request body includes rounds', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      const staleRounds = [
+        { course: 'MC1', winner: 1 },
+        { course: 'DP1', winner: 1 },
+        { course: 'GV1', winner: 2 },
+        { course: 'BC1', winner: 2 },
+      ];
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {
+        matchId: 'm1',
+        score1: 0,
+        score2: 0,
+        rounds: staleRounds,
+      });
+      const params = Promise.resolve({ id: 't1' });
+      await PUT(request, { params });
+
+      expect(prisma.mRMatch.update).toHaveBeenCalledWith({
+        where: { id: 'm1', tournamentId: 't1' },
+        data: { score1: 0, score2: 0, rounds: null, completed: true },
+        select: BM_MR_MATCH_LEAN_SELECT,
+      });
+    });
+
     // Validation error case - Returns 400 when matchId is missing
     it('should return 400 when matchId is missing', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { score1: 3, score2: 1 });

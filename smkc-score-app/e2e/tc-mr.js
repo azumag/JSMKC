@@ -35,6 +35,7 @@
  *  TC-623  MR combined standings tab shows rows with ascending ranks
  *  TC-3027 MR admin qualification final-result entry (UI, no per-race picker)
  *  TC-3028 MR finals admin dialog defaults to final-result entry (UI)
+ *  TC-3029 MR admin qualification Clear (0-0) wipes stale per-race rounds
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -566,6 +567,98 @@ async function runTc3027(adminPage) {
     );
   } catch (err) {
     log('TC-3027', 'FAIL', err instanceof Error ? err.message : 'MR admin final-result entry failed');
+  }
+}
+
+/**
+ * TC-3029: MR admin qualification Clear (0-0) wipes stale per-race rounds
+ *
+ * A match previously scored with real per-race rounds[] (as the legacy
+ * player report page still submits) must not keep that data once an admin
+ * clears it to 0-0 via the qualification dialog's "Clear" button — a 0-0
+ * clear voids the match entirely, so a stale race-by-race breakdown next to
+ * a "0-0" final score would be self-contradictory. Seeds rounds via a
+ * direct API PUT, then drives Clear + Save through the UI and asserts the
+ * persisted match has rounds wiped.
+ */
+async function runTc3029(adminPage) {
+  try {
+    const { tournamentId, match } = await prepareSharedMrPair(adminPage);
+
+    const seedRounds = [
+      { course: 'MC1', winner: 1 },
+      { course: 'DP1', winner: 1 },
+      { course: 'GV1', winner: 1 },
+      { course: 'BC1', winner: 2 },
+    ];
+    const seed = await adminPage.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status };
+      },
+      [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 3, score2: 1, rounds: seedRounds }],
+    );
+    if (seed.s !== 200) throw new Error(`Failed to seed rounds (${seed.s})`);
+
+    const seeded = await apiFetchMr(adminPage, tournamentId);
+    const seededMatch = (seeded.matches || []).find((m) => m.id === match.id);
+    if (!Array.isArray(seededMatch?.rounds) || seededMatch.rounds.length === 0) {
+      throw new Error('Seed PUT did not persist rounds');
+    }
+
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+    await openMatchesTab(adminPage);
+
+    /* prepareSharedMrPair resets this shared tournament's qualification down
+     * to just this one pair, so the Matches tab shows a single row and its
+     * action button reads "Edit" (the match is already completed). */
+    const editButton = adminPage.getByRole('button', { name: /^(Edit|編集)$/ });
+    await editButton.first().waitFor({ state: 'visible', timeout: 15000 });
+    await clickWithDiagnostics(editButton.first(), 'TC-3029 open Edit dialog for seeded match');
+
+    const dialog = adminPage
+      .getByRole('dialog')
+      .filter({
+        hasText: /enterMatchResult|試合結果|Enter Match Result/,
+      })
+      .first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    await dialog.getByRole('button', { name: /^(Clear|クリア)$/ }).click();
+
+    const responsePromise = adminPage.waitForResponse(
+      (res) => res.url().includes(`/api/tournaments/${tournamentId}/mr`) && res.request().method() === 'PUT',
+      { timeout: 30000 },
+    );
+    await dialog.getByRole('button', { name: /^(Save Result|結果保存|保存)$/ }).click();
+    const response = await responsePromise;
+    const requestBody = response.request().postDataJSON();
+    const clientSentZeroZero = requestBody?.score1 === 0 && requestBody?.score2 === 0;
+
+    const updated = await apiFetchMr(adminPage, tournamentId);
+    const updatedMatch = (updated.matches || []).find((m) => m.id === match.id);
+    const scoreCleared = updatedMatch?.score1 === 0 && updatedMatch?.score2 === 0;
+    const roundsWiped =
+      updatedMatch?.rounds == null || (Array.isArray(updatedMatch.rounds) && updatedMatch.rounds.length === 0);
+
+    const ok = clientSentZeroZero && scoreCleared && roundsWiped;
+    log(
+      'TC-3029',
+      ok ? 'PASS' : 'FAIL',
+      !clientSentZeroZero
+        ? `Clear did not submit 0-0: ${JSON.stringify(requestBody)}`
+        : !scoreCleared
+          ? `Score not cleared: ${updatedMatch?.score1}-${updatedMatch?.score2}`
+          : !roundsWiped
+            ? `Stale rounds survived clear: ${JSON.stringify(updatedMatch?.rounds)}`
+            : '',
+    );
+  } catch (err) {
+    log('TC-3029', 'FAIL', err instanceof Error ? err.message : 'MR admin clear-rounds test failed');
   }
 }
 
@@ -2423,6 +2516,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-1083', fn: runTc1083 },
       { name: 'TC-603', fn: runTc603 },
       { name: 'TC-3027', fn: runTc3027 },
+      { name: 'TC-3029', fn: runTc3029 },
       { name: 'TC-608', fn: runTc608 },
       { name: 'TC-609', fn: runTc609 },
       { name: 'TC-820', fn: runTc820 },
@@ -2474,6 +2568,7 @@ module.exports = {
   runTc858,
   runTc3027,
   runTc3028,
+  runTc3029,
   mrFinalsTargetWinsForMatch,
   getSuite,
   results,

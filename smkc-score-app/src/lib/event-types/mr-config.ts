@@ -94,18 +94,24 @@ export const mrConfig: EventTypeConfig = {
   },
 
   updateMatch: async (prisma, data) => {
+    // 0-0 clears/voids the match (treated as no_contest, see calculateMatchResult
+    // below) — any existing per-race rounds[] would contradict that "nothing
+    // counted" state (e.g. showing race winners under a 0-0 final score), so
+    // clearing always wipes rounds regardless of whether the caller sent one.
+    const isClearedMatch = data.score1 === 0 && data.score2 === 0;
+
     const match = await prisma.mRMatch.update({
       where: { id: data.matchId, tournamentId: data.tournamentId },
       data: {
         score1: data.score1,
         score2: data.score2,
-        /* Only touch `rounds` when the caller actually sent it (mirrors the
-         * putAdditionalFields pattern in finals-route.ts). The qualification
-         * admin dialog now submits final totals only, with no per-race
-         * breakdown; omitting the field here must leave any existing rounds
-         * (e.g. from a player's earlier per-race report) untouched instead
-         * of silently nulling them out on every admin correction. */
-        ...(data.rounds !== undefined ? { rounds: data.rounds || null } : {}),
+        /* Otherwise only touch `rounds` when the caller actually sent it
+         * (mirrors the putAdditionalFields pattern in finals-route.ts). The
+         * qualification admin dialog now submits final totals only, with no
+         * per-race breakdown; omitting the field here must leave any existing
+         * rounds (e.g. from a player's earlier per-race report) untouched
+         * instead of silently nulling them out on every admin correction. */
+        ...(isClearedMatch ? { rounds: null } : data.rounds !== undefined ? { rounds: data.rounds || null } : {}),
         completed: true,
       },
       select: BM_MR_MATCH_LEAN_SELECT,
