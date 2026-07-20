@@ -2670,8 +2670,10 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('Issue**: #2076');
     expect(section).toContain('MRMatch.scoresConfirmed=true');
     expect(section).toContain('400');
-    expect(tcMr).toContain(
-      "log('TC-822', mismatch && confirmRes.s === 200 && storedConfirmed && reportBlocked ? 'PASS' : 'FAIL'",
+    /* Whitespace-tolerant: Prettier may wrap log()'s arguments onto separate
+     * lines depending on the line's width. */
+    expect(tcMr).toMatch(
+      /log\(\s*'TC-822',\s*mismatch && confirmRes\.s === 200 && storedConfirmed && reportBlocked \? 'PASS' : 'FAIL'/,
     );
     expect(tcMr).toContain('scoresConfirmed: true');
     expect(tcMr).not.toContain("log('TC-822', 'SKIP'");

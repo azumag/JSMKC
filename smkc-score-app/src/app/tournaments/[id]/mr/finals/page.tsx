@@ -17,20 +17,14 @@
  *
  * @route /tournaments/[id]/mr/finals
  */
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, use } from "react";
-import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useState, useEffect, useCallback, use } from 'react';
+import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -38,7 +32,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,41 +43,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
-import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { PlayoffCompleteCard } from "@/components/tournament/playoff-complete-card";
-import { COURSE_INFO, POLLING_INTERVAL, TV_NUMBER_OPTIONS, type CourseAbbr } from "@/lib/constants";
-import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
-import { usePolling } from "@/lib/hooks/usePolling";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { createLogger } from "@/lib/client-logger";
-import { canResetFinalsFromQualification } from "@/lib/finals-action-availability";
-import { parseManualScore } from "@/lib/parse-manual-score";
-import type { Player } from "@/lib/types";
-import { buildMatchLabel } from "@/lib/overlay/phase";
-import { BRACKET_TABS, type BracketTab } from "@/lib/bracket-tabs";
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DoubleEliminationBracket } from '@/components/tournament/double-elimination-bracket';
+import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
+import { PlayoffCompleteCard } from '@/components/tournament/playoff-complete-card';
+import { COURSE_INFO, POLLING_INTERVAL, TV_NUMBER_OPTIONS, type CourseAbbr } from '@/lib/constants';
+import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
+import { usePolling } from '@/lib/hooks/usePolling';
+import { UpdateIndicator } from '@/components/ui/update-indicator';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { createLogger } from '@/lib/client-logger';
+import { canResetFinalsFromQualification } from '@/lib/finals-action-availability';
+import { parseManualScore } from '@/lib/parse-manual-score';
+import type { Player } from '@/lib/types';
+import { buildMatchLabel } from '@/lib/overlay/phase';
+import { BRACKET_TABS, type BracketTab } from '@/lib/bracket-tabs';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr-finals' });
@@ -110,7 +91,7 @@ interface MRMatch {
 interface BracketMatch {
   matchNumber: number;
   round: string;
-  bracket: "winners" | "losers" | "grand_final";
+  bracket: 'winners' | 'losers' | 'grand_final';
   player1Seed?: number;
   player2Seed?: number;
 }
@@ -123,7 +104,7 @@ interface SeededPlayer {
 }
 
 function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
-  if (json && typeof json === "object" && "success" in json && "data" in json) {
+  if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
     const data = (json as { data: T }).data;
     if (data !== undefined) return data;
   }
@@ -138,36 +119,35 @@ function getMatchWinner(match: MRMatch): Player | null {
 }
 
 function getCompletedChampion(matches: MRMatch[]): Player | null {
-  const reset = matches.find((m) => m.round === "grand_final_reset" && m.completed);
+  const reset = matches.find((m) => m.round === 'grand_final_reset' && m.completed);
   if (reset) return getMatchWinner(reset);
 
-  const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
+  const grandFinal = matches.find((m) => m.round === 'grand_final' && m.completed);
   if (!grandFinal || grandFinal.score1 <= grandFinal.score2) return null;
   return grandFinal.player1;
 }
 
 /** Individual race round entry */
 interface Round {
-  course: CourseAbbr | "";
+  course: CourseAbbr | '';
   winner: number | null;
 }
 
 function createEmptyRounds(count: number): Round[] {
-  return Array.from({ length: count }, () => ({ course: "", winner: null }));
+  return Array.from({ length: count }, () => ({ course: '', winner: null }));
 }
 
 function buildInitialRounds(match: MRMatch): Round[] {
   const maxRounds = getMrFinalsMaxRounds(match);
 
   if (match.rounds && match.rounds.length > 0) {
-    const existingRounds = match.rounds.map((round) => ({
-      course: (round.course as CourseAbbr) ?? "",
-      winner: round.winner,
-    })).slice(0, maxRounds); // Limit to maxRounds to avoid displaying extra rounds
-    return [
-      ...existingRounds,
-      ...createEmptyRounds(Math.max(0, maxRounds - existingRounds.length)),
-    ];
+    const existingRounds = match.rounds
+      .map((round) => ({
+        course: (round.course as CourseAbbr) ?? '',
+        winner: round.winner,
+      }))
+      .slice(0, maxRounds); // Limit to maxRounds to avoid displaying extra rounds
+    return [...existingRounds, ...createEmptyRounds(Math.max(0, maxRounds - existingRounds.length))];
   }
 
   if (Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0) {
@@ -175,10 +155,7 @@ function buildInitialRounds(match: MRMatch): Round[] {
       course: course as CourseAbbr,
       winner: null,
     }));
-    return [
-      ...assignedRounds,
-      ...createEmptyRounds(Math.max(0, maxRounds - assignedRounds.length)),
-    ];
+    return [...assignedRounds, ...createEmptyRounds(Math.max(0, maxRounds - assignedRounds.length))];
   }
 
   return createEmptyRounds(maxRounds);
@@ -188,11 +165,7 @@ function hasFixedAssignedCourses(match: MRMatch | null): boolean {
   return Boolean(match && Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0);
 }
 
-export default function MatchRaceFinals({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function MatchRaceFinals({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
   const { data: session } = useSession();
 
@@ -233,11 +206,14 @@ export default function MatchRaceFinals({
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
   const [rounds, setRounds] = useState<Round[]>(createEmptyRounds(getMrFinalsMaxRounds()));
-  /* Admin override: skip round entry and write raw best-of-N totals.
-   * Mirrors the qualification page's manual-total form. */
-  const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
-  const [manualScore1, setManualScore1] = useState<string>("");
-  const [manualScore2, setManualScore2] = useState<string>("");
+  /* Default to the final-result-only entry (raw best-of-N totals), matching
+   * the qualification page and the MR participant page. Per-race course/
+   * winner entry remains available by unchecking the box, since finals
+   * still needs it for course-consistency validation (TC-617) and the
+   * bracket's fixed assigned courses display. */
+  const [manualScoreEnabled, setManualScoreEnabled] = useState(true);
+  const [manualScore1, setManualScore1] = useState<string>('');
+  const [manualScore2, setManualScore2] = useState<string>('');
   const [selectedTvNumber, setSelectedTvNumber] = useState<number | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
   const [tvSaving, setTvSaving] = useState(false);
@@ -284,8 +260,13 @@ export default function MatchRaceFinals({
   }, [tournamentId]);
 
   /* Poll at the standard interval for live tournament updates */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
-    fetchFinalsData, {
+  const {
+    data: pollData,
+    isLoading: pollLoading,
+    lastUpdated,
+    isPolling,
+    refetch,
+  } = usePolling(fetchFinalsData, {
     interval: POLLING_INTERVAL,
   });
 
@@ -322,8 +303,8 @@ export default function MatchRaceFinals({
     setCreating(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topN: bracketSize }),
       });
 
@@ -363,7 +344,7 @@ export default function MatchRaceFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create bracket:", metadata);
+      logger.error('Failed to create bracket:', metadata);
       alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
@@ -374,8 +355,8 @@ export default function MatchRaceFinals({
     setCreating(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topN: 24 }),
       });
 
@@ -400,7 +381,7 @@ export default function MatchRaceFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create upper bracket:", metadata);
+      logger.error('Failed to create upper bracket:', metadata);
       alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
@@ -412,14 +393,11 @@ export default function MatchRaceFinals({
    * BM finals page for rationale — the bracket dropdown saves on change so
    * the score dialog isn't required just to assign a broadcast slot.
    */
-  const handleBracketTvNumberChange = async (
-    match: MRMatch,
-    tvNumber: number | null,
-  ) => {
+  const handleBracketTvNumberChange = async (match: MRMatch, tvNumber: number | null) => {
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId: match.id, tvNumber }),
       });
       if (!response.ok) {
@@ -450,9 +428,10 @@ export default function MatchRaceFinals({
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
     setRounds(buildInitialRounds(match));
-    /* Reset manual override; pre-fill inputs with the stored totals so
-     * toggling on doesn't clobber them. */
-    setManualScoreEnabled(false);
+    /* Default to the final-result entry; pre-fill inputs with the stored
+     * totals so switching to per-race entry (unchecking) doesn't clobber
+     * anything already recorded. */
+    setManualScoreEnabled(true);
     setManualScore1(String(match.score1 ?? 0));
     setManualScore2(String(match.score2 ?? 0));
     setSelectedTvNumber(match.tvNumber ?? null);
@@ -485,30 +464,27 @@ export default function MatchRaceFinals({
       const target = selectedMatchTargetWins;
       /* Best-of-N contract: exactly one side reaches target, the other stays
        * strictly below. This matches the race-entry validation below. */
-      if (
-        (score1 !== target || score2 >= target) &&
-        (score2 !== target || score1 >= target)
-      ) {
+      if ((score1 !== target || score2 >= target) && (score2 !== target || score1 >= target)) {
         alert(tCommon('matchMustHaveWinner'));
         return;
       }
       body.score1 = score1;
       body.score2 = score2;
     } else {
-      if (rounds.some((round) => round.course === "")) {
+      if (rounds.some((round) => round.course === '')) {
         alert(tCommon('select5UniqueCourses'));
         return;
       }
 
-      const usedCourses = rounds.map((round) => round.course).filter((course) => course !== "");
+      const usedCourses = rounds.map((round) => round.course).filter((course) => course !== '');
       if (new Set(usedCourses).size !== usedCourses.length) {
         alert(tCommon('select5UniqueCourses'));
         return;
       }
 
       /* Count wins and validate a winner */
-      const winnerCount = rounds.filter(r => r.winner === 1).length;
-      const loserCount = rounds.filter(r => r.winner === 2).length;
+      const winnerCount = rounds.filter((r) => r.winner === 1).length;
+      const loserCount = rounds.filter((r) => r.winner === 2).length;
 
       if (
         (winnerCount !== selectedMatchTargetWins || loserCount >= selectedMatchTargetWins) &&
@@ -526,8 +502,8 @@ export default function MatchRaceFinals({
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
@@ -537,9 +513,9 @@ export default function MatchRaceFinals({
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
         setRounds(createEmptyRounds(getMrFinalsMaxRounds()));
-        setManualScoreEnabled(false);
-        setManualScore1("");
-        setManualScore2("");
+        setManualScoreEnabled(true);
+        setManualScore1('');
+        setManualScore2('');
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -547,15 +523,9 @@ export default function MatchRaceFinals({
 
         /* Check if tournament is complete and announce champion */
         if (data.isComplete && data.champion) {
-          const winnerMatch = matches.find(
-            (m) =>
-              m.player1Id === data.champion || m.player2Id === data.champion
-          );
+          const winnerMatch = matches.find((m) => m.player1Id === data.champion || m.player2Id === data.champion);
           if (winnerMatch) {
-            const champPlayer =
-              winnerMatch.player1Id === data.champion
-                ? winnerMatch.player1
-                : winnerMatch.player2;
+            const champPlayer = winnerMatch.player1Id === data.champion ? winnerMatch.player1 : winnerMatch.player2;
             setChampion(champPlayer);
           }
         }
@@ -565,7 +535,7 @@ export default function MatchRaceFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update match:", metadata);
+      logger.error('Failed to update match:', metadata);
       alert(tFinals('failedUpdateMatch'));
     }
   };
@@ -573,10 +543,12 @@ export default function MatchRaceFinals({
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
   const bracketExists = matches.length > 0 || phase === 'playoff' || playoffMatches.length > 0;
   const canGenerateBracket = isAdmin && qualificationConfirmed && !bracketExists;
-  const canResetBracket = isAdmin && canResetFinalsFromQualification({
-    qualificationConfirmed,
-    finalsExists: bracketExists,
-  });
+  const canResetBracket =
+    isAdmin &&
+    canResetFinalsFromQualification({
+      qualificationConfirmed,
+      finalsExists: bracketExists,
+    });
   /* Top-24 Phase 1 can expose a bracket preview before finals matches exist.
    * Keep the playoff tab selected until Phase 2 materializes finals rows, so
    * the admin sees the completed playoff and the required creation action. */
@@ -605,9 +577,7 @@ export default function MatchRaceFinals({
         <div>
           {/* i18n: Page title from 'mr' namespace, subtitle from 'finals' namespace */}
           <h1 className="text-3xl font-bold">{tMr('finalsTitle')}</h1>
-          <p className="text-muted-foreground">
-            {tFinals('doubleElimination')}
-          </p>
+          <p className="text-muted-foreground">{tFinals('doubleElimination')}</p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
           </div>
@@ -624,14 +594,30 @@ export default function MatchRaceFinals({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {tFinals('generateConfirmDesc')}
-                  </AlertDialogDescription>
+                  <AlertDialogDescription>{tFinals('generateConfirmDesc')}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="flex gap-2 justify-center py-2">
-                  <Button size="sm" variant={bracketSize === 8 ? "default" : "outline"} onClick={() => setBracketSize(8)}>{tFinals('top8')}</Button>
-                  <Button size="sm" variant={bracketSize === 16 ? "default" : "outline"} onClick={() => setBracketSize(16)}>{tFinals('top16')}</Button>
-                  <Button size="sm" variant={bracketSize === 24 ? "default" : "outline"} onClick={() => setBracketSize(24)}>{tFinals('top24')}</Button>
+                  <Button
+                    size="sm"
+                    variant={bracketSize === 8 ? 'default' : 'outline'}
+                    onClick={() => setBracketSize(8)}
+                  >
+                    {tFinals('top8')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={bracketSize === 16 ? 'default' : 'outline'}
+                    onClick={() => setBracketSize(16)}
+                  >
+                    {tFinals('top16')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={bracketSize === 24 ? 'default' : 'outline'}
+                    onClick={() => setBracketSize(24)}
+                  >
+                    {tFinals('top24')}
+                  </Button>
                 </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
@@ -654,15 +640,11 @@ export default function MatchRaceFinals({
                 <AlertDialogHeader>
                   {/* i18n: Reset bracket confirmation dialog */}
                   <AlertDialogTitle>{tFinals('resetConfirmTitle')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {tFinals('resetConfirmDesc')}
-                  </AlertDialogDescription>
+                  <AlertDialogDescription>{tFinals('resetConfirmDesc')}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleCreateBracket}>
-                    {tFinals('reset')}
-                  </AlertDialogAction>
+                  <AlertDialogAction onClick={handleCreateBracket}>{tFinals('reset')}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -681,9 +663,7 @@ export default function MatchRaceFinals({
         <Card className="border-accent bg-accent/10">
           <CardContent className="py-6 text-center">
             <h2 className="text-sm font-semibold text-muted-foreground">{tFinals('champion')}</h2>
-            <p className="font-display text-3xl sm:text-4xl tracking-wide text-foreground mt-2">
-              {champion.nickname}
-            </p>
+            <p className="font-display text-3xl sm:text-4xl tracking-wide text-foreground mt-2">{champion.nickname}</p>
           </CardContent>
         </Card>
       )}
@@ -697,9 +677,7 @@ export default function MatchRaceFinals({
           <Badge variant="outline" className="text-sm">
             {playoffMatches.filter((m) => m.completed).length} / {playoffMatches.length} matches
           </Badge>
-          {playoffComplete && (
-            <Badge className="bg-green-500">{tFinals('playoffComplete')}</Badge>
-          )}
+          {playoffComplete && <Badge className="bg-green-500">{tFinals('playoffComplete')}</Badge>}
         </div>
       )}
 
@@ -713,12 +691,24 @@ export default function MatchRaceFinals({
           <CardContent>
             <p className="text-muted-foreground">{tFinals('bracketExplanation')}</p>
             <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
-              <li><strong>{tFinals('fiveRaces')}</strong> {tFinals('fiveRacesDesc')}</li>
-              <li><strong>{tFinals('firstTo3')}</strong> {tFinals('firstTo3Desc')}</li>
-              <li><strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}</li>
-              <li><strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}</li>
-              <li><strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}</li>
-              <li><strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}</li>
+              <li>
+                <strong>{tFinals('fiveRaces')}</strong> {tFinals('fiveRacesDesc')}
+              </li>
+              <li>
+                <strong>{tFinals('firstTo3')}</strong> {tFinals('firstTo3Desc')}
+              </li>
+              <li>
+                <strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}
+              </li>
+              <li>
+                <strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}
+              </li>
+              <li>
+                <strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}
+              </li>
+              <li>
+                <strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}
+              </li>
             </ul>
           </CardContent>
         </Card>
@@ -787,264 +777,268 @@ export default function MatchRaceFinals({
       )}
 
       {/* Match result entry dialog: admin-only */}
-      {isAdmin && <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            {/* i18n: Match result dialog title */}
-            <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
-            <DialogDescription>
-              {selectedMatch && (
-                <>
-                  Match #{selectedMatch.matchNumber}:{" "}
-                  {selectedMatch.player1.nickname} vs{" "}
-                  {selectedMatch.player2.nickname}
-                  {selectedMatch.round && (
-                    <span className="block text-xs mt-1">
-                      {roundNames[selectedMatch.round] || selectedMatch.round}
-                    </span>
-                  )}
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Manual total-score override (mirrors the qualification page).
-              When enabled, race-by-race entry is hidden and the raw
-              best-of-N totals are written directly. */}
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="mr-finals-manual-score"
-                  checked={manualScoreEnabled}
-                  onCheckedChange={(checked) => setManualScoreEnabled(checked === true)}
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="mr-finals-manual-score">{tMr('manualTotalScore')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {tMr('manualTotalScoreDesc')}
-                  </p>
+      {isAdmin && (
+        <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+            <DialogHeader>
+              {/* i18n: Match result dialog title */}
+              <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
+              <DialogDescription>
+                {selectedMatch && (
+                  <>
+                    Match #{selectedMatch.matchNumber}: {selectedMatch.player1.nickname} vs{' '}
+                    {selectedMatch.player2.nickname}
+                    {selectedMatch.round && (
+                      <span className="block text-xs mt-1">
+                        {roundNames[selectedMatch.round] || selectedMatch.round}
+                      </span>
+                    )}
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {/* Final-result entry, checked by default (mirrors the
+              qualification page). Race-by-race entry is available by
+              unchecking the box when per-race detail is needed. */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="mr-finals-manual-score"
+                    checked={manualScoreEnabled}
+                    onCheckedChange={(checked) => setManualScoreEnabled(checked === true)}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="mr-finals-manual-score">{tMr('manualTotalScore')}</Label>
+                    <p className="text-sm text-muted-foreground">{tMr('manualTotalScoreDesc')}</p>
+                  </div>
                 </div>
+
+                {manualScoreEnabled && selectedMatch && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="mr-finals-manual-score1">{selectedMatch.player1.nickname}</Label>
+                      <Input
+                        id="mr-finals-manual-score1"
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        value={manualScore1}
+                        onChange={(e) => setManualScore1(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mr-finals-manual-score2">{selectedMatch.player2.nickname}</Label>
+                      <Input
+                        id="mr-finals-manual-score2"
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        value={manualScore2}
+                        onChange={(e) => setManualScore2(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {manualScoreEnabled && selectedMatch && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="mr-finals-manual-score1">{selectedMatch.player1.nickname}</Label>
-                    <Input
-                      id="mr-finals-manual-score1"
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
-                      value={manualScore1}
-                      onChange={(e) => setManualScore1(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="mr-finals-manual-score2">{selectedMatch.player2.nickname}</Label>
-                    <Input
-                      id="mr-finals-manual-score2"
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
-                      value={manualScore2}
-                      onChange={(e) => setManualScore2(e.target.value)}
-                    />
-                  </div>
-                </div>
+              {!manualScoreEnabled && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {/* i18n: Table headers for race entry */}
+                      <TableHead className="w-16">{tCommon('race')}</TableHead>
+                      <TableHead>{tCommon('course')}</TableHead>
+                      <TableHead className="text-center">{tCommon('winner')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rounds.map((round, index) => (
+                      <TableRow key={index}>
+                        {/* i18n: Race number label */}
+                        <TableCell className="font-medium">
+                          {tCommon('race')} {index + 1}
+                        </TableCell>
+                        <TableCell>
+                          {hasFixedAssignedCourses(selectedMatch) ? (
+                            <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                              {round.course
+                                ? `${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ''})`
+                                : '—'}
+                            </span>
+                          ) : (
+                            <Select
+                              value={round.course}
+                              onValueChange={(value) => {
+                                const newRounds = [...rounds];
+                                newRounds[index].course = value as CourseAbbr;
+                                setRounds(newRounds);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={tCommon('selectCourse')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COURSE_INFO.map((course) => (
+                                  <SelectItem key={course.abbr} value={course.abbr}>
+                                    {course.name} ({course.cup})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player1.nickname}>
+                              {selectedMatch?.player1.nickname}
+                            </span>
+                            <Button
+                              variant={round.winner === 1 ? 'default' : 'outline'}
+                              size="sm"
+                              className="w-10 px-0"
+                              onClick={() => {
+                                const newRounds = [...rounds];
+                                newRounds[index].winner = round.winner === 1 ? null : 1;
+                                setRounds(newRounds);
+                              }}
+                            >
+                              {round.winner === 1 ? '\u2713' : '-'}
+                            </Button>
+                            <Button
+                              variant={round.winner === 2 ? 'default' : 'outline'}
+                              size="sm"
+                              className="w-10 px-0"
+                              onClick={() => {
+                                const newRounds = [...rounds];
+                                newRounds[index].winner = round.winner === 2 ? null : 2;
+                                setRounds(newRounds);
+                              }}
+                            >
+                              {round.winner === 2 ? '\u2713' : '-'}
+                            </Button>
+                            <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player2.nickname}>
+                              {selectedMatch?.player2.nickname}
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </div>
-
-            {!manualScoreEnabled && <Table>
-              <TableHeader>
-                <TableRow>
-                  {/* i18n: Table headers for race entry */}
-                  <TableHead className="w-16">{tCommon('race')}</TableHead>
-                  <TableHead>{tCommon('course')}</TableHead>
-                  <TableHead className="text-center">{tCommon('winner')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rounds.map((round, index) => (
-                  <TableRow key={index}>
-                    {/* i18n: Race number label */}
-                    <TableCell className="font-medium">{tCommon('race')} {index + 1}</TableCell>
-                    <TableCell>
-                      {hasFixedAssignedCourses(selectedMatch) ? (
-                        <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                          {round.course
-                            ? `${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ""})`
-                            : "—"}
-                        </span>
-                      ) : (
-                        <Select
-                          value={round.course}
-                          onValueChange={(value) => {
-                            const newRounds = [...rounds];
-                            newRounds[index].course = value as CourseAbbr;
-                            setRounds(newRounds);
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={tCommon('selectCourse')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COURSE_INFO.map((course) => (
-                              <SelectItem key={course.abbr} value={course.abbr}>
-                                {course.name} ({course.cup})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player1.nickname}>
-                          {selectedMatch?.player1.nickname}
-                        </span>
-                        <Button
-                          variant={round.winner === 1 ? "default" : "outline"}
-                          size="sm"
-                          className="w-10 px-0"
-                          onClick={() => {
-                            const newRounds = [...rounds];
-                            newRounds[index].winner = round.winner === 1 ? null : 1;
-                            setRounds(newRounds);
-                          }}
-                        >
-                          {round.winner === 1 ? "\u2713" : "-"}
-                        </Button>
-                        <Button
-                          variant={round.winner === 2 ? "default" : "outline"}
-                          size="sm"
-                          className="w-10 px-0"
-                          onClick={() => {
-                            const newRounds = [...rounds];
-                            newRounds[index].winner = round.winner === 2 ? null : 2;
-                            setRounds(newRounds);
-                          }}
-                        >
-                          {round.winner === 2 ? "\u2713" : "-"}
-                        </Button>
-                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player2.nickname}>
-                          {selectedMatch?.player2.nickname}
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>}
-          </div>
-          {/* TV number assignment for broadcast: explicit save button (#651)
+            {/* TV number assignment for broadcast: explicit save button (#651)
               lets admins assign TV# before scores are entered. */}
-          <div className="flex items-center gap-3 px-1">
-            <Label htmlFor="mr-finals-tv" className="text-sm text-muted-foreground shrink-0">TV#</Label>
-            <select
-              id="mr-finals-tv"
-              className="w-20 h-8 text-center text-sm border rounded bg-background"
-              value={selectedTvNumber ?? ""}
-              onChange={(e) => setSelectedTvNumber(e.target.value ? parseInt(e.target.value) : null)}
-            >
-              <option value="">-</option>
-              {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            {selectedMatch && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={tvSaving}
-                onClick={async () => {
-                  setTvSaving(true);
-                  await handleBracketTvNumberChange(selectedMatch, selectedTvNumber);
-                  setTvSaving(false);
-                }}
+            <div className="flex items-center gap-3 px-1">
+              <Label htmlFor="mr-finals-tv" className="text-sm text-muted-foreground shrink-0">
+                TV#
+              </Label>
+              <select
+                id="mr-finals-tv"
+                className="w-20 h-8 text-center text-sm border rounded bg-background"
+                value={selectedTvNumber ?? ''}
+                onChange={(e) => setSelectedTvNumber(e.target.value ? parseInt(e.target.value) : null)}
               >
-                {tvSaving ? tCommon("saving") : tFinals("saveTvNumber")}
-              </Button>
-            )}
-          </div>
-          <DialogFooter className="flex-wrap gap-2">
-            {selectedMatch && (
+                <option value="">-</option>
+                {TV_NUMBER_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              {selectedMatch && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tvSaving}
+                  onClick={async () => {
+                    setTvSaving(true);
+                    await handleBracketTvNumberChange(selectedMatch, selectedTvNumber);
+                    setTvSaving(false);
+                  }}
+                >
+                  {tvSaving ? tCommon('saving') : tFinals('saveTvNumber')}
+                </Button>
+              )}
+            </div>
+            <DialogFooter className="flex-wrap gap-2">
+              {selectedMatch && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={broadcasting}
+                  onClick={async () => {
+                    setBroadcasting(true);
+                    try {
+                      const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, 'mr');
+                      const currentScore1 = manualScoreEnabled
+                        ? parseManualScore(manualScore1)
+                        : rounds.filter((round) => round.winner === 1).length;
+                      const currentScore2 = manualScoreEnabled
+                        ? parseManualScore(manualScore2)
+                        : rounds.filter((round) => round.winner === 2).length;
+                      if (currentScore1 === null || currentScore2 === null) {
+                        toast.error(tCommon('broadcastError'));
+                        return;
+                      }
+                      const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          player1Name: selectedMatch.player1.nickname,
+                          player2Name: selectedMatch.player2.nickname,
+                          player1NoCamera: selectedMatch.player1.noCamera === true,
+                          player2NoCamera: selectedMatch.player2.noCamera === true,
+                          matchLabel,
+                          player1Wins: currentScore1,
+                          player2Wins: currentScore2,
+                          matchFt: selectedMatchTargetWins,
+                        }),
+                      });
+                      if (res.ok) {
+                        toast.success(tCommon('broadcastReflected'));
+                      } else {
+                        toast.error(tCommon('broadcastError'));
+                      }
+                    } catch {
+                      toast.error(tCommon('broadcastError'));
+                    } finally {
+                      setBroadcasting(false);
+                    }
+                  }}
+                >
+                  {broadcasting ? tCommon('saving') : tCommon('broadcastReflect')}
+                </Button>
+              )}
+              {/* i18n: Save result button */}
               <Button
-                variant="outline"
-                size="sm"
-                disabled={broadcasting}
-                onClick={async () => {
-                  setBroadcasting(true);
-                  try {
-                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "mr");
-                    const currentScore1 = manualScoreEnabled
-                      ? parseManualScore(manualScore1)
-                      : rounds.filter((round) => round.winner === 1).length;
-                    const currentScore2 = manualScoreEnabled
-                      ? parseManualScore(manualScore2)
-                      : rounds.filter((round) => round.winner === 2).length;
-                    if (currentScore1 === null || currentScore2 === null) {
-                      toast.error(tCommon("broadcastError"));
-                      return;
-                    }
-                    const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        player1Name: selectedMatch.player1.nickname,
-                        player2Name: selectedMatch.player2.nickname,
-                        player1NoCamera: selectedMatch.player1.noCamera === true,
-                        player2NoCamera: selectedMatch.player2.noCamera === true,
-                        matchLabel,
-                        player1Wins: currentScore1,
-                        player2Wins: currentScore2,
-                        matchFt: selectedMatchTargetWins,
-                      }),
-                    });
-                    if (res.ok) {
-                      toast.success(tCommon("broadcastReflected"));
-                    } else {
-                      toast.error(tCommon("broadcastError"));
-                    }
-                  } catch {
-                    toast.error(tCommon("broadcastError"));
-                  } finally {
-                    setBroadcasting(false);
+                onClick={handleMatchSubmit}
+                disabled={(() => {
+                  if (manualScoreEnabled) {
+                    const s1 = parseManualScore(manualScore1);
+                    const s2 = parseManualScore(manualScore2);
+                    if (s1 === null || s2 === null) return true;
+                    const target = selectedMatchTargetWins;
+                    const validWinner = (s1 === target && s2 < target) || (s2 === target && s1 < target);
+                    return !validWinner;
                   }
-                }}
+                  return (
+                    (rounds.filter((r) => r.winner === 1).length !== selectedMatchTargetWins ||
+                      rounds.filter((r) => r.winner === 2).length >= selectedMatchTargetWins) &&
+                    (rounds.filter((r) => r.winner === 2).length !== selectedMatchTargetWins ||
+                      rounds.filter((r) => r.winner === 1).length >= selectedMatchTargetWins)
+                  );
+                })()}
               >
-                {broadcasting ? tCommon('saving') : tCommon('broadcastReflect')}
+                {tCommon('saveResult')}
               </Button>
-            )}
-            {/* i18n: Save result button */}
-            <Button
-              onClick={handleMatchSubmit}
-              disabled={(() => {
-                if (manualScoreEnabled) {
-                  const s1 = parseManualScore(manualScore1);
-                  const s2 = parseManualScore(manualScore2);
-                  if (s1 === null || s2 === null) return true;
-                  const target = selectedMatchTargetWins;
-                  const validWinner =
-                    (s1 === target && s2 < target) || (s2 === target && s1 < target);
-                  return !validWinner;
-                }
-                return (
-                  (
-                    rounds.filter(r => r.winner === 1).length !== selectedMatchTargetWins ||
-                    rounds.filter(r => r.winner === 2).length >= selectedMatchTargetWins
-                  ) &&
-                  (
-                    rounds.filter(r => r.winner === 2).length !== selectedMatchTargetWins ||
-                    rounds.filter(r => r.winner === 1).length >= selectedMatchTargetWins
-                  )
-                );
-              })()}
-            >
-              {tCommon('saveResult')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

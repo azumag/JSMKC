@@ -10,7 +10,9 @@
  * - Real-time polling for live tournament updates
  *
  * MR qualification uses a fixed 4-race format with pre-assigned courses.
- * All 4 races are recorded individually, and a 2-2 result is a valid draw.
+ * The admin dialog records only the final total score1/score2 (matching the
+ * participant page), not a per-race course/winner breakdown. A 2-2 result
+ * is a valid draw.
  *
  * @route /tournaments/[id]/mr
  */
@@ -21,6 +23,8 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { GroupSetupDialog } from '@/components/tournament/group-setup-dialog';
 import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
 import { QualificationPlayoffManager } from '@/components/tournament/qualification-playoff-manager';
@@ -50,9 +54,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, TV_NUMBER_OPTIONS, type CourseAbbr } from '@/lib/constants';
+import { POLLING_INTERVAL, TOTAL_MR_RACES, TV_NUMBER_OPTIONS } from '@/lib/constants';
 import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
@@ -61,6 +64,7 @@ import { useQualificationSetup } from '@/lib/hooks/useQualificationSetup';
 import { UpdateIndicator } from '@/components/ui/update-indicator';
 import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
 import { createLogger } from '@/lib/client-logger';
+import { parseManualScore } from '@/lib/parse-manual-score';
 import { canCreateFinalsFromQualification, canResetFinalsFromQualification } from '@/lib/finals-action-availability';
 import { getQualificationPoints } from '@/lib/points/qualification-points';
 import type { Player } from '@/lib/types';
@@ -113,12 +117,6 @@ interface MRMatch {
 
 const EMPTY_MR_QUALIFICATIONS: MRQualification[] = [];
 
-/** Individual race result in a match */
-interface Round {
-  course: CourseAbbr | '';
-  winner: number | null;
-}
-
 export default function MatchRacePageClient({
   tournamentId,
   initialData,
@@ -140,10 +138,9 @@ export default function MatchRacePageClient({
   /* State for match filters */
   const [matchGroupFilter, setMatchGroupFilter] = useState<string>('all');
   const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>('all');
-  /* Initialize 4 empty rounds for the match result dialog */
-  const [rounds, setRounds] = useState<Round[]>(
-    Array.from({ length: TOTAL_MR_RACES }, () => ({ course: '', winner: null })),
-  );
+  /* Match result dialog: final total score1/score2 only (mirrors the BM
+   * admin dialog), matching the participant page's total-score entry. */
+  const [scoreForm, setScoreForm] = useState<{ score1: number; score2: number }>({ score1: 0, score2: 0 });
   const [setupPlayers, setSetupPlayers] = useState<{ playerId: string; group: string; seeding?: number }[]>([]);
   const [generatingBracket, setGeneratingBracket] = useState(false);
   const [resettingBracket, setResettingBracket] = useState(false);
@@ -344,45 +341,27 @@ export default function MatchRacePageClient({
     setIsSetupDialogOpen(false);
   };
 
+  /** Open the match result dialog pre-populated with the existing final score. */
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
-    if (match.rounds && match.rounds.length === TOTAL_MR_RACES) {
-      setRounds(match.rounds as Round[]);
-    } else {
-      const assignedCourses = Array.isArray(match.assignedCourses) ? match.assignedCourses : [];
-      setRounds(
-        Array.from({ length: TOTAL_MR_RACES }, (_, index) => ({
-          course: (assignedCourses[index] as CourseAbbr | undefined) ?? '',
-          winner: null,
-        })),
-      );
-    }
+    setScoreForm({ score1: match.score1, score2: match.score2 });
     setIsMatchDialogOpen(true);
   };
 
   /**
-   * Submit match result after validating 4 configured races.
-   * Score is calculated from the number of race wins per player, and 2-2 draws are valid.
+   * Submit the match's final result.
+   * MR qualification requires the totals to sum to 4 races, or 0-0 to void
+   * a disputed/no-show match (mirrors BM's qualification score validation).
    */
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Validate that exactly 4 unique courses are configured */
-    const usedCourses = rounds.map((r) => r.course).filter((c) => c !== '');
-    if (usedCourses.length !== TOTAL_MR_RACES || new Set(usedCourses).size !== TOTAL_MR_RACES) {
-      alert(tc('select4UniqueCourses'));
+    const isNormalMatch = scoreForm.score1 + scoreForm.score2 === TOTAL_MR_RACES;
+    const isClearedMatch = scoreForm.score1 === 0 && scoreForm.score2 === 0;
+    if (!isNormalMatch && !isClearedMatch) {
+      alert(tc('totalRoundsMustBe4Or0'));
       return;
     }
-
-    /* Validate that each race has a recorded winner; a 2-2 draw is still a complete match */
-    if (rounds.some((r) => r.winner === null)) {
-      alert(tc('selectWinnerForAllRaces', { count: TOTAL_MR_RACES }));
-      return;
-    }
-
-    /* Count wins per player from individual race results */
-    const winnerCount = rounds.filter((r) => r.winner === 1).length;
-    const loserCount = rounds.filter((r) => r.winner === 2).length;
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr`, {
@@ -390,16 +369,15 @@ export default function MatchRacePageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           matchId: selectedMatch.id,
-          score1: winnerCount,
-          score2: loserCount,
-          rounds,
+          score1: scoreForm.score1,
+          score2: scoreForm.score2,
         }),
       });
 
       if (response.ok) {
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setRounds(Array.from({ length: TOTAL_MR_RACES }, () => ({ course: '', winner: null })));
+        setScoreForm({ score1: 0, score2: 0 });
         refetch();
       }
     } catch (err) {
@@ -417,13 +395,9 @@ export default function MatchRacePageClient({
       matchFt: null,
     });
 
-  const handleBroadcastCurrentRounds = async () => {
+  const handleBroadcastScoreForm = async () => {
     if (!selectedMatch) return;
-    await handleBroadcastMatch(
-      selectedMatch,
-      rounds.filter((round) => round.winner === 1).length,
-      rounds.filter((round) => round.winner === 2).length,
-    );
+    await handleBroadcastMatch(selectedMatch, scoreForm.score1, scoreForm.score2);
   };
 
   /* Extract unique groups for tab display */
@@ -978,18 +952,7 @@ export default function MatchRacePageClient({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {selectedMatch && (
-              <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                  <span className="font-medium">{tc('scorePreview')}</span>
-                  <span className="min-w-0 break-words font-mono text-base">
-                    {selectedMatch.player1.nickname} [{rounds.filter((round) => round.winner === 1).length}]{' - '}[
-                    {rounds.filter((round) => round.winner === 2).length}] {selectedMatch.player2.nickname}
-                  </span>
-                </div>
-                <p className="mt-1 text-muted-foreground">{tc('mrFourRaceDrawNote')}</p>
-              </div>
-            )}
+            <p className="text-sm text-muted-foreground text-center">{tc('mrFourRaceDrawNote')}</p>
             {/* §5.3 Character selection priority guidance */}
             {selectedMatch &&
               (() => {
@@ -1018,88 +981,71 @@ export default function MatchRacePageClient({
                   </p>
                 );
               })()}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">{tc('race')}</TableHead>
-                  <TableHead>{tc('course')}</TableHead>
-                  <TableHead className="text-center">{tc('winner')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rounds.map((round, index) => (
-                  <TableRow key={`round-${selectedMatch?.id}-${index}`}>
-                    <TableCell className="font-medium">
-                      {tc('race')} {index + 1}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={round.course}
-                        onValueChange={(value) => {
-                          const newRounds = [...rounds];
-                          newRounds[index].course = value as CourseAbbr;
-                          setRounds(newRounds);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={tc('selectCourse')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COURSE_INFO.map((course) => (
-                            <SelectItem key={course.abbr} value={course.abbr}>
-                              {course.name} ({course.cup})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player1.nickname}>
-                          {selectedMatch?.player1.nickname}
-                        </span>
-                        <Button
-                          variant={round.winner === 1 ? 'default' : 'outline'}
-                          size="sm"
-                          className="w-10 px-0"
-                          aria-label={`${selectedMatch?.player1.nickname} wins race ${index + 1}`}
-                          onClick={() => {
-                            const newRounds = [...rounds];
-                            newRounds[index].winner = round.winner === 1 ? null : 1;
-                            setRounds(newRounds);
-                          }}
-                        >
-                          {round.winner === 1 ? '\u2713' : '-'}
-                        </Button>
-                        <Button
-                          variant={round.winner === 2 ? 'default' : 'outline'}
-                          size="sm"
-                          className="w-10 px-0"
-                          aria-label={`${selectedMatch?.player2.nickname} wins race ${index + 1}`}
-                          onClick={() => {
-                            const newRounds = [...rounds];
-                            newRounds[index].winner = round.winner === 2 ? null : 2;
-                            setRounds(newRounds);
-                          }}
-                        >
-                          {round.winner === 2 ? '\u2713' : '-'}
-                        </Button>
-                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player2.nickname}>
-                          {selectedMatch?.player2.nickname}
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {/* Final result entry: total score1/score2 only (mirrors the BM admin dialog) */}
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <div className="text-center min-w-0 max-w-[140px]">
+                <Label htmlFor={`mr-score1-${selectedMatch?.id}`} className="block truncate w-full">
+                  {selectedMatch?.player1.nickname}
+                </Label>
+                <Input
+                  id={`mr-score1-${selectedMatch?.id}`}
+                  type="number"
+                  min={0}
+                  max={TOTAL_MR_RACES}
+                  value={scoreForm.score1}
+                  onChange={(e) =>
+                    setScoreForm({
+                      ...scoreForm,
+                      score1: parseManualScore(e.target.value) ?? 0,
+                    })
+                  }
+                  className="w-20 text-center text-2xl"
+                  aria-label={`${selectedMatch?.player1.nickname} score`}
+                />
+              </div>
+              <span className="text-2xl" aria-hidden="true">
+                -
+              </span>
+              <div className="text-center min-w-0 max-w-[140px]">
+                <Label htmlFor={`mr-score2-${selectedMatch?.id}`} className="block truncate w-full">
+                  {selectedMatch?.player2.nickname}
+                </Label>
+                <Input
+                  id={`mr-score2-${selectedMatch?.id}`}
+                  type="number"
+                  min={0}
+                  max={TOTAL_MR_RACES}
+                  value={scoreForm.score2}
+                  onChange={(e) =>
+                    setScoreForm({
+                      ...scoreForm,
+                      score2: parseManualScore(e.target.value) ?? 0,
+                    })
+                  }
+                  className="w-20 text-center text-2xl"
+                  aria-label={`${selectedMatch?.player2.nickname} score`}
+                />
+              </div>
+            </div>
+            {/* Validation warning when total races !== 4.
+               Always rendered to reserve vertical space and prevent layout shift. */}
+            <p
+              className={`text-sm text-center ${scoreForm.score1 + scoreForm.score2 !== TOTAL_MR_RACES && !(scoreForm.score1 === 0 && scoreForm.score2 === 0) ? 'text-yellow-600' : 'invisible'}`}
+            >
+              {tc('totalRoundsMustBe4Or0')}
+            </p>
           </div>
           <DialogFooter>
-            <div className="flex w-full justify-end gap-2">
-              <Button variant="outline" onClick={handleBroadcastCurrentRounds}>
-                {tc('broadcastReflect')}
+            <div className="flex w-full justify-between">
+              <Button variant="outline" onClick={() => setScoreForm({ score1: 0, score2: 0 })}>
+                {tc('clearScores')}
               </Button>
-              <Button onClick={handleMatchSubmit}>{tc('saveResult')}</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleBroadcastScoreForm}>
+                  {tc('broadcastReflect')}
+                </Button>
+                <Button onClick={handleMatchSubmit}>{tc('saveResult')}</Button>
+              </div>
             </div>
           </DialogFooter>
         </DialogContent>
