@@ -469,6 +469,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockUpdatedMatch);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
+      (prisma.mRMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 5, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
@@ -506,6 +507,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       (prisma.mRMatch.findFirst as jest.Mock)
         .mockResolvedValueOnce({ id: 'm9' })
         .mockResolvedValueOnce({ id: 'm16' });
+      (prisma.mRMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest(
         'http://localhost:3000/api/tournaments/t1/mr/finals',
@@ -515,10 +517,14 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(prisma.mRMatch.update).toHaveBeenCalledWith(
+      /* Slot writes go through applySlotWrite (issue #3017), which always
+       * uses updateMany. The found-via-findFirst path targets the row by
+       * id (plus a completed:false guard); it must not fall back to the
+       * tournamentId+matchNumber shape used when the row doesn't exist yet. */
+      expect(prisma.mRMatch.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'm16' },
-          data: { player2Id: 'p9' },
+          where: { id: 'm16', completed: false },
+          data: expect.objectContaining({ player2Id: 'p9' }),
         }),
       );
       expect(prisma.mRMatch.updateMany).not.toHaveBeenCalledWith(
@@ -723,13 +729,22 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       (prisma.mRMatch.findFirst as jest.Mock)
         .mockResolvedValueOnce({ id: 'm5' })
         .mockResolvedValueOnce({ id: 'm9' });
+      (prisma.mRMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 5, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(prisma.mRMatch.update).toHaveBeenCalledTimes(3);
+      /* Only the score write itself uses update(); both winner and loser
+       * slot routing now go through applySlotWrite's updateMany (issue #3017). */
+      expect(prisma.mRMatch.update).toHaveBeenCalledTimes(1);
+      expect(prisma.mRMatch.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'm5', completed: false } }),
+      );
+      expect(prisma.mRMatch.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'm9', completed: false } }),
+      );
       expect(prisma.mRMatch.updateMany).not.toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ tournamentId: 't1', matchNumber: 5, stage: 'finals' }),

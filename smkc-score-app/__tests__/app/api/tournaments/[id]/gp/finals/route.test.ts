@@ -752,6 +752,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
       (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
+      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 2, score2: 0 });
       const params = Promise.resolve({ id: 't1' });
@@ -776,10 +777,12 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         champion: null,
       });
       expect(result.status).toBe(200);
-      expect(prisma.gPMatch.update).toHaveBeenCalledWith(
+      /* Winner routing to the next slot goes through applySlotWrite's
+       * updateMany, not update() (issue #3017). */
+      expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'm5' },
-          data: { player1Id: 'p1' },
+          where: { id: 'm5', completed: false },
+          data: expect.objectContaining({ player1Id: 'p1' }),
         })
       );
     });
@@ -927,6 +930,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         { matchNumber: 1, round: 'winners_qf', winnerGoesTo: 5, loserGoesTo: 9, position: 1 },
       ]);
       (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
+      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest(
         'http://localhost:3000/api/tournaments/t1/gp/finals',
@@ -945,10 +949,10 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(scoreUpdate.data.points1).toBe(2);
       expect(scoreUpdate.data.points2).toBe(0);
       expect(scoreUpdate.data.completed).toBe(true);
-      expect(prisma.gPMatch.update).toHaveBeenCalledWith(
+      expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'm5' },
-          data: { player1Id: 'p1' },
+          where: { id: 'm5', completed: false },
+          data: expect.objectContaining({ player1Id: 'p1' }),
         })
       );
       expect(result.data.winnerId).toBe('p1');
@@ -1154,16 +1158,17 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
       (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue(resetMatch);
+      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 2, score2: 3 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(prisma.gPMatch.update).toHaveBeenCalledWith(
+      expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'm2' },
-          data: { player1Id: 'p2', player2Id: 'p1' },
+          where: { id: 'm2', completed: false },
+          data: expect.objectContaining({ player1Id: 'p2', player2Id: 'p1' }),
         })
       );
     });
@@ -1552,16 +1557,17 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
       (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm7' });
+      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 2, score2: 0 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(prisma.gPMatch.update).toHaveBeenCalledWith(
+      expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'm7' },
-          data: { player1Id: 'p2' },
+          where: { id: 'm7', completed: false },
+          data: expect.objectContaining({ player1Id: 'p2' }),
         })
       );
     });

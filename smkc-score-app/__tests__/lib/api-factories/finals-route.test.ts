@@ -33,6 +33,7 @@
 
 import { buildQualificationRankLabelMap, createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
+import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
@@ -42,6 +43,7 @@ jest.mock('@/lib/double-elimination');
 jest.mock('@/lib/pagination');
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
+jest.mock('@/lib/audit-log');
 
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
@@ -166,6 +168,7 @@ describe('Finals Route Factory', () => {
     };
 
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
+    (createAuditLog as jest.Mock).mockResolvedValue(undefined);
     mockSanitizeInput.mockImplementation((input) => input);
 
     /* The GET and POST handlers now short-circuit with 404 when the
@@ -3107,6 +3110,7 @@ describe('Finals Route Factory', () => {
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
       (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
       (prisma.bMMatch as any).findFirst.mockResolvedValue(nextMatch);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
@@ -3122,10 +3126,148 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).findFirst).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals', matchNumber: 5 },
       });
-      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
-        where: { id: nextMatch.id },
-        data: { player1Id: 'player-1' },
+      /* Slot writes go through applySlotWrite (issue #3017): a single
+       * updateMany that guards against overwriting a completed row, always
+       * increments version, and clears any manual slot override since this
+       * is authoritative automatic advancement, not a manual adjustment. */
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith({
+        where: { id: nextMatch.id, completed: false },
+        data: { player1Id: 'player-1', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
+    });
+
+    it('clears a manual slot override and logs an audit entry when automatic advancement overwrites it', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({
+        matchNumber: 1, // winners_qf
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      const overriddenAt = new Date('2026-07-20T00:00:00.000Z');
+      const nextMatch = createMockMatch({
+        matchNumber: 5, // winners_sf
+        slotOverrideBy: 'admin-1',
+        slotOverrideAt: overriddenAt,
+      });
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(nextMatch);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      await PUT(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      /* The write itself still nulls the override fields unconditionally
+       * (asserted by the preceding test) — this test covers the additional
+       * audit trail fired specifically because the slot being overwritten
+       * had a manual adjustment on it. */
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AUDIT_ACTIONS.AUTO_ADVANCE_OVERRODE_MANUAL_SLOT,
+          targetId: nextMatch.id,
+          details: expect.objectContaining({
+            overriddenManualBy: 'admin-1',
+            overriddenManualAt: overriddenAt,
+          }),
+        }),
+      );
+    });
+
+    it('does not log an audit entry when the overwritten slot had no manual override', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({ matchNumber: 1, player1Id: 'player-1', player2Id: 'player-2' });
+      const nextMatch = createMockMatch({ matchNumber: 5, slotOverrideBy: null, slotOverrideAt: null });
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(nextMatch);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      await PUT(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(createAuditLog).not.toHaveBeenCalled();
+    });
+
+    it('surfaces advancementWarnings and warn-logs instead of clobbering an already-completed downstream match', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({
+        matchNumber: 1, // winners_qf
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      const nextMatch = createMockMatch({ matchNumber: 5, completed: true }); // winners_sf, already scored
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      /* Winner lookup finds the already-completed downstream match (triggers
+       * the warning under test); loser lookup finds nothing so it takes the
+       * separate updateRoutedMatch fallback path, which never warns — keeps
+       * this test isolated to the winner-advance skip. */
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(nextMatch).mockResolvedValueOnce(null);
+      /* applySlotWrite's `completed: false` guard excludes this row, so the
+       * conditional updateMany matches 0 rows even though the target exists. */
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 0 });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+      const json = await response.json();
+
+      expect(json.data.advancementWarnings).toEqual([
+        { matchNumber: 5, slot: 1, playerId: 'player-1', reason: 'DOWNSTREAM_MATCH_COMPLETED' },
+      ]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Skipped bracket advancement: downstream match already completed',
+        expect.objectContaining({ targetMatchNumber: 5, slot: 1 }),
+      );
+      /* Nothing was actually overwritten, so the manual-override-clobbered
+       * audit trail must not fire even though `nextMatch` came back with no
+       * override set — there's no "before" state to compare against. */
+      expect(createAuditLog).not.toHaveBeenCalled();
+    });
+
+    it('omits advancementWarnings entirely when every downstream write lands normally', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({ matchNumber: 1, player1Id: 'player-1', player2Id: 'player-2' });
+      const nextMatch = createMockMatch({ matchNumber: 5 });
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(nextMatch);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+      const json = await response.json();
+
+      expect(json.data.advancementWarnings).toBeUndefined();
     });
 
     it('should advance loser to next match when loserGoesTo is set', async () => {
@@ -3140,6 +3282,7 @@ describe('Finals Route Factory', () => {
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
       (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
       (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(nextLoserMatch);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
@@ -3155,10 +3298,48 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).findFirst).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals', matchNumber: 9 },
       });
-      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
-        where: { id: nextLoserMatch.id },
-        data: { player1Id: 'player-2' },
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith({
+        where: { id: nextLoserMatch.id, completed: false },
+        data: { player1Id: 'player-2', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
+    });
+
+    it('surfaces advancementWarnings when the downstream loser-bracket match is already completed', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({
+        matchNumber: 1, // winners_qf
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      const nextLoserMatch = createMockMatch({ matchNumber: 9, completed: true }); // losers_r1, already scored
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      /* Winner lookup finds nothing (fallback path, no warning); loser lookup
+       * finds the already-completed downstream match under test. */
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(nextLoserMatch);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 0 });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+      const json = await response.json();
+
+      expect(json.data.advancementWarnings).toEqual([
+        { matchNumber: 9, slot: 1, playerId: 'player-2', reason: 'DOWNSTREAM_MATCH_COMPLETED' },
+      ]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Skipped bracket advancement: downstream match already completed',
+        expect.objectContaining({ targetMatchNumber: 9, slot: 1 }),
+      );
+      expect(createAuditLog).not.toHaveBeenCalled();
     });
 
     it('should infer 16-player bracket from totalFinalsMatches count in PUT', async () => {
@@ -3213,6 +3394,7 @@ describe('Finals Route Factory', () => {
         if (args?.where?.matchNumber === 23) return Promise.resolve(nextLoserMatch);
         return Promise.resolve(null);
       });
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
@@ -3226,9 +3408,9 @@ describe('Finals Route Factory', () => {
       });
 
       // In 16-player QF, loserPosition=1 → player1Id set
-      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
-        where: { id: nextLoserMatch.id },
-        data: { player1Id: 'player-2' },
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith({
+        where: { id: nextLoserMatch.id, completed: false },
+        data: { player1Id: 'player-2', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
     });
 
@@ -3258,6 +3440,7 @@ describe('Finals Route Factory', () => {
         if (args?.where?.matchNumber === 23) return Promise.resolve(nextLoserMatch);
         return Promise.resolve(null);
       });
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
@@ -3270,9 +3453,9 @@ describe('Finals Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
-        where: { id: nextLoserMatch.id },
-        data: { player2Id: 'player-2' },
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith({
+        where: { id: nextLoserMatch.id, completed: false },
+        data: { player2Id: 'player-2', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
     });
 
@@ -3293,6 +3476,7 @@ describe('Finals Route Factory', () => {
         if (args?.where?.matchNumber === 20) return Promise.resolve(nextWinnerMatch);
         return Promise.resolve(null);
       });
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
@@ -3305,9 +3489,9 @@ describe('Finals Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
-        where: { id: nextWinnerMatch.id },
-        data: { player2Id: 'player-1' },
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith({
+        where: { id: nextWinnerMatch.id, completed: false },
+        data: { player2Id: 'player-1', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
     });
 
@@ -3322,6 +3506,7 @@ describe('Finals Route Factory', () => {
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
       (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 1 });
 
       // Mock findFirst to return different values based on query parameters
       (prisma.bMMatch as any).findFirst.mockImplementation((args) => {
@@ -3347,10 +3532,54 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).findFirst).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals', round: 'grand_final_reset' },
       });
-      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
-        where: { id: resetMatch.id },
-        data: { player1Id: 'player-2', player2Id: 'player-1' },
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith({
+        where: { id: resetMatch.id, completed: false },
+        data: {
+          player1Id: 'player-2',
+          player2Id: 'player-1',
+          version: { increment: 1 },
+          slotOverrideBy: null,
+          slotOverrideAt: null,
+        },
       });
+    });
+
+    it('surfaces advancementWarnings for both reset-match slots when the GF-reset prefill is already completed', async () => {
+      const requestBody = createMockRequestBody({ score1: 0, score2: 3 }); // player2 wins
+      const mockMatch = createMockMatch({
+        matchNumber: 16, // grand_final
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      const resetMatch = createMockMatch({ matchNumber: 18, round: 'grand_final_reset', completed: true });
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 0 });
+      (prisma.bMMatch as any).findFirst.mockImplementation((args) => {
+        if (args.where?.round === 'grand_final_reset') {
+          return Promise.resolve(resetMatch);
+        }
+        return Promise.resolve(null);
+      });
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+      const json = await response.json();
+
+      expect(json.data.advancementWarnings).toEqual([
+        { matchNumber: 18, slot: 1, playerId: 'player-2', reason: 'DOWNSTREAM_MATCH_COMPLETED' },
+        { matchNumber: 18, slot: 2, playerId: 'player-1', reason: 'DOWNSTREAM_MATCH_COMPLETED' },
+      ]);
+      expect(createAuditLog).not.toHaveBeenCalled();
     });
 
     it('should set tournament complete when player1 wins grand final', async () => {
@@ -3724,8 +3953,9 @@ describe('Finals Route Factory', () => {
           tournamentId: 'tournament-123',
           stage: 'playoff',
           matchNumber: 5,
+          completed: false,
         },
-        data: { player2Id: 'player-8' },
+        data: { player2Id: 'player-8', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
     });
   });

@@ -551,14 +551,15 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.bMMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, completed: true });
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(mockNextMatch);
+      (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm1', score1: 5, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const _result = await PUT(request, { params });
 
-      expect(prisma.bMMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm2' },
-        data: { player1Id: 'p1' },
+      expect(prisma.bMMatch.updateMany).toHaveBeenCalledWith({
+        where: { id: 'm2', completed: false },
+        data: { player1Id: 'p1', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
     });
 
@@ -584,14 +585,15 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       (prisma.bMMatch.findFirst as jest.Mock)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(mockLoserMatch);
+      (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm1', score1: 5, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const _result = await PUT(request, { params });
 
-      expect(prisma.bMMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm10' },
-        data: { player1Id: 'p2' },
+      expect(prisma.bMMatch.updateMany).toHaveBeenCalledWith({
+        where: { id: 'm10', completed: false },
+        data: { player1Id: 'p2', version: { increment: 1 }, slotOverrideBy: null, slotOverrideAt: null },
       });
     });
 
@@ -618,15 +620,22 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
          so findFirst is called exactly once: for the grand_final_reset match */
       (prisma.bMMatch.findFirst as jest.Mock)
         .mockResolvedValueOnce(mockResetMatch); // grand_final_reset round lookup
+      (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm16', score1: 1, score2: 7 });
       const params = Promise.resolve({ id: 't1' });
       const _result = await PUT(request, { params });
 
       /* Verify the reset match is updated with both players */
-      expect(prisma.bMMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm17' },
-        data: { player1Id: 'p2', player2Id: 'p1' },
+      expect(prisma.bMMatch.updateMany).toHaveBeenCalledWith({
+        where: { id: 'm17', completed: false },
+        data: {
+          player1Id: 'p2',
+          player2Id: 'p1',
+          version: { increment: 1 },
+          slotOverrideBy: null,
+          slotOverrideAt: null,
+        },
       });
     });
 

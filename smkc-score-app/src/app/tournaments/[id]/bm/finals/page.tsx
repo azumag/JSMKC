@@ -61,6 +61,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { BracketSlotEditDialog } from "@/components/tournament/bracket-slot-edit-dialog";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { PlayoffCompleteCard } from "@/components/tournament/playoff-complete-card";
 import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
@@ -97,6 +98,9 @@ interface BMMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  isBye?: boolean;
+  version: number;
+  slotOverrideAt?: string | null;
   player1: Player;
   player2: Player;
 }
@@ -200,6 +204,13 @@ export default function BattleModeFinals({
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0, tvNumber: null as number | null, startingCourseNumber: null as number | null });
+
+  /* Manual bracket slot placement adjustment (issue #3017): admins toggle
+   * "adjustment mode" to expose per-slot edit affordances on the bracket
+   * cards; clicking one opens BracketSlotEditDialog. */
+  const [slotEditMode, setSlotEditMode] = useState(false);
+  const [slotEditTarget, setSlotEditTarget] = useState<{ match: BMMatch; slot: 1 | 2 } | null>(null);
+  const handleSlotClick = (match: BMMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
   const selectedMatchTargetWins = selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins();
 
   /* Tournament completion state */
@@ -673,6 +684,19 @@ export default function BattleModeFinals({
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {/* Manual slot placement adjustment mode toggle: admin-only, only
+           * meaningful once a bracket exists. */}
+          {isAdmin && matches.length > 0 && (
+            <Button
+              variant={slotEditMode ? "default" : "outline"}
+              className={slotEditMode ? "bg-amber-500 hover:bg-amber-600 text-amber-950" : ""}
+              onClick={() => setSlotEditMode((v) => !v)}
+              aria-pressed={slotEditMode}
+              data-testid="slot-edit-mode-toggle"
+            >
+              {slotEditMode ? tFinals('slotEditModeActive') : tFinals('slotEditModeToggle')}
+            </Button>
+          )}
           {/* Back navigation to qualification page */}
           <Button variant="outline" asChild>
             <a href={`/tournaments/${tournamentId}/bm`}>
@@ -767,6 +791,8 @@ export default function BattleModeFinals({
               getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+              slotEditMode={isAdmin ? slotEditMode : undefined}
+              onSlotClick={isAdmin ? handleSlotClick : undefined}
             />
           </TabsContent>
           <TabsContent value="playoff">
@@ -819,6 +845,8 @@ export default function BattleModeFinals({
           getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
           onMatchClick={isAdmin ? openScoreDialog : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+          slotEditMode={isAdmin ? slotEditMode : undefined}
+          onSlotClick={isAdmin ? handleSlotClick : undefined}
         />
       )}
 
@@ -1026,6 +1054,23 @@ export default function BattleModeFinals({
           </DialogFooter>
         </DialogContent>
       </Dialog>}
+
+      {/* Manual slot placement adjustment dialog: admin-only (issue #3017) */}
+      {isAdmin && (
+        <BracketSlotEditDialog
+          open={slotEditTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setSlotEditTarget(null);
+          }}
+          finalsApiPath={`/api/tournaments/${tournamentId}/bm/finals`}
+          qualificationApiPath={`/api/tournaments/${tournamentId}/bm`}
+          match={slotEditTarget?.match ?? null}
+          slot={slotEditTarget?.slot ?? null}
+          matches={matches}
+          bracketStructure={bracketStructure}
+          onSaved={refetch}
+        />
+      )}
     </div>
     </>
   );

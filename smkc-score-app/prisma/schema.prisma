@@ -255,6 +255,10 @@ model BMMatch {
   player2ReportedScore1 Int? // Player 2's report: score for player 1
   player2ReportedScore2 Int? // Player 2's report: score for player 2
 
+  // Manual slot placement adjustment (CDM emergency correction, issue #3017)
+  slotOverrideBy String? // スロットを手動調整した管理者ユーザーID(監査用)
+  slotOverrideAt DateTime? // 手動調整日時(監査用・UIバッジ判定。自動進出による上書き時はNULLクリア)
+
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int       @default(0) // 楽観的ロック用
   createdAt DateTime  @default(now())
@@ -334,6 +338,10 @@ model MRMatch {
   player2ReportedPoints2 Int? // Player 2's report: points for player 2
   player2ReportedRaces   Json? // Player 2's report: races details
 
+  // Manual slot placement adjustment (CDM emergency correction, issue #3017)
+  slotOverrideBy String? // スロットを手動調整した管理者ユーザーID(監査用)
+  slotOverrideAt DateTime? // 手動調整日時(監査用・UIバッジ判定。自動進出による上書き時はNULLクリア)
+
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int       @default(0) // 楽観的ロック用
   createdAt DateTime  @default(now())
@@ -406,6 +414,10 @@ model GPMatch {
   player2ReportedPoints1 Int? // Player 2's report: points for player 1
   player2ReportedPoints2 Int? // Player 2's report: points for player 2
   player2ReportedRaces   Json? // Player 2's report: races details
+
+  // Manual slot placement adjustment (CDM emergency correction, issue #3017)
+  slotOverrideBy String? // スロットを手動調整した管理者ユーザーID(監査用)
+  slotOverrideAt DateTime? // 手動調整日時(監査用・UIバッジ判定。自動進出による上書き時はNULLクリア)
 
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int       @default(0) // 楽観的ロック用

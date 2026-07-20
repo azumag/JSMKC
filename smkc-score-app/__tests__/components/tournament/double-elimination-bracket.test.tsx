@@ -292,6 +292,132 @@ describe('DoubleEliminationBracket winner resolver', () => {
   });
 });
 
+describe('DoubleEliminationBracket manual slot placement adjustment (issue #3017)', () => {
+  const player1 = { id: 'p1', name: 'Alice A', nickname: 'Alice' };
+  const player2 = { id: 'p2', name: 'Bob B', nickname: 'Bob' };
+
+  const buildMatch = (overrides = {}) => ({
+    id: 'm1',
+    matchNumber: 1,
+    round: 'winners_qf',
+    stage: 'finals',
+    player1Id: player1.id,
+    player2Id: player2.id,
+    score1: 0,
+    score2: 0,
+    completed: false,
+    player1,
+    player2,
+    ...overrides,
+  });
+
+  it('shows an edit button on each confirmed slot when slotEditMode is on', () => {
+    render(
+      <DoubleEliminationBracket
+        matches={[buildMatch()]}
+        bracketStructure={[build8PlayerStructure()[0]]}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('slot-edit-button-1')).toBeInTheDocument();
+    expect(screen.getByTestId('slot-edit-button-2')).toBeInTheDocument();
+  });
+
+  it('hides edit buttons when slotEditMode is off', () => {
+    render(
+      <DoubleEliminationBracket
+        matches={[buildMatch()]}
+        bracketStructure={[build8PlayerStructure()[0]]}
+        roundNames={{}}
+      />,
+    );
+
+    expect(screen.queryByTestId('slot-edit-button-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+  });
+
+  it('hides edit buttons on a completed match even in slotEditMode', () => {
+    render(
+      <DoubleEliminationBracket
+        matches={[buildMatch({ completed: true, score1: 3, score2: 1 })]}
+        bracketStructure={[build8PlayerStructure()[0]]}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId('slot-edit-button-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+  });
+
+  it('hides the edit button for a slot that is still TBD', () => {
+    /* Match 5 (winners_sf) is fed by winners_qf matches 1 and 2 via
+     * winnerGoesTo; neither source match is present (i.e. not completed),
+     * so both of match 5's slots are TBD and must not be editable. */
+    const bracketStructure = [
+      { matchNumber: 1, round: 'winners_qf', bracket: 'winners' as const, winnerGoesTo: 5, position: 1 as const },
+      { matchNumber: 2, round: 'winners_qf', bracket: 'winners' as const, winnerGoesTo: 5, position: 2 as const },
+      { matchNumber: 5, round: 'winners_sf', bracket: 'winners' as const },
+    ];
+    render(
+      <DoubleEliminationBracket
+        matches={[buildMatch({ id: 'm5', matchNumber: 5, round: 'winners_sf' })]}
+        bracketStructure={bracketStructure}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId('slot-edit-button-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+  });
+
+  it('calls onSlotClick with the match and slot, without triggering onMatchClick', () => {
+    const onSlotClick = jest.fn();
+    const onMatchClick = jest.fn();
+    render(
+      <DoubleEliminationBracket
+        matches={[buildMatch()]}
+        bracketStructure={[build8PlayerStructure()[0]]}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={onSlotClick}
+        onMatchClick={onMatchClick}
+      />,
+    );
+
+    screen.getByTestId('slot-edit-button-2').click();
+
+    expect(onSlotClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }), 2);
+    expect(onMatchClick).not.toHaveBeenCalled();
+  });
+
+  it('shows the manual-adjustment badge only when slotOverrideAt is set', () => {
+    const { rerender } = render(
+      <DoubleEliminationBracket
+        matches={[buildMatch({ slotOverrideAt: '2026-07-20T00:00:00.000Z' })]}
+        bracketStructure={[build8PlayerStructure()[0]]}
+        roundNames={{}}
+      />,
+    );
+    expect(screen.getByTestId('slot-override-badge')).toBeInTheDocument();
+
+    rerender(
+      <DoubleEliminationBracket
+        matches={[buildMatch({ slotOverrideAt: null })]}
+        bracketStructure={[build8PlayerStructure()[0]]}
+        roundNames={{}}
+      />,
+    );
+    expect(screen.queryByTestId('slot-override-badge')).not.toBeInTheDocument();
+  });
+});
+
 describe('DoubleEliminationBracket startingCourseNumber display (issue #731)', () => {
   /* Verify that when matches carry a startingCourseNumber, the round header
    * shows the battle course label below the round name. */

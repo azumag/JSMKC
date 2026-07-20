@@ -336,6 +336,10 @@ export const AUDIT_ACTIONS = {
   // Bracket management actions
   /** A finals bracket was generated (double elimination) */
   CREATE_BRACKET: 'CREATE_BRACKET',
+  /** An admin manually reassigned a finals/playoff bracket slot (issue #3017) */
+  OVERRIDE_FINALS_SLOT: 'OVERRIDE_FINALS_SLOT',
+  /** Automatic bracket advancement overwrote a slot that had a manual override */
+  AUTO_ADVANCE_OVERRODE_MANUAL_SLOT: 'AUTO_ADVANCE_OVERRODE_MANUAL_SLOT',
 
   // Debug-mode actions (only available on tournaments with debugMode === true)
   /** Admin auto-filled qualification scores for a debug tournament */
