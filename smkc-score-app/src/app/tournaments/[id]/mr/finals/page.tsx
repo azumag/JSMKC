@@ -233,9 +233,12 @@ export default function MatchRaceFinals({
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
   const [rounds, setRounds] = useState<Round[]>(createEmptyRounds(getMrFinalsMaxRounds()));
-  /* Admin override: skip round entry and write raw best-of-N totals.
-   * Mirrors the qualification page's manual-total form. */
-  const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
+  /* Default to the final-result-only entry (raw best-of-N totals), matching
+   * the qualification page and the MR participant page. Per-race course/
+   * winner entry remains available by unchecking the box, since finals
+   * still needs it for course-consistency validation (TC-617) and the
+   * bracket's fixed assigned courses display. */
+  const [manualScoreEnabled, setManualScoreEnabled] = useState(true);
   const [manualScore1, setManualScore1] = useState<string>("");
   const [manualScore2, setManualScore2] = useState<string>("");
   const [selectedTvNumber, setSelectedTvNumber] = useState<number | null>(null);
@@ -450,9 +453,10 @@ export default function MatchRaceFinals({
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
     setRounds(buildInitialRounds(match));
-    /* Reset manual override; pre-fill inputs with the stored totals so
-     * toggling on doesn't clobber them. */
-    setManualScoreEnabled(false);
+    /* Default to the final-result entry; pre-fill inputs with the stored
+     * totals so switching to per-race entry (unchecking) doesn't clobber
+     * anything already recorded. */
+    setManualScoreEnabled(true);
     setManualScore1(String(match.score1 ?? 0));
     setManualScore2(String(match.score2 ?? 0));
     setSelectedTvNumber(match.tvNumber ?? null);
@@ -537,7 +541,7 @@ export default function MatchRaceFinals({
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
         setRounds(createEmptyRounds(getMrFinalsMaxRounds()));
-        setManualScoreEnabled(false);
+        setManualScoreEnabled(true);
         setManualScore1("");
         setManualScore2("");
         if (data.playoffComplete !== undefined) {
@@ -808,9 +812,9 @@ export default function MatchRaceFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Manual total-score override (mirrors the qualification page).
-              When enabled, race-by-race entry is hidden and the raw
-              best-of-N totals are written directly. */}
+            {/* Final-result entry, checked by default (mirrors the
+              qualification page). Race-by-race entry is available by
+              unchecking the box when per-race detail is needed. */}
             <div className="space-y-3 rounded-lg border p-4">
               <div className="flex items-start gap-3">
                 <Checkbox

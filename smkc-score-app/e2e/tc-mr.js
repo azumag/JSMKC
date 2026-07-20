@@ -34,6 +34,7 @@
  *  TC-622  MR qualification standings show 0-1000 qualification points
  *  TC-623  MR combined standings tab shows rows with ascending ranks
  *  TC-3027 MR admin qualification final-result entry (UI, no per-race picker)
+ *  TC-3028 MR finals admin dialog defaults to final-result entry (UI)
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -571,9 +572,15 @@ async function runTc604(adminPage) {
     await clickWithDiagnostics(matchOneCard, 'TC-604 open Match 1 score dialog', { timeout: 40000 });
     await adminPage.waitForTimeout(500);
 
-    // MR finals dialog: max race rows are pre-rendered with course select + P1/P2 winner buttons.
-    // Fill all course rows so submission validation passes, then give P1 exactly targetWins wins.
+    // MR finals dialog now defaults to the final-result-only entry (manual-score
+    // checkbox checked); uncheck it to exercise the per-race course select +
+    // P1/P2 winner buttons this test is specifically covering.
     const dialog = adminPage.getByRole('dialog');
+    await dialog.locator('#mr-finals-manual-score').uncheck();
+    await adminPage.waitForTimeout(200);
+
+    // Max race rows are pre-rendered with course select + P1/P2 winner buttons.
+    // Fill all course rows so submission validation passes, then give P1 exactly targetWins wins.
     const raceRows = dialog.locator('table tbody tr');
     const rowCount = await raceRows.count();
 
@@ -642,6 +649,88 @@ async function runTc604(adminPage) {
       : '');
   } catch (err) {
     log('TC-604', 'FAIL', err instanceof Error ? err.message : 'MR finals flow failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/**
+ * TC-3028: MR finals admin dialog defaults to final-result entry (UI)
+ *
+ * The finals match dialog's "manual total score" checkbox now defaults to
+ * checked, matching the qualification and participant pages: admins see two
+ * plain score inputs first, with the per-race course/winner table (still
+ * needed for course-consistency validation, see TC-617) available only by
+ * unchecking the box. Verifies the checkbox opens checked, the per-race
+ * table is hidden by default, and a final score entered without ever
+ * touching per-race UI persists correctly.
+ */
+async function runTc3028(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const match1 = matches.find((m) => m.matchNumber === 1);
+    if (!match1) throw new Error('Generated bracket missing match 1');
+    const targetWins = mrFinalsTargetWinsForMatch(match1);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
+    await adminPage.waitForFunction(() => !!document.querySelector('[aria-label^="Match 1:"]'), null, { timeout: 20000 });
+
+    const matchOneCard = adminPage.locator('[aria-label^="Match 1:"]').first();
+    await matchOneCard.scrollIntoViewIfNeeded();
+    await clickWithDiagnostics(matchOneCard, 'TC-3028 open Match 1 score dialog', { timeout: 40000 });
+
+    const dialog = adminPage.getByRole('dialog');
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    const checkboxChecked = await dialog.locator('#mr-finals-manual-score').isChecked();
+    const raceTableHidden = (await dialog.locator('table tbody tr').count()) === 0;
+    const manualInputsVisible =
+      (await dialog.locator('#mr-finals-manual-score1').count()) === 1 &&
+      (await dialog.locator('#mr-finals-manual-score2').count()) === 1;
+
+    /* Bail out before touching the inputs if the default regressed, so this
+     * fails fast with a precise message instead of a 30s .fill() timeout on
+     * an input that was never there. */
+    if (!checkboxChecked || !raceTableHidden || !manualInputsVisible) {
+      log('TC-3028', 'FAIL',
+        !checkboxChecked ? 'Manual-score checkbox was not checked by default'
+        : !raceTableHidden ? 'Per-race table visible despite default manual mode'
+        : 'Manual score inputs not found');
+      return;
+    }
+
+    const expectedLoserScore = Math.max(0, targetWins - 2);
+    await dialog.locator('#mr-finals-manual-score1').fill(String(targetWins));
+    await dialog.locator('#mr-finals-manual-score2').fill(String(expectedLoserScore));
+
+    const saveButton = dialog.getByRole('button', { name: /^(Save|Save Result|結果保存)$/ });
+    await saveButton.waitFor({ state: 'visible', timeout: 15000 });
+    await clickWithDiagnostics(saveButton, 'TC-3028 save finals final-result score', { timeout: 40000 });
+
+    /* Poll rather than a fixed sleep — the save PUT + standings recalc can
+     * lag on a cold D1 write (mirrors TC-604's bracket-update poll below). */
+    let updatedMatch1;
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      const updated = await fetchMrFinalsMatches(adminPage, tournamentId);
+      updatedMatch1 = updated.find((m) => m.id === match1.id);
+      if (updatedMatch1?.completed) break;
+      await adminPage.waitForTimeout(500);
+    }
+    const scorePersisted = updatedMatch1?.completed === true &&
+      updatedMatch1.score1 === targetWins && updatedMatch1.score2 === expectedLoserScore;
+
+    log('TC-3028', scorePersisted ? 'PASS' : 'FAIL',
+      scorePersisted ? '' : `Score not persisted: ${updatedMatch1?.score1}-${updatedMatch1?.score2}`);
+  } catch (err) {
+    log('TC-3028', 'FAIL', err instanceof Error ? err.message : 'MR finals default final-result entry failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -2007,6 +2096,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-601', fn: runTc601 },
       { name: 'TC-623', fn: runTc623 },
       { name: 'TC-604', fn: runTc604 },
+      { name: 'TC-3028', fn: runTc3028 },
       { name: 'TC-605', fn: runTc605 },
       { name: 'TC-606', fn: runTc606 },
       { name: 'TC-607', fn: runTc607 },
@@ -2029,7 +2119,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc620, runTc820, runTc822,
-  runTc615, runTc616, runTc617, runTc618, runTc621, runTc623, runTc858, runTc3027,
+  runTc615, runTc616, runTc617, runTc618, runTc621, runTc623, runTc858, runTc3027, runTc3028,
   mrFinalsTargetWinsForMatch,
   getSuite,
   results,

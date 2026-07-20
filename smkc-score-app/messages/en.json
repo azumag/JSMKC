@@ -484,7 +484,7 @@
     "setupDialogDesc": "Assign players to groups for the group stage round.",
     "enterMatchResult": "Enter Match Result",
     "manualTotalScore": "Manual Total Score",
-    "manualTotalScoreDesc": "Use this when you only need to correct the best-of-N totals after play ends.",
+    "manualTotalScoreDesc": "This is used by default. Uncheck it to record the winner of each individual race instead.",
     "manualScoreValidation": "Manual total scores must be non-negative integers with exactly one side reaching the target.",
     "createGroupsAndMatches": "Create Groups & Matches",
     "noGroupsYet": "No groups set up yet. Click \"Setup Groups\" to begin.",

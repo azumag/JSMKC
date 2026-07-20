@@ -484,7 +484,7 @@
     "setupDialogDesc": "予選ラウンドのグループにプレイヤーを割り当ててください。",
     "enterMatchResult": "試合結果入力",
     "manualTotalScore": "合計スコアを手動入力",
-    "manualTotalScoreDesc": "試合後にベストオブNの合計だけ修正したい場合に使用します。",
+    "manualTotalScoreDesc": "既定でこちらを使用します。コースごとの勝敗を記録したい場合はチェックを外してください。",
     "manualScoreValidation": "手動入力のスコアは0以上の整数で、片方だけが規定勝数に達している必要があります。",
     "createGroupsAndMatches": "グループ＆試合作成",
     "noGroupsYet": "グループがまだ設定されていません。「グループ設定」をクリックして開始してください。",
