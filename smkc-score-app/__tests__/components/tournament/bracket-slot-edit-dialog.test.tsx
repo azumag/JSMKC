@@ -124,9 +124,7 @@ describe('BracketSlotEditDialog', () => {
     });
 
     renderDialog({
-      matches: [
-        buildMatch({ id: 'm1', matchNumber: 1, player1Id: player1.id, player2Id: player2.id }),
-      ],
+      matches: [buildMatch({ id: 'm1', matchNumber: 1, player1Id: player1.id, player2Id: player2.id })],
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Assign a different player' }));
@@ -193,7 +191,7 @@ describe('BracketSlotEditDialog', () => {
     expect(optionLabels.some((l) => l?.includes('Alice'))).toBe(false);
   });
 
-  it('PATCHes op=swapSlots with both matches\' ids/versions', async () => {
+  it("PATCHes op=swapSlots with both matches' ids/versions", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
     const other = buildMatch({
       id: 'm9',

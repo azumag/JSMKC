@@ -2419,7 +2419,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * downstream placements unnoticed. */
       const advancementWarnings: Array<{ matchNumber: number; slot: 1 | 2; playerId: string; reason: string }> = [];
       const recordSkippedAdvancement = (targetMatchNumber: number, slot: 1 | 2, playerId: string) => {
-        advancementWarnings.push({ matchNumber: targetMatchNumber, slot, playerId, reason: 'DOWNSTREAM_MATCH_COMPLETED' });
+        advancementWarnings.push({
+          matchNumber: targetMatchNumber,
+          slot,
+          playerId,
+          reason: 'DOWNSTREAM_MATCH_COMPLETED',
+        });
         logger.warn('Skipped bracket advancement: downstream match already completed', {
           tournamentId,
           sourceMatchNumber: currentBracketMatch.matchNumber,
@@ -2600,7 +2605,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     const isNonNegativeInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
     if (!isNonNegativeInt(body.expectedVersion)) {
-      return handleValidationError('slotEdit.expectedVersion must be a non-negative integer', 'slotEdit.expectedVersion');
+      return handleValidationError(
+        'slotEdit.expectedVersion must be a non-negative integer',
+        'slotEdit.expectedVersion',
+      );
     }
     const expectedVersion = body.expectedVersion;
 
@@ -2628,9 +2636,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       stage === 'playoff'
         ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
         : generateBracketStructure(
-            (await model(prisma).count({ where: { tournamentId, stage: 'finals' } })) > BRACKET_SIZE_THRESHOLD
-              ? 16
-              : 8,
+            (await model(prisma).count({ where: { tournamentId, stage: 'finals' } })) > BRACKET_SIZE_THRESHOLD ? 16 : 8,
           );
 
     const stageMatches: SlotEditMatch[] = await model(prisma).findMany({
@@ -2669,8 +2675,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     if (op === 'swap') {
       const matchNumber = existing.matchNumber;
-      if (!isFinalsSlotConfirmed(matchNumber, 1, stageMatches, bracketStructure) ||
-        !isFinalsSlotConfirmed(matchNumber, 2, stageMatches, bracketStructure)) {
+      if (
+        !isFinalsSlotConfirmed(matchNumber, 1, stageMatches, bracketStructure) ||
+        !isFinalsSlotConfirmed(matchNumber, 2, stageMatches, bracketStructure)
+      ) {
         return createErrorResponse(
           'Cannot swap a slot that has not been confirmed by bracket progress (TBD)',
           422,
@@ -2987,10 +2995,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return handleValidationError('tvNumber, startingCourseNumber, or slotEdit is required', 'body');
       }
       if (hasSlotEdit && (hasTv || hasCourse)) {
-        return handleValidationError(
-          'slotEdit cannot be combined with tvNumber or startingCourseNumber',
-          'slotEdit',
-        );
+        return handleValidationError('slotEdit cannot be combined with tvNumber or startingCourseNumber', 'slotEdit');
       }
 
       if (

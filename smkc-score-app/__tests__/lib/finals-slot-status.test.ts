@@ -129,7 +129,7 @@ describe('finals-slot-status', () => {
       });
     });
 
-    it('treats winners_qf slots as confirmed even in the 16-player bracket (mirrors the UI\'s isTBD, which special-cases the round name rather than bracket size)', () => {
+    it("treats winners_qf slots as confirmed even in the 16-player bracket (mirrors the UI's isTBD, which special-cases the round name rather than bracket size)", () => {
       // winners_qf in the 16-player bracket is actually routed from
       // winners_r1 (not seeded), but the client-side isTBD this helper
       // mirrors short-circuits on round name alone. Keeping parity here is

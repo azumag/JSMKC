@@ -75,7 +75,12 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
     (sanitizeInput as jest.Mock).mockImplementation((input) => input);
-    (createLogger as jest.Mock).mockReturnValue({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() });
+    (createLogger as jest.Mock).mockReturnValue({
+      error: jest.fn(),
+      warn: jest.fn(),
+      info: jest.fn(),
+      debug: jest.fn(),
+    });
     (createAuditLog as jest.Mock).mockResolvedValue(undefined);
     (prisma.bMMatch.count as jest.Mock).mockResolvedValue(17);
     (generateBracketStructure as jest.Mock).mockReturnValue([
@@ -92,7 +97,11 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       const existing = makeRow({ matchNumber: 1, round: 'winners_qf', version: 2, player1Id: 'p1', player2Id: 'p2' });
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([existing]);
-      (prisma.bMQualification.findFirst as jest.Mock).mockResolvedValue({ id: 'q1', playerId: 'p9', tournamentId: 'tournament-123' });
+      (prisma.bMQualification.findFirst as jest.Mock).mockResolvedValue({
+        id: 'q1',
+        playerId: 'p9',
+        tournamentId: 'tournament-123',
+      });
       (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({ ...existing, player1Id: 'p9', version: 3 });
 
@@ -201,7 +210,10 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
 
       const { PATCH } = createFinalsHandlers(createMockConfig());
       const response = await PATCH(
-        patchRequest({ matchId: 'm1', slotEdit: { op: 'assign', slot: 1, playerId: 'not-a-participant', expectedVersion: 2 } }),
+        patchRequest({
+          matchId: 'm1',
+          slotEdit: { op: 'assign', slot: 1, playerId: 'not-a-participant', expectedVersion: 2 },
+        }),
         { params: Promise.resolve({ id: 'tournament-123' }) },
       );
 
@@ -229,7 +241,7 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       expect(prisma.bMMatch.updateMany).not.toHaveBeenCalled();
     });
 
-    it('does not false-positive the duplicate guard on the same match\'s other (different-player) slot', async () => {
+    it("does not false-positive the duplicate guard on the same match's other (different-player) slot", async () => {
       const existing = makeRow({ matchNumber: 1, round: 'winners_qf', player1Id: 'p1', player2Id: 'p2' });
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([existing]);
@@ -320,13 +332,17 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([existing]);
       (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({ ...existing, player1Id: 'p2', player2Id: 'p1', version: 5 });
+      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
+        ...existing,
+        player1Id: 'p2',
+        player2Id: 'p1',
+        version: 5,
+      });
 
       const { PATCH } = createFinalsHandlers(createMockConfig());
-      const response = await PATCH(
-        patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 4 } }),
-        { params: Promise.resolve({ id: 'tournament-123' }) },
-      );
+      const response = await PATCH(patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 4 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
 
       expect(response.status).toBe(200);
       expect(prisma.bMMatch.updateMany).toHaveBeenCalledTimes(1);
@@ -353,10 +369,9 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       ]);
 
       const { PATCH } = createFinalsHandlers(createMockConfig());
-      const response = await PATCH(
-        patchRequest({ matchId: 'm5', slotEdit: { op: 'swap', expectedVersion: 0 } }),
-        { params: Promise.resolve({ id: 'tournament-123' }) },
-      );
+      const response = await PATCH(patchRequest({ matchId: 'm5', slotEdit: { op: 'swap', expectedVersion: 0 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
 
       expect(response.status).toBe(422);
       expect(prisma.bMMatch.updateMany).not.toHaveBeenCalled();
@@ -365,8 +380,22 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
 
   describe('op: swapSlots (different matches, same round)', () => {
     it('runs a single $executeRaw and returns both updated matches on success (affected=2)', async () => {
-      const existing = makeRow({ matchNumber: 1, round: 'winners_qf', id: 'm1', player1Id: 'p1', player2Id: 'p2', version: 1 });
-      const target = makeRow({ matchNumber: 9, round: 'winners_qf', id: 'm9', player1Id: 'p9', player2Id: 'p10', version: 0 });
+      const existing = makeRow({
+        matchNumber: 1,
+        round: 'winners_qf',
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        version: 1,
+      });
+      const target = makeRow({
+        matchNumber: 9,
+        round: 'winners_qf',
+        id: 'm9',
+        player1Id: 'p9',
+        player2Id: 'p10',
+        version: 0,
+      });
       (prisma.bMMatch.findFirst as jest.Mock).mockImplementation(({ where }) =>
         Promise.resolve(where.id === 'm1' ? existing : where.id === 'm9' ? target : null),
       );
@@ -423,7 +452,14 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       const response = await PATCH(
         patchRequest({
           matchId: 'm1',
-          slotEdit: { op: 'swapSlots', slot: 1, targetMatchId: 'm5', targetSlot: 1, expectedVersion: 2, targetExpectedVersion: 0 },
+          slotEdit: {
+            op: 'swapSlots',
+            slot: 1,
+            targetMatchId: 'm5',
+            targetSlot: 1,
+            expectedVersion: 2,
+            targetExpectedVersion: 0,
+          },
         }),
         { params: Promise.resolve({ id: 'tournament-123' }) },
       );
@@ -442,7 +478,14 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       const response = await PATCH(
         patchRequest({
           matchId: 'm1',
-          slotEdit: { op: 'swapSlots', slot: 1, targetMatchId: 'm1', targetSlot: 2, expectedVersion: 2, targetExpectedVersion: 2 },
+          slotEdit: {
+            op: 'swapSlots',
+            slot: 1,
+            targetMatchId: 'm1',
+            targetSlot: 2,
+            expectedVersion: 2,
+            targetExpectedVersion: 2,
+          },
         }),
         { params: Promise.resolve({ id: 'tournament-123' }) },
       );
@@ -467,7 +510,14 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       const response = await PATCH(
         patchRequest({
           matchId: 'm1',
-          slotEdit: { op: 'swapSlots', slot: 1, targetMatchId: 'm9', targetSlot: 1, expectedVersion: 1, targetExpectedVersion: 0 },
+          slotEdit: {
+            op: 'swapSlots',
+            slot: 1,
+            targetMatchId: 'm9',
+            targetSlot: 1,
+            expectedVersion: 1,
+            targetExpectedVersion: 0,
+          },
         }),
         { params: Promise.resolve({ id: 'tournament-123' }) },
       );
@@ -491,7 +541,14 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       const response = await PATCH(
         patchRequest({
           matchId: 'm1',
-          slotEdit: { op: 'swapSlots', slot: 1, targetMatchId: 'm9', targetSlot: 1, expectedVersion: 1, targetExpectedVersion: 0 },
+          slotEdit: {
+            op: 'swapSlots',
+            slot: 1,
+            targetMatchId: 'm9',
+            targetSlot: 1,
+            expectedVersion: 1,
+            targetExpectedVersion: 0,
+          },
         }),
         { params: Promise.resolve({ id: 'tournament-123' }) },
       );
@@ -517,10 +574,9 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
 
       const { PATCH } = createFinalsHandlers(createMockConfig());
-      const response = await PATCH(
-        patchRequest({ matchId: 'm1', slotEdit: { op: 'delete', expectedVersion: 2 } }),
-        { params: Promise.resolve({ id: 'tournament-123' }) },
-      );
+      const response = await PATCH(patchRequest({ matchId: 'm1', slotEdit: { op: 'delete', expectedVersion: 2 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
 
       expect(response.status).toBe(400);
     });
@@ -529,10 +585,9 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'user-1', role: 'member' } });
 
       const { PATCH } = createFinalsHandlers(createMockConfig());
-      const response = await PATCH(
-        patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 0 } }),
-        { params: Promise.resolve({ id: 'tournament-123' }) },
-      );
+      const response = await PATCH(patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 0 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
 
       expect(response.status).toBe(403);
       expect(prisma.bMMatch.findFirst).not.toHaveBeenCalled();

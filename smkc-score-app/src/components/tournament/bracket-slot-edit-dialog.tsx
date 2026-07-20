@@ -127,11 +127,8 @@ export function BracketSlotEditDialog({
       .then((json) => {
         if (cancelled) return;
         const data = (json && typeof json === 'object' && 'data' in json ? json.data : json) as
-          | { qualifications?: Array<{ playerId: string; player: Player }> }
-          | undefined;
-        setQualifications(
-          (data?.qualifications ?? []).map((q) => ({ playerId: q.playerId, player: q.player })),
-        );
+          { qualifications?: Array<{ playerId: string; player: Player }> } | undefined;
+        setQualifications((data?.qualifications ?? []).map((q) => ({ playerId: q.playerId, player: q.player })));
       })
       .catch(() => {
         /* Candidate list is best-effort; the select just stays empty. */
@@ -164,10 +161,24 @@ export function BracketSlotEditDialog({
     if (m.id === match.id || m.completed || m.isBye || m.round !== match.round) continue;
     const status = getFinalsSlotStatus(m.matchNumber, matches, bracketStructure);
     if (!status.player1) {
-      swapSlotsCandidates.push({ key: `${m.id}-1`, matchId: m.id, matchNumber: m.matchNumber, slot: 1, version: m.version, player: m.player1 });
+      swapSlotsCandidates.push({
+        key: `${m.id}-1`,
+        matchId: m.id,
+        matchNumber: m.matchNumber,
+        slot: 1,
+        version: m.version,
+        player: m.player1,
+      });
     }
     if (!status.player2) {
-      swapSlotsCandidates.push({ key: `${m.id}-2`, matchId: m.id, matchNumber: m.matchNumber, slot: 2, version: m.version, player: m.player2 });
+      swapSlotsCandidates.push({
+        key: `${m.id}-2`,
+        matchId: m.id,
+        matchNumber: m.matchNumber,
+        slot: 2,
+        version: m.version,
+        player: m.player2,
+      });
     }
   }
 
@@ -242,9 +253,7 @@ export function BracketSlotEditDialog({
       <DialogContent data-testid="slot-edit-dialog">
         <DialogHeader>
           <DialogTitle>{tf('slotEditDialogTitle', { matchNumber: match.matchNumber })}</DialogTitle>
-          <DialogDescription>
-            {tf('slotEditCurrentPlayer', { name: playerLabel(currentPlayer) })}
-          </DialogDescription>
+          <DialogDescription>{tf('slotEditCurrentPlayer', { name: playerLabel(currentPlayer) })}</DialogDescription>
         </DialogHeader>
 
         {pending ? (
@@ -256,10 +265,20 @@ export function BracketSlotEditDialog({
         ) : (
           <>
             <div className="flex gap-2 border-b pb-2">
-              <Button type="button" size="sm" variant={tab === 'swap' ? 'default' : 'outline'} onClick={() => setTab('swap')}>
+              <Button
+                type="button"
+                size="sm"
+                variant={tab === 'swap' ? 'default' : 'outline'}
+                onClick={() => setTab('swap')}
+              >
                 {tf('slotEditTabSwap')}
               </Button>
-              <Button type="button" size="sm" variant={tab === 'assign' ? 'default' : 'outline'} onClick={() => setTab('assign')}>
+              <Button
+                type="button"
+                size="sm"
+                variant={tab === 'assign' ? 'default' : 'outline'}
+                onClick={() => setTab('assign')}
+              >
                 {tf('slotEditTabAssign')}
               </Button>
               <Button
@@ -277,7 +296,12 @@ export function BracketSlotEditDialog({
                 <p className="text-sm text-muted-foreground">
                   {tf('slotEditSwapDesc', { p1: playerLabel(match.player1), p2: playerLabel(match.player2) })}
                 </p>
-                <Button type="button" onClick={handleSwapSameMatch} disabled={saving} data-testid="slot-edit-swap-confirm">
+                <Button
+                  type="button"
+                  onClick={handleSwapSameMatch}
+                  disabled={saving}
+                  data-testid="slot-edit-swap-confirm"
+                >
                   {tf('slotEditSwapConfirm')}
                 </Button>
               </div>
@@ -359,7 +383,12 @@ export function BracketSlotEditDialog({
               >
                 {tf('slotEditBack')}
               </Button>
-              <Button type="button" onClick={handleConfirmPending} disabled={saving} data-testid="slot-edit-confirm-final">
+              <Button
+                type="button"
+                onClick={handleConfirmPending}
+                disabled={saving}
+                data-testid="slot-edit-confirm-final"
+              >
                 {tf('slotEditConfirmButton')}
               </Button>
             </>

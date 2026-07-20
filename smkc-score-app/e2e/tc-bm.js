@@ -1734,9 +1734,7 @@ async function runTc3027(adminPage) {
     log(
       'TC-3027',
       ok ? 'PASS' : 'FAIL',
-      ok
-        ? ''
-        : `swapped=${swapped} versionBumped=${versionBumped} badgeSet=${badgeSet} qf1ScoreKept=${qf1ScoreKept}`,
+      ok ? '' : `swapped=${swapped} versionBumped=${versionBumped} badgeSet=${badgeSet} qf1ScoreKept=${qf1ScoreKept}`,
     );
   } catch (err) {
     log('TC-3027', 'FAIL', err instanceof Error ? err.message : 'TC-3027 failed');
