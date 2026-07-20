@@ -348,9 +348,13 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
       expect(result.data).toEqual({ match: mockMatch, result1: 'win', result2: 'loss' });
       expect(result.status).toBe(200);
+      /* `rounds` must be omitted entirely (not set to null) when the caller
+       * doesn't send it, so a final-result-only save (the admin qualification
+       * dialog) never wipes out a match's existing per-race detail — e.g.
+       * rounds a player already submitted via the legacy per-race report page. */
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
-        data: { score1: 3, score2: 1, rounds: null, completed: true },
+        data: { score1: 3, score2: 1, completed: true },
         select: BM_MR_MATCH_LEAN_SELECT,
       });
       expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);

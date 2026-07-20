@@ -2109,9 +2109,9 @@ function pickRandomBmScore() {
 
 function pickRandomMrScoreProfile() {
   return pickRandomItem([
-    { score1: 3, score2: 1, p1Wins: [1, 2, 4] },
-    { score1: 2, score2: 2, p1Wins: [1, 3] },
-    { score1: 1, score2: 3, p1Wins: [2] },
+    { score1: 3, score2: 1 },
+    { score1: 2, score2: 2 },
+    { score1: 1, score2: 3 },
   ]);
 }
 
@@ -2225,11 +2225,12 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
   throw new Error('BM UI score entry exceeded iteration cap');
 }
 
-/** UI-based MR qualification score entry. Each MR qualification match has
- *  pre-assigned courses (set at group-setup time), so we only need to click
- *  winner buttons. Defaults to randomised 3-1 / 2-2 / 1-3 outcomes so MR
- *  qualification exercises tie handling the same way BM does; pass
- *  randomize=false with fixed scores when deterministic output is needed. */
+/** UI-based MR qualification score entry. The admin dialog now records only
+ *  the final total score1/score2 (mirrors the BM admin dialog and the MR
+ *  participant page — no per-race course/winner picker). Defaults to
+ *  randomised 3-1 / 2-2 / 1-3 outcomes so MR qualification exercises tie
+ *  handling the same way BM does; pass randomize=false with fixed scores
+ *  when deterministic output is needed. */
 async function uiPutAllMrQualScores(page, tournamentId, opts = {}) {
   const { score1: fixedS1, score2: fixedS2, randomize = true } = opts;
   /* Safety cap: 2 groups × 91 matches + buffer. */
@@ -2245,45 +2246,27 @@ async function uiPutAllMrQualScores(page, tournamentId, opts = {}) {
     await nav(page, `/tournaments/${tournamentId}/mr`);
     await openMatchesTab(page);
 
-    const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力|Enter Result|結果入力)$/ });
-    const currentCount = await enterButtons.count();
-    if (currentCount === 0) return;
-
-    const target = enterButtons.first();
-    await target.scrollIntoViewIfNeeded().catch(() => {});
-    await target.click();
+    const clicked = await openNextMatchDialog(page);
+    if (!clicked) return;
 
     const dialog = page.getByRole('dialog').filter({
       hasText: /enterMatchResult|試合結果|Enter Match Result/,
     }).first();
     await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
-    /* Winner buttons are per-race rows. Each row has two buttons with
-     * aria-label `<nick> wins race <n>`. Target them positionally: even
-     * indices ⇒ player1-wins, odd indices ⇒ player2-wins. */
-    const winnerButtons = dialog.locator('button[aria-label*="wins race"]');
-    const btnCount = await winnerButtons.count();
-    if (btnCount < 8) {
-      throw new Error(`MR dialog has only ${btnCount} winner buttons (expected 8)`);
+    let score1, score2;
+    if (randomize) {
+      const pick = pickRandomMrScoreProfile();
+      score1 = pick.score1;
+      score2 = pick.score2;
+    } else {
+      score1 = fixedS1 ?? 3;
+      score2 = fixedS2 ?? 1;
     }
 
-    const outcome = randomize
-      ? pickRandomMrScoreProfile()
-      : (() => {
-        const score1 = fixedS1 ?? 3;
-        const score2 = fixedS2 ?? 1;
-        if (score1 + score2 !== 4) {
-          throw new Error(`MR fixed score must sum to 4 races, got ${score1}-${score2}`);
-        }
-        const p1Wins = Array.from({ length: score1 }, (_, idx) => idx + 1);
-        return { score1, score2, p1Wins };
-      })();
-
-    for (let race = 1; race <= 4; race++) {
-      const player1Wins = outcome.p1Wins.includes(race);
-      const buttonIndex = (race - 1) * 2 + (player1Wins ? 0 : 1);
-      await winnerButtons.nth(buttonIndex).click();
-    }
+    const inputs = dialog.locator('input[type="number"]');
+    await inputs.nth(0).fill(String(score1));
+    await inputs.nth(1).fill(String(score2));
 
     const responsePromise = page.waitForResponse((res) =>
       res.url().includes(`/api/tournaments/${tournamentId}/mr`) &&
@@ -2979,6 +2962,8 @@ module.exports = {
   apiDeleteTournament,
   /* UI helpers */
   clickWithDiagnostics,
+  openMatchesTab,
+  openNextMatchDialog,
   uiCreatePlayer,
   summarizeResponseBody,
   readResponseSummary,

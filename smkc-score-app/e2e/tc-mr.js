@@ -33,6 +33,7 @@
  *  TC-858  MR Top-24 finals Winners R1 loser populates Losers R1 player2
  *  TC-622  MR qualification standings show 0-1000 qualification points
  *  TC-623  MR combined standings tab shows rows with ascending ranks
+ *  TC-3027 MR admin qualification final-result entry (UI, no per-race picker)
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -60,6 +61,8 @@ const {
   assertQualificationPointsColumn,
   assertCombinedStandingsTab,
   assertResetApiBlocked,
+  openMatchesTab,
+  openNextMatchDialog,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -454,6 +457,66 @@ async function runTc603(adminPage) {
       : '');
   } catch (err) {
     log('TC-603', 'FAIL', err instanceof Error ? err.message : 'MR draw test failed');
+  }
+}
+
+/**
+ * TC-3027: MR admin qualification final-result entry (UI)
+ *
+ * The admin qualification dialog used to require picking a course and a
+ * winner for each of the 4 races individually. It was changed to mirror the
+ * BM admin dialog and the MR participant page: two plain score1/score2
+ * number inputs for the match's final total, with no per-race breakdown.
+ * Verifies the old course-select/winner-button UI is gone, the new inputs
+ * persist the final score, and the saved PUT body carries no `rounds`.
+ */
+async function runTc3027(adminPage) {
+  try {
+    const { tournamentId, match } = await prepareSharedMrPair(adminPage);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+    await openMatchesTab(adminPage);
+
+    const clicked = await openNextMatchDialog(adminPage);
+    if (!clicked) throw new Error('No Enter Result button found for the pending MR match');
+
+    const dialog = adminPage.getByRole('dialog').filter({
+      hasText: /enterMatchResult|試合結果|Enter Match Result/,
+    }).first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    /* The old per-race UI (course dropdown + "wins race N" buttons) must be gone. */
+    const courseSelectCount = await dialog.getByText(/コースを選択|Select course/).count();
+    const winnerButtonCount = await dialog.locator('button[aria-label*="wins race"]').count();
+    const oldUiRemoved = courseSelectCount === 0 && winnerButtonCount === 0;
+
+    /* New UI: two labeled number inputs for the final score. */
+    const score1Input = dialog.getByLabel(`${match.player1.nickname} score`);
+    const score2Input = dialog.getByLabel(`${match.player2.nickname} score`);
+    await score1Input.fill('3');
+    await score2Input.fill('1');
+
+    const responsePromise = adminPage.waitForResponse((res) =>
+      res.url().includes(`/api/tournaments/${tournamentId}/mr`) &&
+      res.request().method() === 'PUT', { timeout: 30000 });
+    await dialog.getByRole('button', { name: /^(Save Result|結果保存|保存)$/ }).click();
+    const response = await responsePromise;
+    const requestBody = response.request().postDataJSON();
+    const noRoundsSent = requestBody != null && !('rounds' in requestBody);
+
+    const updated = await apiFetchMr(adminPage, tournamentId);
+    const updatedMatch = (updated.matches || []).find((m) => m.id === match.id);
+    const scorePersisted = updatedMatch?.completed === true &&
+      updatedMatch.score1 === 3 && updatedMatch.score2 === 1;
+
+    const ok = oldUiRemoved && noRoundsSent && scorePersisted;
+    log('TC-3027', ok ? 'PASS' : 'FAIL',
+      !oldUiRemoved ? `Old per-race UI still present (courseSelects=${courseSelectCount}, winnerButtons=${winnerButtonCount})`
+      : !noRoundsSent ? `PUT body unexpectedly included rounds: ${JSON.stringify(requestBody)}`
+      : !scorePersisted ? `Score not persisted: ${updatedMatch?.score1}-${updatedMatch?.score2}`
+      : '');
+  } catch (err) {
+    log('TC-3027', 'FAIL', err instanceof Error ? err.message : 'MR admin final-result entry failed');
   }
 }
 
@@ -1937,6 +2000,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-602', fn: runTc602 },
       { name: 'TC-1083', fn: runTc1083 },
       { name: 'TC-603', fn: runTc603 },
+      { name: 'TC-3027', fn: runTc3027 },
       { name: 'TC-608', fn: runTc608 },
       { name: 'TC-609', fn: runTc609 },
       { name: 'TC-820', fn: runTc820 },
@@ -1965,7 +2029,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc620, runTc820, runTc822,
-  runTc615, runTc616, runTc617, runTc618, runTc621, runTc623, runTc858,
+  runTc615, runTc616, runTc617, runTc618, runTc621, runTc623, runTc858, runTc3027,
   mrFinalsTargetWinsForMatch,
   getSuite,
   results,

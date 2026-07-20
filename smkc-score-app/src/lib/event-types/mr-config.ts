@@ -99,7 +99,13 @@ export const mrConfig: EventTypeConfig = {
       data: {
         score1: data.score1,
         score2: data.score2,
-        rounds: data.rounds || null,
+        /* Only touch `rounds` when the caller actually sent it (mirrors the
+         * putAdditionalFields pattern in finals-route.ts). The qualification
+         * admin dialog now submits final totals only, with no per-race
+         * breakdown; omitting the field here must leave any existing rounds
+         * (e.g. from a player's earlier per-race report) untouched instead
+         * of silently nulling them out on every admin correction. */
+        ...(data.rounds !== undefined ? { rounds: data.rounds || null } : {}),
         completed: true,
       },
       select: BM_MR_MATCH_LEAN_SELECT,

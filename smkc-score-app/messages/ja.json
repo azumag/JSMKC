@@ -87,9 +87,6 @@
     "totalRoundsShouldEqual4": "ラウンド合計は4になる必要があります",
     "totalRoundsMustBe4Or0": "合計4、または0-0でクリア",
     "clearScores": "クリア",
-    "select4UniqueCourses": "4つの異なるコースを選択してください",
-    "selectWinnerForAllRaces": "{count}レースすべての勝者を選択してください",
-    "scorePreview": "スコア入力プレビュー",
     "mrFourRaceDrawNote": "MR予選は4レース固定です。2-2 の引き分けも登録できます。",
     "pleaseSelectCup": "カップを選択してください",
     "pleaseCompleteAllRaces": "5レースすべてを入力してください",
@@ -482,7 +479,7 @@
   },
   "mr": {
     "title": "マッチレース",
-    "qualificationDesc": "4レース固定のラウンドロビン。コースごとの勝敗でスコアを登録",
+    "qualificationDesc": "4レース固定のラウンドロビン。試合の最終結果（合計スコア）を登録",
     "setupDialogTitle": "マッチレース グループ設定",
     "setupDialogDesc": "予選ラウンドのグループにプレイヤーを割り当ててください。",
     "enterMatchResult": "試合結果入力",
