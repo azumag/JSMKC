@@ -28,6 +28,8 @@
  *   TC-723  GP qualification standings show 0-1000 qualification points
  *   TC-724  GP combined standings tab shows rows with point headers and ascending ranks
  *   TC-729  GP odd-player BREAK stays scoreable as a solo driver-points cup
+ *   TC-3033 GP manual bracket slot adjustment — same-match swap (issue #3017
+ *           Phase 2 UI wiring; API-level, mirrors tc-bm.js TC-3027)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -45,6 +47,7 @@ const {
   apiFetchGp, apiPutGpQualScore,
   apiSetGpFinalsScore, apiSetGpFinalsCupResults, apiGenerateGpFinals, apiFetchGpFinalsMatches, apiFetchGpFinalsState,
   apiUpdateTournament,
+  apiJson,
   makeRacesP1Wins, makeRacesP2Wins,
   loginPlayerBrowser,
   setupGpQualViaUi,
@@ -222,6 +225,71 @@ async function prepareSharedGpFinalsSetup(adminPage) {
     nicknames: players.map((player) => player.nickname),
     cleanup: async () => {},
   };
+}
+
+/* ───────── TC-3033: manual bracket slot adjustment — same-match swap (issue #3017 Phase 2) ─────────
+ * GP UI-wiring follow-up to BM's TC-3027 (see tc-mr.js TC-3032 for the MR
+ * counterpart). The slotEdit PATCH is a shared factory (finals-route.ts)
+ * already exercised for BM/MR; this is an API-level smoke test confirming
+ * the same op=swap contract works against the GP finals route — including
+ * that the page passes the *derived* GPBracketMatch (score1/score2 aliased
+ * from points1/points2) through to the dialog, not the raw GPMatch, so the
+ * PATCH still targets the correct match id/version. Once QF1/QF2 feeders
+ * complete and populate SF1's two slots, an admin swaps SF1's 1P/2P via
+ * PATCH slotEdit (op=swap). Verifies the swap lands atomically (single
+ * version increment, players actually exchanged, "manually adjusted" badge
+ * field set) and that QF1's already-recorded score is left untouched. */
+async function runTc3033(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    let matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const qf1 = matches.find((m) => m.matchNumber === 1);
+    const qf2 = matches.find((m) => m.matchNumber === 2);
+    if (!qf1 || !qf2) throw new Error('QF1/QF2 not found');
+
+    const qf1Score = await apiSetGpFinalsScore(adminPage, tournamentId, qf1.id, 2, 0);
+    if (qf1Score.s !== 200) throw new Error(`QF1 score PUT failed (${qf1Score.s})`);
+    const qf2Score = await apiSetGpFinalsScore(adminPage, tournamentId, qf2.id, 2, 0);
+    if (qf2Score.s !== 200) throw new Error(`QF2 score PUT failed (${qf2Score.s})`);
+
+    matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const sf1Before = matches.find((m) => m.matchNumber === 5);
+    if (!sf1Before?.player1Id || !sf1Before?.player2Id) {
+      throw new Error(`SF1 slots not both confirmed after QF1/QF2: ${JSON.stringify(sf1Before)}`);
+    }
+
+    const swap = await apiJson(adminPage, `/api/tournaments/${tournamentId}/gp/finals`, {
+      method: 'PATCH',
+      body: { matchId: sf1Before.id, slotEdit: { op: 'swap', expectedVersion: sf1Before.version } },
+    });
+    if (swap.status !== 200) throw new Error(`slotEdit swap failed (${swap.status}): ${JSON.stringify(swap.body)}`);
+
+    matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const sf1After = matches.find((m) => m.matchNumber === 5);
+    const qf1After = matches.find((m) => m.id === qf1.id);
+
+    const swapped = sf1After.player1Id === sf1Before.player2Id && sf1After.player2Id === sf1Before.player1Id;
+    const versionBumped = sf1After.version === sf1Before.version + 1;
+    const badgeSet = !!sf1After.slotOverrideAt;
+    const qf1ScoreKept = qf1After.completed === true && qf1After.points1 === 2 && qf1After.points2 === 0;
+
+    const ok = swapped && versionBumped && badgeSet && qf1ScoreKept;
+    log(
+      'TC-3033',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `swapped=${swapped} versionBumped=${versionBumped} badgeSet=${badgeSet} qf1ScoreKept=${qf1ScoreKept}`,
+    );
+  } catch (err) {
+    log('TC-3033', 'FAIL', err instanceof Error ? err.message : 'TC-3033 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
 }
 
 /* ───────── TC-701: 28-player full qualification ───────── */
@@ -1910,6 +1978,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-729', fn: runTc729 },
       { name: 'TC-703', fn: runTc703 },
       { name: 'TC-704', fn: runTc704 },
+      { name: 'TC-3033', fn: runTc3033 },
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
@@ -1944,6 +2013,7 @@ module.exports = {
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc1106, runTc727, runTc729, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc1087, runTc821, runTc831, runTc832,
+  runTc3033,
   gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult, gpFinalsTargetWins,
   getSuite,
   results,

@@ -52,6 +52,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DoubleEliminationBracket } from '@/components/tournament/double-elimination-bracket';
+import { BracketSlotEditDialog } from '@/components/tournament/bracket-slot-edit-dialog';
 import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
 import { PlayoffCompleteCard } from '@/components/tournament/playoff-complete-card';
 import { COURSE_INFO, POLLING_INTERVAL, TV_NUMBER_OPTIONS, type CourseAbbr } from '@/lib/constants';
@@ -81,6 +82,9 @@ interface MRMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  isBye?: boolean;
+  version: number;
+  slotOverrideAt?: string | null;
   assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
   player1: Player;
@@ -219,6 +223,15 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
   const [tvSaving, setTvSaving] = useState(false);
   const [champion, setChampion] = useState<Player | null>(null);
   const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
+
+  /* Manual bracket slot placement adjustment (issue #3017 Phase 2): admins
+   * toggle "adjustment mode" to expose per-slot edit affordances on the
+   * bracket cards; clicking one opens BracketSlotEditDialog. Mirrors the BM
+   * finals page wiring — the underlying API/components are already generic
+   * across BM/MR/GP, only this page's wiring was missing. */
+  const [slotEditMode, setSlotEditMode] = useState(false);
+  const [slotEditTarget, setSlotEditTarget] = useState<{ match: MRMatch; slot: 1 | 2 } | null>(null);
+  const handleSlotClick = (match: MRMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
 
   /**
    * Fetch finals bracket data including matches,
@@ -649,6 +662,19 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {/* Manual slot placement adjustment mode toggle: admin-only, only
+           * meaningful once a bracket (finals or playoff) exists. */}
+          {isAdmin && (matches.length > 0 || playoffMatches.length > 0) && (
+            <Button
+              variant={slotEditMode ? 'default' : 'outline'}
+              className={slotEditMode ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}
+              onClick={() => setSlotEditMode((v) => !v)}
+              aria-pressed={slotEditMode}
+              data-testid="slot-edit-mode-toggle"
+            >
+              {slotEditMode ? tFinals('slotEditModeActive') : tFinals('slotEditModeToggle')}
+            </Button>
+          )}
           <Button variant="outline" asChild>
             <a href={`/tournaments/${tournamentId}/mr`}>
               {/* i18n: Back navigation to qualification page */}
@@ -726,6 +752,8 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               seededPlayers={seededPlayers}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+              slotEditMode={isAdmin ? slotEditMode : undefined}
+              onSlotClick={isAdmin ? handleSlotClick : undefined}
             />
           </TabsContent>
           <TabsContent value="playoff">
@@ -736,6 +764,8 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               seededPlayers={playoffSeededPlayers}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+              slotEditMode={isAdmin ? slotEditMode : undefined}
+              onSlotClick={isAdmin ? handleSlotClick : undefined}
             />
             {matches.length === 0 && playoffComplete && isAdmin && (
               <PlayoffCompleteCard
@@ -756,6 +786,8 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
             seededPlayers={playoffSeededPlayers}
             onMatchClick={isAdmin ? openMatchDialog : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+            slotEditMode={isAdmin ? slotEditMode : undefined}
+            onSlotClick={isAdmin ? handleSlotClick : undefined}
           />
           {playoffComplete && isAdmin && (
             <PlayoffCompleteCard
@@ -773,6 +805,8 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
           seededPlayers={seededPlayers}
           onMatchClick={isAdmin ? openMatchDialog : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+          slotEditMode={isAdmin ? slotEditMode : undefined}
+          onSlotClick={isAdmin ? handleSlotClick : undefined}
         />
       )}
 
@@ -1038,6 +1072,23 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Manual slot placement adjustment dialog: admin-only (issue #3017) */}
+      {isAdmin && (
+        <BracketSlotEditDialog
+          open={slotEditTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setSlotEditTarget(null);
+          }}
+          finalsApiPath={`/api/tournaments/${tournamentId}/mr/finals`}
+          qualificationApiPath={`/api/tournaments/${tournamentId}/mr`}
+          match={slotEditTarget?.match ?? null}
+          slot={slotEditTarget?.slot ?? null}
+          matches={slotEditTarget?.match.stage === 'playoff' ? playoffMatches : matches}
+          bracketStructure={slotEditTarget?.match.stage === 'playoff' ? playoffStructure : bracketStructure}
+          onSaved={refetch}
+        />
       )}
     </div>
   );

@@ -71,6 +71,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { BracketSlotEditDialog } from "@/components/tournament/bracket-slot-edit-dialog";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { PlayoffCompleteCard } from "@/components/tournament/playoff-complete-card";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
@@ -119,6 +120,9 @@ interface GPMatch {
   points1: number;
   points2: number;
   completed: boolean;
+  isBye?: boolean;
+  version: number;
+  slotOverrideAt?: string | null;
   cup?: string;
   assignedCups?: string[];
   tvNumber?: number | null;
@@ -262,6 +266,17 @@ export default function GrandPrixFinals({
   const [champion, setChampion] = useState<Player | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
   const [tvSaving, setTvSaving] = useState(false);
+
+  /* Manual bracket slot placement adjustment (issue #3017 Phase 2): admins
+   * toggle "adjustment mode" to expose per-slot edit affordances on the
+   * bracket cards; clicking one opens BracketSlotEditDialog. Mirrors the BM
+   * finals page wiring — the underlying API/components are already generic
+   * across BM/MR/GP, only this page's wiring was missing. The clicked match
+   * is the derived GPBracketMatch (score1/score2 aliased from
+   * points1/points2 for the shared bracket components), not the raw GPMatch. */
+  const [slotEditMode, setSlotEditMode] = useState(false);
+  const [slotEditTarget, setSlotEditTarget] = useState<{ match: GPBracketMatch; slot: 1 | 2 } | null>(null);
+  const handleSlotClick = (match: GPBracketMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
 
   /** Fetch finals data including matches, bracket structure, and round names */
   const fetchFinalsData = useCallback(async () => {
@@ -783,6 +798,19 @@ export default function GrandPrixFinals({
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {/* Manual slot placement adjustment mode toggle: admin-only, only
+           * meaningful once a bracket (finals or playoff) exists. */}
+          {isAdmin && (matches.length > 0 || playoffMatches.length > 0) && (
+            <Button
+              variant={slotEditMode ? 'default' : 'outline'}
+              className={slotEditMode ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}
+              onClick={() => setSlotEditMode((v) => !v)}
+              aria-pressed={slotEditMode}
+              data-testid="slot-edit-mode-toggle"
+            >
+              {slotEditMode ? tFinals('slotEditModeActive') : tFinals('slotEditModeToggle')}
+            </Button>
+          )}
           <Button variant="outline" asChild>
             <a href={`/tournaments/${tournamentId}/gp`}>
               {/* i18n: Back navigation to qualification page */}
@@ -852,6 +880,8 @@ export default function GrandPrixFinals({
               getWinnerId={getBracketWinnerId}
               onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+              slotEditMode={isAdmin ? slotEditMode : undefined}
+              onSlotClick={isAdmin ? handleSlotClick : undefined}
             />
           </TabsContent>
           <TabsContent value={BRACKET_TABS.playoff}>
@@ -864,6 +894,8 @@ export default function GrandPrixFinals({
               getWinnerId={getBracketWinnerId}
               onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+              slotEditMode={isAdmin ? slotEditMode : undefined}
+              onSlotClick={isAdmin ? handleSlotClick : undefined}
             />
             {matches.length === 0 && playoffComplete && isAdmin && (
               <PlayoffCompleteCard
@@ -886,6 +918,8 @@ export default function GrandPrixFinals({
             getWinnerId={getBracketWinnerId}
             onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+            slotEditMode={isAdmin ? slotEditMode : undefined}
+            onSlotClick={isAdmin ? handleSlotClick : undefined}
           />
           {playoffComplete && isAdmin && (
             <PlayoffCompleteCard
@@ -905,6 +939,8 @@ export default function GrandPrixFinals({
           getWinnerId={getBracketWinnerId}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
+          slotEditMode={isAdmin ? slotEditMode : undefined}
+          onSlotClick={isAdmin ? handleSlotClick : undefined}
         />
       )}
 
@@ -1347,6 +1383,23 @@ export default function GrandPrixFinals({
           </DialogFooter>
         </DialogContent>
       </Dialog>}
+
+      {/* Manual slot placement adjustment dialog: admin-only (issue #3017) */}
+      {isAdmin && (
+        <BracketSlotEditDialog
+          open={slotEditTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setSlotEditTarget(null);
+          }}
+          finalsApiPath={`/api/tournaments/${tournamentId}/gp/finals`}
+          qualificationApiPath={`/api/tournaments/${tournamentId}/gp`}
+          match={slotEditTarget?.match ?? null}
+          slot={slotEditTarget?.slot ?? null}
+          matches={slotEditTarget?.match.stage === 'playoff' ? gpPlayoffBracketMatches : gpBracketMatches}
+          bracketStructure={slotEditTarget?.match.stage === 'playoff' ? playoffStructure : bracketStructure}
+          onSaved={refetch}
+        />
+      )}
     </div>
   );
 }

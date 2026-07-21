@@ -36,6 +36,8 @@
  *  TC-3027 MR admin qualification final-result entry (UI, no per-race picker)
  *  TC-3028 MR finals admin dialog defaults to final-result entry (UI)
  *  TC-3029 MR admin qualification Clear (0-0) wipes stale per-race rounds
+ *  TC-3032 MR manual bracket slot adjustment — same-match swap (issue #3017
+ *          Phase 2 UI wiring; API-level, mirrors tc-bm.js TC-3027)
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -60,6 +62,7 @@ const {
   apiFetchMrFinalsMatches: fetchMrFinalsMatches,
   apiFetchMrFinalsState,
   apiUpdateTournament,
+  apiJson,
   loginPlayerBrowser,
   setupMrQualViaUi,
   resolveAllTies,
@@ -188,6 +191,70 @@ async function prepareSharedMrFinalsSetup(adminPage) {
     nicknames: players.map((player) => player.nickname),
     cleanup: async () => {},
   };
+}
+
+/* ───────── TC-3032: manual bracket slot adjustment — same-match swap (issue #3017 Phase 2) ─────────
+ * MR UI-wiring follow-up to BM's TC-3027: the slotEdit PATCH is a shared
+ * factory (finals-route.ts) already exercised by TC-3027/3028/3029/3031 in
+ * tc-bm.js, so this is an API-level smoke test confirming the same op=swap
+ * contract works against the MR finals route now that the page exposes it.
+ * Once QF1/QF2 feeders complete and populate SF1's two slots, an admin
+ * swaps SF1's 1P/2P via PATCH slotEdit (op=swap). Verifies the swap lands
+ * atomically (single version increment, players actually exchanged,
+ * "manually adjusted" badge field set) and that QF1's already-recorded
+ * score is left completely untouched — manual slot edits must never lose
+ * recorded results. */
+async function runTc3032(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    let matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const qf1 = matches.find((m) => m.matchNumber === 1);
+    const qf2 = matches.find((m) => m.matchNumber === 2);
+    if (!qf1 || !qf2) throw new Error('QF1/QF2 not found');
+
+    const qf1Score = await setMrFinalsScore(adminPage, tournamentId, qf1.id, 5, 0);
+    if (qf1Score.s !== 200) throw new Error(`QF1 score PUT failed (${qf1Score.s})`);
+    const qf2Score = await setMrFinalsScore(adminPage, tournamentId, qf2.id, 5, 0);
+    if (qf2Score.s !== 200) throw new Error(`QF2 score PUT failed (${qf2Score.s})`);
+
+    matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const sf1Before = matches.find((m) => m.matchNumber === 5);
+    if (!sf1Before?.player1Id || !sf1Before?.player2Id) {
+      throw new Error(`SF1 slots not both confirmed after QF1/QF2: ${JSON.stringify(sf1Before)}`);
+    }
+
+    const swap = await apiJson(adminPage, `/api/tournaments/${tournamentId}/mr/finals`, {
+      method: 'PATCH',
+      body: { matchId: sf1Before.id, slotEdit: { op: 'swap', expectedVersion: sf1Before.version } },
+    });
+    if (swap.status !== 200) throw new Error(`slotEdit swap failed (${swap.status}): ${JSON.stringify(swap.body)}`);
+
+    matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const sf1After = matches.find((m) => m.matchNumber === 5);
+    const qf1After = matches.find((m) => m.id === qf1.id);
+
+    const swapped = sf1After.player1Id === sf1Before.player2Id && sf1After.player2Id === sf1Before.player1Id;
+    const versionBumped = sf1After.version === sf1Before.version + 1;
+    const badgeSet = !!sf1After.slotOverrideAt;
+    const qf1ScoreKept = qf1After.completed === true && qf1After.score1 === 5 && qf1After.score2 === 0;
+
+    const ok = swapped && versionBumped && badgeSet && qf1ScoreKept;
+    log(
+      'TC-3032',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `swapped=${swapped} versionBumped=${versionBumped} badgeSet=${badgeSet} qf1ScoreKept=${qf1ScoreKept}`,
+    );
+  } catch (err) {
+    log('TC-3032', 'FAIL', err instanceof Error ? err.message : 'TC-3032 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
 }
 
 /**
@@ -2517,6 +2584,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-603', fn: runTc603 },
       { name: 'TC-3027', fn: runTc3027 },
       { name: 'TC-3029', fn: runTc3029 },
+      { name: 'TC-3032', fn: runTc3032 },
       { name: 'TC-608', fn: runTc608 },
       { name: 'TC-609', fn: runTc609 },
       { name: 'TC-820', fn: runTc820 },
@@ -2569,6 +2637,7 @@ module.exports = {
   runTc3027,
   runTc3028,
   runTc3029,
+  runTc3032,
   mrFinalsTargetWinsForMatch,
   getSuite,
   results,
