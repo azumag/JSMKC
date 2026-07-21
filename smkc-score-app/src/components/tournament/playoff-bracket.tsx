@@ -46,6 +46,7 @@ interface BMMatch {
   score2: number;
   cup?: string | null;
   completed: boolean;
+  slotOverrideAt?: string | Date | null;
   player1: Player;
   player2: Player;
 }
@@ -68,6 +69,11 @@ interface PlayoffBracketProps<TMatch extends BMMatch = BMMatch> {
   getWinnerId?: BracketWinnerResolver<TMatch>;
   /** See `DoubleEliminationBracket.onTvNumberChange` — same select-to-save UX. */
   onTvNumberChange?: (match: TMatch, tvNumber: number | null) => void;
+  /** See `DoubleEliminationBracket.slotEditMode` — playoff matches support the
+   * same manual bracket placement adjustment (issue #3017 playoff support). */
+  slotEditMode?: boolean;
+  /** Fired when a slot is clicked in `slotEditMode`. `slot` is 1 or 2. */
+  onSlotClick?: (match: TMatch, slot: 1 | 2) => void;
 }
 
 /**
@@ -85,6 +91,8 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
   getTargetWins,
   getWinnerId,
   onTvNumberChange,
+  slotEditMode,
+  onSlotClick,
 }: {
   match?: TMatch;
   bracketMatch: BracketMatch;
@@ -95,6 +103,8 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
   getTargetWins?: (match: TMatch | undefined, bracketMatch: BracketMatch) => number;
   getWinnerId?: BracketWinnerResolver<TMatch>;
   onTvNumberChange?: (match: TMatch, tvNumber: number | null) => void;
+  slotEditMode?: boolean;
+  onSlotClick?: (match: TMatch, slot: 1 | 2) => void;
 }) {
   const tc = useTranslations('common');
   const tf = useTranslations('finals');
@@ -142,8 +152,19 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
        * the TV badge becomes a `<select>` so the assignment is saved on
        * change without opening the score dialog.
        */}
-      <div className="text-xs text-muted-foreground mb-1 flex justify-between items-center">
-        <span>M{bracketMatch.matchNumber}</span>
+      <div className="text-xs text-muted-foreground mb-1 flex justify-between items-center gap-1">
+        <span className="flex items-center gap-1">
+          M{bracketMatch.matchNumber}
+          {match?.slotOverrideAt && (
+            <span
+              className="inline-flex items-center rounded-sm px-1 py-0.5 text-[10px] font-semibold flag-draft"
+              data-testid="slot-override-badge"
+              title={tf('slotEditOverriddenBadge')}
+            >
+              {tf('slotEditOverriddenBadge')}
+            </span>
+          )}
+        </span>
         {onTvNumberChange && match ? (
           <select
             value={match.tvNumber ?? ''}
@@ -185,6 +206,20 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
             fallback={tc('tbd')}
             className="gap-1"
           />
+          {slotEditMode && match && !match.completed && !isPlayer1TBD && (
+            <button
+              type="button"
+              className="opacity-60 hover:opacity-100 text-xs leading-none"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSlotClick?.(match, 1);
+              }}
+              aria-label={tf('slotEditButtonLabel')}
+              data-testid="slot-edit-button-1"
+            >
+              ✎
+            </button>
+          )}
         </span>
         <span className="font-mono">{match?.completed ? match.score1 : '-'}</span>
       </div>
@@ -207,6 +242,20 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
             fallback={tc('tbd')}
             className="gap-1"
           />
+          {slotEditMode && match && !match.completed && !isPlayer2TBD && (
+            <button
+              type="button"
+              className="opacity-60 hover:opacity-100 text-xs leading-none"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSlotClick?.(match, 2);
+              }}
+              aria-label={tf('slotEditButtonLabel')}
+              data-testid="slot-edit-button-2"
+            >
+              ✎
+            </button>
+          )}
         </span>
         <span className="font-mono">{match?.completed ? match.score2 : '-'}</span>
       </div>
@@ -234,6 +283,8 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
   getTargetWins,
   getWinnerId,
   onTvNumberChange,
+  slotEditMode,
+  onSlotClick,
 }: PlayoffBracketProps<TMatch>) {
   const tf = useTranslations('finals');
   const getMatch = (matchNumber: number) => playoffMatches.find((m) => m.matchNumber === matchNumber);
@@ -318,6 +369,8 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
                   getTargetWins={getTargetWins}
                   getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
+                  slotEditMode={slotEditMode}
+                  onSlotClick={onSlotClick}
                 />
               ))}
             </div>
@@ -347,6 +400,8 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
                   getTargetWins={getTargetWins}
                   getWinnerId={getWinnerId}
                   onTvNumberChange={onTvNumberChange}
+                  slotEditMode={slotEditMode}
+                  onSlotClick={onSlotClick}
                 />
               ))}
             </div>

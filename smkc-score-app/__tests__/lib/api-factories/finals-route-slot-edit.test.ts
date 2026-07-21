@@ -558,6 +558,76 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
     });
   });
 
+  describe('top24 group count detection (playoff support, issue #3017 follow-up)', () => {
+    /* generatePlayoffStructure()/generateBracketStructure(16, ...) both branch
+     * on the Top24 barrage group count (2 or 3 groups → different seed→slot
+     * maps). The TBD guard below must build bracketStructure with the same
+     * group count the GET response used, or a slotEdit on a 2-group
+     * tournament's playoff/16-bracket match could be wrongly accepted or
+     * rejected relative to what the admin sees on screen as confirmed. */
+    it('detects a 2-group tournament and passes groupCount=2 to generatePlayoffStructure for a playoff-stage match', async () => {
+      const existing = makeRow({ stage: 'playoff', matchNumber: 1, round: 'playoff_r1', version: 0 });
+      (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([existing]);
+      (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      await PATCH(patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 0 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(generatePlayoffStructure).toHaveBeenCalledWith(12, 2);
+    });
+
+    it('defaults to groupCount=3 when the qualification group query fails', async () => {
+      const existing = makeRow({ stage: 'playoff', matchNumber: 1, round: 'playoff_r1', version: 0 });
+      (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([existing]);
+      (prisma.bMQualification.findMany as jest.Mock).mockRejectedValue(new Error('db unavailable'));
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      await PATCH(patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 0 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(generatePlayoffStructure).toHaveBeenCalledWith(12, 3);
+    });
+
+    it('passes the detected groupCount to generateBracketStructure for a 16-bracket finals-stage match', async () => {
+      const existing = makeRow({ stage: 'finals', matchNumber: 1, round: 'winners_r1', version: 0 });
+      (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([existing]);
+      (prisma.bMMatch.count as jest.Mock).mockResolvedValue(31);
+      (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      await PATCH(patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 0 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(generateBracketStructure).toHaveBeenCalledWith(16, 2);
+    });
+
+    it('skips the qualification-group query for the common 8-bracket finals-stage case (cost)', async () => {
+      /* prisma.bMMatch.count defaults to 17 in beforeEach → 8-bracket, which
+       * ignores groupCount entirely (generateBracketStructure only branches
+       * on it for playerCount===16). Querying qualification groups here would
+       * be a wasted lookup on every slotEdit for the overwhelmingly common
+       * non-Top24 tournament. */
+      const existing = makeRow({ stage: 'finals', matchNumber: 1, round: 'winners_qf', version: 0 });
+      (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([existing]);
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      await PATCH(patchRequest({ matchId: 'm1', slotEdit: { op: 'swap', expectedVersion: 0 } }), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(generateBracketStructure).toHaveBeenCalledWith(8, 3);
+      expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('validation', () => {
     it('rejects slotEdit combined with tvNumber with 400', async () => {
       const { PATCH } = createFinalsHandlers(createMockConfig());
