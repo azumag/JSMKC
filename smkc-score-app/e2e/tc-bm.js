@@ -33,6 +33,11 @@
  *   TC-1051 BM Top-24 direct/barrage-seed API no longer depends on legacy direct[]/barrage[]
  *   TC-1052 BM Top-24 rejects unsupported 3-group seeding
  *   TC-3026 BM cross-group sudden-death playoff result (combinedRankOverride) can be cleared
+ *   TC-3027 BM manual bracket slot adjustment — same-match swap (issue #3017)
+ *   TC-3028 BM manual bracket slot adjustment — assign + duplicate-placement guard (issue #3017)
+ *   TC-3029 BM manual bracket slot adjustment — cross-match swapSlots (issue #3017)
+ *   TC-3030 BM manual bracket slot adjustment — guards (issue #3017)
+ *   TC-3031 BM manual bracket slot adjustment — playoff-stage swap (issue #3017 playoff support)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -1971,6 +1976,58 @@ async function runTc3030(adminPage) {
   }
 }
 
+/* ───────── TC-3031: manual bracket slot adjustment — playoff-stage swap (issue #3017 playoff support) ─────────
+ * TC-3027/3028/3029 only covered the main double-elimination bracket
+ * (stage='finals'). The "配置調整モード" toggle originally stayed hidden
+ * whenever only the Top-24 pre-bracket playoff (stage='playoff', the
+ * barrage round that seeds 13-16) existed, even though the PATCH slotEdit
+ * backend already branched on stage='playoff'. This exercises the same
+ * op=swap contract as TC-3027 against an unplayed playoff_r1 match, proving
+ * the backend (including the groupCount-aware TBD guard) behaves the same
+ * way for the playoff bracket as it does for the finals bracket. */
+async function runTc3031(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Top24 playoff generation failed (${gen.s})`);
+
+    let state = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const r1Before = state.playoffMatches.find((m) => m.matchNumber === 1);
+    if (!r1Before?.player1Id || !r1Before?.player2Id) {
+      throw new Error(`Playoff R1 M1 slots not both confirmed: ${JSON.stringify(r1Before)}`);
+    }
+
+    const swap = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { matchId: r1Before.id, slotEdit: { op: 'swap', expectedVersion: r1Before.version } },
+    });
+    if (swap.status !== 200) {
+      throw new Error(`Playoff slotEdit swap failed (${swap.status}): ${JSON.stringify(swap.body)}`);
+    }
+
+    state = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const r1After = state.playoffMatches.find((m) => m.matchNumber === 1);
+
+    const swapped = r1After.player1Id === r1Before.player2Id && r1After.player2Id === r1Before.player1Id;
+    const versionBumped = r1After.version === r1Before.version + 1;
+    const badgeSet = !!r1After.slotOverrideAt;
+
+    const ok = swapped && versionBumped && badgeSet;
+    log(
+      'TC-3031',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `swapped=${swapped} versionBumped=${versionBumped} badgeSet=${badgeSet}`,
+    );
+  } catch (err) {
+    log('TC-3031', 'FAIL', err instanceof Error ? err.message : 'TC-3031 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-505: BM Grand Final → champion (28-player full) ─────────
  * Drives M1..M16 with player1 sweeping 5-0 each so seeds propagate
  * deterministically. Winners-side champion takes the GF; the champion
@@ -3301,6 +3358,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-3028', fn: runTc3028 },
       { name: 'TC-3029', fn: runTc3029 },
       { name: 'TC-3030', fn: runTc3030 },
+      { name: 'TC-3031', fn: runTc3031 },
       { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },

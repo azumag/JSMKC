@@ -911,6 +911,42 @@ export function createFinalsHandlers(config: FinalsConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const qualModel = (p: any) => p[config.qualificationModel];
 
+  /**
+   * Detects the Top24 playoff/barrage group count (2 or 3) from the current
+   * qualification rows, defaulting to 3 when detection is inconclusive or the
+   * query fails. `generatePlayoffStructure()` and `generateBracketStructure(16,
+   * ...)` both branch on this value (different seed→slot maps per group
+   * count), so every caller that regenerates bracket structure for this
+   * tournament must agree on it — otherwise the manual slot-edit PATCH
+   * (`handleSlotEdit`, issue #3017) could compute TBD/confirmed slots
+   * differently than the GET response the bracket UI is rendering from.
+   */
+  async function detectTop24GroupCount(tournamentId: string): Promise<2 | 3> {
+    try {
+      const qualificationGroups = await qualModel(prisma).findMany({
+        where: { tournamentId },
+        select: { group: true },
+      });
+      if (Array.isArray(qualificationGroups)) {
+        const detectedGroupCount = new Set(
+          (qualificationGroups as Array<{ group?: string | null }>).map((row) => row.group).filter(Boolean),
+        ).size;
+        if (detectedGroupCount === 2 || detectedGroupCount === 3) {
+          return detectedGroupCount;
+        }
+      }
+    } catch (error) {
+      /* Called from multiple handlers (GET, PATCH), each with its own
+       * request-scoped logger, so build one locally rather than threading
+       * the caller's logger through this helper's signature. */
+      createLogger(config.loggerName).warn(
+        'Could not detect qualification group count for playoff layout; using three-group layout',
+        { ...getSafeErrorLogFields(error), tournamentId, eventTypeCode: config.eventTypeCode },
+      );
+    }
+    return 3;
+  }
+
   function getQualificationMatchScoreFields(): { p1: string; p2: string } {
     return config.eventTypeCode === 'gp' ? { p1: 'points1', p2: 'points2' } : { p1: 'score1', p2: 'score2' };
   }
@@ -1359,29 +1395,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
-      let top24GroupCount: 2 | 3 = 3;
-      if (playoffMatches.length > 0) {
-        try {
-          const qualificationGroups = await qualModel(prisma).findMany({
-            where: { tournamentId },
-            select: { group: true },
-          });
-          if (Array.isArray(qualificationGroups)) {
-            const detectedGroupCount = new Set(
-              (qualificationGroups as Array<{ group?: string | null }>).map((row) => row.group).filter(Boolean),
-            ).size;
-            if (detectedGroupCount === 2 || detectedGroupCount === 3) {
-              top24GroupCount = detectedGroupCount;
-            }
-          }
-        } catch (error) {
-          logger.warn('Could not detect qualification group count for playoff layout; using three-group layout', {
-            ...getSafeErrorLogFields(error),
-            tournamentId,
-            eventTypeCode: config.eventTypeCode,
-          });
-        }
-      }
+      const top24GroupCount: 2 | 3 = playoffMatches.length > 0 ? await detectTop24GroupCount(tournamentId) : 3;
       const playoffStructure =
         playoffMatches.length > 0 ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, top24GroupCount) : [];
 
@@ -2630,14 +2644,29 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     /* Bracket structure for the TBD guard: finals infers bracket size the
      * same way PUT does (17 vs 31 total finals matches); playoff always
-     * uses the fixed 12-entrant structure (matches PUT's playoff branch). */
+     * uses the fixed 12-entrant structure (matches PUT's playoff branch).
+     * Both branches must pass the same top24GroupCount the GET response used
+     * to render the bracket, or the TBD guard here can disagree with what
+     * the admin sees as "confirmed" on screen (playoff support, issue #3017). */
     const stage: 'finals' | 'playoff' = existing.stage;
+    const finalsBracketSize =
+      stage === 'finals'
+        ? (await model(prisma).count({ where: { tournamentId, stage: 'finals' } })) > BRACKET_SIZE_THRESHOLD
+          ? 16
+          : 8
+        : null;
+    /* Only detect the Top24 group count when it can actually change the
+     * seed→slot map: every playoff-stage match came from the Top24 flow,
+     * and generateBracketStructure() only branches on groupCount for the
+     * 16-bracket case (8-bracket ignores the argument entirely). Skipping
+     * the qualification-group query for the common Top8 case avoids an
+     * unnecessary lookup on every slotEdit PATCH. */
+    const top24GroupCount =
+      stage === 'playoff' || finalsBracketSize === 16 ? await detectTop24GroupCount(tournamentId) : 3;
     const bracketStructure =
       stage === 'playoff'
-        ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
-        : generateBracketStructure(
-            (await model(prisma).count({ where: { tournamentId, stage: 'finals' } })) > BRACKET_SIZE_THRESHOLD ? 16 : 8,
-          );
+        ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, top24GroupCount)
+        : generateBracketStructure(finalsBracketSize as 8 | 16, top24GroupCount);
 
     const stageMatches: SlotEditMatch[] = await model(prisma).findMany({
       where: { tournamentId, stage },

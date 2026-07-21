@@ -673,8 +673,8 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
               </AlertDialog>
             )}
             {/* Manual slot placement adjustment mode toggle: admin-only, only
-             * meaningful once a bracket exists. */}
-            {isAdmin && matches.length > 0 && (
+             * meaningful once a bracket (finals or playoff) exists. */}
+            {isAdmin && (matches.length > 0 || playoffMatches.length > 0) && (
               <Button
                 variant={slotEditMode ? 'default' : 'outline'}
                 className={slotEditMode ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}
@@ -788,6 +788,8 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
                 getTargetWins={(match, bracketMatch) =>
                   getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
                 }
+                slotEditMode={isAdmin ? slotEditMode : undefined}
+                onSlotClick={isAdmin ? handleSlotClick : undefined}
               />
               {matches.length === 0 && playoffComplete && isAdmin && (
                 <PlayoffCompleteCard
@@ -812,6 +814,8 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
               getTargetWins={(match, bracketMatch) =>
                 getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
               }
+              slotEditMode={isAdmin ? slotEditMode : undefined}
+              onSlotClick={isAdmin ? handleSlotClick : undefined}
             />
             {playoffComplete && isAdmin && (
               <PlayoffCompleteCard
@@ -1067,8 +1071,8 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
             qualificationApiPath={`/api/tournaments/${tournamentId}/bm`}
             match={slotEditTarget?.match ?? null}
             slot={slotEditTarget?.slot ?? null}
-            matches={matches}
-            bracketStructure={bracketStructure}
+            matches={slotEditTarget?.match.stage === 'playoff' ? playoffMatches : matches}
+            bracketStructure={slotEditTarget?.match.stage === 'playoff' ? playoffStructure : bracketStructure}
             onSaved={refetch}
           />
         )}

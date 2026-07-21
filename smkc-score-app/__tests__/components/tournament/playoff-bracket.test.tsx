@@ -104,6 +104,134 @@ describe('PlayoffBracket winner resolver', () => {
   });
 });
 
+describe('PlayoffBracket manual slot placement adjustment (issue #3017 playoff support)', () => {
+  const player1 = { id: 'p1', name: 'Alice A', nickname: 'Alice' };
+  const player2 = { id: 'p2', name: 'Bob B', nickname: 'Bob' };
+
+  const buildMatch = (overrides = {}) => ({
+    id: 'm1',
+    matchNumber: 1,
+    round: 'playoff_r1',
+    stage: 'playoff',
+    player1Id: player1.id,
+    player2Id: player2.id,
+    score1: 0,
+    score2: 0,
+    completed: false,
+    player1,
+    player2,
+    ...overrides,
+  });
+
+  const r1Structure = [
+    { matchNumber: 1, round: 'playoff_r1', bracket: 'winners' as const, player1Seed: 17, player2Seed: 24 },
+  ];
+
+  it('shows an edit button on each confirmed slot when slotEditMode is on', () => {
+    render(
+      <PlayoffBracket
+        playoffMatches={[buildMatch()]}
+        playoffStructure={r1Structure}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('slot-edit-button-1')).toBeInTheDocument();
+    expect(screen.getByTestId('slot-edit-button-2')).toBeInTheDocument();
+  });
+
+  it('hides edit buttons when slotEditMode is off', () => {
+    render(<PlayoffBracket playoffMatches={[buildMatch()]} playoffStructure={r1Structure} roundNames={{}} />);
+
+    expect(screen.queryByTestId('slot-edit-button-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+  });
+
+  it('hides edit buttons on a completed match even in slotEditMode', () => {
+    render(
+      <PlayoffBracket
+        playoffMatches={[buildMatch({ completed: true, score1: 3, score2: 1 })]}
+        playoffStructure={r1Structure}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId('slot-edit-button-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+  });
+
+  it('hides the edit button for a slot that is still TBD', () => {
+    /* R2 match (M5): player2Seed is omitted (R1 winner not yet routed), and
+     * player1Id === player2Id is the placeholder heuristic for "not yet
+     * filled" — so slot 2 must not be editable. */
+    render(
+      <PlayoffBracket
+        playoffMatches={[
+          buildMatch({
+            id: 'm5',
+            matchNumber: 5,
+            round: 'playoff_r2',
+            player1Id: player1.id,
+            player2Id: player1.id,
+            player2: player1,
+          }),
+        ]}
+        playoffStructure={[{ matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 16 }]}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('slot-edit-button-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+  });
+
+  it('calls onSlotClick with the match and slot, without triggering onMatchClick', () => {
+    const onSlotClick = jest.fn();
+    const onMatchClick = jest.fn();
+    render(
+      <PlayoffBracket
+        playoffMatches={[buildMatch()]}
+        playoffStructure={r1Structure}
+        roundNames={{}}
+        slotEditMode
+        onSlotClick={onSlotClick}
+        onMatchClick={onMatchClick}
+      />,
+    );
+
+    screen.getByTestId('slot-edit-button-2').click();
+
+    expect(onSlotClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }), 2);
+    expect(onMatchClick).not.toHaveBeenCalled();
+  });
+
+  it('shows the manual-adjustment badge only when slotOverrideAt is set', () => {
+    const { rerender } = render(
+      <PlayoffBracket
+        playoffMatches={[buildMatch({ slotOverrideAt: '2026-07-20T00:00:00.000Z' })]}
+        playoffStructure={r1Structure}
+        roundNames={{}}
+      />,
+    );
+    expect(screen.getByTestId('slot-override-badge')).toBeInTheDocument();
+
+    rerender(
+      <PlayoffBracket
+        playoffMatches={[buildMatch({ slotOverrideAt: null })]}
+        playoffStructure={r1Structure}
+        roundNames={{}}
+      />,
+    );
+    expect(screen.queryByTestId('slot-override-badge')).not.toBeInTheDocument();
+  });
+});
+
 describe('PlayoffBracket country flags', () => {
   it('renders a flag for a determined player and none for a TBD slot', () => {
     const alice = { id: 'p1', name: 'Alice A', nickname: 'Alice', country: 'JP' };
