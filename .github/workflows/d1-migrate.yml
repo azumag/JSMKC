@@ -1,9 +1,22 @@
 name: D1 Migrate
 
 on:
-  # Production deploys run migrations in the Cloudflare Workers deploy command
-  # (`npm run deploy:cf`). Keep this workflow manual for emergency replays so
-  # GitHub Actions and Cloudflare Builds cannot race on the same D1 migration.
+  # Auto-apply whenever a migration file lands on main. This workflow was
+  # briefly push-triggered (#718, after migration 0027 shipped unapplied and
+  # broke prod), then narrowed to workflow_dispatch-only two days later (#815)
+  # on the assumption that Cloudflare Workers Builds runs `npm run deploy:cf`
+  # (which chains `db:migrations:apply` before `wrangler deploy`) on every
+  # merge to main. That assumption was never actually true: Workers Builds'
+  # dashboard-configured build command does not run migrations, so every
+  # migration since #815 has only ever been applied via manual
+  # workflow_dispatch catch-up runs (#3017's 0042/0043 being the latest
+  # example — both sat unapplied on production until a manual replay).
+  # Keep workflow_dispatch too, for ad hoc/emergency replays.
+  push:
+    branches: [main]
+    paths:
+      - "smkc-score-app/migrations/**"
+      - ".github/workflows/d1-migrate.yml"
   workflow_dispatch:
 
 concurrency:
@@ -41,6 +54,12 @@ jobs:
 
       - name: Apply migrations
         run: npm run db:migrations:apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Confirm no migrations remain pending (audit log)
+        run: npm run db:migrations:list
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
