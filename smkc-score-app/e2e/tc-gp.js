@@ -41,14 +41,25 @@
  * Run: node e2e/tc-gp.js  (from smkc-score-app/)  or:  npm run e2e:gp
  */
 const {
-  makeResults, makeLog, nav,
+  makeResults,
+  makeLog,
+  nav,
   matchUpdateUsesLeanPayload,
-  uiCreatePlayer, apiDeletePlayer, apiDeleteTournament, uiCreateTournament,
-  apiFetchGp, apiPutGpQualScore,
-  apiSetGpFinalsScore, apiSetGpFinalsCupResults, apiGenerateGpFinals, apiFetchGpFinalsMatches, apiFetchGpFinalsState,
+  uiCreatePlayer,
+  apiDeletePlayer,
+  apiDeleteTournament,
+  uiCreateTournament,
+  apiFetchGp,
+  apiPutGpQualScore,
+  apiSetGpFinalsScore,
+  apiSetGpFinalsCupResults,
+  apiGenerateGpFinals,
+  apiFetchGpFinalsMatches,
+  apiFetchGpFinalsState,
   apiUpdateTournament,
   apiJson,
-  makeRacesP1Wins, makeRacesP2Wins,
+  makeRacesP1Wins,
+  makeRacesP2Wins,
   loginPlayerBrowser,
   setupGpQualViaUi,
   resolveAllTies,
@@ -67,13 +78,7 @@ const log = makeLog(results);
 let sharedFixture = null;
 
 function gpFinalsTargetWins(match) {
-  const topFourRounds = new Set([
-    'winners_final',
-    'losers_sf',
-    'losers_final',
-    'grand_final',
-    'grand_final_reset',
-  ]);
+  const topFourRounds = new Set(['winners_final', 'losers_sf', 'losers_final', 'grand_final', 'grand_final_reset']);
   if (match?.stage === 'playoff') return 1;
   return topFourRounds.has(match?.round) ? 3 : 2;
 }
@@ -92,10 +97,11 @@ async function apiSetGpFinalsWinner(adminPage, tournamentId, match, winnerSide =
 function importsMaxGpDriverPointsFromConstants(source) {
   return source
     .split(';')
-    .some((statement) =>
-      /^\s*import\s/.test(statement) &&
-      statement.includes('MAX_GP_DRIVER_POINTS') &&
-      /from\s+["']@\/lib\/constants["']/.test(statement)
+    .some(
+      (statement) =>
+        /^\s*import\s/.test(statement) &&
+        statement.includes('MAX_GP_DRIVER_POINTS') &&
+        /from\s+["']@\/lib\/constants["']/.test(statement),
     );
 }
 
@@ -113,21 +119,49 @@ async function loginSharedPlayer(adminPage, player) {
 async function runTc1098() {
   try {
     const constantsSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'constants.ts'), 'utf8');
-    const participantSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'participant', 'page.tsx'), 'utf8');
-    const routeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'api', 'tournaments', '[id]', 'gp', 'match', '[matchId]', 'report', 'route.ts'), 'utf8');
+    const participantSource = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'participant', 'page.tsx'),
+      'utf8',
+    );
+    const routeSource = fs.readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        'src',
+        'app',
+        'api',
+        'tournaments',
+        '[id]',
+        'gp',
+        'match',
+        '[matchId]',
+        'report',
+        'route.ts',
+      ),
+      'utf8',
+    );
 
     const constantExported = /export const MAX_GP_DRIVER_POINTS\b/.test(constantsSource);
     const participantImportsConstant = importsMaxGpDriverPointsFromConstants(participantSource);
     const routeImportsConstant = importsMaxGpDriverPointsFromConstants(routeSource);
-    const localDefinitionsRemoved = !/const MAX_GP_DRIVER_POINTS\s*=/.test(participantSource) &&
-      !/const MAX_GP_DRIVER_POINTS\s*=/.test(routeSource);
+    const localDefinitionsRemoved =
+      !/const MAX_GP_DRIVER_POINTS\s*=/.test(participantSource) && !/const MAX_GP_DRIVER_POINTS\s*=/.test(routeSource);
 
-    log('TC-1098', constantExported && participantImportsConstant && routeImportsConstant && localDefinitionsRemoved ? 'PASS' : 'FAIL',
-      !constantExported ? 'MAX_GP_DRIVER_POINTS export missing from constants.ts'
-      : !participantImportsConstant ? 'participant page does not import MAX_GP_DRIVER_POINTS from constants'
-      : !routeImportsConstant ? 'report route does not import MAX_GP_DRIVER_POINTS from constants'
-      : !localDefinitionsRemoved ? 'page-local or route-local MAX_GP_DRIVER_POINTS definition remains'
-      : '');
+    log(
+      'TC-1098',
+      constantExported && participantImportsConstant && routeImportsConstant && localDefinitionsRemoved
+        ? 'PASS'
+        : 'FAIL',
+      !constantExported
+        ? 'MAX_GP_DRIVER_POINTS export missing from constants.ts'
+        : !participantImportsConstant
+          ? 'participant page does not import MAX_GP_DRIVER_POINTS from constants'
+          : !routeImportsConstant
+            ? 'report route does not import MAX_GP_DRIVER_POINTS from constants'
+            : !localDefinitionsRemoved
+              ? 'page-local or route-local MAX_GP_DRIVER_POINTS definition remains'
+              : '',
+    );
   } catch (err) {
     log('TC-1098', 'FAIL', err instanceof Error ? err.message : 'GP 1098 failed');
   }
@@ -136,29 +170,49 @@ async function runTc1098() {
 /* ───────── TC-1106: GP manual driver-points inputs use bounded parser ───────── */
 async function runTc1106() {
   try {
-    const inputHelperSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'gp-driver-points-input.ts'), 'utf8');
-    const gpPageSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx'), 'utf8');
-    const gpFinalsSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'), 'utf8');
+    const inputHelperSource = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'lib', 'gp-driver-points-input.ts'),
+      'utf8',
+    );
+    const gpPageSource = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx'),
+      'utf8',
+    );
+    const gpFinalsSource = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'),
+      'utf8',
+    );
 
     const parserExported = /export function parseGpDriverPointsInput\b/.test(inputHelperSource);
-    const parserUsesMax = inputHelperSource.includes('MAX_GP_DRIVER_POINTS') &&
-      inputHelperSource.includes('value <= MAX_GP_DRIVER_POINTS');
-    const propsKeepMobileHints = inputHelperSource.includes('type: "text"') &&
+    const parserUsesMax =
+      inputHelperSource.includes('MAX_GP_DRIVER_POINTS') && inputHelperSource.includes('value <= MAX_GP_DRIVER_POINTS');
+    const propsKeepMobileHints =
+      inputHelperSource.includes('type: "text"') &&
       inputHelperSource.includes('inputMode: "numeric"') &&
       inputHelperSource.includes('pattern: "[0-9]*"');
-    const gpPageUsesParser = gpPageSource.includes('parseGpDriverPointsInput(manualPoints1)') &&
+    const gpPageUsesParser =
+      gpPageSource.includes('parseGpDriverPointsInput(manualPoints1)') &&
       gpPageSource.includes('parseGpDriverPointsInput(manualPoints2)');
-    const gpFinalsUsesParser = gpFinalsSource.includes('parseGpDriverPointsInput(cup.manualPoints1)') &&
+    const gpFinalsUsesParser =
+      gpFinalsSource.includes('parseGpDriverPointsInput(cup.manualPoints1)') &&
       gpFinalsSource.includes('parseGpDriverPointsInput(cup.manualPoints2)');
 
     const ok = parserExported && parserUsesMax && propsKeepMobileHints && gpPageUsesParser && gpFinalsUsesParser;
-    log('TC-1106', ok ? 'PASS' : 'FAIL',
-      !parserExported ? 'parseGpDriverPointsInput export missing'
-      : !parserUsesMax ? 'GP driver-points parser does not enforce MAX_GP_DRIVER_POINTS'
-      : !propsKeepMobileHints ? 'GP input props lost mobile numeric text hints'
-      : !gpPageUsesParser ? 'gp/page-client manual points do not use parseGpDriverPointsInput'
-      : !gpFinalsUsesParser ? 'gp/finals manual cup points do not use parseGpDriverPointsInput'
-      : '');
+    log(
+      'TC-1106',
+      ok ? 'PASS' : 'FAIL',
+      !parserExported
+        ? 'parseGpDriverPointsInput export missing'
+        : !parserUsesMax
+          ? 'GP driver-points parser does not enforce MAX_GP_DRIVER_POINTS'
+          : !propsKeepMobileHints
+            ? 'GP input props lost mobile numeric text hints'
+            : !gpPageUsesParser
+              ? 'gp/page-client manual points do not use parseGpDriverPointsInput'
+              : !gpFinalsUsesParser
+                ? 'gp/finals manual cup points do not use parseGpDriverPointsInput'
+                : '',
+    );
   } catch (err) {
     log('TC-1106', 'FAIL', err instanceof Error ? err.message : 'GP 1106 failed');
   }
@@ -167,12 +221,8 @@ async function runTc1106() {
 async function prepareSharedGpPair(adminPage, { dualReport = false } = {}) {
   if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
 
-  const players = dualReport
-    ? sharedFixture.players.slice(2, 4)
-    : sharedFixture.players.slice(0, 2);
-  const tournament = dualReport
-    ? sharedFixture.dualTournament
-    : sharedFixture.normalTournament;
+  const players = dualReport ? sharedFixture.players.slice(2, 4) : sharedFixture.players.slice(0, 2);
+  const tournament = dualReport ? sharedFixture.dualTournament : sharedFixture.normalTournament;
 
   /* Reset qualificationConfirmed before re-seeding so score PUTs aren't 403'd
    * by state left over from the BM/MR suites. Mirrors prepareSharedBmPair. */
@@ -302,7 +352,7 @@ async function runTc701(adminPage) {
     /* Product default: 2 groups × 14 players. Round-robin yields
      * 14C2 = 91 matches/group → 182 matches total. */
     const groupCounts = { A: 0, B: 0 };
-    for (const q of (data.qualifications || [])) {
+    for (const q of data.qualifications || []) {
       if (q.group in groupCounts) groupCounts[q.group]++;
     }
     const groupedOk = groupCounts.A === 14 && groupCounts.B === 14;
@@ -314,13 +364,21 @@ async function runTc701(adminPage) {
     const qualificationPointsOk = qualificationPoints.length >= 28;
 
     const ok = groupedOk && matchesOk && allCompleted && standingsOk && qualificationPointsOk;
-    log('TC-701', ok ? 'PASS' : 'FAIL',
-      !groupedOk ? `groups: A=${groupCounts.A} B=${groupCounts.B}`
-      : !matchesOk ? `matches=${matches.length} expected=182`
-      : !allCompleted ? `not all completed`
-      : !standingsOk ? `standings count=${(data.qualifications || []).length}`
-      : !qualificationPointsOk ? `qualification points rows=${qualificationPoints.length} expected>=28`
-      : '');
+    log(
+      'TC-701',
+      ok ? 'PASS' : 'FAIL',
+      !groupedOk
+        ? `groups: A=${groupCounts.A} B=${groupCounts.B}`
+        : !matchesOk
+          ? `matches=${matches.length} expected=182`
+          : !allCompleted
+            ? `not all completed`
+            : !standingsOk
+              ? `standings count=${(data.qualifications || []).length}`
+              : !qualificationPointsOk
+                ? `qualification points rows=${qualificationPoints.length} expected>=28`
+                : '',
+    );
   } catch (err) {
     log('TC-701', 'FAIL', err instanceof Error ? err.message : 'GP 701 failed');
   } finally {
@@ -335,8 +393,7 @@ async function runTc724(adminPage) {
     setup = await prepareSharedGpFinalsSetup(adminPage);
     const ranks = await assertCombinedStandingsTab(adminPage, 'gp', setup.tournamentId);
     const ok = ranks.length >= 28;
-    log('TC-724', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
+    log('TC-724', ok ? 'PASS' : 'FAIL', ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
   } catch (err) {
     log('TC-724', 'FAIL', err instanceof Error ? err.message : 'GP 724 failed');
   } finally {
@@ -366,11 +423,17 @@ async function runTc725(adminPage) {
     const minExpectedRounds = 13;
     const ok = rounds.length >= minExpectedRounds && divergentRounds.length === 0 && !repeatedBoundary;
 
-    log('TC-725', ok ? 'PASS' : 'FAIL',
-      rounds.length < minExpectedRounds ? `rounds=${rounds.length} expected>=${minExpectedRounds}`
-      : divergentRounds.length > 0 ? `divergent rounds=${divergentRounds.map(([r, c]) => `${r}=${[...c].join(',')}`).join(' | ')}`
-      : repeatedBoundary ? `adjacent repeated cup=${repeatedBoundary}`
-      : '');
+    log(
+      'TC-725',
+      ok ? 'PASS' : 'FAIL',
+      rounds.length < minExpectedRounds
+        ? `rounds=${rounds.length} expected>=${minExpectedRounds}`
+        : divergentRounds.length > 0
+          ? `divergent rounds=${divergentRounds.map(([r, c]) => `${r}=${[...c].join(',')}`).join(' | ')}`
+          : repeatedBoundary
+            ? `adjacent repeated cup=${repeatedBoundary}`
+            : '',
+    );
   } catch (err) {
     log('TC-725', 'FAIL', err instanceof Error ? err.message : 'GP 725 failed');
   } finally {
@@ -386,17 +449,23 @@ async function runTc1087(adminPage) {
     const data = await apiFetchGp(adminPage, setup.tournamentId);
     const realMatches = (data.matches || []).filter((m) => !m.isBye);
     // Keep the finite check explicit to cover NaN/Infinity edge cases tested in TC-1087.
-    const invalidRoundMatches = realMatches.filter((match) =>
-      !Number.isFinite(match.roundNumber) || !Number.isInteger(match.roundNumber) || match.roundNumber < 1
+    const invalidRoundMatches = realMatches.filter(
+      (match) => !Number.isFinite(match.roundNumber) || !Number.isInteger(match.roundNumber) || match.roundNumber < 1,
     );
     const missingCupMatches = realMatches.filter((match) => !match.cup);
     const ok = realMatches.length > 0 && invalidRoundMatches.length === 0 && missingCupMatches.length === 0;
 
-    log('TC-1087', ok ? 'PASS' : 'FAIL',
-      realMatches.length === 0 ? 'no real GP qualification matches found'
-      : invalidRoundMatches.length > 0 ? `invalid roundNumber matches=${invalidRoundMatches.map((m) => m.matchNumber).join(',')}`
-      : missingCupMatches.length > 0 ? `missing cup matches=${missingCupMatches.map((m) => m.matchNumber).join(',')}`
-      : '');
+    log(
+      'TC-1087',
+      ok ? 'PASS' : 'FAIL',
+      realMatches.length === 0
+        ? 'no real GP qualification matches found'
+        : invalidRoundMatches.length > 0
+          ? `invalid roundNumber matches=${invalidRoundMatches.map((m) => m.matchNumber).join(',')}`
+          : missingCupMatches.length > 0
+            ? `missing cup matches=${missingCupMatches.map((m) => m.matchNumber).join(',')}`
+            : '',
+    );
   } catch (err) {
     log('TC-1087', 'FAIL', err instanceof Error ? err.message : 'GP 1087 failed');
   } finally {
@@ -424,7 +493,9 @@ async function runTc729(adminPage) {
   let tournamentId = null;
   const players = [];
   try {
-    tournamentId = await uiCreateTournament(adminPage, `GP Solo BREAK ${Date.now()}`, { slug: `gp-solo-break-${Date.now()}` });
+    tournamentId = await uiCreateTournament(adminPage, `GP Solo BREAK ${Date.now()}`, {
+      slug: `gp-solo-break-${Date.now()}`,
+    });
     for (let i = 0; i < 3; i++) {
       const stamp = Date.now();
       players.push(await uiCreatePlayer(adminPage, `GP Solo ${stamp} ${i + 1}`, `gp_solo_${stamp}_${i + 1}`));
@@ -445,17 +516,21 @@ async function runTc729(adminPage) {
     const qualification = (after.qualifications || []).find((q) => q.playerId === bye.player1Id);
 
     const initiallyPending = bye.completed === false && (bye.points1 ?? 0) === 0 && (bye.points2 ?? 0) === 0;
-    const persisted = put.s === 200 &&
-      updated?.completed === true &&
-      updated.points1 === expectedPoints &&
-      updated.points2 === 0;
+    const persisted =
+      put.s === 200 && updated?.completed === true && updated.points1 === expectedPoints && updated.points2 === 0;
     const standingsUpdated = qualification?.points === expectedPoints && qualification?.wins === 1;
 
-    log('TC-729', initiallyPending && persisted && standingsUpdated ? 'PASS' : 'FAIL',
-      !initiallyPending ? `initial BREAK completed=${bye.completed} points=${bye.points1}-${bye.points2}`
-      : !persisted ? `PUT=${put.s} updated=${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
-      : !standingsUpdated ? `qualification points=${qualification?.points} wins=${qualification?.wins}`
-      : '');
+    log(
+      'TC-729',
+      initiallyPending && persisted && standingsUpdated ? 'PASS' : 'FAIL',
+      !initiallyPending
+        ? `initial BREAK completed=${bye.completed} points=${bye.points1}-${bye.points2}`
+        : !persisted
+          ? `PUT=${put.s} updated=${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
+          : !standingsUpdated
+            ? `qualification points=${qualification?.points} wins=${qualification?.wins}`
+            : '',
+    );
   } catch (err) {
     log('TC-729', 'FAIL', err instanceof Error ? err.message : 'GP 729 failed');
   } finally {
@@ -475,21 +550,21 @@ async function runTc702(adminPage) {
     const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
     /* Submit driver-point totals via API from the player browser session. */
-    const reportRes = await ctx.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-      { reportingPlayer: 1, points1: 45, points2: 0 },
-    ]);
+    const reportRes = await ctx.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`, { reportingPlayer: 1, points1: 45, points2: 0 }],
+    );
 
     /* dualReportEnabled=false → autoConfirmed on first report. */
-    const confirmed = reportRes.s === 200 &&
-      (reportRes.b?.data?.autoConfirmed === true || reportRes.b?.autoConfirmed === true);
+    const confirmed =
+      reportRes.s === 200 && (reportRes.b?.data?.autoConfirmed === true || reportRes.b?.autoConfirmed === true);
 
     const after = await apiFetchGp(adminPage, tournamentId);
     const updated = (after.matches || []).find((m) => m.id === match.id);
@@ -497,11 +572,17 @@ async function runTc702(adminPage) {
     const directPointsPersisted = updated?.completed === true && updated.points1 === 45 && updated.points2 === 0;
     const reportedRacesPersistedAsNull = updated?.player1ReportedRaces === null;
 
-    log('TC-702', confirmed && directPointsPersisted && reportedRacesPersistedAsNull ? 'PASS' : 'FAIL',
-      !confirmed ? `report not confirmed: status=${reportRes.s}`
-      : !directPointsPersisted ? `points: ${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
-      : !reportedRacesPersistedAsNull ? `reportedRaces=${JSON.stringify(updated?.player1ReportedRaces)}`
-      : '');
+    log(
+      'TC-702',
+      confirmed && directPointsPersisted && reportedRacesPersistedAsNull ? 'PASS' : 'FAIL',
+      !confirmed
+        ? `report not confirmed: status=${reportRes.s}`
+        : !directPointsPersisted
+          ? `points: ${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
+          : !reportedRacesPersistedAsNull
+            ? `reportedRaces=${JSON.stringify(updated?.player1ReportedRaces)}`
+            : '',
+    );
   } catch (err) {
     log('TC-702', 'FAIL', err instanceof Error ? err.message : 'GP 702 failed');
   } finally {
@@ -559,17 +640,34 @@ async function runTc703(adminPage) {
     const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id);
     const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
 
-    const ok = bracketCount && scoreSaved && winnerRouted && loserRouted
-      && qfAllPresent && qfAllDistinct && qfAllRegistered && qfRendered;
-    log('TC-703', ok ? 'PASS' : 'FAIL',
-      !qfAllPresent ? 'QF has null player IDs'
-      : !qfAllDistinct ? `QF IDs not 8 distinct: ${new Set(qfIds).size}`
-      : !qfAllRegistered ? 'QF contains unknown player IDs'
-      : !qfRendered ? `QF nickname not on finals page (${qfNick})`
-      : !bracketCount ? `bracket size=${after.length}`
-      : !scoreSaved ? `score: ${updated?.points1}-${updated?.points2}`
-      : !winnerRouted || !loserRouted ? 'routing mismatch'
-      : '');
+    const ok =
+      bracketCount &&
+      scoreSaved &&
+      winnerRouted &&
+      loserRouted &&
+      qfAllPresent &&
+      qfAllDistinct &&
+      qfAllRegistered &&
+      qfRendered;
+    log(
+      'TC-703',
+      ok ? 'PASS' : 'FAIL',
+      !qfAllPresent
+        ? 'QF has null player IDs'
+        : !qfAllDistinct
+          ? `QF IDs not 8 distinct: ${new Set(qfIds).size}`
+          : !qfAllRegistered
+            ? 'QF contains unknown player IDs'
+            : !qfRendered
+              ? `QF nickname not on finals page (${qfNick})`
+              : !bracketCount
+                ? `bracket size=${after.length}`
+                : !scoreSaved
+                  ? `score: ${updated?.points1}-${updated?.points2}`
+                  : !winnerRouted || !loserRouted
+                    ? 'routing mismatch'
+                    : '',
+    );
   } catch (err) {
     log('TC-703', 'FAIL', err instanceof Error ? err.message : 'GP 703 failed');
   } finally {
@@ -592,8 +690,9 @@ async function runTc704(adminPage) {
     const score = await apiSetGpFinalsWinner(adminPage, setup.tournamentId, m1, 1);
     if (score.s !== 200) throw new Error(`Score put failed (${score.s})`);
 
-    const completedBefore = (await apiFetchGpFinalsMatches(adminPage, setup.tournamentId))
-      .filter((m) => m.completed).length;
+    const completedBefore = (await apiFetchGpFinalsMatches(adminPage, setup.tournamentId)).filter(
+      (m) => m.completed,
+    ).length;
     if (completedBefore < 1) throw new Error('Pre-reset score not persisted');
 
     const reset = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
@@ -602,8 +701,11 @@ async function runTc704(adminPage) {
     const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const completedAfter = after.filter((m) => m.completed).length;
     const ok = completedBefore >= 1 && completedAfter === 0 && after.length === 17;
-    log('TC-704', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `before=${completedBefore} after=${completedAfter} total=${after.length}`);
+    log(
+      'TC-704',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `before=${completedBefore} after=${completedAfter} total=${after.length}`,
+    );
   } catch (err) {
     log('TC-704', 'FAIL', err instanceof Error ? err.message : 'GP 704 failed');
   } finally {
@@ -649,14 +751,16 @@ async function runTc705(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/gp/finals`);
     const pageText = await adminPage.locator('body').innerText();
-    const championShown = pageText.includes(championNickname) &&
+    const championShown =
+      pageText.includes(championNickname) &&
       (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
     const m16Ok = m16.completed === true && m16.points1 === 3 && m16.points2 === 0;
 
-    log('TC-705', m16Ok && championShown ? 'PASS' : 'FAIL',
-      !m16Ok ? 'M16 not completed'
-      : !championShown ? `Champion banner missing nickname ${championNickname}`
-      : '');
+    log(
+      'TC-705',
+      m16Ok && championShown ? 'PASS' : 'FAIL',
+      !m16Ok ? 'M16 not completed' : !championShown ? `Champion banner missing nickname ${championNickname}` : '',
+    );
   } catch (err) {
     log('TC-705', 'FAIL', err instanceof Error ? err.message : 'GP 705 failed');
   } finally {
@@ -704,10 +808,15 @@ async function runTc706(adminPage) {
     const finalM17 = finalMatches.find((m) => m.matchNumber === 17);
     const m17Completed = finalM17?.completed === true;
 
-    log('TC-706', m17Populated && m17Completed ? 'PASS' : 'FAIL',
-      !m17Populated ? `M17 not populated p1=${m17.player1Id} p2=${m17.player2Id}`
-      : !m17Completed ? 'M17 not completed'
-      : '');
+    log(
+      'TC-706',
+      m17Populated && m17Completed ? 'PASS' : 'FAIL',
+      !m17Populated
+        ? `M17 not populated p1=${m17.player1Id} p2=${m17.player2Id}`
+        : !m17Completed
+          ? 'M17 not completed'
+          : '',
+    );
   } catch (err) {
     log('TC-706', 'FAIL', err instanceof Error ? err.message : 'GP 706 failed');
   } finally {
@@ -724,43 +833,50 @@ async function runTc707(adminPage) {
     const races = makeRacesP1Wins(match.cup);
     const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
-    const r1 = await ctx1.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-        { reportingPlayer: 1, races }]);
-    const r1WaitingForP2 = r1.s === 200 &&
-      (r1.b?.data?.waitingFor === 'player2' || r1.b?.waitingFor === 'player2');
+    const r1 = await ctx1.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`, { reportingPlayer: 1, races }],
+    );
+    const r1WaitingForP2 = r1.s === 200 && (r1.b?.data?.waitingFor === 'player2' || r1.b?.waitingFor === 'player2');
 
     const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
-    const r2 = await ctx2.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-        { reportingPlayer: 2, races }]);
-    const autoConfirmed = r2.s === 200 &&
-      (r2.b?.data?.autoConfirmed === true || r2.b?.autoConfirmed === true);
+    const r2 = await ctx2.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`, { reportingPlayer: 2, races }],
+    );
+    const autoConfirmed = r2.s === 200 && (r2.b?.data?.autoConfirmed === true || r2.b?.autoConfirmed === true);
 
     const finalData = await apiFetchGp(adminPage, tournamentId);
     const finalMatch = (finalData.matches || []).find((m) => m.id === match.id);
-    const persisted = finalMatch?.completed === true &&
-      finalMatch.points1 === 45 && finalMatch.points2 === 0;
+    const persisted = finalMatch?.completed === true && finalMatch.points1 === 45 && finalMatch.points2 === 0;
 
     const ok = r1WaitingForP2 && autoConfirmed && persisted;
-    log('TC-707', ok ? 'PASS' : 'FAIL',
-      !r1WaitingForP2 ? `P1 missing waitingFor (status=${r1.s})`
-      : !autoConfirmed ? `P2 missing autoConfirmed (status=${r2.s})`
-      : !persisted ? `final not persisted: ${finalMatch?.points1}-${finalMatch?.points2}`
-      : '');
+    log(
+      'TC-707',
+      ok ? 'PASS' : 'FAIL',
+      !r1WaitingForP2
+        ? `P1 missing waitingFor (status=${r1.s})`
+        : !autoConfirmed
+          ? `P2 missing autoConfirmed (status=${r2.s})`
+          : !persisted
+            ? `final not persisted: ${finalMatch?.points1}-${finalMatch?.points2}`
+            : '',
+    );
   } catch (err) {
     log('TC-707', 'FAIL', err instanceof Error ? err.message : 'GP 707 failed');
   } finally {
@@ -776,29 +892,38 @@ async function runTc708(adminPage) {
 
     const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
-    await ctx1.page.evaluate(async ([u, body]) => {
-      await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-        { reportingPlayer: 1, races: makeRacesP1Wins(match.cup) }]);
+    await ctx1.page.evaluate(
+      async ([u, body]) => {
+        await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      },
+      [
+        `/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
+        { reportingPlayer: 1, races: makeRacesP1Wins(match.cup) },
+      ],
+    );
 
     const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
     /* P2 reports flipped (P2 wins) → mismatch */
-    const r2 = await ctx2.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-        { reportingPlayer: 2, races: makeRacesP2Wins(match.cup) }]);
-    const mismatchFlag = r2.s === 200 &&
-      (r2.b?.data?.mismatch === true || r2.b?.mismatch === true);
+    const r2 = await ctx2.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [
+        `/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
+        { reportingPlayer: 2, races: makeRacesP2Wins(match.cup) },
+      ],
+    );
+    const mismatchFlag = r2.s === 200 && (r2.b?.data?.mismatch === true || r2.b?.mismatch === true);
 
     const midData = await apiFetchGp(adminPage, tournamentId);
     const midMatch = (midData.matches || []).find((m) => m.id === match.id);
@@ -812,12 +937,19 @@ async function runTc708(adminPage) {
     const leanUpdatePayload = matchUpdateUsesLeanPayload(adminPut);
 
     const ok = mismatchFlag && stillIncomplete && adminConfirmed && leanUpdatePayload;
-    log('TC-708', ok ? 'PASS' : 'FAIL',
-      !mismatchFlag ? `mismatch flag missing (status=${r2.s})`
-      : !stillIncomplete ? 'match auto-completed despite mismatch'
-      : !adminConfirmed ? `admin PUT failed (${adminPut.s})`
-      : !leanUpdatePayload ? 'admin PUT returned expanded player payload'
-      : '');
+    log(
+      'TC-708',
+      ok ? 'PASS' : 'FAIL',
+      !mismatchFlag
+        ? `mismatch flag missing (status=${r2.s})`
+        : !stillIncomplete
+          ? 'match auto-completed despite mismatch'
+          : !adminConfirmed
+            ? `admin PUT failed (${adminPut.s})`
+            : !leanUpdatePayload
+              ? 'admin PUT returned expanded player payload'
+              : '',
+    );
   } catch (err) {
     log('TC-708', 'FAIL', err instanceof Error ? err.message : 'GP 708 failed');
   } finally {
@@ -851,14 +983,17 @@ async function runTc709(adminPage) {
     playerBrowser = ctx.browser;
 
     /* Player tries to PUT to GP finals — expect 403. */
-    const playerPut = await ctx.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status };
-    }, [`/api/tournaments/${setup.tournamentId}/gp/finals`, { matchId: m1.id, score1: 9, score2: 0 }]);
+    const playerPut = await ctx.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status };
+      },
+      [`/api/tournaments/${setup.tournamentId}/gp/finals`, { matchId: m1.id, score1: 9, score2: 0 }],
+    );
 
     const ok = playerPut.s === 403;
     log('TC-709', ok ? 'PASS' : 'FAIL', ok ? '' : `expected 403 got ${playerPut.s}`);
@@ -890,8 +1025,7 @@ async function runTc717(adminPage) {
 
     const sequenceErrors = validateGpFinalsAssignedCupSequences(matches);
     const ok = sequenceErrors.length === 0;
-    log('TC-717', ok ? 'PASS' : 'FAIL',
-      ok ? '' : sequenceErrors.join(' | '));
+    log('TC-717', ok ? 'PASS' : 'FAIL', ok ? '' : sequenceErrors.join(' | '));
   } catch (err) {
     log('TC-717', 'FAIL', err instanceof Error ? err.message : 'GP 717 failed');
   } finally {
@@ -932,16 +1066,22 @@ async function runTc718(adminPage) {
     const afterManual = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const finalMatch = afterManual.find((m) => m.id === m1.id);
     const totalsUpdated = finalMatch?.points1 === 2 && finalMatch?.points2 === 0;
-    const cupResultsPreserved = Array.isArray(finalMatch?.cupResults) &&
+    const cupResultsPreserved =
+      Array.isArray(finalMatch?.cupResults) &&
       finalMatch.cupResults.length === 2 &&
       finalMatch.cupResults[1].points1 === 15 &&
       finalMatch.cupResults[1].points2 === 12;
 
     const ok = totalsUpdated && cupResultsPreserved;
-    log('TC-718', ok ? 'PASS' : 'FAIL',
-      !totalsUpdated ? `totals: ${finalMatch?.points1}-${finalMatch?.points2}`
-      : !cupResultsPreserved ? `cupResults not preserved: ${finalMatch?.cupResults?.length ?? 0}`
-      : '');
+    log(
+      'TC-718',
+      ok ? 'PASS' : 'FAIL',
+      !totalsUpdated
+        ? `totals: ${finalMatch?.points1}-${finalMatch?.points2}`
+        : !cupResultsPreserved
+          ? `cupResults not preserved: ${finalMatch?.cupResults?.length ?? 0}`
+          : '',
+    );
   } catch (err) {
     log('TC-718', 'FAIL', err instanceof Error ? err.message : 'GP 718 failed');
   } finally {
@@ -971,18 +1111,21 @@ async function runTc1103(adminPage) {
     const updated = after.find((m) => m.id === m1.id);
     const winnerTarget = after.find((m) => m.matchNumber === 5);
     const loserTarget = after.find((m) => m.matchNumber === 8);
-    const savedScoreOnly = updated?.completed === true &&
-      updated.points1 === 2 &&
-      updated.points2 === 0 &&
-      updated.cupResults === null;
-    const routed = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id) &&
+    const savedScoreOnly =
+      updated?.completed === true && updated.points1 === 2 && updated.points2 === 0 && updated.cupResults === null;
+    const routed =
+      [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id) &&
       [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
 
-    log('TC-1103', savedScoreOnly && routed ? 'PASS' : 'FAIL',
+    log(
+      'TC-1103',
+      savedScoreOnly && routed ? 'PASS' : 'FAIL',
       !savedScoreOnly
         ? `completed=${updated?.completed} points=${updated?.points1}-${updated?.points2} cupResults=${JSON.stringify(updated?.cupResults)}`
-        : !routed ? 'routing mismatch after score-only save'
-        : '');
+        : !routed
+          ? 'routing mismatch after score-only save'
+          : '',
+    );
   } catch (err) {
     log('TC-1103', 'FAIL', err instanceof Error ? err.message : 'GP 1103 failed');
   } finally {
@@ -993,16 +1136,25 @@ async function runTc1103(adminPage) {
 /* ───────── TC-1109: GP finals cup-form lock count uses max-cups helper directly ───────── */
 async function runTc1109() {
   try {
-    const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'), 'utf8');
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'finals', 'page.tsx'),
+      'utf8',
+    );
     const importsMaxCups = source.includes('getGpFinalsMaxCups');
     const wrapperRemoved = !source.includes('getLockedCupCountForMatch');
     const directMatchCalls = source.match(/getGpFinalsMaxCups\([A-Za-z_][A-Za-z0-9_]*\)/g) ?? [];
 
-    log('TC-1109', importsMaxCups && wrapperRemoved && directMatchCalls.length >= 2 ? 'PASS' : 'FAIL',
-      !importsMaxCups ? 'getGpFinalsMaxCups import missing'
-      : !wrapperRemoved ? 'getLockedCupCountForMatch wrapper still exists'
-      : directMatchCalls.length < 2 ? 'expected match-shaped max-cups calls for form lock counts'
-      : '');
+    log(
+      'TC-1109',
+      importsMaxCups && wrapperRemoved && directMatchCalls.length >= 2 ? 'PASS' : 'FAIL',
+      !importsMaxCups
+        ? 'getGpFinalsMaxCups import missing'
+        : !wrapperRemoved
+          ? 'getLockedCupCountForMatch wrapper still exists'
+          : directMatchCalls.length < 2
+            ? 'expected match-shaped max-cups calls for form lock counts'
+            : '',
+    );
   } catch (err) {
     log('TC-1109', 'FAIL', err instanceof Error ? err.message : 'GP 1109 failed');
   }
@@ -1022,20 +1174,25 @@ async function runTc727(adminPage) {
     if (!m1) throw new Error('Upper-bracket Match 1 missing');
 
     const invalid = await apiSetGpFinalsScore(adminPage, setup.tournamentId, m1.id, 3, 0);
-    const rejected = invalid.s === 400 &&
-      String(invalid.b?.error ?? '').includes('Cup wins must be integers from 0 to 2');
+    const rejected =
+      invalid.s === 400 && String(invalid.b?.error ?? '').includes('Cup wins must be integers from 0 to 2');
 
     const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const unchanged = after.find((m) => m.id === m1.id);
-    const notMutated = unchanged?.completed === false &&
+    const notMutated =
+      unchanged?.completed === false &&
       (unchanged.points1 ?? 0) === (m1.points1 ?? 0) &&
       (unchanged.points2 ?? 0) === (m1.points2 ?? 0);
 
-    log('TC-727', rejected && notMutated ? 'PASS' : 'FAIL',
+    log(
+      'TC-727',
+      rejected && notMutated ? 'PASS' : 'FAIL',
       !rejected
         ? `invalid score accepted/status=${invalid.s} error=${invalid.b?.error ?? ''}`
-        : !notMutated ? `match mutated completed=${unchanged?.completed} points=${unchanged?.points1}-${unchanged?.points2}`
-        : '');
+        : !notMutated
+          ? `match mutated completed=${unchanged?.completed} points=${unchanged?.points1}-${unchanged?.points2}`
+          : '',
+    );
   } catch (err) {
     log('TC-727', 'FAIL', err instanceof Error ? err.message : 'GP 727 failed');
   } finally {
@@ -1081,15 +1238,19 @@ async function runTc715(adminPage) {
 
     /* Wait for finalsExists to be determined so the button text leaves the
      * generatingBracket loading state. */
-    await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return !text.includes('Generating bracket') && !text.includes('ブラケットを生成中');
-    }, null, { timeout: 15000 });
+    await adminPage.waitForFunction(
+      () => {
+        const text = document.body.innerText;
+        return !text.includes('Generating bracket') && !text.includes('ブラケットを生成中');
+      },
+      null,
+      { timeout: 15000 },
+    );
 
     const startPlayoffBtn = adminPage.getByRole('button', {
       name: /Start Playoff|バラッジ開始/,
     });
-    const hasStartPlayoff = await startPlayoffBtn.count() > 0;
+    const hasStartPlayoff = (await startPlayoffBtn.count()) > 0;
     if (!hasStartPlayoff) {
       throw new Error('Start Playoff button not found on GP qualification page');
     }
@@ -1111,8 +1272,7 @@ async function runTc715(adminPage) {
 
     /* Verify playoff state server-side (no sessionStorage producer exists). */
     const playoffState = await apiFetchGpFinalsState(adminPage, tournamentId);
-    const playoffCreated = (playoffState.playoffMatches?.length ?? 0) > 0
-      && playoffState.phase === 'playoff';
+    const playoffCreated = (playoffState.playoffMatches?.length ?? 0) > 0 && playoffState.phase === 'playoff';
 
     await nav(adminPage, `/tournaments/${tournamentId}/gp/finals`);
 
@@ -1120,10 +1280,11 @@ async function runTc715(adminPage) {
     /* Preview profile locale can be Japanese. Accept the actual localized
      * PlayoffBracket title instead of tying this UI-flow check to English-only
      * text. */
-    const hasPlayoffLabel = finalsText.includes('Playoff (Barrage)')
-      || finalsText.includes('Playoff')
-      || finalsText.includes('プレーオフ（バラッジ）')
-      || finalsText.includes('プレーオフ');
+    const hasPlayoffLabel =
+      finalsText.includes('Playoff (Barrage)') ||
+      finalsText.includes('Playoff') ||
+      finalsText.includes('プレーオフ（バラッジ）') ||
+      finalsText.includes('プレーオフ');
     const hasM1 = finalsText.includes('M1');
 
     for (let mn = 1; mn <= 4; mn++) {
@@ -1158,17 +1319,36 @@ async function runTc715(adminPage) {
     const postPhase2Text = await adminPage.locator('body').innerText();
     const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
 
-    const ok = hasStartPlayoff && playoffCreated && hasPlayoffLabel && hasM1 && playoffComplete && phase2ActionVisible && phase2Ok && hasFinalsPhase;
-    log('TC-715', ok ? 'PASS' : 'FAIL',
-      !hasStartPlayoff ? 'Start Playoff button missing'
-      : !playoffCreated ? `Playoff not created server-side (matches=${playoffState.playoffMatches?.length ?? 0}, phase=${playoffState.phase})`
-      : !hasPlayoffLabel ? 'Playoff label missing on finals page'
-      : !hasM1 ? 'M1 missing on playoff bracket'
-      : !playoffComplete ? 'playoffComplete not true'
-      : !phase2ActionVisible ? 'Create Upper Bracket action missing after playoff completion'
-      : !phase2Ok ? `Phase 2 failed (${phase2.s})`
-      : !hasFinalsPhase ? 'Finals phase not shown after Upper Bracket creation'
-      : '');
+    const ok =
+      hasStartPlayoff &&
+      playoffCreated &&
+      hasPlayoffLabel &&
+      hasM1 &&
+      playoffComplete &&
+      phase2ActionVisible &&
+      phase2Ok &&
+      hasFinalsPhase;
+    log(
+      'TC-715',
+      ok ? 'PASS' : 'FAIL',
+      !hasStartPlayoff
+        ? 'Start Playoff button missing'
+        : !playoffCreated
+          ? `Playoff not created server-side (matches=${playoffState.playoffMatches?.length ?? 0}, phase=${playoffState.phase})`
+          : !hasPlayoffLabel
+            ? 'Playoff label missing on finals page'
+            : !hasM1
+              ? 'M1 missing on playoff bracket'
+              : !playoffComplete
+                ? 'playoffComplete not true'
+                : !phase2ActionVisible
+                  ? 'Create Upper Bracket action missing after playoff completion'
+                  : !phase2Ok
+                    ? `Phase 2 failed (${phase2.s})`
+                    : !hasFinalsPhase
+                      ? 'Finals phase not shown after Upper Bracket creation'
+                      : '',
+    );
   } catch (err) {
     log('TC-715', 'FAIL', err instanceof Error ? err.message : 'GP 715 failed');
   } finally {
@@ -1236,7 +1416,9 @@ async function runTc2234(adminPage) {
     /* Guard: raw.data absence causes silent [] fallback and misleading 'upper seed missing' error. */
     if (!preview.raw?.data) throw new Error(`TC-2234: preview.raw.data missing – raw: ${JSON.stringify(preview.raw)}`);
     const playoffStructure = preview.raw.data.playoffStructure || [];
-    const upperSeed = playoffStructure.find((entry) => entry.matchNumber === tiedR2Match.matchNumber)?.advancesToUpperSeed;
+    const upperSeed = playoffStructure.find(
+      (entry) => entry.matchNumber === tiedR2Match.matchNumber,
+    )?.advancesToUpperSeed;
     const seededPlayers = preview.raw.data.seededPlayers || [];
     const seededWinner = seededPlayers.find((player) => player.seed === upperSeed);
     const tiedMatchPreview = preview.playoffMatches.find((match) => match.id === tiedR2Match.id);
@@ -1249,14 +1431,23 @@ async function runTc2234(adminPage) {
       tiedMatchPreview?.suddenDeathWinnerId === suddenDeathWinnerId &&
       tiedMatchPreview?.points1 === tiedMatchPreview?.points2;
 
-    log('TC-2234', ok ? 'PASS' : 'FAIL',
-      preview.phase !== 'playoff' ? `phase=${preview.phase}`
-      : preview.playoffComplete !== true ? 'playoffComplete not true'
-      : !upperSeed ? `upper seed missing for M${tiedR2Match?.matchNumber}`
-      : seededWinner?.playerId !== suddenDeathWinnerId ? `seed ${upperSeed} expected=${suddenDeathWinnerId} actual=${seededWinner?.playerId}`
-      : tiedMatchPreview?.suddenDeathWinnerId !== suddenDeathWinnerId ? 'suddenDeathWinnerId not persisted on tied R2 match'
-      : tiedMatchPreview?.points1 !== tiedMatchPreview?.points2 ? `R2 match not tied ${tiedMatchPreview?.points1}-${tiedMatchPreview?.points2}`
-      : '');
+    log(
+      'TC-2234',
+      ok ? 'PASS' : 'FAIL',
+      preview.phase !== 'playoff'
+        ? `phase=${preview.phase}`
+        : preview.playoffComplete !== true
+          ? 'playoffComplete not true'
+          : !upperSeed
+            ? `upper seed missing for M${tiedR2Match?.matchNumber}`
+            : seededWinner?.playerId !== suddenDeathWinnerId
+              ? `seed ${upperSeed} expected=${suddenDeathWinnerId} actual=${seededWinner?.playerId}`
+              : tiedMatchPreview?.suddenDeathWinnerId !== suddenDeathWinnerId
+                ? 'suddenDeathWinnerId not persisted on tied R2 match'
+                : tiedMatchPreview?.points1 !== tiedMatchPreview?.points2
+                  ? `R2 match not tied ${tiedMatchPreview?.points1}-${tiedMatchPreview?.points2}`
+                  : '',
+    );
   } catch (err) {
     log('TC-2234', 'FAIL', err instanceof Error ? err.message : 'GP 2234 failed');
   } finally {
@@ -1283,10 +1474,14 @@ async function runTc716(adminPage) {
 
     /* Wait for finalsExists to be determined so the button text leaves the
      * generatingBracket loading state. */
-    await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return !text.includes('Generating bracket') && !text.includes('ブラケットを生成中');
-    }, null, { timeout: 15000 });
+    await adminPage.waitForFunction(
+      () => {
+        const text = document.body.innerText;
+        return !text.includes('Generating bracket') && !text.includes('ブラケットを生成中');
+      },
+      null,
+      { timeout: 15000 },
+    );
 
     const qualText = await adminPage.locator('body').innerText();
     const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
@@ -1300,16 +1495,22 @@ async function runTc716(adminPage) {
     const unlockRes = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: false });
     if (unlockRes.s !== 200) throw new Error(`Failed to unlock qualification (${unlockRes.s})`);
     await nav(adminPage, `/tournaments/${tournamentId}/gp`);
-    await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return text.includes('View Tournament') || text.includes('トーナメントを見る');
-    }, null, { timeout: 25000 });
+    await adminPage.waitForFunction(
+      () => {
+        const text = document.body.innerText;
+        return text.includes('View Tournament') || text.includes('トーナメントを見る');
+      },
+      null,
+      { timeout: 25000 },
+    );
 
     const unlockedText = await adminPage.locator('body').innerText();
-    const hasViewTournamentUnlocked = unlockedText.includes('View Tournament') || unlockedText.includes('トーナメントを見る');
-    const hasResetBracketUnlocked = unlockedText.includes('Reset Bracket') || unlockedText.includes('ブラケットリセット');
+    const hasViewTournamentUnlocked =
+      unlockedText.includes('View Tournament') || unlockedText.includes('トーナメントを見る');
+    const hasResetBracketUnlocked =
+      unlockedText.includes('Reset Bracket') || unlockedText.includes('ブラケットリセット');
 
-    const resetVisible = await resetBtn.count() > 0;
+    const resetVisible = (await resetBtn.count()) > 0;
     if (resetVisible) {
       adminPage.once('dialog', async (dialog) => {
         await dialog.accept();
@@ -1319,19 +1520,43 @@ async function runTc716(adminPage) {
     }
 
     const postResetText = await adminPage.locator('body').innerText();
-    const resetHiddenAfterReset = !postResetText.includes('Reset Bracket') && !postResetText.includes('ブラケットリセット');
-    const generateHiddenWhileUnlocked = !postResetText.includes('Generate Finals Bracket') && !postResetText.includes('Generate Bracket') && !postResetText.includes('ブラケット生成') && !postResetText.includes('generateFinalsBracket') && !postResetText.includes('Start Playoff') && !postResetText.includes('バラッジ開始');
+    const resetHiddenAfterReset =
+      !postResetText.includes('Reset Bracket') && !postResetText.includes('ブラケットリセット');
+    const generateHiddenWhileUnlocked =
+      !postResetText.includes('Generate Finals Bracket') &&
+      !postResetText.includes('Generate Bracket') &&
+      !postResetText.includes('ブラケット生成') &&
+      !postResetText.includes('generateFinalsBracket') &&
+      !postResetText.includes('Start Playoff') &&
+      !postResetText.includes('バラッジ開始');
 
-    const ok = hasViewTournament && resetHiddenWhileLocked && hasViewTournamentUnlocked && hasResetBracketUnlocked && resetVisible && resetHiddenAfterReset && generateHiddenWhileUnlocked;
-    log('TC-716', ok ? 'PASS' : 'FAIL',
-      !hasViewTournament ? 'View Tournament button missing after bracket creation'
-      : !resetHiddenWhileLocked ? 'Reset Bracket visible while qualification is locked'
-      : !hasViewTournamentUnlocked ? 'View Tournament button missing after unlocking qualification'
-      : !hasResetBracketUnlocked ? 'Reset Bracket button missing after qualification unlock'
-      : !resetVisible ? 'Reset Bracket not found as button element'
-      : !resetHiddenAfterReset ? 'Reset Bracket still visible after bracket reset'
-      : !generateHiddenWhileUnlocked ? 'Generate/Start Playoff visible while qualification remains unlocked'
-      : '');
+    const ok =
+      hasViewTournament &&
+      resetHiddenWhileLocked &&
+      hasViewTournamentUnlocked &&
+      hasResetBracketUnlocked &&
+      resetVisible &&
+      resetHiddenAfterReset &&
+      generateHiddenWhileUnlocked;
+    log(
+      'TC-716',
+      ok ? 'PASS' : 'FAIL',
+      !hasViewTournament
+        ? 'View Tournament button missing after bracket creation'
+        : !resetHiddenWhileLocked
+          ? 'Reset Bracket visible while qualification is locked'
+          : !hasViewTournamentUnlocked
+            ? 'View Tournament button missing after unlocking qualification'
+            : !hasResetBracketUnlocked
+              ? 'Reset Bracket button missing after qualification unlock'
+              : !resetVisible
+                ? 'Reset Bracket not found as button element'
+                : !resetHiddenAfterReset
+                  ? 'Reset Bracket still visible after bracket reset'
+                  : !generateHiddenWhileUnlocked
+                    ? 'Generate/Start Playoff visible while qualification remains unlocked'
+                    : '',
+    );
   } catch (err) {
     log('TC-716', 'FAIL', err instanceof Error ? err.message : 'GP 716 failed');
   } finally {
@@ -1357,40 +1582,44 @@ async function runTc710(adminPage) {
     playerBrowser = ctx.browser;
     const assignedCup = match.cup;
     /* Pick a wrong cup: Flower/Special for Mushroom/Star, Mushroom/Star for Flower/Special. */
-    const wrongCup = (assignedCup === 'Mushroom' || assignedCup === 'Star') ? 'Flower' : 'Mushroom';
-    const wrongCupRaces = wrongCup === 'Flower'
-      ? [
-          { course: 'Choco Island 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 2', position1: 1, position2: 2 },
-          { course: 'Donut Plains 2', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 2', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 3', position1: 1, position2: 2 },
-        ]
-      : [
-          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
-        ];
-    const correction = await ctx.page.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-      { reportingPlayer: 1, races: wrongCupRaces },
-    ]);
+    const wrongCup = assignedCup === 'Mushroom' || assignedCup === 'Star' ? 'Flower' : 'Mushroom';
+    const wrongCupRaces =
+      wrongCup === 'Flower'
+        ? [
+            { course: 'Choco Island 1', position1: 1, position2: 2 },
+            { course: 'Ghost Valley 2', position1: 1, position2: 2 },
+            { course: 'Donut Plains 2', position1: 1, position2: 2 },
+            { course: 'Bowser Castle 2', position1: 1, position2: 2 },
+            { course: 'Mario Circuit 3', position1: 1, position2: 2 },
+          ]
+        : [
+            { course: 'Mario Circuit 1', position1: 1, position2: 2 },
+            { course: 'Donut Plains 1', position1: 1, position2: 2 },
+            { course: 'Ghost Valley 1', position1: 1, position2: 2 },
+            { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+            { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+          ];
+    const correction = await ctx.page.evaluate(
+      async ([u, body]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      },
+      [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`, { reportingPlayer: 1, races: wrongCupRaces }],
+    );
 
-    const rejected = correction.s === 400 &&
-      (correction.b?.data?.error || correction.b?.error || '')
-        .includes('do not match the assigned cup');
+    const rejected =
+      correction.s === 400 &&
+      (correction.b?.data?.error || correction.b?.error || '').includes('do not match the assigned cup');
 
-    log('TC-710', rejected ? 'PASS' : 'FAIL',
-      !rejected ? `expected 400 cup-mismatch, got ${correction.s} ${JSON.stringify(correction.b)}` : '');
+    log(
+      'TC-710',
+      rejected ? 'PASS' : 'FAIL',
+      !rejected ? `expected 400 cup-mismatch, got ${correction.s} ${JSON.stringify(correction.b)}` : '',
+    );
   } catch (err) {
     log('TC-710', 'FAIL', err instanceof Error ? err.message : 'GP 710 failed');
   } finally {
@@ -1438,19 +1667,26 @@ async function runTc712(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/gp/finals`);
     const pageText = await adminPage.locator('body').innerText();
-    const championShown = pageText.includes(championNickname) &&
+    const championShown =
+      pageText.includes(championNickname) &&
       (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
-    const m16Ok = m16After.completed === true &&
+    const m16Ok =
+      m16After.completed === true &&
       m16After.points1 === 3 &&
       m16After.points2 === 0 &&
       Array.isArray(m16After.cupResults) &&
       m16After.cupResults.length === 4 &&
       !m16After.suddenDeathWinnerId;
 
-    log('TC-712', m16Ok && championShown ? 'PASS' : 'FAIL',
-      !m16Ok ? `M16 tied-cup FT3 not persisted (completed=${m16After?.completed}, score=${m16After?.points1}-${m16After?.points2})`
-      : !championShown ? `Champion banner missing nickname ${championNickname}`
-      : '');
+    log(
+      'TC-712',
+      m16Ok && championShown ? 'PASS' : 'FAIL',
+      !m16Ok
+        ? `M16 tied-cup FT3 not persisted (completed=${m16After?.completed}, score=${m16After?.points1}-${m16After?.points2})`
+        : !championShown
+          ? `Champion banner missing nickname ${championNickname}`
+          : '',
+    );
   } catch (err) {
     log('TC-712', 'FAIL', err instanceof Error ? err.message : 'GP 712 failed');
   } finally {
@@ -1500,7 +1736,7 @@ async function runTc713(adminPage) {
     await nav(adminPage, `/tournaments/${tournamentId}/gp`);
     // Click standings tab
     const standingsTab = adminPage.locator('button[role="tab"]').filter({ hasText: /順位表|Standings/ });
-    if (await standingsTab.count() > 0) {
+    if ((await standingsTab.count()) > 0) {
       await standingsTab.click();
       await adminPage.waitForTimeout(2000);
     }
@@ -1516,7 +1752,7 @@ async function runTc713(adminPage) {
 
     // Reload and verify banner disappears
     await nav(adminPage, `/tournaments/${tournamentId}/gp`);
-    if (await standingsTab.count() > 0) {
+    if ((await standingsTab.count()) > 0) {
       await standingsTab.click();
       await adminPage.waitForTimeout(2000);
     }
@@ -1526,10 +1762,15 @@ async function runTc713(adminPage) {
       (await adminPage.locator('text=Tied ranks detected').count());
     const hasBannerAfter = bannerAfter > 0;
 
-    log('TC-713', hasBannerBefore && !hasBannerAfter ? 'PASS' : 'FAIL',
-      !hasBannerBefore ? 'Tie warning banner never appeared (expected tie from identical scores)'
-      : hasBannerAfter ? 'Tie warning banner still visible after resolveAllTies'
-      : '');
+    log(
+      'TC-713',
+      hasBannerBefore && !hasBannerAfter ? 'PASS' : 'FAIL',
+      !hasBannerBefore
+        ? 'Tie warning banner never appeared (expected tie from identical scores)'
+        : hasBannerAfter
+          ? 'Tie warning banner still visible after resolveAllTies'
+          : '',
+    );
   } catch (err) {
     log('TC-713', 'FAIL', err instanceof Error ? err.message : 'GP tie resolution failed');
   } finally {
@@ -1557,10 +1798,14 @@ async function runTc821(adminPage) {
      * shared E2E fixture the qualification setup can reuse normalized match
      * rows, so coupling this view-only assertion to the seed array order makes
      * the test fail even when the page renders the target match correctly. */
-    await adminPage.waitForFunction((names) => {
-      const text = document.body.innerText;
-      return names.every((name) => text.includes(name));
-    }, expectedNames, { timeout: 15000 });
+    await adminPage.waitForFunction(
+      (names) => {
+        const text = document.body.innerText;
+        return names.every((name) => text.includes(name));
+      },
+      expectedNames,
+      { timeout: 15000 },
+    );
     const matchText = await adminPage.locator('body').innerText();
 
     // Should show player names
@@ -1574,8 +1819,11 @@ async function runTc821(adminPage) {
       !matchText.includes('I am') &&
       !matchText.includes('私は');
 
-    log('TC-821', showsPlayers && noScoreForm ? 'PASS' : 'FAIL',
-      !showsPlayers ? 'Match page missing player names' : !noScoreForm ? 'Match page has score entry form' : '');
+    log(
+      'TC-821',
+      showsPlayers && noScoreForm ? 'PASS' : 'FAIL',
+      !showsPlayers ? 'Match page missing player names' : !noScoreForm ? 'Match page has score entry form' : '',
+    );
   } catch (err) {
     log('TC-821', 'FAIL', err instanceof Error ? err.message : 'GP match view test failed');
   }
@@ -1605,7 +1853,8 @@ async function runTc719(adminPage) {
     const tiedAccepted = tied.s === 200;
     let after = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const qfAfterTie = after.find((m) => m.id === qfMatch.id);
-    const pending = qfAfterTie?.completed === false &&
+    const pending =
+      qfAfterTie?.completed === false &&
       qfAfterTie?.points1 === 1 &&
       qfAfterTie?.points2 === 0 &&
       !qfAfterTie?.suddenDeathWinnerId;
@@ -1622,23 +1871,29 @@ async function runTc719(adminPage) {
     const completeAccepted = complete.s === 200;
     after = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const qfAfterComplete = after.find((m) => m.id === qfMatch.id);
-    const completed = qfAfterComplete?.completed === true &&
-      qfAfterComplete?.points1 === 2 &&
-      qfAfterComplete?.points2 === 0;
+    const completed =
+      qfAfterComplete?.completed === true && qfAfterComplete?.points1 === 2 && qfAfterComplete?.points2 === 0;
     const nextMatch = after.find(
-      (m) => m.round === 'winners_sf' &&
-        (m.player1Id === qfMatch.player1Id || m.player2Id === qfMatch.player1Id),
+      (m) => m.round === 'winners_sf' && (m.player1Id === qfMatch.player1Id || m.player2Id === qfMatch.player1Id),
     );
     const winnerRouted = completed && !!nextMatch;
 
     const ok = tiedAccepted && pending && notRouted && completeAccepted && winnerRouted;
-    log('TC-719', ok ? 'PASS' : 'FAIL',
-      !tiedAccepted ? `Tied cup not accepted (${tied.s})`
-      : !pending ? `Match not pending after tie completed=${qfAfterTie?.completed} score=${qfAfterTie?.points1}-${qfAfterTie?.points2}`
-      : !notRouted ? 'Winner routed before FT2'
-      : !completeAccepted ? `Completion not accepted (${complete.s})`
-      : !winnerRouted ? `Winner not routed after FT2`
-      : '');
+    log(
+      'TC-719',
+      ok ? 'PASS' : 'FAIL',
+      !tiedAccepted
+        ? `Tied cup not accepted (${tied.s})`
+        : !pending
+          ? `Match not pending after tie completed=${qfAfterTie?.completed} score=${qfAfterTie?.points1}-${qfAfterTie?.points2}`
+          : !notRouted
+            ? 'Winner routed before FT2'
+            : !completeAccepted
+              ? `Completion not accepted (${complete.s})`
+              : !winnerRouted
+                ? `Winner not routed after FT2`
+                : '',
+    );
   } catch (err) {
     log('TC-719', 'FAIL', err instanceof Error ? err.message : 'GP 719 failed');
   } finally {
@@ -1696,12 +1951,19 @@ async function runTc720(adminPage) {
     const routed = [m5AfterTwo?.player1Id, m5AfterTwo?.player2Id].includes(m1.player1Id);
 
     const ok = stillOpen && notRouted && completed && routed;
-    log('TC-720', ok ? 'PASS' : 'FAIL',
-      !stillOpen ? `after one cup completed=${afterOne?.completed} score=${afterOne?.points1}-${afterOne?.points2}`
-      : !notRouted ? 'winner routed before FT2'
-      : !completed ? `after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
-      : !routed ? 'winner not routed after FT2'
-      : '');
+    log(
+      'TC-720',
+      ok ? 'PASS' : 'FAIL',
+      !stillOpen
+        ? `after one cup completed=${afterOne?.completed} score=${afterOne?.points1}-${afterOne?.points2}`
+        : !notRouted
+          ? 'winner routed before FT2'
+          : !completed
+            ? `after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
+            : !routed
+              ? 'winner not routed after FT2'
+              : '',
+    );
   } catch (err) {
     log('TC-720', 'FAIL', err instanceof Error ? err.message : 'GP 720 failed');
   } finally {
@@ -1722,23 +1984,31 @@ async function runTc832(adminPage) {
     if (!m1) throw new Error('Match 1 missing');
 
     const cupResults = Array.from({ length: 21 }, (_, index) =>
-      gpCupResult(['Mushroom', 'Flower', 'Star', 'Special'][index % 4], 45, 0));
+      gpCupResult(['Mushroom', 'Flower', 'Star', 'Special'][index % 4], 45, 0),
+    );
     const excessive = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, cupResults);
-    const rejected = excessive.s === 400 &&
+    const rejected =
+      excessive.s === 400 &&
       typeof excessive.b?.error === 'string' &&
       excessive.b.error.includes('cupResults must not exceed 20 entries');
 
     const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const m1After = after.find((m) => m.id === m1.id);
-    const unchanged = m1After?.completed === false &&
+    const unchanged =
+      m1After?.completed === false &&
       m1After?.points1 === 0 &&
       m1After?.points2 === 0 &&
       (!Array.isArray(m1After?.cupResults) || m1After.cupResults.length === 0);
 
-    log('TC-832', rejected && unchanged ? 'PASS' : 'FAIL',
-      !rejected ? `excessive cupResults accepted/status=${excessive.s} error=${excessive.b?.error ?? ''}`
-      : !unchanged ? `match mutated completed=${m1After?.completed} score=${m1After?.points1}-${m1After?.points2} cups=${m1After?.cupResults?.length ?? 0}`
-      : '');
+    log(
+      'TC-832',
+      rejected && unchanged ? 'PASS' : 'FAIL',
+      !rejected
+        ? `excessive cupResults accepted/status=${excessive.s} error=${excessive.b?.error ?? ''}`
+        : !unchanged
+          ? `match mutated completed=${m1After?.completed} score=${m1After?.points1}-${m1After?.points2} cups=${m1After?.cupResults?.length ?? 0}`
+          : '',
+    );
   } catch (err) {
     log('TC-832', 'FAIL', err instanceof Error ? err.message : 'GP 832 failed');
   } finally {
@@ -1765,34 +2035,44 @@ async function runTc831(adminPage) {
     const dialog = adminPage.getByRole('dialog');
     await dialog.locator('#gp-finals-simple-score1').waitFor({ state: 'visible', timeout: 5000 });
     const legacyCupControlsHidden =
-      await dialog.getByTestId('gp-finals-cup-form-0').count() === 0 &&
-      await dialog.getByRole('button', { name: 'Add Cup' }).count() === 0;
+      (await dialog.getByTestId('gp-finals-cup-form-0').count()) === 0 &&
+      (await dialog.getByRole('button', { name: 'Add Cup' }).count()) === 0;
     const targetWinsVisible = /FT2|2本先取|First to 2/.test(await dialog.innerText());
     await dialog.locator('#gp-finals-simple-score1').fill('2');
     await dialog.locator('#gp-finals-simple-score2').fill('0');
 
     const saveScore = dialog.getByRole('button', { name: /^(Save Score|スコア保存)$/ });
     const [saveResponse] = await Promise.all([
-      adminPage.waitForResponse((response) =>
-        response.url().includes(`/api/tournaments/${setup.tournamentId}/gp/finals`) &&
-        response.request().method() === 'PUT'),
+      adminPage.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/tournaments/${setup.tournamentId}/gp/finals`) &&
+          response.request().method() === 'PUT',
+      ),
       saveScore.click(),
     ]);
     const saved = saveResponse.ok();
 
     const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const m1After = after.find((m) => m.id === m1.id);
-    const scoreSaved = m1After?.points1 === 2 &&
+    const scoreSaved =
+      m1After?.points1 === 2 &&
       m1After?.points2 === 0 &&
       m1After?.completed === true &&
       (!Array.isArray(m1After?.cupResults) || m1After.cupResults.length === 0);
 
-    log('TC-831', legacyCupControlsHidden && targetWinsVisible && saved && scoreSaved ? 'PASS' : 'FAIL',
-      !legacyCupControlsHidden ? 'legacy cup controls are visible in finals score-only dialog'
-      : !targetWinsVisible ? 'FT2 target is missing from score dialog'
-      : !saved ? `save failed status=${saveResponse.status()}`
-      : !scoreSaved ? `score-only result mismatch score=${m1After?.points1}-${m1After?.points2} completed=${m1After?.completed} cups=${JSON.stringify(m1After?.cupResults ?? null)}`
-      : '');
+    log(
+      'TC-831',
+      legacyCupControlsHidden && targetWinsVisible && saved && scoreSaved ? 'PASS' : 'FAIL',
+      !legacyCupControlsHidden
+        ? 'legacy cup controls are visible in finals score-only dialog'
+        : !targetWinsVisible
+          ? 'FT2 target is missing from score dialog'
+          : !saved
+            ? `save failed status=${saveResponse.status()}`
+            : !scoreSaved
+              ? `score-only result mismatch score=${m1After?.points1}-${m1After?.points2} completed=${m1After?.completed} cups=${JSON.stringify(m1After?.cupResults ?? null)}`
+              : '',
+    );
   } catch (err) {
     log('TC-831', 'FAIL', err instanceof Error ? err.message : 'GP 831 failed');
   } finally {
@@ -1820,9 +2100,12 @@ async function runTc721(adminPage) {
 
     matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const afterTwoPlayed = matches.find((m) => m.id === m1.id);
-    const openWithTie = afterTwoPlayed?.completed === false &&
-      afterTwoPlayed?.points1 === 1 && afterTwoPlayed?.points2 === 0 &&
-      Array.isArray(afterTwoPlayed?.cupResults) && afterTwoPlayed.cupResults.length === 2;
+    const openWithTie =
+      afterTwoPlayed?.completed === false &&
+      afterTwoPlayed?.points1 === 1 &&
+      afterTwoPlayed?.points2 === 0 &&
+      Array.isArray(afterTwoPlayed?.cupResults) &&
+      afterTwoPlayed.cupResults.length === 2;
 
     const extended = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, [
       gpCupResult(m1.cup || 'Mushroom', 36, 36),
@@ -1833,15 +2116,23 @@ async function runTc721(adminPage) {
 
     matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const afterExtended = matches.find((m) => m.id === m1.id);
-    const completedAfterExtension = afterExtended?.completed === true &&
-      afterExtended?.points1 === 2 && afterExtended?.points2 === 0 &&
-      Array.isArray(afterExtended?.cupResults) && afterExtended.cupResults.length === 3;
+    const completedAfterExtension =
+      afterExtended?.completed === true &&
+      afterExtended?.points1 === 2 &&
+      afterExtended?.points2 === 0 &&
+      Array.isArray(afterExtended?.cupResults) &&
+      afterExtended.cupResults.length === 3;
 
     const ok = openWithTie && completedAfterExtension;
-    log('TC-721', ok ? 'PASS' : 'FAIL',
-      !openWithTie ? `tie state wrong completed=${afterTwoPlayed?.completed} score=${afterTwoPlayed?.points1}-${afterTwoPlayed?.points2} cups=${afterTwoPlayed?.cupResults?.length}`
-      : !completedAfterExtension ? `extended state wrong completed=${afterExtended?.completed} score=${afterExtended?.points1}-${afterExtended?.points2} cups=${afterExtended?.cupResults?.length}`
-      : '');
+    log(
+      'TC-721',
+      ok ? 'PASS' : 'FAIL',
+      !openWithTie
+        ? `tie state wrong completed=${afterTwoPlayed?.completed} score=${afterTwoPlayed?.points1}-${afterTwoPlayed?.points2} cups=${afterTwoPlayed?.cupResults?.length}`
+        : !completedAfterExtension
+          ? `extended state wrong completed=${afterExtended?.completed} score=${afterExtended?.points1}-${afterExtended?.points2} cups=${afterExtended?.cupResults?.length}`
+          : '',
+    );
   } catch (err) {
     log('TC-721', 'FAIL', err instanceof Error ? err.message : 'GP 721 failed');
   } finally {
@@ -1932,15 +2223,22 @@ async function runTc722(adminPage) {
     const completed = afterThree?.completed === true && afterThree?.points1 === 3 && afterThree?.points2 === 0;
 
     const winnersSfMatches = matches.filter((m) => m.round === 'winners_sf');
-    const winnersSfCompletedAtFt2 = winnersSfMatches.length > 0 &&
+    const winnersSfCompletedAtFt2 =
+      winnersSfMatches.length > 0 &&
       winnersSfMatches.every((m) => m.completed === true && m.points1 === 2 && m.points2 === 0);
 
     const ok = winnersSfCompletedAtFt2 && stillOpen && completed;
-    log('TC-722', ok ? 'PASS' : 'FAIL',
-      !winnersSfCompletedAtFt2 ? 'Winners SF did not complete at FT2'
-      : !stillOpen ? `M16 after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
-      : !completed ? `M16 after three cups completed=${afterThree?.completed} score=${afterThree?.points1}-${afterThree?.points2}`
-      : '');
+    log(
+      'TC-722',
+      ok ? 'PASS' : 'FAIL',
+      !winnersSfCompletedAtFt2
+        ? 'Winners SF did not complete at FT2'
+        : !stillOpen
+          ? `M16 after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
+          : !completed
+            ? `M16 after three cups completed=${afterThree?.completed} score=${afterThree?.points1}-${afterThree?.points2}`
+            : '',
+    );
   } catch (err) {
     log('TC-722', 'FAIL', err instanceof Error ? err.message : 'GP 722 failed');
   } finally {
@@ -1956,7 +2254,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     results,
     log,
     beforeAll: async (adminPage) => {
-      sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
+      sharedFixture = externalFixture ?? (await createSharedE2eFixture(adminPage));
     },
     afterAll: async () => {
       if (ownsFixture && sharedFixture) {
@@ -2009,12 +2307,40 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc1106, runTc727, runTc729, runTc719,
-  runTc720, runTc721, runTc722, runTc724, runTc725, runTc1087, runTc821, runTc831, runTc832,
+  runTc701,
+  runTc702,
+  runTc703,
+  runTc704,
+  runTc705,
+  runTc706,
+  runTc707,
+  runTc708,
+  runTc709,
+  runTc710,
+  runTc712,
+  runTc713,
+  runTc715,
+  runTc716,
+  runTc717,
+  runTc718,
+  runTc1103,
+  runTc1106,
+  runTc727,
+  runTc729,
+  runTc719,
+  runTc720,
+  runTc721,
+  runTc722,
+  runTc724,
+  runTc725,
+  runTc1087,
+  runTc821,
+  runTc831,
+  runTc832,
   runTc3033,
-  gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult, gpFinalsTargetWins,
+  gpAssignedCupSequence,
+  gpFinalsUpdatedMatchFromPutResult,
+  gpFinalsTargetWins,
   getSuite,
   results,
 };
