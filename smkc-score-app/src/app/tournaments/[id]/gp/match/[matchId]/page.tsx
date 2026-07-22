@@ -44,6 +44,7 @@ import { createLogger } from '@/lib/client-logger';
 import { useMatchReportAuth } from '@/lib/hooks/useMatchReportAuth';
 import { getSharedMatchAccessState } from '@/lib/shared-match-access-state';
 import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from '@/lib/gp-driver-points-input';
+import { getGpFinalsTargetWins } from '@/lib/finals-target-wins';
 
 import type { Player } from '@/lib/types';
 
@@ -53,10 +54,13 @@ interface GPMatch {
   id: string;
   matchNumber: number;
   stage?: string | null;
+  round?: string | null;
   player1Id: string;
   player2Id: string;
   points1: number;
   points2: number;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
   completed: boolean;
   player1OriginalSeed?: number;
   player2OriginalSeed?: number;
@@ -690,13 +694,22 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
                     <p className="text-3xl font-bold">{tMatch('pts', { points: match.points2 })}</p>
                   </div>
                 </div>
+                {(match.stage === 'finals' || match.stage === 'playoff') && (
+                  <p className="mt-2 text-center text-sm text-muted-foreground">
+                    FT{getGpFinalsTargetWins({ stage: match.stage, round: match.round, targetWins: match.targetWins })}
+                  </p>
+                )}
               </div>
               <p className="mt-4 text-center">
-                {match.points1 > match.points2
+                {match.winnerOverrideId === match.player1Id
                   ? tMatch('playerWins', { player: match.player1.nickname })
-                  : match.points2 > match.points1
+                  : match.winnerOverrideId === match.player2Id
                     ? tMatch('playerWins', { player: match.player2.nickname })
-                    : tMatch('draw')}
+                    : match.points1 > match.points2
+                      ? tMatch('playerWins', { player: match.player1.nickname })
+                      : match.points2 > match.points1
+                        ? tMatch('playerWins', { player: match.player2.nickname })
+                        : tMatch('draw')}
               </p>
             </CardContent>
           </Card>

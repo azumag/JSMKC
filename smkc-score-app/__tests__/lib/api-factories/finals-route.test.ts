@@ -33,7 +33,8 @@
 
 import { buildQualificationRankLabelMap, createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { buildAuditLogData, createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { executeD1Batch } from '@/lib/d1-batch';
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
@@ -44,6 +45,7 @@ jest.mock('@/lib/pagination');
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
 jest.mock('@/lib/audit-log');
+jest.mock('@/lib/d1-batch');
 
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
@@ -171,6 +173,8 @@ describe('Finals Route Factory', () => {
 
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
     (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+    (buildAuditLogData as jest.Mock).mockImplementation((params) => params);
+    (executeD1Batch as jest.Mock).mockResolvedValue([1, 1, 1]);
     mockSanitizeInput.mockImplementation((input) => input);
 
     /* The GET and POST handlers now short-circuit with 404 when the
@@ -4048,6 +4052,115 @@ describe('Finals Route Factory', () => {
       expect(json.error).toBe('Finals match not found');
     });
 
+    it('rejects a tied admin correction without a participating winner', async () => {
+      const mockMatch = createMockMatch({ version: 4 });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      const { PUT } = createFinalsHandlers(createMockConfig());
+
+      const response = await PUT(
+        new NextRequest('http://localhost:3000', {
+          method: 'PUT',
+          body: JSON.stringify({ matchId: 'match-1', score1: 0, score2: 0, override: true, expectedVersion: 4 }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toContain('winnerId must be one of the match participants');
+      expectNoBmMatchWrites();
+    });
+
+    it('rejects result-detail edits bundled with an admin correction', async () => {
+      const mockMatch = createMockMatch({ version: 4 });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      const { PUT } = createFinalsHandlers(createMockConfig({ putAdditionalFields: ['rounds'] }));
+
+      const response = await PUT(
+        new NextRequest('http://localhost:3000', {
+          method: 'PUT',
+          body: JSON.stringify({
+            matchId: 'match-1',
+            score1: 0,
+            score2: -1,
+            override: true,
+            expectedVersion: 4,
+            rounds: [],
+          }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toContain('Corrected results cannot include rounds');
+      expectNoBmMatchWrites();
+    });
+
+    it('rejects corrected scores outside the persisted database integer range', async () => {
+      const mockMatch = createMockMatch({ version: 4 });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      const { PUT } = createFinalsHandlers(createMockConfig());
+
+      const response = await PUT(
+        new NextRequest('http://localhost:3000', {
+          method: 'PUT',
+          body: JSON.stringify({
+            matchId: 'match-1',
+            score1: 2147483648,
+            score2: 0,
+            override: true,
+            expectedVersion: 4,
+          }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toContain('signed 32-bit integers');
+      expectNoBmMatchWrites();
+    });
+
+    it('atomically saves a signed correction and its success audit record', async () => {
+      const before = createMockMatch({
+        version: 4,
+        matchNumber: 99,
+        round: 'manual',
+        score1: 3,
+        score2: 2,
+        rounds: [],
+      });
+      const after = createMockMatch({
+        version: 5,
+        matchNumber: 99,
+        round: 'manual',
+        score1: 0,
+        score2: -1,
+        winnerOverrideId: 'player-1',
+        completed: true,
+      });
+      (prisma.bMMatch as any).findUnique.mockResolvedValueOnce(before).mockResolvedValue(after);
+      const { PUT } = createFinalsHandlers(createMockConfig());
+
+      const response = await PUT(
+        new NextRequest('http://localhost:3000', {
+          method: 'PUT',
+          body: JSON.stringify({
+            matchId: 'match-1',
+            score1: 0,
+            score2: -1,
+            override: true,
+            expectedVersion: 4,
+          }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(mockLogger.error).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
+      expect(statements).toHaveLength(2);
+      expect(statements[1].sql).toContain('changes() = 1');
+    });
+
     it('should sanitize body when sanitizePutBody is true', async () => {
       const requestBody = createMockRequestBody();
       const mockMatch = createMockMatch();
@@ -4097,6 +4210,7 @@ describe('Finals Route Factory', () => {
           score1: 3,
           score2: 1,
           completed: true,
+          version: { increment: 1 },
           rounds: [],
         },
         include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
@@ -4284,6 +4398,396 @@ describe('Finals Route Factory', () => {
   // ============================================================
   // PATCH Handler Tests — TV# select-to-save (issue: bracket card)
   // ============================================================
+
+  describe('PATCH Handler (roundSettings)', () => {
+    it('atomically updates every pending match in the anchored round and records one success audit', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      (prisma.bMMatch as any).findFirst.mockResolvedValue({
+        id: 'match-1',
+        tournamentId: 'tournament-123',
+        stage: 'finals',
+        round: 'winners_qf',
+      });
+      (prisma.bMMatch as any).findMany
+        .mockResolvedValueOnce([
+          { id: 'match-1', version: 4, completed: false, targetWins: 5 },
+          { id: 'match-2', version: 2, completed: false, targetWins: 5 },
+        ])
+        .mockResolvedValueOnce([]);
+      (executeD1Batch as jest.Mock).mockResolvedValueOnce([2, 1, 1]);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            matchId: 'match-1',
+            roundSettings: { targetWins: 7, expectedVersions: { 'match-1': 4, 'match-2': 2 } },
+          }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      const json = await response.json();
+      expect(response.status).toBe(200);
+      expect(json.data.updatedMatchIds).toEqual(['match-1', 'match-2']);
+      const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
+      expect(statements).toHaveLength(3);
+      expect(statements[1].sql).toContain('AND changes() = ?');
+      expect(statements[1].values.at(-1)).toBe(2);
+      expect(statements[2].sql).toContain('INSERT INTO "FinalsRoundSetting"');
+    });
+
+    it('returns a conflict when the atomic batch rejects a stale round request', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      (prisma.bMMatch as any).findFirst.mockResolvedValue({
+        id: 'match-1',
+        tournamentId: 'tournament-123',
+        stage: 'finals',
+        round: 'winners_qf',
+      });
+      (prisma.bMMatch as any).findMany.mockResolvedValueOnce([
+        { id: 'match-1', version: 4, completed: false, targetWins: 5 },
+      ]);
+      (executeD1Batch as jest.Mock).mockResolvedValueOnce([0, 0]);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            matchId: 'match-1',
+            roundSettings: { targetWins: 7, expectedVersions: { 'match-1': 4 } },
+          }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe('VERSION_CONFLICT');
+    });
+
+    it('rejects a completed round without issuing a mutation or audit batch', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      (prisma.bMMatch as any).findFirst.mockResolvedValue({
+        id: 'match-1',
+        tournamentId: 'tournament-123',
+        stage: 'finals',
+        round: 'winners_qf',
+      });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([
+        { id: 'match-1', version: 4, completed: true, targetWins: 5 },
+      ]);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({ matchId: 'match-1', roundSettings: { targetWins: 7, expectedVersions: {} } }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe('ROUND_COMPLETE');
+      expect(executeD1Batch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH Handler (#3039 assignments)', () => {
+    it('atomically changes only pending MR round courses and records one audit', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      (prisma.mRMatch as any).findFirst.mockResolvedValue({
+        id: 'match-1',
+        tournamentId: 'tournament-123',
+        stage: 'finals',
+        round: 'winners_qf',
+      });
+      (prisma.mRMatch as any).findMany
+        .mockResolvedValueOnce([
+          { id: 'match-1', version: 4, completed: false, assignedCourses: ['MC1', 'DP1'] },
+          { id: 'match-2', version: 2, completed: false, assignedCourses: ['MC1', 'DP1'] },
+          { id: 'historic', version: 9, completed: true, assignedCourses: ['GV1', 'BC1'] },
+        ])
+        .mockResolvedValueOnce([]);
+      (executeD1Batch as jest.Mock).mockResolvedValueOnce([2, 1]);
+      const { PATCH } = createFinalsHandlers(
+        createMockConfig({
+          eventTypeCode: 'mr',
+          matchModel: 'mRMatch',
+          qualificationModel: 'mRQualification',
+          assignMrCoursesByRound: true,
+        }),
+      );
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            matchId: 'match-1',
+            roundCourses: {
+              courses: ['MC1', 'DP1', 'GV1', 'BC1', 'MC2', 'CI1', 'GV2', 'DP2', 'BC2'],
+              expectedVersions: { 'match-1': 4, 'match-2': 2 },
+            },
+          }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(200);
+      const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
+      expect(statements).toHaveLength(2);
+      expect(statements[0].sql).toContain('"assignedCourses"');
+      expect(statements[0].values).toContain(
+        JSON.stringify(['MC1', 'DP1', 'GV1', 'BC1', 'MC2', 'CI1', 'GV2', 'DP2', 'BC2']),
+      );
+      expect(statements[1].values).toContain(AUDIT_ACTIONS.UPDATE_FINALS_ROUND_COURSES);
+    });
+
+    it('requires an explicit GP detail resolution and preserves score-only results', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({
+        version: 4,
+        points1: 2,
+        points2: 1,
+        cup: 'Mushroom',
+        assignedCups: ['Mushroom', 'Flower', 'Star'],
+        cupResults: [{ cup: 'Mushroom', points1: 45, points2: 36 }],
+      });
+      (prisma.gPMatch as any).findFirst.mockResolvedValue(existing);
+      const { PATCH } = createFinalsHandlers(
+        createMockConfig({
+          eventTypeCode: 'gp',
+          matchModel: 'gPMatch',
+          qualificationModel: 'gPQualification',
+          assignGpCupByRound: true,
+        }),
+      );
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({ matchId: 'match-1', cupAssignment: { cup: 'Flower', expectedVersion: 4 } }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe('CUP_DETAILS_RESOLUTION_REQUIRED');
+      expect(executeD1Batch).not.toHaveBeenCalled();
+    });
+
+    it('updates a GP cup with keep semantics without clearing scores or details', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({
+        version: 4,
+        points1: 2,
+        points2: 1,
+        cup: 'Mushroom',
+        assignedCups: ['Mushroom', 'Flower', 'Star'],
+        cupResults: [{ cup: 'Mushroom', points1: 45, points2: 36 }],
+      });
+      (prisma.gPMatch as any).findFirst.mockResolvedValue(existing);
+      (prisma.gPMatch as any).findUnique.mockResolvedValue({ ...existing, version: 5, cup: 'Flower' });
+      (executeD1Batch as jest.Mock).mockResolvedValueOnce([1, 1]);
+      const { PATCH } = createFinalsHandlers(
+        createMockConfig({
+          eventTypeCode: 'gp',
+          matchModel: 'gPMatch',
+          qualificationModel: 'gPQualification',
+          assignGpCupByRound: true,
+        }),
+      );
+
+      const response = await PATCH(
+        new NextRequest('http://localhost:3000', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            matchId: 'match-1',
+            cupAssignment: { cup: 'Flower', expectedVersion: 4, resolution: 'keep' },
+          }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(200);
+      const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
+      expect(statements[0].sql).not.toContain('"cupResults" = NULL');
+      const assignedCups = JSON.parse(statements[0].values[1]);
+      expect(assignedCups).toHaveLength(3);
+      expect(assignedCups[0]).toBe('Flower');
+      expect(new Set(assignedCups).size).toBe(3);
+      expect(statements[1].values).toContain(AUDIT_ACTIONS.UPDATE_FINALS_MATCH_CUP);
+    });
+  });
+
+  describe('PATCH Handler (#3040 Top-24 Upper reconciliation)', () => {
+    const createTop24ReconcileFixture = (options: { downstreamStarted?: boolean; inSync?: boolean } = {}) => {
+      const structure = mockGenerateBracketStructure(16, 2) as Array<any>;
+      const finals = structure.map((entry) =>
+        createMockMatch({
+          id: `final-${entry.matchNumber}`,
+          matchNumber: entry.matchNumber,
+          stage: 'finals',
+          round: entry.round,
+          version: 1,
+          player1Id: null,
+          player2Id: null,
+          player1: null,
+          player2: null,
+        }),
+      );
+      const desiredBySeed: Record<number, string> = {
+        16: 'winner-16',
+        13: 'winner-13',
+        15: 'winner-15',
+        14: 'winner-14',
+      };
+      const r2 = [16, 13, 15, 14].map((seed, index) =>
+        createMockMatch({
+          id: `playoff-${seed}`,
+          matchNumber: index + 5,
+          stage: 'playoff',
+          round: 'playoff_r2',
+          version: 3,
+          completed: true,
+          score1: 3,
+          score2: 0,
+          player1Id: desiredBySeed[seed],
+          player2Id: `loser-${seed}`,
+          player1: { id: desiredBySeed[seed], name: desiredBySeed[seed] },
+          player2: { id: `loser-${seed}`, name: `loser-${seed}` },
+        }),
+      );
+      for (const entry of structure.filter((candidate) => candidate.round === 'winners_r1')) {
+        const seed = [16, 13, 15, 14].find(
+          (candidate) => entry.player1Seed === candidate || entry.player2Seed === candidate,
+        );
+        if (!seed) continue;
+        const target = finals.find((row) => row.matchNumber === entry.matchNumber)!;
+        const side = entry.player1Seed === seed ? 'player1Id' : 'player2Id';
+        target[side] = options.inSync ? desiredBySeed[seed] : `old-${seed}`;
+      }
+      if (options.downstreamStarted) {
+        finals.find((row) => row.matchNumber === 9)!.score1 = 1;
+      }
+      return { finals, r2 };
+    };
+
+    const reconcileRequest = (expectedVersions: Record<string, number>) =>
+      new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ upperReconciliation: { expectedVersions } }),
+      });
+
+    it('uses generated structures to atomically correct the four barrage-fed slots and audit the change', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { finals, r2 } = createTop24ReconcileFixture();
+      (prisma.bMQualification as any).findMany.mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.stage === 'playoff' ? r2 : finals),
+      );
+      (executeD1Batch as jest.Mock).mockResolvedValueOnce([4, 1]);
+      const expectedVersions = Object.fromEntries([...r2, ...finals].map((row) => [row.id, row.version]));
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(reconcileRequest(expectedVersions), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect((await response.json()).data.status).toBe('updated');
+      const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
+      expect(statements).toHaveLength(2);
+      expect(statements[0].sql).toContain('"slotOverrideBy" = NULL');
+      expect(statements[0].sql).toContain('protected."slotOverrideBy" IS NULL');
+      expect(statements[1].sql).toContain('CASE WHEN changes() = ? THEN ? ELSE NULL END');
+      expect(statements[1].values).toContain(AUDIT_ACTIONS.RECONCILE_PLAYOFF_UPPER_SLOTS);
+    });
+
+    it('is an idempotent no-op before stale-version validation when every Upper slot is already correct', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { finals, r2 } = createTop24ReconcileFixture({ inSync: true });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.stage === 'playoff' ? r2 : finals),
+      );
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(reconcileRequest({}), { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      expect((await response.json()).data).toEqual({ status: 'in_sync', changes: [] });
+      expect(executeD1Batch).not.toHaveBeenCalled();
+    });
+
+    it('allows a corrected pair of barrage winners to swap between canonical Upper slots in one atomic write', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { finals, r2 } = createTop24ReconcileFixture();
+      finals.find((row) => row.matchNumber === 1)!.player2Id = 'winner-13';
+      finals.find((row) => row.matchNumber === 3)!.player2Id = 'winner-16';
+      (prisma.bMQualification as any).findMany.mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.stage === 'playoff' ? r2 : finals),
+      );
+      (executeD1Batch as jest.Mock).mockResolvedValueOnce([4, 1]);
+      const expectedVersions = Object.fromEntries([...r2, ...finals].map((row) => [row.id, row.version]));
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(reconcileRequest(expectedVersions), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
+      expect(statements[0].sql).toContain('existing."id" NOT IN');
+    });
+
+    it('protects a started downstream match before issuing a write', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { finals, r2 } = createTop24ReconcileFixture({ downstreamStarted: true });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.stage === 'playoff' ? r2 : finals),
+      );
+      const expectedVersions = Object.fromEntries([...r2, ...finals].map((row) => [row.id, row.version]));
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(reconcileRequest(expectedVersions), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe('RECONCILE_CONFLICT');
+      expect(executeD1Batch).not.toHaveBeenCalled();
+    });
+
+    it('protects a manually adjusted downstream slot and includes that guard in the atomic write', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { finals, r2 } = createTop24ReconcileFixture();
+      finals.find((row) => row.matchNumber === 9)!.slotOverrideAt = '2026-07-23T00:00:00.000Z';
+      (prisma.bMQualification as any).findMany.mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.stage === 'playoff' ? r2 : finals),
+      );
+      const expectedVersions = Object.fromEntries([...r2, ...finals].map((row) => [row.id, row.version]));
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const response = await PATCH(reconcileRequest(expectedVersions), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual(
+        expect.objectContaining({
+          details: expect.objectContaining({
+            blockers: expect.arrayContaining([expect.objectContaining({ reason: 'MANUAL_SLOT_OVERRIDE' })]),
+          }),
+        }),
+      );
+      expect(executeD1Batch).not.toHaveBeenCalled();
+    });
+  });
 
   describe('PATCH Handler (tvNumber)', () => {
     it('updates tvNumber on a finals match without touching scores', async () => {

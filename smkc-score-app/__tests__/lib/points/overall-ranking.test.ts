@@ -603,6 +603,16 @@ describe('Overall Ranking module', () => {
       expect(positions.find((p) => p.position === 2)?.playerId).toBe('p2');
     });
 
+    it('leaves first and second unresolved until a reset after the lower side wins Grand Final 1', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValue([
+        { ...makeMatch(16, 'grand_final', 'p1', 'p2', 0, 0), winnerOverrideId: 'p2' },
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
+
+      expect(positions.some((p) => p.position === 1 || p.position === 2)).toBe(false);
+    });
+
     it('assigns 3rd to Losers Final loser (MR)', async () => {
       mockPrisma.mRMatch.findMany.mockResolvedValue([
         makeMatch(15, 'losers_final', 'p3', 'p4', 3, 0), // p3 wins, p4 gets 3rd
@@ -668,6 +678,24 @@ describe('Overall Ranking module', () => {
       expect(mockPrisma.gPMatch.findMany).toHaveBeenCalled();
       expect(positions.find((p) => p.playerId === 'p1')?.position).toBe(1);
       expect(positions.find((p) => p.playerId === 'p2')?.position).toBe(2);
+    });
+
+    it('uses a non-tied GP score before a stale sudden-death winner', async () => {
+      mockPrisma.gPMatch.findMany.mockResolvedValue([
+        {
+          matchNumber: 16,
+          round: 'grand_final',
+          player1Id: 'p1',
+          player2Id: 'p2',
+          points1: 2,
+          points2: 1,
+          suddenDeathWinnerId: 'p2',
+        },
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'GP');
+
+      expect(positions.find((p) => p.position === 1)?.playerId).toBe('p1');
     });
   });
 

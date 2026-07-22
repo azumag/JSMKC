@@ -556,6 +556,8 @@ interface FinalsMatchRecord {
   round: string | null;
   stage?: string | null;
   matchNumber: number;
+  winnerOverrideId?: string | null;
+  suddenDeathWinnerId?: string | null;
 }
 
 function isSixteenPlayerOrTop24Bracket(matches: FinalsMatchRecord[]): boolean {
@@ -642,8 +644,12 @@ function qualificationResultsByPlayer(qualifications: QualificationEntry[]): Map
  * In case of a draw (shouldn't occur for completed matches), defaults to player 1 as winner.
  */
 function resolveWinnerLoser(m: FinalsMatchRecord): { winner: string; loser: string } {
+  if (m.winnerOverrideId === m.player1Id) return { winner: m.player1Id, loser: m.player2Id };
+  if (m.winnerOverrideId === m.player2Id) return { winner: m.player2Id, loser: m.player1Id };
   if (m.p1Score > m.p2Score) return { winner: m.player1Id, loser: m.player2Id };
   if (m.p2Score > m.p1Score) return { winner: m.player2Id, loser: m.player1Id };
+  if (m.suddenDeathWinnerId === m.player1Id) return { winner: m.player1Id, loser: m.player2Id };
+  if (m.suddenDeathWinnerId === m.player2Id) return { winner: m.player2Id, loser: m.player1Id };
   return { winner: m.player1Id, loser: m.player2Id };
 }
 
@@ -695,6 +701,7 @@ export async function getMatchFinalsPositions(
         round: true,
         stage: true,
         matchNumber: true,
+        winnerOverrideId: true,
       },
     });
     matches = rows.flatMap((r) =>
@@ -708,6 +715,7 @@ export async function getMatchFinalsPositions(
               round: r.round,
               stage: r.stage,
               matchNumber: r.matchNumber,
+              winnerOverrideId: r.winnerOverrideId,
             },
           ]
         : [],
@@ -724,6 +732,7 @@ export async function getMatchFinalsPositions(
         round: true,
         stage: true,
         matchNumber: true,
+        winnerOverrideId: true,
       },
     });
     matches = rows.flatMap((r) =>
@@ -737,6 +746,7 @@ export async function getMatchFinalsPositions(
               round: r.round,
               stage: r.stage,
               matchNumber: r.matchNumber,
+              winnerOverrideId: r.winnerOverrideId,
             },
           ]
         : [],
@@ -754,6 +764,8 @@ export async function getMatchFinalsPositions(
         round: true,
         stage: true,
         matchNumber: true,
+        winnerOverrideId: true,
+        suddenDeathWinnerId: true,
       },
     });
     matches = rows.flatMap((r) =>
@@ -767,6 +779,8 @@ export async function getMatchFinalsPositions(
               round: r.round,
               stage: r.stage,
               matchNumber: r.matchNumber,
+              winnerOverrideId: r.winnerOverrideId,
+              suddenDeathWinnerId: r.suddenDeathWinnerId,
             },
           ]
         : [],
@@ -802,12 +816,20 @@ export async function getMatchFinalsPositions(
   const useSixteenPlayerPlacement = isSixteenPlayerOrTop24Bracket(matches);
 
   // Grand Final: use the last completed GF match (GF Reset if it was played)
-  const gfMatches = matches
-    .filter((m) => m.round === 'grand_final' || m.round === 'grand_final_reset')
-    .sort((a, b) => a.matchNumber - b.matchNumber);
+  const completedReset = matches
+    .filter((m) => m.round === 'grand_final_reset')
+    .sort((a, b) => b.matchNumber - a.matchNumber)[0];
+  const completedGrandFinal = matches
+    .filter((m) => m.round === 'grand_final')
+    .sort((a, b) => b.matchNumber - a.matchNumber)[0];
+  const decidingGrandFinal =
+    completedReset ??
+    (completedGrandFinal && resolveWinnerLoser(completedGrandFinal).winner === completedGrandFinal.player1Id
+      ? completedGrandFinal
+      : undefined);
 
-  if (gfMatches.length > 0) {
-    const { winner, loser } = resolveWinnerLoser(gfMatches[gfMatches.length - 1]);
+  if (decidingGrandFinal) {
+    const { winner, loser } = resolveWinnerLoser(decidingGrandFinal);
     positions.push({ playerId: winner, position: 1 });
     positions.push({ playerId: loser, position: 2 });
   }

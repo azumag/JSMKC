@@ -171,6 +171,7 @@ model Tournament {
   mrQualifications         MRQualification[]
   gpMatches                GPMatch[]
   gpQualifications         GPQualification[]
+  finalsRoundSettings      FinalsRoundSetting[]
   ttEntries                TTEntry[]
   ttPhaseRounds            TTPhaseRound[]
   ttPhaseSuddenDeathRounds TTPhaseSuddenDeathRound[]
@@ -242,6 +243,8 @@ model BMMatch {
   player2Side          Int        @default(2)
   score1               Int        @default(0) // Player 1's wins (e.g., 4 in "4-0")
   score2               Int        @default(0) // Player 2's wins
+  targetWins           Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
+  winnerOverrideId     String? // Admin-resolved winner when a corrected result cannot be derived from scores
   completed            Boolean    @default(false)
   assignedCourses      Json? // Pre-assigned courses for this match (§5.4, §6.3): ["MC1", "DP1", "GV1", "BC1"]
   rounds               Json? // [{arena: "Arena 1", winner: 1}, ...]
@@ -323,6 +326,8 @@ model MRMatch {
   player2Side     Int        @default(2)
   score1          Int        @default(0)
   score2          Int        @default(0)
+  targetWins      Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
+  winnerOverrideId String? // Admin-resolved winner when a corrected result cannot be derived from scores
   completed       Boolean    @default(false)
   scoresConfirmed Boolean    @default(false)
   assignedCourses Json? // Pre-assigned courses for this match (§10.5): ["MC1", "DP1", "GV1", "BC1"]
@@ -405,6 +410,8 @@ model GPMatch {
   player2Side         Int        @default(2)
   points1             Int        @default(0) // Driver points for player 1
   points2             Int        @default(0) // Driver points for player 2
+  targetWins          Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
+  winnerOverrideId    String? // Admin-resolved winner when a corrected result cannot be derived from scores
   completed           Boolean    @default(false)
   suddenDeathWinnerId String? // Legacy GP finals tie-break winner; retained for historical bracket display
   races               Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
@@ -431,6 +438,23 @@ model GPMatch {
   @@unique([tournamentId, matchNumber, stage])
   @@index([tournamentId, stage, player1Id])
   @@index([tournamentId, stage, player2Id])
+}
+
+/// Current configurable First-To value for a finals/playoff round. Individual
+/// match rows keep their historical snapshot after completion; this record is
+/// the round-level value used by exports and remaining pending matches.
+model FinalsRoundSetting {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  mode         String
+  stage        String
+  round        String
+  targetWins   Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tournamentId, mode, stage, round])
 }
 
 // ==========================================

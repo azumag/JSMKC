@@ -231,13 +231,25 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
        * by the stage-aware validation below so there's no wasted DB call. */
       const matchMeta = await model(prisma).findUnique({
         where: { id: matchId },
-        select: { stage: true, round: true, tournamentId: true, isBye: true },
+        select: { stage: true, round: true, targetWins: true, tournamentId: true, isBye: true },
       });
       if (!matchMeta || (matchMeta.tournamentId && matchMeta.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
       }
       if (matchMeta.isBye) {
         return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
+      }
+      /* Finals writes must use the canonical /finals endpoint. That endpoint
+       * atomically reroutes downstream slots, protects GF reset state and
+       * keeps the winner override/audit trail coherent. Updating the source
+       * row through this generic detail endpoint would otherwise leave an old
+       * winner in the next bracket slot. */
+      if (matchMeta.stage === 'finals' || matchMeta.stage === 'playoff') {
+        return createErrorResponse(
+          'Use the finals endpoint to update a bracket match',
+          409,
+          'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+        );
       }
       if (matchMeta?.stage === 'qualification') {
         const lockError = await checkQualificationConfirmed(prisma, matchMeta.tournamentId, config.qualMode);

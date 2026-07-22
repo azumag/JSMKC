@@ -38,6 +38,7 @@
  *  TC-3029 MR admin qualification Clear (0-0) wipes stale per-race rounds
  *  TC-3032 MR manual bracket slot adjustment — same-match swap (issue #3017
  *          Phase 2 UI wiring; API-level, mirrors tc-bm.js TC-3027)
+ *  TC-3040 MR Top-24 barrage correction safely reconciles the affected Upper slot
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -61,6 +62,7 @@ const {
   apiSetMrFinalsScore: setMrFinalsScore,
   apiFetchMrFinalsMatches: fetchMrFinalsMatches,
   apiFetchMrFinalsState,
+  setupMr28PlayerFinals,
   apiUpdateTournament,
   apiJson,
   loginPlayerBrowser,
@@ -2561,6 +2563,101 @@ async function runTc858(adminPage) {
 /* Keep this dedicated drift-test boundary next to runTc858 so future MR test
  * additions cannot accidentally widen the TC-858 source slice. */
 
+/* ───────── TC-3040: Top-24 barrage correction → Upper-slot reconciliation ─────────
+ * Uses a disposable tournament so the correction runs after a real Phase 2
+ * without disturbing the suite fixture. GET is the operator's stale-plan
+ * read, then PATCH applies that plan once and accepts the stale retry as the
+ * required idempotent no-op. */
+async function runTc3040(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupMr28PlayerFinals(adminPage, 'TC3040');
+    const { tournamentId } = setup;
+    const confirmed = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true });
+    if (confirmed.s !== 200) throw new Error(`Failed to confirm qualification (${confirmed.s})`);
+
+    const playoff = await generateMrFinalsBracket(adminPage, tournamentId, 24);
+    if (playoff.s !== 200 && playoff.s !== 201) throw new Error(`Top-24 playoff generation failed (${playoff.s})`);
+    for (let matchNumber = 1; matchNumber <= 8; matchNumber++) {
+      const state = await apiFetchMrFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((row) => row.matchNumber === matchNumber);
+      if (!match) throw new Error(`Playoff M${matchNumber} missing`);
+      const targetWins = mrFinalsTargetWinsForMatch(match);
+      const score = await setMrFinalsScore(adminPage, tournamentId, match.id, targetWins, 0);
+      if (score.s !== 200) throw new Error(`Playoff M${matchNumber} score failed (${score.s})`);
+    }
+    const phase2 = await generateMrFinalsBracket(adminPage, tournamentId, 24);
+    if (phase2.s !== 200 && phase2.s !== 201) throw new Error(`Phase 2 generation failed (${phase2.s})`);
+
+    const beforeCorrection = await apiFetchMrFinalsState(adminPage, tournamentId);
+    const correctedR2 = beforeCorrection.playoffMatches.find((match) => match.matchNumber === 5);
+    if (!correctedR2) throw new Error('Playoff R2 M5 missing after Phase 2');
+    const correction = await apiJson(adminPage, `/api/tournaments/${tournamentId}/mr/finals`, {
+      method: 'PUT',
+      body: { matchId: correctedR2.id, score1: 0, score2: 4, expectedVersion: correctedR2.version, override: true },
+    });
+    if (correction.status !== 200) throw new Error(`R2 correction failed (${correction.status})`);
+
+    const stale = await apiFetchMrFinalsState(adminPage, tournamentId);
+    const preview = stale.raw?.data?.upperReconciliation;
+    const changes = preview?.changes || [];
+    const change = changes.find((entry) => entry.sourceMatchId === correctedR2.id);
+    if (preview?.status !== 'stale' || changes.length !== 1 || !change) {
+      throw new Error(`Expected exactly one stale Upper slot, got ${JSON.stringify(preview)}`);
+    }
+    const beforeSlots = new Map(
+      stale.matches.map((match) => [
+        match.id,
+        { player1Id: match.player1Id, player2Id: match.player2Id, version: match.version },
+      ]),
+    );
+    const reconcile = await apiJson(adminPage, `/api/tournaments/${tournamentId}/mr/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const after = await apiFetchMrFinalsState(adminPage, tournamentId);
+    const target = after.matches.find((match) => match.id === change.targetMatchId);
+    const targetBefore = beforeSlots.get(change.targetMatchId);
+    const oppositeKey = change.slot === 1 ? 'player2Id' : 'player1Id';
+    const targetSlotUpdated =
+      target &&
+      targetBefore &&
+      target[`player${change.slot}Id`] === change.afterPlayerId &&
+      target[oppositeKey] === targetBefore[oppositeKey] &&
+      target.version === targetBefore.version + 1;
+    const onlyTargetChanged = after.matches.every((match) => {
+      const before = beforeSlots.get(match.id);
+      if (!before) return false;
+      if (match.id === change.targetMatchId) return true;
+      return (
+        match.player1Id === before.player1Id && match.player2Id === before.player2Id && match.version === before.version
+      );
+    });
+    const retry = await apiJson(adminPage, `/api/tournaments/${tournamentId}/mr/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const ok =
+      reconcile.status === 200 &&
+      reconcile.body?.data?.status === 'updated' &&
+      targetSlotUpdated &&
+      onlyTargetChanged &&
+      retry.status === 200 &&
+      retry.body?.data?.status === 'in_sync';
+    log(
+      'TC-3040',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `reconcile=${reconcile.status}/${reconcile.body?.data?.status} target=${targetSlotUpdated} onlyTarget=${onlyTargetChanged} retry=${retry.status}/${retry.body?.data?.status}`,
+    );
+  } catch (err) {
+    log('TC-3040', 'FAIL', err instanceof Error ? err.message : 'TC-3040 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -2607,6 +2704,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-616', fn: runTc616 },
       { name: 'TC-621', fn: runTc621 },
       { name: 'TC-858', fn: runTc858 },
+      { name: 'TC-3040', fn: runTc3040 },
     ],
   };
 }
@@ -2638,6 +2736,7 @@ module.exports = {
   runTc3028,
   runTc3029,
   runTc3032,
+  runTc3040,
   mrFinalsTargetWinsForMatch,
   getSuite,
   results,

@@ -201,6 +201,7 @@ describe('restoreTournamentArchiveForReopen', () => {
       prisma.bMMatch,
       prisma.mRMatch,
       prisma.gPMatch,
+      prisma.finalsRoundSetting,
       prisma.tTEntry,
       prisma.tTPhaseRound,
       prisma.tournamentPlayerScore,
@@ -260,6 +261,17 @@ describe('restoreTournamentArchiveForReopen', () => {
 
     expect(prisma.tournament.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ qualificationScheduleMethod: 'cdm' }),
+    });
+  });
+
+  it('restores finals round settings so a reopened all-complete bracket exports its configured FT', async () => {
+    const archive = makeArchive();
+    archive.tournament.finalsRoundSettings = [{ mode: 'bm', stage: 'finals', round: 'winners_r1', targetWins: 7 }];
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.finalsRoundSetting.createMany).toHaveBeenCalledWith({
+      data: [{ tournamentId: 'archived-1', mode: 'bm', stage: 'finals', round: 'winners_r1', targetWins: 7 }],
     });
   });
 

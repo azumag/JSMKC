@@ -29,6 +29,7 @@ import { createErrorResponse, handleAuthError, handleAuthzError } from '@/lib/er
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { auth } from '@/lib/auth';
 import { generateCdmWorkbook } from '@/lib/cdm-export';
+import { getBmFinalsTargetWins, getGpFinalsTargetWins, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 import { resolveFinalsSeedSnapshot } from '@/lib/finals-seed-snapshot';
 import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
 import { serializeFinalsSlots, type SlotStatusMatch } from '@/lib/finals-slot-status';
@@ -38,6 +39,7 @@ import type {
   CdmTTEntry,
   CdmTTPhaseRound,
   CdmTournamentData,
+  CdmFinalsRoundSetting,
 } from '@/lib/cdm-export/types';
 
 const CDM_TEMPLATE_PATH = '/templates/cdm-2025-template.xlsm';
@@ -85,9 +87,13 @@ type CdmMatchRow = {
   score2?: number | null;
   points1?: number | null;
   points2?: number | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
+  suddenDeathWinnerId?: string | null;
   completed: boolean;
   assignedCourses?: unknown;
   cup?: string | null;
+  assignedCups?: unknown;
 };
 
 type CdmTtEntryRow = {
@@ -132,6 +138,7 @@ type CdmTournamentRow = {
   bmFinalsSeedSnapshot?: unknown;
   mrFinalsSeedSnapshot?: unknown;
   gpFinalsSeedSnapshot?: unknown;
+  finalsRoundSettings?: CdmFinalsRoundSetting[];
 };
 
 /*
@@ -170,6 +177,35 @@ function csvPlayerCells(player: CdmPlayerRow | null | undefined): [string, strin
   return player ? [player.name, player.nickname] : ['TBD', 'TBD'];
 }
 
+function csvResolvedWinner(
+  match: CsvMatchRow,
+  score1: number | null | undefined,
+  score2: number | null | undefined,
+  mode: 'bm' | 'mr' | 'gp',
+): string {
+  if (!match.completed) return '-';
+  if (match.winnerOverrideId === match.player1Id) return match.player1?.nickname ?? 'TBD';
+  if (match.winnerOverrideId === match.player2Id) return match.player2?.nickname ?? 'TBD';
+  if (score1 != null && score2 != null && score1 !== score2) {
+    return score1 > score2 ? (match.player1?.nickname ?? 'TBD') : (match.player2?.nickname ?? 'TBD');
+  }
+  if (mode === 'gp' && match.suddenDeathWinnerId === match.player1Id) return match.player1?.nickname ?? 'TBD';
+  if (mode === 'gp' && match.suddenDeathWinnerId === match.player2Id) return match.player2?.nickname ?? 'TBD';
+  return '-';
+}
+
+function csvTargetWins(match: CsvMatchRow, mode: 'bm' | 'mr' | 'gp'): string {
+  if (match.stage !== 'playoff' && match.stage !== 'finals') return '-';
+  const context = { stage: match.stage, round: match.round, targetWins: match.targetWins };
+  const targetWins =
+    mode === 'bm'
+      ? getBmFinalsTargetWins(context)
+      : mode === 'mr'
+        ? getMrFinalsTargetWins(context)
+        : getGpFinalsTargetWins(context);
+  return String(targetWins);
+}
+
 const BASE_EXPORT_INCLUDE = {
   bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
   bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
@@ -205,6 +241,9 @@ const CDM_EXPORT_INCLUDE = {
         select: { sequence: true, results: true },
       },
     },
+  },
+  finalsRoundSettings: {
+    select: { mode: true, stage: true, round: true, targetWins: true },
   },
 };
 
@@ -311,9 +350,13 @@ function mapMatch(match: CdmMatchRow): CdmMatch {
     score2: match.score2 ?? null,
     points1: match.points1 ?? null,
     points2: match.points2 ?? null,
+    targetWins: match.targetWins ?? null,
+    winnerOverrideId: match.winnerOverrideId ?? null,
+    suddenDeathWinnerId: match.suddenDeathWinnerId ?? null,
     completed: match.completed,
     assignedCourses: match.assignedCourses,
     cup: match.cup ?? null,
+    assignedCups: match.assignedCups,
   };
 }
 
@@ -466,6 +509,7 @@ function mapToCdmTournamentData(
     bmFinalsSeedSnapshot: mapSeedSnapshot(tournament.bmFinalsSeedSnapshot),
     mrFinalsSeedSnapshot: mapSeedSnapshot(tournament.mrFinalsSeedSnapshot),
     gpFinalsSeedSnapshot: mapSeedSnapshot(tournament.gpFinalsSeedSnapshot),
+    finalsRoundSettings: tournament.finalsRoundSettings ?? [],
     ttEntries: dropIncompletePlayerRows(tournament.ttEntries, 'ttEntries', logger).map(mapTtEntry),
     ttPhaseRounds: tournament.ttPhaseRounds.map(mapTtPhaseRound),
   };
@@ -644,7 +688,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // ========================================
     if (tournament.bmMatches.some((match) => !match.isBye)) {
       const qualMatches = tournament.bmMatches.filter((m) => m.stage === 'qualification' && !m.isBye);
-      const finalsMatches = tournament.bmMatches.filter((m) => m.stage === 'finals');
+      const finalsMatches = tournament.bmMatches.filter((m) => m.stage === 'playoff' || m.stage === 'finals');
 
       // 3a: Qualification matches
       if (qualMatches.length > 0) {
@@ -706,6 +750,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           'Player 2',
           'Nickname 2',
           'Score',
+          'Target Wins',
+          'Winner',
           'Completed',
           'Rounds',
         ];
@@ -735,6 +781,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             ...csvPlayerCells(match.player1),
             ...csvPlayerCells(match.player2),
             score,
+            csvTargetWins(match, 'bm'),
+            csvResolvedWinner(match, match.score1, match.score2, 'bm'),
             match.completed ? 'Yes' : 'No',
             roundsInfo,
           ]
@@ -761,6 +809,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         'Player 2',
         'Nickname 2',
         'Score',
+        'Target Wins',
+        'Winner',
+        'Courses',
         'Completed',
       ];
 
@@ -777,6 +828,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             ...csvPlayerCells(match.player1),
             ...csvPlayerCells(match.player2),
             score,
+            csvTargetWins(match, 'mr'),
+            csvResolvedWinner(match, match.score1, match.score2, 'mr'),
+            Array.isArray(match.assignedCourses)
+              ? match.assignedCourses.filter((course) => typeof course === 'string').join(' / ')
+              : '-',
             match.completed ? 'Yes' : 'No',
           ]
             .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
@@ -801,6 +857,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         'Nickname 2',
         'Points P1',
         'Points P2',
+        'Target Wins',
+        'Winner',
+        'Cups',
         'Completed',
       ];
 
@@ -815,6 +874,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             ...csvPlayerCells(match.player2),
             String(match.points1 || 0),
             String(match.points2 || 0),
+            csvTargetWins(match, 'gp'),
+            csvResolvedWinner(match, match.points1, match.points2, 'gp'),
+            Array.isArray(match.assignedCups)
+              ? match.assignedCups.filter((cup) => typeof cup === 'string').join(' / ')
+              : match.cup || '-',
             match.completed ? 'Yes' : 'No',
           ]
             .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))

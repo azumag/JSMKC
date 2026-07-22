@@ -322,6 +322,17 @@ describe('updateBMMatchScore', () => {
     });
   });
 
+  it('clears only the explicit winner override for a bracket score edit', async () => {
+    mockBMMatch.update.mockResolvedValue({ version: 2 });
+
+    await updateBMMatchScore(mockPrisma, 'bm-match-123', 1, 3, 1, true, [], true);
+
+    expect(mockBMMatch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ winnerOverrideId: null }) }),
+    );
+    expect(mockBMMatch.update.mock.calls[0][0].data).not.toHaveProperty('suddenDeathWinnerId');
+  });
+
   it('should throw OptimisticLockError when bMMatch not found', async () => {
     const matchId = 'bm-match-123';
     const expectedVersion = 1;
@@ -557,6 +568,18 @@ describe('updateGPMatchScore', () => {
         version: { increment: 1 },
       },
     });
+  });
+
+  it('clears both explicit and legacy sudden-death winners for a bracket score edit', async () => {
+    mockGPMatch.update.mockResolvedValue({ version: 1 });
+
+    await updateGPMatchScore(mockPrisma, 'gp-match-123', 0, 2, 1, true, [], true);
+
+    expect(mockGPMatch.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ winnerOverrideId: null, suddenDeathWinnerId: null }),
+      }),
+    );
   });
 
   it('should throw OptimisticLockError when gPMatch not found', async () => {

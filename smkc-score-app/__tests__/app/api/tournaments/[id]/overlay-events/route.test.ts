@@ -314,6 +314,44 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
     });
   });
 
+  describe('TC-3038: current finals format query is stable across poll paths', () => {
+    it('uses the same unresolved, fully assigned match query for fast and initial responses', async () => {
+      const id = 'current-finals-query-tc-3038';
+      mockResolveTournament.mockResolvedValue(makeTournament(id));
+      const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      stubAggregatesAt(old);
+      stubFindManyEmpty();
+      const current = { stage: 'finals', round: 'winners_r1', targetWins: 7, createdAt: old };
+      for (const model of [mockPrisma.bMMatch, mockPrisma.mRMatch, mockPrisma.gPMatch]) {
+        model.findFirst.mockImplementation((args: { select?: { targetWins?: boolean } }) =>
+          args.select?.targetWins ? Promise.resolve(current) : Promise.resolve(null),
+        );
+      }
+
+      await GET(makeRequest({ since: new Date(Date.now() - 60 * 60 * 1000).toISOString() }), makeParams(id));
+      await GET(makeRequest({ initial: '1' }), makeParams(id));
+
+      const expectedWhere = {
+        tournamentId: id,
+        stage: { in: ['playoff', 'finals'] },
+        round: { not: null },
+        completed: false,
+        player1Id: { not: null },
+        player2Id: { not: null },
+      };
+      for (const model of [mockPrisma.bMMatch, mockPrisma.mRMatch, mockPrisma.gPMatch]) {
+        const phaseQueries = model.findFirst.mock.calls
+          .map(([args]: [{ select?: { targetWins?: boolean } }]) => args)
+          .filter((args: { select?: { targetWins?: boolean } }) => args.select?.targetWins);
+        expect(phaseQueries).toHaveLength(2);
+        for (const query of phaseQueries) {
+          expect(query.where).toEqual(expectedWhere);
+          expect(query.orderBy).toEqual({ matchNumber: 'asc' });
+        }
+      }
+    });
+  });
+
   describe('TC-2487: invalidateOverlayProbe removes probe cache entry', () => {
     it('invalidates the probe cache, causing the next GET to re-query aggregates', async () => {
       const id = 'probe-invalidation-tc-2487';

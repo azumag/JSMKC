@@ -19,7 +19,13 @@ import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError, handleAuthzError } from '@/lib/error-handling';
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleValidationError,
+  handleRateLimitError,
+  handleAuthzError,
+} from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
@@ -58,6 +64,24 @@ export interface FinalsMatchesConfig {
   auditTargetType: string;
   /** Whether to sanitize request body before validation (MR uses this) */
   sanitizeBody?: boolean;
+  /** Snapshot the mode's current first-to rule when a legacy manual endpoint creates a match. */
+  getTargetWins: (context: { stage: 'finals'; round?: string | null }) => number;
+}
+
+/** Translate legacy manual bracket labels into the canonical round names used
+ * by the FT policy. The historic endpoint accepts labels such as `gf` and
+ * `QF1`; storing that label is retained for compatibility, but it must not
+ * make a grand final inherit the early-round default. */
+function targetWinsRound(data: { bracket: string; bracketPosition?: string; isGrandFinal: boolean }): string | null {
+  const position = data.bracketPosition?.toLowerCase() ?? '';
+  if (position.includes('reset')) return 'grand_final_reset';
+  if (data.isGrandFinal || data.bracket === 'grand_final' || position === 'gf' || position === 'grand_final') {
+    return 'grand_final';
+  }
+  if (position.startsWith('qf') || position === 'winners_qf') return 'winners_qf';
+  if (position.startsWith('sf') || position === 'winners_sf') return 'winners_sf';
+  if (position === 'final' || position === 'winners_final') return 'winners_final';
+  return data.bracketPosition ?? null;
 }
 
 /**
@@ -74,10 +98,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
    * POST handler: Create a new finals match with bracket metadata.
    * Requires admin authentication. Match number is auto-incremented.
    */
-  async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
+  async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
     const session = await auth();
 
@@ -144,6 +165,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
           player2Side: data.player2Side,
           score1: 0,
           score2: 0,
+          targetWins: config.getTargetWins({ stage: 'finals', round: targetWinsRound(data) }),
           completed: false,
           bracket: data.bracket,
           bracketPosition: data.bracketPosition,
@@ -171,7 +193,9 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
           bracketPosition: data.bracketPosition,
           isGrandFinal: data.isGrandFinal,
         },
-      }).catch((err) => logger.warn('Failed to create audit log', { error: err, tournamentId, action: config.auditAction }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', { error: err, tournamentId, action: config.auditAction }),
+      );
 
       return createSuccessResponse({ match }, 'Match created successfully', { status: 201 });
     } catch (error) {

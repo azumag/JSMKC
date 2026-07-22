@@ -325,12 +325,14 @@ export async function updateBMMatchScore(
   score2: number,
   completed: boolean = false,
   rounds?: BMRound[],
+  clearWinnerOverride = false,
 ): Promise<{ version: number }> {
   return _updateBMMatchScore(prisma, matchId, expectedVersion, {
     score1,
     score2,
     completed,
     rounds,
+    ...(clearWinnerOverride ? { winnerOverrideId: null } : {}),
   });
 }
 
@@ -363,6 +365,7 @@ export async function updateMRMatchScore(
   completed: boolean = false,
   rounds?: MRRound[],
   scoresConfirmed?: boolean,
+  clearWinnerOverride = false,
 ): Promise<{ version: number }> {
   return _updateMRMatchScore(prisma, matchId, expectedVersion, {
     score1,
@@ -370,6 +373,7 @@ export async function updateMRMatchScore(
     completed,
     rounds,
     ...(typeof scoresConfirmed === 'boolean' ? { scoresConfirmed } : {}),
+    ...(clearWinnerOverride ? { winnerOverrideId: null } : {}),
   });
 }
 
@@ -403,12 +407,14 @@ export async function updateGPMatchScore(
   points2: number,
   completed: boolean = false,
   races?: GPRace[] | null,
+  clearWinnerOverride = false,
 ): Promise<{ version: number }> {
   return _updateGPMatchScore(prisma, matchId, expectedVersion, {
     points1,
     points2,
     completed,
     races: races === null ? Prisma.DbNull : races,
+    ...(clearWinnerOverride ? { winnerOverrideId: null, suddenDeathWinnerId: null } : {}),
   });
 }
 

@@ -1,6 +1,14 @@
 export interface FinalsTargetContext {
   round?: string | null;
   stage?: string | null;
+  /** Stored per-match first-to value. Null is the legacy round-derived rule. */
+  targetWins?: number | null;
+}
+
+function storedTargetWins(context?: FinalsTargetContext): number | null {
+  return typeof context?.targetWins === 'number' && Number.isInteger(context.targetWins) && context.targetWins > 0
+    ? context.targetWins
+    : null;
 }
 
 function isEarlyUpperRound(round?: string | null): boolean {
@@ -16,14 +24,18 @@ function isMidLowerRound(round?: string | null): boolean {
 }
 
 function isTopFourTargetRound(round?: string | null): boolean {
-  return round === 'winners_final'
-    || round === 'losers_sf'
-    || round === 'losers_final'
-    || round === 'grand_final'
-    || round === 'grand_final_reset';
+  return (
+    round === 'winners_final' ||
+    round === 'losers_sf' ||
+    round === 'losers_final' ||
+    round === 'grand_final' ||
+    round === 'grand_final_reset'
+  );
 }
 
 export function getBmFinalsTargetWins(context?: FinalsTargetContext): number {
+  const stored = storedTargetWins(context);
+  if (stored !== null) return stored;
   if (context?.stage === 'playoff') {
     return context.round === 'playoff_r2' ? 4 : 3;
   }
@@ -37,6 +49,8 @@ export function getBmFinalsTargetWins(context?: FinalsTargetContext): number {
 }
 
 export function getMrFinalsTargetWins(context?: FinalsTargetContext): number {
+  const stored = storedTargetWins(context);
+  if (stored !== null) return stored;
   if (context?.stage === 'playoff') {
     return context.round === 'playoff_r2' ? 4 : 3;
   }
@@ -53,6 +67,8 @@ export function getMrFinalsTargetWins(context?: FinalsTargetContext): number {
 }
 
 export function getGpFinalsTargetWins(context?: FinalsTargetContext): number {
+  const stored = storedTargetWins(context);
+  if (stored !== null) return stored;
   if (context?.stage === 'playoff') {
     return 1;
   }

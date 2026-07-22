@@ -103,6 +103,57 @@ export function invalidateOverlayProbe(tournamentId: string): void {
   latestProbeCache.delete(tournamentId);
 }
 
+/**
+ * The fast no-change response and the full event build must resolve the
+ * overlay footer from the same active match. Keeping this query shape shared
+ * prevents a freshly saved FT from briefly reverting on the next poll.
+ */
+function currentFinalsMatchWhere(tournamentId: string) {
+  return {
+    tournamentId,
+    stage: { in: ['playoff', 'finals'] },
+    round: { not: null },
+    completed: false,
+    player1Id: { not: null },
+    player2Id: { not: null },
+  };
+}
+
+function latestCompletedFinalsMatchWhere(tournamentId: string) {
+  return {
+    tournamentId,
+    stage: { in: ['playoff', 'finals'] },
+    round: { not: null },
+    completed: true,
+  };
+}
+
+const CURRENT_FINALS_MATCH_SELECT = { stage: true, round: true, targetWins: true, createdAt: true, updatedAt: true };
+const CURRENT_FINALS_MATCH_ORDER_BY = { matchNumber: 'asc' } as const;
+const LATEST_COMPLETED_FINALS_MATCH_ORDER_BY = { updatedAt: 'desc' } as const;
+type CurrentFinalsMatch = {
+  stage: string | null;
+  round: string | null;
+  targetWins: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+type CurrentFinalsMatchModel = { findFirst: (...args: never[]) => Promise<CurrentFinalsMatch | null> };
+
+async function readCurrentFinalsMatch(model: CurrentFinalsMatchModel, tournamentId: string) {
+  const active = await (model.findFirst as unknown as (args: unknown) => Promise<CurrentFinalsMatch | null>)({
+    where: currentFinalsMatchWhere(tournamentId),
+    select: CURRENT_FINALS_MATCH_SELECT,
+    orderBy: CURRENT_FINALS_MATCH_ORDER_BY,
+  });
+  if (active) return active;
+  return (model.findFirst as unknown as (args: unknown) => Promise<CurrentFinalsMatch | null>)({
+    where: latestCompletedFinalsMatchWhere(tournamentId),
+    select: CURRENT_FINALS_MATCH_SELECT,
+    orderBy: LATEST_COMPLETED_FINALS_MATCH_ORDER_BY,
+  });
+}
+
 function jsonStringArray(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((value): value is string => typeof value === 'string') : [];
 }
@@ -136,21 +187,9 @@ async function readCurrentPhaseInput(
     taPhase2LatestRound,
     taPhase3LatestRound,
   ] = await Promise.all([
-    prisma.bMMatch.findFirst({
-      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
-      select: { stage: true, round: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.mRMatch.findFirst({
-      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
-      select: { stage: true, round: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.gPMatch.findFirst({
-      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
-      select: { stage: true, round: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    }),
+    readCurrentFinalsMatch(prisma.bMMatch, tournamentId),
+    readCurrentFinalsMatch(prisma.mRMatch, tournamentId),
+    readCurrentFinalsMatch(prisma.gPMatch, tournamentId),
     prisma.tTEntry.findFirst({
       where: { tournamentId, stage: 'phase1' },
       select: { id: true },
@@ -185,9 +224,27 @@ async function readCurrentPhaseInput(
       bmLatestFinals && { ...bmLatestFinals, mode: 'bm' as OverlayMode },
       mrLatestFinals && { ...mrLatestFinals, mode: 'mr' as OverlayMode },
       gpLatestFinals && { ...gpLatestFinals, mode: 'gp' as OverlayMode },
-    ] as Array<{ stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } | null>
+    ] as Array<{
+      stage: string | null;
+      round: string | null;
+      targetWins: number | null;
+      createdAt: Date;
+      updatedAt: Date;
+      mode: OverlayMode;
+    } | null>
   )
-    .filter((m): m is { stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
+    .filter(
+      (
+        m,
+      ): m is {
+        stage: string | null;
+        round: string | null;
+        targetWins: number | null;
+        createdAt: Date;
+        updatedAt: Date;
+        mode: OverlayMode;
+      } => m !== null,
+    )
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
   let taCurrentPhase: 'qualification' | 'phase1' | 'phase2' | 'phase3' = 'qualification';
@@ -210,6 +267,7 @@ async function readCurrentPhaseInput(
     latestFinalsRound: latestFinals?.round ?? null,
     latestFinalsStage: latestFinals?.stage ?? null,
     latestFinalsMode: latestFinals?.mode ?? null,
+    latestFinalsTargetWins: latestFinals?.targetWins ?? null,
   };
 }
 
@@ -347,11 +405,12 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
       createdAt: true,
       score1: true,
       score2: true,
+      winnerOverrideId: true,
       // BM/MR pre-assigned courses, surfaced on match_completed events so
       // the dashboard scoreboard can show which courses the match used.
       assignedCourses: true,
-      player1: { select: { nickname: true } },
-      player2: { select: { nickname: true } },
+      player1: { select: { id: true, nickname: true } },
+      player2: { select: { id: true, nickname: true } },
     } as const;
 
     const gpMatchSelect = {
@@ -365,11 +424,13 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
       createdAt: true,
       points1: true,
       points2: true,
+      winnerOverrideId: true,
+      suddenDeathWinnerId: true,
       // GP cup label ("Mushroom" / "Flower" / ...), shown on the dashboard
       // scoreboard so viewers can identify which cup the match was on.
       cup: true,
-      player1: { select: { nickname: true } },
-      player2: { select: { nickname: true } },
+      player1: { select: { id: true, nickname: true } },
+      player2: { select: { id: true, nickname: true } },
     } as const;
 
     /* Run all reads in parallel — D1 has no inter-query state to share and
@@ -493,21 +554,9 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
          mode (round != null), plus TA phase existence and latest round
          number per phase. None of these depend on `since` — they describe
          the current tournament state, not a delta. */
-      prisma.bMMatch.findFirst({
-        where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
-        select: { stage: true, round: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.mRMatch.findFirst({
-        where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
-        select: { stage: true, round: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.gPMatch.findFirst({
-        where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
-        select: { stage: true, round: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }),
+      readCurrentFinalsMatch(prisma.bMMatch, tournamentId),
+      readCurrentFinalsMatch(prisma.mRMatch, tournamentId),
+      readCurrentFinalsMatch(prisma.gPMatch, tournamentId),
       prisma.tTEntry.findFirst({
         where: { tournamentId, stage: 'phase1' },
         select: { id: true },
@@ -689,10 +738,24 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
         bmLatestFinals && { ...bmLatestFinals, mode: 'bm' as OverlayMode },
         mrLatestFinals && { ...mrLatestFinals, mode: 'mr' as OverlayMode },
         gpLatestFinals && { ...gpLatestFinals, mode: 'gp' as OverlayMode },
-      ] as Array<{ stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } | null>
+      ] as Array<{
+        stage: string | null;
+        round: string | null;
+        targetWins: number | null;
+        createdAt: Date;
+        mode: OverlayMode;
+      } | null>
     )
       .filter(
-        (m): m is { stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } => m !== null,
+        (
+          m,
+        ): m is {
+          stage: string | null;
+          round: string | null;
+          targetWins: number | null;
+          createdAt: Date;
+          mode: OverlayMode;
+        } => m !== null,
       )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
@@ -720,6 +783,7 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
       latestFinalsRound: latestFinals?.round ?? null,
       latestFinalsStage: latestFinals?.stage ?? null,
       latestFinalsMode: latestFinals?.mode ?? null,
+      latestFinalsTargetWins: latestFinals?.targetWins ?? null,
     };
     const currentPhase = computeCurrentPhase(phaseInput);
     const currentPhaseFormat = computeCurrentPhaseFormat(phaseInput);

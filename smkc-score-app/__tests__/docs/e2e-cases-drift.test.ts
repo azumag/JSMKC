@@ -710,8 +710,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('First to 9');
     expect(section).toContain('phase.test.ts');
     expect(overlayPhaseTest).toContain('returns First to 9 for MR bracket grand finals');
-    expect(overlayPhaseTest).toContain('latestFinalsRound: "grand_final"');
-    expect(overlayPhaseTest).toContain('getMrFinalsTargetWins({ round: "grand_final" })');
+    expect(overlayPhaseTest).toContain("latestFinalsRound: 'grand_final'");
+    expect(overlayPhaseTest).toContain("getMrFinalsTargetWins({ round: 'grand_final' })");
     expect(overlayPhaseTest).not.toContain('returns First to 5 for MR bracket finals');
   });
 
@@ -1924,16 +1924,6 @@ describe('E2E case drift coverage', () => {
       'async function readCurrentPhaseInput',
       'function parseSince',
     );
-    const overlayFinalsStageFilters = [
-      'prisma.bMMatch.findFirst',
-      'prisma.mRMatch.findFirst',
-      'prisma.gPMatch.findFirst',
-    ].flatMap((callee) => callObjectArrayLiteralTexts(readCurrentPhaseInputSource, callee, ['where', 'stage', 'in']));
-    const overlayFinalsSelects = [
-      'prisma.bMMatch.findFirst',
-      'prisma.mRMatch.findFirst',
-      'prisma.gPMatch.findFirst',
-    ].flatMap((callee) => callObjectPropertyNames(readCurrentPhaseInputSource, callee, ['select']));
 
     expect(section).toContain('issue #2196');
     expect(section).toContain('latestFinalsStage: "playoff"');
@@ -1943,14 +1933,12 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('tc-2196-overlay-phase-format.test.ts');
     expect(overlayPhase).toContain('latestFinalsStage: string | null');
     expect(overlayPhase).toContain('stage: latestFinalsStage');
-    expect(overlayFinalsStageFilters.length).toBeGreaterThanOrEqual(3);
-    for (const stageFilter of overlayFinalsStageFilters) {
-      expect(stageFilter).toEqual(['playoff', 'finals']);
-    }
-    expect(overlayFinalsSelects.length).toBeGreaterThanOrEqual(3);
-    for (const selectProperties of overlayFinalsSelects) {
-      expect(selectProperties).toEqual(expect.arrayContaining(['stage', 'round', 'createdAt']));
-    }
+    expect(readCurrentPhaseInputSource).toContain('readCurrentFinalsMatch(prisma.bMMatch, tournamentId)');
+    expect(readCurrentPhaseInputSource).toContain('readCurrentFinalsMatch(prisma.mRMatch, tournamentId)');
+    expect(readCurrentPhaseInputSource).toContain('readCurrentFinalsMatch(prisma.gPMatch, tournamentId)');
+    expect(overlayEventsRoute).toContain("stage: { in: ['playoff', 'finals'] }");
+    expect(overlayEventsRoute).toContain('latestCompletedFinalsMatchWhere');
+    expect(overlayEventsRoute).toContain('stage: true, round: true, targetWins: true, createdAt: true');
     expect(overlayEventsRoute).toContain('latestFinalsStage: latestFinals?.stage ?? null');
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsStage: 'playoff'");
     expect(tc2196OverlayPhaseFormatTest).toContain("latestFinalsRound: 'playoff_r1'");
@@ -1978,7 +1966,7 @@ describe('E2E case drift coverage', () => {
     expect(tc2200OverlayPhaseInputTest).toContain('latestFinalsStage: null');
   });
 
-  it('keeps TC-2201 aligned with AST-backed overlay-events stage guard coverage', () => {
+  it('keeps TC-2201 aligned with shared overlay-events stage guard coverage', () => {
     const section = e2eCaseSection('TC-2201');
     const tc2196DriftGuard = sectionBetween(
       readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts'),
@@ -1992,8 +1980,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('stage');
     expect(section).toContain('round');
     expect(section).toContain('createdAt');
-    expect(tc2196DriftGuard).toContain('callObjectArrayLiteralTexts');
-    expect(tc2196DriftGuard).toContain('callObjectPropertyNames');
+    expect(tc2196DriftGuard).toContain('readCurrentFinalsMatch(prisma.bMMatch, tournamentId)');
+    expect(tc2196DriftGuard).toContain('latestCompletedFinalsMatchWhere');
     expect(tc2196DriftGuard).not.toContain('stage: { in: ["playoff", "finals"] }');
     expect(tc2196DriftGuard).not.toContain('select: { stage: true, round: true, createdAt: true }');
   });
@@ -2014,9 +2002,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('stage');
     expect(section).toContain('round');
     expect(section).toContain('createdAt');
-    expect(tc2196DriftGuard).toContain('overlayFinalsSelects.length');
-    // Verify the threshold (3) is also checked, not just the assertion name — see issue #2369
-    expect(tc2196DriftGuard).toContain('toBeGreaterThanOrEqual(3)');
+    expect(tc2196DriftGuard).toContain('readCurrentFinalsMatch(prisma.gPMatch, tournamentId)');
+    expect(tc2196DriftGuard).toContain("stage: { in: ['playoff', 'finals'] }");
   });
   // TC-2224-DRIFT-GUARD-END
 

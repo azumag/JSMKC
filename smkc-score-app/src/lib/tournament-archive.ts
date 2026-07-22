@@ -37,6 +37,12 @@ type MatchWithPlayers = {
 type BMMatchArchiveRow = MatchWithPlayers;
 type MRMatchArchiveRow = MatchWithPlayers;
 type GPMatchArchiveRow = MatchWithPlayers;
+type FinalsRoundSettingArchiveRow = {
+  mode: 'bm' | 'mr' | 'gp';
+  stage: string;
+  round: string;
+  targetWins: number;
+};
 
 function hasRankingParticipants(
   match: MatchWithPlayers,
@@ -108,6 +114,7 @@ export type TournamentArchiveBundle = {
     bmFinalsSeedSnapshot?: unknown;
     mrFinalsSeedSnapshot?: unknown;
     gpFinalsSeedSnapshot?: unknown;
+    finalsRoundSettings?: FinalsRoundSettingArchiveRow[];
     qualificationScheduleMethod?: string;
   };
   allPlayers: ArchivePlayer[];
@@ -270,6 +277,29 @@ export function normalizeTournamentArchiveBundle(value: unknown): TournamentArch
       ...rawTournament,
       taBattleRoyaleMode: battleRoyale,
       qualificationScheduleMethod: rawTournament.qualificationScheduleMethod === 'cdm' ? 'cdm' : 'circle',
+      finalsRoundSettings: Array.isArray(rawTournament.finalsRoundSettings)
+        ? rawTournament.finalsRoundSettings.flatMap((value) => {
+            const setting = asRecord(value);
+            if (
+              (setting.mode !== 'bm' && setting.mode !== 'mr' && setting.mode !== 'gp') ||
+              typeof setting.stage !== 'string' ||
+              typeof setting.round !== 'string' ||
+              !Number.isSafeInteger(setting.targetWins) ||
+              (setting.targetWins as number) < 1 ||
+              (setting.targetWins as number) > 99
+            ) {
+              return [];
+            }
+            return [
+              {
+                mode: setting.mode,
+                stage: setting.stage,
+                round: setting.round,
+                targetWins: setting.targetWins,
+              },
+            ];
+          })
+        : [],
     },
     modes: {
       ...rawModes,
@@ -545,6 +575,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
       bmFinalsSeedSnapshot: true,
       mrFinalsSeedSnapshot: true,
       gpFinalsSeedSnapshot: true,
+      finalsRoundSettings: { select: { mode: true, stage: true, round: true, targetWins: true } },
       qualificationScheduleMethod: true,
       createdAt: true,
       updatedAt: true,
@@ -677,7 +708,14 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
   const bundle: TournamentArchiveBundle = {
     schemaVersion: TOURNAMENT_ARCHIVE_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
-    tournament,
+    tournament: {
+      ...tournament,
+      finalsRoundSettings: tournament.finalsRoundSettings.flatMap((setting) =>
+        setting.mode === 'bm' || setting.mode === 'mr' || setting.mode === 'gp'
+          ? [{ ...setting, mode: setting.mode as FinalsRoundSettingArchiveRow['mode'] }]
+          : [],
+      ),
+    },
     allPlayers: [],
     modes,
     overallRanking: {

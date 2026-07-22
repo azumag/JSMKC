@@ -4,7 +4,6 @@ function isGpFinalsFt3Round(round) {
 
 function validateGpFinalsAssignedCupSequences(matches) {
   const errors = [];
-  const sequencesByRound = new Map();
 
   for (const match of matches) {
     const round = match.round;
@@ -19,10 +18,6 @@ function validateGpFinalsAssignedCupSequences(matches) {
       errors.push(`M${match.matchNumber || match.id}: cup=${match.cup} first=${assignedCups[0]}`);
     }
 
-    const key = JSON.stringify(assignedCups);
-    if (!sequencesByRound.has(round)) sequencesByRound.set(round, new Set());
-    sequencesByRound.get(round).add(key);
-
     if (isGpFinalsFt3Round(round)) {
       if (assignedCups.length !== 5) {
         errors.push(`M${match.matchNumber || match.id}: ${round} expected 5 assigned cups, got ${assignedCups.length}`);
@@ -32,17 +27,13 @@ function validateGpFinalsAssignedCupSequences(matches) {
       }
     } else {
       if (assignedCups.length > 3) {
-        errors.push(`M${match.matchNumber || match.id}: ${round} expected <=3 assigned cups, got ${assignedCups.length}`);
+        errors.push(
+          `M${match.matchNumber || match.id}: ${round} expected <=3 assigned cups, got ${assignedCups.length}`,
+        );
       }
       if (new Set(assignedCups).size !== assignedCups.length) {
         errors.push(`M${match.matchNumber || match.id}: ${round} repeats assigned cups`);
       }
-    }
-  }
-
-  for (const [round, sequences] of sequencesByRound.entries()) {
-    if (sequences.size !== 1) {
-      errors.push(`${round}: divergent assignedCups sequences`);
     }
   }
 

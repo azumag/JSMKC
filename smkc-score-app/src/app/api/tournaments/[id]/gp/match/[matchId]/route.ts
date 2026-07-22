@@ -19,8 +19,10 @@ const { GET, PUT } = createMatchDetailHandlers({
   loggerName: 'gp-match-api',
   scoreFields: { field1: 'points1', field2: 'points2' },
   detailField: 'races',
-  updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
-    updateGPMatchScore(prisma, matchId, version, val1, val2, completed, detail),
+  updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail, body) =>
+    body?.__clearWinnerOverride === true
+      ? updateGPMatchScore(prisma, matchId, version, val1, val2, completed, detail, true)
+      : updateGPMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   sanitizeBody: true,
   putRequiresAuth: true,
   getRequiresAuth: false,
@@ -29,8 +31,7 @@ const { GET, PUT } = createMatchDetailHandlers({
     matchModel: 'gPMatch',
     qualificationModel: 'gPQualification',
     scoreFields: { p1: 'points1', p2: 'points2' },
-    determineResult: (myPoints, oppPoints) =>
-      myPoints > oppPoints ? 'win' : myPoints < oppPoints ? 'loss' : 'tie',
+    determineResult: (myPoints, oppPoints) => (myPoints > oppPoints ? 'win' : myPoints < oppPoints ? 'loss' : 'tie'),
     useRoundDifferential: false,
   },
 });

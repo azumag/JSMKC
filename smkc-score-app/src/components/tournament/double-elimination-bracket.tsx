@@ -42,6 +42,7 @@ interface BMMatch {
   stage?: string | null;
   tvNumber?: number | null;
   startingCourseNumber?: number | null;
+  assignedCourses?: unknown;
   player1Id: string | null;
   player2Id: string | null;
   score1: number;
@@ -195,6 +196,7 @@ function MatchCard<TMatch extends BMMatch>({
       <div className="text-xs text-muted-foreground mb-1 flex justify-between items-center gap-1">
         <span className="flex items-center gap-1">
           M{bracketMatch.matchNumber}
+          <span className="rounded border px-1 py-0.5 font-medium text-foreground">FT{targetWins}</span>
           {match?.slotOverrideAt && (
             <span
               className="inline-flex items-center rounded-sm px-1 py-0.5 text-[10px] font-semibold flag-draft"
@@ -354,14 +356,19 @@ function BracketSection({
   );
 }
 
-/** Displays a round name with the assigned starting course below it. */
-function RoundHeader({ label, course }: { label: string; course: number | null }) {
+/** Displays a round name with its assigned Battle course or MR track list. */
+function RoundHeader({ label, course }: { label: string; course: number | string[] | null }) {
   const tf = useTranslations('finals');
   return (
     <div>
       <h4 className="text-sm font-medium text-muted-foreground">{label}</h4>
-      {course != null && (
+      {typeof course === 'number' && (
         <p className="text-xs font-semibold text-blue-500">{tf('battleCourse', { number: course })}</p>
+      )}
+      {Array.isArray(course) && course.length > 0 && (
+        <p className="text-xs font-semibold text-blue-500" data-testid="bracket-round-tracks">
+          {course.join(' / ')}
+        </p>
       )}
     </div>
   );
@@ -455,9 +462,16 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
     return { player1: isSlotTBD(1), player2: isSlotTBD(2) };
   };
 
-  /* Returns the startingCourseNumber for a given round (all matches in a round share the same value). */
-  const getCourseForRound = (round: string): number | null =>
-    matches.find((m) => m.round === round && m.startingCourseNumber != null)?.startingCourseNumber ?? null;
+  /* Returns the shared Battle starting course or MR track list for a round. */
+  const getCourseForRound = (round: string): number | string[] | null => {
+    const match =
+      matches.find((candidate) => candidate.round === round && !candidate.completed) ??
+      matches.find((candidate) => candidate.round === round);
+    if (match?.startingCourseNumber != null) return match.startingCourseNumber;
+    return Array.isArray(match?.assignedCourses)
+      ? match.assignedCourses.filter((course): course is string => typeof course === 'string')
+      : null;
+  };
 
   /* Group bracket positions by round for organized display */
   const winnersR1 = bracketStructure.filter((b) => b.round === 'winners_r1');

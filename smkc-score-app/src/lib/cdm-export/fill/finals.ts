@@ -72,6 +72,22 @@ const logger = createLogger('cdm-export');
 const FULL_SEED_COUNT = 24;
 const SIXTEEN = 16;
 const EIGHT = 8;
+const FINALS_ASSIGNMENT_HEADERS: Partial<Record<string, string>> = {
+  playoff_r1: 'E2',
+  playoff_r2: 'L2',
+  winners_r1: 'S2',
+  winners_qf: 'Z2',
+  winners_sf: 'AG2',
+  winners_final: 'AN2',
+  grand_final: 'AU2',
+  grand_final_reset: 'BB2',
+  losers_r1: 'S38',
+  losers_r2: 'Z38',
+  losers_r3: 'AG38',
+  losers_r4: 'AN38',
+  losers_sf: 'AU38',
+  losers_final: 'BB38',
+};
 
 /**
  * Accumulates one-op-per-cell writes for a single sheet (last write wins per ref,
@@ -230,12 +246,25 @@ function scoreFor(match: CdmMatch, mode: CdmVersusMode, slotIndex: number): numb
 /** The winner (or loser) player of a completed match, by comparing its scores. */
 function matchOutcome(match: CdmMatch | undefined, mode: CdmVersusMode, want: 'winner' | 'loser'): CdmPlayer | null {
   if (!match || !match.completed) return null;
+  if (match.winnerOverrideId === match.player1.id) return want === 'winner' ? match.player1 : match.player2;
+  if (match.winnerOverrideId === match.player2.id) return want === 'winner' ? match.player2 : match.player1;
   const s1 = scoreFor(match, mode, 0);
   const s2 = scoreFor(match, mode, 1);
-  if (s1 == null || s2 == null || s1 === s2) return null; // undecided / tie
-  const player1Wins = s1 > s2;
-  if (want === 'winner') return player1Wins ? match.player1 : match.player2;
-  return player1Wins ? match.player2 : match.player1;
+  if (s1 != null && s2 != null && s1 !== s2) {
+    const player1Wins = s1 > s2;
+    return want === 'winner'
+      ? player1Wins
+        ? match.player1
+        : match.player2
+      : player1Wins
+        ? match.player2
+        : match.player1;
+  }
+  if (mode === 'gp' && match.suddenDeathWinnerId === match.player1.id)
+    return want === 'winner' ? match.player1 : match.player2;
+  if (mode === 'gp' && match.suddenDeathWinnerId === match.player2.id)
+    return want === 'winner' ? match.player2 : match.player1;
+  return null; // undecided / tie
 }
 
 /* ------------------------------------------------------------------ *
@@ -634,6 +663,96 @@ function writeTypedSeedCells(builder: FinalsWriteBuilder, recon: Reconstruction)
 /** Every app round id the template geometry knows about. */
 const ALL_FINALS_ROUNDS = Object.keys(FINALS_BRACKET_SLOTS);
 
+/** The template's First-To value is the numeric cell immediately below each
+ * `First to` header. It is not part of a score block, so it needs its own
+ * explicit map rather than an offset derived from a match slot. */
+const FINALS_TARGET_WINS_CELL: Record<string, string> = {
+  playoff_r1: 'D3',
+  playoff_r2: 'K3',
+  winners_r1: 'R3',
+  winners_qf: 'Y3',
+  winners_sf: 'AF3',
+  winners_final: 'AM3',
+  grand_final: 'AT3',
+  grand_final_reset: 'BA3',
+  losers_r1: 'R39',
+  losers_r2: 'Y39',
+  losers_r3: 'AF39',
+  losers_r4: 'AM39',
+  losers_sf: 'AT39',
+  losers_final: 'BA39',
+};
+
+/** Persisted `targetWins` is the source of truth for a #3038 format change.
+ * Do not write a header for legacy null rows: their template default remains
+ * correct and preserving it avoids inventing a rule for historical exports. */
+function writeTargetWinsHeaders(
+  builder: FinalsWriteBuilder,
+  byRound: Map<string, CdmMatch[]>,
+  data: CdmTournamentData,
+  mode: CdmVersusMode,
+): void {
+  for (const [round, matches] of byRound) {
+    const ref = FINALS_TARGET_WINS_CELL[round];
+    const configured = data.finalsRoundSettings?.find(
+      (setting) => setting.mode === mode && setting.stage === matches[0]?.stage && setting.round === round,
+    )?.targetWins;
+    if (ref && typeof configured === 'number' && Number.isInteger(configured) && configured > 0) {
+      builder.setNumber(ref, configured);
+      continue;
+    }
+    const persistedValues = (source: CdmMatch[]) => [
+      ...new Set(
+        source
+          .map((match) => match.targetWins)
+          .filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0),
+      ),
+    ];
+    // A format update deliberately leaves completed rows frozen. The header
+    // describes the still-playable round, so pending rows take precedence;
+    // fall back to completed rows only when there is no pending format.
+    const pendingValues = persistedValues(matches.filter((match) => !match.completed));
+    const values = pendingValues.length > 0 ? pendingValues : persistedValues(matches);
+    if (!ref || values.length === 0) continue;
+    if (values.length > 1) {
+      logger.warn('Finals round has inconsistent active First-To values; export uses the first row', {
+        round,
+        values,
+        source: pendingValues.length > 0 ? 'pending' : 'completed',
+      });
+    }
+    builder.setNumber(ref, values[0]);
+  }
+}
+
+/** The template's champion/runner-up formulas compare only numeric scores.
+ * An admin may deliberately settle a tied Grand Final with winnerOverrideId;
+ * in that one case, preserve the formula-driven bracket but write the two
+ * authoritative final standings cells directly. A completed reset supersedes
+ * Grand Final 1, exactly as the template formula already does for scored games. */
+function writeExplicitFinalStandings(
+  builder: FinalsWriteBuilder,
+  byRound: Map<string, CdmMatch[]>,
+  mode: CdmVersusMode,
+): void {
+  const latestCompleted = (round: string) => [...(byRound.get(round) ?? [])].reverse().find((match) => match.completed);
+  const completedReset = latestCompleted('grand_final_reset');
+  const completedGrandFinal = latestCompleted('grand_final');
+  /* The lower-bracket player winning Grand Final 1 merely starts the reset;
+   * it is not a championship result until the reset has completed. */
+  const decidingMatch =
+    completedReset ??
+    (completedGrandFinal && matchOutcome(completedGrandFinal, mode, 'winner')?.id === completedGrandFinal.player1.id
+      ? completedGrandFinal
+      : undefined);
+  if (!decidingMatch || !decidingMatch.winnerOverrideId) return;
+  const winner = matchOutcome(decidingMatch, mode, 'winner');
+  const loser = matchOutcome(decidingMatch, mode, 'loser');
+  if (!winner || !loser) return;
+  builder.overwriteString('BH3', winner.nickname);
+  builder.overwriteString('BH4', loser.nickname);
+}
+
 /** All (seed, name, score) refs of every slot of the listed rounds. */
 function regionCells(rounds: string[]): SlotCells[] {
   const cells: SlotCells[] = [];
@@ -699,14 +818,21 @@ export function buildFinalsWrites(data: CdmTournamentData, mode: CdmVersusMode):
     return builder.build();
   }
 
+  writeTargetWinsHeaders(builder, byRound, data, mode);
+  writeRoundAssignmentHeaders(builder, byRound, mode);
+
   if (hasPlayoff || hasR1) {
     // Faithful 24 (playoff present) or degraded 16 (winners_r1 but no playoff).
-    return buildFaithfulOr16(builder, data, mode, byRound, hasPlayoff);
+    buildFaithfulOr16(builder, data, mode, byRound, hasPlayoff);
+    writeExplicitFinalStandings(builder, byRound, mode);
+    return builder.build();
   }
 
   if (hasQf) {
     // Degraded 8-player bracket (winners_qf is the first round).
-    return build8Player(builder, data, byRound, mode);
+    build8Player(builder, data, byRound, mode);
+    writeExplicitFinalStandings(builder, byRound, mode);
+    return builder.build();
   }
 
   // Matches exist but none map to a known bracket round (e.g. only a stray
@@ -717,6 +843,54 @@ export function buildFinalsWrites(data: CdmTournamentData, mode: CdmVersusMode):
   });
   buildEmptyBracket(builder, mode);
   return builder.build();
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function writeRoundAssignmentHeaders(
+  builder: FinalsWriteBuilder,
+  byRound: Map<string, CdmMatch[]>,
+  mode: CdmVersusMode,
+): void {
+  if (mode === 'bm') return;
+  for (const [round, ref] of Object.entries(FINALS_ASSIGNMENT_HEADERS)) {
+    if (!ref) continue;
+    const matches = byRound.get(round) ?? [];
+    if (matches.length === 0) continue;
+    if (mode === 'mr') {
+      const labels = matches.map((match) => ({
+        matchNumber: match.matchNumber,
+        text: stringArray(match.assignedCourses).join(' - '),
+      }));
+      const unique = [...new Set(labels.map((label) => label.text).filter(Boolean))];
+      if (unique.length === 1) builder.setString(ref, unique[0]);
+      else if (unique.length > 1)
+        builder.setString(
+          ref,
+          labels
+            .filter((label) => label.text)
+            .map((label) => `M${label.matchNumber}: ${label.text}`)
+            .join(' | '),
+        );
+      continue;
+    }
+    const labels = matches.map((match) => {
+      const cups = stringArray(match.assignedCups);
+      return { matchNumber: match.matchNumber, text: cups.length > 0 ? cups.join(' - ') : (match.cup ?? '') };
+    });
+    const unique = [...new Set(labels.map((label) => label.text).filter(Boolean))];
+    if (unique.length === 1) builder.setString(ref, unique[0]);
+    else if (unique.length > 1)
+      builder.setString(
+        ref,
+        labels
+          .filter((label) => label.text)
+          .map((label) => `M${label.matchNumber}: ${label.text}`)
+          .join(' | '),
+      );
+  }
 }
 
 /** Select a mode's match list from the tournament data. */

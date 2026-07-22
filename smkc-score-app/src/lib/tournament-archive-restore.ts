@@ -287,6 +287,9 @@ function matchRows(
     if (row.suddenDeathWinnerId !== undefined && row.suddenDeathWinnerId !== null) {
       row.suddenDeathWinnerId = remapPlayerId(row.suddenDeathWinnerId, playerIds);
     }
+    if (row.winnerOverrideId !== undefined && row.winnerOverrideId !== null) {
+      row.winnerOverrideId = remapPlayerId(row.winnerOverrideId, playerIds);
+    }
     return normalizeNullableJsonFields(row, nullableJsonFields);
   });
 }
@@ -402,6 +405,13 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     const bmMatches = matchRows(bundle.modes.bm.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.bmMatch);
     const mrMatches = matchRows(bundle.modes.mr.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.mrMatch);
     const gpMatches = matchRows(bundle.modes.gp.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.gpMatch);
+    const finalsRoundSettings = (bundle.tournament.finalsRoundSettings ?? []).map((setting) => ({
+      tournamentId,
+      mode: setting.mode,
+      stage: setting.stage,
+      round: setting.round,
+      targetWins: setting.targetWins,
+    }));
     const ttEntries = ttEntryRows(bundle, tournamentId, playerIds);
     const ttPhaseRounds = ttPhaseRoundRows(bundle, tournamentId, playerIds);
     const ttSuddenDeathRounds = ttSuddenDeathRows(bundle, tournamentId, playerIds);
@@ -430,6 +440,9 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     );
     await createManyInD1Chunks('GP matches', gpMatches, (chunk) =>
       prisma.gPMatch.createMany({ data: chunk as unknown as Prisma.GPMatchCreateManyInput[] }),
+    );
+    await createManyInD1Chunks('finals round settings', finalsRoundSettings, (chunk) =>
+      prisma.finalsRoundSetting.createMany({ data: chunk }),
     );
     await createManyInD1Chunks('TA entries', ttEntries, (chunk) =>
       prisma.tTEntry.createMany({ data: chunk as unknown as Prisma.TTEntryCreateManyInput[] }),

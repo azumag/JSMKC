@@ -13,7 +13,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
+import { AUDIT_ACTIONS, buildAuditLogData, createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
+import { executeD1Batch } from '@/lib/d1-batch';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier, getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
@@ -900,7 +901,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     try {
       const body = sanitizeInput(await request.json());
-      const { matchId, tvNumber, qualificationId, rankOverride, combinedRankOverride } = body;
+      const { matchId, tvNumber, qualificationId, rankOverride, combinedRankOverride, cupAssignment } = body;
 
       /*
        * Reject ambiguous requests that supply both qualificationId and matchId.
@@ -971,6 +972,135 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       /* TV number assignment path (original behavior) */
       if (!matchId) {
         return handleValidationError('matchId is required', 'matchId');
+      }
+
+      /* #3039: an admin may override the planned cup for one GP qualification
+       * match. Score/race details are retained unless the caller explicitly
+       * asks to clear them; a stale browser cannot overwrite a newer edit. */
+      if (cupAssignment !== undefined && cupAssignment !== null) {
+        if (config.eventTypeCode !== 'gp' || tvNumber !== undefined) {
+          return handleValidationError('cupAssignment cannot be combined with other edits', 'cupAssignment');
+        }
+        if (!cupAssignment || typeof cupAssignment !== 'object' || Array.isArray(cupAssignment)) {
+          return handleValidationError('cupAssignment must be an object', 'cupAssignment');
+        }
+        const assignment = cupAssignment as Record<string, unknown>;
+        const cup = assignment.cup;
+        const expectedVersion = assignment.expectedVersion;
+        const resolution = assignment.resolution ?? 'keep';
+        if (typeof cup !== 'string' || !config.cupList?.includes(cup)) {
+          return handleValidationError('cupAssignment.cup must be a valid cup', 'cupAssignment.cup');
+        }
+        if (!Number.isInteger(expectedVersion) || (expectedVersion as number) < 0) {
+          return handleValidationError('cupAssignment.expectedVersion is required', 'cupAssignment.expectedVersion');
+        }
+        if (resolution !== 'keep' && resolution !== 'clear' && resolution !== 'cancel') {
+          return handleValidationError(
+            'cupAssignment.resolution must be keep, clear, or cancel',
+            'cupAssignment.resolution',
+          );
+        }
+        if (resolution === 'cancel') {
+          return createErrorResponse('Cup change cancelled', 409, 'CUP_CHANGE_CANCELLED');
+        }
+        const existingMatch = await matchModel(prisma).findFirst({
+          where: { id: matchId, tournamentId, stage: 'qualification' },
+        });
+        if (!existingMatch) return createErrorResponse('Match not found', 404, 'NOT_FOUND');
+        if (existingMatch.version !== expectedVersion) {
+          return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT', {
+            currentVersion: existingMatch.version,
+          });
+        }
+        const hasDetails = [
+          existingMatch.races,
+          existingMatch.cupResults,
+          existingMatch.player1ReportedRaces,
+          existingMatch.player2ReportedRaces,
+        ].some((value) => (Array.isArray(value) ? value.length > 0 : Boolean(value && typeof value === 'object')));
+        if (hasDetails && assignment.resolution === undefined) {
+          return createErrorResponse(
+            'Cup details exist; choose whether to keep or clear them',
+            409,
+            'CUP_DETAILS_RESOLUTION_REQUIRED',
+          );
+        }
+        const audit = buildAuditLogData({
+          userId: resolveAuditUserId(session),
+          ipAddress: patchClientIp,
+          userAgent: request.headers.get('user-agent') || 'unknown',
+          action: AUDIT_ACTIONS.UPDATE_QUALIFICATION_MATCH_CUP,
+          targetId: String(existingMatch.id),
+          targetType: 'QualificationMatch',
+          details: {
+            eventType: 'gp',
+            before: {
+              cup: existingMatch.cup ?? null,
+              racesCount: Array.isArray(existingMatch.races) ? existingMatch.races.length : 0,
+              cupResultsCount: Array.isArray(existingMatch.cupResults) ? existingMatch.cupResults.length : 0,
+              player1ReportedRacesCount: Array.isArray(existingMatch.player1ReportedRaces)
+                ? existingMatch.player1ReportedRaces.length
+                : 0,
+              player2ReportedRacesCount: Array.isArray(existingMatch.player2ReportedRaces)
+                ? existingMatch.player2ReportedRaces.length
+                : 0,
+            },
+            after: { cup, resolution },
+            clearedDetails: resolution === 'clear',
+          },
+        });
+        const auditId =
+          globalThis.crypto?.randomUUID?.() ?? `audit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const details = audit.details === undefined ? null : JSON.stringify(audit.details);
+        const clear =
+          resolution === 'clear'
+            ? ', "races" = NULL, "cupResults" = NULL, "player1ReportedRaces" = NULL, "player2ReportedRaces" = NULL, "player1ReportedPoints1" = NULL, "player1ReportedPoints2" = NULL, "player2ReportedPoints1" = NULL, "player2ReportedPoints2" = NULL'
+            : '';
+        const [updated, audited] = await executeD1Batch([
+          {
+            sql: `UPDATE "GPMatch" SET "cup" = ?${clear}, "version" = "version" + 1, "updatedAt" = ?
+                  WHERE "id" = ? AND "tournamentId" = ? AND "stage" = 'qualification'
+                    AND "completed" = ? AND "version" = ?`,
+            values: [
+              cup,
+              new Date().toISOString(),
+              matchId,
+              tournamentId,
+              existingMatch.completed ? 1 : 0,
+              expectedVersion,
+            ],
+          },
+          {
+            sql: `INSERT INTO "AuditLog" ("id", "userId", "ipAddress", "userAgent", "action", "targetId", "targetType", "details")
+                  SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                  WHERE changes() = 1 AND EXISTS (
+                    SELECT 1 FROM "GPMatch" WHERE "id" = ? AND "tournamentId" = ?
+                      AND "stage" = 'qualification' AND "version" = ? AND "cup" = ?
+                  )`,
+            values: [
+              auditId,
+              audit.userId ?? null,
+              audit.ipAddress,
+              audit.userAgent,
+              audit.action,
+              audit.targetId ?? null,
+              audit.targetType ?? null,
+              details,
+              matchId,
+              tournamentId,
+              (expectedVersion as number) + 1,
+              cup,
+            ],
+          },
+        ]);
+        if (updated !== 1 || audited !== 1) {
+          return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT');
+        }
+        const match = await matchModel(prisma).findFirst({
+          where: { id: matchId, tournamentId },
+          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        });
+        return createSuccessResponse({ match, detailsCleared: resolution === 'clear' });
       }
 
       /* tvNumber must be between 1 and the supported TV count, or null to clear it. */

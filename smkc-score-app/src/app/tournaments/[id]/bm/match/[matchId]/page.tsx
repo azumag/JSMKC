@@ -24,6 +24,7 @@ import { POLLING_INTERVAL } from '@/lib/constants';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { UpdateIndicator } from '@/components/ui/update-indicator';
 import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { getBmFinalsTargetWins } from '@/lib/finals-target-wins';
 
 import type { Player } from '@/lib/types';
 
@@ -37,6 +38,10 @@ interface BMMatch {
   player2Side: number;
   score1: number;
   score2: number;
+  stage?: string;
+  round?: string | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
   completed: boolean;
   player1OriginalSeed?: number;
   player2OriginalSeed?: number;
@@ -143,6 +148,11 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  const finalsTargetWins =
+    match.stage === 'finals' || match.stage === 'playoff'
+      ? getBmFinalsTargetWins({ stage: match.stage, round: match.round, targetWins: match.targetWins })
+      : null;
+
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-md mx-auto space-y-4">
@@ -195,12 +205,17 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
               <p className="text-muted-foreground">
                 {tMatch('finalScore', { score1: match.score1, score2: match.score2 })}
               </p>
+              {finalsTargetWins && <p className="text-sm text-muted-foreground">FT{finalsTargetWins}</p>}
               <p className="mt-2">
-                {match.score1 >= 3
+                {match.winnerOverrideId === match.player1Id
                   ? tMatch('playerWins', { player: match.player1.nickname })
-                  : match.score2 >= 3
+                  : match.winnerOverrideId === match.player2Id
                     ? tMatch('playerWins', { player: match.player2.nickname })
-                    : tMatch('draw')}
+                    : match.score1 > match.score2
+                      ? tMatch('playerWins', { player: match.player1.nickname })
+                      : match.score2 > match.score1
+                        ? tMatch('playerWins', { player: match.player2.nickname })
+                        : tMatch('draw')}
               </p>
             </CardContent>
           </Card>

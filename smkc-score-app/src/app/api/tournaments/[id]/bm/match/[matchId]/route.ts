@@ -17,12 +17,12 @@ import { validateBattleModeScores, validateBattleModeFinalScores } from '@/lib/s
 function validateRoundAwareBmFinalsScores(
   score1: number,
   score2: number,
-  match: { stage?: string | null; round?: string | null },
+  match: { stage?: string | null; round?: string | null; targetWins?: number | null },
 ) {
-  const targetWins = getBmFinalsTargetWins({ stage: match.stage, round: match.round });
+  const targetWins = getBmFinalsTargetWins({ stage: match.stage, round: match.round, targetWins: match.targetWins });
 
   if (!Number.isInteger(score1) || !Number.isInteger(score2)) {
-    return { isValid: false, error: "Battle Mode finals scores must be integers" };
+    return { isValid: false, error: 'Battle Mode finals scores must be integers' };
   }
 
   if (score1 < 0 || score1 > targetWins || score2 < 0 || score2 > targetWins) {
@@ -46,8 +46,10 @@ const { GET, PUT } = createMatchDetailHandlers({
   loggerName: 'bm-match-api',
   scoreFields: { field1: 'score1', field2: 'score2' },
   detailField: 'rounds',
-  updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
-    updateBMMatchScore(prisma, matchId, version, val1, val2, completed, detail),
+  updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail, body) =>
+    body?.__clearWinnerOverride === true
+      ? updateBMMatchScore(prisma, matchId, version, val1, val2, completed, detail, true)
+      : updateBMMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   validateScores: validateBattleModeScores,
   validateFinalsScores: validateBattleModeFinalScores,
   validateFinalsScoresWithMatch: validateRoundAwareBmFinalsScores,
@@ -59,8 +61,7 @@ const { GET, PUT } = createMatchDetailHandlers({
     matchModel: 'bMMatch',
     qualificationModel: 'bMQualification',
     scoreFields: { p1: 'score1', p2: 'score2' },
-    determineResult: (myScore, oppScore) =>
-      myScore > oppScore ? 'win' : myScore < oppScore ? 'loss' : 'tie',
+    determineResult: (myScore, oppScore) => (myScore > oppScore ? 'win' : myScore < oppScore ? 'loss' : 'tie'),
     useRoundDifferential: true,
   },
 });

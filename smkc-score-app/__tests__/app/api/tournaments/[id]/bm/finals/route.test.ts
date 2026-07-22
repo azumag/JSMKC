@@ -712,7 +712,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(result.data.loserId).toBe('p2');
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },
-        data: { score1: 5, score2: 0, completed: true },
+        data: { score1: 5, score2: 0, completed: true, version: { increment: 1 } },
         include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });

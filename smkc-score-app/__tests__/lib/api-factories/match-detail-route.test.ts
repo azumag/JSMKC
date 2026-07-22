@@ -476,7 +476,7 @@ describe('Match Detail Route Factory', () => {
       expect(mockHandleValidationError).toHaveBeenCalledWith('Sum must be 4', 'scores');
     });
 
-    it('should use validateFinalsScores for finals matches', async () => {
+    it('rejects finals writes before a detail-route validator can bypass bracket routing', async () => {
       const mockRequestBody = { score1: 5, score2: 2, completed: true, version: 1, rounds: [] };
 
       // Stage = finals → validateFinalsScores is used instead of validateScores
@@ -500,13 +500,15 @@ describe('Match Detail Route Factory', () => {
       });
 
       expect(config.validateScores).not.toHaveBeenCalled();
-      expect(config.validateFinalsScores).toHaveBeenCalledWith(5, 2, {
-        round: 'winners_sf',
-        stage: 'finals',
-      });
+      expect(config.validateFinalsScores).not.toHaveBeenCalled();
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Use the finals endpoint to update a bracket match',
+        409,
+        'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+      );
     });
 
-    it('should prefer validateFinalsScoresWithMatch for finals matches', async () => {
+    it('rejects finals writes before a match-aware detail-route validator can run', async () => {
       const mockRequestBody = { score1: 7, score2: 5, completed: true, version: 1, rounds: [] };
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue({
@@ -535,14 +537,15 @@ describe('Match Detail Route Factory', () => {
 
       expect(config.validateScores).not.toHaveBeenCalled();
       expect(config.validateFinalsScores).not.toHaveBeenCalled();
-      expect(config.validateFinalsScoresWithMatch).toHaveBeenCalledWith(
-        7,
-        5,
-        expect.objectContaining({ stage: 'finals', round: 'winners_sf' }),
+      expect(config.validateFinalsScoresWithMatch).not.toHaveBeenCalled();
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Use the finals endpoint to update a bracket match',
+        409,
+        'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
       );
     });
 
-    it('should return 400 when validateFinalsScores rejects (finals match)', async () => {
+    it('rejects invalid finals writes through the canonical-route guard', async () => {
       const mockRequestBody = { score1: 4, score2: 3, completed: true, version: 1, rounds: [] };
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals', round: 'winners_sf' });
@@ -564,17 +567,22 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(config.validateFinalsScores).toHaveBeenCalledWith(4, 3, {
-        round: 'winners_sf',
-        stage: 'finals',
-      });
+      expect(config.validateFinalsScores).not.toHaveBeenCalled();
       expect(config.validateScores).not.toHaveBeenCalled();
-      expect(mockHandleValidationError).toHaveBeenCalledWith('One player must reach 5 wins', 'scores');
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Use the finals endpoint to update a bracket match',
+        409,
+        'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+      );
       expect(config.updateMatchScore).not.toHaveBeenCalled();
     });
 
     it('should return 409 with currentVersion on OptimisticLockError', async () => {
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
+      (prisma.bMMatch as any).findUnique.mockResolvedValueOnce({
+        stage: 'qualification',
+        tournamentId: 'tournament-1',
+      });
 
       const config = {
         ...baseConfig,
@@ -601,6 +609,10 @@ describe('Match Detail Route Factory', () => {
 
     it('should delegate database errors to handleDatabaseError on PUT', async () => {
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
+      (prisma.bMMatch as any).findUnique.mockResolvedValueOnce({
+        stage: 'qualification',
+        tournamentId: 'tournament-1',
+      });
 
       const config = {
         ...baseConfig,

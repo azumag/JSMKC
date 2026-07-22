@@ -55,6 +55,10 @@ import { DoubleEliminationBracket } from '@/components/tournament/double-elimina
 import { BracketSlotEditDialog } from '@/components/tournament/bracket-slot-edit-dialog';
 import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
 import { PlayoffCompleteCard } from '@/components/tournament/playoff-complete-card';
+import { FinalsRoundSettings } from '@/components/tournament/finals-round-settings';
+import { FinalsCupAssignment } from '@/components/tournament/finals-cup-assignment';
+import { FinalsScoreOverride } from '@/components/tournament/finals-score-override';
+import { FinalsPlayoffReconciliation } from '@/components/tournament/finals-playoff-reconciliation';
 import {
   COURSE_INFO,
   CUPS,
@@ -117,6 +121,8 @@ interface GPMatch {
   cup?: string;
   assignedCups?: string[];
   tvNumber?: number | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
   player1: Player;
   player2: Player;
   races?: {
@@ -195,7 +201,8 @@ function getCompletedChampion(matches: GPMatch[]): Player | null {
 
   const grandFinal = matches.find((m) => m.round === 'grand_final' && m.completed);
   if (!grandFinal) return null;
-  return getMatchWinner(grandFinal);
+  const winner = getMatchWinner(grandFinal);
+  return winner?.id === grandFinal.player1Id ? winner : null;
 }
 
 export default function GrandPrixFinals({ params }: { params: Promise<{ id: string }> }) {
@@ -446,8 +453,8 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
     };
   };
 
-  const getTargetWinsForMatch = (match?: (Pick<GPMatch, 'round'> & { stage?: string | null }) | null) =>
-    getGpFinalsTargetWins({ round: match?.round, stage: match?.stage ?? 'finals' });
+  const getTargetWinsForMatch = (match?: (Pick<GPMatch, 'round' | 'targetWins'> & { stage?: string | null }) | null) =>
+    match?.targetWins ?? getGpFinalsTargetWins({ round: match?.round, stage: match?.stage ?? 'finals' });
 
   const usesCupWinScoreOnly = () => scoreEntryMode === 'score-only';
 
@@ -605,7 +612,7 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
-    const body: Record<string, unknown> = { matchId: selectedMatch.id };
+    const body: Record<string, unknown> = { matchId: selectedMatch.id, expectedVersion: selectedMatch.version };
 
     if (usesCupWinScoreOnly()) {
       const targetWins = getTargetWinsForMatch(selectedMatch);
@@ -974,6 +981,15 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
         />
       )}
 
+      {isAdmin && (
+        <FinalsPlayoffReconciliation
+          matches={matches}
+          playoffMatches={playoffMatches}
+          endpoint={`/api/tournaments/${tournamentId}/gp/finals`}
+          onSaved={refetch}
+        />
+      )}
+
       {/* All new GP stages begin with the final cup-win score. Saved cup
            details remain available for review and correction. */}
       {isAdmin && (
@@ -996,6 +1012,44 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {selectedMatch && (
+                <FinalsRoundSettings
+                  match={selectedMatch}
+                  matches={selectedMatch.stage === 'playoff' ? playoffMatches : matches}
+                  endpoint={`/api/tournaments/${tournamentId}/gp/finals`}
+                  effectiveTargetWins={selectedMatchTargetWins}
+                  onSaved={() => {
+                    setIsScoreDialogOpen(false);
+                    setSelectedMatch(null);
+                    refetch();
+                  }}
+                />
+              )}
+              {selectedMatch && (
+                <FinalsCupAssignment
+                  key={`${selectedMatch.id}:${selectedMatch.version}:cup`}
+                  match={selectedMatch}
+                  endpoint={`/api/tournaments/${tournamentId}/gp/finals`}
+                  onSaved={() => {
+                    setIsScoreDialogOpen(false);
+                    setSelectedMatch(null);
+                    refetch();
+                  }}
+                />
+              )}
+              {selectedMatch && (
+                <FinalsScoreOverride
+                  key={`${selectedMatch.id}:${selectedMatch.version}`}
+                  match={selectedMatch}
+                  endpoint={`/api/tournaments/${tournamentId}/gp/finals`}
+                  score1={selectedMatch.points1}
+                  score2={selectedMatch.points2}
+                  onSaved={() => {
+                    setIsScoreDialogOpen(false);
+                    refetch();
+                  }}
+                />
+              )}
               {selectedMatch && (
                 <Button
                   type="button"

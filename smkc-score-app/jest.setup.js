@@ -2,51 +2,51 @@
 // Add /** @jest-environment jsdom */ docblock to test files that need DOM APIs.
 if (typeof window !== 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('@testing-library/jest-dom')
+  require('@testing-library/jest-dom');
 }
 
 // Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
 class ResponsePolyfill {
   constructor(body, init = {}) {
-    this.body = body
-    this.status = init.status || 200
-    this.statusText = init.statusText || 'OK'
-    this.headers = new Headers(init.headers || {})
-    this.type = 'default'
-    this.url = ''
-    this.ok = this.status >= 200 && this.status < 300
-    this.redirected = false
-    this.used = false
+    this.body = body;
+    this.status = init.status || 200;
+    this.statusText = init.statusText || 'OK';
+    this.headers = new Headers(init.headers || {});
+    this.type = 'default';
+    this.url = '';
+    this.ok = this.status >= 200 && this.status < 300;
+    this.redirected = false;
+    this.used = false;
   }
 
   static json(data, init = {}) {
-    const body = JSON.stringify(data)
+    const body = JSON.stringify(data);
     return new ResponsePolyfill(body, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
         ...(init.headers || {}),
       },
-    })
+    });
   }
 
   async json() {
-    return JSON.parse(this.body)
+    return JSON.parse(this.body);
   }
 
   async text() {
-    return this.body
+    return this.body;
   }
 }
 
 // Add Response polyfill globally for Node.js environment
 if (typeof global.Response === 'undefined') {
-  global.Response = ResponsePolyfill
+  global.Response = ResponsePolyfill;
 }
 
 // Also add to window for browser-like environment
 if (typeof window !== 'undefined' && !window.Response) {
-  window.Response = ResponsePolyfill
+  window.Response = ResponsePolyfill;
 }
 
 // Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
@@ -67,7 +67,7 @@ Object.defineProperty(global, 'crypto', {
     },
   },
   writable: true,
-})
+});
 
 // Mock Element.prototype.scrollIntoView for Radix UI Select components
 // Radix UI uses scrollIntoView for positioning and focus management
@@ -89,7 +89,7 @@ if (typeof global.TextDecoder === 'undefined') {
 jest.mock('@opennextjs/cloudflare', () => ({
   getCloudflareContext: jest.fn(() => ({ env: { DB: {} } })),
   initOpenNextCloudflareForDev: jest.fn(),
-}))
+}));
 
 // Mock @prisma/client to provide Prisma namespace members in test environments
 // where the Prisma engine binary is unavailable (no prisma generate was run).
@@ -140,7 +140,7 @@ jest.mock('@prisma/client', () => {
     },
     PrismaClient: jest.fn().mockImplementation(() => ({})),
   };
-})
+});
 
 // Mock Prisma client globally - optimized to minimize overhead
 // Provides both default and named `prisma` export to match src/lib/prisma.ts
@@ -151,7 +151,7 @@ jest.mock('@/lib/prisma', () => {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
-  })
+  });
 
   const createMockModelWithMethods = () => ({
     ...createMockModel(),
@@ -167,7 +167,7 @@ jest.mock('@/lib/prisma', () => {
     updateMany: jest.fn(),
     delete: jest.fn(),
     deleteMany: jest.fn(),
-  })
+  });
 
   // Single mock instance shared by both default and named exports
   const mockPrisma = {
@@ -194,6 +194,7 @@ jest.mock('@/lib/prisma', () => {
     mRQualification: createMockModelWithMethods(),
     gPMatch: createMockModelWithMethods(),
     gPQualification: createMockModelWithMethods(),
+    finalsRoundSetting: createMockModelWithMethods(),
     tTEntry: createMockModelWithMethods(),
     tTPhaseRound: createMockModelWithMethods(),
     tournamentPlayerScore: createMockModelWithMethods(),
@@ -210,21 +211,21 @@ jest.mock('@/lib/prisma', () => {
     },
     $executeRaw: jest.fn(),
     $executeRawUnsafe: jest.fn(),
-  }
+  };
 
   return {
     __esModule: true,
     default: mockPrisma,
     prisma: mockPrisma,
-  }
-})
+  };
+});
 
 // Mock NextAuth.js
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
   signIn: jest.fn(),
   signOut: jest.fn(),
-}))
+}));
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
@@ -238,7 +239,7 @@ jest.mock('next/navigation', () => ({
   }),
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => '/',
-}))
+}));
 
 // Mock window.location
 if (typeof window !== 'undefined') {
@@ -249,7 +250,7 @@ if (typeof window !== 'undefined') {
       replace: jest.fn(),
     },
     writable: true,
-  })
+  });
 }
 
 // Mock next/server to fix Response.json issue
@@ -260,27 +261,27 @@ jest.mock('next/server', () => {
   // - NextResponse.json is a jest.fn() so tests can assert on it with toHaveBeenCalledWith.
   class MockNextResponse {
     constructor(body, init = {}) {
-      this.status = init.status || 200
-      this.statusText = init.statusText || 'OK'
-      this.headers = new Headers(init.headers || {})
-      this.body = body
-      this.ok = this.status >= 200 && this.status < 300
+      this.status = init.status || 200;
+      this.statusText = init.statusText || 'OK';
+      this.headers = new Headers(init.headers || {});
+      this.body = body;
+      this.ok = this.status >= 200 && this.status < 300;
     }
 
     async json() {
-      if (this.body === null || this.body === undefined) return null
-      return JSON.parse(this.body)
+      if (this.body === null || this.body === undefined) return null;
+      return JSON.parse(this.body);
     }
 
     async text() {
-      return this.body === null || this.body === undefined ? '' : String(this.body)
+      return this.body === null || this.body === undefined ? '' : String(this.body);
     }
   }
 
   // Attach json as a jest.fn() so tests can use toHaveBeenCalledWith on NextResponse.json.
   // The implementation creates a MockNextResponse instance with JSON body + Content-Type header.
   MockNextResponse.json = jest.fn((body, init) => {
-    const status = init?.status || 200
+    const status = init?.status || 200;
     return new MockNextResponse(JSON.stringify(body), {
       status,
       statusText: init?.statusText || 'OK',
@@ -288,33 +289,33 @@ jest.mock('next/server', () => {
         'Content-Type': 'application/json',
         ...(init?.headers || {}),
       }),
-    })
-  })
+    });
+  });
 
   return {
     NextResponse: MockNextResponse,
     NextRequest: class {
       constructor(urlOrRequest, init) {
         if (typeof urlOrRequest === 'string') {
-          this.url = urlOrRequest
-          this.headers = new Headers(init?.headers)
-          this.method = init?.method || 'GET'
-          this.body = init?.body
+          this.url = urlOrRequest;
+          this.headers = new Headers(init?.headers);
+          this.method = init?.method || 'GET';
+          this.body = init?.body;
         } else {
-          this.url = urlOrRequest.url
-          this.headers = urlOrRequest.headers
-          this.method = urlOrRequest.method
-          this.body = urlOrRequest.body
+          this.url = urlOrRequest.url;
+          this.headers = urlOrRequest.headers;
+          this.method = urlOrRequest.method;
+          this.body = urlOrRequest.body;
         }
       }
 
       async json() {
-        return JSON.parse(this.body)
+        return JSON.parse(this.body);
       }
     },
     __esModule: true,
-  }
-})
+  };
+});
 
 // Mock console methods to reduce noise in tests
 global.console = {
@@ -323,29 +324,29 @@ global.console = {
   // log: jest.fn(),
   // warn: jest.fn(),
   // error: jest.fn(),
-}
+};
 
 // Setup fetch polyfill if needed
 if (!global.fetch) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  global.fetch = require('jest-fetch-mock')
+  global.fetch = require('jest-fetch-mock');
 }
 
 // Mock xss package to avoid potential ESM issues in Jest.
 // Implements basic sanitization to satisfy test expectations.
 const basicSanitize = (html) => {
   // Basic XSS sanitization for testing purposes
-  if (typeof html !== 'string') return html
+  if (typeof html !== 'string') return html;
 
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
     .replace(/\s+on\w+=\s*"[^"]*"/gi, '') // Remove event handlers with space before
     .replace(/\s+on\w+=\s*'[^']*'/gi, '') // Remove event handlers (single quotes)
     .replace(/\s+on\w+=\s*[^\s>]+/gi, '') // Remove event handlers without quotes
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-}
+    .replace(/javascript:/gi, ''); // Remove javascript: protocol
+};
 
-jest.mock('xss', () => jest.fn((html) => basicSanitize(html)))
+jest.mock('xss', () => jest.fn((html) => basicSanitize(html)));
 
 // Mock rate-limit module globally to avoid request header issues in tests.
 // checkRateLimit always allows requests; getClientIdentifier returns a dummy IP.
@@ -362,16 +363,16 @@ jest.mock('@/lib/rate-limit', () => ({
   rateLimitStore: new Map(),
   rateLimitInMemory: jest.fn().mockReturnValue({ success: true, remaining: 100 }),
   clearRateLimitStore: jest.fn(),
-}))
+}));
 
 // Mock request-utils globally for factory tests that need getClientIdentifier.
 jest.mock('@/lib/request-utils', () => ({
   getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
   getUserAgent: jest.fn().mockReturnValue('jest-test'),
   getServerSideIdentifier: jest.fn().mockResolvedValue('127.0.0.1'),
-}))
+}));
 
 // Clear all mocks before each test
 beforeEach(() => {
-  jest.clearAllMocks()
-})
+  jest.clearAllMocks();
+});

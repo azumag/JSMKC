@@ -90,9 +90,20 @@ export interface CdmMatch {
   score2?: number | null;
   points1?: number | null;
   points2?: number | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
+  suddenDeathWinnerId?: string | null;
   completed: boolean;
   assignedCourses?: unknown; // MR: ["MC1", ...]
   cup?: string | null; // GP
+  assignedCups?: unknown; // GP: ["Mushroom", ...]
+}
+
+export interface CdmFinalsRoundSetting {
+  mode: CdmVersusMode;
+  stage: string;
+  round: string;
+  targetWins: number;
 }
 
 export interface CdmTTEntry {
@@ -159,6 +170,7 @@ export interface CdmTournamentData {
   bmFinalsSeedSnapshot?: CdmFinalsSeedSnapshotEntry[];
   mrFinalsSeedSnapshot?: CdmFinalsSeedSnapshotEntry[];
   gpFinalsSeedSnapshot?: CdmFinalsSeedSnapshotEntry[];
+  finalsRoundSettings?: CdmFinalsRoundSetting[];
 }
 
 export type CdmVersusMode = 'bm' | 'mr' | 'gp';

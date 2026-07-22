@@ -30,6 +30,7 @@
  *   TC-729  GP odd-player BREAK is a schedule-only record
  *   TC-3033 GP manual bracket slot adjustment — same-match swap (issue #3017
  *           Phase 2 UI wiring; API-level, mirrors tc-bm.js TC-3027)
+ *   TC-3040 GP Top-24 barrage correction safely reconciles the affected Upper slot
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -56,6 +57,7 @@ const {
   apiGenerateGpFinals,
   apiFetchGpFinalsMatches,
   apiFetchGpFinalsState,
+  setupGp28PlayerFinals,
   apiUpdateTournament,
   apiJson,
   makeRacesP1Wins,
@@ -1005,11 +1007,12 @@ async function runTc709(adminPage) {
 }
 
 /* ───────── TC-717: GP finals assigned-cup sequence enforcement ─────────
- * Every match in the same finals round must share one assignedCups sequence.
+ * Every match has a valid assignedCups sequence. Admin cup overrides may make
+ * valid sequences differ within the same finals round.
  * FT2 rounds must stay within three unique cups; FT3 rounds use five cups
  * with only the fifth allowed to repeat one of the first four cups. Legacy
- * divergent rows with tied valid sequence counts are normalized by the API to
- * the first sequence seen in that round. */
+ * missing or invalid legacy sequences are backfilled without rewriting valid
+ * per-match overrides. */
 async function runTc717(adminPage) {
   let setup = null;
   try {
@@ -2291,6 +2294,100 @@ async function runTc722(adminPage) {
   }
 }
 
+/* ───────── TC-3040: Top-24 barrage correction → Upper-slot reconciliation ─────────
+ * The GP path uses the production score-only R2 endpoint (FT1). After Phase
+ * 2, a corrected R2 winner must appear as exactly one stale Upper opening
+ * slot in GET. PATCH repairs only that slot, and retrying the original plan
+ * remains idempotently in_sync despite its stale target version. */
+async function runTc3040(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupGp28PlayerFinals(adminPage, 'TC3040');
+    const { tournamentId } = setup;
+    const confirmed = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: true });
+    if (confirmed.s !== 200) throw new Error(`Failed to confirm qualification (${confirmed.s})`);
+
+    const playoff = await apiGenerateGpFinals(adminPage, tournamentId, 24);
+    if (playoff.s !== 200 && playoff.s !== 201) throw new Error(`Top-24 playoff generation failed (${playoff.s})`);
+    for (let matchNumber = 1; matchNumber <= 8; matchNumber++) {
+      const state = await apiFetchGpFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((row) => row.matchNumber === matchNumber);
+      if (!match) throw new Error(`Playoff M${matchNumber} missing`);
+      const score = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
+      if (score.s !== 200) throw new Error(`Playoff M${matchNumber} score failed (${score.s})`);
+    }
+    const phase2 = await apiGenerateGpFinals(adminPage, tournamentId, 24);
+    if (phase2.s !== 200 && phase2.s !== 201) throw new Error(`Phase 2 generation failed (${phase2.s})`);
+
+    const beforeCorrection = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const correctedR2 = beforeCorrection.playoffMatches.find((match) => match.matchNumber === 5);
+    if (!correctedR2) throw new Error('Playoff R2 M5 missing after Phase 2');
+    const correction = await apiJson(adminPage, `/api/tournaments/${tournamentId}/gp/finals`, {
+      method: 'PUT',
+      body: { matchId: correctedR2.id, score1: 0, score2: 1, expectedVersion: correctedR2.version, override: true },
+    });
+    if (correction.status !== 200) throw new Error(`R2 correction failed (${correction.status})`);
+
+    const stale = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const preview = stale.raw?.data?.upperReconciliation;
+    const changes = preview?.changes || [];
+    const change = changes.find((entry) => entry.sourceMatchId === correctedR2.id);
+    if (preview?.status !== 'stale' || changes.length !== 1 || !change) {
+      throw new Error(`Expected exactly one stale Upper slot, got ${JSON.stringify(preview)}`);
+    }
+    const beforeSlots = new Map(
+      stale.matches.map((match) => [
+        match.id,
+        { player1Id: match.player1Id, player2Id: match.player2Id, version: match.version },
+      ]),
+    );
+    const reconcile = await apiJson(adminPage, `/api/tournaments/${tournamentId}/gp/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const after = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const target = after.matches.find((match) => match.id === change.targetMatchId);
+    const targetBefore = beforeSlots.get(change.targetMatchId);
+    const oppositeKey = change.slot === 1 ? 'player2Id' : 'player1Id';
+    const targetSlotUpdated =
+      target &&
+      targetBefore &&
+      target[`player${change.slot}Id`] === change.afterPlayerId &&
+      target[oppositeKey] === targetBefore[oppositeKey] &&
+      target.version === targetBefore.version + 1;
+    const onlyTargetChanged = after.matches.every((match) => {
+      const before = beforeSlots.get(match.id);
+      if (!before) return false;
+      if (match.id === change.targetMatchId) return true;
+      return (
+        match.player1Id === before.player1Id && match.player2Id === before.player2Id && match.version === before.version
+      );
+    });
+    const retry = await apiJson(adminPage, `/api/tournaments/${tournamentId}/gp/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const ok =
+      reconcile.status === 200 &&
+      reconcile.body?.data?.status === 'updated' &&
+      targetSlotUpdated &&
+      onlyTargetChanged &&
+      retry.status === 200 &&
+      retry.body?.data?.status === 'in_sync';
+    log(
+      'TC-3040',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `reconcile=${reconcile.status}/${reconcile.body?.data?.status} target=${targetSlotUpdated} onlyTarget=${onlyTargetChanged} retry=${retry.status}/${retry.body?.data?.status}`,
+    );
+  } catch (err) {
+    log('TC-3040', 'FAIL', err instanceof Error ? err.message : 'TC-3040 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -2322,6 +2419,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-703', fn: runTc703 },
       { name: 'TC-704', fn: runTc704 },
       { name: 'TC-3033', fn: runTc3033 },
+      { name: 'TC-3040', fn: runTc3040 },
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
@@ -2383,6 +2481,7 @@ module.exports = {
   runTc831,
   runTc832,
   runTc3033,
+  runTc3040,
   gpAssignedCupSequence,
   gpFinalsUpdatedMatchFromPutResult,
   gpFinalsTargetWins,

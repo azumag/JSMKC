@@ -256,6 +256,29 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
   });
 
   describe('PUT - Update battle mode match score with optimistic locking', () => {
+    it('rejects finals updates so winner routing can only use the canonical finals endpoint', async () => {
+      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValueOnce({
+        stage: 'finals',
+        round: 'winners_qf',
+        tournamentId: 't1',
+        isBye: false,
+      });
+
+      const result = await PUT(new MockNextRequest({ score1: 5, score2: 0, version: 3 }), {
+        params: Promise.resolve({ id: 't1', matchId: 'm1' }),
+      });
+
+      expect(result).toEqual({
+        data: {
+          error: 'Use the finals endpoint to update a bracket match',
+          code: 'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+          details: undefined,
+        },
+        status: 409,
+      });
+      expect(updateBMMatchScore).not.toHaveBeenCalled();
+    });
+
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
@@ -326,7 +349,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
        * pre-check variant's current shape. */
       expect(prisma.bMMatch.findUnique).toHaveBeenCalledWith({
         where: { id: 'm1' },
-        select: { stage: true, round: true, tournamentId: true, isBye: true },
+        select: { stage: true, round: true, targetWins: true, tournamentId: true, isBye: true },
       });
     });
 

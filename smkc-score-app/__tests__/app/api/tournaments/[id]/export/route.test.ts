@@ -331,6 +331,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
               },
             },
           },
+          finalsRoundSettings: {
+            select: { mode: true, stage: true, round: true, targetWins: true },
+          },
         },
       });
       expect(global.fetch).toBeUndefined();

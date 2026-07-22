@@ -25,9 +25,12 @@
  */
 // @ts-nocheck
 
-
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
-jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(() => Promise.resolve()), AUDIT_ACTIONS: { CREATE_MR_MATCH: 'CREATE_MR_MATCH' }, resolveAuditUserId: jest.fn((s) => s?.user?.id) }));
+jest.mock('@/lib/audit-log', () => ({
+  createAuditLog: jest.fn(() => Promise.resolve()),
+  AUDIT_ACTIONS: { CREATE_MR_MATCH: 'CREATE_MR_MATCH' },
+  resolveAuditUserId: jest.fn((s) => s?.user?.id),
+}));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
@@ -54,12 +57,16 @@ class MockNextRequest {
   constructor(
     private url: string,
     private body?: any,
-    private headersMap: Map<string, string> = new Map()
+    private headersMap: Map<string, string> = new Map(),
   ) {}
-  async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headersMap.get(key) }; }
+  async json() {
+    return this.body;
+  }
+  get header() {
+    return { get: (key: string) => this.headersMap.get(key) };
+  }
   headers = {
-    get: (key: string) => this.headersMap.get(key) ?? null
+    get: (key: string) => this.headersMap.get(key) ?? null,
   };
 }
 
@@ -90,9 +97,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
         player2: mockPlayer2,
       };
 
-      (prisma.player.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockPlayer1)
-        .mockResolvedValueOnce(mockPlayer2);
+      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue(mockMatch);
       (createAuditLog as jest.Mock).mockResolvedValue({});
@@ -127,6 +132,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
           player2Side: 2,
           score1: 0,
           score2: 0,
+          targetWins: 5,
           completed: false,
           bracket: 'winners',
           bracketPosition: 'qf1',
@@ -153,9 +159,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
         player2: mockPlayer2,
       };
 
-      (prisma.player.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockPlayer1)
-        .mockResolvedValueOnce(mockPlayer2);
+      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue(mockMatch);
       (createAuditLog as jest.Mock).mockResolvedValue({});
@@ -176,7 +180,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
             bracket: 'winners',
             isGrandFinal: false,
           }),
-        })
+        }),
       );
     });
 
@@ -212,9 +216,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
         player2: mockPlayer2,
       };
 
-      (prisma.player.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockPlayer1)
-        .mockResolvedValueOnce(mockPlayer2);
+      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue(mockLastMatch);
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue(mockMatch);
       (createAuditLog as jest.Mock).mockResolvedValue({});
@@ -231,7 +233,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
           data: expect.objectContaining({
             matchNumber: 6,
           }),
-        })
+        }),
       );
     });
 
@@ -287,9 +289,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       jest.mocked(auth).mockResolvedValue(mockAuth);
 
-      (prisma.player.findUnique as jest.Mock)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
+      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
         player1Id: UUID_P1,
@@ -308,9 +308,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       jest.mocked(auth).mockResolvedValue(mockAuth);
 
       const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
-      (prisma.player.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockPlayer1)
-        .mockResolvedValueOnce(null);
+      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
         player1Id: UUID_P1,
@@ -355,7 +353,10 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
 
       expect(result.data).toEqual({ success: false, error: 'Failed to create match', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to create match', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to create match', {
+        error: expect.any(Error),
+        tournamentId: 't1',
+      });
     });
 
     // Edge case - Creates grand final match
@@ -374,9 +375,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
         player2: mockPlayer2,
       };
 
-      (prisma.player.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockPlayer1)
-        .mockResolvedValueOnce(mockPlayer2);
+      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue(mockMatch);
       (createAuditLog as jest.Mock).mockResolvedValue({});
@@ -397,7 +396,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
             bracket: 'grand_final',
             isGrandFinal: true,
           }),
-        })
+        }),
       );
     });
 
@@ -416,9 +415,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
         player2: mockPlayer2,
       };
 
-      (prisma.player.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockPlayer1)
-        .mockResolvedValueOnce(mockPlayer2);
+      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue(mockMatch);
       (createAuditLog as jest.Mock).mockRejectedValue(new Error('Audit log failed'));

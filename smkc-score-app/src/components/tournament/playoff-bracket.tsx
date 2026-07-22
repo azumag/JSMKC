@@ -41,6 +41,7 @@ interface BMMatch {
   stage?: string | null;
   tvNumber?: number | null;
   startingCourseNumber?: number | null;
+  assignedCourses?: unknown;
   player1Id: string | null;
   player2Id: string | null;
   score1: number;
@@ -168,6 +169,7 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
       <div className="text-xs text-muted-foreground mb-1 flex justify-between items-center gap-1">
         <span className="flex items-center gap-1">
           M{bracketMatch.matchNumber}
+          <span className="rounded border px-1 py-0.5 font-medium text-foreground">FT{targetWins}</span>
           {match?.slotOverrideAt && (
             <span
               className="inline-flex items-center rounded-sm px-1 py-0.5 text-[10px] font-semibold flag-draft"
@@ -320,12 +322,17 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
   const r1RoundName = roundNames['playoff_r1'] || tf('roundOne');
   const r2RoundName = roundNames['playoff_r2'] || tf('roundTwo');
 
-  const courseR1 =
-    playoffMatches.find((m) => m.round === 'playoff_r1' && m.startingCourseNumber != null)?.startingCourseNumber ??
-    null;
-  const courseR2 =
-    playoffMatches.find((m) => m.round === 'playoff_r2' && m.startingCourseNumber != null)?.startingCourseNumber ??
-    null;
+  const getRoundAssignment = (round: string): number | string[] | null => {
+    const match =
+      playoffMatches.find((candidate) => candidate.round === round && !candidate.completed) ??
+      playoffMatches.find((candidate) => candidate.round === round);
+    if (match?.startingCourseNumber != null) return match.startingCourseNumber;
+    return Array.isArray(match?.assignedCourses)
+      ? match.assignedCourses.filter((course): course is string => typeof course === 'string')
+      : null;
+  };
+  const courseR1 = getRoundAssignment('playoff_r1');
+  const courseR2 = getRoundAssignment('playoff_r2');
 
   return (
     <Card className="border-blue-500/30">
@@ -344,8 +351,13 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground">{r1RoundName}</h4>
-              {courseR1 != null && (
+              {typeof courseR1 === 'number' && (
                 <p className="text-xs font-semibold text-blue-500">{tf('battleCourse', { number: courseR1 })}</p>
+              )}
+              {Array.isArray(courseR1) && courseR1.length > 0 && (
+                <p className="text-xs font-semibold text-blue-500" data-testid="playoff-round-tracks">
+                  {courseR1.join(' / ')}
+                </p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -375,8 +387,13 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground">{r2RoundName}</h4>
-              {courseR2 != null && (
+              {typeof courseR2 === 'number' && (
                 <p className="text-xs font-semibold text-blue-500">{tf('battleCourse', { number: courseR2 })}</p>
+              )}
+              {Array.isArray(courseR2) && courseR2.length > 0 && (
+                <p className="text-xs font-semibold text-blue-500" data-testid="playoff-round-tracks">
+                  {courseR2.join(' / ')}
+                </p>
               )}
             </div>
             <div className="flex flex-col gap-2">

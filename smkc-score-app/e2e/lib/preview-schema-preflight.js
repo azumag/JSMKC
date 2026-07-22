@@ -6,6 +6,13 @@ const REQUIRED_PREVIEW_COLUMNS = [
   { table: 'Tournament', column: 'publicModes' },
   { table: 'GPMatch', column: 'assignedCups' },
   { table: 'GPMatch', column: 'suddenDeathWinnerId' },
+  { table: 'BMMatch', column: 'targetWins' },
+  { table: 'BMMatch', column: 'winnerOverrideId' },
+  { table: 'MRMatch', column: 'targetWins' },
+  { table: 'MRMatch', column: 'winnerOverrideId' },
+  { table: 'GPMatch', column: 'targetWins' },
+  { table: 'GPMatch', column: 'winnerOverrideId' },
+  { table: 'FinalsRoundSetting', column: 'targetWins' },
 ];
 const WRANGLER_TIMEOUT_MS = 30_000;
 const DEFAULT_WRANGLER_LOG_PATH = path.join(os.tmpdir(), 'jsmkc-wrangler-preflight.log');
@@ -92,14 +99,11 @@ function isWranglerStdoutAuthError(stdout) {
   const errorField = parsed.error;
   const notes = Array.isArray(errorField?.notes) ? errorField.notes : [];
   // errorField?.name ('APIError' etc.) is excluded: it never matches the auth patterns below.
-  const text = [
-    errorField?.text,
-    ...notes.map((note) => note?.text),
-  ].filter(Boolean).join('\n');
+  const text = [errorField?.text, ...notes.map((note) => note?.text)].filter(Boolean).join('\n');
   return (
-    /CLOUDFLARE_API_TOKEN/i.test(text)
-    || /non-interactive environment/i.test(text)
-    || (Number(errorField?.code) === 7403 && /not valid or is not authorized/i.test(text))
+    /CLOUDFLARE_API_TOKEN/i.test(text) ||
+    /non-interactive environment/i.test(text) ||
+    (Number(errorField?.code) === 7403 && /not valid or is not authorized/i.test(text))
   );
 }
 
@@ -216,9 +220,9 @@ function assertPreviewD1Schema(env = process.env) {
   }
 
   const presentColumns = parsePresentColumns(result.stdout);
-  const missing = REQUIRED_PREVIEW_COLUMNS
-    .map(({ table, column }) => `${table}.${column}`)
-    .filter((label) => !presentColumns.has(label));
+  const missing = REQUIRED_PREVIEW_COLUMNS.map(({ table, column }) => `${table}.${column}`).filter(
+    (label) => !presentColumns.has(label),
+  );
 
   if (missing.length > 0) {
     throw new Error(

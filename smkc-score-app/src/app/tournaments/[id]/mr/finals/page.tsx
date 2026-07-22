@@ -55,6 +55,10 @@ import { DoubleEliminationBracket } from '@/components/tournament/double-elimina
 import { BracketSlotEditDialog } from '@/components/tournament/bracket-slot-edit-dialog';
 import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
 import { PlayoffCompleteCard } from '@/components/tournament/playoff-complete-card';
+import { FinalsRoundSettings } from '@/components/tournament/finals-round-settings';
+import { FinalsRoundCoursesSettings } from '@/components/tournament/finals-round-courses-settings';
+import { FinalsScoreOverride } from '@/components/tournament/finals-score-override';
+import { FinalsPlayoffReconciliation } from '@/components/tournament/finals-playoff-reconciliation';
 import { COURSE_INFO, POLLING_INTERVAL, TV_NUMBER_OPTIONS, type CourseAbbr } from '@/lib/constants';
 import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 import { usePolling } from '@/lib/hooks/usePolling';
@@ -77,6 +81,8 @@ interface MRMatch {
   round: string | null;
   stage?: string | null;
   tvNumber?: number | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -117,6 +123,8 @@ function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
 
 function getMatchWinner(match: MRMatch): Player | null {
   if (!match.completed) return null;
+  if (match.winnerOverrideId === match.player1Id) return match.player1;
+  if (match.winnerOverrideId === match.player2Id) return match.player2;
   if (match.score1 > match.score2) return match.player1;
   if (match.score2 > match.score1) return match.player2;
   return null;
@@ -127,8 +135,9 @@ function getCompletedChampion(matches: MRMatch[]): Player | null {
   if (reset) return getMatchWinner(reset);
 
   const grandFinal = matches.find((m) => m.round === 'grand_final' && m.completed);
-  if (!grandFinal || grandFinal.score1 <= grandFinal.score2) return null;
-  return grandFinal.player1;
+  if (!grandFinal) return null;
+  const winner = getMatchWinner(grandFinal);
+  return winner?.id === grandFinal.player1Id ? winner : null;
 }
 
 /** Individual race round entry */
@@ -222,7 +231,8 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
   const [broadcasting, setBroadcasting] = useState(false);
   const [tvSaving, setTvSaving] = useState(false);
   const [champion, setChampion] = useState<Player | null>(null);
-  const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
+  const selectedMatchTargetWins =
+    selectedMatch?.targetWins ?? (selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins());
 
   /* Manual bracket slot placement adjustment (issue #3017 Phase 2): admins
    * toggle "adjustment mode" to expose per-slot edit affordances on the
@@ -462,7 +472,7 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
     /* Manual-override path: skip round entry and write the raw totals.
      * Server preserves the existing rounds[] because `rounds` is undefined
      * in the body (putAdditionalFields only copies defined keys). */
-    const body: Record<string, unknown> = { matchId: selectedMatch.id };
+    const body: Record<string, unknown> = { matchId: selectedMatch.id, expectedVersion: selectedMatch.version };
 
     if (manualScoreEnabled) {
       /* Strict parse: reject "5.9", "1e2", etc. that parseInt would
@@ -750,6 +760,10 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               bracketStructure={bracketStructure}
               roundNames={roundNames}
               seededPlayers={seededPlayers}
+              getTargetWins={(match, bracketMatch) =>
+                match?.targetWins ??
+                getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+              }
               onMatchClick={isAdmin ? openMatchDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
               slotEditMode={isAdmin ? slotEditMode : undefined}
@@ -762,6 +776,10 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
+              getTargetWins={(match, bracketMatch) =>
+                match?.targetWins ??
+                getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+              }
               onMatchClick={isAdmin ? openMatchDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
               slotEditMode={isAdmin ? slotEditMode : undefined}
@@ -784,6 +802,10 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
+            getTargetWins={(match, bracketMatch) =>
+              match?.targetWins ??
+              getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+            }
             onMatchClick={isAdmin ? openMatchDialog : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             slotEditMode={isAdmin ? slotEditMode : undefined}
@@ -803,10 +825,23 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
+          getTargetWins={(match, bracketMatch) =>
+            match?.targetWins ??
+            getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+          }
           onMatchClick={isAdmin ? openMatchDialog : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
           slotEditMode={isAdmin ? slotEditMode : undefined}
           onSlotClick={isAdmin ? handleSlotClick : undefined}
+        />
+      )}
+
+      {isAdmin && (
+        <FinalsPlayoffReconciliation
+          matches={matches}
+          playoffMatches={playoffMatches}
+          endpoint={`/api/tournaments/${tournamentId}/mr/finals`}
+          onSaved={refetch}
         />
       )}
 
@@ -832,6 +867,44 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {selectedMatch && (
+                <FinalsRoundSettings
+                  match={selectedMatch}
+                  matches={selectedMatch.stage === 'playoff' ? playoffMatches : matches}
+                  endpoint={`/api/tournaments/${tournamentId}/mr/finals`}
+                  effectiveTargetWins={selectedMatchTargetWins}
+                  onSaved={() => {
+                    setIsMatchDialogOpen(false);
+                    setSelectedMatch(null);
+                    refetch();
+                  }}
+                />
+              )}
+              {selectedMatch && (
+                <FinalsRoundCoursesSettings
+                  match={selectedMatch}
+                  matches={selectedMatch.stage === 'playoff' ? playoffMatches : matches}
+                  endpoint={`/api/tournaments/${tournamentId}/mr/finals`}
+                  onSaved={() => {
+                    setIsMatchDialogOpen(false);
+                    setSelectedMatch(null);
+                    refetch();
+                  }}
+                />
+              )}
+              {selectedMatch && (
+                <FinalsScoreOverride
+                  key={`${selectedMatch.id}:${selectedMatch.version}`}
+                  match={selectedMatch}
+                  endpoint={`/api/tournaments/${tournamentId}/mr/finals`}
+                  score1={selectedMatch.score1}
+                  score2={selectedMatch.score2}
+                  onSaved={() => {
+                    setIsMatchDialogOpen(false);
+                    refetch();
+                  }}
+                />
+              )}
               {/* Final-result entry, checked by default (mirrors the
               qualification page). Race-by-race entry is available by
               unchecking the box when per-race detail is needed. */}

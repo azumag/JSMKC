@@ -29,6 +29,7 @@ import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, type CourseAbbr } from '
 import { usePolling } from '@/lib/hooks/usePolling';
 import { UpdateIndicator } from '@/components/ui/update-indicator';
 import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 import { createLogger } from '@/lib/client-logger';
 import { useMatchReportAuth } from '@/lib/hooks/useMatchReportAuth';
 import { getSharedMatchAccessState } from '@/lib/shared-match-access-state';
@@ -47,6 +48,10 @@ interface MRMatch {
   player2Side: number;
   score1: number;
   score2: number;
+  stage?: string;
+  round?: string | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
   completed: boolean;
   player1OriginalSeed?: number;
   player2OriginalSeed?: number;
@@ -458,50 +463,71 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
           </Card>
         )}
 
-        {/* Completed match display with race details */}
-        {match.completed && match.rounds && (
+        {/* The planned MR tracks are relevant before, during, and after score
+            entry, including aggregate-score matches with no per-race rows. */}
+        {match.assignedCourses && match.assignedCourses.length > 0 && (
+          <Card data-testid="mr-match-assigned-courses">
+            <CardHeader>
+              <CardTitle className="text-base">Tracks</CardTitle>
+              <CardDescription>{match.assignedCourses.join(' / ')}</CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        {/* Completed match display also supports aggregate-score saves where
+            `rounds` is intentionally absent. */}
+        {match.completed && (
           <Card>
             <CardHeader>
               {/* i18n: Completed match header with final score */}
               <CardTitle>{tMatch('matchComplete')}</CardTitle>
               <CardDescription>{tMatch('finalScore', { score1: match.score1, score2: match.score2 })}</CardDescription>
+              {(match.stage === 'finals' || match.stage === 'playoff') && (
+                <CardDescription>
+                  FT{getMrFinalsTargetWins({ stage: match.stage, round: match.round, targetWins: match.targetWins })}
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent>
-              <Table className="text-sm">
-                <TableHeader>
-                  <TableRow>
-                    {/* i18n: Completed match table headers */}
-                    <TableHead>{tCommon('race')}</TableHead>
-                    <TableHead>{tCommon('course')}</TableHead>
-                    <TableHead>{tCommon('winner')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {match.rounds.map((round, index) => (
-                    <TableRow key={index}>
-                      {/* i18n: Race number in completed match table */}
-                      <TableCell>{tMatch('raceN', { n: index + 1 })}</TableCell>
-                      <TableCell>{getCourseName(round.course)}</TableCell>
-                      <TableCell className="font-medium">
-                        {round.winner === 1
-                          ? match.player1.nickname
-                          : round.winner === 2
-                            ? match.player2.nickname
-                            : '-'}
-                      </TableCell>
+              {match.rounds && (
+                <Table className="text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{tCommon('race')}</TableHead>
+                      <TableHead>{tCommon('course')}</TableHead>
+                      <TableHead>{tCommon('winner')}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {/* i18n: Match winner announcement or draw.
-                  A player wins by taking more than half the races (> TOTAL_MR_RACES/2).
-                  For 4 races this means 3 or more wins; a 2-2 result is a draw. */}
+                  </TableHeader>
+                  <TableBody>
+                    {match.rounds.map((round, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{tMatch('raceN', { n: index + 1 })}</TableCell>
+                        <TableCell>{getCourseName(round.course)}</TableCell>
+                        <TableCell className="font-medium">
+                          {round.winner === 1
+                            ? match.player1.nickname
+                            : round.winner === 2
+                              ? match.player2.nickname
+                              : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              {/* Finals can have a persisted First-To other than the four
+                  qualification races, so an explicit correction or completed
+                  finals score resolves by score comparison. */}
               <p className="mt-4 text-center">
-                {match.score1 > TOTAL_MR_RACES / 2
+                {match.winnerOverrideId === match.player1Id
                   ? tMatch('playerWins', { player: match.player1.nickname })
-                  : match.score2 > TOTAL_MR_RACES / 2
+                  : match.winnerOverrideId === match.player2Id
                     ? tMatch('playerWins', { player: match.player2.nickname })
-                    : tMatch('draw')}
+                    : match.score1 > match.score2
+                      ? tMatch('playerWins', { player: match.player1.nickname })
+                      : match.score2 > match.score1
+                        ? tMatch('playerWins', { player: match.player2.nickname })
+                        : tMatch('draw')}
               </p>
             </CardContent>
           </Card>
