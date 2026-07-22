@@ -305,7 +305,35 @@ function reconstruct24(byRound: Map<string, CdmMatch[]>, data: CdmTournamentData
   const playoffStructure = generatePlayoffStructure(12, groupCount);
   assignPlayoffSeeds(byRound, playoffStructure, bPositionPlayers, seedBPositionBySlot);
 
+  applyOriginalSeedSnapshot(data, mode, bPositionPlayers, seedBPositionBySlot);
+
   return { bPositionPlayers, seedBPositionBySlot };
+}
+
+/** Apply the immutable entrant snapshot after reconstructing live match slots.
+ * This keeps both the seed list and a manually moved opening player tied to
+ * their originally published qualification seed. */
+function applyOriginalSeedSnapshot(
+  data: CdmTournamentData,
+  mode: CdmVersusMode,
+  bPositionPlayers: Map<number, CdmPlayer>,
+  seedBPositionBySlot: Map<string, number>,
+): void {
+  const snapshot =
+    mode === 'bm' ? data.bmFinalsSeedSnapshot : mode === 'mr' ? data.mrFinalsSeedSnapshot : data.gpFinalsSeedSnapshot;
+  if (!snapshot || snapshot.length === 0) return;
+
+  const originalSeedByPlayerId = new Map(snapshot.map((entry) => [entry.playerId, entry.originalSeed]));
+  const livePlayerById = new Map([...bPositionPlayers.values()].map((player) => [player.id, player]));
+  for (const [slot, bPosition] of seedBPositionBySlot) {
+    const player = bPositionPlayers.get(bPosition);
+    const originalSeed = player ? originalSeedByPlayerId.get(player.id) : undefined;
+    if (originalSeed != null) seedBPositionBySlot.set(slot, originalSeed);
+  }
+  bPositionPlayers.clear();
+  for (const entry of snapshot) {
+    bPositionPlayers.set(entry.originalSeed, livePlayerById.get(entry.playerId) ?? entry.player);
+  }
 }
 
 /**
@@ -385,21 +413,15 @@ function assignPlayoffSeeds(
  *
  * IMPORTANT per-mode difference (verified against the real template dump):
  *   - BM Finals / MR Finals B3:B26 are TYPED shared-string inputs.
- *   - GP Finals B3 is an ARRAY-SPILL formula
- *       =XLOOKUP(ANCHORARRAY(A3),'GP Qualifications'!AL:AL,'GP Qualifications'!AM:AM)
- *     with ref="B3:B26", so B4:B26 are spill cells (cached values, no own <f>).
- * Writing or clearing the GP seed list would either overwrite the B3 formula
- * (SheetXmlPatcher throws) or land a static value inside the spill range
- * (#SPILL! in Excel). GP therefore derives its seed list from GP Qualifications
- * by formula and we must leave B3:B26 entirely untouched on the GP sheet.
+ *   - GP Finals B3:B26 originally carries an ARRAY-SPILL XLOOKUP from the
+ *     mutable qualification ranking. That is not a valid source of truth once
+ *     a KO bracket has been generated: later rank corrections must not change
+ *     its published seed list. The exporter therefore deliberately replaces
+ *     that spill with the canonical bracket seed values, just as it does for
+ *     BM/MR.
  * (Discovered during route integration; the prior unit fixtures never exercised
  * the GP seed list against the real template.)
  * ------------------------------------------------------------------ */
-
-/** True when the mode's B3:B26 seed list is a formula spill (GP only). */
-function seedListIsFormula(mode: CdmVersusMode): boolean {
-  return mode === 'gp';
-}
 
 function writeSeedList(
   builder: FinalsWriteBuilder,
@@ -407,14 +429,18 @@ function writeSeedList(
   seedCount: number,
   mode: CdmVersusMode,
 ): void {
-  // GP's seed list is a formula spill — never write/clear it (see header note).
-  if (seedListIsFormula(mode)) return;
   for (let p = 1; p <= FINALS_SEED_LIST_MAX_ROWS; p++) {
     const row = FINALS_SEED_LIST_FIRST_ROW + (p - 1);
     const ref = `${FINALS_SEED_LIST_COLUMN}${row}`;
     const player = p <= seedCount ? bPositionPlayers.get(p) : undefined;
-    if (player) builder.setString(ref, player.nickname);
-    else builder.clear(ref); // unused / unresolved -> blank (formulas handle it).
+    if (mode === 'gp') {
+      if (player) builder.overwriteString(ref, player.nickname);
+      else builder.strip(ref);
+    } else if (player) {
+      builder.setString(ref, player.nickname);
+    } else {
+      builder.clear(ref); // unused / unresolved -> blank (formulas handle it).
+    }
   }
 }
 
@@ -680,7 +706,7 @@ export function buildFinalsWrites(data: CdmTournamentData, mode: CdmVersusMode):
 
   if (hasQf) {
     // Degraded 8-player bracket (winners_qf is the first round).
-    return build8Player(builder, byRound, mode);
+    return build8Player(builder, data, byRound, mode);
   }
 
   // Matches exist but none map to a known bracket round (e.g. only a stray
@@ -727,12 +753,12 @@ function qualificationGroupCount(data: CdmTournamentData, mode: CdmVersusMode): 
  * ------------------------------------------------------------------ */
 
 function buildEmptyBracket(builder: FinalsWriteBuilder, mode: CdmVersusMode): void {
-  // Seed list B3:B26 — skipped for GP, whose seed list is a formula spill (see
-  // the writeSeedList header note); clearing it would corrupt the spill.
-  if (!seedListIsFormula(mode)) {
-    for (let p = 1; p <= FINALS_SEED_LIST_MAX_ROWS; p++) {
-      builder.clear(`${FINALS_SEED_LIST_COLUMN}${FINALS_SEED_LIST_FIRST_ROW + (p - 1)}`);
-    }
+  // Seed list B3:B26. GP removes its old qualification-derived spill so a
+  // subsequent export cannot retain mutable, stale seed labels.
+  for (let p = 1; p <= FINALS_SEED_LIST_MAX_ROWS; p++) {
+    const ref = `${FINALS_SEED_LIST_COLUMN}${FINALS_SEED_LIST_FIRST_ROW + (p - 1)}`;
+    if (mode === 'gp') builder.strip(ref);
+    else builder.clear(ref);
   }
   // Clear only the TYPED seed cells and every score cell; leave all formulas
   // (name XLOOKUPs, advancement, reverse-lookup seed cells) intact so the empty
@@ -770,7 +796,7 @@ function buildFaithfulOr16(
     return builder.build();
   }
   // Degraded 16-player: no playoff. Reconstruct B 1..16 from winners_r1 directly.
-  return build16Player(builder, byRound, mode);
+  return build16Player(builder, data, byRound, mode);
 }
 
 /**
@@ -797,6 +823,7 @@ function reconstructPlayoffOnly(
   ranked.slice(0, FINALS_DIRECT_UPPER_SEEDS.length).forEach((q, i) => {
     bPositionPlayers.set(i + 1, q.player); // B 1..12
   });
+  applyOriginalSeedSnapshot(data, mode, bPositionPlayers, seedBPositionBySlot);
   return { bPositionPlayers, seedBPositionBySlot };
 }
 
@@ -880,6 +907,7 @@ function writeAllNames(
 
 function build16Player(
   builder: FinalsWriteBuilder,
+  data: CdmTournamentData,
   byRound: Map<string, CdmMatch[]>,
   mode: CdmVersusMode,
 ): CdmCellWrite[] {
@@ -906,6 +934,7 @@ function build16Player(
       seedBPositionBySlot.set(slotKey('winners_r1', matchIndex, slotIndex), upperSeed);
     }
   });
+  applyOriginalSeedSnapshot(data, mode, bPositionPlayers, seedBPositionBySlot);
   const recon: Reconstruction = { bPositionPlayers, seedBPositionBySlot };
 
   // Clear active-round score cells first, then strip the Barrage so the strip
@@ -1000,6 +1029,7 @@ const EIGHT_PLAYER_ROUND_SIZES: Record<string, number> = {
 
 function build8Player(
   builder: FinalsWriteBuilder,
+  data: CdmTournamentData,
   byRound: Map<string, CdmMatch[]>,
   mode: CdmVersusMode,
 ): CdmCellWrite[] {
@@ -1018,6 +1048,7 @@ function build8Player(
     if (struct.player1Seed != null) bPositionPlayers.set(struct.player1Seed, appMatch.player1);
     if (struct.player2Seed != null) bPositionPlayers.set(struct.player2Seed, appMatch.player2);
   });
+  applyOriginalSeedSnapshot(data, mode, bPositionPlayers, new Map());
 
   // Empty every unused slot first (formula cells stripped, typed cells cleared);
   // used slots are overwritten below. A slot is unused if its round is not one of

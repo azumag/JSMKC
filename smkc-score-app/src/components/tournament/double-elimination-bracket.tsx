@@ -130,13 +130,22 @@ function MatchCard<TMatch extends BMMatch>({
   const seededEntry2 = bracketMatch.player2Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
-  /* The numeric bracket seed is always preferred over the group+rank label
-   * (e.g. "B1") -- it's the same overall tournament seed number shown
-   * elsewhere in the bracket, and is at least as informative (a
-   * qualificationRankLabel can only exist when the numeric seed does too,
-   * since both come from the same seededPlayers lookup). */
-  const seedLabel1 = bracketMatch.player1Seed ?? seededEntry1?.qualificationRankLabel;
-  const seedLabel2 = bracketMatch.player2Seed ?? seededEntry2?.qualificationRankLabel;
+  /* A structural bracket slot is only meaningful in the opening round.
+   * Resolve the qualification seed by player ID so a barrage winner retains
+   * (for example) [17] after entering upper slot 16 and in every later round. */
+  const originalSeedByPlayerId = new Map(
+    seededPlayers?.map((entry) => [entry.playerId, entry.originalSeed ?? entry.seed]),
+  );
+  const seedLabel1 =
+    (match?.player1Id ? originalSeedByPlayerId.get(match.player1Id) : undefined) ??
+    seededEntry1?.originalSeed ??
+    seededEntry1?.seed ??
+    bracketMatch.player1Seed;
+  const seedLabel2 =
+    (match?.player2Id ? originalSeedByPlayerId.get(match.player2Id) : undefined) ??
+    seededEntry2?.originalSeed ??
+    seededEntry2?.seed ??
+    bracketMatch.player2Seed;
 
   /* Use actual match players if available, fall back to seeded player data */
   const player1: Player | undefined = match?.player1 || seededEntry1?.player;
@@ -229,7 +238,9 @@ function MatchCard<TMatch extends BMMatch>({
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player1Seed && <span className="text-xs text-muted-foreground">[{seedLabel1}]</span>}
+          {!isTBD.player1 && seedLabel1 != null && (
+            <span className="text-xs text-muted-foreground">[{seedLabel1}]</span>
+          )}
           <PlayerName
             player={player1}
             locale={locale}
@@ -263,7 +274,9 @@ function MatchCard<TMatch extends BMMatch>({
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player2Seed && <span className="text-xs text-muted-foreground">[{seedLabel2}]</span>}
+          {!isTBD.player2 && seedLabel2 != null && (
+            <span className="text-xs text-muted-foreground">[{seedLabel2}]</span>
+          )}
           <PlayerName
             player={player2}
             locale={locale}
@@ -414,7 +427,13 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
    */
   const isTBD = (matchNumber: number): { player1: boolean; player2: boolean } => {
     const match = getMatch(matchNumber);
-    if (!match) return { player1: true, player2: true };
+    if (!match) {
+      const bracket = getBracketMatch(matchNumber);
+      return {
+        player1: !seededPlayers?.some((entry) => entry.seed === bracket?.player1Seed),
+        player2: !seededPlayers?.some((entry) => entry.seed === bracket?.player2Seed),
+      };
+    }
     const bracket = getBracketMatch(matchNumber);
     /* First-round seeded matches always have real players */
     if (bracket?.round === 'winners_qf' || bracket?.round === 'winners_r1') {

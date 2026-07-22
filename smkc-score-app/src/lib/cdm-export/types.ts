@@ -11,18 +11,18 @@
 
 /** Worksheet names of the CDM template (must match xl/workbook.xml exactly). */
 export type CdmSheetName =
-  | "Main Hub"
-  | "Parameters"
-  | "TT Qualifications"
-  | "TT Finals"
-  | "TT for Scoub"
-  | "BM Qualifications"
-  | "BM Finals"
-  | "MR Qualifications"
-  | "MR Finals"
-  | "GP Qualifications"
-  | "GP Finals"
-  | "Overall Ranking";
+  | 'Main Hub'
+  | 'Parameters'
+  | 'TT Qualifications'
+  | 'TT Finals'
+  | 'TT for Scoub'
+  | 'BM Qualifications'
+  | 'BM Finals'
+  | 'MR Qualifications'
+  | 'MR Finals'
+  | 'GP Qualifications'
+  | 'GP Finals'
+  | 'Overall Ranking';
 
 /**
  * One cell mutation against a template worksheet.
@@ -43,12 +43,12 @@ export type CdmSheetName =
  *   bracket borders/fills survive in regions the event does not use.
  */
 export type CdmCellOp =
-  | { op: "number"; value: number }
-  | { op: "inlineString"; value: string }
-  | { op: "clearValue" }
-  | { op: "overwriteNumber"; value: number }
-  | { op: "overwriteString"; value: string }
-  | { op: "strip" };
+  | { op: 'number'; value: number }
+  | { op: 'inlineString'; value: string }
+  | { op: 'clearValue' }
+  | { op: 'overwriteNumber'; value: number }
+  | { op: 'overwriteString'; value: string }
+  | { op: 'strip' };
 
 export type CdmCellWrite = CdmCellOp & {
   sheet: CdmSheetName;
@@ -136,6 +136,14 @@ export interface CdmTTPhaseSuddenDeathRound {
   results: unknown; // CourseResult[] once resolved: [{playerId, timeMs}]
 }
 
+/** Immutable KO entrant label captured when the finals/playoff is generated. */
+export interface CdmFinalsSeedSnapshotEntry {
+  seed: number;
+  originalSeed: number;
+  playerId: string;
+  player: CdmPlayer;
+}
+
 /** Everything the generator needs; assembled by the export route from prisma. */
 export interface CdmTournamentData {
   name: string;
@@ -148,6 +156,9 @@ export interface CdmTournamentData {
   gpMatches: CdmMatch[];
   ttEntries: CdmTTEntry[];
   ttPhaseRounds: CdmTTPhaseRound[];
+  bmFinalsSeedSnapshot?: CdmFinalsSeedSnapshotEntry[];
+  mrFinalsSeedSnapshot?: CdmFinalsSeedSnapshotEntry[];
+  gpFinalsSeedSnapshot?: CdmFinalsSeedSnapshotEntry[];
 }
 
-export type CdmVersusMode = "bm" | "mr" | "gp";
+export type CdmVersusMode = 'bm' | 'mr' | 'gp';

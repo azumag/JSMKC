@@ -557,12 +557,12 @@ describe('Finals Route Factory', () => {
         const fixedPairs = [
           [1, 16],
           [8, 9],
-          [5, 12],
           [4, 13],
+          [5, 12],
+          [2, 15],
+          [7, 10],
           [3, 14],
           [6, 11],
-          [7, 10],
-          [2, 15],
         ];
         structure.slice(0, 8).forEach((match, index) => {
           match.player1Seed = fixedPairs[index][0];
@@ -582,23 +582,15 @@ describe('Finals Route Factory', () => {
     // exercise the real routing/mapping semantics end-to-end. Seeds 17-24 in
     // R1 and BYE seeds 13-16 in R2 (a bye winner keeps their own seed number)
     // per the CDM 2025 official results workbook.
-    mockGeneratePlayoffStructure.mockImplementation((_count: number, groupCount: 2 | 3 | 4 = 3) => {
-      const r1Pairs =
-        groupCount === 2
-          ? [
-              [23, 22],
-              [19, 18],
-              [17, 20],
-              [21, 24],
-            ]
-          : [
-              [17, 24],
-              [20, 21],
-              [18, 23],
-              [19, 22],
-            ];
-      const byeSeeds = groupCount === 2 ? [13, 16, 15, 14] : [16, 13, 15, 14];
-      const upperSeeds = groupCount === 2 ? [16, 12, 14, 10] : byeSeeds;
+    mockGeneratePlayoffStructure.mockImplementation((_count: number, _groupCount: 2 | 3 | 4 = 3) => {
+      const r1Pairs = [
+        [17, 24],
+        [20, 21],
+        [18, 23],
+        [19, 22],
+      ];
+      const byeSeeds = [16, 13, 15, 14];
+      const upperSeeds = byeSeeds;
       return [
         ...r1Pairs.map(([player1Seed, player2Seed], index) => ({
           matchNumber: index + 1,
@@ -718,6 +710,7 @@ describe('Finals Route Factory', () => {
 
       (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
         if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        if (typeof args?.where?.stage === 'object') return Promise.resolve([]);
         return Promise.resolve(mockMatches);
       });
 
@@ -751,6 +744,7 @@ describe('Finals Route Factory', () => {
       const mockMatches = Array.from({ length: 31 }, (_, i) => createMockMatch({ matchNumber: i + 1 }));
       (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
         if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        if (typeof args?.where?.stage === 'object') return Promise.resolve([]);
         return Promise.resolve(mockMatches);
       });
 
@@ -772,6 +766,7 @@ describe('Finals Route Factory', () => {
       const mockMatches = [createMockMatch()];
       (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
         if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        if (typeof args?.where?.stage === 'object') return Promise.resolve([]);
         return Promise.resolve(mockMatches);
       });
 
@@ -794,6 +789,234 @@ describe('Finals Route Factory', () => {
       expect(json.data.bracketSize).toBe(8);
       expect(json.data.phase).toBe('finals');
       expect(json.data.playoffComplete).toBe(false);
+    });
+
+    it('keeps qualification seeds after a manual opening-slot swap', async () => {
+      const qualifications = Array.from({ length: 8 }, (_, index) => ({
+        id: `q${index + 1}`,
+        playerId: `p${index + 1}`,
+        group: null,
+        score: 8 - index,
+        points: 8 - index,
+        player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
+      }));
+      qualifications[0].score = -1;
+      qualifications[7].score = 99;
+      (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        bmQualificationConfirmed: false,
+        mrQualificationConfirmed: false,
+        gpQualificationConfirmed: false,
+        /* This was captured when the bracket was generated. The ranking below
+         * is intentionally different, proving GET no longer re-seeds an
+         * already published KO bracket after a ranking correction. */
+        bmFinalsSeedSnapshot: qualifications.map((qualification, index) => ({
+          seed: index + 1,
+          originalSeed: index + 1,
+          playerId: qualification.playerId,
+          player: qualification.player,
+        })),
+      });
+      const swappedMatch = createMockMatch({
+        matchNumber: 1,
+        round: 'winners_qf',
+        player1Id: 'p8',
+        player2Id: 'p1',
+        player1: qualifications[7].player,
+        player2: qualifications[0].player,
+        slotOverrideAt: '2026-07-22T00:00:00.000Z',
+      });
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve([swappedMatch]);
+      });
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.seededPlayers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: 'p1', originalSeed: 1 }),
+          expect.objectContaining({ playerId: 'p8', originalSeed: 8 }),
+        ]),
+      );
+    });
+
+    it('does not persist a replacement seed snapshot for a legacy standard slot override', async () => {
+      const swappedMatch = createMockMatch({
+        matchNumber: 1,
+        round: 'winners_qf',
+        player1Id: 'p8',
+        player2Id: 'p1',
+        player1: { id: 'p8', name: 'Player 8' },
+        player2: { id: 'p1', name: 'Player 1' },
+        slotOverrideAt: '2026-07-22T00:00:00.000Z',
+      });
+      (prisma.bMQualification as any).findMany.mockResolvedValue(
+        Array.from({ length: 8 }, (_, index) => ({
+          id: `q${index + 1}`,
+          playerId: `p${index + 1}`,
+          group: null,
+          score: 8 - index,
+          points: 8 - index,
+          player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
+        })),
+      );
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve([swappedMatch]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(17);
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects an incomplete legacy standard opening round without a seed snapshot', async () => {
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve([createMockMatch({ matchNumber: 1, round: 'winners_qf' })]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(17);
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual(expect.objectContaining({ code: 'FINALS_SEED_REPAIR_REQUIRED' }));
+    });
+
+    it('re-resolves an old partial snapshot instead of treating its 12 rows as authoritative', async () => {
+      const opening = [
+        createMockMatch({ matchNumber: 1, round: 'winners_qf', player1Id: 'p1', player2Id: 'p8' }),
+        createMockMatch({ matchNumber: 2, round: 'winners_qf', player1Id: 'p4', player2Id: 'p5' }),
+        createMockMatch({ matchNumber: 3, round: 'winners_qf', player1Id: 'p2', player2Id: 'p7' }),
+        createMockMatch({ matchNumber: 4, round: 'winners_qf', player1Id: 'p3', player2Id: 'p6' }),
+      ];
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        bmQualificationConfirmed: false,
+        mrQualificationConfirmed: false,
+        gpQualificationConfirmed: false,
+        bmFinalsSeedSnapshot: Array.from({ length: 12 }, (_, index) => ({
+          seed: index + 13,
+          originalSeed: index + 13,
+          playerId: `old-${index + 13}`,
+          player: { id: `old-${index + 13}` },
+        })),
+      });
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve(opening);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(17);
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.tournament.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            bmFinalsSeedSnapshot: expect.arrayContaining([
+              expect.objectContaining({ originalSeed: 1, playerId: 'p1' }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('does not persist Top-24 Phase-1-only fallback seeds', async () => {
+      const qualifications = ['A', 'B'].flatMap((group) =>
+        Array.from({ length: 12 }, (_, index) => {
+          const rank = index + 1;
+          const playerId = `${group}${rank}`;
+          return {
+            id: `qual-${playerId}`,
+            playerId,
+            group,
+            score: 100 - rank,
+            points: 100 - rank,
+            player: { id: playerId, name: playerId },
+          };
+        }),
+      );
+      const playoff = Array.from({ length: 8 }, (_, index) =>
+        createMockMatch({
+          matchNumber: index + 1,
+          stage: 'playoff',
+          round: index < 4 ? 'playoff_r1' : 'playoff_r2',
+          completed: false,
+        }),
+      );
+      (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff' || typeof args?.where?.stage === 'object') return Promise.resolve(playoff);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
+    });
+
+    it('does not persist Top-24 fallback seeds after a legacy manual slot adjustment', async () => {
+      const qualifications = ['A', 'B'].flatMap((group) =>
+        Array.from({ length: 12 }, (_, index) => {
+          const rank = index + 1;
+          const playerId = `${group}${rank}`;
+          return {
+            id: `qual-${playerId}`,
+            playerId,
+            group,
+            score: 100 - rank,
+            points: 100 - rank,
+            player: { id: playerId, name: playerId },
+          };
+        }),
+      );
+      const playoff = Array.from({ length: 8 }, (_, index) =>
+        createMockMatch({
+          matchNumber: index + 1,
+          stage: 'playoff',
+          round: index < 4 ? 'playoff_r1' : 'playoff_r2',
+          completed: false,
+          ...(index === 0 ? { slotOverrideAt: '2026-07-22T00:00:00.000Z' } : {}),
+        }),
+      );
+      (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff' || typeof args?.where?.stage === 'object') return Promise.resolve(playoff);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
     });
 
     it('should return empty bracketStructure when matches array is empty', async () => {
@@ -939,6 +1162,7 @@ describe('Finals Route Factory', () => {
     it('should parse tournamentId from params correctly', async () => {
       (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
         if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        if (typeof args?.where?.stage === 'object') return Promise.resolve([]);
         return Promise.resolve([createMockMatch()]);
       });
 
@@ -992,6 +1216,7 @@ describe('Finals Route Factory', () => {
 
       (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
         if (args?.where?.stage === 'playoff') return Promise.resolve(mockPlayoffMatches);
+        if (typeof args?.where?.stage === 'object') return Promise.resolve([]);
         return Promise.resolve(mockFinalsMatches);
       });
       /* No finals matches exist → phase should be 'playoff' */
@@ -1145,6 +1370,18 @@ describe('Finals Route Factory', () => {
       ];
 
       (prisma.bMMatch as any).findMany.mockResolvedValue(mockPlayoffMatches);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        bmQualificationConfirmed: false,
+        mrQualificationConfirmed: false,
+        gpQualificationConfirmed: false,
+        bmFinalsSeedSnapshot: Array.from({ length: 24 }, (_, index) => ({
+          seed: index + 1,
+          originalSeed: index + 1,
+          playerId: `p${index + 1}`,
+          player: { id: `p${index + 1}` },
+        })),
+      });
       /* No finals matches exist → phase should be 'playoff' */
       (prisma.bMMatch as any).count.mockResolvedValue(0);
       mockPaginate.mockResolvedValue({
@@ -1183,6 +1420,7 @@ describe('Finals Route Factory', () => {
 
       (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
         if (args?.where?.stage === 'playoff') return Promise.resolve(mockPlayoffMatches);
+        if (typeof args?.where?.stage === 'object') return Promise.resolve([]);
         return Promise.resolve(mockFinalsMatches);
       });
       /* Finals matches exist → phase should be 'finals' */
@@ -1780,22 +2018,20 @@ describe('Finals Route Factory', () => {
       expect(createManyCall.data).toHaveLength(8);
       const createdStages = createManyCall.data.map((d: { stage: string }) => d.stage);
       expect(createdStages.every((s: string) => s === 'playoff')).toBe(true);
-      /* Fixed two-group paper layout. Slots are global labels 13-24, but
-       * placement is the handwritten B8,B7,A8,A7,... order rather than a
-       * cross-group score sort. */
+      /* The two-group displayed-seed order alternates A/B by group rank. */
       expect(json.data.playoffSeededPlayers.map((p: { playerId: string }) => p.playerId)).toEqual([
-        'player-19',
+        'player-6',
         'player-18',
         'player-7',
-        'player-6',
-        'player-20',
-        'player-10',
-        'player-21',
-        'player-11',
-        'player-9',
-        'player-23',
+        'player-19',
         'player-8',
+        'player-20',
+        'player-9',
+        'player-21',
+        'player-10',
         'player-22',
+        'player-11',
+        'player-23',
       ]);
       expect(mockGeneratePlayoffStructure).toHaveBeenCalledWith(12, 2);
       /* Per issue #454 the barrage pool = each group's rank 7..12.
@@ -2178,20 +2414,24 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).deleteMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals' },
       });
-      /* Verify the fixed two-group barrage-to-Upper remap. */
+      /* A barrage survivor retains its R2 bye seed as the Upper slot. */
       const seededPlayers: Array<{ seed: number; playerId: string }> = json.data.seededPlayers;
       const seedMap = new Map(seededPlayers.map((p) => [p.seed, p.playerId]));
       expect(seedMap.get(16)).toBe('player-19'); /* From playoff R2 match 5 */
-      expect(seedMap.get(12)).toBe('player-6'); /* From playoff R2 match 6 */
-      expect(seedMap.get(14)).toBe('player-7'); /* From playoff R2 match 7 */
-      expect(seedMap.get(10)).toBe('player-18'); /* From playoff R2 match 8 */
-      /* Direct-advance qualifiers occupy the fixed handwritten Upper slots. */
+      expect(seedMap.get(13)).toBe('player-6'); /* From playoff R2 match 6 */
+      expect(seedMap.get(15)).toBe('player-7'); /* From playoff R2 match 7 */
+      expect(seedMap.get(14)).toBe('player-18'); /* From playoff R2 match 8 */
+      /* Direct-advance qualifiers occupy the official alternating Upper slots. */
       expect(seedMap.get(1)).toBe('player-0'); /* A1 */
-      expect(seedMap.get(2)).toBe('player-14'); /* B3 */
-      expect(seedMap.get(3)).toBe('player-12'); /* B1 */
-      expect(seedMap.get(11)).toBe('player-16'); /* B5 */
-      expect(seedMap.get(13)).toBe('player-17'); /* B6 */
-      expect(seedMap.get(15)).toBe('player-5'); /* A6 */
+      expect(seedMap.get(2)).toBe('player-12'); /* B1 */
+      expect(seedMap.get(3)).toBe('player-1'); /* A2 */
+      expect(seedMap.get(11)).toBe('player-5'); /* A6 */
+      expect(seedMap.get(12)).toBe('player-17'); /* B6 */
+      /* A barrage winner is routed to Upper slot 16, but keeps the displayed
+       * qualification seed assigned by the fixed two-group barrage layout. */
+      expect(seededPlayers.find((player) => player.seed === 16)).toEqual(
+        expect.objectContaining({ playerId: 'player-19', originalSeed: 16 }),
+      );
 
       const structure = json.data.bracketStructure.filter((m: { round: string }) => m.round === 'winners_r1');
       const pairLabels = structure.map((m: { player1Seed: number; player2Seed: number }) => [
@@ -2201,11 +2441,11 @@ describe('Finals Route Factory', () => {
       expect(pairLabels).toEqual([
         ['player-0', 'player-19'] /* A1 vs barrage(seed16) */,
         ['player-15', 'player-4'] /* B4 vs A5 */,
-        ['player-13', 'player-6'] /* B2 vs barrage(seed12) */,
+        ['player-13', 'player-6'] /* B2 vs barrage(seed13) */,
         ['player-2', 'player-17'] /* A3 vs B6 */,
-        ['player-12', 'player-7'] /* B1 vs barrage(seed14) */,
+        ['player-12', 'player-7'] /* B1 vs barrage(seed15) */,
         ['player-3', 'player-16'] /* A4 vs B5 */,
-        ['player-1', 'player-18'] /* A2 vs barrage(seed10) */,
+        ['player-1', 'player-18'] /* A2 vs barrage(seed14) */,
         ['player-14', 'player-5'] /* B3 vs A6 */,
       ]);
     });
@@ -2631,9 +2871,9 @@ describe('Finals Route Factory', () => {
         json.data.seededPlayers.map((p: { seed: number; playerId: string }) => [p.seed, p.playerId]),
       );
       expect(seedMap.get(16)).toBe('winner-16');
-      expect(seedMap.get(12)).toBe('winner-13');
-      expect(seedMap.get(14)).toBe('winner-15');
-      expect(seedMap.get(10)).toBe('winner-14');
+      expect(seedMap.get(13)).toBe('winner-13');
+      expect(seedMap.get(15)).toBe('winner-15');
+      expect(seedMap.get(14)).toBe('winner-14');
     });
 
     it('GET Top-24 preview warns when a completed playoff R2 winner cannot be resolved', async () => {

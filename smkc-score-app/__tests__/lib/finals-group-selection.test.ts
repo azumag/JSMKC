@@ -45,7 +45,7 @@ function buildQuals(
 }
 
 describe('selectFinalsEntrantsByGroup', () => {
-  describe('2-group case (A=14, B=13, fixed CDM paper layout)', () => {
+  describe('2-group case (A=14, B=13, fixed alternating displayed seeds)', () => {
     const quals = buildQuals({ A: 14, B: 13 });
     const result = selectFinalsEntrantsByGroup(quals);
 
@@ -53,37 +53,37 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(2);
     });
 
-    it('places direct entrants in the handwritten two-group Upper Bracket slots', () => {
+    it('places direct entrants in the official two-group Upper seed order', () => {
       expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
         [1, 'A1'],
-        [2, 'B3'],
-        [3, 'B1'],
-        [4, 'A3'],
-        [5, 'B2'],
-        [6, 'A4'],
-        [7, 'A2'],
+        [2, 'B1'],
+        [3, 'A2'],
+        [4, 'B2'],
+        [5, 'A3'],
+        [6, 'B3'],
+        [7, 'A4'],
         [8, 'B4'],
         [9, 'A5'],
-        [11, 'B5'],
-        [13, 'B6'],
-        [15, 'A6'],
+        [10, 'B5'],
+        [11, 'A6'],
+        [12, 'B6'],
       ]);
     });
 
-    it('places barrage entrants in the handwritten two-group playoff slots with labels 13-24', () => {
+    it('places barrage entrants in the official two-group displayed-seed order', () => {
       expect(result.barrageSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
-        [13, 'B8'],
+        [13, 'A7'],
         [14, 'B7'],
         [15, 'A8'],
-        [16, 'A7'],
-        [17, 'B9'],
-        [18, 'A11'],
-        [19, 'B10'],
-        [20, 'A12'],
-        [21, 'A10'],
-        [22, 'B12'],
-        [23, 'A9'],
-        [24, 'B11'],
+        [16, 'B8'],
+        [17, 'A9'],
+        [18, 'B9'],
+        [19, 'A10'],
+        [20, 'B10'],
+        [21, 'A11'],
+        [22, 'B11'],
+        [23, 'A12'],
+        [24, 'B12'],
       ]);
     });
 
@@ -268,31 +268,31 @@ describe('selectFinalsEntrantsByGroup', () => {
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1',
-        'B3',
         'B1',
-        'A3',
-        'B2',
-        'A4',
         'A2',
+        'B2',
+        'A3',
+        'B3',
+        'A4',
         'B4',
         'A5',
         'B5',
-        'B6',
         'A6',
+        'B6',
       ]);
       expect(result.barrageSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
-        'B8',
+        'A7',
         'B7',
         'A8',
-        'A7',
-        'B9',
-        'A11',
-        'B10',
-        'A12',
-        'A10',
-        'B12',
+        'B8',
         'A9',
+        'B9',
+        'A10',
+        'B10',
+        'A11',
         'B11',
+        'A12',
+        'B12',
       ]);
     });
   });
@@ -472,17 +472,17 @@ describe('selectFinalsEntrantsByGroup', () => {
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.directSeeds.map(({ qualification }) => qualification.playerId)).toEqual([
         'A1',
-        'B3',
         'B1',
-        'A3',
-        'B2',
-        'A4',
         'A2',
+        'B2',
+        'A3',
+        'B3',
+        'A4',
         'B4',
         'A5',
         'B5',
-        'B6',
         'A6',
+        'B6',
       ]);
     });
   });

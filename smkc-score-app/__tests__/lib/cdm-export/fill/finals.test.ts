@@ -231,7 +231,7 @@ describe('buildFinalsWrites — faithful 24-player bracket', () => {
   });
 });
 
-describe('buildFinalsWrites — faithful two-group paper layout', () => {
+describe('buildFinalsWrites — official two-group displayed-seed layout', () => {
   const player = (token: string): CdmPlayer => ({ id: token, name: token, nickname: token });
   const match = (
     matchNumber: number,
@@ -278,15 +278,15 @@ describe('buildFinalsWrites — faithful two-group paper layout', () => {
     })),
   );
 
-  it('reconstructs the fixed direct and barrage seed-list order', () => {
+  it('reconstructs the fixed alternating direct and barrage seed-list order', () => {
     const data = emptyData({ bmMatches: matches, bmQualifications: qualifications });
     const map = indexWrites(buildFinalsWrites(data, 'bm'), 'BM Finals');
 
     expectString(map, 'B3', 'A1');
-    expectString(map, 'B4', 'B3');
-    expectString(map, 'B14', 'A6');
-    expectString(map, 'B15', 'B8');
-    expectString(map, 'B26', 'B11');
+    expectString(map, 'B4', 'B1');
+    expectString(map, 'B14', 'B6');
+    expectString(map, 'B15', 'A7');
+    expectString(map, 'B26', 'B12');
   });
 });
 
@@ -611,16 +611,13 @@ describe('buildFinalsWrites — GP points and per-mode sheet targeting', () => {
 });
 
 /* ----------------------------------------------------------------- *
- * GP seed list is a formula spill — never written (regression for the bug
- * found during route integration: GP Finals B3 is an array-spill XLOOKUP with
- * ref="B3:B26", so B3:B26 are formula/spill cells, unlike BM/MR's typed seeds).
- * buildFinalsWrites returns writes (it never throws — the patcher does), so the
- * only way to lock this in at the unit level is to positively assert the seed
- * list is untouched for GP while it IS written/cleared for BM/MR.
+ * GP's original seed list is a qualification-derived spill. KO export replaces
+ * it with canonical bracket entrants because later qualification corrections
+ * must not rewrite a published KO seed.
  * ----------------------------------------------------------------- */
 
-describe('buildFinalsWrites — GP seed list is a formula spill (never written)', () => {
-  it('writes GP scores but emits no write to the B3:B26 seed list', () => {
+describe('buildFinalsWrites — GP seed list is canonical KO data', () => {
+  it('writes GP scores and replaces the B3:B26 spill with the bracket seed list', () => {
     const map = indexWrites(
       buildFinalsWrites(emptyData({ gpMatches: build24WinnersAndPlayoff('gp') }), 'gp'),
       'GP Finals',
@@ -628,19 +625,17 @@ describe('buildFinalsWrites — GP seed list is a formula spill (never written)'
     // Scores still land (GP uses points1/points2): winners_r1[1] bp8/bp9 -> V9/V10.
     expectNumber(map, 'V9', 4);
     expectNumber(map, 'V10', 1);
-    // The seed list (B3:B26) is a formula spill on GP and must stay untouched.
-    for (let row = 3; row <= 26; row++) expectUntouched(map, `B${row}`);
+    expect(map.get('B3')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B1' }));
+    expect(map.get('B26')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B24' }));
   });
 
-  it('does not clear the GP seed list on the no-finals path but still clears typed seeds', () => {
+  it('removes the GP seed list on the no-finals path and still clears typed seeds', () => {
     const map = indexWrites(buildFinalsWrites(emptyData(), 'gp'), 'GP Finals');
-    // The GP skip is scoped to the seed list — NOT an early return: the typed
-    // seed cells are still cleared so a blank GP bracket recomputes cleanly.
-    for (let row = 3; row <= 26; row++) expectUntouched(map, `B${row}`);
+    for (let row = 3; row <= 26; row++) expect(map.get(`B${row}`)).toEqual(expect.objectContaining({ op: 'strip' }));
     expectClear(map, 'S5'); // a typed winners_r1 seed cell is still cleared.
   });
 
-  it('contrast: BM/MR DO write the typed seed list while GP does not', () => {
+  it('writes seed lists for BM/MR and the canonical overwrite list for GP', () => {
     const bm = indexWrites(
       buildFinalsWrites(emptyData({ bmMatches: build24WinnersAndPlayoff('bm') }), 'bm'),
       'BM Finals',
@@ -650,7 +645,7 @@ describe('buildFinalsWrites — GP seed list is a formula spill (never written)'
       'GP Finals',
     );
     expectString(bm, 'B3', 'B1'); // BM seed list is a typed input.
-    expectUntouched(gp, 'B3'); // GP seed list is a formula spill.
+    expect(gp.get('B3')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B1' }));
   });
 });
 

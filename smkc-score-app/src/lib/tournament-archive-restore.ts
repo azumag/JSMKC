@@ -40,6 +40,9 @@ const RESTORED_TOURNAMENT_SELECT = {
   bmQualificationConfirmed: true,
   mrQualificationConfirmed: true,
   gpQualificationConfirmed: true,
+  bmFinalsSeedSnapshot: true,
+  mrFinalsSeedSnapshot: true,
+  gpFinalsSeedSnapshot: true,
   publicModes: true,
   createdAt: true,
   updatedAt: true,
@@ -82,6 +85,25 @@ function normalizeDateFields(record: ArchivedRecord): ArchivedRecord {
     }
   }
   return normalized;
+}
+
+function remapFinalsSeedSnapshot(
+  value: unknown,
+  playerIds: Map<string, string>,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
+  if (!Array.isArray(value)) return Prisma.JsonNull;
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const row = { ...(entry as ArchivedRecord) };
+    if (typeof row.playerId !== 'string') return [];
+    row.playerId = remapPlayerId(row.playerId, playerIds);
+    if (row.player && typeof row.player === 'object') {
+      const player = { ...(row.player as ArchivedRecord) };
+      if (typeof player.id === 'string') player.id = remapPlayerId(player.id, playerIds);
+      row.player = player;
+    }
+    return [row];
+  }) as Prisma.InputJsonValue;
 }
 
 function normalizeNullableJsonFields(record: ArchivedRecord, fields: readonly string[]): ArchivedRecord {
@@ -361,6 +383,9 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
           bmQualificationConfirmed: bundle.tournament.bmQualificationConfirmed,
           mrQualificationConfirmed: bundle.tournament.mrQualificationConfirmed,
           gpQualificationConfirmed: bundle.tournament.gpQualificationConfirmed,
+          bmFinalsSeedSnapshot: remapFinalsSeedSnapshot(bundle.tournament.bmFinalsSeedSnapshot, playerIds),
+          mrFinalsSeedSnapshot: remapFinalsSeedSnapshot(bundle.tournament.mrFinalsSeedSnapshot, playerIds),
+          gpFinalsSeedSnapshot: remapFinalsSeedSnapshot(bundle.tournament.gpFinalsSeedSnapshot, playerIds),
           publicModes: [],
           createdAt: asDate(bundle.tournament.createdAt),
           updatedAt: new Date(),

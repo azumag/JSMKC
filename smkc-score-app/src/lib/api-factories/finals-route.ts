@@ -44,6 +44,13 @@ import { getArchivedFinalsPayload, readTournamentArchive } from '@/lib/tournamen
 import { createAuditLog, resolveAuditUserId, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { getFinalsSlotStatus, isFinalsSlotConfirmed, type SlotStatusMatch } from '@/lib/finals-slot-status';
 import type { BracketMatch } from '@/types/bracket';
+import {
+  getFinalsSeedSnapshotField,
+  isCompleteFinalsSeedSnapshot,
+  parseFinalsSeedSnapshot,
+  resolveFinalsSeedSnapshot,
+  type FinalsSeedSnapshotEntry,
+} from '@/lib/finals-seed-snapshot';
 
 /**
  * Bracket size inference thresholds.
@@ -76,7 +83,6 @@ const SLOT_SWAP_TABLE_NAME: Record<string, string> = {
 };
 
 type QualificationConfirmedField = 'bmQualificationConfirmed' | 'mrQualificationConfirmed' | 'gpQualificationConfirmed';
-
 function getQualificationConfirmedField(eventTypeCode: 'bm' | 'mr' | 'gp'): QualificationConfirmedField {
   return `${eventTypeCode}QualificationConfirmed` as QualificationConfirmedField;
 }
@@ -94,7 +100,10 @@ interface FinalsMatchResultError {
 }
 
 interface SeededFinalsPlayer {
+  /** Structural bracket slot used when generating the match rows. */
   seed: number;
+  /** Qualification seed, preserved when a barrage winner enters another slot. */
+  originalSeed?: number;
   playerId: string;
   player: PublicFinalsPlayer;
   qualificationRankLabel?: string;
@@ -1059,6 +1068,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       seededPlayers.push({
         seed,
+        originalSeed: seed,
         playerId: qualification.playerId,
         player: qualification.player,
         qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
@@ -1066,6 +1076,62 @@ export function createFinalsHandlers(config: FinalsConfig) {
     }
 
     return seededPlayers;
+  }
+
+  /**
+   * Rebuild ordinary finals' original seeds from the confirmed qualification
+   * order, rather than from the current opening-round slot. The latter can be
+   * deliberately changed by the slot-adjustment workflow, while the seed
+   * label must remain the player's qualification seed in every KO round.
+   */
+  async function buildStandardSeededPlayers(
+    tournamentId: string,
+    topN: number,
+    logger: ReturnType<typeof createLogger>,
+  ): Promise<SeededFinalsPlayer[]> {
+    try {
+      const qualifications = await qualModel(prisma).findMany({
+        where: { tournamentId },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
+        orderBy: config.qualificationOrderBy,
+      });
+      const rankedQualifications = await applyFinalsQualificationRanks(model, tournamentId, qualifications);
+      const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
+
+      const seededPlayers = orderQualificationsForFinalsSeeding(rankedQualifications)
+        .slice(0, topN)
+        .flatMap((qualification: { playerId: string; player: unknown }, index: number) => {
+          if (!isPublicFinalsPlayer(qualification.player)) {
+            logger.warn('Finals seed player could not be resolved', {
+              tournamentId,
+              eventTypeCode: config.eventTypeCode,
+              seed: index + 1,
+              playerId: qualification.playerId,
+            });
+            return [];
+          }
+          return [
+            {
+              seed: index + 1,
+              originalSeed: index + 1,
+              playerId: qualification.playerId,
+              player: qualification.player,
+              qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
+            },
+          ];
+        });
+      /* This is display-only compatibility data. A legacy opening-slot swap
+       * makes qualification order insufficient evidence of the original seed,
+       * so only finals-seed-snapshot.ts may persist a structural backfill. */
+      return seededPlayers;
+    } catch (error) {
+      logger.error('Failed to rebuild finals original seeds', {
+        ...getSafeErrorLogFields(error),
+        tournamentId,
+        eventTypeCode: config.eventTypeCode,
+      });
+      return [];
+    }
   }
 
   function hasAutomaticRankTies(
@@ -1210,6 +1276,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     tournamentId: string,
     playoffMatches: Top24FinalsPreviewMatch[],
     logger: ReturnType<typeof createLogger>,
+    snapshot: FinalsSeedSnapshotEntry[] = [],
   ): Promise<{
     bracketStructure: ReturnType<typeof generateBracketStructure>;
     seededPlayers: SeededFinalsPlayer[];
@@ -1236,6 +1303,33 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const selection = selectFinalsEntrantsByGroup<PublicFinalsPlayer | null>(
         rankedQualifications as Top24FinalsQualification[],
       );
+      let seedSnapshot = snapshot;
+      if (seedSnapshot.length === 0) {
+        const directSnapshot = buildDirectSeededPlayers(
+          selection.directSeeds,
+          qualificationRankLabels,
+          tournamentId,
+          logger,
+        );
+        const barrageSnapshot = selection.barrageSeeds.flatMap(({ seed, qualification }) =>
+          isPublicFinalsPlayer(qualification.player)
+            ? [
+                {
+                  seed,
+                  originalSeed: seed,
+                  playerId: qualification.playerId,
+                  player: qualification.player,
+                  qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
+                },
+              ]
+            : [],
+        );
+        seedSnapshot = [...directSnapshot, ...barrageSnapshot] as FinalsSeedSnapshotEntry[];
+        /* This reconstruction exists only to render an old, incomplete
+         * playoff. Persisting it would incorrectly turn current rankings into
+         * historical seeds. Creation and structural backfill own persistence. */
+      }
+      const snapshotByPlayerId = new Map(seedSnapshot.map((entry) => [entry.playerId, entry]));
 
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, selection.groupCount);
       const r2Matches = playoffMatches.filter((m) => m.round === 'playoff_r2');
@@ -1246,13 +1340,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
       const playoffWinnerSeeds: SeededFinalsPlayer[] = resolvedWinners.map(({ upperSeed, winner }) => ({
         seed: upperSeed,
+        originalSeed:
+          snapshotByPlayerId.get(winner.winnerId)?.originalSeed ??
+          selection.barrageSeeds.find(({ qualification }) => qualification.playerId === winner.winnerId)?.seed,
         playerId: winner.winnerId,
         player: winner.winnerPlayer,
         qualificationRankLabel: qualificationRankLabels.get(winner.winnerId),
       }));
 
       const seededPlayers = [
-        ...buildDirectSeededPlayers(selection.directSeeds, qualificationRankLabels, tournamentId, logger),
+        ...(seedSnapshot.length > 0
+          ? seedSnapshot.filter((entry) => entry.originalSeed <= TOP24_QUALIFIER_COUNT - PLAYOFF_ENTRANT_COUNT)
+          : buildDirectSeededPlayers(selection.directSeeds, qualificationRankLabels, tournamentId, logger)),
         ...playoffWinnerSeeds,
       ];
 
@@ -1288,6 +1387,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     // tight. Using per-mode flags (issue #696) prevents BM confirmation from
     // locking MR/GP bracket creation.
     const modeField = getQualificationConfirmedField(config.eventTypeCode);
+    const seedSnapshotField = getFinalsSeedSnapshotField(config.eventTypeCode);
     // Select all three flags explicitly to avoid computed-key type inference issues with Prisma generics.
     let tournament;
     try {
@@ -1296,6 +1396,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         bmQualificationConfirmed: true,
         mrQualificationConfirmed: true,
         gpQualificationConfirmed: true,
+        bmFinalsSeedSnapshot: true,
+        mrFinalsSeedSnapshot: true,
+        gpFinalsSeedSnapshot: true,
       });
     } catch (error) {
       logger.error(config.getErrorMessage, { error, tournamentId: id });
@@ -1313,6 +1416,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
     }
     const tournamentId = tournament.id;
+    const responseSnapshot = parseFinalsSeedSnapshot((tournament as Record<string, unknown>)[seedSnapshotField]);
+    const seedResolution = isCompleteFinalsSeedSnapshot(responseSnapshot)
+      ? { status: 'complete' as const, snapshot: responseSnapshot }
+      : await resolveFinalsSeedSnapshot(tournamentId, config.eventTypeCode);
+    if (seedResolution.status === 'unsafe') {
+      return createErrorResponse(
+        'Original finals seed mapping cannot be safely reconstructed. An administrator must reset and recreate the finals bracket before it can be displayed.',
+        409,
+        'FINALS_SEED_REPAIR_REQUIRED',
+      );
+    }
+    const storedSeededPlayers = seedResolution.snapshot;
 
     try {
       /* Shared playoff data for all GET styles.
@@ -1434,6 +1549,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
           playoffSeededPlayers.push({ seed, ...data });
         }
       }
+      const snapshotPlayoffSeededPlayers = storedSeededPlayers.filter(
+        (entry) => entry.originalSeed >= 13 && entry.originalSeed <= TOP24_QUALIFIER_COUNT,
+      );
+      if (snapshotPlayoffSeededPlayers.length > 0) {
+        playoffSeededPlayers.splice(0, playoffSeededPlayers.length, ...snapshotPlayoffSeededPlayers);
+      }
 
       /* Compute playoff completion flag from DB data so the frontend
        * can show "Create Upper Bracket" even after a page refresh. */
@@ -1452,8 +1573,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
       const phase =
         hasFinals > 0 ? ('finals' as const) : playoffMatches.length > 0 ? ('playoff' as const) : ('finals' as const);
-      const top24FinalsPreview =
-        hasFinals === 0 ? await buildTop24FinalsPreview(tournamentId, playoffMatches, logger) : null;
+      /* The Top-24 mapping is also needed after Phase 2 has created finals:
+       * it is the only durable way to distinguish a barrage winner's
+       * qualification seed from the Upper-Bracket slot they were routed to. */
+      const top24FinalsPreview = await buildTop24FinalsPreview(
+        tournamentId,
+        playoffMatches,
+        logger,
+        storedSeededPlayers,
+      );
 
       /* Normalize GP cup sequences for legacy finals rows before paginating or
        * simple/grouped fetches, so every branch sees the repaired state. */
@@ -1523,6 +1651,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
               ? generateBracketStructure(bracketSize, top24GroupCount)
               : generateBracketStructure(bracketSize)
             : (top24FinalsPreview?.bracketStructure ?? []);
+        const seededPlayers =
+          top24FinalsPreview?.seededPlayers ??
+          (storedSeededPlayers.length > 0
+            ? storedSeededPlayers
+            : result.data.length > 0
+              ? await buildStandardSeededPlayers(tournamentId, bracketSize, logger)
+              : []);
 
         return createSuccessResponse({
           ...result,
@@ -1535,7 +1670,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           playoffStructure,
           playoffSeededPlayers,
           playoffComplete,
-          ...(top24FinalsPreview ? { seededPlayers: top24FinalsPreview.seededPlayers } : {}),
+          ...(seededPlayers.length > 0 ? { seededPlayers } : {}),
         });
       }
 
@@ -1554,7 +1689,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
             ? generateBracketStructure(bracketSize, top24GroupCount)
             : generateBracketStructure(bracketSize)
           : (top24FinalsPreview?.bracketStructure ?? []);
-      const seededPlayers = top24FinalsPreview?.seededPlayers ?? [];
+      const seededPlayers =
+        top24FinalsPreview?.seededPlayers ??
+        (storedSeededPlayers.length > 0
+          ? storedSeededPlayers
+          : matches.length > 0
+            ? await buildStandardSeededPlayers(tournamentId, bracketSize, logger)
+            : []);
 
       if (config.getStyle === 'grouped') {
         const winnersMatches = matches.filter((m: { round?: string }) => m.round?.startsWith('winners_') || false);
@@ -1577,7 +1718,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           playoffSeededPlayers,
           playoffComplete,
           phase,
-          ...(top24FinalsPreview ? { seededPlayers } : {}),
+          ...(seededPlayers.length > 0 ? { seededPlayers } : {}),
         });
       }
 
@@ -1593,7 +1734,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         playoffStructure,
         playoffSeededPlayers,
         playoffComplete,
-        ...(top24FinalsPreview ? { seededPlayers } : {}),
+        ...(seededPlayers.length > 0 ? { seededPlayers } : {}),
       });
     } catch (error) {
       logger.error(config.getErrorMessage, { error, tournamentId });
@@ -1659,6 +1800,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
         await model(prisma).deleteMany({
           where: { tournamentId, stage: { in: ['playoff', 'finals'] } },
         });
+        await (prisma.tournament as unknown as { update: (args: unknown) => Promise<unknown> }).update({
+          where: { id: tournamentId },
+          data: { [getFinalsSeedSnapshotField(config.eventTypeCode)]: null },
+        });
         return createSuccessResponse(
           {
             message: 'Bracket reset',
@@ -1716,10 +1861,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const seededPlayers = selectedQualifications.map((q: { playerId: string; player: unknown }, index: number) => ({
         seed: index + 1,
+        originalSeed: index + 1,
         playerId: q.playerId,
         player: q.player,
         qualificationRankLabel: qualificationRankLabels.get(q.playerId),
       }));
+
+      await (prisma.tournament as unknown as { update: (args: unknown) => Promise<unknown> }).update({
+        where: { id: tournamentId },
+        data: { [getFinalsSeedSnapshotField(config.eventTypeCode)]: seededPlayers },
+      });
 
       /*
        * Bulk-insert bracket matches (issue #420). Replaces a sequential
@@ -1929,6 +2080,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
           await matchModel(prisma).deleteMany({
             where: { tournamentId, stage: 'finals' },
           });
+          await (prisma.tournament as unknown as { update: (args: unknown) => Promise<unknown> }).update({
+            where: { id: tournamentId },
+            data: { [getFinalsSeedSnapshotField(config.eventTypeCode)]: null },
+          });
         }
         const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, selection.groupCount);
         const playoffMrAssignments = config.assignMrCoursesByRound
@@ -1945,10 +2100,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
          * group-count layout, matching generatePlayoffStructure() directly. */
         const playoffSeededPlayers = selection.barrageSeeds.map(({ seed, qualification }) => ({
           seed,
+          originalSeed: seed,
           playerId: qualification.playerId,
           player: qualification.player,
           qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
         }));
+        const originalSeedSnapshot = [
+          ...buildDirectSeededPlayers(selection.directSeeds, qualificationRankLabels, tournamentId, logger),
+          ...playoffSeededPlayers,
+        ];
+
+        await (prisma.tournament as unknown as { update: (args: unknown) => Promise<unknown> }).update({
+          where: { id: tournamentId },
+          data: { [getFinalsSeedSnapshotField(config.eventTypeCode)]: originalSeedSnapshot },
+        });
 
         /*
          * Bulk-insert playoff matches (#703). Replaces an 8-sequential-create
@@ -2054,6 +2219,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
               {
                 playerId: winner.winnerId,
                 player: winner.winnerPlayer,
+                originalSeed: selection.barrageSeeds.find(
+                  ({ qualification }) => qualification.playerId === winner.winnerId,
+                )?.seed,
               },
             ] as const,
         ),
@@ -2082,6 +2250,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
         return {
           seed: upperSeed,
+          originalSeed: winner.originalSeed,
           playerId: winner.playerId,
           player: winner.player,
           qualificationRankLabel: qualificationRankLabels.get(winner.playerId),

@@ -14,8 +14,7 @@
  *   Each group contributes: Top 1..perGroup direct, Top (perGroup+1)..(2*perGroup) barrage.
  *
  * Seed assignment is intentionally different by group count:
- *   - 2 groups use the fixed CDM paper-layout token maps below. A balanced
- *     bracket and same-group Round-1 avoidance are both possible, so actual
+ *   - 2 groups use the fixed alternating A/B displayed-seed map below. Actual
  *     cross-group WDL statistics must not move those placements.
  *   - 3 groups use the dynamic bucket order from
  *     docs/qualification-combined-ranking.md §2-§3. A fixed layout cannot
@@ -25,10 +24,10 @@
  *     official fixed placement map.
  *
  * Example (2 groups, A=14, B=13):
- *   direct Upper slots: 1:A1 2:B3 3:B1 4:A3 5:B2 6:A4
- *                       7:A2 8:B4 9:A5 11:B5 13:B6 15:A6
- *   barrage slots 13-24: B8, B7, A8, A7, B9, A11,
- *                         B10, A12, A10, B12, A9, B11
+ *   direct Upper slots: 1:A1 2:B1 3:A2 4:B2 5:A3 6:B3
+ *                       7:A4 8:B4 9:A5 10:B5 11:A6 12:B6
+ *   barrage slots 13-24: A7, B7, A8, B8, A9, B9,
+ *                         A10, B10, A11, B11, A12, B12
  *
  * Caller contract: `allQualifications` must already be ordered per-group by final
  * ranking (score, tiebreakers, H2H). Group bucketing preserves caller-provided order.
@@ -63,32 +62,32 @@ const TOTAL_FINALS_SLOTS = 12;
 
 export const TWO_GROUP_DIRECT_UPPER_SEEDS = [
   { seed: 1, token: 'A1' },
-  { seed: 2, token: 'B3' },
-  { seed: 3, token: 'B1' },
-  { seed: 4, token: 'A3' },
-  { seed: 5, token: 'B2' },
-  { seed: 6, token: 'A4' },
-  { seed: 7, token: 'A2' },
+  { seed: 2, token: 'B1' },
+  { seed: 3, token: 'A2' },
+  { seed: 4, token: 'B2' },
+  { seed: 5, token: 'A3' },
+  { seed: 6, token: 'B3' },
+  { seed: 7, token: 'A4' },
   { seed: 8, token: 'B4' },
   { seed: 9, token: 'A5' },
-  { seed: 11, token: 'B5' },
-  { seed: 13, token: 'B6' },
-  { seed: 15, token: 'A6' },
+  { seed: 10, token: 'B5' },
+  { seed: 11, token: 'A6' },
+  { seed: 12, token: 'B6' },
 ] as const;
 
 const TWO_GROUP_BARRAGE_TOKENS = [
-  'B8',
+  'A7',
   'B7',
   'A8',
-  'A7',
-  'B9',
-  'A11',
-  'B10',
-  'A12',
-  'A10',
-  'B12',
+  'B8',
   'A9',
+  'B9',
+  'A10',
+  'B10',
+  'A11',
   'B11',
+  'A12',
+  'B12',
 ] as const;
 
 /**

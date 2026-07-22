@@ -92,6 +92,9 @@ export type TournamentArchiveBundle = {
     gpQualificationConfirmed: boolean;
     createdAt: string | Date;
     updatedAt: string | Date;
+    bmFinalsSeedSnapshot?: unknown;
+    mrFinalsSeedSnapshot?: unknown;
+    gpFinalsSeedSnapshot?: unknown;
   };
   allPlayers: ArchivePlayer[];
   modes: {
@@ -348,6 +351,19 @@ export function getArchivedFinalsPayload(
   mode: 'bm' | 'mr' | 'gp',
   style: 'grouped' | 'simple' | 'paginated',
 ) {
+  const snapshotField = `${mode}FinalsSeedSnapshot` as const;
+  const seededPlayers = Array.isArray(bundle.tournament[snapshotField])
+    ? bundle.tournament[snapshotField].filter(
+        (entry): entry is { seed: number; originalSeed: number; playerId: string; player: ArchivePlayer } =>
+          Boolean(
+            entry &&
+            typeof entry === 'object' &&
+            typeof (entry as { seed?: unknown }).seed === 'number' &&
+            typeof (entry as { originalSeed?: unknown }).originalSeed === 'number' &&
+            typeof (entry as { playerId?: unknown }).playerId === 'string',
+          ),
+      )
+    : [];
   const allMatches = bundle.modes[mode].matches ?? [];
   const matches = allMatches.filter((match) => match.stage === 'finals');
   const playoffMatches = allMatches.filter((match) => match.stage === 'playoff');
@@ -378,7 +394,8 @@ export function getArchivedFinalsPayload(
     phase,
     playoffMatches,
     playoffStructure,
-    playoffSeededPlayers: [],
+    seededPlayers,
+    playoffSeededPlayers: seededPlayers.filter((entry) => entry.originalSeed >= 13 && entry.originalSeed <= 24),
     playoffComplete,
     archived: true,
   };
@@ -501,6 +518,9 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
       bmQualificationConfirmed: true,
       mrQualificationConfirmed: true,
       gpQualificationConfirmed: true,
+      bmFinalsSeedSnapshot: true,
+      mrFinalsSeedSnapshot: true,
+      gpFinalsSeedSnapshot: true,
       createdAt: true,
       updatedAt: true,
     },

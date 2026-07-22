@@ -381,4 +381,23 @@ describe('tournament archive', () => {
     expect(payload.losersMatches).toHaveLength(1);
     expect(payload.grandFinalMatches).toHaveLength(1);
   });
+
+  it('returns immutable KO seed labels from an archived tournament snapshot', () => {
+    const archive = makeArchive({
+      tournament: {
+        ...makeArchive().tournament,
+        bmFinalsSeedSnapshot: [
+          {
+            seed: 16,
+            originalSeed: 17,
+            playerId: 'player-17',
+            player: { id: 'player-17', name: 'Barrage', nickname: 'Barrage', country: null, noCamera: false },
+          },
+        ],
+      },
+    });
+
+    const payload = getArchivedFinalsPayload(archive, 'bm', 'grouped');
+    expect(payload.seededPlayers).toEqual([expect.objectContaining({ playerId: 'player-17', originalSeed: 17 })]);
+  });
 });

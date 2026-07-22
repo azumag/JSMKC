@@ -29,6 +29,7 @@ function makeArchive(): TournamentArchiveBundle {
       bmQualificationConfirmed: true,
       mrQualificationConfirmed: false,
       gpQualificationConfirmed: false,
+      bmFinalsSeedSnapshot: [{ seed: 16, originalSeed: 17, playerId: 'player-1', player }],
       createdAt: '2026-06-01T00:00:00.000Z',
       updatedAt: '2026-07-11T00:00:00.000Z',
     },
@@ -214,6 +215,7 @@ describe('restoreTournamentArchiveForReopen', () => {
     expect(prisma.tournament.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: 'archived-1',
+        bmFinalsSeedSnapshot: [expect.objectContaining({ seed: 16, originalSeed: 17, playerId: 'player-1' })],
         slug: 'archived-one',
         status: 'active',
         publicModes: [],

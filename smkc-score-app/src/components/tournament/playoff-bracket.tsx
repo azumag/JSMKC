@@ -115,10 +115,19 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
   const seededEntry2 = bracketMatch.player2Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
-  /* The numeric seed (now the real overall qualifying seed 1-24, see
-   * double-elimination.ts) is always preferred over the group+rank label. */
-  const seedLabel1 = bracketMatch.player1Seed ?? seededEntry1?.qualificationRankLabel;
-  const seedLabel2 = bracketMatch.player2Seed ?? seededEntry2?.qualificationRankLabel;
+  const originalSeedByPlayerId = new Map(
+    seededPlayers?.map((entry) => [entry.playerId, entry.originalSeed ?? entry.seed]),
+  );
+  const seedLabel1 =
+    (match?.player1Id ? originalSeedByPlayerId.get(match.player1Id) : undefined) ??
+    seededEntry1?.originalSeed ??
+    seededEntry1?.seed ??
+    bracketMatch.player1Seed;
+  const seedLabel2 =
+    (match?.player2Id ? originalSeedByPlayerId.get(match.player2Id) : undefined) ??
+    seededEntry2?.originalSeed ??
+    seededEntry2?.seed ??
+    bracketMatch.player2Seed;
 
   const player1: Player | undefined = match?.player1 || seededEntry1?.player;
   const player2: Player | undefined = match?.player2 || seededEntry2?.player;
@@ -198,7 +207,7 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player1Seed && <span className="text-xs text-muted-foreground">[{seedLabel1}]</span>}
+          {!isPlayer1TBD && seedLabel1 != null && <span className="text-xs text-muted-foreground">[{seedLabel1}]</span>}
           <PlayerName
             player={player1}
             locale={locale}
@@ -232,9 +241,7 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player2Seed !== undefined && bracketMatch.player2Seed > 0 && (
-            <span className="text-xs text-muted-foreground">[{seedLabel2}]</span>
-          )}
+          {!isPlayer2TBD && seedLabel2 != null && <span className="text-xs text-muted-foreground">[{seedLabel2}]</span>}
           <PlayerName
             player={player2}
             locale={locale}
@@ -293,8 +300,11 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
 
   const isTBD = (matchNumber: number, playerPosition: 1 | 2) => {
     const match = getMatch(matchNumber);
-    if (!match) return true;
     const bracketMatch = getBracketMatch(matchNumber);
+    if (!match) {
+      const seed = playerPosition === 1 ? bracketMatch?.player1Seed : bracketMatch?.player2Seed;
+      return !seededPlayers?.some((entry) => entry.seed === seed);
+    }
 
     if (playerPosition === 1) {
       /* Player1 is TBD only when both seeds are explicitly assigned AND the

@@ -11,27 +11,21 @@
  * - Completed state with final score and winner
  */
 
-"use client";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+'use client';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
-import { useState, useEffect, useCallback, use } from "react";
-import { useTranslations } from "next-intl";
-import { useSession } from "next-auth/react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { POLLING_INTERVAL } from "@/lib/constants";
-import { usePolling } from "@/lib/hooks/usePolling";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { useState, useEffect, useCallback, use } from 'react';
+import { useTranslations } from 'next-intl';
+import { useSession } from 'next-auth/react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { POLLING_INTERVAL } from '@/lib/constants';
+import { usePolling } from '@/lib/hooks/usePolling';
+import { UpdateIndicator } from '@/components/ui/update-indicator';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
 
-import type { Player } from "@/lib/types";
+import type { Player } from '@/lib/types';
 
 /** BM Match data with player relations */
 interface BMMatch {
@@ -44,6 +38,8 @@ interface BMMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  player1OriginalSeed?: number;
+  player2OriginalSeed?: number;
   /** Pre-assigned courses for this match (§5.4, §6.3). Set at qualification setup. */
   assignedCourses?: string[];
   player1: Player;
@@ -60,11 +56,7 @@ interface Tournament {
  * Match detail page component for individual BM matches (view only).
  * Uses React 19's `use()` hook to unwrap async params (tournamentId + matchId).
  */
-export default function MatchDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string; matchId: string }>;
-}) {
+export default function MatchDetailPage({ params }: { params: Promise<{ id: string; matchId: string }> }) {
   const { id: tournamentId, matchId } = use(params);
 
   const tMatch = useTranslations('match');
@@ -105,8 +97,12 @@ export default function MatchDetailPage({
   }, [tournamentId, matchId]);
 
   /* Poll at the standard interval for real-time match updates */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling } = usePolling(
-    fetchMatchData, {
+  const {
+    data: pollData,
+    isLoading: pollLoading,
+    lastUpdated,
+    isPolling,
+  } = usePolling(fetchMatchData, {
     interval: POLLING_INTERVAL,
   });
 
@@ -163,9 +159,15 @@ export default function MatchDetailPage({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex justify-between items-center">
-              <span>{match.player1.nickname}</span>
+              <span>
+                {match.player1OriginalSeed != null ? `[${match.player1OriginalSeed}] ` : ''}
+                {match.player1.nickname}
+              </span>
               <span className="text-2xl font-mono">vs</span>
-              <span>{match.player2.nickname}</span>
+              <span>
+                {match.player2OriginalSeed != null ? `[${match.player2OriginalSeed}] ` : ''}
+                {match.player2.nickname}
+              </span>
             </CardTitle>
             {/* Show score badge if match is completed */}
             {match.completed && (
@@ -179,9 +181,7 @@ export default function MatchDetailPage({
           {/* §5.4: BM always uses battle courses 1-4 in order */}
           {!match.completed && (
             <CardContent className="pt-0 pb-3">
-              <p className="text-xs text-muted-foreground">
-                {tBm('battleCourseOrder')}
-              </p>
+              <p className="text-xs text-muted-foreground">{tBm('battleCourseOrder')}</p>
             </CardContent>
           )}
         </Card>
@@ -199,8 +199,8 @@ export default function MatchDetailPage({
                 {match.score1 >= 3
                   ? tMatch('playerWins', { player: match.player1.nickname })
                   : match.score2 >= 3
-                  ? tMatch('playerWins', { player: match.player2.nickname })
-                  : tMatch('draw')}
+                    ? tMatch('playerWins', { player: match.player2.nickname })
+                    : tMatch('draw')}
               </p>
             </CardContent>
           </Card>
@@ -212,45 +212,31 @@ export default function MatchDetailPage({
             <CardContent className="py-6 text-center space-y-4">
               <p className="text-muted-foreground">{tMatch('matchInProgress')}</p>
               {/* Show CTA only when session is loaded to avoid loading flash */}
-               {sessionStatus !== 'loading' && (
-                 !session ? (
-                   <p className="text-sm text-muted-foreground">
-                     {tMatch('signInToReportScores')}
-                   </p>
-                 ) : session.user?.playerId ? (
-                   <div className="space-y-2">
-                     <p className="text-sm text-muted-foreground">
-                       {tMatch('scoreEntryGuidance')}
-                     </p>
-                     <Button asChild>
-                       <a href={`/tournaments/${tournamentId}/bm/participant`}>
-                         {tMatch('goToScoreEntry')}
-                       </a>
-                     </Button>
-                   </div>
-                 ) : session.user?.role === 'admin' ? (
-                   <div className="space-y-2">
-                     <p className="text-sm text-muted-foreground">
-                       {tMatch('adminSharedPageGuidance')}
-                     </p>
-                     <Button asChild>
-                       <a href={`/tournaments/${tournamentId}/bm`}>
-                         {tMatch('openParticipantScoreEntry')}
-                       </a>
-                     </Button>
-                   </div>
-                 ) : null
-               )}
+              {sessionStatus !== 'loading' &&
+                (!session ? (
+                  <p className="text-sm text-muted-foreground">{tMatch('signInToReportScores')}</p>
+                ) : session.user?.playerId ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">{tMatch('scoreEntryGuidance')}</p>
+                    <Button asChild>
+                      <a href={`/tournaments/${tournamentId}/bm/participant`}>{tMatch('goToScoreEntry')}</a>
+                    </Button>
+                  </div>
+                ) : session.user?.role === 'admin' ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">{tMatch('adminSharedPageGuidance')}</p>
+                    <Button asChild>
+                      <a href={`/tournaments/${tournamentId}/bm`}>{tMatch('openParticipantScoreEntry')}</a>
+                    </Button>
+                  </div>
+                ) : null)}
             </CardContent>
           </Card>
         )}
 
         {/* Back navigation link */}
         <div className="text-center">
-          <a
-            href={`/tournaments/${tournamentId}/bm`}
-            className="text-sm text-muted-foreground hover:underline"
-          >
+          <a href={`/tournaments/${tournamentId}/bm`} className="text-sm text-muted-foreground hover:underline">
             {tMatch('backToBM')}
           </a>
         </div>

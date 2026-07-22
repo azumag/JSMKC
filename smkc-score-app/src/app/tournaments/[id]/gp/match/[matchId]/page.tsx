@@ -1,5 +1,5 @@
-"use client";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+'use client';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 /**
  * Grand Prix Match Detail / Share Page
@@ -20,34 +20,30 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * - Real-time polling at the standard interval
  */
 
-import { useState, useEffect, useCallback, useRef, use } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useCallback, useRef, use } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
-import { formatGpPosition } from "@/lib/gp-utils";
-import { usePolling } from "@/lib/hooks/usePolling";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { createLogger } from "@/lib/client-logger";
-import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
-import { getSharedMatchAccessState } from "@/lib/shared-match-access-state";
+  COURSE_INFO,
+  CUP_SUBSTITUTIONS,
+  GP_POSITION_OPTIONS,
+  POLLING_INTERVAL,
+  TOTAL_GP_RACES,
+  getDriverPoints,
+  type CourseAbbr,
+} from '@/lib/constants';
+import { formatGpPosition } from '@/lib/gp-utils';
+import { usePolling } from '@/lib/hooks/usePolling';
+import { UpdateIndicator } from '@/components/ui/update-indicator';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { createLogger } from '@/lib/client-logger';
+import { useMatchReportAuth } from '@/lib/hooks/useMatchReportAuth';
+import { getSharedMatchAccessState } from '@/lib/shared-match-access-state';
 
-import type { Player } from "@/lib/types";
+import type { Player } from '@/lib/types';
 
 const logger = createLogger({ serviceName: 'tournaments-gp-match' });
 
@@ -60,6 +56,8 @@ interface GPMatch {
   points1: number;
   points2: number;
   completed: boolean;
+  player1OriginalSeed?: number;
+  player2OriginalSeed?: number;
   cup?: string;
   player1: Player;
   player2: Player;
@@ -93,16 +91,12 @@ interface Tournament {
 
 /** Race entry in the result form: course + positions for both players */
 interface Race {
-  course: CourseAbbr | "";
+  course: CourseAbbr | '';
   position1: number | null;
   position2: number | null;
 }
 
-export default function GPMatchPage({
-  params,
-}: {
-  params: Promise<{ id: string; matchId: string }>;
-}) {
+export default function GPMatchPage({ params }: { params: Promise<{ id: string; matchId: string }> }) {
   const { id: tournamentId, matchId } = use(params);
   /* i18n translation hooks for match, GP, and common namespaces */
   const tMatch = useTranslations('match');
@@ -114,16 +108,15 @@ export default function GPMatchPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
-  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } =
-    useMatchReportAuth(match);
+  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } = useMatchReportAuth(match);
 
   const [submitting, setSubmitting] = useState(false);
   /* GP cup has 5 races (§7.2), each with course and position selections */
   const [races, setRaces] = useState<Race[]>(
-    Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
+    Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })),
   );
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   /**
    * Active cup for course filtering (§7.1 substitution rule).
    * Star→Mushroom, Special→Flower substitutions are allowed.
@@ -158,8 +151,13 @@ export default function GPMatchPage({
   }, [tournamentId, matchId]);
 
   /* Poll for match updates at the standard interval */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
-    fetchMatchData, {
+  const {
+    data: pollData,
+    isLoading: pollLoading,
+    lastUpdated,
+    isPolling,
+    refetch,
+  } = usePolling(fetchMatchData, {
     interval: POLLING_INTERVAL,
   });
 
@@ -183,16 +181,22 @@ export default function GPMatchPage({
 
     const existingRaces =
       match.races ??
-      (selectedPlayer === 1 ? match.player1ReportedRaces : selectedPlayer === 2 ? match.player2ReportedRaces : undefined);
+      (selectedPlayer === 1
+        ? match.player1ReportedRaces
+        : selectedPlayer === 2
+          ? match.player2ReportedRaces
+          : undefined);
 
     if (!activeCup) {
       initializedCupRef.current = null;
       if (existingRaces && existingRaces.length === TOTAL_GP_RACES) {
-        setRaces(existingRaces.map((race) => ({
-          course: race.course as CourseAbbr,
-          position1: race.position1,
-          position2: race.position2,
-        })));
+        setRaces(
+          existingRaces.map((race) => ({
+            course: race.course as CourseAbbr,
+            position1: race.position1,
+            position2: race.position2,
+          })),
+        );
       }
       return;
     }
@@ -209,8 +213,16 @@ export default function GPMatchPage({
 
       return cupCourses.map((course, index) => ({
         course,
-        position1: shouldHydrateExistingCup ? existingRaces[index].position1 : previousCup === activeCup ? (prev[index]?.position1 ?? null) : null,
-        position2: shouldHydrateExistingCup ? existingRaces[index].position2 : previousCup === activeCup ? (prev[index]?.position2 ?? null) : null,
+        position1: shouldHydrateExistingCup
+          ? existingRaces[index].position1
+          : previousCup === activeCup
+            ? (prev[index]?.position1 ?? null)
+            : null,
+        position2: shouldHydrateExistingCup
+          ? existingRaces[index].position2
+          : previousCup === activeCup
+            ? (prev[index]?.position2 ?? null)
+            : null,
       }));
     });
   }, [activeCup, match, selectedPlayer]);
@@ -226,36 +238,31 @@ export default function GPMatchPage({
     }
 
     /* Validate 5 unique courses are selected (1 full cup = 5 courses) */
-    const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
+    const usedCourses = races.map((r) => r.course).filter((c) => c !== '');
     if (usedCourses.length !== TOTAL_GP_RACES || new Set(usedCourses).size !== TOTAL_GP_RACES) {
       setError(tMatch('selectUniqueCourses'));
       return;
     }
 
     /* Validate all positions are filled */
-    const incompleteRaces = races.filter(
-      (r) => r.position1 === null || r.position2 === null
-    );
+    const incompleteRaces = races.filter((r) => r.position1 === null || r.position2 === null);
     if (incompleteRaces.length > 0) {
       setError(tMatch('completeAllPositions'));
       return;
     }
 
     setSubmitting(true);
-    setError("");
+    setError('');
 
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/gp/match/${matchId}/report`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reportingPlayer: selectedPlayer,
-            races,
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp/match/${matchId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportingPlayer: selectedPlayer,
+          races,
+        }),
+      });
 
       if (response.ok) {
         setSubmitted(true);
@@ -265,7 +272,7 @@ export default function GPMatchPage({
         setError(data.error || tMatch('submitResult'));
       }
     } catch (err) {
-      logger.error("Failed to submit result:", { error: err });
+      logger.error('Failed to submit result:', { error: err });
       setError(tMatch('submitResult'));
     } finally {
       setSubmitting(false);
@@ -282,14 +289,8 @@ export default function GPMatchPage({
   const fmtPos = (position: number) => formatGpPosition(position, locale, tCommon('gameOver'));
 
   /* Calculate running totals for the points preview using centralized driver points */
-  const totalPoints1 = races.reduce(
-    (sum, r) => sum + (r.position1 ? getDriverPoints(r.position1) : 0),
-    0
-  );
-  const totalPoints2 = races.reduce(
-    (sum, r) => sum + (r.position2 ? getDriverPoints(r.position2) : 0),
-    0
-  );
+  const totalPoints1 = races.reduce((sum, r) => sum + (r.position1 ? getDriverPoints(r.position1) : 0), 0);
+  const totalPoints2 = races.reduce((sum, r) => sum + (r.position2 ? getDriverPoints(r.position2) : 0), 0);
   const accessState = getSharedMatchAccessState({
     canReport,
     isSessionLoading,
@@ -325,9 +326,7 @@ export default function GPMatchPage({
         {/* Match header with tournament name and polling indicator */}
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
-          <p className="text-muted-foreground">
-            {tGp('matchTitle', { number: match.matchNumber })}
-          </p>
+          <p className="text-muted-foreground">{tGp('matchTitle', { number: match.matchNumber })}</p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
           </div>
@@ -337,9 +336,15 @@ export default function GPMatchPage({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex justify-between items-center">
-              <span>{match.player1.nickname}</span>
+              <span>
+                {match.player1OriginalSeed != null ? `[${match.player1OriginalSeed}] ` : ''}
+                {match.player1.nickname}
+              </span>
               <span className="text-2xl font-mono">vs</span>
-              <span>{match.player2.nickname}</span>
+              <span>
+                {match.player2OriginalSeed != null ? `[${match.player2OriginalSeed}] ` : ''}
+                {match.player2.nickname}
+              </span>
             </CardTitle>
             {/* Show active cup with §7.1 substitution toggle when not yet completed */}
             {match.cup && !match.completed && (
@@ -378,7 +383,7 @@ export default function GPMatchPage({
 
         {/* Not authorized message - shown to users who are not match participants.
             Guarded by !isSessionLoading to avoid flash during session fetch. */}
-        {accessState === "unauthorized" && (
+        {accessState === 'unauthorized' && (
           <Card>
             <CardContent className="py-8 text-center">
               <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
@@ -389,171 +394,156 @@ export default function GPMatchPage({
         {/* Result entry form (shown when match is not complete, user is authorized,
             and match is a qualification match — finals scores are entered by admin
             via the /gp/finals bracket page only). */}
-        {!match.completed && !submitted && canReport && !isAdmin && match.stage !== 'finals' && match.stage !== 'playoff' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{tMatch('enterResult')}</CardTitle>
-              <CardDescription>
-                {tMatch('selectIdentityRace')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Player identity selection */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{tMatch('iAm')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={selectedPlayer === 1 ? "default" : "outline"}
-                    className="h-16 text-lg"
-                    onClick={() => setSelectedPlayer(1)}
-                  >
-                    {match.player1.nickname}
-                  </Button>
-                  <Button
-                    variant={selectedPlayer === 2 ? "default" : "outline"}
-                    className="h-16 text-lg"
-                    onClick={() => setSelectedPlayer(2)}
-                  >
-                    {match.player2.nickname}
-                  </Button>
-                </div>
-              </div>
-
-              {selectedPlayer && (
-                <div className="space-y-4">
-                  {/* Live score preview */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium text-center">
-                        {tMatch('currentScore')}
-                      </p>
-                      <p className="text-sm font-medium text-center">
-                        {totalPoints1} - {totalPoints2}
-                      </p>
-                    </div>
+        {!match.completed &&
+          !submitted &&
+          canReport &&
+          !isAdmin &&
+          match.stage !== 'finals' &&
+          match.stage !== 'playoff' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{tMatch('enterResult')}</CardTitle>
+                <CardDescription>{tMatch('selectIdentityRace')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Player identity selection */}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{tMatch('iAm')}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={selectedPlayer === 1 ? 'default' : 'outline'}
+                      className="h-16 text-lg"
+                      onClick={() => setSelectedPlayer(1)}
+                    >
+                      {match.player1.nickname}
+                    </Button>
+                    <Button
+                      variant={selectedPlayer === 2 ? 'default' : 'outline'}
+                      className="h-16 text-lg"
+                      onClick={() => setSelectedPlayer(2)}
+                    >
+                      {match.player2.nickname}
+                    </Button>
                   </div>
+                </div>
 
-                  {/* 5 race entries with course selection and 1st-8th position selectors */}
-                  <div className="space-y-3">
-                    {races.map((race, index) => (
-                      <div key={index} className="border rounded-lg p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium w-20">
-                            {tMatch('raceN', { n: index + 1 })}
-                          </span>
-                          {activeCup ? (
-                            <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                              {race.course ? getCourseName(race.course) : "—"}
-                            </span>
-                          ) : (
-                            <Select
-                              value={race.course}
-                              onValueChange={(value) => {
-                                const newRaces = [...races];
-                                newRaces[index].course = value as CourseAbbr;
-                                setRaces(newRaces);
-                              }}
-                            >
-                              <SelectTrigger className="flex-1">
-                                <SelectValue placeholder={tCommon('selectCourse')} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {COURSE_INFO.map((course) => (
-                                  <SelectItem key={course.abbr} value={course.abbr}>
-                                    {course.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">
-                              {match.player1.nickname}
-                            </p>
-                            <Select
-                              value={race.position1?.toString() || ""}
-                              onValueChange={(value) => {
-                                const newRaces = [...races];
-                                newRaces[index].position1 =
-                                  value === "" ? null : parseInt(value, 10);
-                                setRaces(newRaces);
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder={tCommon('position')} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {GP_POSITION_OPTIONS.map((position) => (
-                                  <SelectItem key={`p1-${index}-${position}`} value={position.toString()}>
-                                    {fmtPos(position)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">
-                              {match.player2.nickname}
-                            </p>
-                            <Select
-                              value={race.position2?.toString() || ""}
-                              onValueChange={(value) => {
-                                const newRaces = [...races];
-                                newRaces[index].position2 =
-                                  value === "" ? null : parseInt(value, 10);
-                                setRaces(newRaces);
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder={tCommon('position')} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {GP_POSITION_OPTIONS.map((position) => (
-                                  <SelectItem key={`p2-${index}-${position}`} value={position.toString()}>
-                                    {fmtPos(position)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
+                {selectedPlayer && (
+                  <div className="space-y-4">
+                    {/* Live score preview */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-medium text-center">{tMatch('currentScore')}</p>
+                        <p className="text-sm font-medium text-center">
+                          {totalPoints1} - {totalPoints2}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+
+                    {/* 5 race entries with course selection and 1st-8th position selectors */}
+                    <div className="space-y-3">
+                      {races.map((race, index) => (
+                        <div key={index} className="border rounded-lg p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium w-20">{tMatch('raceN', { n: index + 1 })}</span>
+                            {activeCup ? (
+                              <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                                {race.course ? getCourseName(race.course) : '—'}
+                              </span>
+                            ) : (
+                              <Select
+                                value={race.course}
+                                onValueChange={(value) => {
+                                  const newRaces = [...races];
+                                  newRaces[index].course = value as CourseAbbr;
+                                  setRaces(newRaces);
+                                }}
+                              >
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue placeholder={tCommon('selectCourse')} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {COURSE_INFO.map((course) => (
+                                    <SelectItem key={course.abbr} value={course.abbr}>
+                                      {course.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">{match.player1.nickname}</p>
+                              <Select
+                                value={race.position1?.toString() || ''}
+                                onValueChange={(value) => {
+                                  const newRaces = [...races];
+                                  newRaces[index].position1 = value === '' ? null : parseInt(value, 10);
+                                  setRaces(newRaces);
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder={tCommon('position')} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {GP_POSITION_OPTIONS.map((position) => (
+                                    <SelectItem key={`p1-${index}-${position}`} value={position.toString()}>
+                                      {fmtPos(position)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">{match.player2.nickname}</p>
+                              <Select
+                                value={race.position2?.toString() || ''}
+                                onValueChange={(value) => {
+                                  const newRaces = [...races];
+                                  newRaces[index].position2 = value === '' ? null : parseInt(value, 10);
+                                  setRaces(newRaces);
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder={tCommon('position')} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {GP_POSITION_OPTIONS.map((position) => (
+                                    <SelectItem key={`p2-${index}-${position}`} value={position.toString()}>
+                                      {fmtPos(position)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
+                    <Button
+                      className="w-full h-14 text-lg"
+                      onClick={handleSubmit}
+                      disabled={submitting || !canSubmit(races)}
+                    >
+                      {submitting ? tMatch('submitting') : tMatch('submitResult')}
+                    </Button>
                   </div>
-
-                  {error && (
-                    <p className="text-red-500 text-sm text-center">{error}</p>
-                  )}
-
-                  <Button
-                    className="w-full h-14 text-lg"
-                    onClick={handleSubmit}
-                    disabled={submitting || !canSubmit(races)}
-                  >
-                    {submitting ? tMatch('submitting') : tMatch('submitResult')}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                )}
+              </CardContent>
+            </Card>
+          )}
 
         {/* Submission confirmation (shown after successful submit) */}
         {submitted && !match.completed && (
           <Card>
             <CardContent className="py-8 text-center">
               <div className="text-4xl mb-4">✓</div>
-              <h3 className="text-lg font-semibold mb-2">
-                {tMatch('resultSubmitted')}
-              </h3>
-              <p className="text-muted-foreground">
-                {tMatch('waitingConfirm')}
-              </p>
-              <p className="text-sm mt-4">
-                {tMatch('yourReport', { score1: totalPoints1, score2: totalPoints2 })}
-              </p>
+              <h3 className="text-lg font-semibold mb-2">{tMatch('resultSubmitted')}</h3>
+              <p className="text-muted-foreground">{tMatch('waitingConfirm')}</p>
+              <p className="text-sm mt-4">{tMatch('yourReport', { score1: totalPoints1, score2: totalPoints2 })}</p>
             </CardContent>
           </Card>
         )}
@@ -562,9 +552,7 @@ export default function GPMatchPage({
         {match.completed && match.races && (
           <Card>
             <CardHeader>
-              <CardTitle>
-                {tMatch('cupRaceResults', { cup: match.cup ?? '' })}
-              </CardTitle>
+              <CardTitle>{tMatch('cupRaceResults', { cup: match.cup ?? '' })}</CardTitle>
               <CardDescription>
                 {tMatch('finalScore', { score1: match.points1, score2: match.points2 })}
               </CardDescription>
@@ -574,8 +562,7 @@ export default function GPMatchPage({
                 {match.races.map((race, index) => (
                   <div key={index} className="border rounded-lg p-4">
                     <h3 className="font-medium mb-3">
-                      {tMatch('raceN', { n: index + 1 })}:{" "}
-                      {getCourseName(race.course as CourseAbbr)}
+                      {tMatch('raceN', { n: index + 1 })}: {getCourseName(race.course as CourseAbbr)}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       {(() => {
@@ -584,40 +571,28 @@ export default function GPMatchPage({
 
                         return (
                           <>
-                      <div
-                        className={`p-3 rounded-lg ${
-                          player1Ahead
-                            ? "bg-green-500/20 border border-green-500"
-                            : "bg-muted"
-                        }`}
-                      >
-                        <p className="text-sm text-muted-foreground">
-                          {match.player1.nickname}
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {fmtPos(race.position1)}
-                        </p>
-                        <p className="text-sm font-bold text-green-600">
-                          {tMatch('pts', { points: race.points1 })}
-                        </p>
-                      </div>
-                      <div
-                        className={`p-3 rounded-lg ${
-                          player2Ahead
-                            ? "bg-green-500/20 border border-green-500"
-                            : "bg-muted"
-                        }`}
-                      >
-                        <p className="text-sm text-muted-foreground">
-                          {match.player2.nickname}
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {fmtPos(race.position2)}
-                        </p>
-                        <p className="text-sm font-bold text-green-600">
-                          {tMatch('pts', { points: race.points2 })}
-                        </p>
-                      </div>
+                            <div
+                              className={`p-3 rounded-lg ${
+                                player1Ahead ? 'bg-green-500/20 border border-green-500' : 'bg-muted'
+                              }`}
+                            >
+                              <p className="text-sm text-muted-foreground">{match.player1.nickname}</p>
+                              <p className="text-2xl font-bold">{fmtPos(race.position1)}</p>
+                              <p className="text-sm font-bold text-green-600">
+                                {tMatch('pts', { points: race.points1 })}
+                              </p>
+                            </div>
+                            <div
+                              className={`p-3 rounded-lg ${
+                                player2Ahead ? 'bg-green-500/20 border border-green-500' : 'bg-muted'
+                              }`}
+                            >
+                              <p className="text-sm text-muted-foreground">{match.player2.nickname}</p>
+                              <p className="text-2xl font-bold">{fmtPos(race.position2)}</p>
+                              <p className="text-sm font-bold text-green-600">
+                                {tMatch('pts', { points: race.points2 })}
+                              </p>
+                            </div>
                           </>
                         );
                       })()}
@@ -629,15 +604,11 @@ export default function GPMatchPage({
               <div className="mt-4 pt-4 border-t">
                 <div className="flex justify-center gap-8">
                   <div className="text-center">
-                    <p className="text-sm text-muted-foreground">
-                      {match.player1.nickname}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{match.player1.nickname}</p>
                     <p className="text-3xl font-bold">{tMatch('pts', { points: match.points1 })}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm text-muted-foreground">
-                      {match.player2.nickname}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{match.player2.nickname}</p>
                     <p className="text-3xl font-bold">{tMatch('pts', { points: match.points2 })}</p>
                   </div>
                 </div>
@@ -646,8 +617,8 @@ export default function GPMatchPage({
                 {match.points1 > match.points2
                   ? tMatch('playerWins', { player: match.player1.nickname })
                   : match.points2 > match.points1
-                  ? tMatch('playerWins', { player: match.player2.nickname })
-                  : tMatch('draw')}
+                    ? tMatch('playerWins', { player: match.player2.nickname })
+                    : tMatch('draw')}
               </p>
             </CardContent>
           </Card>
@@ -655,10 +626,7 @@ export default function GPMatchPage({
 
         {/* Back navigation */}
         <div className="text-center">
-          <a
-            href={`/tournaments/${tournamentId}/gp`}
-            className="text-sm text-muted-foreground hover:underline"
-          >
+          <a href={`/tournaments/${tournamentId}/gp`} className="text-sm text-muted-foreground hover:underline">
             {tMatch('backToGP')}
           </a>
         </div>
@@ -672,7 +640,7 @@ export default function GPMatchPage({
  * Used to enable/disable the submit button.
  */
 function canSubmit(races: Race[]): boolean {
-  const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
+  const usedCourses = races.map((r) => r.course).filter((c) => c !== '');
   return (
     usedCourses.length === TOTAL_GP_RACES &&
     new Set(usedCourses).size === TOTAL_GP_RACES &&
