@@ -17,6 +17,10 @@ const REQUIRED_PREVIEW_COLUMNS = [
 const WRANGLER_TIMEOUT_MS = 30_000;
 const DEFAULT_WRANGLER_LOG_PATH = path.join(os.tmpdir(), 'jsmkc-wrangler-preflight.log');
 const WRANGLER_TRANSIENT_STATUS_RETRIES = 1;
+// Cloudflare D1 can reject a compound SELECT even when the visible UNION list
+// is short, because pragma_table_info() expands internally. Keep each remote
+// check to one SELECT so preview E2E can start on large production-like schemas.
+const PREVIEW_SCHEMA_CHECK_BATCH_SIZE = 1;
 
 function buildPreviewSchemaCheckSql(columns = REQUIRED_PREVIEW_COLUMNS) {
   return columns
@@ -166,11 +170,8 @@ function runWranglerSchemaCheck(sql, wranglerEnv) {
   }
 }
 
-function assertPreviewD1Schema(env = process.env) {
-  if (env.E2E_SKIP_PREVIEW_SCHEMA_PREFLIGHT === '1') return;
-
-  const sql = buildPreviewSchemaCheckSql();
-  const wranglerEnv = buildWranglerEnv(env);
+function runPreviewSchemaCheck(columns, env, wranglerEnv) {
+  const sql = buildPreviewSchemaCheckSql(columns);
   const { result, args } = runWranglerSchemaCheck(sql, wranglerEnv);
 
   if (result.error?.code === 'ETIMEDOUT') {
@@ -219,7 +220,24 @@ function assertPreviewD1Schema(env = process.env) {
     );
   }
 
-  const presentColumns = parsePresentColumns(result.stdout);
+  return parsePresentColumns(result.stdout);
+}
+
+function assertPreviewD1Schema(env = process.env) {
+  if (env.E2E_SKIP_PREVIEW_SCHEMA_PREFLIGHT === '1') return;
+
+  const wranglerEnv = buildWranglerEnv(env);
+  const presentColumns = new Set();
+
+  for (let start = 0; start < REQUIRED_PREVIEW_COLUMNS.length; start += PREVIEW_SCHEMA_CHECK_BATCH_SIZE) {
+    const columns = REQUIRED_PREVIEW_COLUMNS.slice(start, start + PREVIEW_SCHEMA_CHECK_BATCH_SIZE);
+    const present = runPreviewSchemaCheck(columns, env, wranglerEnv);
+    // Auth/log setup failures intentionally keep the existing non-blocking
+    // behavior. There is no trustworthy partial schema result in that case.
+    if (!present) return;
+    for (const column of present) presentColumns.add(column);
+  }
+
   const missing = REQUIRED_PREVIEW_COLUMNS.map(({ table, column }) => `${table}.${column}`).filter(
     (label) => !presentColumns.has(label),
   );
@@ -244,6 +262,7 @@ module.exports = {
   isWranglerAuthOrLogFailure,
   isWranglerStdoutAuthError,
   parsePresentColumns,
+  PREVIEW_SCHEMA_CHECK_BATCH_SIZE,
   WRANGLER_TRANSIENT_STATUS_RETRIES,
   WRANGLER_TIMEOUT_MS,
 };

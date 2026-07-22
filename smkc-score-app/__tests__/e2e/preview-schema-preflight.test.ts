@@ -58,6 +58,7 @@ describe('preview schema preflight', () => {
       { table: 'FinalsRoundSetting', column: 'targetWins' },
     ]);
     expect(preflight.WRANGLER_TIMEOUT_MS).toBe(30_000);
+    expect(preflight.PREVIEW_SCHEMA_CHECK_BATCH_SIZE).toBe(1);
     expect(preflight.buildPreviewSchemaCheckSql()).toContain("pragma_table_info('Tournament')");
     expect(preflight.buildPreviewSchemaCheckSql()).toContain("pragma_table_info('GPMatch')");
   });
@@ -98,6 +99,10 @@ describe('preview schema preflight', () => {
         }),
       }),
     );
+    expect(spawnSyncMock).toHaveBeenCalledTimes(preflight.REQUIRED_PREVIEW_COLUMNS.length);
+    for (const [, args] of spawnSyncMock.mock.calls) {
+      expect(args.at(-1)).not.toContain('UNION ALL');
+    }
   });
 
   it('preserves an explicit Wrangler log path for preview preflight', () => {
