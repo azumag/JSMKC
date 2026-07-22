@@ -767,12 +767,10 @@ describe('Qualification Route Factory', () => {
       expect(response.status).toBe(201);
     });
 
-    it('should update qualification stats for BYE recipients immediately after group setup', async () => {
+    it('should not update qualification stats for BREAK recipients during group setup', async () => {
       /*
-       * When a group has odd players, BREAK is added and BYE matches are auto-completed.
-       * The BYE recipient's qualification stats (wins/points) must be updated right away
-       * so standings reflect the BYE win without waiting for their first real match.
-       * Fix: POST handler recalculates stats for each BYE recipient after match creation.
+       * A BREAK record may be marked completed for schedule visibility, but it is
+       * not a competitive result and cannot create qualification stats.
        */
       const players = [
         { playerId: 'player-1', group: 'A' },
@@ -783,21 +781,6 @@ describe('Qualification Route Factory', () => {
       (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 3 });
       (prisma.bMQualification as any).findMany.mockResolvedValue([]);
       (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 6 });
-      /*
-       * findMany is called once per BYE recipient to fetch their completed matches.
-       * Return a BYE match for each player (simplified - same data for all 3 calls).
-       */
-      (prisma.bMMatch as any).findMany.mockResolvedValue([
-        {
-          id: 'bye-1',
-          player1Id: 'player-1',
-          player2Id: '__BREAK__',
-          score1: 4,
-          score2: 0,
-          completed: true,
-          isBye: true,
-        },
-      ]);
       (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig();
@@ -809,21 +792,8 @@ describe('Qualification Route Factory', () => {
       });
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
-      /*
-       * In a 3-player group (odd), BREAK is added → 4 participants → 3 days × 2 matches.
-       * Each player receives exactly 1 BYE match (player-1, player-2, player-3 all get one).
-       * aggregatePlayerStats must be called once per BYE recipient, and the
-       * qualification rows should be updated in one batched statement.
-       */
-      expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(3);
-      expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
-      const [, payload, tournamentId] = (prisma as any).$executeRawUnsafe.mock.calls[0];
-      expect(tournamentId).toBe('tournament-123');
-      expect(JSON.parse(payload).map((update: { playerId: string }) => update.playerId)).toEqual([
-        'player-1',
-        'player-2',
-        'player-3',
-      ]);
+      expect(config.aggregatePlayerStats).not.toHaveBeenCalled();
+      expect((prisma as any).$executeRawUnsafe).not.toHaveBeenCalled();
     });
 
     it('should sort players by seeding within each group before generating round-robin schedule', async () => {
@@ -1177,13 +1147,13 @@ describe('Qualification Route Factory', () => {
       const createCall = (prisma.gPMatch as any).createMany.mock.calls[0];
       expect(createCall[0].data.length).toBe(6);
 
-      const matchCups = createCall[0].data.map((m: any) => m.cup);
+      const matchCups = createCall[0].data.filter((m: any) => !m.isBye).map((m: any) => m.cup);
       matchCups.forEach((cup: string) => {
         expect(cupList).toContain(cup);
       });
 
       const cupByRound = new Map<number, string>();
-      for (const row of createCall[0].data) {
+      for (const row of createCall[0].data.filter((m: any) => !m.isBye)) {
         const previous = cupByRound.get(row.roundNumber);
         if (previous) {
           expect(row.cup).toBe(previous);
@@ -1202,12 +1172,13 @@ describe('Qualification Route Factory', () => {
         expect(match).toEqual(
           expect.objectContaining({
             player2Id: '__BREAK__',
-            cup: expect.any(String),
+            completed: true,
           }),
         );
-        expect(match).not.toHaveProperty('completed');
-        expect(match).not.toHaveProperty('points1');
-        expect(match).not.toHaveProperty('points2');
+        expect(match.cup).toBeUndefined();
+        expect(match).toHaveProperty('completed', true);
+        expect(match).toHaveProperty('points1', 45);
+        expect(match).toHaveProperty('points2', 0);
       });
       expect(config.aggregatePlayerStats).not.toHaveBeenCalled();
     });
@@ -1725,10 +1696,9 @@ describe('Qualification Route Factory', () => {
     // NOTE: Rate limiting test removed - qualification-route.ts does not implement rate limiting
     // The getServerSideIdentifier import exists but rate limit check is not implemented in the route
 
-    it('should skip player2 recalculation for BYE matches', async () => {
+    it('rejects score input for a BREAK schedule record', async () => {
       const requestBody = { matchId: 'bye-match-1', score1: 4, score2: 0, completed: true };
 
-      /* updateMatch returns a BYE match (isBye: true, player2Id is BREAK) */
       const config = createMockConfig({
         updateMatch: jest.fn().mockResolvedValue({
           match: { id: 'bye-match-1', player1Id: 'player-1', player2Id: '__BREAK__', isBye: true },
@@ -1737,6 +1707,7 @@ describe('Qualification Route Factory', () => {
         }),
       });
 
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ isBye: true });
       (prisma.bMMatch as any).findMany.mockResolvedValue([]);
       (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
 
@@ -1750,22 +1721,9 @@ describe('Qualification Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      expect(response.status).toBe(200);
-
-      /*
-       * For BYE matches, only player1's stats should be recalculated.
-       * player2 (BREAK) has no qualification record, so aggregation is skipped.
-       */
-      expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(1);
-      expect(config.aggregatePlayerStats).toHaveBeenCalledWith(
-        expect.anything(),
-        'player-1',
-        config.calculateMatchResult,
-      );
-      expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
-      const [, payload, tournamentId] = (prisma as any).$executeRawUnsafe.mock.calls[0];
-      expect(tournamentId).toBe('tournament-123');
-      expect(JSON.parse(payload)).toEqual([expect.objectContaining({ playerId: 'player-1' })]);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual(expect.objectContaining({ code: 'NON_COMPETITIVE_MATCH' }));
+      expect(config.updateMatch).not.toHaveBeenCalled();
     });
   });
 

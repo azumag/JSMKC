@@ -78,7 +78,13 @@ jest.mock('next/server', () => {
       this.data = body;
       this.status = options?.status ?? 200;
       const h: Record<string, string> = {};
-      this.headers = { set: (k, v) => { h[k] = v; }, get: (k) => h[k], _store: h };
+      this.headers = {
+        set: (k, v) => {
+          h[k] = v;
+        },
+        get: (k) => h[k],
+        _store: h,
+      };
     }
   }
   (NextResponseMock as unknown as { json: jest.Mock }).json = jest.fn(
@@ -229,10 +235,29 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
   });
 
   describe('TC-2485 / TC-2555: full-build path returns events with Cache-Control: no-store', () => {
+    it('does not pass a legacy BREAK score report to the event builder', async () => {
+      const id = 'break-score-log-tc-3032';
+      mockResolveTournament.mockResolvedValue(makeTournament(id));
+      const now = new Date();
+      stubAggregatesAt(now);
+      stubPhaseInputEmpty();
+      stubFindManyEmpty();
+      mockPrisma.gPMatch.findMany.mockResolvedValue([{ id: 'break-1', isBye: true }]);
+      mockPrisma.scoreEntryLog.findMany.mockResolvedValue([
+        { id: 'log-break', matchId: 'break-1', matchType: 'GP', timestamp: now, player: { nickname: 'Player' } },
+      ]);
+
+      await GET(makeRequest({ since: new Date(now.getTime() - 60_000).toISOString() }), makeParams(id));
+
+      expect(mockBuildOverlayEvents).toHaveBeenCalledWith(expect.objectContaining({ scoreLogs: [], gpMatches: [] }));
+    });
+
     it('returns events from buildOverlayEvents when latestChange > since', async () => {
       const id = 'full-build-tc-2485';
       mockResolveTournament.mockResolvedValue(makeTournament(id));
-      mockBuildOverlayEvents.mockReturnValue([{ id: 'evt-1', type: 'score_reported', title: 'Score', timestamp: new Date().toISOString() }]);
+      mockBuildOverlayEvents.mockReturnValue([
+        { id: 'evt-1', type: 'score_reported', title: 'Score', timestamp: new Date().toISOString() },
+      ]);
 
       // Aggregate returns a timestamp from NOW (after since = 1 hour ago).
       const now = new Date();

@@ -538,14 +538,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       // for consistent GP cup assignment from the shared list.
       let matchSequenceIndex = 0;
       /*
-       * Track players who receive BYE matches so their qualification stats
-       * can be updated immediately after setup (BYE = auto-completed win).
-       * Without this, BYE wins would only appear in standings after the player's
-       * first real match is submitted via PUT (which triggers a full recalculation).
-       */
-      const byeRecipientIds: Set<string> = new Set();
-
-      /*
        * Collect all match payloads in memory, then bulk-insert with a single
        * createMany call (issue #420). For an 8-player single-group BM tournament
        * this turns 28 sequential round-trips into 1 SQL statement.
@@ -578,15 +570,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           const p1Id = m.isBye ? (m.player1Id === BREAK_PLAYER_ID ? m.player2Id : m.player1Id) : m.player1Id;
           const p2Id = m.isBye ? BREAK_PLAYER_ID : m.player2Id;
 
-          /*
-           * §10.5: Assign 4 pre-determined courses to this round from the shuffled list.
-           * BM/MR BYE matches are auto-completed walkovers and skip course/cup assignment.
-           * GP BREAK matches are scoreable solo cups, so they receive the same assignment
-           * as real GP matches and remain pending until actual driver points are entered.
-           */
-          const isScoreableGpBye = config.eventTypeCode === 'gp' && m.isBye;
+          /* BREAK is a schedule record, never a playable qualification match. */
           const isRealMatch = !m.isBye;
-          const shouldAssignPlayableCourse = isRealMatch || isScoreableGpBye;
+          const shouldAssignPlayableCourse = isRealMatch;
           // MR: random per-round course draw shared by every match in that round
           // BM: fixed battle-course list (same for every real match)
           const assignedCourses =
@@ -599,7 +585,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           /* §7.4: Pick a cup from the shuffled list for this round (GP only) */
           const assignedCup =
             shuffledCups && shouldAssignPlayableCourse ? getAssignedCupForRound(shuffledCups, m.day) : undefined;
-          const autoCompleteBye = m.isBye && !isScoreableGpBye;
+          const autoCompleteBye = m.isBye;
 
           matchData.push({
             tournamentId,
@@ -615,17 +601,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ...(assignedCourses ? { assignedCourses } : {}),
             /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
             ...(assignedCup ? { cup: assignedCup } : {}),
-            /*
-             * BM/MR BREAK remains an auto-completed walkover. GP BREAK is a
-             * scoreable solo cup: the player runs alone and records the actual
-             * driver points earned, so it must stay pending until score entry.
-             */
+            /* Keep a resolved schedule result, but exclude it from all aggregates. */
             ...(autoCompleteBye ? { completed: true, ...byeData } : {}),
           });
 
-          if (autoCompleteBye) {
-            byeRecipientIds.add(p1Id);
-          } else {
+          if (!autoCompleteBye) {
             matchSequenceIndex++;
           }
 
@@ -649,42 +629,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         } else {
           await matchModel(prisma).createMany({ data: matchData });
         }
-      }
-
-      /*
-       * Update qualification stats for BYE recipients immediately.
-       * BM/MR BYE matches are auto-completed on creation, so the player's
-       * win must be reflected in standings right away — not deferred until
-       * their first real match is submitted via PUT. GP BREAK matches are
-       * scoreable and intentionally excluded from this immediate update path.
-       *
-       * Implementation: a single findMany retrieves every completed BYE
-       * match touching any recipient, then we partition the result in
-       * memory before issuing the per-player updateMany. This replaces an
-       * earlier N+1 pattern that issued one findMany per BYE recipient
-       * (visible in profiling as duplicated `Match.findMany` queries
-       * during tournament setup).
-       */
-      const byeRecipientList = [...byeRecipientIds];
-      if (byeRecipientList.length > 0) {
-        const allByeMatches = await matchModel(prisma).findMany({
-          where: {
-            tournamentId,
-            stage: 'qualification',
-            completed: true,
-            OR: [{ player1Id: { in: byeRecipientList } }, { player2Id: { in: byeRecipientList } }],
-          },
-        });
-
-        const byeUpdates = byeRecipientList.map((playerId) => {
-          const playerByeMatches = allByeMatches.filter(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (m: any) => m.player1Id === playerId || m.player2Id === playerId,
-          );
-          const stats = config.aggregatePlayerStats(playerByeMatches, playerId, config.calculateMatchResult);
-          return { playerId, ...stats.qualificationData };
-        });
-        await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, byeUpdates);
       }
 
       /* Audit logging if configured.
@@ -781,6 +725,15 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       const putData = { ...parseResult.data!, tournamentId };
+      const existingMatch = await (
+        matchModel(prisma) as unknown as { findUnique: (args: unknown) => Promise<{ isBye: boolean } | null> }
+      ).findUnique({
+        where: { id: putData.matchId, tournamentId },
+        select: { isBye: true },
+      });
+      if (existingMatch?.isBye) {
+        return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
+      }
       const { match, score1OrPoints1, score2OrPoints2 } = await config.updateMatch(prisma, putData);
       const { result1, result2 } = config.calculateMatchResult(score1OrPoints1, score2OrPoints2);
 

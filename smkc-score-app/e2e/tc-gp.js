@@ -27,7 +27,7 @@
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
  *   TC-724  GP combined standings tab shows rows with point headers and ascending ranks
- *   TC-729  GP odd-player BREAK stays scoreable as a solo driver-points cup
+ *   TC-729  GP odd-player BREAK is a schedule-only record
  *   TC-3033 GP manual bracket slot adjustment — same-match swap (issue #3017
  *           Phase 2 UI wiring; API-level, mirrors tc-bm.js TC-3027)
  *
@@ -488,13 +488,13 @@ function makeSoloGpByeRaces(cup = 'Mushroom') {
   }));
 }
 
-/* ───────── TC-729: GP odd-player BREAK is a scoreable solo cup ───────── */
+/* ───────── TC-729: GP odd-player BREAK is schedule-only ───────── */
 async function runTc729(adminPage) {
   let tournamentId = null;
   const players = [];
   try {
-    tournamentId = await uiCreateTournament(adminPage, `GP Solo BREAK ${Date.now()}`, {
-      slug: `gp-solo-break-${Date.now()}`,
+    tournamentId = await uiCreateTournament(adminPage, `GP BREAK schedule ${Date.now()}`, {
+      slug: `gp-break-schedule-${Date.now()}`,
     });
     for (let i = 0; i < 3; i++) {
       const stamp = Date.now();
@@ -505,31 +505,29 @@ async function runTc729(adminPage) {
     const before = await apiFetchGp(adminPage, tournamentId);
     const bye = (before.matches || []).find((m) => m.isBye && m.player2Id === '__BREAK__');
     if (!bye) throw new Error('No GP BREAK match found for odd group');
-    if (!bye.cup) throw new Error('GP BREAK match has no assigned cup');
-
-    const soloRaces = makeSoloGpByeRaces(bye.cup);
-    // race 1: 1st place = 9 pts; races 2-5: 2nd place = 6 pts each.
-    const expectedPoints = 9 + 6 + 6 + 6 + 6;
-    const put = await apiPutGpQualScore(adminPage, tournamentId, bye.id, bye.cup, soloRaces);
+    const put = await apiPutGpQualScore(adminPage, tournamentId, bye.id, 'Mushroom', makeSoloGpByeRaces());
     const after = await apiFetchGp(adminPage, tournamentId);
     const updated = (after.matches || []).find((m) => m.id === bye.id);
     const qualification = (after.qualifications || []).find((q) => q.playerId === bye.player1Id);
 
-    const initiallyPending = bye.completed === false && (bye.points1 ?? 0) === 0 && (bye.points2 ?? 0) === 0;
-    const persisted =
-      put.s === 200 && updated?.completed === true && updated.points1 === expectedPoints && updated.points2 === 0;
-    const standingsUpdated = qualification?.points === expectedPoints && qualification?.wins === 1;
+    const scheduleRecord = bye.completed === true && bye.cup == null && bye.points1 === 45 && bye.points2 === 0;
+    const rejected = put.s === 409 && put.b?.error?.code === 'NON_COMPETITIVE_MATCH';
+    const unchanged = updated?.completed === true && updated.points1 === 45 && updated.points2 === 0;
+    const excludedFromStandings =
+      qualification?.mp === 0 && qualification?.wins === 0 && qualification?.points === 0 && qualification?.score === 0;
 
     log(
       'TC-729',
-      initiallyPending && persisted && standingsUpdated ? 'PASS' : 'FAIL',
-      !initiallyPending
-        ? `initial BREAK completed=${bye.completed} points=${bye.points1}-${bye.points2}`
-        : !persisted
-          ? `PUT=${put.s} updated=${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
-          : !standingsUpdated
-            ? `qualification points=${qualification?.points} wins=${qualification?.wins}`
-            : '',
+      scheduleRecord && rejected && unchanged && excludedFromStandings ? 'PASS' : 'FAIL',
+      !scheduleRecord
+        ? `initial BREAK completed=${bye.completed} cup=${bye.cup} points=${bye.points1}-${bye.points2}`
+        : !rejected
+          ? `PUT=${put.s} code=${put.b?.error?.code}`
+          : !unchanged
+            ? `updated=${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
+            : !excludedFromStandings
+              ? `qualification mp=${qualification?.mp} wins=${qualification?.wins} points=${qualification?.points} score=${qualification?.score}`
+              : '',
     );
   } catch (err) {
     log('TC-729', 'FAIL', err instanceof Error ? err.message : 'GP 729 failed');

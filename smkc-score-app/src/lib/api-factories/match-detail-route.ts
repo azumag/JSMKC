@@ -231,10 +231,13 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
        * by the stage-aware validation below so there's no wasted DB call. */
       const matchMeta = await model(prisma).findUnique({
         where: { id: matchId },
-        select: { stage: true, round: true, tournamentId: true },
+        select: { stage: true, round: true, tournamentId: true, isBye: true },
       });
       if (!matchMeta || (matchMeta.tournamentId && matchMeta.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
+      }
+      if (matchMeta.isBye) {
+        return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
       }
       if (matchMeta?.stage === 'qualification') {
         const lockError = await checkQualificationConfirmed(prisma, matchMeta.tournamentId, config.qualMode);

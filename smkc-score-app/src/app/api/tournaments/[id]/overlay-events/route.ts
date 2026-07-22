@@ -22,24 +22,16 @@
  *     the broadcast use-case.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { createLogger } from "@/lib/logger";
-import { resolveTournament } from "@/lib/tournament-identifier";
-import { createSuccessResponse, createErrorResponse } from "@/lib/error-handling";
-import { buildOverlayEvents } from "@/lib/overlay/events";
-import { withApiTiming } from "@/lib/perf/api-timing";
-import {
-  computeCurrentPhase,
-  computeCurrentPhaseFormat,
-  type ComputeCurrentPhaseInput,
-} from "@/lib/overlay/phase";
-import type {
-  OverlayMatchInput,
-  OverlayMode,
-  OverlayTaChampionStanding,
-} from "@/lib/overlay/types";
-import { normalizeOverlayBroadcastLayout } from "@/lib/overlay/layout";
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { createLogger } from '@/lib/logger';
+import { resolveTournament } from '@/lib/tournament-identifier';
+import { createSuccessResponse, createErrorResponse } from '@/lib/error-handling';
+import { buildOverlayEvents } from '@/lib/overlay/events';
+import { withApiTiming } from '@/lib/perf/api-timing';
+import { computeCurrentPhase, computeCurrentPhaseFormat, type ComputeCurrentPhaseInput } from '@/lib/overlay/phase';
+import type { OverlayMatchInput, OverlayMode, OverlayTaChampionStanding } from '@/lib/overlay/types';
+import { normalizeOverlayBroadcastLayout } from '@/lib/overlay/layout';
 
 /** Initial-poll window when no `since` is supplied. */
 const INITIAL_WINDOW_MS = 30_000;
@@ -112,19 +104,17 @@ export function invalidateOverlayProbe(tournamentId: string): void {
 }
 
 function jsonStringArray(raw: unknown): string[] {
-  return Array.isArray(raw)
-    ? raw.filter((value): value is string => typeof value === "string")
-    : [];
+  return Array.isArray(raw) ? raw.filter((value): value is string => typeof value === 'string') : [];
 }
 
 function timeMsByPlayer(raw: unknown): Map<string, number> {
   const out = new Map<string, number>();
   if (!Array.isArray(raw)) return out;
   for (const result of raw) {
-    if (typeof result !== "object" || result === null) continue;
+    if (typeof result !== 'object' || result === null) continue;
     const playerId = (result as { playerId?: unknown }).playerId;
     const timeMs = (result as { timeMs?: unknown }).timeMs;
-    if (typeof playerId === "string" && typeof timeMs === "number") {
+    if (typeof playerId === 'string' && typeof timeMs === 'number') {
       out.set(playerId, timeMs);
     }
   }
@@ -147,70 +137,69 @@ async function readCurrentPhaseInput(
     taPhase3LatestRound,
   ] = await Promise.all([
     prisma.bMMatch.findFirst({
-      where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
       select: { stage: true, round: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     }),
     prisma.mRMatch.findFirst({
-      where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
       select: { stage: true, round: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     }),
     prisma.gPMatch.findFirst({
-      where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
       select: { stage: true, round: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     }),
     prisma.tTEntry.findFirst({
-      where: { tournamentId, stage: "phase1" },
+      where: { tournamentId, stage: 'phase1' },
       select: { id: true },
     }),
     prisma.tTEntry.findFirst({
-      where: { tournamentId, stage: "phase2" },
+      where: { tournamentId, stage: 'phase2' },
       select: { id: true },
     }),
     prisma.tTEntry.findFirst({
-      where: { tournamentId, stage: "phase3" },
+      where: { tournamentId, stage: 'phase3' },
       select: { id: true },
     }),
     prisma.tTPhaseRound.findFirst({
-      where: { tournamentId, phase: "phase1" },
+      where: { tournamentId, phase: 'phase1' },
       select: { roundNumber: true },
-      orderBy: { roundNumber: "desc" },
+      orderBy: { roundNumber: 'desc' },
     }),
     prisma.tTPhaseRound.findFirst({
-      where: { tournamentId, phase: "phase2" },
+      where: { tournamentId, phase: 'phase2' },
       select: { roundNumber: true },
-      orderBy: { roundNumber: "desc" },
+      orderBy: { roundNumber: 'desc' },
     }),
     prisma.tTPhaseRound.findFirst({
-      where: { tournamentId, phase: "phase3" },
+      where: { tournamentId, phase: 'phase3' },
       select: { roundNumber: true },
-      orderBy: { roundNumber: "desc" },
+      orderBy: { roundNumber: 'desc' },
     }),
   ]);
 
   const latestFinals = (
     [
-      bmLatestFinals && { ...bmLatestFinals, mode: "bm" as OverlayMode },
-      mrLatestFinals && { ...mrLatestFinals, mode: "mr" as OverlayMode },
-      gpLatestFinals && { ...gpLatestFinals, mode: "gp" as OverlayMode },
+      bmLatestFinals && { ...bmLatestFinals, mode: 'bm' as OverlayMode },
+      mrLatestFinals && { ...mrLatestFinals, mode: 'mr' as OverlayMode },
+      gpLatestFinals && { ...gpLatestFinals, mode: 'gp' as OverlayMode },
     ] as Array<{ stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } | null>
   )
     .filter((m): m is { stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
-  let taCurrentPhase: "qualification" | "phase1" | "phase2" | "phase3" =
-    "qualification";
+  let taCurrentPhase: 'qualification' | 'phase1' | 'phase2' | 'phase3' = 'qualification';
   let taLatestPhaseRoundNumber: number | null = null;
   if (taPhase3Entry) {
-    taCurrentPhase = "phase3";
+    taCurrentPhase = 'phase3';
     taLatestPhaseRoundNumber = taPhase3LatestRound?.roundNumber ?? null;
   } else if (taPhase2Entry) {
-    taCurrentPhase = "phase2";
+    taCurrentPhase = 'phase2';
     taLatestPhaseRoundNumber = taPhase2LatestRound?.roundNumber ?? null;
   } else if (taPhase1Entry) {
-    taCurrentPhase = "phase1";
+    taCurrentPhase = 'phase1';
     taLatestPhaseRoundNumber = taPhase1LatestRound?.roundNumber ?? null;
   }
 
@@ -233,15 +222,12 @@ function parseSince(raw: string | null, now: Date, initial: boolean): Date {
   return new Date(Math.max(parsed, lowerBound));
 }
 
-async function handleGET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const logger = createLogger("overlay-events-api");
+async function handleGET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('overlay-events-api');
   const { id } = await params;
   const now = new Date();
-  const initial = request.nextUrl.searchParams.get("initial") === "1";
-  const since = parseSince(request.nextUrl.searchParams.get("since"), now, initial);
+  const initial = request.nextUrl.searchParams.get('initial') === '1';
+  const since = parseSince(request.nextUrl.searchParams.get('since'), now, initial);
 
   try {
     /* Single query: resolve slug/id AND fetch overlay fields (#692).
@@ -264,13 +250,11 @@ async function handleGET(
       id: true,
     });
     if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
     const tournamentId = tournament.id;
     const qualificationConfirmed =
-      tournament.bmQualificationConfirmed ||
-      tournament.mrQualificationConfirmed ||
-      tournament.gpQualificationConfirmed;
+      tournament.bmQualificationConfirmed || tournament.mrQualificationConfirmed || tournament.gpQualificationConfirmed;
 
     /*
      * Early-return path.
@@ -335,8 +319,8 @@ async function handleGET(
           events: [],
           currentPhase,
           currentPhaseFormat,
-          overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
-          overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
+          overlayPlayer1Name: tournament.overlayPlayer1Name ?? '',
+          overlayPlayer2Name: tournament.overlayPlayer2Name ?? '',
           overlayPlayer1NoCamera: tournament.overlayPlayer1NoCamera ?? false,
           overlayPlayer2NoCamera: tournament.overlayPlayer2NoCamera ?? false,
           overlayMatchLabel: tournament.overlayMatchLabel ?? null,
@@ -346,7 +330,7 @@ async function handleGET(
           overlayLayout: normalizeOverlayBroadcastLayout(tournament.overlayLayout),
         });
         if (response instanceof NextResponse) {
-          response.headers.set("Cache-Control", "no-store");
+          response.headers.set('Cache-Control', 'no-store');
         }
         return response;
       }
@@ -358,6 +342,7 @@ async function handleGET(
       stage: true,
       round: true,
       completed: true,
+      isBye: true,
       updatedAt: true,
       createdAt: true,
       score1: true,
@@ -375,6 +360,7 @@ async function handleGET(
       stage: true,
       round: true,
       completed: true,
+      isBye: true,
       updatedAt: true,
       createdAt: true,
       points1: true,
@@ -416,33 +402,36 @@ async function handleGET(
           tournamentId,
           OR: [
             { updatedAt: { gt: since } },
-            { round: { in: ["losers_final", "grand_final", "grand_final_reset"] } },
+            { isBye: true },
+            { round: { in: ['losers_final', 'grand_final', 'grand_final_reset'] } },
           ],
         },
         select: matchSelect,
-        orderBy: { updatedAt: "asc" },
+        orderBy: { updatedAt: 'asc' },
       }),
       prisma.mRMatch.findMany({
         where: {
           tournamentId,
           OR: [
             { updatedAt: { gt: since } },
-            { round: { in: ["losers_final", "grand_final", "grand_final_reset"] } },
+            { isBye: true },
+            { round: { in: ['losers_final', 'grand_final', 'grand_final_reset'] } },
           ],
         },
         select: matchSelect,
-        orderBy: { updatedAt: "asc" },
+        orderBy: { updatedAt: 'asc' },
       }),
       prisma.gPMatch.findMany({
         where: {
           tournamentId,
           OR: [
             { updatedAt: { gt: since } },
-            { round: { in: ["losers_final", "grand_final", "grand_final_reset"] } },
+            { isBye: true },
+            { round: { in: ['losers_final', 'grand_final', 'grand_final_reset'] } },
           ],
         },
         select: gpMatchSelect,
-        orderBy: { updatedAt: "asc" },
+        orderBy: { updatedAt: 'asc' },
       }),
       prisma.tTEntry.findMany({
         where: { tournamentId, updatedAt: { gt: since } },
@@ -456,15 +445,12 @@ async function handleGET(
           lastRecordedTime: true,
           player: { select: { nickname: true } },
         },
-        orderBy: { updatedAt: "asc" },
+        orderBy: { updatedAt: 'asc' },
       }),
       prisma.tTPhaseRound.findMany({
         where: {
           tournamentId,
-          OR: [
-            { createdAt: { gt: since } },
-            { submittedAt: { gt: since } },
-          ],
+          OR: [{ createdAt: { gt: since } }, { submittedAt: { gt: since } }],
         },
         select: {
           id: true,
@@ -477,7 +463,7 @@ async function handleGET(
           eliminatedIds: true,
           livesReset: true,
         },
-        orderBy: [{ createdAt: "asc" }, { roundNumber: "asc" }],
+        orderBy: [{ createdAt: 'asc' }, { roundNumber: 'asc' }],
       }),
       /* IMPORTANT: only the columns needed for the overlay title — we never
          select ipAddress / userAgent. */
@@ -490,14 +476,14 @@ async function handleGET(
           timestamp: true,
           player: { select: { nickname: true } },
         },
-        orderBy: { timestamp: "asc" },
+        orderBy: { timestamp: 'asc' },
       }),
       /* findFirst across BM finals matches; ordered ascending so we get the
          "first" finals match (= bracket creation moment). */
       prisma.bMMatch.findFirst({
-        where: { tournamentId, stage: "finals", createdAt: { gt: since } },
+        where: { tournamentId, stage: 'finals', createdAt: { gt: since } },
         select: { createdAt: true },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: 'asc' },
       }),
       prisma.tournamentPlayerScore.aggregate({
         where: { tournamentId, updatedAt: { gt: since } },
@@ -508,51 +494,51 @@ async function handleGET(
          number per phase. None of these depend on `since` — they describe
          the current tournament state, not a delta. */
       prisma.bMMatch.findFirst({
-        where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+        where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
         select: { stage: true, round: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.mRMatch.findFirst({
-        where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+        where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
         select: { stage: true, round: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.gPMatch.findFirst({
-        where: { tournamentId, stage: { in: ["playoff", "finals"] }, round: { not: null } },
+        where: { tournamentId, stage: { in: ['playoff', 'finals'] }, round: { not: null } },
         select: { stage: true, round: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.tTEntry.findFirst({
-        where: { tournamentId, stage: "phase1" },
+        where: { tournamentId, stage: 'phase1' },
         select: { id: true },
       }),
       prisma.tTEntry.findFirst({
-        where: { tournamentId, stage: "phase2" },
+        where: { tournamentId, stage: 'phase2' },
         select: { id: true },
       }),
       prisma.tTEntry.findFirst({
-        where: { tournamentId, stage: "phase3" },
+        where: { tournamentId, stage: 'phase3' },
         select: { id: true },
       }),
       prisma.tTPhaseRound.findFirst({
-        where: { tournamentId, phase: "phase1" },
+        where: { tournamentId, phase: 'phase1' },
         select: { roundNumber: true },
-        orderBy: { roundNumber: "desc" },
+        orderBy: { roundNumber: 'desc' },
       }),
       prisma.tTPhaseRound.findFirst({
-        where: { tournamentId, phase: "phase2" },
+        where: { tournamentId, phase: 'phase2' },
         select: { roundNumber: true },
-        orderBy: { roundNumber: "desc" },
+        orderBy: { roundNumber: 'desc' },
       }),
       prisma.tTPhaseRound.findFirst({
-        where: { tournamentId, phase: "phase3" },
+        where: { tournamentId, phase: 'phase3' },
         select: { roundNumber: true },
-        orderBy: { roundNumber: "desc" },
+        orderBy: { roundNumber: 'desc' },
       }),
       prisma.tTEntry.findMany({
         where: {
           tournamentId,
-          stage: { in: ["phase1", "phase2", "phase3"] },
+          stage: { in: ['phase1', 'phase2', 'phase3'] },
           deletedAt: null,
         },
         select: {
@@ -563,12 +549,12 @@ async function handleGET(
           eliminated: true,
           player: { select: { nickname: true } },
         },
-        orderBy: [{ rank: "asc" }, { createdAt: "asc" }],
+        orderBy: [{ rank: 'asc' }, { createdAt: 'asc' }],
       }),
       prisma.tTPhaseRound.findMany({
         where: {
           tournamentId,
-          phase: "phase3",
+          phase: 'phase3',
           submittedAt: { not: null },
         },
         select: {
@@ -578,14 +564,11 @@ async function handleGET(
           results: true,
           eliminatedIds: true,
         },
-        orderBy: [{ submittedAt: "desc" }, { roundNumber: "desc" }],
+        orderBy: [{ submittedAt: 'desc' }, { roundNumber: 'desc' }],
       }),
     ]);
 
-    const taParticipantsByPhase = new Map<
-      string,
-      Array<{ player: string; lives: number; rank: number | null }>
-    >();
+    const taParticipantsByPhase = new Map<string, Array<{ player: string; lives: number; rank: number | null }>>();
     const taPlayerNamesByPhase = new Map<string, Record<string, string>>();
     for (const entry of taActiveEntries) {
       const playerNames = taPlayerNamesByPhase.get(entry.stage) ?? {};
@@ -603,21 +586,26 @@ async function handleGET(
 
     // Promise.all with >10 elements can lose Prisma's narrow return type in some TS builds;
     // cast here so filter callbacks have typed parameters instead of implicit any.
-    type _TaActiveEntry = { playerId: string; stage: string; lives: number; rank: number | null; eliminated: boolean; player: { nickname: string } };
-    const phase3Entries = (taActiveEntries as _TaActiveEntry[]).filter((entry) => entry.stage === "phase3");
+    type _TaActiveEntry = {
+      playerId: string;
+      stage: string;
+      lives: number;
+      rank: number | null;
+      eliminated: boolean;
+      player: { nickname: string };
+    };
+    const phase3Entries = (taActiveEntries as _TaActiveEntry[]).filter((entry) => entry.stage === 'phase3');
     const phase3ActiveEntries = phase3Entries.filter((entry) => !entry.eliminated);
     const phase3FinalRound = taPhase3SubmittedRounds[0] ?? null;
     let championRoundId: string | null = null;
     let taChampionStandings: OverlayTaChampionStanding[] | undefined;
     if (phase3ActiveEntries.length === 1 && phase3FinalRound) {
       championRoundId = phase3FinalRound.id;
-      const namesById = taPlayerNamesByPhase.get("phase3") ?? {};
+      const namesById = taPlayerNamesByPhase.get('phase3') ?? {};
       const seen = new Set<string>();
       const champion = phase3ActiveEntries[0];
       seen.add(champion.playerId);
-      taChampionStandings = [
-        { rank: 1, player: champion.player.nickname },
-      ];
+      taChampionStandings = [{ rank: 1, player: champion.player.nickname }];
 
       for (const round of taPhase3SubmittedRounds) {
         const eliminatedIds = jsonStringArray(round.eliminatedIds);
@@ -625,11 +613,7 @@ async function handleGET(
         const times = timeMsByPlayer(round.results);
         const orderedEliminated = eliminatedIds
           .filter((playerId) => !seen.has(playerId))
-          .sort(
-            (a, b) =>
-              (times.get(a) ?? Number.POSITIVE_INFINITY) -
-              (times.get(b) ?? Number.POSITIVE_INFINITY),
-          );
+          .sort((a, b) => (times.get(a) ?? Number.POSITIVE_INFINITY) - (times.get(b) ?? Number.POSITIVE_INFINITY));
         for (const playerId of orderedEliminated) {
           const nextRank = taChampionStandings.length + 1;
           if (nextRank > 3) break;
@@ -643,6 +627,13 @@ async function handleGET(
       }
     }
 
+    /* BREAK records are included in the source query solely to identify
+     * historical ScoreEntryLog rows that reference them. Neither the match
+     * nor its score report may become an overlay event. */
+    const nonCompetitiveMatchIds = new Set(
+      [...bmMatches, ...mrMatches, ...gpMatches].filter((match) => match.isBye).map((match) => match.id),
+    );
+
     const events = buildOverlayEvents({
       since,
       tournament: {
@@ -650,33 +641,44 @@ async function handleGET(
         earliestFinalsCreatedAt: earliestFinals?.createdAt ?? null,
         latestOverallRankingUpdatedAt: latestOverallRanking._max.updatedAt ?? null,
       },
-      bmMatches: bmMatches as unknown as OverlayMatchInput[],
-      mrMatches: mrMatches as unknown as OverlayMatchInput[],
+      bmMatches: bmMatches.filter((match) => !match.isBye) as unknown as OverlayMatchInput[],
+      mrMatches: mrMatches.filter((match) => !match.isBye) as unknown as OverlayMatchInput[],
       /* GP uses points1/points2 instead of score1/score2 — remap so the pure
          aggregator can stay mode-agnostic. */
-      gpMatches: (gpMatches as Array<{ points1: number | null; points2: number | null }>).map((m) => ({
-        ...m,
-        score1: m.points1,
-        score2: m.points2,
-      })) as unknown as OverlayMatchInput[],
+      gpMatches: (gpMatches as Array<{ points1: number | null; points2: number | null; isBye: boolean }>)
+        .filter((match) => !match.isBye)
+        .map((m) => ({
+          ...m,
+          score1: m.points1,
+          score2: m.points2,
+        })) as unknown as OverlayMatchInput[],
       ttEntries,
-      ttPhaseRounds: (ttPhaseRounds as Array<{ id: string; phase: string; roundNumber: number; course: string; createdAt: Date; submittedAt?: Date | null; results?: unknown; eliminatedIds?: unknown; livesReset?: boolean }>).map((round) => ({
+      ttPhaseRounds: (
+        ttPhaseRounds as Array<{
+          id: string;
+          phase: string;
+          roundNumber: number;
+          course: string;
+          createdAt: Date;
+          submittedAt?: Date | null;
+          results?: unknown;
+          eliminatedIds?: unknown;
+          livesReset?: boolean;
+        }>
+      ).map((round) => ({
         ...round,
         participants: taParticipantsByPhase.get(round.phase) ?? [],
         playerNamesById: taPlayerNamesByPhase.get(round.phase) ?? {},
-        championStandings:
-          round.id === championRoundId ? taChampionStandings : undefined,
+        championStandings: round.id === championRoundId ? taChampionStandings : undefined,
       })),
-      scoreLogs,
+      scoreLogs: scoreLogs.filter((log) => !nonCompetitiveMatchIds.has(log.matchId)),
     });
 
     /* Initial dashboard load: cap to the most-recent N events. The window
        is wide (7d) so this trim keeps the response from blowing up on busy
        tournaments. Newest entries (end of the array — buildOverlayEvents
        sorts ascending) are preserved. */
-    const cappedEvents = initial
-      ? events.slice(-INITIAL_BACKFILL_LIMIT)
-      : events;
+    const cappedEvents = initial ? events.slice(-INITIAL_BACKFILL_LIMIT) : events;
 
     /* Pick the latest finals round across the three 2P modes by createdAt;
        if no mode has a finals match yet, this is null. The mode tag rides
@@ -684,28 +686,29 @@ async function handleGET(
        value (Battle Mode / Match Race → First to 5; Grand Prix → null). */
     const latestFinals = (
       [
-        bmLatestFinals && { ...bmLatestFinals, mode: "bm" as OverlayMode },
-        mrLatestFinals && { ...mrLatestFinals, mode: "mr" as OverlayMode },
-        gpLatestFinals && { ...gpLatestFinals, mode: "gp" as OverlayMode },
+        bmLatestFinals && { ...bmLatestFinals, mode: 'bm' as OverlayMode },
+        mrLatestFinals && { ...mrLatestFinals, mode: 'mr' as OverlayMode },
+        gpLatestFinals && { ...gpLatestFinals, mode: 'gp' as OverlayMode },
       ] as Array<{ stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } | null>
     )
-      .filter((m): m is { stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
+      .filter(
+        (m): m is { stage: string | null; round: string | null; createdAt: Date; mode: OverlayMode } => m !== null,
+      )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
     /* Resolve TA phase from the existence checks. We descend from phase3
        so the most-progressed phase wins even when earlier phases still
        have stale entries. */
-    let taCurrentPhase: "qualification" | "phase1" | "phase2" | "phase3" =
-      "qualification";
+    let taCurrentPhase: 'qualification' | 'phase1' | 'phase2' | 'phase3' = 'qualification';
     let taLatestPhaseRoundNumber: number | null = null;
     if (taPhase3Entry) {
-      taCurrentPhase = "phase3";
+      taCurrentPhase = 'phase3';
       taLatestPhaseRoundNumber = taPhase3LatestRound?.roundNumber ?? null;
     } else if (taPhase2Entry) {
-      taCurrentPhase = "phase2";
+      taCurrentPhase = 'phase2';
       taLatestPhaseRoundNumber = taPhase2LatestRound?.roundNumber ?? null;
     } else if (taPhase1Entry) {
-      taCurrentPhase = "phase1";
+      taCurrentPhase = 'phase1';
       taLatestPhaseRoundNumber = taPhase1LatestRound?.roundNumber ?? null;
     }
 
@@ -727,8 +730,8 @@ async function handleGET(
       currentPhase,
       currentPhaseFormat,
       /* Broadcast player names for the overlay name display (配信に反映) */
-      overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
-      overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
+      overlayPlayer1Name: tournament.overlayPlayer1Name ?? '',
+      overlayPlayer2Name: tournament.overlayPlayer2Name ?? '',
       overlayPlayer1NoCamera: tournament.overlayPlayer1NoCamera ?? false,
       overlayPlayer2NoCamera: tournament.overlayPlayer2NoCamera ?? false,
       /* Match info set by "配信に反映" for footer label and score display */
@@ -743,16 +746,14 @@ async function handleGET(
        changes every poll. Cloudflare adds its own edge cache headers; this
        prevents browser/proxy reuse. */
     if (response instanceof NextResponse) {
-      response.headers.set("Cache-Control", "no-store");
+      response.headers.set('Cache-Control', 'no-store');
     }
     return response;
   } catch (error) {
-    logger.error("Failed to build overlay events", { error, tournamentId: id });
-    return createErrorResponse("Failed to build overlay events", 500);
+    logger.error('Failed to build overlay events', { error, tournamentId: id });
+    return createErrorResponse('Failed to build overlay events', 500);
   }
 }
 
-export const GET = (
-  ...args: Parameters<typeof handleGET>
-): ReturnType<typeof handleGET> =>
+export const GET = (...args: Parameters<typeof handleGET>): ReturnType<typeof handleGET> =>
   withApiTiming('overlay-events.GET', () => handleGET(...args));

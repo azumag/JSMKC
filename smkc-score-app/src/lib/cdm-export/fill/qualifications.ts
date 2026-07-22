@@ -36,8 +36,8 @@
  * template never keeps stale data.
  */
 
-import { createLogger } from "@/lib/logger";
-import { BREAK_PLAYER_ID } from "@/lib/round-robin";
+import { createLogger } from '@/lib/logger';
+import { BREAK_PLAYER_ID } from '@/lib/round-robin';
 import {
   CDM_QUALIFICATION_SHEETS,
   QUAL_BLOCK_FIRST_DATA_ROW,
@@ -46,7 +46,7 @@ import {
   QUAL_BLOCK_MAX_BLOCKS,
   QUAL_MATCH_COLUMNS,
   toColumnLetters,
-} from "../cdm-constants";
+} from '../cdm-constants';
 import type {
   CdmCellWrite,
   CdmMatch,
@@ -54,10 +54,10 @@ import type {
   CdmPlayer,
   CdmTournamentData,
   CdmVersusMode,
-} from "../types";
-import { SheetWriteBuilder, computeSheetPlayerOrder } from "./sheet-player-order";
+} from '../types';
+import { SheetWriteBuilder, computeSheetPlayerOrder } from './sheet-player-order';
 
-const logger = createLogger("cdm-export");
+const logger = createLogger('cdm-export');
 
 const COLS = QUAL_MATCH_COLUMNS;
 
@@ -85,7 +85,7 @@ function blockFirstRow(i: number): number {
  */
 function readAssignedCourses(value: unknown): (string | null)[] {
   if (!Array.isArray(value)) return [];
-  return value.map((v) => (typeof v === "string" ? v : null));
+  return value.map((v) => (typeof v === 'string' ? v : null));
 }
 
 /** Pick the per-mode qualifications and matches off the tournament data. */
@@ -94,11 +94,11 @@ function selectMode(
   mode: CdmVersusMode,
 ): { quals: CdmModeQualification[]; matches: CdmMatch[] } {
   switch (mode) {
-    case "bm":
+    case 'bm':
       return { quals: data.bmQualifications, matches: data.bmMatches };
-    case "mr":
+    case 'mr':
       return { quals: data.mrQualifications, matches: data.mrMatches };
-    case "gp":
+    case 'gp':
       return { quals: data.gpQualifications, matches: data.gpMatches };
   }
 }
@@ -109,7 +109,7 @@ function selectMode(
  * null when the field is absent so the caller clears the cell.
  */
 function ownerScore(match: CdmMatch, ownerIsP1: boolean, mode: CdmVersusMode): number | null {
-  if (mode === "gp") {
+  if (mode === 'gp') {
     const v = ownerIsP1 ? match.points1 : match.points2;
     return v ?? null;
   }
@@ -140,7 +140,7 @@ interface OwnerView {
 function ownerMatches(matches: CdmMatch[], ownerId: string): OwnerView[] {
   const views: OwnerView[] = [];
   for (const match of matches) {
-    if (match.stage !== "qualification") continue;
+    if (match.stage !== 'qualification' || match.isBye) continue;
     if (match.player1.id === ownerId) {
       views.push({ match, ownerIsP1: true, opponent: match.player2 });
     } else if (match.player2.id === ownerId) {
@@ -156,10 +156,7 @@ function ownerMatches(matches: CdmMatch[], ownerId: string): OwnerView[] {
   return views;
 }
 
-export function buildQualificationWrites(
-  data: CdmTournamentData,
-  mode: CdmVersusMode,
-): CdmCellWrite[] {
+export function buildQualificationWrites(data: CdmTournamentData, mode: CdmVersusMode): CdmCellWrite[] {
   const sheet = CDM_QUALIFICATION_SHEETS[mode];
   const builder = new SheetWriteBuilder(sheet);
   const { quals, matches } = selectMode(data, mode);
@@ -180,10 +177,10 @@ export function buildQualificationWrites(
     builder.clear(`${COLS.ownerScore}${row}`);
     builder.clear(`${COLS.opponentNickname}${row}`);
     builder.clear(`${COLS.opponentSide}${row}`);
-    if (mode === "gp") {
+    if (mode === 'gp') {
       builder.clear(`${COLS.opponentScore}${row}`); // Y opponent points
       builder.clear(`${COLS.extraFirstColumn}${row}`); // AB cup
-    } else if (mode === "mr") {
+    } else if (mode === 'mr') {
       for (const col of MR_COURSE_COLUMNS) builder.clear(`${col}${row}`); // AB..AE
     }
   };
@@ -203,22 +200,22 @@ export function buildQualificationWrites(
     // Score is cleared while pending so a blank (not 0) feeds the template.
     builder.setNumberOrClear(
       `${COLS.ownerScore}${row}`,
-      match.completed ? ownerScore(match, ownerIsP1, mode) : null,
+      match.completed && !match.isBye ? ownerScore(match, ownerIsP1, mode) : null,
     );
     // BREAK opponents render as the literal 'Break' the sheet expects.
-    const opponentNickname = opponent.id === BREAK_PLAYER_ID ? "Break" : opponent.nickname;
+    const opponentNickname = opponent.id === BREAK_PLAYER_ID ? 'Break' : opponent.nickname;
     builder.setString(`${COLS.opponentNickname}${row}`, opponentNickname);
     builder.setNumber(`${COLS.opponentSide}${row}`, oppSide);
 
-    if (mode === "gp") {
+    if (mode === 'gp') {
       // GP Y is a real input (opponent driver points); cleared while pending.
       builder.setNumberOrClear(
         `${COLS.opponentScore}${row}`,
-        match.completed ? opponentScore(match, ownerIsP1) : null,
+        match.completed && !match.isBye ? opponentScore(match, ownerIsP1) : null,
       );
       // AB = cup name (null -> clear).
       builder.setStringOrClear(`${COLS.extraFirstColumn}${row}`, match.cup ?? null);
-    } else if (mode === "mr") {
+    } else if (mode === 'mr') {
       // AB..AE = the four assigned battle courses; missing slots clear.
       const courses = readAssignedCourses(match.assignedCourses);
       MR_COURSE_COLUMNS.forEach((col, idx) => {
@@ -234,7 +231,7 @@ export function buildQualificationWrites(
     const views = owner ? ownerMatches(matches, owner.player.id) : [];
 
     if (views.length > QUAL_BLOCK_DATA_ROWS) {
-      logger.warn("qualification matches exceed block capacity; truncating", {
+      logger.warn('qualification matches exceed block capacity; truncating', {
         sheet,
         owner: owner?.player.nickname,
         total: views.length,

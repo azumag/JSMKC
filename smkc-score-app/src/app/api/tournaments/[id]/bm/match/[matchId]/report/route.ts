@@ -18,7 +18,7 @@
  * - Character usage tracking
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest } from 'next/server';
 import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 
 import {
@@ -28,12 +28,12 @@ import {
   handleAuthError,
   handleDatabaseError,
   handleRateLimitError,
-} from "@/lib/error-handling";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { sanitizeInput } from "@/lib/sanitize";
-import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
-import { validateBattleModeScores, calculateMatchResult } from "@/lib/score-validation";
-import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
+} from '@/lib/error-handling';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { sanitizeInput } from '@/lib/sanitize';
+import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
+import { validateBattleModeScores, calculateMatchResult } from '@/lib/score-validation';
+import { getUserAgent, getClientIdentifier } from '@/lib/request-utils';
 import {
   checkScoreReportAuth,
   createScoreEntryLog,
@@ -42,12 +42,12 @@ import {
   validateCharacter,
   recalculatePlayersStats,
   type RecalculateStatsConfig,
-} from "@/lib/api-factories/score-report-helpers";
+} from '@/lib/api-factories/score-report-helpers';
 
-import prisma from "@/lib/prisma";
-import { createLogger } from "@/lib/logger";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
-import { checkQualificationConfirmed } from "@/lib/qualification-confirmed-check";
+import prisma from '@/lib/prisma';
+import { createLogger } from '@/lib/logger';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 
 /**
  * BM-specific stats recalculation config.
@@ -74,10 +74,7 @@ const BM_RECALC_CONFIG: RecalculateStatsConfig = {
  *
  * Authentication: admin or player (for their own reports).
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; matchId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; matchId: string }> }) {
   const logger = createLogger('bm-score-report-api');
   const { id, matchId } = await params;
   const tournamentId = await resolveTournamentId(id);
@@ -99,7 +96,7 @@ export async function POST(
 
     /* Validate character selection */
     if (!validateCharacter(character)) {
-      return handleValidationError("Invalid character", "character");
+      return handleValidationError('Invalid character', 'character');
     }
 
     /* Fetch match and verify it belongs to this tournament */
@@ -109,12 +106,16 @@ export async function POST(
     });
 
     if (!match) {
-      return handleValidationError("Match not found", "matchId");
+      return handleValidationError('Match not found', 'matchId');
+    }
+
+    if (match.isBye) {
+      return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
     }
 
     /* Validate reportingPlayer before auth check to prevent invalid values propagating */
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
-      return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
+      return handleValidationError('reportingPlayer must be 1 or 2', 'reportingPlayer');
     }
 
     /* Multi-method authorization check */
@@ -126,7 +127,7 @@ export async function POST(
     /* BM-specific score validation */
     const scoreValidation = validateBattleModeScores(score1, score2);
     if (!scoreValidation.isValid) {
-      return handleValidationError(scoreValidation.error || "Invalid scores", "scores");
+      return handleValidationError(scoreValidation.error || 'Invalid scores', 'scores');
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
@@ -134,14 +135,22 @@ export async function POST(
 
     /* Audit logging via shared helpers */
     await createScoreEntryLog(logger, {
-      tournamentId, matchId, matchType: 'BM', playerId: reportingPlayerId,
+      tournamentId,
+      matchId,
+      matchType: 'BM',
+      playerId: reportingPlayerId,
       reportedData: { reportingPlayer, score1, score2 },
-      clientIp, userAgent,
+      clientIp,
+      userAgent,
     });
 
     if (character) {
       await createCharacterUsageLog(logger, {
-        matchId, matchType: 'BM', playerId: reportingPlayerId, character, tournamentId,
+        matchId,
+        matchType: 'BM',
+        playerId: reportingPlayerId,
+        character,
+        tournamentId,
       });
     }
 
@@ -159,7 +168,7 @@ export async function POST(
           });
 
           if (!currentMatch) {
-            throw new Error("Match not found");
+            throw new Error('Match not found');
           }
 
           const reportData =
@@ -185,18 +194,23 @@ export async function POST(
           correctedMatch.player2Id,
         ]);
 
-        return createSuccessResponse({
-          match: correctedMatch,
-          corrected: true,
-        }, "Score correction saved");
+        return createSuccessResponse(
+          {
+            match: correctedMatch,
+            corrected: true,
+          },
+          'Score correction saved',
+        );
       } catch (error) {
         if (error instanceof OptimisticLockError) {
           return createErrorResponse(
-            "This match was updated by someone else. Please refresh and try again.",
-            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+            'This match was updated by someone else. Please refresh and try again.',
+            409,
+            'OPTIMISTIC_LOCK_ERROR',
+            { requiresRefresh: true },
           );
         }
-        return handleDatabaseError(error, "score correction");
+        return handleDatabaseError(error, 'score correction');
       }
     }
 
@@ -209,11 +223,11 @@ export async function POST(
       result = await updateWithRetry(prisma, async (tx) => {
         const currentMatch = await tx.bMMatch.findUnique({
           where: { id: matchId },
-          select: { version: true }
+          select: { version: true },
         });
 
         if (!currentMatch) {
-          throw new Error("Match not found");
+          throw new Error('Match not found');
         }
 
         const updateData =
@@ -226,9 +240,12 @@ export async function POST(
           data: updateData,
           select: {
             id: true,
-            player1ReportedScore1: true, player1ReportedScore2: true,
-            player2ReportedScore1: true, player2ReportedScore2: true,
-            completed: true, version: true,
+            player1ReportedScore1: true,
+            player1ReportedScore2: true,
+            player2ReportedScore1: true,
+            player2ReportedScore2: true,
+            completed: true,
+            version: true,
           },
         });
 
@@ -241,11 +258,13 @@ export async function POST(
     } catch (error) {
       if (error instanceof OptimisticLockError) {
         return createErrorResponse(
-          "This match was updated by someone else. Please refresh and try again.",
-          409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+          'This match was updated by someone else. Please refresh and try again.',
+          409,
+          'OPTIMISTIC_LOCK_ERROR',
+          { requiresRefresh: true },
         );
       }
-      return handleDatabaseError(error, "score report update");
+      return handleDatabaseError(error, 'score report update');
     }
 
     /* If dual report is disabled (default), immediately confirm the match */
@@ -256,21 +275,20 @@ export async function POST(
             where: { id: matchId },
             select: { version: true },
           });
-          if (!currentMatch) throw new Error("Match not found");
+          if (!currentMatch) throw new Error('Match not found');
           return tx.bMMatch.update({
             where: { id: matchId, version: currentMatch.version },
             data: { score1, score2, completed: true, version: { increment: 1 } },
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           });
         });
-        await recalculatePlayersStats(BM_RECALC_CONFIG, tournamentId, [
-          finalMatch.player1Id,
-          finalMatch.player2Id,
-        ]);
-        return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
-          "Score confirmed (dual report disabled)");
+        await recalculatePlayersStats(BM_RECALC_CONFIG, tournamentId, [finalMatch.player1Id, finalMatch.player2Id]);
+        return createSuccessResponse(
+          { match: finalMatch, autoConfirmed: true },
+          'Score confirmed (dual report disabled)',
+        );
       } catch (error) {
-        return handleDatabaseError(error, "match completion");
+        return handleDatabaseError(error, 'match completion');
       }
     }
 
@@ -280,10 +298,7 @@ export async function POST(
     const p2s1 = result?.player2ReportedScore1;
     const p2s2 = result?.player2ReportedScore2;
 
-    if (
-      p1s1 !== null && p1s2 !== null && p2s1 !== null && p2s2 !== null &&
-      p1s1 === p2s1 && p1s2 === p2s2
-    ) {
+    if (p1s1 !== null && p1s2 !== null && p2s1 !== null && p2s2 !== null && p1s1 === p2s1 && p1s2 === p2s2) {
       try {
         /*
          * Use result.version directly to avoid a race where concurrent
@@ -304,42 +319,50 @@ export async function POST(
           return finalResult;
         });
 
-        await recalculatePlayersStats(BM_RECALC_CONFIG, tournamentId, [
-          finalMatch.player1Id,
-          finalMatch.player2Id,
-        ]);
+        await recalculatePlayersStats(BM_RECALC_CONFIG, tournamentId, [finalMatch.player1Id, finalMatch.player2Id]);
 
-        return createSuccessResponse({
-          match: finalMatch,
-          autoConfirmed: true,
-        }, "Scores confirmed and match completed");
+        return createSuccessResponse(
+          {
+            match: finalMatch,
+            autoConfirmed: true,
+          },
+          'Scores confirmed and match completed',
+        );
       } catch (error) {
         if (error instanceof OptimisticLockError) {
           return createErrorResponse(
-            "This match was updated by another user. Please refresh and try again.",
-            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+            'This match was updated by another user. Please refresh and try again.',
+            409,
+            'OPTIMISTIC_LOCK_ERROR',
+            { requiresRefresh: true },
           );
         }
-        return handleDatabaseError(error, "match completion");
+        return handleDatabaseError(error, 'match completion');
       }
     }
 
     /* Both reported but mismatch */
     if (p1s1 !== null && p1s2 !== null && p2s1 !== null && p2s2 !== null) {
-      return createSuccessResponse({
-        match: result!,
-        mismatch: true,
-        player1Report: { score1: p1s1, score2: p1s2 },
-        player2Report: { score1: p2s1, score2: p2s2 },
-      }, "Score reported but mismatch detected - awaiting admin review");
+      return createSuccessResponse(
+        {
+          match: result!,
+          mismatch: true,
+          player1Report: { score1: p1s1, score2: p1s2 },
+          player2Report: { score1: p2s1, score2: p2s2 },
+        },
+        'Score reported but mismatch detected - awaiting admin review',
+      );
     }
 
-    return createSuccessResponse({
-      match: result!,
-      waitingFor: reportingPlayer === 1 ? "player2" : "player1",
-    }, "Score reported successfully");
+    return createSuccessResponse(
+      {
+        match: result!,
+        waitingFor: reportingPlayer === 1 ? 'player2' : 'player1',
+      },
+      'Score reported successfully',
+    );
   } catch (error) {
-    logger.error("Failed to report score", { error, tournamentId, matchId });
-    return handleDatabaseError(error, "score report");
+    logger.error('Failed to report score', { error, tournamentId, matchId });
+    return handleDatabaseError(error, 'score report');
   }
 }

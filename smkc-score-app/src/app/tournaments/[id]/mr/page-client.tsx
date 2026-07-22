@@ -206,8 +206,9 @@ export default function MatchRacePageClient({
   const canCreateFinals = canCreateFinalsFromQualification({
     qualificationConfirmed,
     qualificationCount: qualifications.length,
-    matchCount: matches.length,
-    allMatchesCompleted: matches.every((m) => m.completed),
+    matchCount: matches.filter((m) => !m.isBye).length,
+    allMatchesCompleted:
+      matches.filter((m) => !m.isBye).length > 0 && matches.filter((m) => !m.isBye).every((m) => m.completed),
   });
   const canResetFinals = canResetFinalsFromQualification({
     qualificationConfirmed,
@@ -713,7 +714,7 @@ export default function MatchRacePageClient({
                 <CardTitle>{tc('matchList')}</CardTitle>
                 <CardDescription>
                   {tc('completedOf', {
-                    completed: matches.filter((m) => m.completed).length,
+                    completed: matches.filter((m) => !m.isBye && m.completed).length,
                     total: matches.filter((m) => !m.isBye).length,
                   })}
                 </CardDescription>

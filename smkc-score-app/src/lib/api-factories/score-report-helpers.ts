@@ -23,6 +23,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { SMK_CHARACTERS } from '@/lib/constants';
 import { createLogger } from '@/lib/logger';
+import type { EventTypeConfig } from '@/lib/event-types/types';
 
 // ============================================================
 // Types
@@ -120,12 +121,10 @@ export async function checkScoreReportAuth(
       const isCredentialSession = userId === playerId;
       const passesLinkage = (matchPlayer: { userId: string | null } | null | undefined) =>
         isCredentialSession || matchPlayer?.userId === userId;
-      if (reportingPlayer === 1 && match.player1Id === playerId &&
-          passesLinkage(match.player1)) {
+      if (reportingPlayer === 1 && match.player1Id === playerId && passesLinkage(match.player1)) {
         isAuthorized = true;
       }
-      if (reportingPlayer === 2 && match.player2Id === playerId &&
-          passesLinkage(match.player2)) {
+      if (reportingPlayer === 2 && match.player2Id === playerId && passesLinkage(match.player2)) {
         isAuthorized = true;
       }
     }
@@ -241,7 +240,7 @@ export async function isDualReportEnabled(tournamentId: string): Promise<boolean
 
 export function validateCharacter(character: string | undefined): boolean {
   if (!character) return true;
-  return SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number]);
+  return SMK_CHARACTERS.includes(character as (typeof SMK_CHARACTERS)[number]);
 }
 
 // ============================================================
@@ -366,8 +365,10 @@ export async function bulkUpdateQualificationStats(
    * dynamic identifiers in raw SQL parameters. */
   const sql = QUALIFICATION_STATS_UPDATE_SQL[qualificationModel];
   if (!sql) {
-    const supportedModels = Object.keys(QUALIFICATION_STATS_UPDATE_SQL).sort().join(", ");
-    throw new Error(`Unsupported qualification stats bulk update model: ${qualificationModel}. Supported: ${supportedModels}`);
+    const supportedModels = Object.keys(QUALIFICATION_STATS_UPDATE_SQL).sort().join(', ');
+    throw new Error(
+      `Unsupported qualification stats bulk update model: ${qualificationModel}. Supported: ${supportedModels}`,
+    );
   }
 
   await prisma.$executeRawUnsafe(sql, JSON.stringify(updates), tournamentId);
@@ -378,10 +379,16 @@ function calculateStatsForPlayer(
   matches: Array<Record<string, unknown>>,
   playerId: string,
 ): QualificationStatsUpdate {
-  let mp = 0, wins = 0, ties = 0, losses = 0;
-  let winRounds = 0, lossRounds = 0, totalPoints = 0;
+  let mp = 0,
+    wins = 0,
+    ties = 0,
+    losses = 0;
+  let winRounds = 0,
+    lossRounds = 0,
+    totalPoints = 0;
 
   for (const m of matches) {
+    if (m.isBye === true) continue;
     const isPlayer1 = m.player1Id === playerId;
     if (!isPlayer1 && m.player2Id !== playerId) continue;
 
@@ -453,13 +460,60 @@ export async function recalculatePlayersStats(
       tournamentId,
       stage: 'qualification',
       completed: true,
-      OR: [
-        { player1Id: { in: uniquePlayerIds } },
-        { player2Id: { in: uniquePlayerIds } },
-      ],
+      isBye: false,
+      OR: [{ player1Id: { in: uniquePlayerIds } }, { player2Id: { in: uniquePlayerIds } }],
     },
   });
 
   const updates = uniquePlayerIds.map((id) => calculateStatsForPlayer(config, matches, id));
   await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, updates);
+}
+
+/**
+ * Repair every qualification row for one mode from completed competitive
+ * matches. This is deliberately separate from match submission: older
+ * tournaments may already contain a completed BREAK whose legacy aggregate
+ * values were persisted before BREAK became non-competitive.
+ *
+ * The read is idempotent and writes only rows whose stored values differ from
+ * the result calculated with `isBye: false`.
+ */
+export async function repairQualificationStats(
+  config: Pick<
+    EventTypeConfig,
+    'eventTypeCode' | 'matchModel' | 'qualificationModel' | 'matchScoreFields' | 'calculateMatchResult'
+  >,
+  tournamentId: string,
+): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const qualificationDelegate = (prisma as any)[config.qualificationModel];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matchDelegate = (prisma as any)[config.matchModel];
+  const [qualifications, matches] = await Promise.all([
+    qualificationDelegate.findMany({ where: { tournamentId } }),
+    matchDelegate.findMany({
+      where: { tournamentId, stage: 'qualification', completed: true, isBye: false },
+    }),
+  ]);
+
+  const statsConfig: RecalculateStatsConfig = {
+    matchModel: config.matchModel,
+    qualificationModel: config.qualificationModel,
+    scoreFields: config.matchScoreFields ?? { p1: 'score1', p2: 'score2' },
+    determineResult: (myScore, opponentScore) => config.calculateMatchResult(myScore, opponentScore).result1,
+    useRoundDifferential: config.eventTypeCode !== 'gp',
+  };
+  const updates = qualifications
+    .map((qualification: Record<string, unknown>) =>
+      calculateStatsForPlayer(statsConfig, matches, String(qualification.playerId)),
+    )
+    .filter((update: QualificationStatsUpdate) => {
+      const qualification = qualifications.find(
+        (candidate: Record<string, unknown>) => candidate.playerId === update.playerId,
+      ) as Record<string, unknown>;
+      return Object.entries(update).some(([field, value]) => field !== 'playerId' && qualification[field] !== value);
+    });
+
+  await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, updates);
+  return updates.length;
 }

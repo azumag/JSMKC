@@ -16,13 +16,13 @@
  * - Mismatch detection for admin review
  */
 
-import { Prisma } from "@prisma/client";
-import { NextRequest } from "next/server";
+import { Prisma } from '@prisma/client';
+import { NextRequest } from 'next/server';
 import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
-import prisma from "@/lib/prisma";
-import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
-import { sanitizeInput } from "@/lib/sanitize";
-import { createLogger } from "@/lib/logger";
+import prisma from '@/lib/prisma';
+import { getUserAgent, getClientIdentifier } from '@/lib/request-utils';
+import { sanitizeInput } from '@/lib/sanitize';
+import { createLogger } from '@/lib/logger';
 import {
   createScoreEntryLog,
   createCharacterUsageLog,
@@ -31,10 +31,10 @@ import {
   isDualReportEnabled,
   recalculatePlayersStats,
   type RecalculateStatsConfig,
-} from "@/lib/api-factories/score-report-helpers";
-import { validateGPRacePosition } from "@/lib/score-validation";
-import { COURSE_INFO, getDriverPoints, MAX_GP_DRIVER_POINTS, TOTAL_GP_RACES } from "@/lib/constants";
-import { isValidCupChoice } from "@/lib/event-types/gp-config";
+} from '@/lib/api-factories/score-report-helpers';
+import { validateGPRacePosition } from '@/lib/score-validation';
+import { COURSE_INFO, getDriverPoints, MAX_GP_DRIVER_POINTS, TOTAL_GP_RACES } from '@/lib/constants';
+import { isValidCupChoice } from '@/lib/event-types/gp-config';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -42,11 +42,11 @@ import {
   handleAuthError,
   handleDatabaseError,
   handleRateLimitError,
-} from "@/lib/error-handling";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
-import { checkQualificationConfirmed } from "@/lib/qualification-confirmed-check";
+} from '@/lib/error-handling';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 
 type ProcessedRace = {
   course: string;
@@ -69,14 +69,11 @@ const GP_RECALC_CONFIG: RecalculateStatsConfig = {
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
   scoreFields: { p1: 'points1', p2: 'points2' },
-  determineResult: (myPoints, oppPoints) =>
-    myPoints > oppPoints ? 'win' : myPoints < oppPoints ? 'loss' : 'tie',
+  determineResult: (myPoints, oppPoints) => (myPoints > oppPoints ? 'win' : myPoints < oppPoints ? 'loss' : 'tie'),
   useRoundDifferential: false,
 };
 
-function getSubmittedCup(
-  races: Array<{ course: string }>,
-): string | null {
+function getSubmittedCup(races: Array<{ course: string }>): string | null {
   if (races.length !== TOTAL_GP_RACES) return null;
 
   const submittedCourses = races.map((race) => {
@@ -93,9 +90,7 @@ function getSubmittedCup(
   const cups = [...new Set(submittedCourses.map((course) => course!.cup))];
   if (cups.length !== 1) return null;
 
-  const cupCourses = COURSE_INFO
-    .filter((course) => course.cup === cups[0])
-    .map((course) => course.abbr);
+  const cupCourses = COURSE_INFO.filter((course) => course.cup === cups[0]).map((course) => course.abbr);
   const submittedCourseAbbrs = submittedCourses.map((course) => course!.abbr);
 
   if (
@@ -108,10 +103,7 @@ function getSubmittedCup(
   return cups[0];
 }
 
-function validateSubmittedCup(
-  assignedCup: string | null | undefined,
-  races: Array<{ course: string }>,
-): boolean {
+function validateSubmittedCup(assignedCup: string | null | undefined, races: Array<{ course: string }>): boolean {
   const submittedCup = getSubmittedCup(races);
   return !!submittedCup && isValidCupChoice(assignedCup, submittedCup);
 }
@@ -130,7 +122,7 @@ function validateDirectDriverPoints(points1: unknown, points2: unknown): Process
     return {
       ok: false,
       message: `points1 and points2 must be integers between 0 and ${MAX_GP_DRIVER_POINTS}`,
-      field: "points",
+      field: 'points',
     };
   }
 
@@ -153,15 +145,15 @@ function processRaceReport(assignedCup: string | null | undefined, races: unknow
     return {
       ok: false,
       message: `races must be an array of ${TOTAL_GP_RACES} entries`,
-      field: "races",
+      field: 'races',
     };
   }
 
   if (!validateSubmittedCup(assignedCup, races)) {
     return {
       ok: false,
-      message: "Submitted races do not match the assigned cup for this match",
-      field: "races",
+      message: 'Submitted races do not match the assigned cup for this match',
+      field: 'races',
     };
   }
 
@@ -173,17 +165,17 @@ function processRaceReport(assignedCup: string | null | undefined, races: unknow
     const race = races[i] as { position1: number; position2: number; course: string };
     const pos1Result = validateGPRacePosition(race.position1);
     if (!pos1Result.isValid) {
-      return { ok: false, message: pos1Result.error!, field: "position1" };
+      return { ok: false, message: pos1Result.error!, field: 'position1' };
     }
     const pos2Result = validateGPRacePosition(race.position2);
     if (!pos2Result.isValid) {
-      return { ok: false, message: pos2Result.error!, field: "position2" };
+      return { ok: false, message: pos2Result.error!, field: 'position2' };
     }
     if (race.position1 === race.position2 && race.position1 !== 0) {
       return {
         ok: false,
         message: `Race ${i + 1}: both players cannot finish in the same position (${race.position1})`,
-        field: "position",
+        field: 'position',
       };
     }
 
@@ -214,7 +206,6 @@ function processGpParticipantReport(
   return processRaceReport(assignedCup, body.races);
 }
 
-
 /**
  * POST /api/tournaments/[id]/gp/match/[matchId]/report
  *
@@ -224,10 +215,7 @@ function processGpParticipantReport(
  *
  * Authentication: admin or player (for their own reports).
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; matchId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; matchId: string }> }) {
   const logger = createLogger('gp-score-report-api');
   const { id, matchId } = await params;
   const tournamentId = await resolveTournamentId(id);
@@ -259,18 +247,22 @@ export async function POST(
     });
 
     if (!match) {
-      return handleValidationError("Match not found", "matchId");
+      return handleValidationError('Match not found', 'matchId');
+    }
+
+    if (match.isBye) {
+      return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
     }
 
     /* Block participant reports for finals/playoff matches — admin enters finals
      * scores via the /gp/finals bracket page only. */
     if (match.stage === 'finals' || match.stage === 'playoff') {
-      return handleValidationError("Score entry for finals matches is only available to admins", "stage");
+      return handleValidationError('Score entry for finals matches is only available to admins', 'stage');
     }
 
     /* Validate reportingPlayer before auth check to prevent invalid values propagating */
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
-      return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
+      return handleValidationError('reportingPlayer must be 1 or 2', 'reportingPlayer');
     }
 
     /* Authorization check (consistent with BM and MR report routes) */
@@ -281,7 +273,7 @@ export async function POST(
 
     /* Validate character selection before any processing (including completed-match corrections) */
     if (!validateCharacter(character)) {
-      return handleValidationError("Invalid character", "character");
+      return handleValidationError('Invalid character', 'character');
     }
 
     const processedReport = processGpParticipantReport(match.cup, body);
@@ -306,13 +298,21 @@ export async function POST(
           });
 
           if (!currentMatch) {
-            throw new Error("Match not found");
+            throw new Error('Match not found');
           }
 
           const reportData =
             reportingPlayer === 1
-              ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: reportedRacesJson }
-              : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: reportedRacesJson };
+              ? {
+                  player1ReportedPoints1: totalPoints1,
+                  player1ReportedPoints2: totalPoints2,
+                  player1ReportedRaces: reportedRacesJson,
+                }
+              : {
+                  player2ReportedPoints1: totalPoints1,
+                  player2ReportedPoints2: totalPoints2,
+                  player2ReportedRaces: reportedRacesJson,
+                };
 
           return tx.gPMatch.update({
             where: { id: matchId, version: currentMatch.version },
@@ -332,18 +332,23 @@ export async function POST(
           correctedMatch.player2Id,
         ]);
 
-        return createSuccessResponse({
-          match: correctedMatch,
-          corrected: true,
-        }, "Score correction saved");
+        return createSuccessResponse(
+          {
+            match: correctedMatch,
+            corrected: true,
+          },
+          'Score correction saved',
+        );
       } catch (error) {
         if (error instanceof OptimisticLockError) {
           return createErrorResponse(
-            "This match was updated by someone else. Please refresh and try again.",
-            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+            'This match was updated by someone else. Please refresh and try again.',
+            409,
+            'OPTIMISTIC_LOCK_ERROR',
+            { requiresRefresh: true },
           );
         }
-        return handleDatabaseError(error, "score correction");
+        return handleDatabaseError(error, 'score correction');
       }
     }
 
@@ -351,14 +356,22 @@ export async function POST(
 
     /* Audit logging via shared helpers */
     await createScoreEntryLog(logger, {
-      tournamentId, matchId, matchType: 'GP', playerId: reportingPlayerId,
+      tournamentId,
+      matchId,
+      matchType: 'GP',
+      playerId: reportingPlayerId,
       reportedData: { reportingPlayer, races: processedRaces || [], totalPoints1, totalPoints2 },
-      clientIp, userAgent,
+      clientIp,
+      userAgent,
     });
 
     if (character) {
       await createCharacterUsageLog(logger, {
-        matchId, matchType: 'GP', playerId: reportingPlayerId, character, tournamentId,
+        matchId,
+        matchType: 'GP',
+        playerId: reportingPlayerId,
+        character,
+        tournamentId,
       });
     }
 
@@ -371,26 +384,41 @@ export async function POST(
       updatedMatch = await updateWithRetry(prisma, async (tx) => {
         const currentMatch = await tx.gPMatch.findUnique({
           where: { id: matchId },
-          select: { version: true }
+          select: { version: true },
         });
 
         if (!currentMatch) {
-          throw new Error("Match not found");
+          throw new Error('Match not found');
         }
 
         const updateData =
           reportingPlayer === 1
-            ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: reportedRacesJson, version: { increment: 1 } }
-            : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: reportedRacesJson, version: { increment: 1 } };
+            ? {
+                player1ReportedPoints1: totalPoints1,
+                player1ReportedPoints2: totalPoints2,
+                player1ReportedRaces: reportedRacesJson,
+                version: { increment: 1 },
+              }
+            : {
+                player2ReportedPoints1: totalPoints1,
+                player2ReportedPoints2: totalPoints2,
+                player2ReportedRaces: reportedRacesJson,
+                version: { increment: 1 },
+              };
 
         const updateResult = await tx.gPMatch.update({
           where: { id: matchId, version: currentMatch.version },
           data: updateData,
           select: {
             id: true,
-            player1ReportedPoints1: true, player1ReportedPoints2: true, player1ReportedRaces: true,
-            player2ReportedPoints1: true, player2ReportedPoints2: true, player2ReportedRaces: true,
-            completed: true, version: true,
+            player1ReportedPoints1: true,
+            player1ReportedPoints2: true,
+            player1ReportedRaces: true,
+            player2ReportedPoints1: true,
+            player2ReportedPoints2: true,
+            player2ReportedRaces: true,
+            completed: true,
+            version: true,
           },
         });
 
@@ -403,11 +431,13 @@ export async function POST(
     } catch (error) {
       if (error instanceof OptimisticLockError) {
         return createErrorResponse(
-          "This match was updated by someone else. Please refresh and try again.",
-          409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+          'This match was updated by someone else. Please refresh and try again.',
+          409,
+          'OPTIMISTIC_LOCK_ERROR',
+          { requiresRefresh: true },
         );
       }
-      return handleDatabaseError(error, "score report update");
+      return handleDatabaseError(error, 'score report update');
     }
 
     /* If dual report is disabled (default), immediately confirm the match */
@@ -418,22 +448,23 @@ export async function POST(
             where: { id: matchId, version: updatedMatch.version },
             data: { points1: totalPoints1, points2: totalPoints2, completed: true, version: { increment: 1 } },
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
-          })
+          }),
         );
-        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [
-          finalMatch.player1Id,
-          finalMatch.player2Id,
-        ]);
-        return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
-          "Score confirmed (dual report disabled)");
+        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [finalMatch.player1Id, finalMatch.player2Id]);
+        return createSuccessResponse(
+          { match: finalMatch, autoConfirmed: true },
+          'Score confirmed (dual report disabled)',
+        );
       } catch (error) {
         if (error instanceof OptimisticLockError) {
           return createErrorResponse(
-            "This match was updated by someone else. Please refresh and try again.",
-            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+            'This match was updated by someone else. Please refresh and try again.',
+            409,
+            'OPTIMISTIC_LOCK_ERROR',
+            { requiresRefresh: true },
           );
         }
-        return handleDatabaseError(error, "match completion");
+        return handleDatabaseError(error, 'match completion');
       }
     }
 
@@ -444,10 +475,7 @@ export async function POST(
     const p2p2 = updatedMatch.player2ReportedPoints2;
 
     /* Auto-confirm when both reports match */
-    if (
-      p1p1 !== null && p1p2 !== null && p2p1 !== null && p2p2 !== null &&
-      p1p1 === p2p1 && p1p2 === p2p2
-    ) {
+    if (p1p1 !== null && p1p2 !== null && p2p1 !== null && p2p2 !== null && p1p1 === p2p1 && p1p2 === p2p2) {
       const p1Races = updatedMatch.player1ReportedRaces;
       const p2Races = updatedMatch.player2ReportedRaces;
 
@@ -460,21 +488,25 @@ export async function POST(
       const p1IsArray = Array.isArray(p1Races);
       const p2IsArray = Array.isArray(p2Races);
       const racesMatch =
-        (!p1IsArray || !p2IsArray) ||
+        !p1IsArray ||
+        !p2IsArray ||
         (p1Races.length === p2Races.length &&
-          (p1Races as RaceData[]).every((race, i) =>
-            race.course === (p2Races[i] as RaceData).course &&
-            race.position1 === (p2Races[i] as RaceData).position1 &&
-            race.position2 === (p2Races[i] as RaceData).position2
+          (p1Races as RaceData[]).every(
+            (race, i) =>
+              race.course === (p2Races[i] as RaceData).course &&
+              race.position1 === (p2Races[i] as RaceData).position1 &&
+              race.position2 === (p2Races[i] as RaceData).position2,
           ));
       if (!racesMatch) {
         return createErrorResponse(
-          "Race data mismatch: both players reported the same score but different race details. Please refresh and reconfirm.",
-          409, "RACE_DATA_MISMATCH", {
+          'Race data mismatch: both players reported the same score but different race details. Please refresh and reconfirm.',
+          409,
+          'RACE_DATA_MISMATCH',
+          {
             player1Races: p1Races,
             player2Races: p2Races,
-            requiresRefresh: true
-          }
+            requiresRefresh: true,
+          },
         );
       }
 
@@ -505,37 +537,48 @@ export async function POST(
           confirmedMatch.player2Id,
         ]);
 
-        return createSuccessResponse({
-          match: confirmedMatch,
-          autoConfirmed: true,
-        }, "Scores confirmed and match completed");
+        return createSuccessResponse(
+          {
+            match: confirmedMatch,
+            autoConfirmed: true,
+          },
+          'Scores confirmed and match completed',
+        );
       } catch (error) {
         if (error instanceof OptimisticLockError) {
           return createErrorResponse(
-            "This match was updated by another user. Please refresh and try again.",
-            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+            'This match was updated by another user. Please refresh and try again.',
+            409,
+            'OPTIMISTIC_LOCK_ERROR',
+            { requiresRefresh: true },
           );
         }
-        return handleDatabaseError(error, "match completion");
+        return handleDatabaseError(error, 'match completion');
       }
     }
 
     /* Mismatch: both reported but scores disagree */
     if (p1p1 !== null && p1p2 !== null && p2p1 !== null && p2p2 !== null) {
-      return createSuccessResponse({
-        match: updatedMatch,
-        mismatch: true,
-        player1Report: { points1: p1p1, points2: p1p2 },
-        player2Report: { points1: p2p1, points2: p2p2 },
-      }, "Score reported but mismatch detected - awaiting admin review");
+      return createSuccessResponse(
+        {
+          match: updatedMatch,
+          mismatch: true,
+          player1Report: { points1: p1p1, points2: p1p2 },
+          player2Report: { points1: p2p1, points2: p2p2 },
+        },
+        'Score reported but mismatch detected - awaiting admin review',
+      );
     }
 
-    return createSuccessResponse({
-      match: updatedMatch,
-      waitingFor: reportingPlayer === 1 ? "player2" : "player1",
-    }, "Score reported successfully");
+    return createSuccessResponse(
+      {
+        match: updatedMatch,
+        waitingFor: reportingPlayer === 1 ? 'player2' : 'player1',
+      },
+      'Score reported successfully',
+    );
   } catch (error) {
-    logger.error("Failed to report score", { error, tournamentId, matchId });
-    return handleDatabaseError(error, "score report");
+    logger.error('Failed to report score', { error, tournamentId, matchId });
+    return handleDatabaseError(error, 'score report');
   }
 }

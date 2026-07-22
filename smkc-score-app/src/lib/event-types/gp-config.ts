@@ -105,7 +105,10 @@ export const gpConfig: EventTypeConfig = {
       // Two human players cannot finish in the same position in SMK GP.
       // Exception: both at position 0 (both game over) is allowed per §7.2.
       if (race.position1 === race.position2 && race.position1 !== 0) {
-        return { valid: false, error: `Race ${i + 1}: both players cannot finish in the same position (${race.position1})` };
+        return {
+          valid: false,
+          error: `Race ${i + 1}: both players cannot finish in the same position (${race.position1})`,
+        };
       }
     }
     return { valid: true, data: { matchId, cup, races } };
@@ -122,12 +125,8 @@ export const gpConfig: EventTypeConfig = {
       });
       if (existing?.cup && !isValidCupChoice(existing.cup, data.cup!)) {
         const allowed = CUP_SUBSTITUTIONS[existing.cup];
-        const hint = allowed
-          ? ` (allowed: "${existing.cup}" or "${allowed}")`
-          : '';
-        throw new CupMismatchError(
-          `Cup mismatch: assigned "${existing.cup}", submitted "${data.cup}"${hint}`
-        );
+        const hint = allowed ? ` (allowed: "${existing.cup}" or "${allowed}")` : '';
+        throw new CupMismatchError(`Cup mismatch: assigned "${existing.cup}", submitted "${data.cup}"${hint}`);
       }
 
       let totalPoints1 = 0;
@@ -173,14 +172,12 @@ export const gpConfig: EventTypeConfig = {
   aggregatePlayerStats: (matches, playerId, calcResult) => {
     const stats = { mp: 0, wins: 0, ties: 0, losses: 0, points: 0 };
     for (const m of matches) {
+      if (m.isBye) continue;
       stats.mp++;
       const isPlayer1 = m.player1Id === playerId;
       const myPoints = isPlayer1 ? m.points1 : m.points2;
       stats.points += myPoints;
-      const { result1 } = calcResult(
-        isPlayer1 ? m.points1 : m.points2,
-        isPlayer1 ? m.points2 : m.points1,
-      );
+      const { result1 } = calcResult(isPlayer1 ? m.points1 : m.points2, isPlayer1 ? m.points2 : m.points1);
       if (result1 === 'win') stats.wins++;
       else if (result1 === 'loss') stats.losses++;
       else stats.ties++;

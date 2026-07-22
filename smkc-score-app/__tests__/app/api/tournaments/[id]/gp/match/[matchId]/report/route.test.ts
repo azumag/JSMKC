@@ -55,14 +55,20 @@ jest.mock('@/lib/optimistic-locking', () => ({
       super(message);
       this.name = 'OptimisticLockError';
     }
-  }
+  },
 }));
 jest.mock('@/lib/error-handling', () => ({
   createSuccessResponse: jest.fn((data, message) => ({ data, message, status: 200 })),
-  createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
+  createErrorResponse: jest.fn((message, status, code, details) => ({
+    data: { error: message, code, details },
+    status,
+  })),
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
   handleAuthError: jest.fn((message) => ({ data: { error: message }, status: 401 })),
-  handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+  handleDatabaseError: jest.fn((error, operation) => ({
+    data: { error: `Database error: ${operation}` },
+    status: 500,
+  })),
   handleRateLimitError: jest.fn((retryAfter) => ({ data: { error: 'Rate limit exceeded' }, status: 429, retryAfter })),
 }));
 
@@ -73,23 +79,21 @@ import { updateWithRetry } from '@/lib/optimistic-locking';
 import { POST } from '@/app/api/tournaments/[id]/gp/match/[matchId]/report/route';
 import { Prisma } from '@prisma/client';
 
-const {
-  createSuccessResponse,
-  handleValidationError,
-  handleAuthError,
-  handleDatabaseError
-} = jest.requireMock('@/lib/error-handling');
+const { createSuccessResponse, handleValidationError, handleAuthError, handleDatabaseError } =
+  jest.requireMock('@/lib/error-handling');
 
 // Mock NextRequest class — matches the pattern used by BM/MR test suites
 class MockNextRequest {
   constructor(
     private url: string,
     private body?: any,
-    private headers: Map<string, string> = new Map()
+    private headers: Map<string, string> = new Map(),
   ) {}
-  async json() { return this.body; }
+  async json() {
+    return this.body;
+  }
   headers = {
-    get: (key: string) => this.headers.get(key)
+    get: (key: string) => this.headers.get(key),
   };
 }
 
@@ -108,12 +112,31 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
     // Re-establish error-handling mock implementations after resetAllMocks
     const errorHandling = jest.requireMock('@/lib/error-handling');
-    errorHandling.createSuccessResponse.mockImplementation((data: unknown, message: string) => ({ data, message, status: 200 }));
-    errorHandling.createErrorResponse.mockImplementation((message: string, status: number, code: string, details: unknown) => ({ data: { error: message, code, details }, status }));
-    errorHandling.handleValidationError.mockImplementation((message: string, field: string) => ({ data: { error: message, field }, status: 400 }));
+    errorHandling.createSuccessResponse.mockImplementation((data: unknown, message: string) => ({
+      data,
+      message,
+      status: 200,
+    }));
+    errorHandling.createErrorResponse.mockImplementation(
+      (message: string, status: number, code: string, details: unknown) => ({
+        data: { error: message, code, details },
+        status,
+      }),
+    );
+    errorHandling.handleValidationError.mockImplementation((message: string, field: string) => ({
+      data: { error: message, field },
+      status: 400,
+    }));
     errorHandling.handleAuthError.mockImplementation((message: string) => ({ data: { error: message }, status: 401 }));
-    errorHandling.handleDatabaseError.mockImplementation((error: unknown, operation: string) => ({ data: { error: `Database error: ${operation}` }, status: 500 }));
-    errorHandling.handleRateLimitError.mockImplementation((retryAfter: number) => ({ data: { error: 'Rate limit exceeded' }, status: 429, retryAfter }));
+    errorHandling.handleDatabaseError.mockImplementation((error: unknown, operation: string) => ({
+      data: { error: `Database error: ${operation}` },
+      status: 500,
+    }));
+    errorHandling.handleRateLimitError.mockImplementation((retryAfter: number) => ({
+      data: { error: 'Rate limit exceeded' },
+      status: 429,
+      retryAfter,
+    }));
     // Re-establish rate-limit mock after resetAllMocks (global mock from jest.setup.js gets cleared)
     const rateLimitMocks = jest.requireMock('@/lib/rate-limit');
     rateLimitMocks.checkRateLimit.mockResolvedValue({ success: true, remaining: 100 });
@@ -137,6 +160,28 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
   });
 
   describe('POST - Report score for grand prix match', () => {
+    it('rejects a BREAK before writing reports, logs, or standings', async () => {
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue({
+        id: 'break-1',
+        isBye: true,
+        player1Id: 'p1',
+        player2Id: '__BREAK__',
+        player1: null,
+        player2: null,
+      });
+
+      const result = await POST(
+        new MockNextRequest('http://localhost/report', { reportingPlayer: 1, races: [] }) as any,
+        { params: Promise.resolve({ id: 't1', matchId: 'break-1' }) },
+      );
+
+      expect(result).toMatchObject({ status: 409, data: { code: 'NON_COMPETITIVE_MATCH' } });
+      expect(prisma.scoreEntryLog.create).not.toHaveBeenCalled();
+      expect(prisma.matchCharacterUsage.create).not.toHaveBeenCalled();
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+      expect(updateWithRetry).not.toHaveBeenCalled();
+    });
+
     // Success case - Reports score from player 1
     it('should report score from player 1 and wait for player 2', async () => {
       const mockMatch = {
@@ -160,9 +205,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         version: 1,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -182,9 +225,12 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(result).toEqual({
         data: { match: updatedMatch, waitingFor: 'player2' },
         message: 'Score reported successfully',
-        status: 200
+        status: 200,
       });
-      expect(createSuccessResponse).toHaveBeenCalledWith({ match: updatedMatch, waitingFor: 'player2' }, 'Score reported successfully');
+      expect(createSuccessResponse).toHaveBeenCalledWith(
+        { match: updatedMatch, waitingFor: 'player2' },
+        'Score reported successfully',
+      );
     });
 
     it('should accept direct driver-point totals from participant score entry', async () => {
@@ -209,9 +255,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         version: 1,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 });
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 });
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -226,24 +270,28 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(result).toEqual({
         data: { match: updatedMatch, waitingFor: 'player2' },
         message: 'Score reported successfully',
-        status: 200
+        status: 200,
       });
-      expect(prisma.gPMatch.update).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({
-          player1ReportedPoints1: 37,
-          player1ReportedPoints2: 24,
-          player1ReportedRaces: Prisma.DbNull,
-        }),
-      }));
-      expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({
-          reportedData: expect.objectContaining({
-            totalPoints1: 37,
-            totalPoints2: 24,
-            races: [],
+      expect(prisma.gPMatch.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            player1ReportedPoints1: 37,
+            player1ReportedPoints2: 24,
+            player1ReportedRaces: Prisma.DbNull,
           }),
         }),
-      }));
+      );
+      expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            reportedData: expect.objectContaining({
+              totalPoints1: 37,
+              totalPoints2: 24,
+              races: [],
+            }),
+          }),
+        }),
+      );
     });
 
     // Success case - Reports score from player 2
@@ -269,9 +317,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         version: 1,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -291,9 +337,12 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(result).toEqual({
         data: { match: updatedMatch, waitingFor: 'player1' },
         message: 'Score reported successfully',
-        status: 200
+        status: 200,
       });
-      expect(createSuccessResponse).toHaveBeenCalledWith({ match: updatedMatch, waitingFor: 'player1' }, 'Score reported successfully');
+      expect(createSuccessResponse).toHaveBeenCalledWith(
+        { match: updatedMatch, waitingFor: 'player1' },
+        'Score reported successfully',
+      );
     });
 
     // Success case - Auto-confirms when both reports match
@@ -337,7 +386,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         .mockResolvedValueOnce({ version: 1 }); // Second updateWithRetry callback: version check for completion
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock)
-        .mockResolvedValueOnce(updatedMatch)  // First call: score report
+        .mockResolvedValueOnce(updatedMatch) // First call: score report
         .mockResolvedValueOnce(confirmedMatch); // Second call: completion
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.$executeRawUnsafe as jest.Mock).mockResolvedValue({ count: 1 });
@@ -358,9 +407,12 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(result).toEqual({
         data: { match: confirmedMatch, autoConfirmed: true },
         message: 'Scores confirmed and match completed',
-        status: 200
+        status: 200,
       });
-      expect(createSuccessResponse).toHaveBeenCalledWith({ match: confirmedMatch, autoConfirmed: true }, 'Scores confirmed and match completed');
+      expect(createSuccessResponse).toHaveBeenCalledWith(
+        { match: confirmedMatch, autoConfirmed: true },
+        'Scores confirmed and match completed',
+      );
       expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     });
 
@@ -409,7 +461,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       /* Explicitly mock each findUnique call in sequence */
       (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(initialMatch)   // First call: match existence check
+        .mockResolvedValueOnce(initialMatch) // First call: match existence check
         .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
@@ -429,14 +481,17 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           player2Report: { points1: 12, points2: 12 },
         },
         message: 'Score reported but mismatch detected - awaiting admin review',
-        status: 200
+        status: 200,
       });
-      expect(createSuccessResponse).toHaveBeenCalledWith({
-        match: updatedMatch,
-        mismatch: true,
-        player1Report: { points1: 18, points2: 6 },
-        player2Report: { points1: 12, points2: 12 },
-      }, 'Score reported but mismatch detected - awaiting admin review');
+      expect(createSuccessResponse).toHaveBeenCalledWith(
+        {
+          match: updatedMatch,
+          mismatch: true,
+          player1Report: { points1: 18, points2: 6 },
+          player2Report: { points1: 12, points2: 12 },
+        },
+        'Score reported but mismatch detected - awaiting admin review',
+      );
     });
 
     // Error case - Race data mismatch when scores match but races differ
@@ -478,9 +533,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         version: 1,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -492,7 +545,9 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const result = await POST(request, { params });
 
       expect(result.status).toBe(409);
-      expect(result.data.error).toBe('Race data mismatch: both players reported the same score but different race details. Please refresh and reconfirm.');
+      expect(result.data.error).toBe(
+        'Race data mismatch: both players reported the same score but different race details. Please refresh and reconfirm.',
+      );
       expect(result.data.code).toBe('RACE_DATA_MISMATCH');
       expect(result.data.details).toEqual({
         player1Races: mockMatch.player1ReportedRaces,
@@ -532,9 +587,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         { course: 'MC2', position1: 1, position2: 2 },
       ];
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -570,7 +623,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Match not found', field: 'matchId' },
-        status: 400
+        status: 400,
       });
       expect(handleValidationError).toHaveBeenCalledWith('Match not found', 'matchId');
     });
@@ -598,7 +651,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Invalid character', field: 'character' },
-        status: 400
+        status: 400,
       });
       expect(handleValidationError).toHaveBeenCalledWith('Invalid character', 'character');
     });
@@ -637,9 +690,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         version: 2,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 1 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 1 }); // updateWithRetry callback: version check
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(correctedMatch);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.$executeRawUnsafe as jest.Mock).mockResolvedValue({ count: 1 });
@@ -664,7 +715,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       });
       expect(createSuccessResponse).toHaveBeenCalledWith(
         { match: correctedMatch, corrected: true },
-        'Score correction saved'
+        'Score correction saved',
       );
       expect(handleValidationError).not.toHaveBeenCalled();
       /* Both players' qualification stats must be recalculated after a
@@ -707,7 +758,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       });
       expect(handleValidationError).toHaveBeenCalledWith(
         'Submitted races do not match the assigned cup for this match',
-        'races'
+        'races',
       );
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
@@ -748,7 +799,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       });
       expect(handleValidationError).toHaveBeenCalledWith(
         'Submitted races do not match the assigned cup for this match',
-        'races'
+        'races',
       );
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
@@ -789,7 +840,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       });
       expect(handleValidationError).toHaveBeenCalledWith(
         'Submitted races do not match the assigned cup for this match',
-        'races'
+        'races',
       );
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
@@ -826,7 +877,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       });
       expect(handleValidationError).toHaveBeenCalledWith(
         'Submitted races do not match the assigned cup for this match',
-        'races'
+        'races',
       );
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
@@ -844,10 +895,14 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Database error: score report' },
-        status: 500
+        status: 500,
       });
       expect(handleDatabaseError).toHaveBeenCalledWith(expect.any(Error), 'score report');
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to report score', { error: expect.any(Error), tournamentId: 't1', matchId: 'm1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to report score', {
+        error: expect.any(Error),
+        tournamentId: 't1',
+        matchId: 'm1',
+      });
     });
 
     // Edge case - Continues when score entry log creation fails
@@ -873,9 +928,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         version: 1,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockRejectedValue(new Error('Log failed'));
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -919,9 +972,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         version: 1,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.matchCharacterUsage.create as jest.Mock).mockRejectedValue(new Error('Char log failed'));
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
@@ -985,9 +1036,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         { course: 'MC2', position1: 1, position2: 2 },
       ];
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -1039,9 +1088,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         { course: 'MC2', position1: 2, position2: 8 },
       ];
 
-      (prisma.gPMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce(mockMatch)
-        .mockResolvedValueOnce({ version: 0 });
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce({ version: 0 });
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
 
@@ -1089,7 +1136,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         data: {
           error: 'Unauthorized: Not authorized for this match',
         },
-        status: 401
+        status: 401,
       });
       expect(handleAuthError).toHaveBeenCalledWith('Unauthorized: Not authorized for this match');
     });

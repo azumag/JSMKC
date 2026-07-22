@@ -23,24 +23,20 @@
  * The ExtendedPrismaClient type aliases PrismaClient from @prisma/client.
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import { createLogger } from "@/lib/logger";
-import {
-  calculateAllCourseScores,
-  type TAQualificationPointsResult,
-} from "@/lib/ta/qualification-scoring";
+import { createLogger } from '@/lib/logger';
+import { calculateAllCourseScores, type TAQualificationPointsResult } from '@/lib/ta/qualification-scoring';
 import {
   calculateQualificationPointsFromMatches,
   MatchRecord,
   QualificationPointsResult,
-} from "./qualification-points";
-import { getFinalsPoints } from "./finals-points";
-
+} from './qualification-points';
+import { getFinalsPoints } from './finals-points';
 
 type ExtendedPrismaClient = PrismaClient;
 
-const logger = createLogger("overall-ranking");
+const logger = createLogger('overall-ranking');
 
 /**
  * In-memory cache for `calculateOverallRankings`.
@@ -81,10 +77,7 @@ const overallRankingsCache = new Map<string, RankingsCacheEntry>();
  * key to the most-recently-used end, then evict from the front until we
  * are within capacity.
  */
-function setOverallRankingsCache(
-  tournamentId: string,
-  data: PlayerTournamentScore[],
-): void {
+function setOverallRankingsCache(tournamentId: string, data: PlayerTournamentScore[]): void {
   if (overallRankingsCache.has(tournamentId)) {
     overallRankingsCache.delete(tournamentId);
   }
@@ -124,7 +117,7 @@ interface QualificationEntry {
   mp?: number;
 }
 
-type MatchQualificationModel = "bMMatch" | "mRMatch" | "gPMatch";
+type MatchQualificationModel = 'bMMatch' | 'mRMatch' | 'gPMatch';
 
 /**
  * Shape of a TTEntry record from the database, used for determining
@@ -203,13 +196,13 @@ export interface PlayerTournamentScore {
  */
 export async function calculateTAQualificationPointsFromDB(
   prisma: ExtendedPrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<Map<string, TAQualificationPointsResult>> {
   // Fetch all qualification-stage TT entries for this tournament
   const entries = await prisma.tTEntry.findMany({
     where: {
       tournamentId,
-      stage: "qualification",
+      stage: 'qualification',
     },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
@@ -259,9 +252,9 @@ export async function calculateTAQualificationPointsFromDB(
  */
 export async function calculateBMQualificationPointsFromDB(
   prisma: ExtendedPrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<Map<string, QualificationPointsResult>> {
-  if (!await hasCompletedRealQualificationMatch(prisma, tournamentId, "bMMatch")) {
+  if (!(await hasCompletedRealQualificationMatch(prisma, tournamentId, 'bMMatch'))) {
     return new Map();
   }
 
@@ -284,9 +277,9 @@ export async function calculateBMQualificationPointsFromDB(
  */
 export async function calculateMRQualificationPointsFromDB(
   prisma: ExtendedPrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<Map<string, QualificationPointsResult>> {
-  if (!await hasCompletedRealQualificationMatch(prisma, tournamentId, "mRMatch")) {
+  if (!(await hasCompletedRealQualificationMatch(prisma, tournamentId, 'mRMatch'))) {
     return new Map();
   }
 
@@ -309,9 +302,9 @@ export async function calculateMRQualificationPointsFromDB(
  */
 export async function calculateGPQualificationPointsFromDB(
   prisma: ExtendedPrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<Map<string, QualificationPointsResult>> {
-  if (!await hasCompletedRealQualificationMatch(prisma, tournamentId, "gPMatch")) {
+  if (!(await hasCompletedRealQualificationMatch(prisma, tournamentId, 'gPMatch'))) {
     return new Map();
   }
 
@@ -378,29 +371,20 @@ interface PhaseRoundResultRecord {
  */
 export async function getTAFinalsPositions(
   prisma: ExtendedPrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<FinalsPosition[]> {
   let phaseEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: { in: ["phase1", "phase2", "phase3"] } },
-    orderBy: [
-      { stage: "asc" },
-      { eliminated: "asc" },
-      { lives: "desc" },
-      { totalTime: "asc" },
-    ],
+    where: { tournamentId, stage: { in: ['phase1', 'phase2', 'phase3'] } },
+    orderBy: [{ stage: 'asc' }, { eliminated: 'asc' }, { lives: 'desc' }, { totalTime: 'asc' }],
   });
-  let phaseFilter: "finals" | { in: string[] } = { in: ["phase1", "phase2", "phase3"] };
+  let phaseFilter: 'finals' | { in: string[] } = { in: ['phase1', 'phase2', 'phase3'] };
 
   if (phaseEntries.length === 0) {
     phaseEntries = await prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "finals" },
-      orderBy: [
-        { eliminated: "asc" },
-        { lives: "desc" },
-        { totalTime: "asc" },
-      ],
+      where: { tournamentId, stage: 'finals' },
+      orderBy: [{ eliminated: 'asc' }, { lives: 'desc' }, { totalTime: 'asc' }],
     });
-    phaseFilter = "finals";
+    phaseFilter = 'finals';
   }
 
   if (phaseEntries.length === 0) return [];
@@ -409,10 +393,7 @@ export async function getTAFinalsPositions(
   // which each eliminated player went out, plus their time in that round.
   const phaseRounds = await prisma.tTPhaseRound.findMany({
     where: { tournamentId, phase: phaseFilter },
-    orderBy: [
-      { phase: "asc" },
-      { roundNumber: "asc" },
-    ],
+    orderBy: [{ phase: 'asc' }, { roundNumber: 'asc' }],
     select: { id: true, phase: true, roundNumber: true, eliminatedIds: true, results: true },
   });
 
@@ -425,28 +406,25 @@ export async function getTAFinalsPositions(
    */
   const suddenDeathRounds = await prisma.tTPhaseSuddenDeathRound.findMany({
     where: { tournamentId, resolved: true },
-    orderBy: [{ sequence: "asc" }],
+    orderBy: [{ sequence: 'asc' }],
     select: { phaseRoundId: true, sequence: true, results: true },
   });
   const roundKeyById = new Map(
-    (phaseRounds as TTPhaseRoundRecord[]).map((round) => [round.id, `${round.phase}:${round.roundNumber}`])
+    (phaseRounds as TTPhaseRoundRecord[]).map((round) => [round.id, `${round.phase}:${round.roundNumber}`]),
   );
   const suddenDeathChainByRoundKey = new Map<string, Array<Map<string, number>>>();
   for (const suddenDeath of suddenDeathRounds as TTSuddenDeathRecord[]) {
     const roundKey = roundKeyById.get(suddenDeath.phaseRoundId);
     if (!roundKey || !Array.isArray(suddenDeath.results)) continue;
     const times = new Map(
-      (suddenDeath.results as PhaseRoundResultRecord[]).map((result) => [result.playerId, result.timeMs])
+      (suddenDeath.results as PhaseRoundResultRecord[]).map((result) => [result.playerId, result.timeMs]),
     );
     const chain = suddenDeathChainByRoundKey.get(roundKey) ?? [];
     chain.push(times);
     suddenDeathChainByRoundKey.set(roundKey, chain);
   }
 
-  const eliminationByPhase = new Map<
-    string,
-    Map<string, { round: number; timeMs: number }>
-  >();
+  const eliminationByPhase = new Map<string, Map<string, { round: number; timeMs: number }>>();
   const getPhaseEliminations = (phase: string) => {
     const existing = eliminationByPhase.get(phase);
     if (existing) return existing;
@@ -457,7 +435,7 @@ export async function getTAFinalsPositions(
 
   for (const round of phaseRounds as TTPhaseRoundRecord[]) {
     const eliminatedIds = Array.isArray(round.eliminatedIds)
-      ? round.eliminatedIds.filter((id): id is string => typeof id === "string")
+      ? round.eliminatedIds.filter((id): id is string => typeof id === 'string')
       : [];
     if (eliminatedIds.length === 0) continue;
 
@@ -482,7 +460,7 @@ export async function getTAFinalsPositions(
   const currentPhaseEntries = phaseEntries as TTEntryRecord[];
 
   const sortPhase3Entries = (entries: TTEntryRecord[]) => {
-    const phase3Eliminations = getPhaseEliminations(phaseFilter === "finals" ? "finals" : "phase3");
+    const phase3Eliminations = getPhaseEliminations(phaseFilter === 'finals' ? 'finals' : 'phase3');
     return [...entries].sort((a, b) => {
       if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
 
@@ -503,7 +481,7 @@ export async function getTAFinalsPositions(
       if (aData.round !== bData.round) return bData.round - aData.round;
       // Same round: the latest resolved sudden death both players raced in
       // decides their order (bronze race, revival tiebreak — issue #2773).
-      const phase3Key = phaseFilter === "finals" ? "finals" : "phase3";
+      const phase3Key = phaseFilter === 'finals' ? 'finals' : 'phase3';
       const chain = suddenDeathChainByRoundKey.get(`${phase3Key}:${aData.round}`) ?? [];
       for (let i = chain.length - 1; i >= 0; i--) {
         const aSudden = chain[i].get(a.playerId);
@@ -528,7 +506,7 @@ export async function getTAFinalsPositions(
     for (const [playerId] of eliminations) {
       if (assignedPlayerIds.has(playerId)) continue;
       if (position < lowestPosition) {
-        logger.warn("Skipping excess TA phase elimination outside placement range", {
+        logger.warn('Skipping excess TA phase elimination outside placement range', {
           tournamentId,
           phase,
           playerId,
@@ -543,14 +521,14 @@ export async function getTAFinalsPositions(
     }
   };
 
-  if (phaseFilter === "finals") {
+  if (phaseFilter === 'finals') {
     return sortPhase3Entries(currentPhaseEntries).map((entry, index) => ({
       playerId: entry.playerId,
       position: index + 1,
     }));
   }
 
-  const phase3Entries = currentPhaseEntries.filter((entry) => entry.stage === "phase3");
+  const phase3Entries = currentPhaseEntries.filter((entry) => entry.stage === 'phase3');
   sortPhase3Entries(phase3Entries).forEach((entry, index) => {
     positions.push({ playerId: entry.playerId, position: index + 1 });
     assignedPlayerIds.add(entry.playerId);
@@ -558,8 +536,8 @@ export async function getTAFinalsPositions(
 
   // TA finals are staged from the bottom up: Phase 1 eliminations decide
   // 24th through 21st, and Phase 2 eliminations decide 20th through 17th.
-  assignPhaseEliminations("phase2", 20, 17);
-  assignPhaseEliminations("phase1", 24, 21);
+  assignPhaseEliminations('phase2', 20, 17);
+  assignPhaseEliminations('phase1', 24, 21);
 
   return positions.sort((a, b) => a.position - b.position || a.playerId.localeCompare(b.playerId));
 }
@@ -582,7 +560,7 @@ interface FinalsMatchRecord {
 
 function isSixteenPlayerOrTop24Bracket(matches: FinalsMatchRecord[]): boolean {
   return matches.some((m) => {
-    if (m.stage === "playoff" || m.round?.startsWith("playoff_")) return true;
+    if (m.stage === 'playoff' || m.round?.startsWith('playoff_')) return true;
     /*
      * The placement table changes once finals are generated from the 16-player
      * bracket used by both native Top-16 and Top-24 after the barrage. This
@@ -602,14 +580,14 @@ function isSixteenPlayerOrTop24Bracket(matches: FinalsMatchRecord[]): boolean {
      *   grand_final: 30 (8-player uses 16)
      *   grand_final_reset: 31 (8-player uses 17)
      */
-    if (m.round === "losers_r4") return true;
-    if (m.round === "losers_r1" && m.matchNumber >= 16) return true;
-    if (m.round === "losers_r2" && m.matchNumber >= 20) return true;
-    if (m.round === "losers_r3" && m.matchNumber >= 24) return true;
-    if (m.round === "losers_sf" && m.matchNumber >= 28) return true;
-    if (m.round === "losers_final" && m.matchNumber >= 29) return true;
-    if (m.round === "grand_final" && m.matchNumber >= 30) return true;
-    if (m.round === "grand_final_reset" && m.matchNumber >= 31) return true;
+    if (m.round === 'losers_r4') return true;
+    if (m.round === 'losers_r1' && m.matchNumber >= 16) return true;
+    if (m.round === 'losers_r2' && m.matchNumber >= 20) return true;
+    if (m.round === 'losers_r3' && m.matchNumber >= 24) return true;
+    if (m.round === 'losers_sf' && m.matchNumber >= 28) return true;
+    if (m.round === 'losers_final' && m.matchNumber >= 29) return true;
+    if (m.round === 'grand_final' && m.matchNumber >= 30) return true;
+    if (m.round === 'grand_final_reset' && m.matchNumber >= 31) return true;
     return false;
   });
 }
@@ -629,12 +607,11 @@ async function hasCompletedRealQualificationMatch(
   tournamentId: string,
   matchModel: MatchQualificationModel,
 ): Promise<boolean> {
-  const isByeFilter = matchModel === "gPMatch" ? undefined : false;
   const where = {
     tournamentId,
-    stage: "qualification",
+    stage: 'qualification',
     completed: true,
-    ...(isByeFilter === undefined ? {} : { isBye: isByeFilter }),
+    isBye: false,
     deletedAt: null,
   };
   const select = { id: true };
@@ -650,9 +627,7 @@ async function hasCompletedRealQualificationMatch(
   return matches.length > 0;
 }
 
-function qualificationResultsByPlayer(
-  qualifications: QualificationEntry[],
-): Map<string, QualificationPointsResult> {
+function qualificationResultsByPlayer(qualifications: QualificationEntry[]): Map<string, QualificationPointsResult> {
   const records = qualifications.map(toMatchRecord);
   const results = calculateQualificationPointsFromMatches(records);
   const resultMap = new Map<string, QualificationPointsResult>();
@@ -666,9 +641,7 @@ function qualificationResultsByPlayer(
  * Determine the winner and loser of a completed finals match.
  * In case of a draw (shouldn't occur for completed matches), defaults to player 1 as winner.
  */
-function resolveWinnerLoser(
-  m: FinalsMatchRecord
-): { winner: string; loser: string } {
+function resolveWinnerLoser(m: FinalsMatchRecord): { winner: string; loser: string } {
   if (m.p1Score > m.p2Score) return { winner: m.player1Id, loser: m.player2Id };
   if (m.p2Score > m.p1Score) return { winner: m.player2Id, loser: m.player1Id };
   return { winner: m.player1Id, loser: m.player2Id };
@@ -702,62 +675,114 @@ function resolveWinnerLoser(
 export async function getMatchFinalsPositions(
   prisma: ExtendedPrismaClient,
   tournamentId: string,
-  mode: "BM" | "MR" | "GP"
+  mode: 'BM' | 'MR' | 'GP',
 ): Promise<FinalsPosition[]> {
-  logger.info(
-    `getMatchFinalsPositions called for mode=${mode}, tournament=${tournamentId}.`
-  );
+  logger.info(`getMatchFinalsPositions called for mode=${mode}, tournament=${tournamentId}.`);
 
   // Fetch all completed, non-deleted finals matches ordered by match number.
   // GP uses points1/points2 as the score fields; BM/MR use score1/score2.
   let matches: FinalsMatchRecord[];
 
-  if (mode === "BM") {
+  if (mode === 'BM') {
     const rows = await prisma.bMMatch.findMany({
-      where: { tournamentId, stage: { in: ["playoff", "finals"] }, completed: true, deletedAt: null },
-      orderBy: { matchNumber: "asc" },
-      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, stage: true, matchNumber: true },
+      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, completed: true, deletedAt: null },
+      orderBy: { matchNumber: 'asc' },
+      select: {
+        player1Id: true,
+        player2Id: true,
+        score1: true,
+        score2: true,
+        round: true,
+        stage: true,
+        matchNumber: true,
+      },
     });
-    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; stage?: string | null; matchNumber: number }) => ({
-      player1Id: r.player1Id,
-      player2Id: r.player2Id,
-      p1Score: r.score1,
-      p2Score: r.score2,
-      round: r.round,
-      stage: r.stage,
-      matchNumber: r.matchNumber,
-    }));
-  } else if (mode === "MR") {
+    matches = rows.map(
+      (r: {
+        player1Id: string;
+        player2Id: string;
+        score1: number;
+        score2: number;
+        round: string | null;
+        stage?: string | null;
+        matchNumber: number;
+      }) => ({
+        player1Id: r.player1Id,
+        player2Id: r.player2Id,
+        p1Score: r.score1,
+        p2Score: r.score2,
+        round: r.round,
+        stage: r.stage,
+        matchNumber: r.matchNumber,
+      }),
+    );
+  } else if (mode === 'MR') {
     const rows = await prisma.mRMatch.findMany({
-      where: { tournamentId, stage: { in: ["playoff", "finals"] }, completed: true, deletedAt: null },
-      orderBy: { matchNumber: "asc" },
-      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, stage: true, matchNumber: true },
+      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, completed: true, deletedAt: null },
+      orderBy: { matchNumber: 'asc' },
+      select: {
+        player1Id: true,
+        player2Id: true,
+        score1: true,
+        score2: true,
+        round: true,
+        stage: true,
+        matchNumber: true,
+      },
     });
-    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; stage?: string | null; matchNumber: number }) => ({
-      player1Id: r.player1Id,
-      player2Id: r.player2Id,
-      p1Score: r.score1,
-      p2Score: r.score2,
-      round: r.round,
-      stage: r.stage,
-      matchNumber: r.matchNumber,
-    }));
+    matches = rows.map(
+      (r: {
+        player1Id: string;
+        player2Id: string;
+        score1: number;
+        score2: number;
+        round: string | null;
+        stage?: string | null;
+        matchNumber: number;
+      }) => ({
+        player1Id: r.player1Id,
+        player2Id: r.player2Id,
+        p1Score: r.score1,
+        p2Score: r.score2,
+        round: r.round,
+        stage: r.stage,
+        matchNumber: r.matchNumber,
+      }),
+    );
   } else {
     // GP uses points1/points2 instead of score1/score2
     const rows = await prisma.gPMatch.findMany({
-      where: { tournamentId, stage: { in: ["playoff", "finals"] }, completed: true, deletedAt: null },
-      orderBy: { matchNumber: "asc" },
-      select: { player1Id: true, player2Id: true, points1: true, points2: true, round: true, stage: true, matchNumber: true },
+      where: { tournamentId, stage: { in: ['playoff', 'finals'] }, completed: true, deletedAt: null },
+      orderBy: { matchNumber: 'asc' },
+      select: {
+        player1Id: true,
+        player2Id: true,
+        points1: true,
+        points2: true,
+        round: true,
+        stage: true,
+        matchNumber: true,
+      },
     });
-    matches = rows.map((r: { player1Id: string; player2Id: string; points1: number; points2: number; round: string | null; stage?: string | null; matchNumber: number }) => ({
-      player1Id: r.player1Id,
-      player2Id: r.player2Id,
-      p1Score: r.points1,
-      p2Score: r.points2,
-      round: r.round,
-      stage: r.stage,
-      matchNumber: r.matchNumber,
-    }));
+    matches = rows.map(
+      (r: {
+        player1Id: string;
+        player2Id: string;
+        points1: number;
+        points2: number;
+        round: string | null;
+        stage?: string | null;
+        matchNumber: number;
+      }) => ({
+        player1Id: r.player1Id,
+        player2Id: r.player2Id,
+        p1Score: r.points1,
+        p2Score: r.points2,
+        round: r.round,
+        stage: r.stage,
+        matchNumber: r.matchNumber,
+      }),
+    );
   }
 
   // No finals played yet: return empty array (caller should treat as "not yet determined")
@@ -790,7 +815,7 @@ export async function getMatchFinalsPositions(
 
   // Grand Final: use the last completed GF match (GF Reset if it was played)
   const gfMatches = matches
-    .filter((m) => m.round === "grand_final" || m.round === "grand_final_reset")
+    .filter((m) => m.round === 'grand_final' || m.round === 'grand_final_reset')
     .sort((a, b) => a.matchNumber - b.matchNumber);
 
   if (gfMatches.length > 0) {
@@ -800,39 +825,39 @@ export async function getMatchFinalsPositions(
   }
 
   // Losers Final loser → 3rd
-  for (const m of matches.filter((m) => m.round === "losers_final")) {
+  for (const m of matches.filter((m) => m.round === 'losers_final')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: 3 });
   }
 
   // Losers SF loser → 4th
-  for (const m of matches.filter((m) => m.round === "losers_sf")) {
+  for (const m of matches.filter((m) => m.round === 'losers_sf')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: 4 });
   }
 
-  for (const m of matches.filter((m) => m.round === "losers_r4")) {
+  for (const m of matches.filter((m) => m.round === 'losers_r4')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: 5 });
   }
 
   // Losers R3 losers → 7th in 16-player brackets, 5th in legacy 8-player brackets.
-  for (const m of matches.filter((m) => m.round === "losers_r3")) {
+  for (const m of matches.filter((m) => m.round === 'losers_r3')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: useSixteenPlayerPlacement ? 7 : 5 });
   }
 
   // Losers R2 losers → 9th in 16-player brackets, 7th in legacy 8-player brackets.
-  for (const m of matches.filter((m) => m.round === "losers_r2")) {
+  for (const m of matches.filter((m) => m.round === 'losers_r2')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: useSixteenPlayerPlacement ? 9 : 7 });
   }
 
   // Losers R1 losers → 13th in 16-player brackets, 9th in legacy 8-player brackets.
-  for (const m of matches.filter((m) => m.round === "losers_r1")) {
+  for (const m of matches.filter((m) => m.round === 'losers_r1')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: useSixteenPlayerPlacement ? 13 : 9 });
   }
 
-  for (const m of matches.filter((m) => m.round === "playoff_r2")) {
+  for (const m of matches.filter((m) => m.round === 'playoff_r2')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: 17 });
   }
 
-  for (const m of matches.filter((m) => m.round === "playoff_r1")) {
+  for (const m of matches.filter((m) => m.round === 'playoff_r1')) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: 21 });
   }
 
@@ -855,7 +880,7 @@ export async function getMatchFinalsPositions(
  */
 export async function calculateOverallRankings(
   prisma: ExtendedPrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<PlayerTournamentScore[]> {
   // Cache short-circuit: serve recent results without re-querying D1.
   // Invalidation hooks in api-factories drop this entry on every write
@@ -876,7 +901,7 @@ export async function calculateOverallRankings(
 
   // Gather players from TA qualification entries
   const taEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "qualification" },
+    where: { tournamentId, stage: 'qualification' },
     select: { playerId: true },
   });
   taEntries.forEach((e: PlayerIdEntry) => allPlayerIds.add(e.playerId));
@@ -909,53 +934,39 @@ export async function calculateOverallRankings(
     where: { id: { in: Array.from(allPlayerIds) } },
     select: PLAYER_PUBLIC_SELECT,
   });
-  const playerMap = new Map<string, PlayerEntry>(
-    players.map((p: PlayerEntry) => [p.id, p])
-  );
+  const playerMap = new Map<string, PlayerEntry>(players.map((p: PlayerEntry) => [p.id, p]));
 
   // Step 3: Calculate qualification points for each mode
-  const taQualPoints = await calculateTAQualificationPointsFromDB(
-    prisma,
-    tournamentId
-  );
-  const bmQualPoints = await calculateBMQualificationPointsFromDB(
-    prisma,
-    tournamentId
-  );
-  const mrQualPoints = await calculateMRQualificationPointsFromDB(
-    prisma,
-    tournamentId
-  );
-  const gpQualPoints = await calculateGPQualificationPointsFromDB(
-    prisma,
-    tournamentId
-  );
+  const taQualPoints = await calculateTAQualificationPointsFromDB(prisma, tournamentId);
+  const bmQualPoints = await calculateBMQualificationPointsFromDB(prisma, tournamentId);
+  const mrQualPoints = await calculateMRQualificationPointsFromDB(prisma, tournamentId);
+  const gpQualPoints = await calculateGPQualificationPointsFromDB(prisma, tournamentId);
 
   // Step 4: Determine finals positions and look up corresponding points
   const taFinalsPos = await getTAFinalsPositions(prisma, tournamentId);
-  const bmFinalsPos = await getMatchFinalsPositions(prisma, tournamentId, "BM");
-  const mrFinalsPos = await getMatchFinalsPositions(prisma, tournamentId, "MR");
-  const gpFinalsPos = await getMatchFinalsPositions(prisma, tournamentId, "GP");
+  const bmFinalsPos = await getMatchFinalsPositions(prisma, tournamentId, 'BM');
+  const mrFinalsPos = await getMatchFinalsPositions(prisma, tournamentId, 'MR');
+  const gpFinalsPos = await getMatchFinalsPositions(prisma, tournamentId, 'GP');
 
   // Build lookup maps for finals points (playerId -> points)
   const taFinalsPointsMap = new Map<string, number>();
   taFinalsPos.forEach((p) => {
-    taFinalsPointsMap.set(p.playerId, getFinalsPoints("TA", p.position));
+    taFinalsPointsMap.set(p.playerId, getFinalsPoints('TA', p.position));
   });
 
   const bmFinalsPointsMap = new Map<string, number>();
   bmFinalsPos.forEach((p) => {
-    bmFinalsPointsMap.set(p.playerId, getFinalsPoints("BM", p.position));
+    bmFinalsPointsMap.set(p.playerId, getFinalsPoints('BM', p.position));
   });
 
   const mrFinalsPointsMap = new Map<string, number>();
   mrFinalsPos.forEach((p) => {
-    mrFinalsPointsMap.set(p.playerId, getFinalsPoints("MR", p.position));
+    mrFinalsPointsMap.set(p.playerId, getFinalsPoints('MR', p.position));
   });
 
   const gpFinalsPointsMap = new Map<string, number>();
   gpFinalsPos.forEach((p) => {
-    gpFinalsPointsMap.set(p.playerId, getFinalsPoints("GP", p.position));
+    gpFinalsPointsMap.set(p.playerId, getFinalsPoints('GP', p.position));
   });
 
   // Step 5: Assemble the complete score for each player
@@ -977,15 +988,7 @@ export async function calculateOverallRankings(
     const gpFinals = gpFinalsPointsMap.get(playerId) ?? 0;
 
     // Sum all 8 categories for the grand total
-    const totalPoints =
-      taQual +
-      bmQual +
-      mrQual +
-      gpQual +
-      taFinals +
-      bmFinals +
-      mrFinals +
-      gpFinals;
+    const totalPoints = taQual + bmQual + mrQual + gpQual + taFinals + bmFinals + mrFinals + gpFinals;
 
     scores.push({
       playerId,
@@ -1046,7 +1049,7 @@ export async function calculateOverallRankings(
 export async function saveOverallRankings(
   prisma: ExtendedPrismaClient,
   tournamentId: string,
-  scores: PlayerTournamentScore[]
+  scores: PlayerTournamentScore[],
 ): Promise<void> {
   if (scores.length === 0) return;
 
@@ -1115,12 +1118,12 @@ interface StoredTournamentScore {
  */
 export async function getOverallRankings(
   prisma: ExtendedPrismaClient,
-  tournamentId: string
+  tournamentId: string,
 ): Promise<PlayerTournamentScore[]> {
   const scores = await prisma.tournamentPlayerScore.findMany({
     where: { tournamentId },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
-    orderBy: { overallRank: "asc" },
+    orderBy: { overallRank: 'asc' },
   });
 
   // Map database records to the PlayerTournamentScore interface

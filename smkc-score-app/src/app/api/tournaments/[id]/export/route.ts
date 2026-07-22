@@ -545,14 +545,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ['', ''],
       ['Battle Mode', ''],
       ['BM Participants', String(tournament.bmQualifications.length)],
-      ['BM Qualification Matches', String(tournament.bmMatches.filter((m) => m.stage === 'qualification').length)],
+      [
+        'BM Qualification Matches',
+        String(tournament.bmMatches.filter((m) => m.stage === 'qualification' && !m.isBye).length),
+      ],
       ['BM Finals Matches', String(tournament.bmMatches.filter((m) => m.stage === 'finals').length)],
       ['', ''],
       ['Match Race', ''],
-      ['MR Matches', String(tournament.mrMatches.length)],
+      ['MR Matches', String(tournament.mrMatches.filter((m) => !m.isBye).length)],
       ['', ''],
       ['Grand Prix', ''],
-      ['GP Matches', String(tournament.gpMatches.length)],
+      ['GP Matches', String(tournament.gpMatches.filter((m) => !m.isBye).length)],
       ['', ''],
       ['Time Attack', ''],
       ['TA Entries', String(tournament.ttEntries.length)],
@@ -609,8 +612,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // ========================================
     // Section 3: BM Match Results
     // ========================================
-    if (tournament.bmMatches.length > 0) {
-      const qualMatches = tournament.bmMatches.filter((m) => m.stage === 'qualification');
+    if (tournament.bmMatches.some((match) => !match.isBye)) {
+      const qualMatches = tournament.bmMatches.filter((m) => m.stage === 'qualification' && !m.isBye);
       const finalsMatches = tournament.bmMatches.filter((m) => m.stage === 'finals');
 
       // 3a: Qualification matches
@@ -722,7 +725,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // ========================================
     // Section 4: Match Race Results
     // ========================================
-    if (tournament.mrMatches.length > 0) {
+    if (tournament.mrMatches.some((match) => !match.isBye)) {
       const mrHeaders = [
         'Match #',
         'Stage',
@@ -735,24 +738,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         'Completed',
       ];
 
-      const mrData = tournament.mrMatches.map((match) => {
-        const score = match.completed ? `${match.score1} - ${match.score2}` : 'Not started';
+      const mrData = tournament.mrMatches
+        .filter((match) => !match.isBye)
+        .map((match) => {
+          const score = match.completed ? `${match.score1} - ${match.score2}` : 'Not started';
 
-        // Escape CSV values that contain commas
-        return [
-          String(match.matchNumber),
-          match.stage || '-',
-          match.round || '-',
-          match.player1.name,
-          match.player1.nickname,
-          match.player2.name,
-          match.player2.nickname,
-          score,
-          match.completed ? 'Yes' : 'No',
-        ]
-          .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
-          .join(',');
-      });
+          // Escape CSV values that contain commas
+          return [
+            String(match.matchNumber),
+            match.stage || '-',
+            match.round || '-',
+            match.player1.name,
+            match.player1.nickname,
+            match.player2.name,
+            match.player2.nickname,
+            score,
+            match.completed ? 'Yes' : 'No',
+          ]
+            .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
+            .join(',');
+        });
 
       csvContent += '\nMatch Race Matches\n';
       csvContent += mrHeaders.join(',') + '\n';
@@ -762,7 +767,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // ========================================
     // Section 5: Grand Prix Results
     // ========================================
-    if (tournament.gpMatches.length > 0) {
+    if (tournament.gpMatches.some((match) => !match.isBye)) {
       const gpHeaders = [
         'Match #',
         'Stage',
@@ -775,22 +780,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         'Completed',
       ];
 
-      const gpData = tournament.gpMatches.map((match) => {
-        // GP uses driver points (9, 6, 3, 1) instead of round scores
-        return [
-          String(match.matchNumber),
-          match.stage || '-',
-          match.player1.name,
-          match.player1.nickname,
-          match.player2.name,
-          match.player2.nickname,
-          String(match.points1 || 0),
-          String(match.points2 || 0),
-          match.completed ? 'Yes' : 'No',
-        ]
-          .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
-          .join(',');
-      });
+      const gpData = tournament.gpMatches
+        .filter((match) => !match.isBye)
+        .map((match) => {
+          // GP uses driver points (9, 6, 3, 1) instead of round scores
+          return [
+            String(match.matchNumber),
+            match.stage || '-',
+            match.player1.name,
+            match.player1.nickname,
+            match.player2.name,
+            match.player2.nickname,
+            String(match.points1 || 0),
+            String(match.points2 || 0),
+            match.completed ? 'Yes' : 'No',
+          ]
+            .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
+            .join(',');
+        });
 
       csvContent += '\nGrand Prix Matches\n';
       csvContent += gpHeaders.join(',') + '\n';
