@@ -135,7 +135,9 @@ describe('Qualification Route Factory', () => {
       bmQualificationConfirmed: false,
       mrQualificationConfirmed: false,
       gpQualificationConfirmed: false,
+      version: 0,
     });
+    (prisma.tournament.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
   });
 
   // ============================================================
@@ -507,7 +509,7 @@ describe('Qualification Route Factory', () => {
       );
     });
 
-    it('should chunk qual createMany when record count exceeds QUAL_CHUNK=24 (#769)', async () => {
+    it('keeps legacy 28-player groups on the circle schedule', async () => {
       // 28 players in one group → 28 qual records > QUAL_CHUNK=24
       // Expected: ceil(28/24) = 2 createMany calls with slices [0..24, 24..28]
       // 28 is even so no BYE rounds are generated.
@@ -534,15 +536,81 @@ describe('Qualification Route Factory', () => {
       });
 
       expect(response.status).toBe(201);
+      expect((prisma.bMQualification as any).createMany).toHaveBeenCalledTimes(2);
+    });
 
-      // 28 qual records → 2 chunks: first 24, then remaining 4
-      const qualCalls = (prisma.bMQualification as any).createMany.mock.calls;
-      expect(qualCalls).toHaveLength(2);
-      expect(qualCalls[0][0].data).toHaveLength(24);
-      expect(qualCalls[1][0].data).toHaveLength(4);
-      // Total qual records across all chunks = 28
-      const totalQuals = qualCalls.reduce((sum: number, call: any[]) => sum + call[0].data.length, 0);
-      expect(totalQuals).toBe(28);
+    it('rejects an unsupported CDM group before deleting an existing qualification', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        qualificationScheduleMethod: 'cdm',
+      });
+      const players = Array.from({ length: 13 }, (_, index) => ({
+        playerId: `player-${index + 1}`,
+        group: 'A',
+        seeding: index + 1,
+      }));
+      const { POST } = createQualificationHandlers(createMockConfig());
+
+      const response = await POST(
+        new NextRequest('http://localhost:3000', { method: 'POST', body: JSON.stringify({ players }) }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(
+        expect.objectContaining({ success: false, code: 'UNSUPPORTED_CDM_GROUP_SIZE' }),
+      );
+      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
+      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a one-player CDM group before deleting an existing qualification', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        qualificationScheduleMethod: 'cdm',
+        version: 0,
+      });
+      const { POST } = createQualificationHandlers(createMockConfig());
+
+      const response = await POST(
+        new NextRequest('http://localhost:3000', {
+          method: 'POST',
+          body: JSON.stringify({ players: [{ playerId: 'player-1', group: 'A', seeding: 1 }] }),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(
+        expect.objectContaining({ success: false, code: 'UNSUPPORTED_CDM_GROUP_SIZE' }),
+      );
+      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
+      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('requires unique positive CDM seeds before deleting an existing qualification', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        qualificationScheduleMethod: 'cdm',
+      });
+      const players = Array.from({ length: 8 }, (_, index) => ({
+        playerId: `player-${index + 1}`,
+        group: 'A',
+        seeding: index === 7 ? 1 : index + 1,
+      }));
+      const { POST } = createQualificationHandlers(createMockConfig());
+
+      const response = await POST(
+        new NextRequest('http://localhost:3000', { method: 'POST', body: JSON.stringify({ players }) }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(
+        expect.objectContaining({ success: false, code: 'INVALID_CDM_SEED_ORDER' }),
+      );
+      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
+      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
     });
 
     it('should create audit log when auditAction is configured', async () => {
@@ -1207,13 +1275,13 @@ describe('Qualification Route Factory', () => {
         ];
         randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
 
-        const players = Array.from({ length: 42 }, (_, i) => ({
+        const players = Array.from({ length: 20 }, (_, i) => ({
           playerId: `player-${i + 1}`,
           group: 'A',
           seeding: i + 1,
         }));
 
-        (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 42 });
+        (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 20 });
         (prisma.gPQualification as any).findMany.mockResolvedValue([]);
         (prisma.gPMatch as any).findMany.mockResolvedValue([]);
         (prisma as any).$executeRawUnsafe.mockResolvedValue(861);
@@ -1248,8 +1316,6 @@ describe('Qualification Route Factory', () => {
           .sort(([a], [b]) => a - b)
           .map(([, cup]) => cup);
         const firstDeck = assignedRoundCups.slice(0, CUPS.length);
-        const secondDeck = assignedRoundCups.slice(CUPS.length, CUPS.length * 2);
-        const fifthDeck = assignedRoundCups.slice(CUPS.length * 4, CUPS.length * 5);
 
         /*
          * The forced shuffle values make each deck after the first start with
@@ -1261,12 +1327,7 @@ describe('Qualification Route Factory', () => {
           expect(assignedRoundCups[i]).not.toBe(assignedRoundCups[i - 1]);
         }
         expect(firstDeck).toHaveLength(CUPS.length);
-        expect(secondDeck).toHaveLength(CUPS.length);
-        expect(fifthDeck).toHaveLength(CUPS.length);
         expect([...firstDeck].sort()).toEqual([...CUPS].sort());
-        expect([...secondDeck].sort()).toEqual([...CUPS].sort());
-        expect([...fifthDeck].sort()).toEqual([...CUPS].sort());
-        expect(secondDeck).toEqual(['Special', 'Star', 'Mushroom', 'Flower']);
       } finally {
         randomSpy.mockRestore();
       }

@@ -146,7 +146,15 @@ export async function POST(request: NextRequest) {
   try {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, dualReportEnabled, taPlayerSelfEdit, taBattleRoyaleMode, debugMode } = body;
+    const {
+      name,
+      date,
+      dualReportEnabled,
+      taPlayerSelfEdit,
+      taBattleRoyaleMode,
+      debugMode,
+      qualificationScheduleMethod,
+    } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     // Validate required fields
@@ -155,6 +163,12 @@ export async function POST(request: NextRequest) {
     }
     if (taBattleRoyaleMode !== undefined && typeof taBattleRoyaleMode !== 'boolean') {
       return handleValidationError('taBattleRoyaleMode must be a boolean', 'taBattleRoyaleMode');
+    }
+    if (qualificationScheduleMethod !== undefined && !['circle', 'cdm'].includes(qualificationScheduleMethod)) {
+      return handleValidationError(
+        'qualificationScheduleMethod must be "circle" or "cdm"',
+        'qualificationScheduleMethod',
+      );
     }
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
@@ -174,6 +188,7 @@ export async function POST(request: NextRequest) {
         dualReportEnabled: dualReportEnabled === true,
         taPlayerSelfEdit: taPlayerSelfEdit !== false,
         taBattleRoyaleMode: taBattleRoyaleMode === true,
+        ...(qualificationScheduleMethod !== undefined && { qualificationScheduleMethod }),
         debugMode: debugMode === true,
         publicModes: [],
       },

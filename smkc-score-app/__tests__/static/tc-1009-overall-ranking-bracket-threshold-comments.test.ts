@@ -13,16 +13,12 @@ describe('TC-1009 overall-ranking bracket threshold comments', () => {
 
   it('keeps each 16-player finals matchNumber threshold explained at the source site', () => {
     const source = readRepoFile('smkc-score-app', 'src', 'lib', 'points', 'overall-ranking.ts');
-    const helper = sectionBetween(
-      source,
-      'function isSixteenPlayerOrTop24Bracket',
-      'function toMatchRecord',
-    );
+    const helper = sectionBetween(source, 'function isSixteenPlayerOrTop24Bracket', 'function toMatchRecord');
 
     expect(helper).toContain('generateBracketStructure(8)');
     expect(helper).toContain('generateBracketStructure(16)');
     expect(helper).toContain('losers_r4: 26-27');
-    expect(helper).toContain('m.round === "losers_r4"');
+    expect(helper).toContain("m.round === 'losers_r4'");
 
     for (const [round, lowerBound, range] of [
       ['losers_r1', 16, '16-19'],
@@ -34,7 +30,7 @@ describe('TC-1009 overall-ranking bracket threshold comments', () => {
       ['grand_final_reset', 31, '31'],
     ] as const) {
       expect(helper).toContain(`${round}: ${range}`);
-      expect(helper).toContain(`m.round === "${round}" && m.matchNumber >= ${lowerBound}`);
+      expect(helper).toContain(`m.round === '${round}' && m.matchNumber >= ${lowerBound}`);
     }
   });
 });

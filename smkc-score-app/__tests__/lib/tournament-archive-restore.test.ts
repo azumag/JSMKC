@@ -220,6 +220,7 @@ describe('restoreTournamentArchiveForReopen', () => {
         status: 'active',
         publicModes: [],
         bmQualificationConfirmed: true,
+        qualificationScheduleMethod: 'circle',
       }),
     });
     // The archive fixture's player still carries a legacy taHandicapSeconds
@@ -249,6 +250,17 @@ describe('restoreTournamentArchiveForReopen', () => {
       data: [expect.objectContaining({ tournamentId: 'archived-1', totalPoints: 2000 })],
     });
     expect(restored.tournament).toEqual({ id: 'archived-1', status: 'active', publicModes: [] });
+  });
+
+  it('restores the CDM schedule method from a current archive', async () => {
+    const archive = makeArchive();
+    archive.tournament.qualificationScheduleMethod = 'cdm';
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.tournament.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ qualificationScheduleMethod: 'cdm' }),
+    });
   });
 
   it('normalizes nullable TA JSON columns to database NULL', async () => {

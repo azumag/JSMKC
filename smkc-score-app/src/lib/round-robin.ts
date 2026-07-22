@@ -19,9 +19,11 @@
  */
 
 import { BYE_SCORE_BM_MR, GP_BYE_SCORE } from '@/lib/constants';
+import { CDM_ROUND_ROBIN_FIXTURES } from '@/lib/cdm-round-robin-fixtures';
 
 /** Sentinel player ID for BYE matches when player count is odd */
 export const BREAK_PLAYER_ID = '__BREAK__';
+const BREAK_SLOT_IDS = ['__BREAK_SLOT_1__', '__BREAK_SLOT_2__'] as const;
 
 /** A single match in the round-robin schedule */
 export interface RoundRobinMatch {
@@ -40,6 +42,31 @@ export interface RoundRobinSchedule {
   matches: RoundRobinMatch[];
   totalDays: number;
   hasByes: boolean;
+}
+
+/** Scheduling policy stored on a tournament. Circle remains the legacy default. */
+export type QualificationScheduleMethod = 'circle' | 'cdm';
+
+export class UnsupportedRoundRobinPlayerCountError extends Error {
+  readonly code = 'UNSUPPORTED_CDM_GROUP_SIZE';
+
+  constructor(playerCount: number) {
+    super(
+      `CDM round-robin supports groups of 7-12, 14-20 players; received ${playerCount}. ` +
+        'Use the circle schedule for other group sizes.',
+    );
+    this.name = 'UnsupportedRoundRobinPlayerCountError';
+  }
+}
+
+function cdmFixtureCapacity(playerCount: number): number | null {
+  if ([7, 8].includes(playerCount)) return 8;
+  if ([9, 10].includes(playerCount)) return 10;
+  if ([11, 12].includes(playerCount)) return 12;
+  if ([14, 15, 16].includes(playerCount)) return 16;
+  if ([17, 18].includes(playerCount)) return 18;
+  if ([19, 20].includes(playerCount)) return 20;
+  return null;
 }
 
 /** Intermediate pairing before 1P/2P assignment */
@@ -61,12 +88,48 @@ interface RawPairing {
  * @param playerIds - Array of player IDs to schedule (order determines seeding)
  * @returns Complete schedule with day-numbered matches
  */
-export function generateRoundRobinSchedule(playerIds: string[]): RoundRobinSchedule {
+export function generateRoundRobinSchedule(
+  playerIds: string[],
+  { method = 'circle' }: { method?: QualificationScheduleMethod } = {},
+): RoundRobinSchedule {
+  const fixtureCapacity = method === 'cdm' ? cdmFixtureCapacity(playerIds.length) : null;
+  if (method === 'cdm' && !fixtureCapacity) throw new UnsupportedRoundRobinPlayerCountError(playerIds.length);
+
   if (playerIds.length < 2) {
     return { matches: [], totalDays: 0, hasByes: false };
   }
 
-  /* Pad to even count by adding BREAK if necessary */
+  if (fixtureCapacity) {
+    const breakSlots = BREAK_SLOT_IDS.slice(0, fixtureCapacity - playerIds.length);
+    const participants = [...playerIds, ...breakSlots];
+    const fixture = CDM_ROUND_ROBIN_FIXTURES[fixtureCapacity];
+    return {
+      matches: fixture.flatMap((dayPairs, dayIndex) =>
+        dayPairs.map<RoundRobinMatch>(([player1Index, player2Index]) => {
+          const player1Id = participants[player1Index];
+          const player2Id = participants[player2Index];
+          const player1IsBreak = BREAK_SLOT_IDS.includes(player1Id as (typeof BREAK_SLOT_IDS)[number]);
+          const player2IsBreak = BREAK_SLOT_IDS.includes(player2Id as (typeof BREAK_SLOT_IDS)[number]);
+          if (player1IsBreak && player2IsBreak) {
+            return { day: dayIndex + 1, player1Id: BREAK_PLAYER_ID, player2Id: BREAK_PLAYER_ID, isBye: true };
+          }
+          if (player1IsBreak || player2IsBreak) {
+            return {
+              day: dayIndex + 1,
+              player1Id: player1IsBreak ? player2Id : player1Id,
+              player2Id: BREAK_PLAYER_ID,
+              isBye: true,
+            };
+          }
+          return { day: dayIndex + 1, player1Id, player2Id, isBye: false };
+        }),
+      ),
+      totalDays: fixtureCapacity - 1,
+      hasByes: breakSlots.length > 0,
+    };
+  }
+
+  /* Circle is the legacy default and deliberately supports every group size. */
   const hasByes = playerIds.length % 2 !== 0;
   const participants = hasByes ? [...playerIds, BREAK_PLAYER_ID] : [...playerIds];
   const n = participants.length;
@@ -235,14 +298,23 @@ function optimizeSideBalance(matches: RoundRobinMatch[], totalReal: Map<string, 
  * @param mode - Event type code
  * @returns Fields to spread into the match creation data
  */
-export function getByeMatchData(
-  mode: 'bm' | 'mr' | 'gp',
-): Record<string, number> {
+export function getByeMatchData(mode: 'bm' | 'mr' | 'gp'): Record<string, number> {
   switch (mode) {
     case 'bm':
     case 'mr':
       return { score1: BYE_SCORE_BM_MR, score2: 0 };
     case 'gp':
       return { points1: GP_BYE_SCORE, points2: 0 };
+  }
+}
+
+/** A two-BREAK fixture row only occupies a schedule slot; it has no winner. */
+export function getScheduleOnlyBreakData(mode: 'bm' | 'mr' | 'gp'): Record<string, number> {
+  switch (mode) {
+    case 'bm':
+    case 'mr':
+      return { score1: 0, score2: 0 };
+    case 'gp':
+      return { points1: 0, points2: 0 };
   }
 }

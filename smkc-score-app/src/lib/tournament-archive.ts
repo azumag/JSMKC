@@ -95,6 +95,7 @@ export type TournamentArchiveBundle = {
     bmFinalsSeedSnapshot?: unknown;
     mrFinalsSeedSnapshot?: unknown;
     gpFinalsSeedSnapshot?: unknown;
+    qualificationScheduleMethod?: string;
   };
   allPlayers: ArchivePlayer[];
   modes: {
@@ -255,6 +256,7 @@ export function normalizeTournamentArchiveBundle(value: unknown): TournamentArch
     tournament: {
       ...rawTournament,
       taBattleRoyaleMode: battleRoyale,
+      qualificationScheduleMethod: rawTournament.qualificationScheduleMethod === 'cdm' ? 'cdm' : 'circle',
     },
     modes: {
       ...rawModes,
@@ -521,6 +523,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
       bmFinalsSeedSnapshot: true,
       mrFinalsSeedSnapshot: true,
       gpFinalsSeedSnapshot: true,
+      qualificationScheduleMethod: true,
       createdAt: true,
       updatedAt: true,
     },

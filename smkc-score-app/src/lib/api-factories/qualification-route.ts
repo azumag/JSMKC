@@ -34,7 +34,14 @@ import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks, type RankableMatch, type RankableQualification } from '@/lib/server-ranking';
 import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
-import { generateRoundRobinSchedule, getByeMatchData, BREAK_PLAYER_ID } from '@/lib/round-robin';
+import {
+  generateRoundRobinSchedule,
+  getByeMatchData,
+  getScheduleOnlyBreakData,
+  BREAK_PLAYER_ID,
+  UnsupportedRoundRobinPlayerCountError,
+  type QualificationScheduleMethod,
+} from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 
 export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
@@ -449,6 +456,48 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         );
       }
 
+      /* Read and validate every generated schedule before destructive writes.
+       * Existing tournaments default to circle; CDM is an explicit, persisted
+       * opt-in so a legacy re-setup can never silently change its draw. */
+      const tournament = await resolveTournament(id, { id: true, qualificationScheduleMethod: true });
+      if (!tournament) return createErrorResponse('Tournament not found', 404);
+      const scheduleMethod: QualificationScheduleMethod =
+        tournament.qualificationScheduleMethod === 'cdm' ? 'cdm' : 'circle';
+      // Preserve the submitted group order for legacy circle tournaments.
+      // CDM fixtures are deterministic inside each group from its seed order.
+      const groups = [...new Set(players.map((p: { group: string }) => p.group))];
+      const schedules = new Map<string, ReturnType<typeof generateRoundRobinSchedule>>();
+
+      for (const group of groups) {
+        const groupPlayers = players
+          .filter((p: { group: string }) => p.group === group)
+          .sort(
+            (a: { seeding?: number }, b: { seeding?: number }) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity),
+          );
+
+        if (scheduleMethod === 'cdm') {
+          const seeds = groupPlayers.map((player: { seeding?: number }) => player.seeding);
+          if (
+            seeds.some((seed) => !Number.isInteger(seed) || (seed as number) < 1) ||
+            new Set(seeds).size !== seeds.length
+          ) {
+            return createErrorResponse(
+              'CDM scheduling requires each group to have unique positive integer seeds',
+              400,
+              'INVALID_CDM_SEED_ORDER',
+            );
+          }
+        }
+
+        schedules.set(
+          group,
+          generateRoundRobinSchedule(
+            groupPlayers.map((p: { playerId: string }) => p.playerId),
+            { method: scheduleMethod },
+          ),
+        );
+      }
+
       /*
        * Delete existing qualification records and matches first to avoid
        * unique-constraint violations on re-setup (e.g. グループ編集). Without
@@ -505,9 +554,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * Each group gets its own schedule with Day-numbered rounds.
        * BYE matches (odd-numbered groups) are auto-completed with fixed scores.
        */
-      const groups = [...new Set(players.map((p: { group: string }) => p.group))];
       let matchNumber = 1;
       const byeData = getByeMatchData(config.eventTypeCode);
+      const scheduleOnlyBreakData = getScheduleOnlyBreakData(config.eventTypeCode);
 
       /*
        * §10.5 course assignment: generate the VSMR qualification course deck
@@ -551,15 +600,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
          * so placing the top-seeded player first ensures seeding-aware match ordering
          * per requirements §10.4. Players without seeding are placed last.
          */
-        const groupPlayers = players
-          .filter((p: { group: string }) => p.group === group)
-          .sort((a: { seeding?: number }, b: { seeding?: number }) => {
-            const sa = a.seeding ?? Infinity;
-            const sb = b.seeding ?? Infinity;
-            return sa - sb;
-          });
-        const playerIds = groupPlayers.map((p: { playerId: string }) => p.playerId);
-        const schedule = generateRoundRobinSchedule(playerIds);
+        const schedule = schedules.get(group)!;
 
         for (const m of schedule.matches) {
           /*
@@ -586,6 +627,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           const assignedCup =
             shuffledCups && shouldAssignPlayableCourse ? getAssignedCupForRound(shuffledCups, m.day) : undefined;
           const autoCompleteBye = m.isBye;
+          const isBreakVsBreak = p1Id === BREAK_PLAYER_ID && p2Id === BREAK_PLAYER_ID;
 
           matchData.push({
             tournamentId,
@@ -602,7 +644,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
             ...(assignedCup ? { cup: assignedCup } : {}),
             /* Keep a resolved schedule result, but exclude it from all aggregates. */
-            ...(autoCompleteBye ? { completed: true, ...byeData } : {}),
+            ...(autoCompleteBye ? { completed: true, ...(isBreakVsBreak ? scheduleOnlyBreakData : byeData) } : {}),
           });
 
           if (!autoCompleteBye) {
@@ -682,6 +724,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         { status: 201 },
       );
     } catch (error) {
+      if (error instanceof UnsupportedRoundRobinPlayerCountError) {
+        return createErrorResponse(error.message, 400, error.code);
+      }
       logger.error(`Failed to setup ${config.eventDisplayName}`, { error, tournamentId });
       return createErrorResponse(`Failed to setup ${config.eventDisplayName}`, 500, 'INTERNAL_ERROR');
     }

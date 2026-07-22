@@ -18,6 +18,7 @@ const RESTORED_TOURNAMENT_SELECT = {
   bmFinalsSeedSnapshot: true,
   mrFinalsSeedSnapshot: true,
   gpFinalsSeedSnapshot: true,
+  qualificationScheduleMethod: true,
   publicModes: true,
   createdAt: true,
   updatedAt: true,

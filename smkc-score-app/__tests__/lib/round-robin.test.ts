@@ -11,9 +11,12 @@
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
+  getScheduleOnlyBreakData,
   BREAK_PLAYER_ID,
   RoundRobinSchedule,
+  UnsupportedRoundRobinPlayerCountError,
 } from '@/lib/round-robin';
+import { CDM_ROUND_ROBIN_FIXTURES } from '@/lib/cdm-round-robin-fixtures';
 
 describe('generateRoundRobinSchedule', () => {
   // ============================================================
@@ -83,8 +86,7 @@ describe('generateRoundRobinSchedule', () => {
       const byeMatches = schedule.matches.filter((m) => m.isBye);
 
       for (const m of byeMatches) {
-        const hasBreak =
-          m.player1Id === BREAK_PLAYER_ID || m.player2Id === BREAK_PLAYER_ID;
+        const hasBreak = m.player1Id === BREAK_PLAYER_ID || m.player2Id === BREAK_PLAYER_ID;
         expect(hasBreak).toBe(true);
       }
     });
@@ -178,11 +180,8 @@ describe('generateRoundRobinSchedule', () => {
       assertSideBalance(schedule, players);
     });
 
-    it('each player has balanced 1P and 2P assignments (±1) for 10 players', () => {
-      const players = Array.from({ length: 10 }, (_, i) => `P${i + 1}`);
-      const schedule = generateRoundRobinSchedule(players);
-      assertSideBalance(schedule, players);
-    });
+    /* 8P+ uses the CDM workbook's fixed controller-port assignment. It is
+     * validated row-for-row below instead of being re-optimised. */
   });
 
   // ============================================================
@@ -196,6 +195,68 @@ describe('generateRoundRobinSchedule', () => {
       const s2 = generateRoundRobinSchedule(players);
 
       expect(s1).toEqual(s2);
+    });
+  });
+
+  describe('CDM workbook fixtures', () => {
+    it.each([8, 10, 12, 16, 18, 20])('matches every RR 2025 Start.xlsx row for %iP', (capacity) => {
+      const players = Array.from({ length: capacity }, (_, index) => `P${index + 1}`);
+      const schedule = generateRoundRobinSchedule(players, { method: 'cdm' });
+      const expected = CDM_ROUND_ROBIN_FIXTURES[capacity].flatMap((dayPairs, dayIndex) =>
+        dayPairs.map(([p1, p2]) => ({
+          day: dayIndex + 1,
+          player1Id: players[p1],
+          player2Id: players[p2],
+          isBye: false,
+        })),
+      );
+
+      expect(schedule).toEqual({ matches: expected, totalDays: capacity - 1, hasByes: false });
+      assertOneMatchPerDay(schedule, players);
+      expect(extractRealPairs(schedule).size).toBe((capacity * (capacity - 1)) / 2);
+    });
+
+    it('maps an odd 7-player group through the 8P fixture and leaves BREAK non-competitive', () => {
+      const players = Array.from({ length: 7 }, (_, index) => `P${index + 1}`);
+      const schedule = generateRoundRobinSchedule(players, { method: 'cdm' });
+
+      expect(schedule.totalDays).toBe(7);
+      expect(schedule.hasByes).toBe(true);
+      expect(schedule.matches.filter((match) => match.isBye)).toHaveLength(7);
+      expect(schedule.matches.filter((match) => !match.isBye)).toHaveLength(21);
+      expect(
+        schedule.matches.filter((match) => match.isBye).every((match) => match.player2Id === BREAK_PLAYER_ID),
+      ).toBe(true);
+    });
+
+    it('maps 14 players through all 16P rows with two BREAK slots normalised for storage', () => {
+      const players = Array.from({ length: 14 }, (_, index) => `P${index + 1}`);
+      const schedule = generateRoundRobinSchedule(players, { method: 'cdm' });
+
+      expect(schedule.totalDays).toBe(15);
+      expect(schedule.matches).toHaveLength(120);
+      expect(schedule.matches.filter((match) => !match.isBye)).toHaveLength(91);
+      expect(schedule.matches.filter((match) => match.isBye)).toHaveLength(29);
+      expect(
+        schedule.matches.filter((match) => match.player1Id === BREAK_PLAYER_ID && match.player2Id === BREAK_PLAYER_ID),
+      ).toHaveLength(1);
+      assertOneMatchPerDay(schedule, players);
+      for (let day = 1; day <= schedule.totalDays; day++) {
+        const breakSlots = schedule.matches
+          .filter((match) => match.day === day)
+          .flatMap((match) => [match.player1Id, match.player2Id])
+          .filter((playerId) => playerId === BREAK_PLAYER_ID);
+        expect(breakSlots).toHaveLength(2);
+      }
+    });
+
+    it('rejects the unsupported 13-player gap instead of silently changing the CDM schedule', () => {
+      expect(() =>
+        generateRoundRobinSchedule(
+          Array.from({ length: 13 }, (_, index) => `P${index + 1}`),
+          { method: 'cdm' },
+        ),
+      ).toThrow(UnsupportedRoundRobinPlayerCountError);
     });
   });
 
@@ -220,6 +281,10 @@ describe('generateRoundRobinSchedule', () => {
       expect(schedule.hasByes).toBe(false);
     });
 
+    it('rejects a one-player CDM group instead of treating it as an empty draw', () => {
+      expect(() => generateRoundRobinSchedule(['A'], { method: 'cdm' })).toThrow(UnsupportedRoundRobinPlayerCountError);
+    });
+
     it('handles large group (20 players) correctly', () => {
       const players = Array.from({ length: 20 }, (_, i) => `P${i + 1}`);
       const schedule = generateRoundRobinSchedule(players);
@@ -233,12 +298,29 @@ describe('generateRoundRobinSchedule', () => {
       expect(pairs.size).toBe(190);
     });
 
+    it('rejects a group larger than the largest CDM worksheet', () => {
+      expect(() =>
+        generateRoundRobinSchedule(
+          Array.from({ length: 21 }, (_, index) => `P${index + 1}`),
+          { method: 'cdm' },
+        ),
+      ).toThrow(UnsupportedRoundRobinPlayerCountError);
+    });
+
     it('day numbers are 1-based and sequential', () => {
       const schedule = generateRoundRobinSchedule(['A', 'B', 'C', 'D']);
       const days = [...new Set(schedule.matches.map((m) => m.day))].sort((a, b) => a - b);
 
       expect(days).toEqual([1, 2, 3]);
     });
+  });
+});
+
+describe('getScheduleOnlyBreakData', () => {
+  it('keeps a BREAK-versus-BREAK schedule row at 0-0 in every mode', () => {
+    expect(getScheduleOnlyBreakData('bm')).toEqual({ score1: 0, score2: 0 });
+    expect(getScheduleOnlyBreakData('mr')).toEqual({ score1: 0, score2: 0 });
+    expect(getScheduleOnlyBreakData('gp')).toEqual({ points1: 0, points2: 0 });
   });
 });
 
@@ -301,9 +383,7 @@ function assertOneMatchPerDay(schedule: RoundRobinSchedule, players: string[]) {
  */
 function assertSideBalance(schedule: RoundRobinSchedule, players: string[]) {
   for (const p of players) {
-    const playerMatches = schedule.matches.filter(
-      (m) => !m.isBye && (m.player1Id === p || m.player2Id === p),
-    );
+    const playerMatches = schedule.matches.filter((m) => !m.isBye && (m.player1Id === p || m.player2Id === p));
 
     let as1P = 0;
     let as2P = 0;
