@@ -91,6 +91,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, score1, score2, rounds, character } = body;
 
+    /* Reject malformed requests before inspecting a nullable match slot. */
+    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
+      return handleValidationError('reportingPlayer must be 1 or 2', 'reportingPlayer');
+    }
+
     /* Validate character selection */
     if (!validateCharacter(character)) {
       return handleValidationError('Invalid character', 'character');
@@ -110,11 +115,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
     }
 
-    /* Validate required fields before auth to fail fast on malformed requests */
-    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
-      return handleValidationError('reportingPlayer must be 1 or 2', 'reportingPlayer');
+    if (!match.player1Id || !match.player2Id || !match.player1 || !match.player2) {
+      return createErrorResponse('Match slots are unresolved', 409, 'MATCH_SLOTS_UNRESOLVED');
     }
 
+    /* Validate required fields before auth to fail fast on malformed requests */
     if (score1 === undefined || score2 === undefined) {
       return handleValidationError('score1 and score2 are required', 'requiredFields');
     }
@@ -170,10 +175,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           });
         });
 
-        await recalculatePlayersStats(MR_RECALC_CONFIG, tournamentId, [
-          correctedMatch.player1Id,
-          correctedMatch.player2Id,
-        ]);
+        await recalculatePlayersStats(
+          MR_RECALC_CONFIG,
+          tournamentId,
+          [correctedMatch.player1Id, correctedMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
 
         return createSuccessResponse(
           {
@@ -320,7 +326,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           }),
         );
-        await recalculatePlayersStats(MR_RECALC_CONFIG, tournamentId, [finalMatch.player1Id, finalMatch.player2Id]);
+        await recalculatePlayersStats(
+          MR_RECALC_CONFIG,
+          tournamentId,
+          [finalMatch.player1Id, finalMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
         return createSuccessResponse(
           { match: finalMatch, autoConfirmed: true },
           'Score confirmed (dual report disabled)',
@@ -393,10 +403,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             return finalResult;
           });
 
-          await recalculatePlayersStats(MR_RECALC_CONFIG, tournamentId, [
-            completedMatch.player1Id,
-            completedMatch.player2Id,
-          ]);
+          await recalculatePlayersStats(
+            MR_RECALC_CONFIG,
+            tournamentId,
+            [completedMatch.player1Id, completedMatch.player2Id].filter((id): id is string => Boolean(id)),
+          );
 
           return createSuccessResponse(
             {

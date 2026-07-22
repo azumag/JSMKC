@@ -30,6 +30,8 @@ import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { auth } from '@/lib/auth';
 import { generateCdmWorkbook } from '@/lib/cdm-export';
 import { resolveFinalsSeedSnapshot } from '@/lib/finals-seed-snapshot';
+import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
+import { serializeFinalsSlots, type SlotStatusMatch } from '@/lib/finals-slot-status';
 import type {
   CdmMatch,
   CdmModeQualification,
@@ -73,8 +75,10 @@ type CdmMatchRow = {
   roundNumber?: number | null;
   tvNumber?: number | null;
   isBye?: boolean;
-  player1: CdmPlayerRow;
-  player2: CdmPlayerRow;
+  player1Id?: string | null;
+  player2Id?: string | null;
+  player1: CdmPlayerRow | null;
+  player2: CdmPlayerRow | null;
   player1Side?: number | null;
   player2Side?: number | null;
   score1?: number | null;
@@ -161,6 +165,10 @@ type CsvTournamentRow = {
   gpMatches: CsvMatchRow[];
   ttEntries: CsvTtEntryRow[];
 };
+
+function csvPlayerCells(player: CdmPlayerRow | null | undefined): [string, string] {
+  return player ? [player.name, player.nickname] : ['TBD', 'TBD'];
+}
 
 const BASE_EXPORT_INCLUDE = {
   bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
@@ -258,7 +266,7 @@ function isPlayerUsable(player: CdmPlayerRow | null | undefined): player is CdmP
   );
 }
 
-function mapPlayer(player: CdmPlayerRow): CdmTournamentData['bmQualifications'][number]['player'] {
+function mapPlayer(player: CdmPlayerRow | null | undefined): CdmTournamentData['bmQualifications'][number]['player'] {
   // Caller is responsible for filtering non-usable players via isPlayerUsable;
   // we still return a defensive placeholder here so a future caller bug cannot
   // surface as a 500 (the fill maps require player.id, but a "" placeholder
@@ -365,31 +373,47 @@ function dropIncompletePlayerRows<T extends { player?: CdmPlayerRow | null }>(
   return kept;
 }
 
-function dropIncompleteMatchRows(
-  rows: CdmMatchRow[],
-  category: string,
-  logger: ReturnType<typeof createLogger>,
-): CdmMatchRow[] {
-  const dropped: unknown[] = [];
-  const kept = rows.filter((row) => {
-    if (isPlayerUsable(row.player1) && isPlayerUsable(row.player2)) return true;
-    dropped.push({ matchNumber: row.matchNumber, stage: row.stage, round: row.round });
-    return false;
-  });
-  if (dropped.length > 0) {
-    logger.warn('Dropped CDM export match rows with missing/invalid players', {
-      category,
-      droppedCount: dropped.length,
-      sample: dropped.slice(0, 3),
-    });
+/**
+ * Keep unresolved knockout rows. The CDM template has fixed bracket cells, so
+ * dropping a NULL/TBD row changes match coordinates. `mapPlayer()` turns the
+ * unresolved side into a blank workbook slot and score writers clear it.
+ */
+function normalizeCdmKnockoutSlots(rows: CdmMatchRow[], groupCount: 2 | 3): CdmMatchRow[] {
+  const byStage = (stage: 'finals' | 'playoff', structure: ReturnType<typeof generateBracketStructure>) => {
+    const stageRows = rows.filter((row) => row.stage === stage);
+    if (stageRows.length === 0) return new Map<number, CdmMatchRow>();
+    const normalized = serializeFinalsSlots(
+      stageRows as unknown as SlotStatusMatch[],
+      structure,
+    ) as unknown as CdmMatchRow[];
+    return new Map(normalized.map((row) => [row.matchNumber, row]));
+  };
+
+  const finalsRows = rows.filter((row) => row.stage === 'finals');
+  const finalsStructure =
+    finalsRows.length > 0
+      ? finalsRows.length > 20
+        ? generateBracketStructure(16, groupCount)
+        : generateBracketStructure(8)
+      : [];
+  const byStageAndMatch = new Map<string, CdmMatchRow>();
+  for (const [stage, structure] of [
+    ['finals', finalsStructure],
+    ['playoff', generatePlayoffStructure(12, groupCount)],
+  ] as const) {
+    for (const row of byStage(stage, structure).values()) {
+      byStageAndMatch.set(`${stage}:${row.matchNumber}`, row);
+    }
   }
-  return kept;
+  return rows.map((row) => byStageAndMatch.get(`${row.stage}:${row.matchNumber}`) ?? row);
 }
 
 function mapToCdmTournamentData(
   tournament: CdmTournamentRow,
   logger: ReturnType<typeof createLogger>,
 ): CdmTournamentData {
+  const groupCountFor = (qualifications: CdmQualificationRow[]): 2 | 3 =>
+    new Set(qualifications.map((qualification) => qualification.group).filter(Boolean)).size === 2 ? 2 : 3;
   const mapSeedSnapshot = (value: unknown) =>
     Array.isArray(value)
       ? value.flatMap((entry) => {
@@ -430,9 +454,15 @@ function mapToCdmTournamentData(
     gpQualifications: dropIncompletePlayerRows(tournament.gpQualifications, 'gpQualifications', logger).map(
       mapQualification,
     ),
-    bmMatches: dropIncompleteMatchRows(tournament.bmMatches, 'bmMatches', logger).map(mapMatch),
-    mrMatches: dropIncompleteMatchRows(tournament.mrMatches, 'mrMatches', logger).map(mapMatch),
-    gpMatches: dropIncompleteMatchRows(tournament.gpMatches, 'gpMatches', logger).map(mapMatch),
+    bmMatches: normalizeCdmKnockoutSlots(tournament.bmMatches, groupCountFor(tournament.bmQualifications)).map(
+      mapMatch,
+    ),
+    mrMatches: normalizeCdmKnockoutSlots(tournament.mrMatches, groupCountFor(tournament.mrQualifications)).map(
+      mapMatch,
+    ),
+    gpMatches: normalizeCdmKnockoutSlots(tournament.gpMatches, groupCountFor(tournament.gpQualifications)).map(
+      mapMatch,
+    ),
     bmFinalsSeedSnapshot: mapSeedSnapshot(tournament.bmFinalsSeedSnapshot),
     mrFinalsSeedSnapshot: mapSeedSnapshot(tournament.mrFinalsSeedSnapshot),
     gpFinalsSeedSnapshot: mapSeedSnapshot(tournament.gpFinalsSeedSnapshot),
@@ -650,10 +680,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           // Escape CSV values that contain commas by wrapping in double quotes
           return [
             String(match.matchNumber),
-            match.player1.name,
-            match.player1.nickname,
-            match.player2.name,
-            match.player2.nickname,
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
             score,
             match.completed ? 'Yes' : 'No',
             roundsInfo,
@@ -704,10 +732,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             String(match.matchNumber),
             match.round || '-',
             String(match.tvNumber || '-'),
-            match.player1.name,
-            match.player1.nickname,
-            match.player2.name,
-            match.player2.nickname,
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
             score,
             match.completed ? 'Yes' : 'No',
             roundsInfo,
@@ -748,10 +774,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             String(match.matchNumber),
             match.stage || '-',
             match.round || '-',
-            match.player1.name,
-            match.player1.nickname,
-            match.player2.name,
-            match.player2.nickname,
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
             score,
             match.completed ? 'Yes' : 'No',
           ]
@@ -787,10 +811,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           return [
             String(match.matchNumber),
             match.stage || '-',
-            match.player1.name,
-            match.player1.nickname,
-            match.player2.name,
-            match.player2.nickname,
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
             String(match.points1 || 0),
             String(match.points2 || 0),
             match.completed ? 'Yes' : 'No',

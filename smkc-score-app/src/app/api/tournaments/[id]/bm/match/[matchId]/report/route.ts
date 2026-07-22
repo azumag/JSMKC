@@ -113,6 +113,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
     }
 
+    if (!match.player1Id || !match.player2Id || !match.player1 || !match.player2) {
+      return createErrorResponse('Match slots are unresolved', 409, 'MATCH_SLOTS_UNRESOLVED');
+    }
+
     /* Validate reportingPlayer before auth check to prevent invalid values propagating */
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
       return handleValidationError('reportingPlayer must be 1 or 2', 'reportingPlayer');
@@ -189,10 +193,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           });
         });
 
-        await recalculatePlayersStats(BM_RECALC_CONFIG, tournamentId, [
-          correctedMatch.player1Id,
-          correctedMatch.player2Id,
-        ]);
+        await recalculatePlayersStats(
+          BM_RECALC_CONFIG,
+          tournamentId,
+          [correctedMatch.player1Id, correctedMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
 
         return createSuccessResponse(
           {
@@ -282,7 +287,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           });
         });
-        await recalculatePlayersStats(BM_RECALC_CONFIG, tournamentId, [finalMatch.player1Id, finalMatch.player2Id]);
+        await recalculatePlayersStats(
+          BM_RECALC_CONFIG,
+          tournamentId,
+          [finalMatch.player1Id, finalMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
         return createSuccessResponse(
           { match: finalMatch, autoConfirmed: true },
           'Score confirmed (dual report disabled)',
@@ -319,7 +328,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           return finalResult;
         });
 
-        await recalculatePlayersStats(BM_RECALC_CONFIG, tournamentId, [finalMatch.player1Id, finalMatch.player2Id]);
+        await recalculatePlayersStats(
+          BM_RECALC_CONFIG,
+          tournamentId,
+          [finalMatch.player1Id, finalMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
 
         return createSuccessResponse(
           {

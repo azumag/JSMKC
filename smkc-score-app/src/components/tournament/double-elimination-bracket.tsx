@@ -42,15 +42,15 @@ interface BMMatch {
   stage?: string | null;
   tvNumber?: number | null;
   startingCourseNumber?: number | null;
-  player1Id: string;
-  player2Id: string;
+  player1Id: string | null;
+  player2Id: string | null;
   score1: number;
   score2: number;
   completed: boolean;
   version?: number;
   slotOverrideAt?: string | Date | null;
-  player1: Player;
-  player2: Player;
+  player1: Player | null;
+  player2: Player | null;
 }
 
 /** Props for the main DoubleEliminationBracket component */
@@ -154,14 +154,11 @@ function MatchCard<TMatch extends BMMatch>({
   const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
   const { isWinner1, isWinner2 } = resolveBracketWinnerFlags(match, bracketMatch, targetWins, getWinnerId);
 
-  /*
-   * Per-slot TBD display. First-round matches (seeded) always show real names.
-   * For later rounds, show "TBD" only for the specific slot that hasn't been
-   * filled yet by a routing event from a completed prior match (issue #669).
-   */
-  const isFirstRound = bracketMatch.round === 'winners_r1' || bracketMatch.round === 'winners_qf';
-  const showTBD1 = !isFirstRound && isTBD.player1;
-  const showTBD2 = !isFirstRound && isTBD.player2;
+  /* Per-slot TBD display is based on persisted/routed slot state, including
+   * 16-player winners_qf which is not an initially seeded round (#3036). */
+  const showTBD1 = isTBD.player1;
+  const showTBD2 = isTBD.player2;
+  const canOpenScore = Boolean(onClick && !showTBD1 && !showTBD2);
 
   /* TV1 gets a subtle amber highlight so broadcast crew can spot it instantly. */
   const isTV1 = match?.tvNumber === 1;
@@ -169,18 +166,20 @@ function MatchCard<TMatch extends BMMatch>({
   return (
     <div
       className={cn(
-        'border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+        'border rounded-lg p-2 bg-card min-w-[180px] transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+        canOpenScore && 'cursor-pointer hover:border-primary',
+        !canOpenScore && 'cursor-not-allowed opacity-80',
         match?.completed && 'border-green-500/50',
         isTV1 && 'bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700',
       )}
-      onClick={onClick}
+      onClick={canOpenScore ? onClick : undefined}
       role="button"
-      tabIndex={0}
+      tabIndex={canOpenScore ? 0 : -1}
       data-testid="bracket-match-card"
       aria-label={`Match ${bracketMatch.matchNumber}: ${showTBD1 ? tc('tbd') : player1?.nickname || tc('tbd')} vs ${showTBD2 ? tc('tbd') : player2?.nickname || tc('tbd')}${showTBD1 || showTBD2 ? ' (Pending)' : ''}`}
       onKeyDown={(e) => {
         /* Support keyboard activation for accessibility */
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (canOpenScore && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           onClick?.();
         }
@@ -435,22 +434,19 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
       };
     }
     const bracket = getBracketMatch(matchNumber);
-    /* First-round seeded matches always have real players */
-    if (bracket?.round === 'winners_qf' || bracket?.round === 'winners_r1') {
-      return { player1: false, player2: false };
-    }
-    if (match.completed) return { player1: false, player2: false };
-
     const isSlotTBD = (slot: 1 | 2): boolean => {
+      const playerId = slot === 1 ? match.player1Id : match.player2Id;
+      /* A NULL slot is unresolved even if an invalid/legacy row claims the
+       * match completed. */
+      if (playerId == null) return true;
       /* Seeded slots (playoff_r2 BYE seeds) are always filled */
       if (slot === 1 && bracket?.player1Seed != null) return false;
       if (slot === 2 && bracket?.player2Seed != null) return false;
       const sourceMatchNumber = slotSourceMap.get(`${matchNumber}-${slot}`);
       if (sourceMatchNumber == null) {
         /* Routing fields absent (should not happen with generateBracketStructure,
-         * but degrade gracefully using the placeholder heuristic: bracket creation
-         * initialises unfilled slots to seededPlayers[0].playerId for both players,
-         * so equal IDs means both slots are still placeholders. */
+         * but degrade gracefully. Equal non-null IDs preserve legacy seed-1
+         * placeholder rendering; new brackets use NULL above. */
         return !match.completed && match.player1Id === match.player2Id;
       }
       return !getMatch(sourceMatchNumber)?.completed;

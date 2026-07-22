@@ -115,7 +115,9 @@ export function generateBracketStructure(playerCount: number, groupCount: 2 | 3 
     loserGoesTo: 15,
     // Enters Grand Final as player 1 (advantaged position for display)
     position: 1,
-    loserPosition: 2,
+    // The Winners Final loser occupies Lower Final player 1.  This matches
+    // the CDM bracket sheet and keeps the upper-side path in the top slot.
+    loserPosition: 1,
   });
   matchNumber++;
 
@@ -175,12 +177,12 @@ export function generateBracketStructure(playerCount: number, groupCount: 2 | 3 
     bracket: 'losers',
     // Winner advances to Losers Final (match 15)
     winnerGoesTo: 15,
-    position: 1,
+    // The lower-side winner occupies Lower Final player 2.
+    position: 2,
   });
   matchNumber++;
 
-  // Losers Final (Match 15): Losers SF winner vs Winners Final loser
-  // The Winners Final loser enters as player 2 (set by getNextMatchInfo).
+  // Losers Final (Match 15): Winners Final loser vs Losers SF winner.
   matches.push({
     matchNumber: matchNumber,
     round: 'losers_final',
@@ -298,7 +300,8 @@ function generate16PlayerBracket(_groupCount: 2 | 3 | 4): BracketMatch[] {
     winnerGoesTo: 30,
     loserGoesTo: 29,
     position: 1,
-    loserPosition: 2,
+    // The Winners Final loser occupies Lower Final player 1 (#3036).
+    loserPosition: 1,
   });
   mn++;
 
@@ -356,11 +359,12 @@ function generate16PlayerBracket(_groupCount: 2 | 3 | 4): BracketMatch[] {
     round: 'losers_sf',
     bracket: 'losers',
     winnerGoesTo: 29,
-    position: 1,
+    // The lower-side winner occupies Lower Final player 2 (#3036).
+    position: 2,
   });
   mn++;
 
-  // --- LOSERS FINAL (Match 29): LSF winner vs WF loser ---
+  // --- LOSERS FINAL (Match 29): WF loser vs LSF winner ---
   matches.push({
     matchNumber: mn,
     round: 'losers_final',

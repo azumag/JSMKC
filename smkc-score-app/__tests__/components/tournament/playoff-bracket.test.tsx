@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
 
 const seededPlayers = [
@@ -196,6 +196,35 @@ describe('PlayoffBracket manual slot placement adjustment (issue #3017 playoff s
 
     expect(screen.queryByTestId('slot-edit-button-1')).not.toBeInTheDocument();
     expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+  });
+
+  it('shows a NULL R2 opponent as TBD and never opens score entry', () => {
+    const onMatchClick = jest.fn();
+    render(
+      <PlayoffBracket
+        playoffMatches={[
+          buildMatch({ id: 'm1', matchNumber: 1, completed: false }),
+          buildMatch({
+            id: 'm5',
+            matchNumber: 5,
+            round: 'playoff_r2',
+            player2Id: null,
+            player2: null,
+          }),
+        ]}
+        playoffStructure={[
+          { ...r1Structure[0], winnerGoesTo: 5, position: 2 },
+          { matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 16 },
+        ]}
+        roundNames={{}}
+        onMatchClick={onMatchClick}
+      />,
+    );
+
+    const card = screen.getByRole('button', { name: /Match 5: Alice vs TBD/ });
+    expect(card).toHaveAttribute('tabindex', '-1');
+    fireEvent.click(card);
+    expect(onMatchClick).not.toHaveBeenCalled();
   });
 
   it('hides the edit button for a slot that is still TBD', () => {

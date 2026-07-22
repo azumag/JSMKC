@@ -28,6 +28,7 @@ import { PlayerName } from '@/components/ui/player-name';
 import { cn } from '@/lib/utils';
 import { TV_NUMBER_OPTIONS } from '@/lib/constants';
 import { resolveBracketWinnerFlags, type BracketWinnerResolver } from '@/lib/bracket-winner-flags';
+import { getFinalsSlotStatus } from '@/lib/finals-slot-status';
 
 import type { Player } from '@/lib/types';
 import type { BracketMatch, SeededPlayer } from '@/types/bracket';
@@ -40,15 +41,15 @@ interface BMMatch {
   stage?: string | null;
   tvNumber?: number | null;
   startingCourseNumber?: number | null;
-  player1Id: string;
-  player2Id: string;
+  player1Id: string | null;
+  player2Id: string | null;
   score1: number;
   score2: number;
   cup?: string | null;
   completed: boolean;
   slotOverrideAt?: string | Date | null;
-  player1: Player;
-  player2: Player;
+  player1: Player | null;
+  player2: Player | null;
 }
 
 /** Props for the PlayoffBracket component */
@@ -136,22 +137,25 @@ function PlayoffMatchCard<TMatch extends BMMatch>({
   const { isWinner1, isWinner2 } = resolveBracketWinnerFlags(match, bracketMatch, targetWins, getWinnerId);
 
   const isTV1 = match?.tvNumber === 1;
+  const canOpenScore = Boolean(onClick) && !isPlayer1TBD && !isPlayer2TBD;
 
   return (
     <div
       className={cn(
-        'border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+        'border rounded-lg p-2 bg-card min-w-[180px] transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+        canOpenScore && 'cursor-pointer hover:border-primary',
+        !canOpenScore && 'cursor-not-allowed opacity-70',
         match?.completed && 'border-green-500/50',
         isTV1 && 'bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700',
       )}
-      onClick={onClick}
+      onClick={canOpenScore ? onClick : undefined}
       role="button"
-      tabIndex={0}
+      tabIndex={canOpenScore ? 0 : -1}
       aria-label={`Match ${bracketMatch.matchNumber}: ${player1?.nickname || 'TBD'} vs ${player2?.nickname || 'TBD'}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onClick?.();
+          if (canOpenScore) onClick?.();
         }
       }}
     >
@@ -306,27 +310,8 @@ export function PlayoffBracket<TMatch extends BMMatch = BMMatch>({
       return !seededPlayers?.some((entry) => entry.seed === seed);
     }
 
-    if (playerPosition === 1) {
-      /* Player1 is TBD only when both seeds are explicitly assigned AND the
-       * two player IDs are identical (placeholder match before real setup).
-       * BYE seeds (player1Seed only, e.g. R2) are never TBD — the player is
-       * already determined at bracket creation time. */
-      if (bracketMatch?.player1Seed != null && bracketMatch?.player2Seed != null) {
-        return !match.completed && match.player1Id === match.player2Id;
-      }
-      return false;
-    }
-
-    /* Player2 is TBD when player2Seed is null (R1 winner not yet known,
-     * e.g. R2 matches before R1 completes). Once the R1 winner is routed
-     * (player2Id is set and differs from player1Id), it is no longer TBD. */
-    if (bracketMatch?.player2Seed == null) {
-      return !match.completed && match.player1Id === match.player2Id;
-    }
-    if (bracketMatch?.player1Seed != null && bracketMatch?.player2Seed != null) {
-      return !match.completed && match.player1Id === match.player2Id;
-    }
-    return false;
+    const status = getFinalsSlotStatus(matchNumber, playoffMatches, playoffStructure);
+    return playerPosition === 1 ? status.player1 : status.player2;
   };
 
   const playoffR1 = playoffStructure.filter((b) => b.round === 'playoff_r1');

@@ -51,6 +51,13 @@ import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/finals/route';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
+const completeFinalsSnapshot = Array.from({ length: 8 }, (_, index) => ({
+  seed: index + 1,
+  originalSeed: index + 1,
+  playerId: `seed-${index + 1}`,
+  player: { id: `seed-${index + 1}` },
+}));
+
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -86,7 +93,10 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
     sanitizeMock.sanitizeInput.mockImplementation((data) => data);
     /* finals-route GET hits prisma.tournament.findUnique defensively — provide
      * a non-null default so the existence-check doesn't short-circuit to 404. */
-    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 't1',
+      mrFinalsSeedSnapshot: completeFinalsSnapshot,
+    });
     /* PUT handler now calls model.count() to infer bracket size + findFirst() /
      * updateMany() / createMany() for bracket advancement. The auto-mock lacks
      * those members for mRMatch, so patch them in with safe defaults here. */
@@ -121,6 +131,10 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
           matchNumber: 1,
           stage: 'finals',
           round: 'winners_qf',
+          player1Id: 'p1',
+          player2Id: 'p8',
+          player1Tbd: false,
+          player2Tbd: false,
           player1: { id: 'p1' },
           player2: { id: 'p8' },
         },
@@ -146,6 +160,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         playoffSeededPlayers: [],
         playoffComplete: false,
         qualificationConfirmed: false,
+        seededPlayers: completeFinalsSnapshot,
       });
       expect(result.status).toBe(200);
     });

@@ -254,6 +254,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
     }
 
+    if (!match.player1Id || !match.player2Id || !match.player1 || !match.player2) {
+      return createErrorResponse('Match slots are unresolved', 409, 'MATCH_SLOTS_UNRESOLVED');
+    }
+
     /* Block participant reports for finals/playoff matches — admin enters finals
      * scores via the /gp/finals bracket page only. */
     if (match.stage === 'finals' || match.stage === 'playoff') {
@@ -327,10 +331,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           });
         });
 
-        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [
-          correctedMatch.player1Id,
-          correctedMatch.player2Id,
-        ]);
+        await recalculatePlayersStats(
+          GP_RECALC_CONFIG,
+          tournamentId,
+          [correctedMatch.player1Id, correctedMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
 
         return createSuccessResponse(
           {
@@ -450,7 +455,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           }),
         );
-        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [finalMatch.player1Id, finalMatch.player2Id]);
+        await recalculatePlayersStats(
+          GP_RECALC_CONFIG,
+          tournamentId,
+          [finalMatch.player1Id, finalMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
         return createSuccessResponse(
           { match: finalMatch, autoConfirmed: true },
           'Score confirmed (dual report disabled)',
@@ -532,10 +541,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           return finalResult;
         });
 
-        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [
-          confirmedMatch.player1Id,
-          confirmedMatch.player2Id,
-        ]);
+        await recalculatePlayersStats(
+          GP_RECALC_CONFIG,
+          tournamentId,
+          [confirmedMatch.player1Id, confirmedMatch.player2Id].filter((id): id is string => Boolean(id)),
+        );
 
         return createSuccessResponse(
           {

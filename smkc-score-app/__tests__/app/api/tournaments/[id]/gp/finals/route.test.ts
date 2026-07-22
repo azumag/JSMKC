@@ -59,6 +59,13 @@ import { configureNextResponseMock } from '../../../../../../helpers/next-respon
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const _jsonMock = NextResponseMock.NextResponse.json;
 
+const completeFinalsSnapshot = Array.from({ length: 8 }, (_, index) => ({
+  seed: index + 1,
+  originalSeed: index + 1,
+  playerId: `seed-${index + 1}`,
+  player: { id: `seed-${index + 1}` },
+}));
+
 class MockNextRequest {
   private _headers: Map<string, string>;
 
@@ -93,7 +100,10 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     (createLogger as jest.Mock).mockReturnValue(logger);
     /* finals-route defensive tournament existence check */
-    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 't1',
+      gpFinalsSeedSnapshot: completeFinalsSnapshot,
+    });
     /* Patch in missing gPMatch members used by PUT bracket advancement. */
 
     const gpMatch = prisma.gPMatch as any;
@@ -121,6 +131,10 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
           matchNumber: 1,
           stage: 'finals',
           round: 'winners_qf',
+          player1Id: 'p1',
+          player2Id: 'p2',
+          player1Tbd: false,
+          player2Tbd: false,
           player1: { id: 'p1' },
           player2: { id: 'p2' },
         },
@@ -134,7 +148,12 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
       /* Playoff findMany query must return empty array for non-playoff tests */
-      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.gPMatch.findMany as jest.Mock).mockImplementation(
+        (args: { where?: { stage?: string }; select?: { completed?: boolean } }) =>
+          args?.where?.stage === 'finals' && args.select?.completed
+            ? Promise.resolve(mockMatches)
+            : Promise.resolve([]),
+      );
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
       const params = Promise.resolve({ id: 't1' });
@@ -151,6 +170,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         playoffSeededPlayers: [],
         playoffComplete: false,
         qualificationConfirmed: false,
+        seededPlayers: completeFinalsSnapshot,
       });
       expect(result.status).toBe(200);
       expect(paginate).toHaveBeenCalledWith(

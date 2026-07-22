@@ -42,7 +42,12 @@ import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
 import { getArchivedFinalsPayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { createAuditLog, resolveAuditUserId, AUDIT_ACTIONS } from '@/lib/audit-log';
-import { getFinalsSlotStatus, isFinalsSlotConfirmed, type SlotStatusMatch } from '@/lib/finals-slot-status';
+import {
+  getFinalsSlotStatus,
+  isFinalsSlotConfirmed,
+  serializeFinalsSlots,
+  type SlotStatusMatch,
+} from '@/lib/finals-slot-status';
 import type { BracketMatch } from '@/types/bracket';
 import {
   getFinalsSeedSnapshotField,
@@ -665,10 +670,9 @@ interface SlotEditMatch extends SlotStatusMatch {
  * `excludeSlot`) — this also catches assigning the same player into both
  * slots of the match being edited, not just a different match.
  *
- * TBD slots are skipped: they hold a placeholder ID (the #1 seed's
- * playerId, used as filler until a real result propagates in — see the
- * `seededPlayers[0].playerId` fallback at bracket generation), not a real
- * placement, so they can never be a genuine duplicate (issue #3017 §8).
+ * TBD slots are skipped: they hold no player ID until a real result
+ * propagates in, so they can never be a genuine duplicate (issue #3017 §8,
+ * #3036).
  *
  * This check is read-then-write, not enforced atomically in the same SQL
  * statement as `applySlotWrite`'s `assign` write: unlike `swapSlots` (whose
@@ -678,8 +682,7 @@ interface SlotEditMatch extends SlotStatusMatch {
  * bracket routing structure that isn't representable as a plain SQL WHERE
  * clause (it isn't stored data; it's computed from bracket size). A naive
  * `NOT EXISTS` guard comparing raw `player1Id`/`player2Id` columns would
- * misfire on the placeholder ID and reject legitimate assigns for whoever
- * happens to be the #1 seed. So a narrow race remains: two `assign` requests
+ * misclassify unresolved slots. So a narrow race remains: two `assign` requests
  * placing the same outsider player into two different matches within the
  * same request-handling window can both pass this check before either write
  * lands. Preventing it atomically isn't practical, so instead the `assign`
@@ -1513,6 +1516,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const top24GroupCount: 2 | 3 = playoffMatches.length > 0 ? await detectTop24GroupCount(tournamentId) : 3;
       const playoffStructure =
         playoffMatches.length > 0 ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT, top24GroupCount) : [];
+      const serializedPlayoffMatches = serializeFinalsSlots(
+        playoffMatches as unknown as SlotStatusMatch[],
+        playoffStructure,
+      );
 
       /* Reconstruct playoff seeded players from DB match data + structure.
        * R1 matches carry player1Seed (17-24) and player2Seed;
@@ -1651,6 +1658,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
               ? generateBracketStructure(bracketSize, top24GroupCount)
               : generateBracketStructure(bracketSize)
             : (top24FinalsPreview?.bracketStructure ?? []);
+        /* Pagination must not change routing status: an upstream completed
+         * match can be on a different page from the receiving slot. */
+        const allFinalsSlotMatches =
+          result.data.length > 0
+            ? await modelInstance.findMany({
+                where: { tournamentId, stage: 'finals' },
+                select: { matchNumber: true, round: true, completed: true, player1Id: true, player2Id: true },
+                orderBy: { matchNumber: 'asc' },
+              })
+            : [];
         const seededPlayers =
           top24FinalsPreview?.seededPlayers ??
           (storedSeededPlayers.length > 0
@@ -1661,12 +1678,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         return createSuccessResponse({
           ...result,
+          data: serializeFinalsSlots(
+            result.data as unknown as SlotStatusMatch[],
+            bracketStructure,
+            allFinalsSlotMatches as unknown as SlotStatusMatch[],
+          ),
           bracketStructure,
           bracketSize,
           roundNames,
           qualificationConfirmed: ((tournament as Record<string, unknown>)[modeField] as boolean) ?? false,
           phase,
-          playoffMatches,
+          playoffMatches: serializedPlayoffMatches,
           playoffStructure,
           playoffSeededPlayers,
           playoffComplete,
@@ -1696,20 +1718,19 @@ export function createFinalsHandlers(config: FinalsConfig) {
           : matches.length > 0
             ? await buildStandardSeededPlayers(tournamentId, bracketSize, logger)
             : []);
+      const serializedMatches = serializeFinalsSlots(matches as unknown as SlotStatusMatch[], bracketStructure);
 
       if (config.getStyle === 'grouped') {
-        const winnersMatches = matches.filter((m: { round?: string }) => m.round?.startsWith('winners_') || false);
-        const losersMatches = matches.filter((m: { round?: string }) => m.round?.startsWith('losers_') || false);
-        const grandFinalMatches = matches.filter(
-          (m: { round?: string }) => m.round?.startsWith('grand_final') || false,
-        );
+        const winnersMatches = serializedMatches.filter((m) => m.round?.startsWith('winners_') || false);
+        const losersMatches = serializedMatches.filter((m) => m.round?.startsWith('losers_') || false);
+        const grandFinalMatches = serializedMatches.filter((m) => m.round?.startsWith('grand_final') || false);
 
         return createSuccessResponse({
-          matches,
+          matches: serializedMatches,
           winnersMatches,
           losersMatches,
           grandFinalMatches,
-          playoffMatches,
+          playoffMatches: serializedPlayoffMatches,
           bracketStructure,
           bracketSize,
           roundNames,
@@ -1724,13 +1745,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* 'simple' style */
       return createSuccessResponse({
-        matches,
+        matches: serializedMatches,
         bracketStructure,
         bracketSize,
         roundNames,
         qualificationConfirmed: ((tournament as Record<string, unknown>)[modeField] as boolean) ?? false,
         phase,
-        playoffMatches,
+        playoffMatches: serializedPlayoffMatches,
         playoffStructure,
         playoffSeededPlayers,
         playoffComplete,
@@ -1906,8 +1927,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
             matchNumber: bracketMatch.matchNumber,
             stage: 'finals',
             round: bracketMatch.round,
-            player1Id: player1?.playerId || seededPlayers[0].playerId,
-            player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
+            player1Id: player1?.playerId ?? null,
+            player2Id: player2?.playerId ?? null,
             completed: false,
             ...getRoundAssignmentData(bracketMatch.round, mrAssignments, gpAssignments, bmStartingCourses),
           },
@@ -1944,7 +1965,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       return createSuccessResponse(
         {
           message: 'Finals bracket created',
-          matches: createdMatches,
+          matches: serializeFinalsSlots(createdMatches as unknown as SlotStatusMatch[], bracketStructure),
           seededPlayers,
           bracketStructure,
         },
@@ -2137,10 +2158,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
               matchNumber: bracketMatch.matchNumber,
               stage: 'playoff',
               round: bracketMatch.round,
-              /* Fallback player IDs satisfy NOT NULL on player1Id/player2Id for R2 slots
-               * whose player2 comes from an R1 winner (not yet known at creation time). */
-              player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
-              player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
+              /* Unknown R1 winners remain NULL until routing supplies the
+               * actual qualifier; never temporarily place a real player. */
+              player1Id: player1?.playerId ?? null,
+              player2Id: player2?.playerId ?? null,
               completed: false,
               ...getRoundAssignmentData(
                 bracketMatch.round,
@@ -2181,7 +2202,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
           {
             message: 'Playoff bracket created',
             phase: 'playoff',
-            playoffMatches: createdPlayoffMatches,
+            playoffMatches: serializeFinalsSlots(
+              createdPlayoffMatches as unknown as SlotStatusMatch[],
+              playoffStructure,
+            ),
             playoffStructure,
             playoffSeededPlayers,
             /* Note: Upper Bracket seats 1-12 for qual top 12 are reserved; the
@@ -2299,8 +2323,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
             matchNumber: bracketMatch.matchNumber,
             stage: 'finals',
             round: bracketMatch.round,
-            player1Id: player1?.playerId || seededPlayers[0].playerId,
-            player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
+            player1Id: player1?.playerId ?? null,
+            player2Id: player2?.playerId ?? null,
             completed: false,
             ...getRoundAssignmentData(
               bracketMatch.round,
@@ -2340,7 +2364,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         {
           message: 'Finals bracket created from playoff results',
           phase: 'finals',
-          matches: createdMatches,
+          matches: serializeFinalsSlots(createdMatches as unknown as SlotStatusMatch[], bracketStructure),
           seededPlayers,
           bracketStructure,
         },
@@ -2402,6 +2426,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * advancement logic; playoff matches use their own advancement path below. */
       if (match.stage !== 'finals' && match.stage !== 'playoff') {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+      }
+
+      /* An unresolved knockout slot has no competitor yet. Reject before any
+       * score write so an API caller cannot complete an empty card (#3036). */
+      if (!match.player1Id || !match.player2Id || !match.player1 || !match.player2) {
+        return createErrorResponse(
+          'Cannot score a match while one or more bracket slots are TBD',
+          409,
+          'MATCH_SLOTS_UNRESOLVED',
+        );
       }
 
       let winnerId: string | undefined;

@@ -34,8 +34,8 @@ import type { EventTypeConfig } from '@/lib/event-types/types';
  * Includes userId for player-to-user linkage verification.
  */
 export interface AuthCheckMatch {
-  player1Id: string;
-  player2Id: string;
+  player1Id: string | null;
+  player2Id: string | null;
   player1: { userId: string | null } | null;
   player2: { userId: string | null } | null;
 }

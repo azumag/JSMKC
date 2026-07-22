@@ -1,9 +1,9 @@
-import type { BracketMatch } from "@/types/bracket";
+import type { BracketMatch } from '@/types/bracket';
 
 export interface BracketWinnerMatch {
   completed: boolean;
-  player1Id: string;
-  player2Id: string;
+  player1Id: string | null;
+  player2Id: string | null;
   score1: number;
   score2: number;
 }

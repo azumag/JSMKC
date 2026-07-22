@@ -1067,10 +1067,8 @@ function build8Player(
   writeSeedList(builder, bPositionPlayers, EIGHT, mode);
 
   // Write each used slot's name + score directly from the app match record.
-  // slot1 <- player1 / slot2 <- player2, except losers_final which the template
-  // stores reversed vs the app (slot1 = WF loser, slot2 = LSF winner). The app
-  // seeds the losers_sf winner as player1 (position:2 in double-elimination.ts),
-  // so we swap to keep names and scores under the right slot.
+  // The app and template both use Lower Final P1 = Winners Final loser and
+  // P2 = Lower-side winner (#3036), so no round-specific reversal is needed.
   for (const round of EIGHT_PLAYER_ROUNDS) {
     const list = byRound.get(round) ?? [];
     const usedCount = EIGHT_PLAYER_ROUND_SIZES[round] ?? 0;
@@ -1098,12 +1096,8 @@ function writeEightPlayerSlot(
   match: CdmMatch,
   mode: CdmVersusMode,
 ): void {
-  // losers_final: template slot1 = Winners-Final loser, slot2 = Losers-SF winner.
-  // The app stores the Losers-SF winner as player1, so map player1 -> slot2.
-  const reversed = round === 'losers_final';
   for (const appSlot of [0, 1] as const) {
-    const targetSlot = reversed ? 1 - appSlot : appSlot;
-    const cells = slotCells(round, matchIndex, targetSlot);
+    const cells = slotCells(round, matchIndex, appSlot);
     if (!cells) continue;
     const player = appSlot === 0 ? match.player1 : match.player2;
     builder.overwriteString(cells.nameRef, player.nickname);

@@ -51,6 +51,13 @@ import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/finals/route';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
+const completeFinalsSnapshot = Array.from({ length: 8 }, (_, index) => ({
+  seed: index + 1,
+  originalSeed: index + 1,
+  playerId: `seed-${index + 1}`,
+  player: { id: `seed-${index + 1}` },
+}));
+
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
@@ -94,7 +101,10 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
     /* finals-route GET + POST hit prisma.tournament.findUnique as a defensive
      * existence check. Provide a non-null default so the early 404 branch is
      * bypassed for the happy-path tests. */
-    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 't1',
+      bmFinalsSeedSnapshot: completeFinalsSnapshot,
+    });
     /* PUT bracket-advancement path calls model.count/findFirst/createMany.
      * Patch them onto the auto-mock with safe defaults. */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,6 +127,10 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
           matchNumber: 1,
           stage: 'finals',
           round: 'winners_qf',
+          player1Id: 'p1',
+          player2Id: 'p2',
+          player1Tbd: false,
+          player2Tbd: false,
           player1: { id: 'p1' },
           player2: { id: 'p2' },
         },
@@ -126,6 +140,10 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
           matchNumber: 2,
           stage: 'finals',
           round: 'losers_qf',
+          player1Id: 'p3',
+          player2Id: 'p4',
+          player1Tbd: false,
+          player2Tbd: false,
           player1: { id: 'p3' },
           player2: { id: 'p4' },
         },
@@ -135,6 +153,10 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
           matchNumber: 3,
           stage: 'finals',
           round: 'grand_final',
+          player1Id: 'p1',
+          player2Id: 'p5',
+          player1Tbd: false,
+          player2Tbd: false,
           player1: { id: 'p1' },
           player2: { id: 'p5' },
         },
@@ -390,6 +412,21 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
           };
         }),
       );
+      const top24Snapshot = Array.from({ length: 24 }, (_, index) => {
+        const rank = Math.floor(index / 2) + 1;
+        const group = index % 2 === 0 ? 'a' : 'b';
+        const playerId = `${group}${rank}`;
+        return {
+          seed: index + 1,
+          originalSeed: index + 1,
+          playerId,
+          player: { id: playerId, nickname: `${group.toUpperCase()}${rank}` },
+        };
+      });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        id: 't1',
+        bmFinalsSeedSnapshot: top24Snapshot,
+      });
 
       (prisma.bMMatch.count as jest.Mock).mockResolvedValue(0);
       (prisma.bMMatch.findMany as jest.Mock)

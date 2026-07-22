@@ -400,4 +400,43 @@ describe('tournament archive', () => {
     const payload = getArchivedFinalsPayload(archive, 'bm', 'grouped');
     expect(payload.seededPlayers).toEqual([expect.objectContaining({ playerId: 'player-17', originalSeed: 17 })]);
   });
+
+  it('normalizes legacy placeholder slots in archived finals responses', () => {
+    const player = { id: 'player-1', name: 'Player 1', nickname: 'p1', country: null, noCamera: false };
+    const archive = makeArchive({
+      modes: {
+        ...makeArchive().modes,
+        bm: {
+          qualifications: [],
+          matches: [
+            {
+              id: 'legacy-lr1',
+              tournamentId: 'tournament-1',
+              matchNumber: 8,
+              stage: 'finals',
+              round: 'losers_r1',
+              completed: false,
+              player1Id: player.id,
+              player2Id: player.id,
+              player1: player,
+              player2: player,
+            },
+          ],
+          qualificationConfirmed: true,
+        },
+      },
+    });
+
+    const payload = getArchivedFinalsPayload(archive, 'bm', 'grouped') as { matches: Array<Record<string, unknown>> };
+    expect(payload.matches[0]).toEqual(
+      expect.objectContaining({
+        player1Id: null,
+        player2Id: null,
+        player1: null,
+        player2: null,
+        player1Tbd: true,
+        player2Tbd: true,
+      }),
+    );
+  });
 });

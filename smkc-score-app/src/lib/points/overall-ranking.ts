@@ -697,24 +697,20 @@ export async function getMatchFinalsPositions(
         matchNumber: true,
       },
     });
-    matches = rows.map(
-      (r: {
-        player1Id: string;
-        player2Id: string;
-        score1: number;
-        score2: number;
-        round: string | null;
-        stage?: string | null;
-        matchNumber: number;
-      }) => ({
-        player1Id: r.player1Id,
-        player2Id: r.player2Id,
-        p1Score: r.score1,
-        p2Score: r.score2,
-        round: r.round,
-        stage: r.stage,
-        matchNumber: r.matchNumber,
-      }),
+    matches = rows.flatMap((r) =>
+      r.player1Id && r.player2Id
+        ? [
+            {
+              player1Id: r.player1Id,
+              player2Id: r.player2Id,
+              p1Score: r.score1,
+              p2Score: r.score2,
+              round: r.round,
+              stage: r.stage,
+              matchNumber: r.matchNumber,
+            },
+          ]
+        : [],
     );
   } else if (mode === 'MR') {
     const rows = await prisma.mRMatch.findMany({
@@ -730,24 +726,20 @@ export async function getMatchFinalsPositions(
         matchNumber: true,
       },
     });
-    matches = rows.map(
-      (r: {
-        player1Id: string;
-        player2Id: string;
-        score1: number;
-        score2: number;
-        round: string | null;
-        stage?: string | null;
-        matchNumber: number;
-      }) => ({
-        player1Id: r.player1Id,
-        player2Id: r.player2Id,
-        p1Score: r.score1,
-        p2Score: r.score2,
-        round: r.round,
-        stage: r.stage,
-        matchNumber: r.matchNumber,
-      }),
+    matches = rows.flatMap((r) =>
+      r.player1Id && r.player2Id
+        ? [
+            {
+              player1Id: r.player1Id,
+              player2Id: r.player2Id,
+              p1Score: r.score1,
+              p2Score: r.score2,
+              round: r.round,
+              stage: r.stage,
+              matchNumber: r.matchNumber,
+            },
+          ]
+        : [],
     );
   } else {
     // GP uses points1/points2 instead of score1/score2
@@ -764,24 +756,20 @@ export async function getMatchFinalsPositions(
         matchNumber: true,
       },
     });
-    matches = rows.map(
-      (r: {
-        player1Id: string;
-        player2Id: string;
-        points1: number;
-        points2: number;
-        round: string | null;
-        stage?: string | null;
-        matchNumber: number;
-      }) => ({
-        player1Id: r.player1Id,
-        player2Id: r.player2Id,
-        p1Score: r.points1,
-        p2Score: r.points2,
-        round: r.round,
-        stage: r.stage,
-        matchNumber: r.matchNumber,
-      }),
+    matches = rows.flatMap((r) =>
+      r.player1Id && r.player2Id
+        ? [
+            {
+              player1Id: r.player1Id,
+              player2Id: r.player2Id,
+              p1Score: r.points1,
+              p2Score: r.points2,
+              round: r.round,
+              stage: r.stage,
+              matchNumber: r.matchNumber,
+            },
+          ]
+        : [],
     );
   }
 

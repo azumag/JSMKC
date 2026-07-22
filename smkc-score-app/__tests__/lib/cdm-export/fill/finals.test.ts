@@ -290,9 +290,9 @@ describe('buildFinalsWrites — official two-group displayed-seed layout', () =>
   });
 });
 
-describe('buildFinalsWrites — losers_final slot reversal (faithful)', () => {
+describe('buildFinalsWrites — losers_final slot order (faithful)', () => {
   it("writes the WF loser's score to slot1 and the LSF winner's score to slot2", () => {
-    // App losers_final: player1 = Losers-SF winner, player2 = Winners-Final loser.
+    // App losers_final: player1 = Winners-Final loser, player2 = Losers-SF winner.
     // Template slot1 (BE47) = loserOf winners_final; slot2 (BE48) = winnerOf losers_sf.
     // Stack the feeders onto a real 24 bracket so the faithful path is selected.
     const matches: CdmMatch[] = [
@@ -301,16 +301,16 @@ describe('buildFinalsWrites — losers_final slot reversal (faithful)', () => {
       mk({ matchNumber: 28, stage: 'finals', round: 'winners_final', p1: 101, p2: 102, s1: 4, s2: 2 }),
       // losers_sf[0]: bp201 beats bp202 -> LSF winner = bp201.
       mk({ matchNumber: 27, stage: 'finals', round: 'losers_sf', p1: 201, p2: 202, s1: 4, s2: 0 }),
-      // losers_final[0]: app p1 = LSF winner (bp201), app p2 = WF loser (bp102).
-      mk({ matchNumber: 29, stage: 'finals', round: 'losers_final', p1: 201, p2: 102, s1: 1, s2: 4 }),
+      // losers_final[0]: app p1 = WF loser (bp102), app p2 = LSF winner (bp201).
+      mk({ matchNumber: 29, stage: 'finals', round: 'losers_final', p1: 102, p2: 201, s1: 4, s2: 1 }),
     ];
     const map = indexWrites(buildFinalsWrites(emptyData({ bmMatches: matches }), 'bm'), 'BM Finals');
     // Names are written under the same template slot order as the scores.
     expect(map.get('BC47')).toMatchObject({ op: 'overwriteString', value: 'B102' });
     expect(map.get('BC48')).toMatchObject({ op: 'overwriteString', value: 'B201' });
-    // bp102 (WF loser, app player2, score 4) -> template slot1 score cell BE47.
+    // bp102 (WF loser, app player1, score 4) -> template slot1 score cell BE47.
     expectNumber(map, 'BE47', 4);
-    // bp201 (LSF winner, app player1, score 1) -> template slot2 score cell BE48.
+    // bp201 (LSF winner, app player2, score 1) -> template slot2 score cell BE48.
     expectNumber(map, 'BE48', 1);
   });
 });

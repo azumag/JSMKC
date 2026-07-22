@@ -360,6 +360,8 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         matchNumber,
         stage,
         round,
+        player1Id: p1,
+        player2Id: p2,
         bracketPosition: round === 'gf' ? 'gf' : round,
         isGrandFinal: round === 'gf',
         player1: player(p1),
@@ -1814,7 +1816,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
 
       expect(result.status).toBe(200);
       expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect(loggerMock.warn).not.toHaveBeenCalledWith(
         'Dropped CDM export match rows with missing/invalid players',
         expect.objectContaining({ category: 'bmMatches', droppedCount: 1 }),
       );
@@ -1928,7 +1930,11 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
 
       expect(result.status).toBe(200);
       expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(loggerMock.warn).toHaveBeenCalledWith(warning, expect.objectContaining({ category, droppedCount: 1 }));
+      if (warning === 'Dropped CDM export match rows with missing/invalid players') {
+        expect(loggerMock.warn).not.toHaveBeenCalledWith(warning, expect.anything());
+      } else {
+        expect(loggerMock.warn).toHaveBeenCalledWith(warning, expect.objectContaining({ category, droppedCount: 1 }));
+      }
     });
 
     it('should still export when a ttEntry has player: null', async () => {

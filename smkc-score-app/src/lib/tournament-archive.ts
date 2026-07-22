@@ -6,6 +6,7 @@ import { computeQualificationRanks, type RankedQualification } from '@/lib/serve
 import { getOverallRankings, type PlayerTournamentScore } from '@/lib/points/overall-ranking';
 import { COURSES } from '@/lib/constants';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
+import { serializeFinalsSlots, type SlotStatusMatch } from '@/lib/finals-slot-status';
 import { TA_HANDICAP_SECONDS, getTaPhase3Rules, normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { normalizeTaRoundResults } from '@/lib/ta/round-result';
 
@@ -27,15 +28,27 @@ type BMQualificationArchiveRow = RankedQualification<QualWithPlayer>;
 type MRQualificationArchiveRow = RankedQualification<QualWithPlayer>;
 type GPQualificationArchiveRow = RankedQualification<QualWithPlayer>;
 type MatchWithPlayers = {
-  player1Id: string;
-  player2Id: string;
-  player1: ArchivePlayer;
-  player2: ArchivePlayer;
+  player1Id: string | null;
+  player2Id: string | null;
+  player1: ArchivePlayer | null;
+  player2: ArchivePlayer | null;
   [k: string]: unknown;
 };
 type BMMatchArchiveRow = MatchWithPlayers;
 type MRMatchArchiveRow = MatchWithPlayers;
 type GPMatchArchiveRow = MatchWithPlayers;
+
+function hasRankingParticipants(
+  match: MatchWithPlayers,
+): match is MatchWithPlayers & { player1Id: string; player2Id: string } {
+  return match.player1Id != null && match.player2Id != null;
+}
+
+function isRankableQualificationMatch(
+  match: MatchWithPlayers,
+): match is MatchWithPlayers & { player1Id: string; player2Id: string } {
+  return match.stage === 'qualification' && hasRankingParticipants(match);
+}
 type TTEntryArchiveRow = {
   id?: string;
   tournamentId?: string;
@@ -312,8 +325,8 @@ export async function readTournamentArchive(identifier: string): Promise<Tournam
 
 function uniquePlayersFromArchive(bundle: Pick<TournamentArchiveBundle, 'modes'>): ArchivePlayer[] {
   const byId = new Map<string, ArchivePlayer>();
-  const remember = (player: ArchivePlayer) => {
-    if (player.id) byId.set(player.id, player);
+  const remember = (player: ArchivePlayer | null | undefined) => {
+    if (player?.id) byId.set(player.id, player);
   };
 
   for (const entry of bundle.modes.ta.entries ?? []) {
@@ -383,6 +396,11 @@ export function getArchivedFinalsPayload(
         : generateBracketStructure(bracketSize)
       : [];
   const playoffStructure = playoffMatches.length > 0 ? generatePlayoffStructure(12, groupCount) : [];
+  const serializedMatches = serializeFinalsSlots(matches as unknown as SlotStatusMatch[], bracketStructure);
+  const serializedPlayoffMatches = serializeFinalsSlots(
+    playoffMatches as unknown as SlotStatusMatch[],
+    playoffStructure,
+  );
   const playoffComplete = playoffMatches
     .filter((match) => match.round === 'playoff_r2')
     .every((match) => match.completed === true);
@@ -394,7 +412,7 @@ export function getArchivedFinalsPayload(
     roundNames,
     qualificationConfirmed,
     phase,
-    playoffMatches,
+    playoffMatches: serializedPlayoffMatches,
     playoffStructure,
     seededPlayers,
     playoffSeededPlayers: seededPlayers.filter((entry) => entry.originalSeed >= 13 && entry.originalSeed <= 24),
@@ -404,7 +422,7 @@ export function getArchivedFinalsPayload(
 
   if (style === 'paginated') {
     return {
-      data: matches,
+      data: serializedMatches,
       meta: { page: 1, limit: matches.length, total: matches.length, totalPages: 1 },
       ...common,
     };
@@ -412,16 +430,20 @@ export function getArchivedFinalsPayload(
 
   if (style === 'grouped') {
     return {
-      matches,
-      winnersMatches: matches.filter((match) => ((match.round as string | null) ?? '').startsWith('winners_')),
-      losersMatches: matches.filter((match) => ((match.round as string | null) ?? '').startsWith('losers_')),
-      grandFinalMatches: matches.filter((match) => ((match.round as string | null) ?? '').startsWith('grand_final')),
+      matches: serializedMatches,
+      winnersMatches: serializedMatches.filter((match) =>
+        ((match.round as string | null) ?? '').startsWith('winners_'),
+      ),
+      losersMatches: serializedMatches.filter((match) => ((match.round as string | null) ?? '').startsWith('losers_')),
+      grandFinalMatches: serializedMatches.filter((match) =>
+        ((match.round as string | null) ?? '').startsWith('grand_final'),
+      ),
       ...common,
     };
   }
 
   return {
-    matches,
+    matches: serializedMatches,
     ...common,
   };
 }
@@ -624,7 +646,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
       qualifications: computeQualificationRanks(
         bmQualifications,
         [...twoPlayerQualificationOrder()],
-        bmMatches.filter((match) => match.stage === 'qualification'),
+        bmMatches.filter(isRankableQualificationMatch),
         { matchScoreFields: { p1: 'score1', p2: 'score2' } },
       ),
       matches: bmMatches,
@@ -634,7 +656,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
       qualifications: computeQualificationRanks(
         mrQualifications,
         [...twoPlayerQualificationOrder()],
-        mrMatches.filter((match) => match.stage === 'qualification'),
+        mrMatches.filter(isRankableQualificationMatch),
         { matchScoreFields: { p1: 'score1', p2: 'score2' } },
       ),
       matches: mrMatches,
@@ -644,7 +666,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
       qualifications: computeQualificationRanks(
         gpQualifications,
         [...twoPlayerQualificationOrder()],
-        gpMatches.filter((match) => match.stage === 'qualification'),
+        gpMatches.filter(isRankableQualificationMatch),
         { matchScoreFields: GP_MATCH_SCORE_FIELDS },
       ),
       matches: gpMatches,

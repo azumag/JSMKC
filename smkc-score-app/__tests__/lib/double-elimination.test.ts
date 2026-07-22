@@ -223,6 +223,37 @@ describe('Double Elimination Bracket Structure', () => {
       expect(losersFinal?.winnerGoesTo).toBe(16);
     });
 
+    it.each([
+      [8, 7, 14, 15],
+      [16, 15, 28, 29],
+    ])(
+      'routes the Winners Final loser to Lower Final P1 and the lower-side winner to P2 (%i players)',
+      (bracketSize, winnersFinalNumber, losersSemiFinalNumber, losersFinalNumber) => {
+        const matches = generateBracketStructure(bracketSize);
+        expect(getNextMatchInfo(matches, winnersFinalNumber, false)).toEqual({
+          nextMatchNumber: losersFinalNumber,
+          position: 1,
+        });
+        expect(getNextMatchInfo(matches, losersSemiFinalNumber, true)).toEqual({
+          nextMatchNumber: losersFinalNumber,
+          position: 2,
+        });
+      },
+    );
+
+    it.each([8, 16])('routes every upstream result to one distinct destination slot (%i players)', (bracketSize) => {
+      const matches = generateBracketStructure(bracketSize);
+      const destinations = matches
+        .flatMap((match) => [
+          match.winnerGoesTo ? getNextMatchInfo(matches, match.matchNumber, true) : null,
+          match.loserGoesTo ? getNextMatchInfo(matches, match.matchNumber, false) : null,
+        ])
+        .filter((destination): destination is { nextMatchNumber: number; position: number } => destination !== null);
+
+      const slotKeys = destinations.map(({ nextMatchNumber, position }) => `${nextMatchNumber}:${position}`);
+      expect(new Set(slotKeys).size).toBe(slotKeys.length);
+    });
+
     it('should create correct Grand Final structure', () => {
       const matches = generateBracketStructure(8);
       const grandFinal = matches.find((m) => m.round === 'grand_final');
@@ -377,7 +408,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 7, false);
       expect(result).toEqual({
         nextMatchNumber: 15,
-        position: 2,
+        position: 1,
       });
     });
 

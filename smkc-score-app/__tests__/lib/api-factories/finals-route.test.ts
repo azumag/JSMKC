@@ -89,6 +89,8 @@ describe('Finals Route Factory', () => {
     completed: false,
     player1: { id: 'player-1', name: 'Player 1' },
     player2: { id: 'player-2', name: 'Player 2' },
+    player1Tbd: false,
+    player2Tbd: false,
     ...overrides,
   });
 
@@ -190,6 +192,7 @@ describe('Finals Route Factory', () => {
      * without throwing, even for tests that only care about the finals path. */
     (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
       if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+      if (args?.select?.completed) return Promise.resolve([createMockMatch()]);
       return Promise.resolve([]);
     });
 
@@ -671,6 +674,29 @@ describe('Finals Route Factory', () => {
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16, 3);
       const json = await response.json();
       expect(json.data.bracketSize).toBe(16);
+    });
+
+    it('keeps a paginated downstream slot resolved when its upstream match is on another page', async () => {
+      const upstream = createMockMatch({ matchNumber: 1, completed: true });
+      const downstream = createMockMatch({ matchNumber: 5, round: 'winners_sf' });
+      mockPaginate.mockResolvedValue({
+        data: [downstream],
+        meta: { total: 17, page: 2, limit: 1, totalPages: 17 },
+      });
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        if (args?.select?.completed) return Promise.resolve([upstream, downstream]);
+        return Promise.resolve([]);
+      });
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'paginated' }));
+      const response = await GET(new NextRequest('http://localhost:3000?page=2&limit=1'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.data[0]).toEqual(expect.objectContaining({ player1Id: 'player-1', player1Tbd: false }));
     });
 
     it('should default to 8-player bracket when total is 0 (paginated)', async () => {
@@ -1232,7 +1258,10 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.data.playoffMatches).toEqual(mockPlayoffMatches);
+      expect(json.data.playoffMatches).toHaveLength(mockPlayoffMatches.length);
+      expect(
+        json.data.playoffMatches.every((match: any) => match.player1Tbd === false && match.player2Tbd === false),
+      ).toBe(true);
       expect(json.data.playoffStructure).toBeDefined();
       expect(json.data.playoffStructure.length).toBe(8);
       expect(json.data.playoffSeededPlayers).toBeDefined();
@@ -1399,7 +1428,12 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.data.playoffMatches).toEqual(mockPlayoffMatches);
+      expect(json.data.playoffMatches).toHaveLength(mockPlayoffMatches.length);
+      expect(
+        json.data.playoffMatches
+          .filter((match: any) => match.round === 'playoff_r2')
+          .every((match: any) => match.player2Id === null && match.player2Tbd),
+      ).toBe(true);
       expect(json.data.playoffStructure).toBeDefined();
       expect(json.data.phase).toBe('playoff');
       expect(json.data.playoffComplete).toBe(false);
@@ -1436,7 +1470,10 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.data.playoffMatches).toEqual(mockPlayoffMatches);
+      expect(json.data.playoffMatches).toHaveLength(mockPlayoffMatches.length);
+      expect(
+        json.data.playoffMatches.every((match: any) => match.player1Tbd === false && match.player2Tbd === false),
+      ).toBe(true);
       expect(json.data.playoffStructure).toBeDefined();
       expect(json.data.phase).toBe('finals');
       expect(json.data.playoffComplete).toBe(false);
@@ -1531,6 +1568,9 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
       const call = (prisma.bMMatch as any).createMany.mock.calls[0][0];
       expect(call.data).toHaveLength(17);
+      const nonOpeningSlots = call.data.filter((match: any) => match.round !== 'winners_qf');
+      expect(nonOpeningSlots.every((match: any) => match.player1Id === null && match.player2Id === null)).toBe(true);
+      expect(call.data.every((match: any) => !(match.player1Id && match.player1Id === match.player2Id))).toBe(true);
     });
 
     it('uses finalized qualification ranks when seeding the bracket', async () => {
@@ -1584,6 +1624,15 @@ describe('Finals Route Factory', () => {
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
       const json = await response.json();
       expect(json.data.seededPlayers[0].playerId).toBe('player-15');
+
+      const createManyCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      const openingMatches = createManyCall.data.filter((match: any) => match.round === 'winners_r1');
+      const unresolvedMatches = createManyCall.data.filter((match: any) => match.round !== 'winners_r1');
+      expect(openingMatches).toHaveLength(8);
+      expect(unresolvedMatches.every((match: any) => match.player1Id === null && match.player2Id === null)).toBe(true);
+      expect(createManyCall.data.every((match: any) => !(match.player1Id && match.player1Id === match.player2Id))).toBe(
+        true,
+      );
     });
 
     it('prioritizes rankOverride over equal group-local ranks when seeding a 16-player bracket', async () => {
@@ -3079,7 +3128,15 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(200);
       const json = await response.json();
       expect(json.data.phase).toBe('playoff');
-      expect(json.data.playoffMatches).toEqual(playoffRows);
+      expect(json.data.playoffMatches).toEqual([
+        expect.objectContaining({
+          player1Id: 'player-19',
+          player1Tbd: false,
+          player2Id: null,
+          player2: null,
+          player2Tbd: true,
+        }),
+      ]);
       expect(json.data.seededPlayers).toBeUndefined();
       expect(mockLogger.error).toHaveBeenCalledWith('Failed to build Top-24 finals preview', {
         errorName: 'PrismaClientKnownRequestError',
@@ -3276,6 +3333,30 @@ describe('Finals Route Factory', () => {
       score1: 3,
       score2: 1,
       ...overrides,
+    });
+
+    it('rejects score submission for an unresolved finals slot before writing', async () => {
+      const unresolvedMatch = createMockMatch({
+        matchNumber: 8,
+        player1Id: null,
+        player2Id: null,
+        player1: null,
+        player2: null,
+      });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(unresolvedMatch);
+
+      const { PUT } = createFinalsHandlers(createMockConfig());
+      const response = await PUT(
+        new NextRequest('http://localhost:3000', {
+          method: 'PUT',
+          body: JSON.stringify(createMockRequestBody()),
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe('MATCH_SLOTS_UNRESOLVED');
+      expect(prisma.bMMatch.update).not.toHaveBeenCalled();
     });
 
     it('should set player1 as winner when score1 >= 3', async () => {

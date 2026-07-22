@@ -150,8 +150,8 @@ export function BracketSlotEditDialog({
   for (const m of matches) {
     if (m.completed || m.isBye) continue;
     const status = getFinalsSlotStatus(m.matchNumber, matches, bracketStructure);
-    if (!status.player1) placedPlayerIds.add(m.player1Id);
-    if (!status.player2) placedPlayerIds.add(m.player2Id);
+    if (!status.player1 && m.player1Id) placedPlayerIds.add(m.player1Id);
+    if (!status.player2 && m.player2Id) placedPlayerIds.add(m.player2Id);
   }
   const assignCandidates = qualifications.filter((q) => !placedPlayerIds.has(q.playerId));
 
