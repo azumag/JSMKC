@@ -820,6 +820,7 @@ export default function MatchRacePageClient({
                                   <TableHead>{tc('player1')}</TableHead>
                                   <TableHead className="text-center w-24">{tc('score')}</TableHead>
                                   <TableHead>{tc('player2')}</TableHead>
+                                  <TableHead className="min-w-44">{tc('course')}</TableHead>
                                   <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
                                   {isAdmin && <TableHead className="text-center w-44">{tc('reportStatus')}</TableHead>}
                                   <TableHead className="text-right">{tc('actions')}</TableHead>
@@ -841,6 +842,9 @@ export default function MatchRacePageClient({
                                       }
                                     >
                                       {match.isBye ? tc('bye') : match.player2.nickname}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                      {match.isBye ? '-' : match.assignedCourses?.join(' / ') || '-'}
                                     </TableCell>
                                     <TableCell className="text-center">
                                       {isAdmin && !match.isBye ? (

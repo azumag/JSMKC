@@ -42,6 +42,7 @@ import {
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 import { COURSES, CUPS } from '@/lib/constants';
+import { CDM_QUALIFICATION_ROUND_FIXTURES } from '@/lib/cdm-qualification-round-fixtures';
 
 // Mock dependencies
 jest.mock('@/lib/prisma');
@@ -467,6 +468,57 @@ describe('Qualification Route Factory', () => {
       expect(payload).toHaveLength(28);
       expect(payload.find((row: any) => row.cup)).toEqual(
         expect.objectContaining({ cup: expect.stringMatching(/Mushroom|Flower|Star|Special/) }),
+      );
+    });
+
+    it('uses the shared CDM fixture for MR courses and GP cups immediately after setup', async () => {
+      const players = Array.from({ length: 8 }, (_, i) => ({
+        playerId: `player-${i + 1}`,
+        group: 'A',
+        seeding: i + 1,
+      }));
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        qualificationScheduleMethod: 'cdm',
+      });
+      (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.mRQualification as any).findMany.mockResolvedValue([]);
+      (prisma.mRMatch as any).findMany.mockResolvedValue([]);
+      (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.gPQualification as any).findMany.mockResolvedValue([]);
+      (prisma.gPMatch as any).findMany.mockResolvedValue([]);
+      (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
+
+      const mr = createQualificationHandlers(
+        createMockConfig({
+          eventTypeCode: 'mr',
+          matchModel: 'mRMatch',
+          qualificationModel: 'mRQualification',
+          assignCoursesRandomly: true,
+        }),
+      );
+      const gp = createQualificationHandlers(
+        createMockConfig({
+          eventTypeCode: 'gp',
+          matchModel: 'gPMatch',
+          qualificationModel: 'gPQualification',
+          assignCupRandomly: true,
+          cupList: ['Mushroom', 'Flower', 'Star', 'Special'],
+        }),
+      );
+      const request = () =>
+        new NextRequest('http://localhost:3000', { method: 'POST', body: JSON.stringify({ players }) });
+
+      expect((await mr.POST(request(), { params: Promise.resolve({ id: 'tournament-123' }) })).status).toBe(201);
+      const mrRows = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
+      expect(mrRows.filter((row: any) => row.roundNumber === 1).map((row: any) => row.assignedCourses)).toEqual(
+        Array(4).fill([...CDM_QUALIFICATION_ROUND_FIXTURES[0].courses]),
+      );
+
+      expect((await gp.POST(request(), { params: Promise.resolve({ id: 'tournament-123' }) })).status).toBe(201);
+      const gpRows = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[1][1]);
+      expect(gpRows.filter((row: any) => row.roundNumber === 1).map((row: any) => row.cup)).toEqual(
+        Array(4).fill(CDM_QUALIFICATION_ROUND_FIXTURES[0].cup),
       );
     });
 

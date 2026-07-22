@@ -29,6 +29,7 @@
 
 import { buildQualificationWrites } from '@/lib/cdm-export/fill/qualifications';
 import { QUAL_BLOCK_FIRST_DATA_ROW, QUAL_BLOCK_STRIDE } from '@/lib/cdm-export/cdm-constants';
+import { CDM_QUALIFICATION_ROUND_FIXTURES } from '@/lib/cdm-qualification-round-fixtures';
 import type {
   CdmMatch,
   CdmModeQualification,
@@ -307,6 +308,41 @@ describe('buildQualificationWrites — BREAK matches', () => {
 });
 
 describe('buildQualificationWrites — MR courses and GP cup', () => {
+  it('writes the persisted CDM round-one card to the MR and GP template inputs', () => {
+    const a = player('pa', 'Sami');
+    const b = player('pb', 'Lio');
+    const fixture = CDM_QUALIFICATION_ROUND_FIXTURES[0];
+    const data = emptyData({
+      mrQualifications: [qual(a, 'A', 1), qual(b, 'A', 2)],
+      gpQualifications: [qual(a, 'A', 1), qual(b, 'A', 2)],
+      mrMatches: [
+        match({
+          matchNumber: 1,
+          roundNumber: fixture.roundNumber,
+          player1: a,
+          player2: b,
+          assignedCourses: fixture.courses,
+        }),
+      ],
+      gpMatches: [
+        match({
+          matchNumber: 1,
+          roundNumber: fixture.roundNumber,
+          player1: a,
+          player2: b,
+          cup: fixture.cup,
+        }),
+      ],
+    });
+
+    const mr = indexWrites(buildQualificationWrites(data, 'mr'), sheetOf.mr);
+    fixture.courses.forEach((course, index) => {
+      expectString(mr, `${['AB', 'AC', 'AD', 'AE'][index]}${blockRow(0)}`, course);
+    });
+    const gp = indexWrites(buildQualificationWrites(data, 'gp'), sheetOf.gp);
+    expectString(gp, `AB${blockRow(0)}`, fixture.cup);
+  });
+
   it('writes MR assignedCourses[0..3] to AB..AE and clears missing slots', () => {
     const a = player('pa', 'Sami');
     const b = player('pb', 'Lio');

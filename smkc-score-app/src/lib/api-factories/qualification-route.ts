@@ -43,6 +43,7 @@ import {
   type QualificationScheduleMethod,
 } from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
+import { getCdmQualificationRoundFixture } from '@/lib/cdm-qualification-round-fixtures';
 
 export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
 const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
@@ -498,6 +499,17 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         );
       }
 
+      /* CDM MR/GP cards are a finite 1–20 fixture. Validate every future
+       * round before deleting the current setup so a malformed fixture cannot
+       * leave the tournament without qualification rows. */
+      if (scheduleMethod === 'cdm' && (config.assignCoursesRandomly || config.assignCupRandomly)) {
+        for (const schedule of schedules.values()) {
+          for (const match of schedule.matches) {
+            if (!match.isBye) getCdmQualificationRoundFixture(match.day);
+          }
+        }
+      }
+
       /*
        * Delete existing qualification records and matches first to avoid
        * unique-constraint violations on re-setup (e.g. グループ編集). Without
@@ -565,7 +577,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * real match in the same round shares the same pre-determined course card.
        * Only applies when config.assignCoursesRandomly is true (MR only).
        */
-      const shuffledCourses = config.assignCoursesRandomly ? generateShuffledCourseList() : null;
+      const shuffledCourses =
+        config.assignCoursesRandomly && scheduleMethod === 'circle' ? generateShuffledCourseList() : null;
       /*
        * §5.4 fixed course assignment: BM always uses the same 4 battle courses
        * in order for every qualification match. `fixedCourseList` stores these
@@ -582,7 +595,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * Only applies when config.assignCupRandomly is true (GP only).
        */
       const shuffledCups =
-        config.assignCupRandomly && config.cupList ? generateShuffledCupList(config.cupList, logger) : null;
+        config.assignCupRandomly && config.cupList && scheduleMethod === 'circle'
+          ? generateShuffledCupList(config.cupList, logger)
+          : null;
       // matchSequenceIndex tracks the overall real-match number across all groups
       // for consistent GP cup assignment from the shared list.
       let matchSequenceIndex = 0;
@@ -616,16 +631,28 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           const shouldAssignPlayableCourse = isRealMatch;
           // MR: random per-round course draw shared by every match in that round
           // BM: fixed battle-course list (same for every real match)
+          const cdmRoundFixture =
+            scheduleMethod === 'cdm' &&
+            shouldAssignPlayableCourse &&
+            (config.assignCoursesRandomly || config.assignCupRandomly)
+              ? getCdmQualificationRoundFixture(m.day)
+              : null;
           const assignedCourses =
-            shuffledCourses && shouldAssignPlayableCourse
-              ? getAssignedCoursesForRound(shuffledCourses, m.day)
-              : fixedCourses && shouldAssignPlayableCourse
-                ? fixedCourses
-                : undefined;
+            cdmRoundFixture && config.assignCoursesRandomly
+              ? [...cdmRoundFixture.courses]
+              : shuffledCourses && shouldAssignPlayableCourse
+                ? getAssignedCoursesForRound(shuffledCourses, m.day)
+                : fixedCourses && shouldAssignPlayableCourse
+                  ? fixedCourses
+                  : undefined;
 
           /* §7.4: Pick a cup from the shuffled list for this round (GP only) */
           const assignedCup =
-            shuffledCups && shouldAssignPlayableCourse ? getAssignedCupForRound(shuffledCups, m.day) : undefined;
+            cdmRoundFixture && config.assignCupRandomly
+              ? cdmRoundFixture.cup
+              : shuffledCups && shouldAssignPlayableCourse
+                ? getAssignedCupForRound(shuffledCups, m.day)
+                : undefined;
           const autoCompleteBye = m.isBye;
           const isBreakVsBreak = p1Id === BREAK_PLAYER_ID && p2Id === BREAK_PLAYER_ID;
 
