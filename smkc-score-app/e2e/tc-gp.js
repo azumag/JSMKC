@@ -1203,7 +1203,9 @@ async function runTc727(adminPage) {
  * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
  * 2. Clicking it stores topN=24 in sessionStorage
  * 3. Finals page renders PlayoffBracket with M1..M8
- * 4. Scoring all playoff_r2 matches sets playoffComplete=true
+ * 4. A new playoff match opens score-only by default, can switch to details,
+ *    and saves its FT1 cup score through the browser UI
+ * 5. Scoring all playoff_r2 matches sets playoffComplete=true
  * 5. Phase 2 creates the Upper Bracket and switches to finals phase */
 async function runTc715(adminPage) {
   let setup = null;
@@ -1285,7 +1287,43 @@ async function runTc715(adminPage) {
       finalsText.includes('プレーオフ');
     const hasM1 = finalsText.includes('M1');
 
-    for (let mn = 1; mn <= 4; mn++) {
+    /* #3037: playoff must use the same score-only default as every other new
+     * GP KO match. Exercise M1 through the real dialog, including the optional
+     * details toggle; the remaining matches stay API-driven to keep this
+     * Top-24 flow fast. */
+    const m1Card = adminPage.getByRole('button', { name: /Match 1:/ }).first();
+    await m1Card.waitFor({ state: 'visible', timeout: 10000 });
+    await m1Card.click();
+    const playoffDialog = adminPage.getByRole('dialog');
+    const score1Input = playoffDialog.locator('#gp-finals-simple-score1');
+    const score2Input = playoffDialog.locator('#gp-finals-simple-score2');
+    await score1Input.waitFor({ state: 'visible', timeout: 5000 });
+    const scoreOnlyDefault = (await score1Input.count()) === 1 && (await score2Input.count()) === 1;
+    await playoffDialog.getByRole('button', { name: /Record cup details|カップ内訳を記録/ }).click();
+    const detailsOptional = (await playoffDialog.getByTestId('gp-finals-cup-form-0').count()) === 1;
+    await playoffDialog.getByRole('button', { name: /Enter cup score only|取得カップ数のみ入力/ }).click();
+    await score1Input.fill('1');
+    await score2Input.fill('0');
+    const saveScore = playoffDialog.getByRole('button', { name: /^(Save Score|スコア保存)$/ });
+    const [uiSaveResponse] = await Promise.all([
+      adminPage.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/tournaments/${tournamentId}/gp/finals`) &&
+          response.request().method() === 'PUT',
+      ),
+      saveScore.click(),
+    ]);
+    const afterUiSave = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const m1AfterUiSave = afterUiSave.playoffMatches.find((m) => m.matchNumber === 1);
+    const playoffUiScoreSaved =
+      uiSaveResponse.ok() &&
+      m1AfterUiSave?.completed === true &&
+      m1AfterUiSave?.points1 === 1 &&
+      m1AfterUiSave?.points2 === 0 &&
+      m1AfterUiSave?.cupResults == null &&
+      m1AfterUiSave?.races == null;
+
+    for (let mn = 2; mn <= 4; mn++) {
       const state = await apiFetchGpFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R1 M${mn} missing`);
@@ -1322,6 +1360,9 @@ async function runTc715(adminPage) {
       playoffCreated &&
       hasPlayoffLabel &&
       hasM1 &&
+      scoreOnlyDefault &&
+      detailsOptional &&
+      playoffUiScoreSaved &&
       playoffComplete &&
       phase2ActionVisible &&
       phase2Ok &&
@@ -1337,15 +1378,21 @@ async function runTc715(adminPage) {
             ? 'Playoff label missing on finals page'
             : !hasM1
               ? 'M1 missing on playoff bracket'
-              : !playoffComplete
-                ? 'playoffComplete not true'
-                : !phase2ActionVisible
-                  ? 'Create Upper Bracket action missing after playoff completion'
-                  : !phase2Ok
-                    ? `Phase 2 failed (${phase2.s})`
-                    : !hasFinalsPhase
-                      ? 'Finals phase not shown after Upper Bracket creation'
-                      : '',
+              : !scoreOnlyDefault
+                ? 'playoff M1 did not open in score-only mode'
+                : !detailsOptional
+                  ? 'playoff M1 details toggle did not open a cup form'
+                  : !playoffUiScoreSaved
+                    ? `playoff M1 UI save failed: ${JSON.stringify(m1AfterUiSave)}`
+                    : !playoffComplete
+                      ? 'playoffComplete not true'
+                      : !phase2ActionVisible
+                        ? 'Create Upper Bracket action missing after playoff completion'
+                        : !phase2Ok
+                          ? `Phase 2 failed (${phase2.s})`
+                          : !hasFinalsPhase
+                            ? 'Finals phase not shown after Upper Bracket creation'
+                            : '',
     );
   } catch (err) {
     log('TC-715', 'FAIL', err instanceof Error ? err.message : 'GP 715 failed');

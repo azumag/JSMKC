@@ -524,6 +524,8 @@
     "manualTotalScoreDesc": "カップ終了後に合計点だけを修正したい場合はこちらを使用します。",
     "manualScoreValidation": "手動入力の合計ポイントは 0 以上の整数で入力してください。",
     "manualScoreSaveFailed": "合計ポイントの手動保存に失敗しました。",
+    "recordCupDetails": "カップ内訳を記録",
+    "recordCupScoreOnly": "取得カップ数のみ入力",
     "cupWinsScore": "取得カップ数",
     "assignedCups": "選ばれたカップ",
     "createGroupsAndMatches": "グループ＆試合作成",

@@ -383,7 +383,9 @@ export default function GrandPrixPageClient({
 
   const openMatchDialog = (match: GPMatch) => {
     setSelectedMatch(match);
-    setManualScoreEnabled(false);
+    // New qualification matches use the manual driver-point total. A complete
+    // stored race breakdown is the only signal that should reopen details.
+    setManualScoreEnabled(!(match.races && match.races.length === TOTAL_GP_RACES));
     setManualPoints1(match.points1.toString());
     setManualPoints2(match.points2.toString());
     if (match.cup && match.races && match.races.length === TOTAL_GP_RACES) {
@@ -468,6 +470,7 @@ export default function GrandPrixPageClient({
             points2,
             completed: true,
             version: selectedMatch.version,
+            races: null,
           }),
         });
 

@@ -465,7 +465,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('**手順**');
     expect(section).toContain('**期待結果**');
     expect(section).toContain(`**スクリプト**:`);
-    expect(scriptSource).toContain(`log('${tc}'`);
+    expect(scriptSource).toMatch(new RegExp(`log\\(\\s*['"]${tc}['"]`));
   });
 
   it('keeps TC-2070A failure diagnostics documented and logged', () => {

@@ -323,6 +323,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             data: {
               points1: totalPoints1,
               points2: totalPoints2,
+              races: reportedRacesJson,
               completed: true,
               ...reportData,
               version: { increment: 1 },
@@ -451,7 +452,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const finalMatch = await updateWithRetry(prisma, async (tx) =>
           tx.gPMatch.update({
             where: { id: matchId, version: updatedMatch.version },
-            data: { points1: totalPoints1, points2: totalPoints2, completed: true, version: { increment: 1 } },
+            data: {
+              points1: totalPoints1,
+              points2: totalPoints2,
+              races: reportedRacesJson,
+              completed: true,
+              version: { increment: 1 },
+            },
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           }),
         );
@@ -530,7 +537,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const confirmedMatch = await updateWithRetry(prisma, async (tx) => {
           const finalResult = await tx.gPMatch.update({
             where: { id: matchId, version: updatedMatch.version },
-            data: { points1: p1p1, points2: p1p2, races: racesToUse || [], completed: true, version: { increment: 1 } },
+            data: {
+              points1: p1p1,
+              points2: p1p2,
+              races: Array.isArray(racesToUse) && racesToUse.length > 0 ? racesToUse : Prisma.DbNull,
+              completed: true,
+              version: { increment: 1 },
+            },
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           });
 

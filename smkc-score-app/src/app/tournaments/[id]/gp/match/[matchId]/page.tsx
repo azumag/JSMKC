@@ -23,6 +23,7 @@ import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { useState, useEffect, useCallback, useRef, use } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -42,6 +43,7 @@ import { CardSkeleton } from '@/components/ui/loading-skeleton';
 import { createLogger } from '@/lib/client-logger';
 import { useMatchReportAuth } from '@/lib/hooks/useMatchReportAuth';
 import { getSharedMatchAccessState } from '@/lib/shared-match-access-state';
+import { GP_DRIVER_POINTS_INPUT_PROPS, parseGpDriverPointsInput } from '@/lib/gp-driver-points-input';
 
 import type { Player } from '@/lib/types';
 
@@ -117,6 +119,9 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
   );
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [entryMode, setEntryMode] = useState<'manual' | 'races'>('manual');
+  const [manualPoints, setManualPoints] = useState({ points1: '', points2: '' });
+  const entryHydrationRef = useRef<string | null>(null);
   /**
    * Active cup for course filtering (§7.1 substitution rule).
    * Star→Mushroom, Special→Flower substitutions are allowed.
@@ -179,13 +184,15 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
   useEffect(() => {
     if (!match) return;
 
-    const existingRaces =
-      match.races ??
-      (selectedPlayer === 1
-        ? match.player1ReportedRaces
+    const selectedReportedRaces =
+      selectedPlayer === 1 ? match.player1ReportedRaces : selectedPlayer === 2 ? match.player2ReportedRaces : undefined;
+    const selectedHasReport =
+      selectedPlayer === 1
+        ? match.player1ReportedPoints1 != null && match.player1ReportedPoints2 != null
         : selectedPlayer === 2
-          ? match.player2ReportedRaces
-          : undefined);
+          ? match.player2ReportedPoints1 != null && match.player2ReportedPoints2 != null
+          : false;
+    const existingRaces = selectedHasReport ? selectedReportedRaces : match.races;
 
     if (!activeCup) {
       initializedCupRef.current = null;
@@ -227,28 +234,49 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
     });
   }, [activeCup, match, selectedPlayer]);
 
-  /**
-   * Submit the race results for the selected player.
-   * Validates that 5 unique courses are selected and all positions are filled.
-   */
+  useEffect(() => {
+    if (!match || selectedPlayer === null) return;
+
+    const reportedRaces = selectedPlayer === 1 ? match.player1ReportedRaces : match.player2ReportedRaces;
+    const points1 = selectedPlayer === 1 ? match.player1ReportedPoints1 : match.player2ReportedPoints1;
+    const points2 = selectedPlayer === 1 ? match.player1ReportedPoints2 : match.player2ReportedPoints2;
+    const hasSavedReport = points1 != null && points2 != null;
+    const details = hasSavedReport ? reportedRaces : match.races;
+    const signature = JSON.stringify({ selectedPlayer, points1, points2, details });
+    if (entryHydrationRef.current === signature) return;
+    entryHydrationRef.current = signature;
+
+    setEntryMode(details?.length === TOTAL_GP_RACES ? 'races' : 'manual');
+    setManualPoints({
+      points1: String(hasSavedReport ? points1 : (match.points1 ?? '')),
+      points2: String(hasSavedReport ? points2 : (match.points2 ?? '')),
+    });
+  }, [match, selectedPlayer]);
+
+  /** Submit either the default manual totals or optional race detail. */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
       setError(tMatch('selectPlayer'));
       return;
     }
 
-    /* Validate 5 unique courses are selected (1 full cup = 5 courses) */
-    const usedCourses = races.map((r) => r.course).filter((c) => c !== '');
-    if (usedCourses.length !== TOTAL_GP_RACES || new Set(usedCourses).size !== TOTAL_GP_RACES) {
-      setError(tMatch('selectUniqueCourses'));
+    const points1 = parseGpDriverPointsInput(manualPoints.points1);
+    const points2 = parseGpDriverPointsInput(manualPoints.points2);
+    if (entryMode === 'manual' && (points1 === null || points2 === null)) {
+      setError(tGp('driverPointsValidation'));
       return;
     }
 
-    /* Validate all positions are filled */
-    const incompleteRaces = races.filter((r) => r.position1 === null || r.position2 === null);
-    if (incompleteRaces.length > 0) {
-      setError(tMatch('completeAllPositions'));
-      return;
+    if (entryMode === 'races') {
+      const usedCourses = races.map((r) => r.course).filter((c) => c !== '');
+      if (usedCourses.length !== TOTAL_GP_RACES || new Set(usedCourses).size !== TOTAL_GP_RACES) {
+        setError(tMatch('selectUniqueCourses'));
+        return;
+      }
+      if (races.some((r) => r.position1 === null || r.position2 === null)) {
+        setError(tMatch('completeAllPositions'));
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -260,7 +288,7 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reportingPlayer: selectedPlayer,
-          races,
+          ...(entryMode === 'manual' ? { points1, points2 } : { races }),
         }),
       });
 
@@ -291,6 +319,26 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
   /* Calculate running totals for the points preview using centralized driver points */
   const totalPoints1 = races.reduce((sum, r) => sum + (r.position1 ? getDriverPoints(r.position1) : 0), 0);
   const totalPoints2 = races.reduce((sum, r) => sum + (r.position2 ? getDriverPoints(r.position2) : 0), 0);
+  const displayPoints1 = entryMode === 'manual' ? (parseGpDriverPointsInput(manualPoints.points1) ?? 0) : totalPoints1;
+  const displayPoints2 = entryMode === 'manual' ? (parseGpDriverPointsInput(manualPoints.points2) ?? 0) : totalPoints2;
+  const canSubmitEntry =
+    entryMode === 'manual'
+      ? parseGpDriverPointsInput(manualPoints.points1) !== null &&
+        parseGpDriverPointsInput(manualPoints.points2) !== null
+      : canSubmit(races);
+  const selectReportingPlayer = (side: 1 | 2) => {
+    setSelectedPlayer(side);
+    const reportedRaces = side === 1 ? match?.player1ReportedRaces : match?.player2ReportedRaces;
+    const points1 = side === 1 ? match?.player1ReportedPoints1 : match?.player2ReportedPoints1;
+    const points2 = side === 1 ? match?.player1ReportedPoints2 : match?.player2ReportedPoints2;
+    const hasSavedReport = points1 != null && points2 != null;
+    const details = hasSavedReport ? reportedRaces : match?.races;
+    setEntryMode(details?.length === TOTAL_GP_RACES ? 'races' : 'manual');
+    setManualPoints({
+      points1: String(hasSavedReport ? points1 : (match?.points1 ?? '')),
+      points2: String(hasSavedReport ? points2 : (match?.points2 ?? '')),
+    });
+  };
   const accessState = getSharedMatchAccessState({
     canReport,
     isSessionLoading,
@@ -413,14 +461,14 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
                     <Button
                       variant={selectedPlayer === 1 ? 'default' : 'outline'}
                       className="h-16 text-lg"
-                      onClick={() => setSelectedPlayer(1)}
+                      onClick={() => selectReportingPlayer(1)}
                     >
                       {match.player1.nickname}
                     </Button>
                     <Button
                       variant={selectedPlayer === 2 ? 'default' : 'outline'}
                       className="h-16 text-lg"
-                      onClick={() => setSelectedPlayer(2)}
+                      onClick={() => selectReportingPlayer(2)}
                     >
                       {match.player2.nickname}
                     </Button>
@@ -429,104 +477,134 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
 
                 {selectedPlayer && (
                   <div className="space-y-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEntryMode((mode) => (mode === 'manual' ? 'races' : 'manual'))}
+                    >
+                      {entryMode === 'manual' ? tGp('recordCupDetails') : tGp('manualTotalScore')}
+                    </Button>
                     {/* Live score preview */}
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <p className="text-sm font-medium text-center">{tMatch('currentScore')}</p>
                         <p className="text-sm font-medium text-center">
-                          {totalPoints1} - {totalPoints2}
+                          {displayPoints1} - {displayPoints2}
                         </p>
                       </div>
                     </div>
 
-                    {/* 5 race entries with course selection and 1st-8th position selectors */}
-                    <div className="space-y-3">
-                      {races.map((race, index) => (
-                        <div key={index} className="border rounded-lg p-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium w-20">{tMatch('raceN', { n: index + 1 })}</span>
-                            {activeCup ? (
-                              <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                                {race.course ? getCourseName(race.course) : '—'}
-                              </span>
-                            ) : (
-                              <Select
-                                value={race.course}
-                                onValueChange={(value) => {
-                                  const newRaces = [...races];
-                                  newRaces[index].course = value as CourseAbbr;
-                                  setRaces(newRaces);
-                                }}
-                              >
-                                <SelectTrigger className="flex-1">
-                                  <SelectValue placeholder={tCommon('selectCourse')} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {COURSE_INFO.map((course) => (
-                                    <SelectItem key={course.abbr} value={course.abbr}>
-                                      {course.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          </div>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">{match.player1.nickname}</p>
-                              <Select
-                                value={race.position1?.toString() || ''}
-                                onValueChange={(value) => {
-                                  const newRaces = [...races];
-                                  newRaces[index].position1 = value === '' ? null : parseInt(value, 10);
-                                  setRaces(newRaces);
-                                }}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder={tCommon('position')} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {GP_POSITION_OPTIONS.map((position) => (
-                                    <SelectItem key={`p1-${index}-${position}`} value={position.toString()}>
-                                      {fmtPos(position)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                    {entryMode === 'manual' ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input
+                          {...GP_DRIVER_POINTS_INPUT_PROPS}
+                          aria-label={`${match.player1.nickname} driver points`}
+                          value={manualPoints.points1}
+                          onChange={(event) =>
+                            setManualPoints((current) => ({ ...current, points1: event.target.value }))
+                          }
+                          placeholder="0"
+                        />
+                        <Input
+                          {...GP_DRIVER_POINTS_INPUT_PROPS}
+                          aria-label={`${match.player2.nickname} driver points`}
+                          value={manualPoints.points2}
+                          onChange={(event) =>
+                            setManualPoints((current) => ({ ...current, points2: event.target.value }))
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {races.map((race, index) => (
+                          <div key={index} className="border rounded-lg p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium w-20">{tMatch('raceN', { n: index + 1 })}</span>
+                              {activeCup ? (
+                                <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                                  {race.course ? getCourseName(race.course) : '—'}
+                                </span>
+                              ) : (
+                                <Select
+                                  value={race.course}
+                                  onValueChange={(value) => {
+                                    const newRaces = [...races];
+                                    newRaces[index].course = value as CourseAbbr;
+                                    setRaces(newRaces);
+                                  }}
+                                >
+                                  <SelectTrigger className="flex-1">
+                                    <SelectValue placeholder={tCommon('selectCourse')} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {COURSE_INFO.map((course) => (
+                                      <SelectItem key={course.abbr} value={course.abbr}>
+                                        {course.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </div>
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">{match.player2.nickname}</p>
-                              <Select
-                                value={race.position2?.toString() || ''}
-                                onValueChange={(value) => {
-                                  const newRaces = [...races];
-                                  newRaces[index].position2 = value === '' ? null : parseInt(value, 10);
-                                  setRaces(newRaces);
-                                }}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder={tCommon('position')} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {GP_POSITION_OPTIONS.map((position) => (
-                                    <SelectItem key={`p2-${index}-${position}`} value={position.toString()}>
-                                      {fmtPos(position)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">{match.player1.nickname}</p>
+                                <Select
+                                  value={race.position1?.toString() || ''}
+                                  onValueChange={(value) => {
+                                    const newRaces = [...races];
+                                    newRaces[index].position1 = value === '' ? null : parseInt(value, 10);
+                                    setRaces(newRaces);
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={tCommon('position')} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {GP_POSITION_OPTIONS.map((position) => (
+                                      <SelectItem key={`p1-${index}-${position}`} value={position.toString()}>
+                                        {fmtPos(position)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">{match.player2.nickname}</p>
+                                <Select
+                                  value={race.position2?.toString() || ''}
+                                  onValueChange={(value) => {
+                                    const newRaces = [...races];
+                                    newRaces[index].position2 = value === '' ? null : parseInt(value, 10);
+                                    setRaces(newRaces);
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={tCommon('position')} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {GP_POSITION_OPTIONS.map((position) => (
+                                      <SelectItem key={`p2-${index}-${position}`} value={position.toString()}>
+                                        {fmtPos(position)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
 
                     {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
                     <Button
                       className="w-full h-14 text-lg"
                       onClick={handleSubmit}
-                      disabled={submitting || !canSubmit(races)}
+                      disabled={submitting || !canSubmitEntry}
                     >
                       {submitting ? tMatch('submitting') : tMatch('submitResult')}
                     </Button>
@@ -543,7 +621,7 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
               <div className="text-4xl mb-4">✓</div>
               <h3 className="text-lg font-semibold mb-2">{tMatch('resultSubmitted')}</h3>
               <p className="text-muted-foreground">{tMatch('waitingConfirm')}</p>
-              <p className="text-sm mt-4">{tMatch('yourReport', { score1: totalPoints1, score2: totalPoints2 })}</p>
+              <p className="text-sm mt-4">{tMatch('yourReport', { score1: displayPoints1, score2: displayPoints2 })}</p>
             </CardContent>
           </Card>
         )}

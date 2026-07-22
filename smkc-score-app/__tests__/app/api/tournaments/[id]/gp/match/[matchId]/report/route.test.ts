@@ -718,6 +718,13 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         'Score correction saved',
       );
       expect(handleValidationError).not.toHaveBeenCalled();
+      expect(prisma.gPMatch.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            races: expect.arrayContaining([expect.objectContaining({ course: 'MC1', points1: 9, points2: 6 })]),
+          }),
+        }),
+      );
       /* Both players' qualification stats must be recalculated after a
        * correction in one batched raw update. */
       expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
