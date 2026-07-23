@@ -9,6 +9,9 @@ on:
     paths:
       - "smkc-score-app/**"
 
+permissions:
+  contents: write
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -36,6 +39,90 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Add active-tournament export regression test
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('__tests__/app/api/tournaments/[id]/export/route.test.ts')
+          source = path.read_text()
+          title = "exports CDM for an active tournament when the finals opening round is incomplete"
+          marker = "  it('rejects CDM export when a legacy manual finals-slot adjustment has no seed snapshot', async () => {"
+          if title not in source:
+              block = r'''  it('exports CDM for an active tournament when the finals opening round is incomplete', async () => {
+            const assetFetch = mockRealTemplateAsset();
+            const seedState = {
+              status: 'active',
+              bmFinalsSeedSnapshot: null,
+              mrFinalsSeedSnapshot: null,
+              gpFinalsSeedSnapshot: null,
+            };
+            const openingMatch = {
+              matchNumber: 1,
+              stage: 'finals',
+              round: 'winners_qf',
+              player1Id: 'p1',
+              player2Id: 'p8',
+              player1: { id: 'p1', name: 'Player One', nickname: 'P1' },
+              player2: { id: 'p8', name: 'Player Eight', nickname: 'P8' },
+              score1: null,
+              score2: null,
+              completed: false,
+              slotOverrideAt: null,
+            };
+
+            (prisma.tournament.findUnique as jest.Mock)
+              .mockResolvedValueOnce(seedState)
+              .mockResolvedValueOnce(seedState)
+              .mockResolvedValueOnce(seedState)
+              .mockResolvedValueOnce({
+                id: 't1',
+                name: 'Active Tournament',
+                date: new Date('2024-01-15'),
+                status: 'active',
+                bmQualifications: [],
+                mrQualifications: [],
+                gpQualifications: [],
+                bmMatches: [openingMatch],
+                mrMatches: [],
+                gpMatches: [],
+                ttEntries: [],
+                ttPhaseRounds: [],
+                finalsRoundSettings: [],
+                bmFinalsSeedSnapshot: null,
+                mrFinalsSeedSnapshot: null,
+                gpFinalsSeedSnapshot: null,
+              });
+            (prisma.bMMatch as jest.Mocked<typeof prisma.bMMatch>).findMany.mockResolvedValue([openingMatch] as never);
+
+            const result = await GET(
+              new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm'),
+              { params: Promise.resolve({ id: 't1' }) },
+            );
+
+            expect(result.status).toBe(200);
+            expect(result.data).toBeInstanceOf(Uint8Array);
+            expect(assetFetch).toHaveBeenCalled();
+          });'''
+              if marker not in source:
+                  raise SystemExit('insertion marker not found')
+              source = source.replace(marker, f'{block}\n\n{marker}', 1)
+              path.write_text(source)
+          PY
+          npx prettier --write '__tests__/app/api/tournaments/[id]/export/route.test.ts'
+
+      - name: Commit export regression test
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if git diff --quiet -- '__tests__/app/api/tournaments/[id]/export/route.test.ts'; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add '__tests__/app/api/tournaments/[id]/export/route.test.ts'
+          git commit -m "test: cover active tournament CDM export"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
 
       - name: Lint
         run: npm run lint
