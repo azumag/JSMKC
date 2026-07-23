@@ -840,7 +840,6 @@
     "saveLives": "Save lives",
     "invalidLives": "Enter a whole number from 1 to 10.",
     "livesUpdateFailed": "Failed to update lives.",
-    "top2LifeAdjustmentWarning": "Top 2: set both remaining players to 5 lives before starting the next round.",
     "eliminate": "Eliminate",
     "roundsCompleted": "{count} rounds completed",
     "noRoundsYet": "No rounds played yet",

@@ -335,18 +335,17 @@ describe('TimeAttackFinals — manual life adjustment', () => {
     expect(screen.queryByTestId('ta-top2-life-adjustment-warning')).not.toBeInTheDocument();
   });
 
-  it('warns administrators to set both Top 2 players to five lives', async () => {
+  it('keeps life adjustment optional when only two standard-TA players remain', async () => {
     mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
     global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('standard'));
 
     await renderFinals();
 
-    expect(await screen.findByTestId('ta-top2-life-adjustment-warning')).toHaveTextContent(
-      'set both remaining players to 5 lives',
-    );
+    expect(await screen.findByRole('spinbutton', { name: 'Set lives for Mario' })).toBeInTheDocument();
+    expect(screen.queryByTestId('ta-top2-life-adjustment-warning')).not.toBeInTheDocument();
   });
 
-  it('does not show the Top 2 adjustment warning for an archived tournament', async () => {
+  it('does not expose life adjustment controls for an archived tournament', async () => {
     mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
     global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('standard', true));
 
@@ -355,6 +354,7 @@ describe('TimeAttackFinals — manual life adjustment', () => {
     await waitFor(() => {
       expect(screen.getByText('Archived')).toBeInTheDocument();
     });
+    expect(screen.queryByRole('spinbutton', { name: 'Set lives for Mario' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('ta-top2-life-adjustment-warning')).not.toBeInTheDocument();
   });
 });

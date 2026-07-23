@@ -763,12 +763,6 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   const hasOpenRound = rounds.length > 0 && (rounds[rounds.length - 1].results as unknown[]).length === 0;
   const lifeAdjustmentDisabled =
     hasOpenRound || submitting || startingRound || Boolean(pendingSuddenDeath) || phase3Frozen || taMode !== 'standard';
-  const top2NeedsLifeAdjustment =
-    Boolean(isAdmin) &&
-    !archived &&
-    taMode === 'standard' &&
-    activeEntries.length === 2 &&
-    activeEntries.some((entry) => entry.lives !== 5);
 
   /** Count of completed rounds (with submitted results), used in multiple sections */
   const completedRoundsCount = rounds.filter((r) => (r.results as unknown[]).length > 0).length;
@@ -920,14 +914,6 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
             <p className="text-yellow-700 font-semibold">
               {tTaFinals('livesResetNotice', { count: activeEntries.length })}
             </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {top2NeedsLifeAdjustment && (
-        <Card className="border-yellow-500 bg-yellow-500/10" data-testid="ta-top2-life-adjustment-warning">
-          <CardContent className="py-4 text-center text-yellow-800">
-            {tTaFinals('top2LifeAdjustmentWarning')}
           </CardContent>
         </Card>
       )}
