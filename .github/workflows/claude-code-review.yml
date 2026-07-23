@@ -79,27 +79,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        # Keep the first parent of GitHub's synthetic PR merge commit so the
+        # reviewer can inspect a local diff when the PR diff API is too large.
         with:
-          fetch-depth: 1
+          fetch-depth: 2
 
       - name: Run Claude Code Review
         id: claude-review
         # Auth failures (expired CLAUDE_CODE_OAUTH_TOKEN) must not block merges.
-        # When the token is valid Claude runs normally; when it fails gracefully
-        # the CI check still passes so the PR is not permanently blocked.
+        # The post-condition below still fails whenever no formal review is
+        # submitted for the current commit.
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api:*),Bash(gh issue list:*),Bash(gh issue create:*)"'
+          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(git diff:*),Bash(git show:*),Bash(git log:*)"'
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
             Steps:
             1. Run `gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get PR metadata.
-            2. Run `gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get the diff.
+            2. Run `gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get the diff. If GitHub rejects it because the diff is too large, inspect the checked-out merge commit with `git diff HEAD^1 HEAD` and `git show --stat HEAD` instead.
             3. Assess the change against CLAUDE.md review aspects: code quality, bugs/edge cases, performance, security, simplicity (no over-abstraction), test coverage, YAGNI.
             4. Classify each finding:
                - BLOCKING: bugs, security risks, missing critical tests, broken behavior.
@@ -113,6 +115,23 @@ jobs:
                - BLOCKING findings exist: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --request-changes --body "<summary>"`
 
             Write the review body in Japanese. Keep it focused on actionable findings. Issue titles/bodies may also be in Japanese.
+
+      - name: Verify formal Claude review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          reviews="$(gh api --paginate --slurp "repos/$REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100")"
+          printf '%s' "$reviews" | jq -e --arg sha "$HEAD_SHA" '
+            any(
+              .[][];
+              .user.login == "claude[bot]"
+              and .commit_id == $sha
+              and (.state == "APPROVED" or .state == "CHANGES_REQUESTED")
+            )
+          ' >/dev/null
 
       # Auto-merge every non-draft PR. `--auto` waits for required status checks
       # and approving reviews defined in branch protection before merging.
