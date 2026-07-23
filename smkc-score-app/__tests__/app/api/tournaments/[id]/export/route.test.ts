@@ -1680,6 +1680,61 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     });
   });
 
+  it('exports CDM for an active tournament when the finals opening round is incomplete', async () => {
+    const assetFetch = mockRealTemplateAsset();
+    const seedState = {
+      status: 'active',
+      bmFinalsSeedSnapshot: null,
+      mrFinalsSeedSnapshot: null,
+      gpFinalsSeedSnapshot: null,
+    };
+    const openingMatch = {
+      matchNumber: 1,
+      stage: 'finals',
+      round: 'winners_qf',
+      player1Id: 'p1',
+      player2Id: 'p8',
+      player1: { id: 'p1', name: 'Player One', nickname: 'P1' },
+      player2: { id: 'p8', name: 'Player Eight', nickname: 'P8' },
+      score1: null,
+      score2: null,
+      completed: false,
+      slotOverrideAt: null,
+    };
+
+    (prisma.tournament.findUnique as jest.Mock)
+      .mockResolvedValueOnce(seedState)
+      .mockResolvedValueOnce(seedState)
+      .mockResolvedValueOnce(seedState)
+      .mockResolvedValueOnce({
+        id: 't1',
+        name: 'Active Tournament',
+        date: new Date('2024-01-15'),
+        status: 'active',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [openingMatch],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+        finalsRoundSettings: [],
+        bmFinalsSeedSnapshot: null,
+        mrFinalsSeedSnapshot: null,
+        gpFinalsSeedSnapshot: null,
+      });
+    (prisma.bMMatch as jest.Mocked<typeof prisma.bMMatch>).findMany.mockResolvedValue([openingMatch] as never);
+
+    const result = await GET(new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm'), {
+      params: Promise.resolve({ id: 't1' }),
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.data).toBeInstanceOf(Uint8Array);
+    expect(assetFetch).toHaveBeenCalled();
+  });
+
   it('rejects CDM export when a legacy manual finals-slot adjustment has no seed snapshot', async () => {
     (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ bmFinalsSeedSnapshot: null });
     (prisma.bMMatch as jest.Mocked<typeof prisma.bMMatch>).findMany.mockResolvedValue([
