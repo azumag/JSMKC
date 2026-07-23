@@ -1377,6 +1377,15 @@ export async function startPhaseRound(
     }
 
     try {
+      // Fence a concurrent administrator life adjustment before the open
+      // round exists. The set_lives endpoint matches this version, so a
+      // screen read before round start cannot write after it has begun.
+      if (phase === 'phase3' && context.taBattleRoyaleMode !== true) {
+        await prisma.tTEntry.updateMany({
+          where: { tournamentId, stage: 'phase3', eliminated: false },
+          data: { version: { increment: 1 } },
+        });
+      }
       // Create the round record with empty results (to be filled on submitRoundResults).
       await prisma.tTPhaseRound.create({
         data: {
@@ -1604,6 +1613,16 @@ export async function submitRoundResults(
     const phase3Result = await processPhase3Result(prisma, context, processedResults, undefined, undefined, lifeLoss);
     eliminatedIds = phase3Result.eliminated;
     livesReset = phase3Result.livesReset;
+  }
+
+  // Fence the just-processed lives before publishing this round as closed.
+  // Otherwise a stale set_lives request could observe no open round in the
+  // tiny interval between submittedAt and the version increment.
+  if (phase === 'phase3' && context.taBattleRoyaleMode !== true) {
+    await prisma.tTEntry.updateMany({
+      where: { tournamentId, stage: 'phase3' },
+      data: { version: { increment: 1 } },
+    });
   }
 
   // Update the round record with final results and elimination outcomes
@@ -1859,6 +1878,14 @@ export async function submitSuddenDeathResults(
     livesReset = phase3Result.livesReset;
   }
 
+  // Same fence as normal result submission: invalidate stale life-adjustment
+  // screens before the base round becomes eligible for another adjustment.
+  if (phase === 'phase3' && context.taBattleRoyaleMode !== true) {
+    await prisma.tTEntry.updateMany({
+      where: { tournamentId, stage: 'phase3' },
+      data: { version: { increment: 1 } },
+    });
+  }
   await prisma.tTPhaseRound.update({
     where: { id: suddenDeathRound.phaseRoundId },
     data: {

@@ -517,6 +517,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const response: TaPhaseResponse = {
       phaseStatus,
       ...buildPhase3RulesDto(tournament.taBattleRoyaleMode === true),
+      frozenStages: Array.isArray(tournament.frozenStages)
+        ? (tournament.frozenStages as unknown[]).filter((stage): stage is string => typeof stage === 'string')
+        : [],
     };
 
     if (phase?.success) {

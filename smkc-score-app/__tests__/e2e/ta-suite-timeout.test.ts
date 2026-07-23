@@ -1,6 +1,6 @@
 describe('TC-2078 TA E2E suite timeout contract', () => {
   it('runs the full TA suite with an explicit preview-sized timeout', async () => {
-    const taSuite = await import('../../e2e/tc-ta.js') as {
+    const taSuite = (await import('../../e2e/tc-ta.js')) as {
       TA_SUITE_TIMEOUT_MS: number;
       getSuite: () => {
         suiteTimeoutMs?: number;
@@ -24,6 +24,6 @@ describe('TC-2078 TA E2E suite timeout contract', () => {
     expect(suite.tests.map((test) => test.name)).toContain('TC-2779');
     expect(suite.tests.map((test) => test.name)).toContain('TC-2781');
     expect(suite.tests.map((test) => test.name)).toContain('TC-3003');
-    expect(suite.tests).toHaveLength(39);
+    expect(suite.tests).toHaveLength(40);
   });
 });

@@ -15,6 +15,7 @@
  *   TC-808  TA Finals page renders with champion banner on completion; its
  *           Undo-vs-Cancel info popover opens on click (read-only check —
  *           this test reuses the shared fixture's champion-decided state).
+ *   TC-3034 Top 2 manual 3→5 life adjustment; the next round persists 5/4.
  *   TC-812  TA qualification tie resolution — identical times share min-rank
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
@@ -85,16 +86,31 @@
 require('ts-node/register/transpile-only');
 
 const {
-  makeResults, makeLog, nav,
+  makeResults,
+  makeLog,
+  nav,
   uiSetTaEntryTimes,
   uiFreezeTaQualification,
   uiPromoteTaPhase,
   uiResetTaPhase,
-  uiPhaseStartRound, uiPhaseSubmitResults, uiPhaseCancelRound, uiPhaseUndoRound,
-  uiCreateTournament, uiCreatePlayer,
+  uiPhaseStartRound,
+  uiPhaseSubmitResults,
+  uiPhaseCancelRound,
+  uiPhaseUndoRound,
+  uiCreateTournament,
+  uiCreatePlayer,
   apiDeletePlayer,
-  apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiForceRankOnly, apiSetTaPartner, apiTaParticipantEditTime, loginPlayerBrowser,
-  apiFetchTa, apiFetchTaPhase, apiPostTaPhase, apiPromoteTaPhase,
+  apiDeleteTournament,
+  apiGetTtEntry,
+  apiSeedTtEntry,
+  apiForceRankOnly,
+  apiSetTaPartner,
+  apiTaParticipantEditTime,
+  loginPlayerBrowser,
+  apiFetchTa,
+  apiFetchTaPhase,
+  apiPostTaPhase,
+  apiPromoteTaPhase,
   makeTaTimesForRank,
   TA_COURSES,
   setupTaQualViaUi,
@@ -141,11 +157,9 @@ function sharedTaEntryByNickname(nickname) {
 }
 
 async function createIsolatedTaQualification(adminPage, label, players, { seedTimes = false } = {}) {
-  const tournamentId = await uiCreateTournament(
-    adminPage,
-    `E2E TA ${label} ${Date.now()}`,
-    { dualReportEnabled: false },
-  );
+  const tournamentId = await uiCreateTournament(adminPage, `E2E TA ${label} ${Date.now()}`, {
+    dualReportEnabled: false,
+  });
 
   try {
     const { entries } = await setupTaEntriesFromShared(adminPage, tournamentId, players, { seedTimes });
@@ -211,14 +225,17 @@ function makeTc813QualificationTimes(pattern) {
 }
 
 async function apiUpdateTaLives(adminPage, tournamentId, entryId, livesDelta) {
-  return adminPage.evaluate(async ([u, d]) => {
-    const r = await fetch(u, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_lives', livesDelta }]);
+  return adminPage.evaluate(
+    async ([u, d]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    },
+    [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_lives', livesDelta }],
+  );
 }
 
 function makeTaPhaseRoundTimeMs(entry, fallbackRank = 20) {
@@ -284,15 +301,18 @@ async function ensureSharedPhase3Ready(adminPage, tournamentId) {
   if (phase3Entries.length > 0) return phase3Entries;
 
   const promote1 = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
-  if (promote1.s !== 200) throw new Error(`promote_phase1 failed (${promote1.s}): ${JSON.stringify(promote1.b).slice(0, 300)}`);
+  if (promote1.s !== 200)
+    throw new Error(`promote_phase1 failed (${promote1.s}): ${JSON.stringify(promote1.b).slice(0, 300)}`);
   await completeTaSingleEliminationPhaseByApi(adminPage, tournamentId, 'phase1', 4);
 
   const promote2 = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
-  if (promote2.s !== 200) throw new Error(`promote_phase2 failed (${promote2.s}): ${JSON.stringify(promote2.b).slice(0, 300)}`);
+  if (promote2.s !== 200)
+    throw new Error(`promote_phase2 failed (${promote2.s}): ${JSON.stringify(promote2.b).slice(0, 300)}`);
   await completeTaSingleEliminationPhaseByApi(adminPage, tournamentId, 'phase2', 4);
 
   const promote3 = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
-  if (promote3.s !== 200) throw new Error(`promote_phase3 failed (${promote3.s}): ${JSON.stringify(promote3.b).slice(0, 300)}`);
+  if (promote3.s !== 200)
+    throw new Error(`promote_phase3 failed (${promote3.s}): ${JSON.stringify(promote3.b).slice(0, 300)}`);
   const prepared = await apiFetchTaPhase(adminPage, tournamentId, 'phase3');
   return prepared.b?.data?.entries ?? [];
 }
@@ -314,17 +334,26 @@ async function runTc801(adminPage) {
 
     const countOk = entries.length === 28;
     const allHaveTimes = entries.every((e) => e.totalTime != null && e.totalTime > 0);
-    const ranks = entries.map((e) => e.rank).filter((r) => r != null).sort((a, b) => a - b);
+    const ranks = entries
+      .map((e) => e.rank)
+      .filter((r) => r != null)
+      .sort((a, b) => a - b);
     /* Ranks must cover 1..28. Our seeded times are strictly increasing by
      * seeding so no ties are expected. */
     const ranksOk = ranks.length === 28 && ranks[0] === 1 && ranks[27] === 28;
 
     const ok = countOk && allHaveTimes && ranksOk;
-    log('TC-801', ok ? 'PASS' : 'FAIL',
-      !countOk ? `entries=${entries.length} expected=28`
-      : !allHaveTimes ? `some entries missing totalTime`
-      : !ranksOk ? `ranks first=${ranks[0]} last=${ranks[ranks.length - 1]} count=${ranks.length}`
-      : '');
+    log(
+      'TC-801',
+      ok ? 'PASS' : 'FAIL',
+      !countOk
+        ? `entries=${entries.length} expected=28`
+        : !allHaveTimes
+          ? `some entries missing totalTime`
+          : !ranksOk
+            ? `ranks first=${ranks[0]} last=${ranks[ranks.length - 1]} count=${ranks.length}`
+            : '',
+    );
   } catch (err) {
     log('TC-801', 'FAIL', err instanceof Error ? err.message : 'TA 801 failed');
   }
@@ -399,8 +428,11 @@ async function runTc802(adminPage) {
       await ctx.page.waitForTimeout(1000);
     }
 
-    log('TC-802', persisted ? 'PASS' : 'FAIL',
-      persisted ? observed : `submitted time not persisted (observed: ${observed || 'empty'})`);
+    log(
+      'TC-802',
+      persisted ? 'PASS' : 'FAIL',
+      persisted ? observed : `submitted time not persisted (observed: ${observed || 'empty'})`,
+    );
   } catch (err) {
     log('TC-802', 'FAIL', err instanceof Error ? err.message : 'TA 802 failed');
   } finally {
@@ -424,11 +456,17 @@ async function runTc839(adminPage) {
 
     const timesTab = ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ });
     await timesTab.first().click();
-    await ctx.page.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).first().click();
+    await ctx.page
+      .getByRole('button', { name: /^(Edit Times|タイム編集)$/ })
+      .first()
+      .click();
 
-    const dialog = ctx.page.getByRole('dialog').filter({
-      has: ctx.page.locator('[data-testid="ta-time-entry-cup-grid"]'),
-    }).first();
+    const dialog = ctx.page
+      .getByRole('dialog')
+      .filter({
+        has: ctx.page.locator('[data-testid="ta-time-entry-cup-grid"]'),
+      })
+      .first();
     await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
     const grid = dialog.locator('[data-testid="ta-time-entry-cup-grid"]').first();
@@ -448,24 +486,33 @@ async function runTc839(adminPage) {
     const inputWideEnough = Boolean(firstInput && firstInput.width >= 150);
 
     if (!stacked || !inputWideEnough) {
-      throw new Error(`edit layout stacked=${stacked} inputWidth=${firstInput ? Math.round(firstInput.width) : 'none'}`);
+      throw new Error(
+        `edit layout stacked=${stacked} inputWidth=${firstInput ? Math.round(firstInput.width) : 'none'}`,
+      );
     }
     await dialog.getByRole('button', { name: /^(Cancel|キャンセル)$/ }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
 
-    const otherRow = ctx.page.getByRole('row').filter({ hasNotText: player.nickname }).filter({
-      has: ctx.page.getByRole('button', { name: /^(View Times|タイム閲覧)$/ }),
-    }).first();
+    const otherRow = ctx.page
+      .getByRole('row')
+      .filter({ hasNotText: player.nickname })
+      .filter({
+        has: ctx.page.getByRole('button', { name: /^(View Times|タイム閲覧)$/ }),
+      })
+      .first();
     await otherRow.getByRole('button', { name: /^(View Times|タイム閲覧)$/ }).click();
 
-    const viewDialog = ctx.page.getByRole('dialog').filter({
-      has: ctx.page.locator('[data-testid="ta-time-entry-cup-grid-readonly"]'),
-    }).first();
+    const viewDialog = ctx.page
+      .getByRole('dialog')
+      .filter({
+        has: ctx.page.locator('[data-testid="ta-time-entry-cup-grid-readonly"]'),
+      })
+      .first();
     await viewDialog.waitFor({ state: 'visible', timeout: 15000 });
 
     const readonlyCards = viewDialog.locator('[data-testid="ta-time-entry-cup-card-readonly"]');
     const readonlyBoxes = [];
-    for (let i = 0; i < await readonlyCards.count(); i++) {
+    for (let i = 0; i < (await readonlyCards.count()); i++) {
       const box = await readonlyCards.nth(i).boundingBox();
       if (!box) throw new Error(`readonly cup card ${i + 1} has no bounding box`);
       readonlyBoxes.push(box);
@@ -511,14 +558,17 @@ async function runTc837(adminPage) {
       .catch(() => '');
     const expectedP1Count = TA_COURSES.length - 1;
     const expectedP2Count = TA_COURSES.length - expectedP1Count;
-    const valueOk =
-      p1CellText.trim() === String(expectedP1Count) &&
-      p2CellText.trim() === String(expectedP2Count);
+    const valueOk = p1CellText.trim() === String(expectedP1Count) && p2CellText.trim() === String(expectedP2Count);
 
-    log('TC-837', headerVisible && valueOk ? 'PASS' : 'FAIL',
-      !headerVisible ? 'Nb #1 header not visible'
-      : !valueOk ? `Nb #1 cells expected ${p1.nickname}=${expectedP1Count} ${p2.nickname}=${expectedP2Count} actual=${p1CellText || 'missing'}/${p2CellText || 'missing'}`
-      : '');
+    log(
+      'TC-837',
+      headerVisible && valueOk ? 'PASS' : 'FAIL',
+      !headerVisible
+        ? 'Nb #1 header not visible'
+        : !valueOk
+          ? `Nb #1 cells expected ${p1.nickname}=${expectedP1Count} ${p2.nickname}=${expectedP2Count} actual=${p1CellText || 'missing'}/${p2CellText || 'missing'}`
+          : '',
+    );
   } catch (err) {
     log('TC-837', 'FAIL', err instanceof Error ? err.message : 'TA Nb #1 standings failed');
   } finally {
@@ -542,19 +592,31 @@ async function runTc840(adminPage) {
     const ctx = await loginSharedPlayer(adminPage, partner);
     playerBrowser = ctx.browser;
     await nav(ctx.page, `/tournaments/${tournamentId}/ta`);
-    await ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+    await ctx.page
+      .getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ })
+      .first()
+      .click();
 
     const partnerRow = ctx.page.getByRole('row').filter({ hasText: owner.nickname }).first();
     await partnerRow.waitFor({ state: 'visible', timeout: 15000 });
-    const editVisible = await partnerRow.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).count()
+    const editVisible = await partnerRow
+      .getByRole('button', { name: /^(Edit Times|タイム編集)$/ })
+      .count()
       .then((count) => count > 0);
-    const viewVisible = await partnerRow.getByRole('button', { name: /^(View Times|タイム閲覧)$/ }).count()
+    const viewVisible = await partnerRow
+      .getByRole('button', { name: /^(View Times|タイム閲覧)$/ })
+      .count()
       .then((count) => count > 0);
 
-    log('TC-840', editVisible && !viewVisible ? 'PASS' : 'FAIL',
-      !editVisible ? 'partner row did not expose Edit Times'
-      : viewVisible ? 'partner row still exposed View Times'
-      : '');
+    log(
+      'TC-840',
+      editVisible && !viewVisible ? 'PASS' : 'FAIL',
+      !editVisible
+        ? 'partner row did not expose Edit Times'
+        : viewVisible
+          ? 'partner row still exposed View Times'
+          : '',
+    );
   } catch (err) {
     log('TC-840', 'FAIL', err instanceof Error ? err.message : 'TA partner edit UI failed');
   } finally {
@@ -576,7 +638,10 @@ async function runTc878(adminPage) {
     const [p1, p2] = sharedTaPlayers(2);
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
-    await adminPage.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+    await adminPage
+      .getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ })
+      .first()
+      .click();
     await adminPage.locator(`[data-testid="ta-tv-select-${p1.id}"]`).selectOption('1');
     await adminPage.locator(`[data-testid="ta-tv-select-${p2.id}"]`).selectOption('2');
     await adminPage.getByRole('button', { name: /^(Broadcast|配信に反映)$/ }).click();
@@ -589,20 +654,24 @@ async function runTc878(adminPage) {
     const data = broadcast.b?.data ?? broadcast.b;
     const reflected = data.player1Name === p1.nickname && data.player2Name === p2.nickname;
 
-    log('TC-878', reflected ? 'PASS' : 'FAIL',
-      reflected ? ''
-      : `broadcast player1=${data.player1Name || ''} player2=${data.player2Name || ''}`);
+    log(
+      'TC-878',
+      reflected ? 'PASS' : 'FAIL',
+      reflected ? '' : `broadcast player1=${data.player1Name || ''} player2=${data.player2Name || ''}`,
+    );
   } catch (err) {
     log('TC-878', 'FAIL', err instanceof Error ? err.message : 'TA qualification TV broadcast failed');
   } finally {
     if (sharedTaTournamentId) {
-      await adminPage.evaluate(async (id) => {
-        await fetch(`/api/tournaments/${id}/broadcast`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ player1Name: null, player2Name: null }),
-        });
-      }, sharedTaTournamentId).catch(() => {});
+      await adminPage
+        .evaluate(async (id) => {
+          await fetch(`/api/tournaments/${id}/broadcast`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player1Name: null, player2Name: null }),
+          });
+        }, sharedTaTournamentId)
+        .catch(() => {});
     }
   }
 }
@@ -615,7 +684,10 @@ async function runTc808A(adminPage) {
     const [tv1Player, tv2Player, tv3Player, tv4Player] = sharedTaPlayers(4);
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
-    await adminPage.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+    await adminPage
+      .getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ })
+      .first()
+      .click();
     await adminPage.locator(`[data-testid="ta-tv-select-${tv1Player.id}"]`).selectOption('1');
     await adminPage.locator(`[data-testid="ta-tv-select-${tv2Player.id}"]`).selectOption('2');
     await adminPage.locator(`[data-testid="ta-tv-select-${tv3Player.id}"]`).selectOption('3');
@@ -664,16 +736,17 @@ async function runTc808A(adminPage) {
       Object.entries(payload).filter(([key]) => /^player\d+Name$/.test(key)),
     );
     const reflectedOnlyTv12 =
-      payload.player1Name === tv1Player.nickname
-      && payload.player2Name === tv2Player.nickname
-      && Object.values(broadcastNameFields).every((name) =>
-        name !== tv3Player.nickname && name !== tv4Player.nickname
-      );
+      payload.player1Name === tv1Player.nickname &&
+      payload.player2Name === tv2Player.nickname &&
+      Object.values(broadcastNameFields).every((name) => name !== tv3Player.nickname && name !== tv4Player.nickname);
 
-    log('TC-808A', reflectedOnlyTv12 ? 'PASS' : 'FAIL',
+    log(
+      'TC-808A',
+      reflectedOnlyTv12 ? 'PASS' : 'FAIL',
       reflectedOnlyTv12
         ? 'TV3/TV4 warning is visible and broadcast PUT only includes TV1/TV2'
-        : `broadcast name fields unexpectedly included TV3/TV4 data: ${JSON.stringify(broadcastNameFields)}`);
+        : `broadcast name fields unexpectedly included TV3/TV4 data: ${JSON.stringify(broadcastNameFields)}`,
+    );
   } catch (err) {
     log('TC-808A', 'FAIL', err instanceof Error ? err.message : 'TA TV3/TV4 broadcast warning failed');
   }
@@ -691,18 +764,29 @@ async function runTc897(adminPage) {
     playerBrowser = ctx.browser;
     await ctx.page.setViewportSize({ width: 375, height: 812 });
     await nav(ctx.page, `/tournaments/${tournamentId}/ta`);
-    await ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
-    await ctx.page.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).first().click();
+    await ctx.page
+      .getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ })
+      .first()
+      .click();
+    await ctx.page
+      .getByRole('button', { name: /^(Edit Times|タイム編集)$/ })
+      .first()
+      .click();
 
     const input = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
     await input.waitFor({ state: 'visible', timeout: 15000 });
     const inputMode = await input.getAttribute('inputmode');
     const pattern = await input.getAttribute('pattern');
 
-    log('TC-897', inputMode === 'decimal' && pattern === '[0-9:.]*' ? 'PASS' : 'FAIL',
-      inputMode !== 'decimal' ? `inputmode=${inputMode || 'missing'}`
-      : pattern !== '[0-9:.]*' ? `pattern=${pattern || 'missing'}`
-      : '');
+    log(
+      'TC-897',
+      inputMode === 'decimal' && pattern === '[0-9:.]*' ? 'PASS' : 'FAIL',
+      inputMode !== 'decimal'
+        ? `inputmode=${inputMode || 'missing'}`
+        : pattern !== '[0-9:.]*'
+          ? `pattern=${pattern || 'missing'}`
+          : '',
+    );
   } catch (err) {
     log('TC-897', 'FAIL', err instanceof Error ? err.message : 'TA mobile keyboard input attrs failed');
   } finally {
@@ -722,23 +806,39 @@ async function runTc913(adminPage) {
     playerBrowser = ctx.browser;
     await ctx.page.setViewportSize({ width: 375, height: 812 });
     await nav(ctx.page, `/tournaments/${tournamentId}/ta`);
-    await ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
-    await ctx.page.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).first().click();
+    await ctx.page
+      .getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ })
+      .first()
+      .click();
+    await ctx.page
+      .getByRole('button', { name: /^(Edit Times|タイム編集)$/ })
+      .first()
+      .click();
 
     const input = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
     await input.waitFor({ state: 'visible', timeout: 15000 });
     const title = await input.getAttribute('title');
     const placeholder = await input.getAttribute('placeholder');
     const titleLocalized = /^(例: 123\.45 または 1:23\.45|Example: 123\.45 or 1:23\.45)$/.test(title || '');
-    const helpVisible = await ctx.page.getByText(
-      /^(数字だけで入力すると自動整形されます。例: 12345 → 1:23\.45|Digits are auto-formatted\. Example: 12345 → 1:23\.45)$/,
-    ).first().isVisible().catch(() => false);
+    const helpVisible = await ctx.page
+      .getByText(
+        /^(数字だけで入力すると自動整形されます。例: 12345 → 1:23\.45|Digits are auto-formatted\. Example: 12345 → 1:23\.45)$/,
+      )
+      .first()
+      .isVisible()
+      .catch(() => false);
 
-    log('TC-913', titleLocalized && placeholder === 'M:SS.mm' && helpVisible ? 'PASS' : 'FAIL',
-      !titleLocalized ? `title=${title || 'missing'}`
-      : placeholder !== 'M:SS.mm' ? `placeholder=${placeholder || 'missing'}`
-      : !helpVisible ? 'visible help missing'
-      : '');
+    log(
+      'TC-913',
+      titleLocalized && placeholder === 'M:SS.mm' && helpVisible ? 'PASS' : 'FAIL',
+      !titleLocalized
+        ? `title=${title || 'missing'}`
+        : placeholder !== 'M:SS.mm'
+          ? `placeholder=${placeholder || 'missing'}`
+          : !helpVisible
+            ? 'visible help missing'
+            : '',
+    );
   } catch (err) {
     log('TC-913', 'FAIL', err instanceof Error ? err.message : 'TA time input i18n hint failed');
   } finally {
@@ -750,7 +850,9 @@ async function runTc913(adminPage) {
 async function runTc896(adminPage) {
   let setup = null;
   try {
-    setup = await createIsolatedTaQualification(adminPage, 'Mobile Finals Visibility', sharedTaPlayers(2), { seedTimes: false });
+    setup = await createIsolatedTaQualification(adminPage, 'Mobile Finals Visibility', sharedTaPlayers(2), {
+      seedTimes: false,
+    });
     const { tournamentId } = setup;
     await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
     const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
@@ -831,8 +933,11 @@ async function runTc1987() {
     const nonNumeric = parseTvNumberInput('abc') === null;
     const ok = decimal && leadingZero && empty && nonNumeric;
 
-    log('TC-1987', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `decimal=${decimal} leadingZero=${leadingZero} empty=${empty} nonNumeric=${nonNumeric}`);
+    log(
+      'TC-1987',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `decimal=${decimal} leadingZero=${leadingZero} empty=${empty} nonNumeric=${nonNumeric}`,
+    );
   } catch (err) {
     log('TC-1987', 'FAIL', err instanceof Error ? err.message : 'TA TV helper contract failed');
   }
@@ -844,7 +949,9 @@ async function runTc1996(adminPage) {
   let capturedSubmitPayload = null;
   let routePattern = null;
   try {
-    setup = await createIsolatedTaQualification(adminPage, 'Finals TV Number Payload', sharedTaPlayers(2), { seedTimes: false });
+    setup = await createIsolatedTaQualification(adminPage, 'Finals TV Number Payload', sharedTaPlayers(2), {
+      seedTimes: false,
+    });
     const { tournamentId } = setup;
     await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
     const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
@@ -858,7 +965,8 @@ async function runTc1996(adminPage) {
       throw new Error(`expected two active phase3 entries, got ${activeEntries.length}`);
     }
 
-    const tvRow = adminPage.locator('[data-testid="ta-time-entry-row"]')
+    const tvRow = adminPage
+      .locator('[data-testid="ta-time-entry-row"]')
       .filter({ hasText: tvEntry.player.nickname })
       .first();
     await tvRow.locator('select').selectOption('3');
@@ -877,7 +985,11 @@ async function runTc1996(adminPage) {
 
     await uiPhaseSubmitResults(adminPage, tournamentId, 'phase3', [
       { playerId: tvEntry.playerId, nickname: tvEntry.player.nickname, timeMs: makeTaPhaseRoundTimeMs(tvEntry) },
-      { playerId: clearEntry.playerId, nickname: clearEntry.player.nickname, timeMs: makeTaPhaseRoundTimeMs(clearEntry) },
+      {
+        playerId: clearEntry.playerId,
+        nickname: clearEntry.player.nickname,
+        timeMs: makeTaPhaseRoundTimeMs(clearEntry),
+      },
     ]);
     await adminPage.unroute(routePattern).catch(() => {});
     routePattern = null;
@@ -892,14 +1004,18 @@ async function runTc1996(adminPage) {
     const storedTv = storedResults.find((r) => r.playerId === tvEntry.playerId);
     const storedClear = storedResults.find((r) => r.playerId === clearEntry.playerId);
 
-    const payloadOk = tvPayload?.tvNumber === 3 &&
+    const payloadOk =
+      tvPayload?.tvNumber === 3 &&
       clearPayload &&
       !Object.prototype.hasOwnProperty.call(clearPayload, 'tvNumber') &&
       !payloadResults.some((r) => Number.isNaN(r.tvNumber));
     const storedOk = storedTv?.tvNumber === 3 && storedClear?.tvNumber === null;
 
-    log('TC-1996', payloadOk && storedOk ? 'PASS' : 'FAIL',
-      payloadOk && storedOk ? '' : `payload=${JSON.stringify(payloadResults)} stored=${JSON.stringify(storedResults)}`);
+    log(
+      'TC-1996',
+      payloadOk && storedOk ? 'PASS' : 'FAIL',
+      payloadOk && storedOk ? '' : `payload=${JSON.stringify(payloadResults)} stored=${JSON.stringify(storedResults)}`,
+    );
   } catch (err) {
     log('TC-1996', 'FAIL', err instanceof Error ? err.message : 'TA finals TV number persistence failed');
   } finally {
@@ -953,10 +1069,15 @@ async function runTc804(adminPage) {
     const ranksOk = countOk && sourceRanks[0] === 17 && sourceRanks[7] === 24;
 
     const ok = countOk && ranksOk;
-    log('TC-804', ok ? 'PASS' : 'FAIL',
-      !countOk ? `phase1 entries=${entries.length} expected=8`
-      : !ranksOk ? `source ranks=${sourceRanks.join(',')} expected 17..24`
-      : '');
+    log(
+      'TC-804',
+      ok ? 'PASS' : 'FAIL',
+      !countOk
+        ? `phase1 entries=${entries.length} expected=8`
+        : !ranksOk
+          ? `source ranks=${sourceRanks.join(',')} expected 17..24`
+          : '',
+    );
   } catch (err) {
     log('TC-804', 'FAIL', err instanceof Error ? err.message : 'TA 804 failed');
   }
@@ -993,20 +1114,28 @@ async function runTc816(adminPage) {
       releasePhaseResponse = resolve;
     });
 
-    await adminPage.route(routePattern, async (route) => {
-      if (route.request().method() === 'GET') {
-        delayedRequestSeen();
-        await phaseResponseRelease;
-      }
-      await route.continue();
-    }, { times: 1 });
+    await adminPage.route(
+      routePattern,
+      async (route) => {
+        if (route.request().method() === 'GET') {
+          delayedRequestSeen();
+          await phaseResponseRelease;
+        }
+        await route.continue();
+      },
+      { times: 1 },
+    );
 
-    const phaseResponseDone = adminPage.waitForResponse((res) =>
-      res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-      res.request().method() === 'GET', { timeout: 30000 });
+    const phaseResponseDone = adminPage.waitForResponse(
+      (res) => res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) && res.request().method() === 'GET',
+      { timeout: 30000 },
+    );
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
-    await adminPage.getByText(/Finals Phases|決勝フェーズ/).first().waitFor({ state: 'visible', timeout: 15000 });
+    await adminPage
+      .getByText(/Finals Phases|決勝フェーズ/)
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 });
     await phaseRequestStarted;
 
     const startPhase1VisibleWhileLoading = await adminPage
@@ -1021,12 +1150,15 @@ async function runTc816(adminPage) {
       .isVisible({ timeout: 15000 })
       .catch(() => false);
 
-    log('TC-816', !startPhase1VisibleWhileLoading && goPhase1Visible ? 'PASS' : 'FAIL',
+    log(
+      'TC-816',
+      !startPhase1VisibleWhileLoading && goPhase1Visible ? 'PASS' : 'FAIL',
       startPhase1VisibleWhileLoading
         ? 'Start Phase 1 was visible while phase status was pending'
         : !goPhase1Visible
           ? 'Go to Phase 1 link was not visible after phase status loaded'
-          : '');
+          : '',
+    );
   } catch (err) {
     if (releasePhaseResponse) releasePhaseResponse();
     log('TC-816', 'FAIL', err instanceof Error ? err.message : 'TA phase start flash regression failed');
@@ -1053,12 +1185,18 @@ async function runTc805(adminPage) {
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
 
     /* Open the Edit Players dialog to remove p1 from the staged entry list. */
-    await adminPage.getByRole('button', {
-      name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
-    }).first().click();
-    const removeDialog = adminPage.getByRole('dialog').filter({
-      hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
-    }).first();
+    await adminPage
+      .getByRole('button', {
+        name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
+      })
+      .first()
+      .click();
+    const removeDialog = adminPage
+      .getByRole('dialog')
+      .filter({
+        hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
+      })
+      .first();
     await removeDialog.waitFor({ state: 'visible', timeout: 10000 });
 
     /* p1's entry appears in the right panel (staged entries). Each row has an
@@ -1093,17 +1231,20 @@ async function runTc805(adminPage) {
      * (no role="row"), so rowFor/getByRole('row') never matches here. Scope
      * to the dialog and match the `${nickname} (${name})` label — the toast's
      * nickname-only text will not match this regex. */
-    await adminPage.getByRole('button', {
-      name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
-    }).click();
-    const setupDialog = adminPage.getByRole('dialog').filter({
-      hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
-    }).first();
+    await adminPage
+      .getByRole('button', {
+        name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
+      })
+      .click();
+    const setupDialog = adminPage
+      .getByRole('dialog')
+      .filter({
+        hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
+      })
+      .first();
     await setupDialog.waitFor({ state: 'visible', timeout: 10000 });
     await setupDialog.getByPlaceholder(/プレイヤーを検索|Search players/).fill(p1.nickname);
-    await setupDialog
-      .getByLabel(new RegExp(`^${p1.nickname} \\(${p1.name}\\)$`))
-      .waitFor({ timeout: 10000 });
+    await setupDialog.getByLabel(new RegExp(`^${p1.nickname} \\(${p1.name}\\)$`)).waitFor({ timeout: 10000 });
 
     /* Re-check p1 and save so shared 28-player state is restored for the
      * downstream phase-promotion chain (TC-804 onward). Without this, the
@@ -1138,10 +1279,15 @@ async function runTc805(adminPage) {
     await uiSetTaEntryTimes(adminPage, tournamentId, { nickname: p1.nickname }, p1Times);
 
     const ok = removedFromApi && retainedOther;
-    log('TC-805', ok ? 'PASS' : 'FAIL',
-      !removedFromApi ? 'removed player still exists in TA API'
-      : !retainedOther ? 'non-removed player disappeared from TA API'
-      : '');
+    log(
+      'TC-805',
+      ok ? 'PASS' : 'FAIL',
+      !removedFromApi
+        ? 'removed player still exists in TA API'
+        : !retainedOther
+          ? 'non-removed player disappeared from TA API'
+          : '',
+    );
   } catch (err) {
     log('TC-805', 'FAIL', err instanceof Error ? err.message : 'TA 805 failed');
   }
@@ -1162,8 +1308,9 @@ async function runTc809(adminPage) {
     const startedRoundNumber = await uiPhaseStartRound(adminPage, tournamentId, 'phase1');
     const phaseAfterStart = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
     const roundsAfterStart = phaseAfterStart.b?.data?.rounds ?? [];
-    const openRoundExists = roundsAfterStart.some((round) =>
-      round.roundNumber === startedRoundNumber && Array.isArray(round.results) && round.results.length === 0);
+    const openRoundExists = roundsAfterStart.some(
+      (round) => round.roundNumber === startedRoundNumber && Array.isArray(round.results) && round.results.length === 0,
+    );
 
     await uiPhaseCancelRound(adminPage, tournamentId, 'phase1');
 
@@ -1171,13 +1318,20 @@ async function runTc809(adminPage) {
     const roundsAfterCancel = phaseAfterCancel.b?.data?.rounds ?? [];
     const entriesAfterCancel = phaseAfterCancel.b?.data?.entries ?? [];
     const roundDeleted = roundsAfterCancel.length === 0;
-    const allPlayersRestored = entriesAfterCancel.length === 8 && entriesAfterCancel.every((entry) => !entry.eliminated);
+    const allPlayersRestored =
+      entriesAfterCancel.length === 8 && entriesAfterCancel.every((entry) => !entry.eliminated);
 
-    log('TC-809', openRoundExists && roundDeleted && allPlayersRestored ? 'PASS' : 'FAIL',
-      !openRoundExists ? 'phase1 round did not open before cancel'
-      : !roundDeleted ? `rounds still exist after cancel (${roundsAfterCancel.length})`
-      : !allPlayersRestored ? 'phase1 entries were not fully restored after cancel'
-      : '');
+    log(
+      'TC-809',
+      openRoundExists && roundDeleted && allPlayersRestored ? 'PASS' : 'FAIL',
+      !openRoundExists
+        ? 'phase1 round did not open before cancel'
+        : !roundDeleted
+          ? `rounds still exist after cancel (${roundsAfterCancel.length})`
+          : !allPlayersRestored
+            ? 'phase1 entries were not fully restored after cancel'
+            : '',
+    );
   } catch (err) {
     log('TC-809', 'FAIL', err instanceof Error ? err.message : 'TA 809 failed');
   } finally {
@@ -1210,13 +1364,18 @@ async function runTc810(adminPage) {
     const phaseAfterSubmit = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
     const submittedRounds = phaseAfterSubmit.b?.data?.rounds ?? [];
     const eliminatedAfterSubmit = (phaseAfterSubmit.b?.data?.entries ?? []).filter((entry) => entry.eliminated);
-    const submitPersisted = submittedRounds.some((round) =>
-      round.roundNumber === roundNumber && Array.isArray(round.results) && round.results.length === results.length);
+    const submitPersisted = submittedRounds.some(
+      (round) =>
+        round.roundNumber === roundNumber && Array.isArray(round.results) && round.results.length === results.length,
+    );
 
     await uiPhaseUndoRound(adminPage, tournamentId, 'phase1');
     const currentRoundTab = adminPage.getByRole('tab', { name: /^(Current Round|現在のラウンド)$/ });
     if (await currentRoundTab.count()) {
-      await currentRoundTab.first().click().catch(() => {});
+      await currentRoundTab
+        .first()
+        .click()
+        .catch(() => {});
       await adminPage.waitForTimeout(300);
     }
 
@@ -1227,17 +1386,35 @@ async function runTc810(adminPage) {
     const roundCleared = Array.isArray(reopenedRound?.results) && reopenedRound.results.length === 0;
     const eliminationsRestored = entriesAfterUndo.length === 8 && entriesAfterUndo.every((entry) => !entry.eliminated);
     const inputCount = await adminPage.locator('input[placeholder="M:SS.mm"]').count();
-    const cancelVisible = await adminPage.getByRole('button', { name: /^(Cancel Round|ラウンドキャンセル)$/ }).count()
+    const cancelVisible = await adminPage
+      .getByRole('button', { name: /^(Cancel Round|ラウンドキャンセル)$/ })
+      .count()
       .then((count) => count > 0);
 
-    log('TC-810', submitPersisted && eliminatedAfterSubmit.length === 1 && roundCleared && eliminationsRestored && inputCount >= 8 && cancelVisible ? 'PASS' : 'FAIL',
-      !submitPersisted ? 'phase1 results were not persisted before undo'
-      : eliminatedAfterSubmit.length !== 1 ? `expected 1 eliminated player before undo, got ${eliminatedAfterSubmit.length}`
-      : !roundCleared ? 'last round results were not cleared by undo'
-      : !eliminationsRestored ? 'eliminated players were not restored by undo'
-      : inputCount < 8 ? `reopened round inputs missing after undo (${inputCount})`
-      : !cancelVisible ? 'cancel round button not restored after undo'
-      : '');
+    log(
+      'TC-810',
+      submitPersisted &&
+        eliminatedAfterSubmit.length === 1 &&
+        roundCleared &&
+        eliminationsRestored &&
+        inputCount >= 8 &&
+        cancelVisible
+        ? 'PASS'
+        : 'FAIL',
+      !submitPersisted
+        ? 'phase1 results were not persisted before undo'
+        : eliminatedAfterSubmit.length !== 1
+          ? `expected 1 eliminated player before undo, got ${eliminatedAfterSubmit.length}`
+          : !roundCleared
+            ? 'last round results were not cleared by undo'
+            : !eliminationsRestored
+              ? 'eliminated players were not restored by undo'
+              : inputCount < 8
+                ? `reopened round inputs missing after undo (${inputCount})`
+                : !cancelVisible
+                  ? 'cancel round button not restored after undo'
+                  : '',
+    );
   } catch (err) {
     log('TC-810', 'FAIL', err instanceof Error ? err.message : 'TA 810 failed');
   } finally {
@@ -1264,28 +1441,37 @@ async function runTc811(adminPage) {
 
     const submitBtn = ctx.page.getByRole('button', { name: /タイム送信|Submit Times/ }).last();
     const firstTimeInput = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
-    const editableBeforeFreeze = !(await firstTimeInput.isDisabled().catch(() => true)) &&
-      !(await submitBtn.isDisabled().catch(() => true));
+    const editableBeforeFreeze =
+      !(await firstTimeInput.isDisabled().catch(() => true)) && !(await submitBtn.isDisabled().catch(() => true));
 
     await uiFreezeTaQualification(adminPage, tournamentId);
     await nav(ctx.page, `/tournaments/${tournamentId}/ta/participant`);
 
     const frozenText = await ctx.page.locator('body').innerText();
-    const frozenWarningVisible = frozenText.includes('このステージは凍結されています。タイムの編集はできません。') ||
+    const frozenWarningVisible =
+      frozenText.includes('このステージは凍結されています。タイムの編集はできません。') ||
       frozenText.includes('This stage is frozen. Time edits are not allowed.');
     const inputDisabled = await firstTimeInput.isDisabled().catch(() => false);
     const submitDisabled = await submitBtn.isDisabled().catch(() => false);
-    const apiEditAfterFreeze = await apiTaParticipantEditTime(
-      ctx.page, tournamentId, entry.entryId, 'MC1', '1:11.11'
-    );
+    const apiEditAfterFreeze = await apiTaParticipantEditTime(ctx.page, tournamentId, entry.entryId, 'MC1', '1:11.11');
 
-    log('TC-811', editableBeforeFreeze && frozenWarningVisible && inputDisabled && submitDisabled && apiEditAfterFreeze.s === 403 ? 'PASS' : 'FAIL',
-      !editableBeforeFreeze ? 'participant inputs were already disabled before freeze'
-      : !frozenWarningVisible ? 'frozen qualification warning not shown to player'
-      : !inputDisabled ? 'time input still enabled after qualification freeze'
-      : !submitDisabled ? 'submit button still enabled after qualification freeze'
-      : apiEditAfterFreeze.s !== 403 ? `player PUT after freeze returned ${apiEditAfterFreeze.s}`
-      : '');
+    log(
+      'TC-811',
+      editableBeforeFreeze && frozenWarningVisible && inputDisabled && submitDisabled && apiEditAfterFreeze.s === 403
+        ? 'PASS'
+        : 'FAIL',
+      !editableBeforeFreeze
+        ? 'participant inputs were already disabled before freeze'
+        : !frozenWarningVisible
+          ? 'frozen qualification warning not shown to player'
+          : !inputDisabled
+            ? 'time input still enabled after qualification freeze'
+            : !submitDisabled
+              ? 'submit button still enabled after qualification freeze'
+              : apiEditAfterFreeze.s !== 403
+                ? `player PUT after freeze returned ${apiEditAfterFreeze.s}`
+                : '',
+    );
   } catch (err) {
     log('TC-811', 'FAIL', err instanceof Error ? err.message : 'TA 811 failed');
   } finally {
@@ -1329,8 +1515,7 @@ async function runTc806(adminPage) {
        * Times are based on rank: rank 17 (slowest of phase1) has highest time,
        * rank 24 (fastest of phase1) has lowest time. Lower time = safer from elimination.
        * After 4 rounds, players with ranks 17-20 survive (4 fastest of the 8). */
-      const allEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase1'))
-        .b?.data?.entries ?? [];
+      const allEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase1')).b?.data?.entries ?? [];
       const activeEntries = allEntries.filter((e) => !e.eliminated);
       const results = activeEntries.map((e) => ({
         nickname: e.player?.nickname,
@@ -1351,10 +1536,11 @@ async function runTc806(adminPage) {
     const countOk = entries.length === 8;
     const allHaveRank = entries.every((e) => e.rank != null);
 
-    log('TC-806', countOk && allHaveRank ? 'PASS' : 'FAIL',
-      !countOk ? `phase2 entries=${entries.length} expected=8`
-      : !allHaveRank ? 'some entries missing rank'
-      : '');
+    log(
+      'TC-806',
+      countOk && allHaveRank ? 'PASS' : 'FAIL',
+      !countOk ? `phase2 entries=${entries.length} expected=8` : !allHaveRank ? 'some entries missing rank' : '',
+    );
   } catch (err) {
     log('TC-806', 'FAIL', err instanceof Error ? err.message : 'TA 806 failed');
   }
@@ -1381,8 +1567,7 @@ async function runTc807(adminPage) {
     for (let round = 1; round <= 4; round++) {
       await uiPhaseStartRound(adminPage, tournamentId, 'phase2');
 
-      const allEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase2'))
-        .b?.data?.entries ?? [];
+      const allEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase2')).b?.data?.entries ?? [];
       const activeEntries = allEntries.filter((e) => !e.eliminated);
       const results = activeEntries.map((e) => ({
         nickname: e.player?.nickname,
@@ -1400,10 +1585,15 @@ async function runTc807(adminPage) {
     const countOk = entries.length === 16;
     const allHaveLives = entries.every((e) => e.lives != null && e.lives > 0);
 
-    log('TC-807', countOk && allHaveLives ? 'PASS' : 'FAIL',
-      !countOk ? `phase3 entries=${entries.length} expected=16`
-      : !allHaveLives ? 'some entries missing or zero lives'
-      : '');
+    log(
+      'TC-807',
+      countOk && allHaveLives ? 'PASS' : 'FAIL',
+      !countOk
+        ? `phase3 entries=${entries.length} expected=16`
+        : !allHaveLives
+          ? 'some entries missing or zero lives'
+          : '',
+    );
   } catch (err) {
     log('TC-807', 'FAIL', err instanceof Error ? err.message : 'TA 807 failed');
   }
@@ -1460,7 +1650,9 @@ async function runTc808(adminPage) {
           results: targets.map((playerId, index) => ({ playerId, timeMs: 90000 + index * 1000 })),
         });
         if (resolve.s !== 200) {
-          throw new Error(`submit_sudden_death phase3 failed (${resolve.s}): ${JSON.stringify(resolve.b).slice(0, 300)}`);
+          throw new Error(
+            `submit_sudden_death phase3 failed (${resolve.s}): ${JSON.stringify(resolve.b).slice(0, 300)}`,
+          );
         }
         pending = resolve.b?.data;
       }
@@ -1468,9 +1660,7 @@ async function runTc808(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
     bodyText = await adminPage.locator('body').innerText();
-    championShown = bodyText.includes('Champion') ||
-      bodyText.includes('チャンピオン') ||
-      bodyText.includes('優勝');
+    championShown = bodyText.includes('Champion') || bodyText.includes('チャンピオン') || bodyText.includes('優勝');
 
     /* The finals page (ta/finals/page.tsx) carries its own copy of the
      * "final-round corrections" wiring (#2776) and Undo-vs-Cancel info
@@ -1479,24 +1669,93 @@ async function runTc808(adminPage) {
      * Read-only check only (click the info button, don't undo/cancel):
      * this tournament is the shared fixture other TCs (TC-806/807/1005/2293)
      * depend on staying in its champion-decided state. */
-    const helpButton = adminPage.getByRole('button', { name: /Explain the difference between Undo and Cancel|「取り消す」と「キャンセル」の違いを説明/ });
+    const helpButton = adminPage.getByRole('button', {
+      name: /Explain the difference between Undo and Cancel|「取り消す」と「キャンセル」の違いを説明/,
+    });
     const helpButtonVisible = await helpButton.isVisible({ timeout: 5000 }).catch(() => false);
     let helpPopoverVisible = false;
     if (helpButtonVisible) {
       await helpButton.click();
-      helpPopoverVisible = await adminPage.getByText(/Undo vs\. Cancel|「取り消す」と「キャンセル」の違い/).first()
-        .isVisible({ timeout: 5000 }).catch(() => false);
+      helpPopoverVisible = await adminPage
+        .getByText(/Undo vs\. Cancel|「取り消す」と「キャンセル」の違い/)
+        .first()
+        .isVisible({ timeout: 5000 })
+        .catch(() => false);
       await adminPage.keyboard.press('Escape');
     }
 
     const ok = championShown && helpButtonVisible && helpPopoverVisible;
-    log('TC-808', ok ? 'PASS' : 'FAIL',
-      !championShown ? 'champion banner not found on TA finals page'
-      : !helpButtonVisible ? 'Undo-vs-Cancel info button not visible on the completed finals page'
-      : !helpPopoverVisible ? 'Undo-vs-Cancel explainer popover did not open from its info button on the finals page'
-      : '');
+    log(
+      'TC-808',
+      ok ? 'PASS' : 'FAIL',
+      !championShown
+        ? 'champion banner not found on TA finals page'
+        : !helpButtonVisible
+          ? 'Undo-vs-Cancel info button not visible on the completed finals page'
+          : !helpPopoverVisible
+            ? 'Undo-vs-Cancel explainer popover did not open from its info button on the finals page'
+            : '',
+    );
   } catch (err) {
     log('TC-808', 'FAIL', err instanceof Error ? err.message : 'TA 808 failed');
+  }
+}
+
+/* ───────── TC-3034: Top 2 manual life adjustment ───────── */
+async function runTc3034(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Top 2 life adjustment', sharedTaPlayers(2), {
+      seedTimes: true,
+    });
+    const promote = await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+
+    let phase = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    let active = (phase.b?.data?.entries ?? []).filter((entry) => !entry.eliminated);
+    if (active.length !== 2 || active.some((entry) => entry.lives !== 3))
+      throw new Error('expected two 3-life Phase 3 entries');
+
+    await nav(adminPage, `/tournaments/${setup.tournamentId}/ta/finals`);
+    if (
+      !(await adminPage
+        .getByTestId('ta-top2-life-adjustment-warning')
+        .isVisible({ timeout: 10000 })
+        .catch(() => false))
+    ) {
+      throw new Error('Top 2 adjustment warning was not visible');
+    }
+    for (const entry of active) {
+      const input = adminPage.getByTestId(`ta-set-lives-${entry.id}`);
+      await input.fill('5');
+      await adminPage.getByTestId(`ta-save-lives-${entry.id}`).click();
+      await adminPage.waitForFunction(
+        async ([url, entryId]) => {
+          const response = await fetch(url);
+          const json = await response.json();
+          const entries = (json.data ?? json).entries ?? [];
+          return entries.some((candidate) => candidate.id === entryId && candidate.lives === 5);
+        },
+        [`/api/tournaments/${setup.tournamentId}/ta/phases?phase=phase3`, entry.id],
+        { timeout: 10000 },
+      );
+    }
+
+    phase = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    active = (phase.b?.data?.entries ?? []).filter((entry) => !entry.eliminated);
+    if (active.some((entry) => entry.lives !== 5)) throw new Error('Top 2 life update was not persisted');
+    await submitTaPhaseRoundByApi(adminPage, setup.tournamentId, 'phase3', active);
+    phase = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    const lives = (phase.b?.data?.entries ?? [])
+      .filter((entry) => !entry.eliminated)
+      .map((entry) => entry.lives)
+      .sort((a, b) => b - a);
+    const ok = lives.length === 2 && lives[0] === 5 && lives[1] === 4;
+    log('TC-3034', ok ? 'PASS' : 'FAIL', ok ? '' : `expected 5/4, got ${lives.join('/')}`);
+  } catch (err) {
+    log('TC-3034', 'FAIL', err instanceof Error ? err.message : 'Top 2 life adjustment failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
   }
 }
 
@@ -1575,13 +1834,21 @@ async function runTc812(adminPage) {
     const ranksOrdered = allPresent && p3Row.rank === 3 && p1Row.rank <= 2 && p2Row.rank <= 2;
 
     const ok = pointsTied && pointsMatchExpected && p3HasZero && ranksOrdered;
-    log('TC-812', ok ? 'PASS' : 'FAIL',
-      !allPresent ? 'TA entries missing after seeding'
-      : !pointsTied ? `qualificationPoints not tied: P1=${p1Row.qualificationPoints} P2=${p2Row.qualificationPoints}`
-      : !pointsMatchExpected ? `expected ${expectedTiedPoints} for tied players, got ${p1Row.qualificationPoints}`
-      : !p3HasZero ? `P3 expected 0 points, got ${p3Row.qualificationPoints}`
-      : !ranksOrdered ? `rank order wrong: P1=${p1Row.rank} P2=${p2Row.rank} P3=${p3Row.rank}`
-      : '');
+    log(
+      'TC-812',
+      ok ? 'PASS' : 'FAIL',
+      !allPresent
+        ? 'TA entries missing after seeding'
+        : !pointsTied
+          ? `qualificationPoints not tied: P1=${p1Row.qualificationPoints} P2=${p2Row.qualificationPoints}`
+          : !pointsMatchExpected
+            ? `expected ${expectedTiedPoints} for tied players, got ${p1Row.qualificationPoints}`
+            : !p3HasZero
+              ? `P3 expected 0 points, got ${p3Row.qualificationPoints}`
+              : !ranksOrdered
+                ? `rank order wrong: P1=${p1Row.rank} P2=${p2Row.rank} P3=${p3Row.rank}`
+                : '',
+    );
   } catch (err) {
     log('TC-812', 'FAIL', err instanceof Error ? err.message : 'TA tie resolution failed');
   } finally {
@@ -1627,7 +1894,14 @@ async function runTc813(adminPage) {
       makeTc813QualificationTimes('fourth'),
     ];
     for (let i = 0; i < entries.length; i++) {
-      await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, seededTimes[i].times, seededTimes[i].totalMs, null);
+      await apiSeedTtEntry(
+        adminPage,
+        tournamentId,
+        entries[i].entryId,
+        seededTimes[i].times,
+        seededTimes[i].totalMs,
+        null,
+      );
     }
 
     /* Assert initial rank assignment. */
@@ -1642,7 +1916,11 @@ async function runTc813(adminPage) {
       b1.totalTime > b2.totalTime &&
       b1.qualificationPoints > b2.qualificationPoints;
     if (b1?.rank !== 1 || b2?.rank !== 2 || b3?.rank !== 3 || b4?.rank !== 4 || !p1SlowerButHigherPoints) {
-      log('TC-813', 'FAIL', `Initial ranks/order wrong: P1 rank=${b1?.rank} points=${b1?.qualificationPoints} total=${b1?.totalTime}; P2 rank=${b2?.rank} points=${b2?.qualificationPoints} total=${b2?.totalTime}; P3=${b3?.rank} P4=${b4?.rank}`);
+      log(
+        'TC-813',
+        'FAIL',
+        `Initial ranks/order wrong: P1 rank=${b1?.rank} points=${b1?.qualificationPoints} total=${b1?.totalTime}; P2 rank=${b2?.rank} points=${b2?.qualificationPoints} total=${b2?.totalTime}; P3=${b3?.rank} P4=${b4?.rank}`,
+      );
       return;
     }
 
@@ -1667,10 +1945,15 @@ async function runTc813(adminPage) {
     const a4 = afterMap.get(createdPlayers[3].id);
     const ranksCompacted = a1?.rank === 1 && a2?.rank === 2 && a4?.rank === 3;
 
-    log('TC-813', p3Gone && ranksCompacted ? 'PASS' : 'FAIL',
-      !p3Gone ? 'P3 entry still present after DELETE'
-      : !ranksCompacted ? `ranks not re-compacted after deletion: P1=${a1?.rank} P2=${a2?.rank} P4=${a4?.rank}`
-      : '');
+    log(
+      'TC-813',
+      p3Gone && ranksCompacted ? 'PASS' : 'FAIL',
+      !p3Gone
+        ? 'P3 entry still present after DELETE'
+        : !ranksCompacted
+          ? `ranks not re-compacted after deletion: P1=${a1?.rank} P2=${a2?.rank} P4=${a4?.rank}`
+          : '',
+    );
   } catch (err) {
     log('TC-813', 'FAIL', err instanceof Error ? err.message : 'TA rank recalc after delete failed');
   } finally {
@@ -1705,15 +1988,16 @@ async function createPendingSuddenDeathByApi(adminPage, tournamentId, phase) {
   );
   if (entries.length < 4) throw new Error(`${phase} entries=${entries.length}, expected at least 4`);
 
-  const results = phase === 'phase3'
-    ? entries.map((entry, index) => ({
-      playerId: entry.playerId,
-      timeMs: index === 1 || index === 2 ? 90000 : 80000 + index * 10000,
-    }))
-    : entries.map((entry, index) => ({
-      playerId: entry.playerId,
-      timeMs: index >= entries.length - 2 ? 100000 : 80000 + index * 1000,
-    }));
+  const results =
+    phase === 'phase3'
+      ? entries.map((entry, index) => ({
+          playerId: entry.playerId,
+          timeMs: index === 1 || index === 2 ? 90000 : 80000 + index * 10000,
+        }))
+      : entries.map((entry, index) => ({
+          playerId: entry.playerId,
+          timeMs: index >= entries.length - 2 ? 100000 : 80000 + index * 1000,
+        }));
 
   const tied = await apiPostTaPhase(adminPage, tournamentId, {
     action: 'submit_results',
@@ -1724,7 +2008,9 @@ async function createPendingSuddenDeathByApi(adminPage, tournamentId, phase) {
   const sudden = tied.b?.data?.suddenDeathRound;
   const targets = sudden?.targetPlayerIds ?? [];
   if (tied.s !== 200 || tied.b?.data?.tieBreakRequired !== true || !sudden?.id || targets.length < 2) {
-    throw new Error(`expected pending sudden death for ${phase}, got status=${tied.s} body=${JSON.stringify(tied.b).slice(0, 260)}`);
+    throw new Error(
+      `expected pending sudden death for ${phase}, got status=${tied.s} body=${JSON.stringify(tied.b).slice(0, 260)}`,
+    );
   }
   return { roundNumber, sudden, targets };
 }
@@ -1736,10 +2022,13 @@ async function resolveSuddenDeathThroughSharedCard(adminPage, tournamentId, phas
   const panel = adminPage.getByTestId('ta-sudden-death-panel');
   await panel.waitFor({ state: 'visible', timeout: 15000 });
   await panel.getByTestId('ta-sudden-death-course-select').click();
-  const courseChangePromise = adminPage.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST' &&
-    res.request().postData()?.includes('"change_sudden_death_course"'), { timeout: 60000 });
+  const courseChangePromise = adminPage.waitForResponse(
+    (res) =>
+      res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+      res.request().method() === 'POST' &&
+      res.request().postData()?.includes('"change_sudden_death_course"'),
+    { timeout: 60000 },
+  );
   await adminPage.locator('[data-slot="select-content"]').getByRole('option').nth(1).click();
   const courseChange = await courseChangePromise;
   if (courseChange.status() !== 200) {
@@ -1752,10 +2041,13 @@ async function resolveSuddenDeathThroughSharedCard(adminPage, tournamentId, phas
   await panel.getByTestId(`ta-sudden-death-time-${targets[0]}`).fill('1:30.00');
   await panel.getByTestId(`ta-sudden-death-time-${targets[1]}`).fill('1:31.00');
 
-  const submitPromise = adminPage.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
-    res.request().method() === 'POST' &&
-    res.request().postData()?.includes('"submit_sudden_death"'), { timeout: 60000 });
+  const submitPromise = adminPage.waitForResponse(
+    (res) =>
+      res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+      res.request().method() === 'POST' &&
+      res.request().postData()?.includes('"submit_sudden_death"'),
+    { timeout: 60000 },
+  );
   await panel.getByTestId('ta-sudden-death-submit').click();
   const submit = await submitPromise;
   if (submit.status() !== 200) {
@@ -1800,7 +2092,11 @@ async function runTc814(adminPage) {
     });
     const tieData = tied.b?.data ?? {};
     if (tied.s !== 200 || tieData.tieBreakRequired !== true) {
-      log('TC-814', 'FAIL', `expected tieBreakRequired, got status=${tied.s} body=${JSON.stringify(tied.b).slice(0, 200)}`);
+      log(
+        'TC-814',
+        'FAIL',
+        `expected tieBreakRequired, got status=${tied.s} body=${JSON.stringify(tied.b).slice(0, 200)}`,
+      );
       return;
     }
     const sudden = tieData.suddenDeathRound;
@@ -1831,16 +2127,24 @@ async function runTc814(adminPage) {
         { playerId: targets[1], timeMs: 91000 },
       ],
     });
-    if (sdSubmit.s !== 200) throw new Error(`submit_sudden_death failed (${sdSubmit.s}): ${JSON.stringify(sdSubmit.b).slice(0, 200)}`);
+    if (sdSubmit.s !== 200)
+      throw new Error(`submit_sudden_death failed (${sdSubmit.s}): ${JSON.stringify(sdSubmit.b).slice(0, 200)}`);
     const finalData = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
     const finalEntries = finalData.entries ?? [];
     const eliminated = finalEntries.filter((e) => e.eliminated).map((e) => e.playerId);
     const round = (finalData.rounds ?? []).find((r) => r.roundNumber === roundNumber);
     const suddenHistory = round?.suddenDeathRounds ?? [];
-    const ok = eliminated.length === 1 && eliminated[0] === targets[1] &&
-      suddenHistory.length === 1 && suddenHistory[0].course === changedCourse && suddenHistory[0].resolved === true;
-    log('TC-814', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `eliminated=${eliminated.join(',')} sudden=${JSON.stringify(suddenHistory)}`);
+    const ok =
+      eliminated.length === 1 &&
+      eliminated[0] === targets[1] &&
+      suddenHistory.length === 1 &&
+      suddenHistory[0].course === changedCourse &&
+      suddenHistory[0].resolved === true;
+    log(
+      'TC-814',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `eliminated=${eliminated.join(',')} sudden=${JSON.stringify(suddenHistory)}`,
+    );
   } catch (err) {
     log('TC-814', 'FAIL', err instanceof Error ? err.message : 'TA phase1 sudden death failed');
   } finally {
@@ -1866,7 +2170,10 @@ async function runTc1033(adminPage) {
       playerId: entry.playerId,
       timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
     }));
-    const expectedTargetIds = entries.slice(6).map((entry) => entry.playerId).sort();
+    const expectedTargetIds = entries
+      .slice(6)
+      .map((entry) => entry.playerId)
+      .sort();
 
     const tied = await apiPostTaPhase(adminPage, tournamentId, {
       action: 'submit_results',
@@ -1879,12 +2186,19 @@ async function runTc1033(adminPage) {
     const targetCount = targetIds.length;
     const targetIdsMatch = JSON.stringify(targetIds) === JSON.stringify(expectedTargetIds);
     const hasReason = Object.prototype.hasOwnProperty.call(sudden ?? {}, 'reason');
-    log('TC-1033', tied.s === 200 && targetCount === 2 && targetIdsMatch && !hasReason ? 'PASS' : 'FAIL',
-      tied.s !== 200 ? `submit_results status=${tied.s}`
-      : targetCount !== 2 ? `targetPlayerIds length=${targetCount}`
-      : !targetIdsMatch ? `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')}`
-      : hasReason ? `unexpected reason=${sudden.reason}`
-      : '');
+    log(
+      'TC-1033',
+      tied.s === 200 && targetCount === 2 && targetIdsMatch && !hasReason ? 'PASS' : 'FAIL',
+      tied.s !== 200
+        ? `submit_results status=${tied.s}`
+        : targetCount !== 2
+          ? `targetPlayerIds length=${targetCount}`
+          : !targetIdsMatch
+            ? `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')}`
+            : hasReason
+              ? `unexpected reason=${sudden.reason}`
+              : '',
+    );
   } catch (err) {
     log('TC-1033', 'FAIL', err instanceof Error ? err.message : 'TA sudden-death payload contract failed');
   } finally {
@@ -1899,9 +2213,13 @@ async function runTc1032(adminPage) {
     const stamp = Date.now();
     const players = [];
     for (let i = 1; i <= 9; i++) {
-      players.push(await uiCreatePlayer(adminPage, `E2E TA Revival P3 ${i} ${stamp}`, `e2e_ta_revival_p3_${i}_${stamp}`));
+      players.push(
+        await uiCreatePlayer(adminPage, `E2E TA Revival P3 ${i} ${stamp}`, `e2e_ta_revival_p3_${i}_${stamp}`),
+      );
     }
-    const baseFixture = await createIsolatedTaQualification(adminPage, `Revival P3 ${stamp}`, players, { seedTimes: false });
+    const baseFixture = await createIsolatedTaQualification(adminPage, `Revival P3 ${stamp}`, players, {
+      seedTimes: false,
+    });
     fixture = {
       ...baseFixture,
       cleanup: async () => {
@@ -1943,11 +2261,17 @@ async function runTc1032(adminPage) {
     });
     const targetIds = [...(submitResult.b?.data?.suddenDeathRound?.targetPlayerIds ?? [])].sort();
     const expectedTargetIds = candidates.map((entry) => entry.playerId).sort();
-    const ok = submitResult.s === 200 &&
+    const ok =
+      submitResult.s === 200 &&
       submitResult.b?.data?.tieBreakRequired === true &&
       JSON.stringify(targetIds) === JSON.stringify(expectedTargetIds);
-    log('TC-1032', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')} body=${JSON.stringify(submitResult.b).slice(0, 220)}`);
+    log(
+      'TC-1032',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `targetPlayerIds=${targetIds.join(',')} expected=${expectedTargetIds.join(',')} body=${JSON.stringify(submitResult.b).slice(0, 220)}`,
+    );
   } catch (err) {
     log('TC-1032', 'FAIL', err instanceof Error ? err.message : 'TA phase3 revival target coverage failed');
   } finally {
@@ -1964,7 +2288,9 @@ async function runTc815(adminPage) {
     for (let i = 1; i <= 4; i++) {
       players.push(await uiCreatePlayer(adminPage, `E2E TA SD P3 ${i} ${stamp}`, `e2e_ta_sd_p3_${i}_${stamp}`));
     }
-    const baseFixture = await createIsolatedTaQualification(adminPage, `Sudden Death P3 ${stamp}`, players, { seedTimes: false });
+    const baseFixture = await createIsolatedTaQualification(adminPage, `Sudden Death P3 ${stamp}`, players, {
+      seedTimes: false,
+    });
     fixture = {
       ...baseFixture,
       cleanup: async () => {
@@ -1995,7 +2321,11 @@ async function runTc815(adminPage) {
       ],
     });
     const firstSudden = tied.b?.data?.suddenDeathRound;
-    if (tied.s !== 200 || tied.b?.data?.tieBreakRequired !== true || (firstSudden?.targetPlayerIds ?? []).length !== 2) {
+    if (
+      tied.s !== 200 ||
+      tied.b?.data?.tieBreakRequired !== true ||
+      (firstSudden?.targetPlayerIds ?? []).length !== 2
+    ) {
       log('TC-815', 'FAIL', `expected phase3 boundary sudden death, got ${JSON.stringify(tied.b).slice(0, 220)}`);
       return;
     }
@@ -2023,15 +2353,20 @@ async function runTc815(adminPage) {
       ],
     });
     if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired) {
-      throw new Error(`final sudden death did not resolve (${resolved.s}): ${JSON.stringify(resolved.b).slice(0, 220)}`);
+      throw new Error(
+        `final sudden death did not resolve (${resolved.s}): ${JSON.stringify(resolved.b).slice(0, 220)}`,
+      );
     }
     const finalEntries = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [];
     const p3After = finalEntries.find((e) => e.playerId === p3.playerId);
     const p2After = finalEntries.find((e) => e.playerId === p2.playerId);
     const p4After = finalEntries.find((e) => e.playerId === p4.playerId);
     const ok = p2After?.lives === 3 && p3After?.lives === 2 && p4After?.lives === 2;
-    log('TC-815', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `lives p2=${p2After?.lives} p3=${p3After?.lives} p4=${p4After?.lives}`);
+    log(
+      'TC-815',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `lives p2=${p2After?.lives} p3=${p3After?.lives} p4=${p4After?.lives}`,
+    );
   } catch (err) {
     log('TC-815', 'FAIL', err instanceof Error ? err.message : 'TA phase3 sudden death failed');
   } finally {
@@ -2051,7 +2386,9 @@ async function runTc2773a(adminPage) {
     for (let i = 1; i <= 4; i++) {
       players.push(await uiCreatePlayer(adminPage, `E2E TA LLSD ${i} ${stamp}`, `e2e_ta_llsd_${i}_${stamp}`));
     }
-    const baseFixture = await createIsolatedTaQualification(adminPage, `LifeLoss SD ${stamp}`, players, { seedTimes: false });
+    const baseFixture = await createIsolatedTaQualification(adminPage, `LifeLoss SD ${stamp}`, players, {
+      seedTimes: false,
+    });
     fixture = {
       ...baseFixture,
       cleanup: async () => {
@@ -2116,10 +2453,15 @@ async function runTc2773a(adminPage) {
       finalEntries.find((e) => e.playerId === p4.playerId)?.lives === 2;
     const availableAfter = finalData.availableCourses ?? [];
     const poolOk = availableAfter.length === 19 && !availableAfter.includes('MC1');
-    log('TC-2773A', livesOk && poolOk ? 'PASS' : 'FAIL',
-      !livesOk ? `lives wrong after same-course rerun: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.lives]))}`
-      : !poolOk ? `pool after SD: len=${availableAfter.length} (expected 19 without MC1)`
-      : '');
+    log(
+      'TC-2773A',
+      livesOk && poolOk ? 'PASS' : 'FAIL',
+      !livesOk
+        ? `lives wrong after same-course rerun: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.lives]))}`
+        : !poolOk
+          ? `pool after SD: len=${availableAfter.length} (expected 19 without MC1)`
+          : '',
+    );
   } catch (err) {
     log('TC-2773A', 'FAIL', err instanceof Error ? err.message : 'TA life-loss same-course sudden death failed');
   } finally {
@@ -2140,7 +2482,9 @@ async function runTc2773b(adminPage) {
     for (let i = 1; i <= 4; i++) {
       players.push(await uiCreatePlayer(adminPage, `E2E TA Bronze ${i} ${stamp}`, `e2e_ta_bronze_${i}_${stamp}`));
     }
-    const baseFixture = await createIsolatedTaQualification(adminPage, `Bronze SD ${stamp}`, players, { seedTimes: false });
+    const baseFixture = await createIsolatedTaQualification(adminPage, `Bronze SD ${stamp}`, players, {
+      seedTimes: false,
+    });
     fixture = {
       ...baseFixture,
       cleanup: async () => {
@@ -2180,7 +2524,11 @@ async function runTc2773b(adminPage) {
       return;
     }
     if (JSON.stringify(targets) !== JSON.stringify(expectedTargets) || sudden.course === 'MC1') {
-      log('TC-2773B', 'FAIL', `bronze race wrong: targets=${targets.join(',')} expected=${expectedTargets.join(',')} course=${sudden.course} (must be a fresh course)`);
+      log(
+        'TC-2773B',
+        'FAIL',
+        `bronze race wrong: targets=${targets.join(',')} expected=${expectedTargets.join(',')} course=${sudden.course} (must be a fresh course)`,
+      );
       return;
     }
 
@@ -2208,12 +2556,14 @@ async function runTc2773b(adminPage) {
       byId.get(p4.playerId)?.eliminated === true;
     /* Survivors advance to the top 2 with reset lives (threshold 2). */
     const survivorsOk =
-      byId.get(p1.playerId)?.eliminated === false && byId.get(p1.playerId)?.lives === 3 &&
-      byId.get(p2.playerId)?.eliminated === false && byId.get(p2.playerId)?.lives === 3;
+      byId.get(p1.playerId)?.eliminated === false &&
+      byId.get(p1.playerId)?.lives === 3 &&
+      byId.get(p2.playerId)?.eliminated === false &&
+      byId.get(p2.playerId)?.lives === 3;
     /* Base course + fresh bronze course are both consumed from the pool. */
     const availableAfter = finalData.availableCourses ?? [];
-    const poolOk = availableAfter.length === 18 &&
-      !availableAfter.includes('MC1') && !availableAfter.includes(sudden.course);
+    const poolOk =
+      availableAfter.length === 18 && !availableAfter.includes('MC1') && !availableAfter.includes(sudden.course);
     /* Regression guard for the reported "順位表で3位表示" bug: the live
      * Standings table (ta/finals/page.tsx) renders `entries` in this exact
      * order (array index + 1 = displayed rank). sortPhaseEntriesForDisplay
@@ -2225,12 +2575,19 @@ async function runTc2773b(adminPage) {
     const p4Index = finalEntries.findIndex((e) => e.playerId === p4.playerId);
     const standingsOrderOk = p4Index !== -1 && p3Index !== -1 && p4Index < p3Index;
     const ok = eliminationOk && survivorsOk && poolOk && standingsOrderOk;
-    log('TC-2773B', ok ? 'PASS' : 'FAIL',
-      !eliminationOk ? `eliminations wrong: eliminatedIds=${eliminatedIds.join(',')}`
-      : !survivorsOk ? `survivors wrong: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.eliminated, e.lives]))}`
-      : !poolOk ? `pool after bronze race: len=${availableAfter.length} (expected 18 without MC1/${sudden.course})`
-      : !standingsOrderOk ? `standings order wrong: bronze winner p4 at index ${p4Index}, loser p3 at index ${p3Index} (winner must come first)`
-      : '');
+    log(
+      'TC-2773B',
+      ok ? 'PASS' : 'FAIL',
+      !eliminationOk
+        ? `eliminations wrong: eliminatedIds=${eliminatedIds.join(',')}`
+        : !survivorsOk
+          ? `survivors wrong: ${JSON.stringify(finalEntries.map((e) => [e.playerId, e.eliminated, e.lives]))}`
+          : !poolOk
+            ? `pool after bronze race: len=${availableAfter.length} (expected 18 without MC1/${sudden.course})`
+            : !standingsOrderOk
+              ? `standings order wrong: bronze winner p4 at index ${p4Index}, loser p3 at index ${p3Index} (winner must come first)`
+              : '',
+    );
   } catch (err) {
     log('TC-2773B', 'FAIL', err instanceof Error ? err.message : 'TA bronze sudden death failed');
   } finally {
@@ -2252,7 +2609,9 @@ async function runTc2775(adminPage) {
     for (let i = 1; i <= 4; i++) {
       players.push(await uiCreatePlayer(adminPage, `E2E TA KindGuard ${i} ${stamp}`, `e2e_ta_kindguard_${i}_${stamp}`));
     }
-    const baseFixture = await createIsolatedTaQualification(adminPage, `KindGuard SD ${stamp}`, players, { seedTimes: false });
+    const baseFixture = await createIsolatedTaQualification(adminPage, `KindGuard SD ${stamp}`, players, {
+      seedTimes: false,
+    });
     fixture = {
       ...baseFixture,
       cleanup: async () => {
@@ -2286,7 +2645,11 @@ async function runTc2775(adminPage) {
     ]);
     const sudden = submit.data.suddenDeathRound;
     if (submit.data.tieBreakRequired !== true || !sudden?.id || sudden.course === 'MC1') {
-      log('TC-2775', 'FAIL', `expected a fresh-course bronze sudden death, got ${JSON.stringify(submit.data).slice(0, 220)}`);
+      log(
+        'TC-2775',
+        'FAIL',
+        `expected a fresh-course bronze sudden death, got ${JSON.stringify(submit.data).slice(0, 220)}`,
+      );
       return;
     }
 
@@ -2299,11 +2662,17 @@ async function runTc2775(adminPage) {
       suddenDeathRoundId: sudden.id,
       course: 'MC1',
     });
-    const rejectedOk = redirected.s === 400 &&
+    const rejectedOk =
+      redirected.s === 400 &&
       typeof redirected.b?.error === 'string' &&
       redirected.b.error.includes('already been played');
-    log('TC-2775', rejectedOk ? 'PASS' : 'FAIL',
-      rejectedOk ? '' : `expected 400 rejection redirecting bronze SD onto base course, got ${redirected.s}: ${JSON.stringify(redirected.b).slice(0, 220)}`);
+    log(
+      'TC-2775',
+      rejectedOk ? 'PASS' : 'FAIL',
+      rejectedOk
+        ? ''
+        : `expected 400 rejection redirecting bronze SD onto base course, got ${redirected.s}: ${JSON.stringify(redirected.b).slice(0, 220)}`,
+    );
   } catch (err) {
     log('TC-2775', 'FAIL', err instanceof Error ? err.message : 'TA sudden-death kind guard failed');
   } finally {
@@ -2326,17 +2695,15 @@ async function runTc817(adminPage) {
       playerId: entry.playerId,
       timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
     }));
-    const firstSubmit = await submitTaPhaseRoundWithCourseByApi(
-      adminPage,
-      tournamentId,
-      phase,
-      'MC1',
-      firstResults,
-    );
+    const firstSubmit = await submitTaPhaseRoundWithCourseByApi(adminPage, tournamentId, phase, 'MC1', firstResults);
     const sudden = firstSubmit.data.suddenDeathRound;
     const targets = sudden?.targetPlayerIds ?? [];
     if (firstSubmit.data.tieBreakRequired !== true || !sudden?.id || targets.length !== 2) {
-      log('TC-817', 'FAIL', `expected sudden death after first round, got ${JSON.stringify(firstSubmit.data).slice(0, 220)}`);
+      log(
+        'TC-817',
+        'FAIL',
+        `expected sudden death after first round, got ${JSON.stringify(firstSubmit.data).slice(0, 220)}`,
+      );
       return;
     }
 
@@ -2362,8 +2729,9 @@ async function runTc817(adminPage) {
     }
 
     for (const course of ['DP1', 'GV1', 'BC1']) {
-      const active = ((await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [])
-        .filter((entry) => !entry.eliminated);
+      const active = ((await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? []).filter(
+        (entry) => !entry.eliminated,
+      );
       const results = active.map((entry, index) => ({
         playerId: entry.playerId,
         timeMs: 80000 + index * 1000,
@@ -2372,7 +2740,8 @@ async function runTc817(adminPage) {
     }
 
     const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
-    if (promote.s !== 200) throw new Error(`promote_phase2 failed (${promote.s}): ${JSON.stringify(promote.b).slice(0, 300)}`);
+    if (promote.s !== 200)
+      throw new Error(`promote_phase2 failed (${promote.s}): ${JSON.stringify(promote.b).slice(0, 300)}`);
 
     const phase2 = (await apiFetchTaPhase(adminPage, tournamentId, 'phase2')).b?.data ?? {};
     const played = phase2.playedCourses ?? [];
@@ -2382,10 +2751,12 @@ async function runTc817(adminPage) {
       phase: 'phase2',
       course: 'KB1',
     });
-    const ok = played.includes('KB1') && available.length === 15 &&
-      !available.includes('KB1') && rejected.s === 400;
-    log('TC-817', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `played=${played.join(',')} available=${available.join(',')} rejected=${rejected.s}`);
+    const ok = played.includes('KB1') && available.length === 15 && !available.includes('KB1') && rejected.s === 400;
+    log(
+      'TC-817',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' : `played=${played.join(',')} available=${available.join(',')} rejected=${rejected.s}`,
+    );
   } catch (err) {
     log('TC-817', 'FAIL', err instanceof Error ? err.message : 'TA sudden-death course cycle failed');
   } finally {
@@ -2398,12 +2769,9 @@ async function runTc1005(adminPage) {
   let phase1Setup = null;
   let finalsSetup = null;
   try {
-    phase1Setup = await createIsolatedTaQualification(
-      adminPage,
-      'Course Cycle Panel Phase1',
-      sharedTaPlayers(8),
-      { seedTimes: false },
-    );
+    phase1Setup = await createIsolatedTaQualification(adminPage, 'Course Cycle Panel Phase1', sharedTaPlayers(8), {
+      seedTimes: false,
+    });
     await seedTaQualificationRanks(adminPage, phase1Setup.tournamentId, phase1Setup.entries, 17);
     const phase1Promote = await apiPromoteTaPhase(adminPage, phase1Setup.tournamentId, 'promote_phase1');
     if (phase1Promote.s !== 200) {
@@ -2416,12 +2784,9 @@ async function runTc1005(adminPage) {
     const phase1HasAvailable = /選択可能コース|利用可能コース|Available Courses/.test(phase1Text);
     const phase1HasValue = /1周目 0\/20|Cycle 1 0\/20/.test(phase1Text);
 
-    finalsSetup = await createIsolatedTaQualification(
-      adminPage,
-      'Course Cycle Panel Finals',
-      sharedTaPlayers(2),
-      { seedTimes: false },
-    );
+    finalsSetup = await createIsolatedTaQualification(adminPage, 'Course Cycle Panel Finals', sharedTaPlayers(2), {
+      seedTimes: false,
+    });
     await seedTaQualificationRanks(adminPage, finalsSetup.tournamentId, finalsSetup.entries, 1);
     const finalsPromote = await apiPromoteTaPhase(adminPage, finalsSetup.tournamentId, 'promote_phase3');
     if (finalsPromote.s !== 200) {
@@ -2434,10 +2799,15 @@ async function runTc1005(adminPage) {
     const finalsHasAvailable = /選択可能コース|利用可能コース|Available Courses/.test(finalsText);
     const finalsHasValue = /1周目 0\/20|Cycle 1 0\/20/.test(finalsText);
 
-    const ok = phase1HasCycle && phase1HasAvailable && phase1HasValue &&
-      finalsHasCycle && finalsHasAvailable && finalsHasValue;
-    log('TC-1005', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `phase1 cycle=${phase1HasCycle} available=${phase1HasAvailable} value=${phase1HasValue}; finals cycle=${finalsHasCycle} available=${finalsHasAvailable} value=${finalsHasValue}`);
+    const ok =
+      phase1HasCycle && phase1HasAvailable && phase1HasValue && finalsHasCycle && finalsHasAvailable && finalsHasValue;
+    log(
+      'TC-1005',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `phase1 cycle=${phase1HasCycle} available=${phase1HasAvailable} value=${phase1HasValue}; finals cycle=${finalsHasCycle} available=${finalsHasAvailable} value=${finalsHasValue}`,
+    );
   } catch (err) {
     log('TC-1005', 'FAIL', err instanceof Error ? err.message : 'TA course-cycle panel render failed');
   } finally {
@@ -2462,10 +2832,10 @@ async function runTc2293(adminPage) {
     const phase1After = (await apiFetchTaPhase(adminPage, phase1Setup.tournamentId, 'phase1')).b?.data ?? {};
     const phase1Round = (phase1After.rounds ?? []).find((round) => round.roundNumber === phase1Pending.roundNumber);
     const phase1History = phase1Round?.suddenDeathRounds ?? [];
-    const phase1Resolved = phase1History.some((round) =>
-      round.id === phase1Pending.sudden.id &&
-      round.resolved === true &&
-      round.course === phase1ChangedCourse);
+    const phase1Resolved = phase1History.some(
+      (round) =>
+        round.id === phase1Pending.sudden.id && round.resolved === true && round.course === phase1ChangedCourse,
+    );
     const phase1Eliminated = (phase1After.entries ?? [])
       .filter((entry) => entry.eliminated)
       .map((entry) => entry.playerId);
@@ -2490,23 +2860,28 @@ async function runTc2293(adminPage) {
     const finalsAfter = (await apiFetchTaPhase(adminPage, finalsSetup.tournamentId, 'phase3')).b?.data ?? {};
     const finalsRound = (finalsAfter.rounds ?? []).find((round) => round.roundNumber === finalsPending.roundNumber);
     const finalsHistory = finalsRound?.suddenDeathRounds ?? [];
-    const finalsResolved = finalsHistory.some((round) =>
-      round.id === finalsPending.sudden.id &&
-      round.resolved === true &&
-      round.course === finalsChangedCourse);
+    const finalsResolved = finalsHistory.some(
+      (round) =>
+        round.id === finalsPending.sudden.id && round.resolved === true && round.course === finalsChangedCourse,
+    );
     const finalsTargetLives = (finalsAfter.entries ?? [])
       .filter((entry) => finalsPending.targets.includes(entry.playerId))
       .map((entry) => entry.lives);
 
-    const ok = phase1Resolved &&
+    const ok =
+      phase1Resolved &&
       phase1Eliminated.includes(phase1Pending.targets[1]) &&
       finalsResolved &&
       finalsTargetLives.includes(2) &&
       finalsTargetLives.includes(3);
 
-    log('TC-2293', ok ? 'PASS' : 'FAIL',
-      ok ? ''
-      : `phase1Resolved=${phase1Resolved} phase1Eliminated=${phase1Eliminated.join(',')} finalsResolved=${finalsResolved} finalsTargetLives=${finalsTargetLives.join(',')}`);
+    log(
+      'TC-2293',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `phase1Resolved=${phase1Resolved} phase1Eliminated=${phase1Eliminated.join(',')} finalsResolved=${finalsResolved} finalsTargetLives=${finalsTargetLives.join(',')}`,
+    );
   } catch (err) {
     log('TC-2293', 'FAIL', err instanceof Error ? err.message : 'shared TA sudden-death UI flow failed');
   } finally {
@@ -2569,7 +2944,11 @@ async function runTc2400(adminPage) {
       ],
     });
     if (tiedSd.s !== 200 || tiedSd.b?.data?.tieBreakRequired !== true) {
-      log('TC-2400', 'FAIL', `expected continuation after retie, got status=${tiedSd.s} body=${JSON.stringify(tiedSd.b).slice(0, 200)}`);
+      log(
+        'TC-2400',
+        'FAIL',
+        `expected continuation after retie, got status=${tiedSd.s} body=${JSON.stringify(tiedSd.b).slice(0, 200)}`,
+      );
       return;
     }
 
@@ -2581,10 +2960,14 @@ async function runTc2400(adminPage) {
     }
 
     // Continuation round must target the same 2 players as the first round.
-    const sameTargets = contTargets.length === firstTargets.length &&
-      firstTargets.every((id) => contTargets.includes(id));
+    const sameTargets =
+      contTargets.length === firstTargets.length && firstTargets.every((id) => contTargets.includes(id));
     if (!sameTargets) {
-      log('TC-2400', 'FAIL', `continuation targets differ: ${JSON.stringify(contTargets)} vs ${JSON.stringify(firstTargets)}`);
+      log(
+        'TC-2400',
+        'FAIL',
+        `continuation targets differ: ${JSON.stringify(contTargets)} vs ${JSON.stringify(firstTargets)}`,
+      );
       return;
     }
 
@@ -2604,7 +2987,11 @@ async function runTc2400(adminPage) {
       ],
     });
     if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired === true) {
-      log('TC-2400', 'FAIL', `expected resolution without continuation, got status=${resolved.s} tieBreak=${resolved.b?.data?.tieBreakRequired}`);
+      log(
+        'TC-2400',
+        'FAIL',
+        `expected resolution without continuation, got status=${resolved.s} tieBreak=${resolved.b?.data?.tieBreakRequired}`,
+      );
       return;
     }
 
@@ -2614,16 +3001,23 @@ async function runTc2400(adminPage) {
     const round = (finalPhase.b?.data?.rounds ?? []).find((r) => r.roundNumber === roundNumber);
     const suddenHistory = round?.suddenDeathRounds ?? [];
 
-    const ok = eliminated.length === 1 &&
+    const ok =
+      eliminated.length === 1 &&
       eliminated[0] === expectedEliminatedId &&
       suddenHistory.length === 2 &&
       suddenHistory.every((s) => s.resolved === true);
 
-    log('TC-2400', ok ? 'PASS' : 'FAIL',
-      ok ? ''
-      : eliminated.length !== 1 ? `expected 1 eliminated, got ${eliminated.length}`
-      : eliminated[0] !== expectedEliminatedId ? `wrong player eliminated: got ${eliminated[0]} expected ${expectedEliminatedId}`
-      : `suddenHistory=${JSON.stringify(suddenHistory)}`);
+    log(
+      'TC-2400',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : eliminated.length !== 1
+          ? `expected 1 eliminated, got ${eliminated.length}`
+          : eliminated[0] !== expectedEliminatedId
+            ? `wrong player eliminated: got ${eliminated[0]} expected ${expectedEliminatedId}`
+            : `suddenHistory=${JSON.stringify(suddenHistory)}`,
+    );
   } catch (err) {
     log('TC-2400', 'FAIL', err instanceof Error ? err.message : 'TA phase1 sudden-death continuation failed');
   } finally {
@@ -2677,11 +3071,17 @@ async function runTc3001(adminPage) {
     const correctCount = correctEntries.length === 8;
 
     const ok = bugReproduced && resetCleared && correctCount;
-    log('TC-3001', ok ? 'PASS' : 'FAIL',
-      !bugReproduced ? `expected premature promote_phase2 to create 12 entries, got ${buggyEntries.length}`
-      : !resetCleared ? `expected reset_phase to clear phase2 entries, got ${clearedEntries.length}`
-      : !correctCount ? `expected re-promotion to yield 8 entries, got ${correctEntries.length}`
-      : '');
+    log(
+      'TC-3001',
+      ok ? 'PASS' : 'FAIL',
+      !bugReproduced
+        ? `expected premature promote_phase2 to create 12 entries, got ${buggyEntries.length}`
+        : !resetCleared
+          ? `expected reset_phase to clear phase2 entries, got ${clearedEntries.length}`
+          : !correctCount
+            ? `expected re-promotion to yield 8 entries, got ${correctEntries.length}`
+            : '',
+    );
   } catch (err) {
     log('TC-3001', 'FAIL', err instanceof Error ? err.message : 'TA 3001 failed');
   } finally {
@@ -2709,7 +3109,10 @@ async function runTc2779(adminPage) {
 
     // With phase2 present, undo/cancel of phase1's last round must be rejected.
     const undoBlocked = await apiPostTaPhase(adminPage, tournamentId, { action: 'undo_round', phase: 'phase1' });
-    const cancelBlocked = await apiPostTaPhase(adminPage, tournamentId, { action: 'cancel_last_round', phase: 'phase1' });
+    const cancelBlocked = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'cancel_last_round',
+      phase: 'phase1',
+    });
     const undoRejected = undoBlocked.s === 409 && undoBlocked.b?.code === 'PHASE_RESET_CONFLICT';
     const cancelRejected = cancelBlocked.s === 409 && cancelBlocked.b?.code === 'PHASE_RESET_CONFLICT';
 
@@ -2719,11 +3122,17 @@ async function runTc2779(adminPage) {
     const undoNowOk = undoAllowed.s === 200;
 
     const ok = undoRejected && cancelRejected && undoNowOk;
-    log('TC-2779', ok ? 'PASS' : 'FAIL',
-      !undoRejected ? `undo not rejected while phase2 exists: s=${undoBlocked.s} code=${undoBlocked.b?.code}`
-      : !cancelRejected ? `cancel not rejected while phase2 exists: s=${cancelBlocked.s} code=${cancelBlocked.b?.code}`
-      : !undoNowOk ? `undo not allowed after phase2 reset: s=${undoAllowed.s} body=${JSON.stringify(undoAllowed.b).slice(0, 200)}`
-      : '');
+    log(
+      'TC-2779',
+      ok ? 'PASS' : 'FAIL',
+      !undoRejected
+        ? `undo not rejected while phase2 exists: s=${undoBlocked.s} code=${undoBlocked.b?.code}`
+        : !cancelRejected
+          ? `cancel not rejected while phase2 exists: s=${cancelBlocked.s} code=${cancelBlocked.b?.code}`
+          : !undoNowOk
+            ? `undo not allowed after phase2 reset: s=${undoAllowed.s} body=${JSON.stringify(undoAllowed.b).slice(0, 200)}`
+            : '',
+    );
   } catch (err) {
     log('TC-2779', 'FAIL', err instanceof Error ? err.message : 'TA 2779 failed');
   } finally {
@@ -2742,7 +3151,9 @@ async function runTc2779(adminPage) {
 async function runTc2781(adminPage) {
   let setup = null;
   try {
-    setup = await createIsolatedTaQualification(adminPage, 'Early Promotion Guard', sharedTaPlayers(24), { seedTimes: false });
+    setup = await createIsolatedTaQualification(adminPage, 'Early Promotion Guard', sharedTaPlayers(24), {
+      seedTimes: false,
+    });
     const { tournamentId } = setup;
     await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
     await uiFreezeTaQualification(adminPage, tournamentId);
@@ -2758,24 +3169,36 @@ async function runTc2781(adminPage) {
     // mid-flight. The server allows this (promoteToPhase2 has no minimum
     // survivor-count guard) — it is exactly the scenario #2781 protects against.
     const promote2 = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
-    if (promote2.s !== 200) throw new Error(`promote_phase2 failed (${promote2.s}): ${JSON.stringify(promote2.b).slice(0, 300)}`);
+    if (promote2.s !== 200)
+      throw new Error(`promote_phase2 failed (${promote2.s}): ${JSON.stringify(promote2.b).slice(0, 300)}`);
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta/phase1`);
 
     // Round-management card must still be showing (phase1 is not complete).
-    const startRoundVisible = await adminPage.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ })
-      .isVisible({ timeout: 15000 }).catch(() => false);
+    const startRoundVisible = await adminPage
+      .getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ })
+      .isVisible({ timeout: 15000 })
+      .catch(() => false);
 
     // ...but its Undo/Cancel buttons must now be hidden, since undoing/cancelling
     // phase1's last round would desync the already-promoted phase2 roster.
-    const undoHidden = (await adminPage.getByRole('button', { name: /Undo Last Round|前のラウンドを取り消す/ }).count()) === 0;
-    const cancelHidden = (await adminPage.getByRole('button', { name: /Cancel Last Round|前のラウンドをキャンセル/ }).count()) === 0;
+    const undoHidden =
+      (await adminPage.getByRole('button', { name: /Undo Last Round|前のラウンドを取り消す/ }).count()) === 0;
+    const cancelHidden =
+      (await adminPage.getByRole('button', { name: /Cancel Last Round|前のラウンドをキャンセル/ }).count()) === 0;
 
     const ok = startRoundVisible && undoHidden && cancelHidden;
-    log('TC-2781', ok ? 'PASS' : 'FAIL',
-      !startRoundVisible ? 'round-management card (Start Round) not visible on an in-progress phase'
-      : !undoHidden ? 'Undo Last Round still visible after an early phase2 promotion'
-      : !cancelHidden ? 'Cancel Last Round still visible after an early phase2 promotion' : '');
+    log(
+      'TC-2781',
+      ok ? 'PASS' : 'FAIL',
+      !startRoundVisible
+        ? 'round-management card (Start Round) not visible on an in-progress phase'
+        : !undoHidden
+          ? 'Undo Last Round still visible after an early phase2 promotion'
+          : !cancelHidden
+            ? 'Cancel Last Round still visible after an early phase2 promotion'
+            : '',
+    );
   } catch (err) {
     log('TC-2781', 'FAIL', err instanceof Error ? err.message : 'TA 2781 failed');
   } finally {
@@ -2829,8 +3252,8 @@ async function runTc3002(adminPage) {
     const sdClearedAfterUndo = (roundAfterUndo?.suddenDeathRounds ?? []).length === 0;
     // The round itself must still exist (undo keeps it open for re-entry on
     // the same course) — this is what distinguishes undo from cancel below.
-    const roundKeptOpen = !!roundAfterUndo && (roundAfterUndo.results ?? []).length === 0
-      && roundAfterUndo.course === resolvedCourse;
+    const roundKeptOpen =
+      !!roundAfterUndo && (roundAfterUndo.results ?? []).length === 0 && roundAfterUndo.course === resolvedCourse;
 
     // Re-submit round 1 without a tie this time, so it becomes the "last
     // submitted round" again for the cancel_last_round assertion below.
@@ -2841,7 +3264,8 @@ async function runTc3002(adminPage) {
       roundNumber,
       results: entries.map((entry, index) => ({ playerId: entry.playerId, timeMs: 80000 + index * 1000 })),
     });
-    if (resubmit.s !== 200) throw new Error(`re-submit_results failed (${resubmit.s}): ${JSON.stringify(resubmit.b).slice(0, 200)}`);
+    if (resubmit.s !== 200)
+      throw new Error(`re-submit_results failed (${resubmit.s}): ${JSON.stringify(resubmit.b).slice(0, 200)}`);
 
     const beforeCancel = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
     const courseFreedYet = (beforeCancel.availableCourses ?? []).includes(resolvedCourse);
@@ -2849,23 +3273,41 @@ async function runTc3002(adminPage) {
     // cancel_last_round: unlike undo, the round must be gone entirely and
     // its course must return to the pool (bug #2761 part 2).
     const cancel = await apiPostTaPhase(adminPage, tournamentId, { action: 'cancel_last_round', phase });
-    if (cancel.s !== 200) throw new Error(`cancel_last_round failed (${cancel.s}): ${JSON.stringify(cancel.b).slice(0, 200)}`);
+    if (cancel.s !== 200)
+      throw new Error(`cancel_last_round failed (${cancel.s}): ${JSON.stringify(cancel.b).slice(0, 200)}`);
     const freedCourseMatches = cancel.b?.data?.freedCourse === resolvedCourse;
 
     const afterCancel = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
     const roundGoneAfterCancel = !(afterCancel.rounds ?? []).some((r) => r.roundNumber === roundNumber);
     const courseFreedAfterCancel = (afterCancel.availableCourses ?? []).includes(resolvedCourse);
 
-    const ok = sdResolvedBeforeUndo && sdClearedAfterUndo && roundKeptOpen &&
-      !courseFreedYet && freedCourseMatches && roundGoneAfterCancel && courseFreedAfterCancel;
-    log('TC-3002', ok ? 'PASS' : 'FAIL',
-      !sdResolvedBeforeUndo ? 'sudden death round not resolved before undo'
-      : !sdClearedAfterUndo ? 'orphaned sudden-death round survived undo_round'
-      : !roundKeptOpen ? `undo_round did not keep round open on same course (got ${JSON.stringify(roundAfterUndo)})`
-      : courseFreedYet ? 'course was freed before cancel_last_round was called'
-      : !freedCourseMatches ? `cancel_last_round returned unexpected freedCourse (${cancel.b?.data?.freedCourse})`
-      : !roundGoneAfterCancel ? 'round still present after cancel_last_round'
-      : !courseFreedAfterCancel ? 'course not returned to pool after cancel_last_round' : '');
+    const ok =
+      sdResolvedBeforeUndo &&
+      sdClearedAfterUndo &&
+      roundKeptOpen &&
+      !courseFreedYet &&
+      freedCourseMatches &&
+      roundGoneAfterCancel &&
+      courseFreedAfterCancel;
+    log(
+      'TC-3002',
+      ok ? 'PASS' : 'FAIL',
+      !sdResolvedBeforeUndo
+        ? 'sudden death round not resolved before undo'
+        : !sdClearedAfterUndo
+          ? 'orphaned sudden-death round survived undo_round'
+          : !roundKeptOpen
+            ? `undo_round did not keep round open on same course (got ${JSON.stringify(roundAfterUndo)})`
+            : courseFreedYet
+              ? 'course was freed before cancel_last_round was called'
+              : !freedCourseMatches
+                ? `cancel_last_round returned unexpected freedCourse (${cancel.b?.data?.freedCourse})`
+                : !roundGoneAfterCancel
+                  ? 'round still present after cancel_last_round'
+                  : !courseFreedAfterCancel
+                    ? 'course not returned to pool after cancel_last_round'
+                    : '',
+    );
   } catch (err) {
     log('TC-3002', 'FAIL', err instanceof Error ? err.message : 'TA 3002 failed');
   } finally {
@@ -2882,7 +3324,9 @@ async function runTc3002(adminPage) {
 async function runTc3003(adminPage) {
   let setup = null;
   try {
-    setup = await createIsolatedTaQualification(adminPage, 'Final Round Correction', sharedTaPlayers(24), { seedTimes: false });
+    setup = await createIsolatedTaQualification(adminPage, 'Final Round Correction', sharedTaPlayers(24), {
+      seedTimes: false,
+    });
     const { tournamentId } = setup;
     await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
     await uiFreezeTaQualification(adminPage, tournamentId);
@@ -2902,15 +3346,21 @@ async function runTc3003(adminPage) {
 
     // The normal "Start Round N" control belongs to the pre-completion card
     // and must be gone now that the phase is complete.
-    const startRoundGone = (await adminPage.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ }).count()) === 0;
+    const startRoundGone =
+      (await adminPage.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ }).count()) === 0;
 
     // The Undo-vs-Cancel explainer travels with the correction buttons; it
     // must open on click (without triggering either destructive action) and
     // show the comparison text.
-    const helpButton = adminPage.getByRole('button', { name: /Explain the difference between Undo and Cancel|「取り消す」と「キャンセル」の違いを説明/ });
+    const helpButton = adminPage.getByRole('button', {
+      name: /Explain the difference between Undo and Cancel|「取り消す」と「キャンセル」の違いを説明/,
+    });
     await helpButton.click();
-    const helpPopoverVisible = await adminPage.getByText(/Undo vs\. Cancel|「取り消す」と「キャンセル」の違い/).first()
-      .isVisible({ timeout: 5000 }).catch(() => false);
+    const helpPopoverVisible = await adminPage
+      .getByText(/Undo vs\. Cancel|「取り消す」と「キャンセル」の違い/)
+      .first()
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
     await adminPage.keyboard.press('Escape');
 
     // Use the shared undo helper — it locates "Undo Last Round" by role/name
@@ -2924,15 +3374,27 @@ async function runTc3003(adminPage) {
     // Undoing the final round makes the phase incomplete again, so the
     // correction card must disappear on a fresh load.
     await nav(adminPage, `/tournaments/${tournamentId}/ta/phase1`);
-    const correctionCardGone = await correctionCard.isVisible({ timeout: 5000 }).then((visible) => !visible).catch(() => true);
+    const correctionCardGone = await correctionCard
+      .isVisible({ timeout: 5000 })
+      .then((visible) => !visible)
+      .catch(() => true);
 
     const ok = correctionCardVisible && startRoundGone && helpPopoverVisible && playerRestored && correctionCardGone;
-    log('TC-3003', ok ? 'PASS' : 'FAIL',
-      !correctionCardVisible ? 'final-round correction card not visible on a complete phase'
-      : !startRoundGone ? 'round-management Start Round control still visible on a complete phase'
-      : !helpPopoverVisible ? 'Undo-vs-Cancel explainer popover did not open from its info button'
-      : !playerRestored ? `undo did not restore eliminated player (active before=${activeBeforeUndo}, after=${activeAfterUndo})`
-      : !correctionCardGone ? 'correction card still visible after phase became incomplete again' : '');
+    log(
+      'TC-3003',
+      ok ? 'PASS' : 'FAIL',
+      !correctionCardVisible
+        ? 'final-round correction card not visible on a complete phase'
+        : !startRoundGone
+          ? 'round-management Start Round control still visible on a complete phase'
+          : !helpPopoverVisible
+            ? 'Undo-vs-Cancel explainer popover did not open from its info button'
+            : !playerRestored
+              ? `undo did not restore eliminated player (active before=${activeBeforeUndo}, after=${activeAfterUndo})`
+              : !correctionCardGone
+                ? 'correction card still visible after phase became incomplete again'
+                : '',
+    );
   } catch (err) {
     log('TC-3003', 'FAIL', err instanceof Error ? err.message : 'TA 3003 failed');
   } finally {
@@ -2954,12 +3416,27 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     results,
     log,
     beforeAll: async (adminPage) => {
-      sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
+      sharedFixture = externalFixture ?? (await createSharedE2eFixture(adminPage));
       const selected = new Set(selectedTestNames());
-      const needsSharedTaSeed = selected.size === 0 || [
-        'TC-801', 'TC-802', 'TC-837', 'TC-839', 'TC-840', 'TC-878', 'TC-808A', 'TC-897', 'TC-913',
-        'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808', 'TC-816',
-      ].some((name) => selected.has(name));
+      const needsSharedTaSeed =
+        selected.size === 0 ||
+        [
+          'TC-801',
+          'TC-802',
+          'TC-837',
+          'TC-839',
+          'TC-840',
+          'TC-878',
+          'TC-808A',
+          'TC-897',
+          'TC-913',
+          'TC-804',
+          'TC-805',
+          'TC-806',
+          'TC-807',
+          'TC-808',
+          'TC-816',
+        ].some((name) => selected.has(name));
 
       if (needsSharedTaSeed) {
         const { tournamentId, entries } = await setupTaEntriesFromShared(
@@ -3007,6 +3484,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-806', fn: runTc806 },
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },
+      { name: 'TC-3034', fn: runTc3034 },
       { name: 'TC-812', fn: runTc812 },
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
@@ -3030,11 +3508,44 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc808A, runTc809, runTc810, runTc811,
-  runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
-  runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
-  runTc2773a, runTc2773b, runTc2779, runTc2781,
-  runTc3001, runTc3002, runTc3003,
+  runTc801,
+  runTc802,
+  runTc839,
+  runTc804,
+  runTc805,
+  runTc806,
+  runTc807,
+  runTc808,
+  runTc808A,
+  runTc809,
+  runTc810,
+  runTc811,
+  runTc837,
+  runTc840,
+  runTc878,
+  runTc896,
+  runTc897,
+  runTc913,
+  runTc1987,
+  runTc812,
+  runTc813,
+  runTc814,
+  runTc1032,
+  runTc1033,
+  runTc815,
+  runTc816,
+  runTc817,
+  runTc1005,
+  runTc2293,
+  runTc2400,
+  runTc2773a,
+  runTc2773b,
+  runTc2779,
+  runTc2781,
+  runTc3001,
+  runTc3002,
+  runTc3003,
+  runTc3034,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,

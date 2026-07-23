@@ -3723,6 +3723,18 @@
 - **期待結果**: チャンピオン決定時に Champion バナー/テキストがページに表示され、Undo-vs-Cancel説明ポップオーバーも開く
 - **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-808 (`node e2e/tc-ta.js`)
 
+## TC-3034: TA Top 2 の管理者ライフ調整
+- **URL**: /tournaments/[temp-id]/ta/finals
+- **authRequired**: true (admin)
+- **背景**: 標準 TA の Top 2 では、管理者が次ラウンド開始前に両選手を3から5ライフへ手動調整する。大会全体の初期ライフは変更しない。
+- **手順**:
+  1. 2名を標準 TA の Phase 3 へ昇格し、双方が3ライフであることを確認する
+  2. `/ta/finals` の警告を確認し、管理者操作で両選手のライフを5に保存する
+  3. 決着する通常ラウンドを1回実行し、残りライフが5/4になることを確認する
+  4. 一時トーナメントを削除する
+- **期待結果**: 管理者だけがTop 2のライフを補正でき、次ラウンドでは5/4が永続化される
+- **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-3034
+
 ## TC-TA-FLOW-24: 24名 TA full lifecycle
 - **URL**: /tournaments/[temp-id]/ta, /ta/phase1, /ta/phase2, /ta/finals
 - **authRequired**: true (admin)

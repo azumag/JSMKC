@@ -66,5 +66,6 @@ export interface TaPhaseResponse {
   rounds?: TaPhaseRound[];
   availableCourses?: string[];
   playedCourses?: string[];
+  frozenStages?: string[];
   archived?: boolean;
 }

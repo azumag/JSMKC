@@ -165,6 +165,10 @@ const auditLogMock = jest.requireMock('@/lib/audit-log') as {
   createAuditLogs: jest.Mock;
 };
 
+const freezeCheckMock = jest.requireMock('@/lib/ta/freeze-check') as {
+  checkStageFrozen: jest.Mock;
+};
+
 // Valid CUIDs for tests — the TA route uses z.string().cuid() for validation
 const VALID_UUID = 'clxxxxxxxxxxxxxxxxtournmt';
 const VALID_UUID2 = 'clxxxxxxxxxxxxxxxxxplayer';
@@ -921,6 +925,285 @@ describe('/api/tournaments/[id]/ta', () => {
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 },
       );
+    });
+
+    it('sets an active Phase 3 entry to an exact life total with optimistic locking', async () => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      const currentEntry = {
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        stage: 'phase3',
+        lives: 3,
+        eliminated: false,
+        version: 7,
+        player: { id: 'p1', nickname: 'Mario' },
+      };
+      const updatedEntry = { ...currentEntry, lives: 5, version: 8 };
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce(currentEntry).mockResolvedValueOnce(updatedEntry);
+      (prisma.$executeRaw as jest.Mock).mockResolvedValue(1);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 7,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targetId: VALID_ENTRY_ID,
+          details: expect.objectContaining({ oldLives: 3, newLives: 5, manualUpdate: true }),
+        }),
+      );
+      expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { entry: updatedEntry } });
+    });
+
+    it('requires an administrator for an exact-life adjustment', async () => {
+      jest.mocked(auth).mockResolvedValue(null);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 0,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
+        { status: 403 },
+      );
+    });
+
+    it.each([0, 11])('rejects an exact-life target outside the supported range (%s)', async (lives) => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives,
+            expectedVersion: 0,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(prisma.tTEntry.findUnique).not.toHaveBeenCalled();
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'VALIDATION_ERROR' }), {
+        status: 400,
+      });
+    });
+
+    it.each([
+      { stage: 'phase2', eliminated: false, label: 'not in Phase 3' },
+      { stage: 'phase3', eliminated: true, label: 'already eliminated' },
+    ])('rejects an exact-life adjustment when the entry is $label', async ({ stage, eliminated }) => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        stage,
+        lives: 3,
+        eliminated,
+        version: 0,
+        player: { id: 'p1', nickname: 'Mario' },
+      });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 0,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CONFLICT' }), { status: 409 });
+    });
+
+    it('rejects an exact-life adjustment while Phase 3 is frozen', async () => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        stage: 'phase3',
+        lives: 3,
+        eliminated: false,
+        version: 0,
+        player: { id: 'p1', nickname: 'Mario' },
+      });
+      const frozenResponse = { status: 423 };
+      freezeCheckMock.checkStageFrozen.mockResolvedValueOnce(frozenResponse);
+
+      const response = await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 0,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(response).toBe(frozenResponse);
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('rejects a stale exact-life adjustment instead of applying it to a newer round result', async () => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        stage: 'phase3',
+        lives: 2,
+        eliminated: false,
+        version: 8,
+        player: { id: 'p1', nickname: 'Mario' },
+      });
+      (prisma.$executeRaw as jest.Mock).mockResolvedValue(0);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 7,
+            expectedLives: 2,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'OPTIMISTIC_LOCK_ERROR' }), {
+        status: 409,
+      });
+    });
+
+    it('rejects exact-life adjustment for an entry in another tournament', async () => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID2,
+        stage: 'phase3',
+        lives: 3,
+        eliminated: false,
+        version: 0,
+        player: { id: 'p1', nickname: 'Mario' },
+      });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 0,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Entry not found', code: 'NOT_FOUND' },
+        { status: 404 },
+      );
+    });
+
+    it('rejects exact-life adjustment while a Phase 3 round is open', async () => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        stage: 'phase3',
+        lives: 3,
+        eliminated: false,
+        version: 0,
+        player: { id: 'p1', nickname: 'Mario' },
+      });
+      (prisma.tTPhaseRound.findFirst as jest.Mock).mockResolvedValue({ id: 'open-round' });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 0,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CONFLICT' }), { status: 409 });
+    });
+
+    it('rejects exact-life adjustment for TA battle royale', async () => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        stage: 'phase3',
+        lives: 3,
+        eliminated: false,
+        version: 0,
+        player: { id: 'p1', nickname: 'Mario' },
+      });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ taBattleRoyaleMode: true });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'set_lives',
+            lives: 5,
+            expectedVersion: 0,
+            expectedLives: 3,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) },
+      );
+
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CONFLICT' }), { status: 409 });
     });
 
     it('should return 403 for reset_lives action without admin auth', async () => {

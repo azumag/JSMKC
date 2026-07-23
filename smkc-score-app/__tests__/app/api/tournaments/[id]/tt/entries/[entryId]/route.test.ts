@@ -39,7 +39,10 @@ jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/optimistic-locking', () => ({
   updateTTEntry: jest.fn(),
   OptimisticLockError: class OptimisticLockError extends Error {
-    constructor(message: string, public currentVersion: number) {
+    constructor(
+      message: string,
+      public currentVersion: number,
+    ) {
       super(message);
       this.name = 'OptimisticLockError';
     }
@@ -99,14 +102,18 @@ class MockNextRequest {
   constructor(
     private url: string,
     private body?: unknown,
-    headers?: Map<string, string>
+    headers?: Map<string, string>,
   ) {
     this._headers = headers || new Map();
   }
-  async json() { return this.body; }
-  get header() { return { get: (key: string) => this._headers.get(key) }; }
+  async json() {
+    return this.body;
+  }
+  get header() {
+    return { get: (key: string) => this._headers.get(key) };
+  }
   headers = {
-    get: (key: string) => this._headers.get(key)
+    get: (key: string) => this._headers.get(key),
   };
 }
 
@@ -181,7 +188,11 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.data).toEqual({ success: false, error: 'Failed to fetch time trial entry' });
       expect(result.status).toBe(500);
       /* Logger is called before handleDatabaseError, so both are invoked */
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch entry', { error: expect.any(Error), entryId: 'e1', tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch entry', {
+        error: expect.any(Error),
+        entryId: 'e1',
+        tournamentId: 't1',
+      });
     });
 
     it('should handle invalid entry ID gracefully', async () => {
@@ -264,9 +275,9 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       };
 
       (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ playerId: 'p1', stage: 'qualification', tournamentId: 't1' })  // ownership check
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })                  // recalculate lookup
-        .mockResolvedValueOnce(mockEntryFull);                                                   // re-fetch after update
+        .mockResolvedValueOnce({ playerId: 'p1', stage: 'qualification', tournamentId: 't1' }) // ownership check
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' }) // recalculate lookup
+        .mockResolvedValueOnce(mockEntryFull); // re-fetch after update
 
       const updateResult = { id: 'e1', version: 2 };
       (updateTTEntry as jest.Mock).mockResolvedValue(updateResult);
@@ -283,8 +294,27 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.data.success).toBe(true);
     });
 
+    it('does not allow a player to change their own lives through the legacy entry endpoint', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
+      });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        playerId: 'p1',
+        stage: 'phase3',
+        tournamentId: 't1',
+      });
+
+      const result = await PUT(
+        new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', { lives: 5, version: 0 }),
+        { params: Promise.resolve({ id: 't1', entryId: 'e1' }) },
+      );
+
+      expect(result.status).toBe(403);
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
     // Authorization: player cannot update another player's entry
-    it('should return 403 when player tries to update another player\'s entry', async () => {
+    it("should return 403 when player tries to update another player's entry", async () => {
       jest.mocked(auth).mockResolvedValue({
         user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
       });
@@ -369,18 +399,13 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
         data: { ...mockEntry, version: 2 },
       });
       expect(result.status).toBe(200);
-      expect(updateTTEntry).toHaveBeenCalledWith(
-        prisma,
-        'e1',
-        1,
-        {
-          times: [1000, 2000],
-          totalTime: 3000,
-          rank: 1,
-          eliminated: false,
-          lives: 3,
-        }
-      );
+      expect(updateTTEntry).toHaveBeenCalledWith(prisma, 'e1', 1, {
+        times: [1000, 2000],
+        totalTime: 3000,
+        rank: 1,
+        eliminated: false,
+        lives: 3,
+      });
     });
 
     it('should update entry with partial fields', async () => {
@@ -417,18 +442,13 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.status).toBe(200);
       // When times is not provided in the request body, JavaScript destructuring
       // yields undefined (not null). The source passes this value through to updateTTEntry.
-      expect(updateTTEntry).toHaveBeenCalledWith(
-        prisma,
-        'e1',
-        1,
-        {
-          times: undefined,
-          totalTime: 3000,
-          rank: 2,
-          eliminated: true,
-          lives: 0,
-        }
-      );
+      expect(updateTTEntry).toHaveBeenCalledWith(prisma, 'e1', 1, {
+        times: undefined,
+        totalTime: 3000,
+        rank: 2,
+        eliminated: true,
+        lives: 0,
+      });
     });
 
     it('should return 400 when version is missing', async () => {
@@ -439,7 +459,10 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
+      expect(result.data).toMatchObject({
+        success: false,
+        error: 'version is required and must be a non-negative integer',
+      });
       expect(result.status).toBe(400);
     });
 
@@ -452,7 +475,10 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
+      expect(result.data).toMatchObject({
+        success: false,
+        error: 'version is required and must be a non-negative integer',
+      });
       expect(result.status).toBe(400);
     });
 
@@ -468,14 +494,16 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
+      expect(result.data).toMatchObject({
+        success: false,
+        error: 'version is required and must be a non-negative integer',
+      });
       expect(result.status).toBe(400);
     });
 
     it('should return 400 when times is partial (fewer than 20 courses)', async () => {
       /* Admin freeze check must pass before validation is reached */
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
       // Only 2 courses supplied — all 20 are required (issue #624).
       // Use correct M:SS.mm format so the format check passes and only the partial-times check fires.
@@ -494,15 +522,33 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     it('should return 400 when times has all 20 keys but some are empty strings', async () => {
       /* Admin freeze check must pass before validation is reached */
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
       // Build a times object with all 20 courses but leave RR empty.
       // Use correct M:SS.mm format so the format check passes for non-empty entries.
       const partialTimes = Object.fromEntries(
-        ['MC1','DP1','GV1','BC1','MC2','CI1','GV2','DP2','BC2','MC3',
-         'KB1','CI2','VL1','BC3','MC4','DP3','KB2','GV3','VL2','RR']
-          .map((c) => [c, c === 'RR' ? '' : '1:24.00'])
+        [
+          'MC1',
+          'DP1',
+          'GV1',
+          'BC1',
+          'MC2',
+          'CI1',
+          'GV2',
+          'DP2',
+          'BC2',
+          'MC3',
+          'KB1',
+          'CI2',
+          'VL1',
+          'BC3',
+          'MC4',
+          'DP3',
+          'KB2',
+          'GV3',
+          'VL2',
+          'RR',
+        ].map((c) => [c, c === 'RR' ? '' : '1:24.00']),
       );
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: partialTimes,
@@ -518,8 +564,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     it('should return 400 when times contain seconds greater than 59', async () => {
       /* Admin freeze check must pass before validation is reached */
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: { MC1: '0:84:00' },
@@ -528,15 +573,18 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'Invalid time format for MC1: 0:84:00', field: 'times' });
+      expect(result.data).toMatchObject({
+        success: false,
+        error: 'Invalid time format for MC1: 0:84:00',
+        field: 'times',
+      });
       expect(result.status).toBe(400);
       expect(updateTTEntry).not.toHaveBeenCalled();
     });
 
     it('should return 400 when times contain malformed strings', async () => {
       /* Admin freeze check must pass before validation is reached */
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: { MC1: '1:23' },
@@ -584,7 +632,10 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.data).toEqual({ success: false, error: 'Failed to update time trial entry' });
       expect(result.status).toBe(500);
       /* Logger is called before handleDatabaseError */
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to update entry', { error: expect.any(Error), entryId: 'e1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to update entry', {
+        error: expect.any(Error),
+        entryId: 'e1',
+      });
     });
 
     it('should handle empty body gracefully', async () => {
@@ -592,7 +643,10 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
+      expect(result.data).toMatchObject({
+        success: false,
+        error: 'version is required and must be a non-negative integer',
+      });
       expect(result.status).toBe(400);
     });
 
@@ -679,9 +733,9 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
        *   2. recalculate stage lookup → valid entry (times !== undefined triggers this)
        *   3. re-fetch after update → null (simulates entry deleted mid-flight, issue #273) */
       (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })  // freeze check
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })  // recalculate lookup
-        .mockResolvedValueOnce(null);                                            // final re-fetch → 404
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' }) // freeze check
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' }) // recalculate lookup
+        .mockResolvedValueOnce(null); // final re-fetch → 404
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: [1000],
@@ -697,12 +751,15 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
     it('should handle invalid JSON body', async () => {
       /* Admin freeze check must pass before JSON parsing is reached */
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
       class MockRequestInvalid {
-        async json() { throw new Error('Invalid JSON'); }
-        get header() { return { get: () => undefined }; }
+        async json() {
+          throw new Error('Invalid JSON');
+        }
+        get header() {
+          return { get: () => undefined };
+        }
         headers = { get: () => undefined };
       }
 
@@ -719,8 +776,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       // Admin path calls checkStageFrozen after fetching the entry's stage.
       // A frozen stage must block even admin users from editing times.
       (checkStageFrozen as jest.Mock).mockResolvedValueOnce(frozenStageResponse);
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: [1000],
@@ -740,8 +796,11 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       });
       (checkStageFrozen as jest.Mock).mockResolvedValueOnce(frozenStageResponse);
       // Player ownership check: entry belongs to p1 with stage info
-      (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ playerId: 'p1', stage: 'qualification', tournamentId: 't1' });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        playerId: 'p1',
+        stage: 'qualification',
+        tournamentId: 't1',
+      });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: [1000],
@@ -759,13 +818,18 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       // All courses from the canonical COURSES constant. The last course gets a
       // distinct time so lastRecordedTime is unambiguous (not just '1:23.00').
       const lastCourse = COURSES[COURSES.length - 1];
-      const allCourseTimes = Object.fromEntries(
-        COURSES.map((c) => [c, c === lastCourse ? '1:24.56' : '1:23.00'])
-      );
+      const allCourseTimes = Object.fromEntries(COURSES.map((c) => [c, c === lastCourse ? '1:24.56' : '1:23.00']));
       const mockEntry = {
-        id: 'e1', playerId: 'p1', tournamentId: 't1',
-        times: allCourseTimes, totalTime: null, rank: null,
-        eliminated: false, lives: 3, stage: 'qualification', version: 2,
+        id: 'e1',
+        playerId: 'p1',
+        tournamentId: 't1',
+        times: allCourseTimes,
+        totalTime: null,
+        rank: null,
+        eliminated: false,
+        lives: 3,
+        stage: 'qualification',
+        version: 2,
         player: { id: 'p1', name: 'Player 1', nickname: 'P1' },
         tournament: { id: 't1', name: 'Test Tournament' },
       };
@@ -795,9 +859,16 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
     // TC-2604: recalculateRanks is called with the correct tournamentId and stage
     it('TC-2604: should call recalculateRanks with tournamentId and stage from the entry lookup', async () => {
       const mockEntry = {
-        id: 'e1', playerId: 'p1', tournamentId: 'tournament-abc',
-        times: [1000], totalTime: 1000, rank: 1,
-        eliminated: false, lives: 3, stage: 'phase1', version: 2,
+        id: 'e1',
+        playerId: 'p1',
+        tournamentId: 'tournament-abc',
+        times: [1000],
+        totalTime: 1000,
+        rank: 1,
+        eliminated: false,
+        lives: 3,
+        stage: 'phase1',
+        version: 2,
         player: { id: 'p1', name: 'Player 1', nickname: 'P1' },
         tournament: { id: 'tournament-abc', name: 'Test Tournament' },
       };

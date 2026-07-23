@@ -89,12 +89,19 @@ interface TTEntry {
   playerId: string;
   stage: string;
   lives: number;
+  version: number;
   eliminated: boolean;
   times: Record<string, string> | null;
   totalTime: number | null;
   rank: number | null;
   taHandicapSeconds: number;
   player: Player;
+}
+
+interface LifeInputSnapshot {
+  value: string;
+  expectedVersion: number;
+  expectedLives: number;
 }
 
 /** Round record from the phases API */
@@ -207,6 +214,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   // Admin action states
   const [isEliminateDialogOpen, setIsEliminateDialogOpen] = useState(false);
   const [entryToEliminate, setEntryToEliminate] = useState<TTEntry | null>(null);
+  const [lifeInputs, setLifeInputs] = useState<Record<string, LifeInputSnapshot>>({});
+  const [savingLifeEntryId, setSavingLifeEntryId] = useState<string | null>(null);
 
   // Map of playerId → nickname for round history display
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
@@ -223,6 +232,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
     retryAppliesHandicap: false,
   });
   const [archived, setArchived] = useState(false);
+  const [phase3Frozen, setPhase3Frozen] = useState(false);
   const [pendingSubmitResults, setPendingSubmitResults] = useState<
     Array<{ playerId: string; timeMs: number; isRetry?: boolean; tvNumber?: number }>
   >([]);
@@ -247,6 +257,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         setPhase3Rules(data.phase3Rules as Phase3RulesDto);
       }
       setArchived(data.archived === true);
+      setPhase3Frozen(Array.isArray(data.frozenStages) && data.frozenStages.includes('phase3'));
       const fetchedEntries: TTEntry[] = data.entries || [];
       const fetchedRounds: PhaseRound[] = data.rounds || [];
       setEntries(fetchedEntries);
@@ -701,6 +712,48 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
     }
   };
 
+  const handleSetLives = async (entry: TTEntry) => {
+    const input = lifeInputs[entry.id];
+    const requestedLives = Number(input?.value ?? entry.lives);
+    if (!Number.isInteger(requestedLives) || requestedLives < 1 || requestedLives > 10) {
+      alert(tTaFinals('invalidLives'));
+      return;
+    }
+    if (requestedLives === entry.lives) return;
+    setSavingLifeEntryId(entry.id);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entryId: entry.id,
+          action: 'set_lives',
+          lives: requestedLives,
+          // Capture these when editing begins. Polling may refresh `entry`
+          // while an administrator is typing, but must not silently turn a
+          // stale edit into an update against the newer entry state.
+          expectedVersion: input?.expectedVersion ?? entry.version,
+          expectedLives: input?.expectedLives ?? entry.lives,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || tTaFinals('livesUpdateFailed'));
+      }
+      setLifeInputs((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
+      fetchData();
+    } catch (err) {
+      logger.error('Failed to set player lives:', { error: err, tournamentId, entryId: entry.id });
+      alert(err instanceof Error ? err.message : tTaFinals('livesUpdateFailed'));
+    } finally {
+      setSavingLifeEntryId(null);
+    }
+  };
+
   // === Derived State ===
   const activeEntries = entries.filter((e) => !e.eliminated);
   const eliminatedEntries = entries.filter((e) => e.eliminated);
@@ -708,6 +761,14 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
 
   // Check if there's an open (unsubmitted) round
   const hasOpenRound = rounds.length > 0 && (rounds[rounds.length - 1].results as unknown[]).length === 0;
+  const lifeAdjustmentDisabled =
+    hasOpenRound || submitting || startingRound || Boolean(pendingSuddenDeath) || phase3Frozen || taMode !== 'standard';
+  const top2NeedsLifeAdjustment =
+    Boolean(isAdmin) &&
+    !archived &&
+    taMode === 'standard' &&
+    activeEntries.length === 2 &&
+    activeEntries.some((entry) => entry.lives !== 5);
 
   /** Count of completed rounds (with submitted results), used in multiple sections */
   const completedRoundsCount = rounds.filter((r) => (r.results as unknown[]).length > 0).length;
@@ -863,6 +924,14 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         </Card>
       )}
 
+      {top2NeedsLifeAdjustment && (
+        <Card className="border-yellow-500 bg-yellow-500/10" data-testid="ta-top2-life-adjustment-warning">
+          <CardContent className="py-4 text-center text-yellow-800">
+            {tTaFinals('top2LifeAdjustmentWarning')}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sudden-death panel (admin-only) */}
       <TASuddenDeathSection
         isAdmin={canManage}
@@ -922,6 +991,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                         maxLives={phase3Rules.initialLives}
                         eliminated={entry.eliminated}
                         eliminatedLabel={tTaFinals('eliminated')}
+                        showMax={taMode === 'battle_royale'}
                       />
                     }
                     tvNumber={tvAssignments[entry.playerId] ?? null}
@@ -1159,7 +1229,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                 <TableHead>{tCommon('player')}</TableHead>
                 {phase3Rules.handicapEnabled && <TableHead>{tTaFinals('handicap')}</TableHead>}
                 <TableHead className="text-center">{tTaFinals('lives')}</TableHead>
-                {/* Actions column: admin-only (manual elimination) */}
+                {/* Actions column: admin-only emergency corrections */}
                 {canManage && <TableHead className="text-right">{tCommon('actions')}</TableHead>}
               </TableRow>
             </TableHeader>
@@ -1186,22 +1256,64 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                       maxLives={phase3Rules.initialLives}
                       eliminated={entry.eliminated}
                       eliminatedLabel={tTaFinals('eliminated')}
+                      showMax={taMode === 'battle_royale'}
                     />
                   </TableCell>
-                  {/* Admin-only: manual elimination button */}
+                  {/* Admin-only: exact life adjustment and manual elimination */}
                   {canManage && (
                     <TableCell className="text-right">
                       {!entry.eliminated && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEntryToEliminate(entry);
-                            setIsEliminateDialogOpen(true);
-                          }}
-                        >
-                          {tTaFinals('eliminate')}
-                        </Button>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {taMode === 'standard' && (
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor={`ta-lives-${entry.id}`} className="sr-only">
+                                {tTaFinals('setLivesFor', { player: entry.player.nickname })}
+                              </Label>
+                              <input
+                                id={`ta-lives-${entry.id}`}
+                                type="number"
+                                min={1}
+                                max={10}
+                                inputMode="numeric"
+                                className="h-8 w-16 rounded border bg-background px-2 text-center text-sm"
+                                aria-label={tTaFinals('setLivesFor', { player: entry.player.nickname })}
+                                data-testid={`ta-set-lives-${entry.id}`}
+                                value={lifeInputs[entry.id]?.value ?? String(entry.lives)}
+                                onChange={(event) =>
+                                  setLifeInputs((current) => ({
+                                    ...current,
+                                    [entry.id]: {
+                                      value: event.target.value,
+                                      expectedVersion: current[entry.id]?.expectedVersion ?? entry.version,
+                                      expectedLives: current[entry.id]?.expectedLives ?? entry.lives,
+                                    },
+                                  }))
+                                }
+                                disabled={lifeAdjustmentDisabled || savingLifeEntryId === entry.id}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void handleSetLives(entry)}
+                                disabled={lifeAdjustmentDisabled || savingLifeEntryId === entry.id}
+                                aria-label={tTaFinals('saveLivesFor', { player: entry.player.nickname })}
+                                data-testid={`ta-save-lives-${entry.id}`}
+                              >
+                                {savingLifeEntryId === entry.id ? tCommon('saving') : tTaFinals('saveLives')}
+                              </Button>
+                            </div>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEntryToEliminate(entry);
+                              setIsEliminateDialogOpen(true);
+                            }}
+                          >
+                            {tTaFinals('eliminate')}
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   )}

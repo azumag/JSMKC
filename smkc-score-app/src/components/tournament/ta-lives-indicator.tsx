@@ -6,12 +6,15 @@ export function TaLivesIndicator({
   eliminated,
   eliminatedLabel,
   ariaLabel,
+  showMax = true,
 }: {
   lives: number;
   maxLives: number;
   eliminated: boolean;
   eliminatedLabel: string;
   ariaLabel?: string;
+  /** Phase 3 can have an operator-set value above its normal initial lives. */
+  showMax?: boolean;
 }) {
   if (eliminated) {
     return (
@@ -22,7 +25,7 @@ export function TaLivesIndicator({
   }
 
   const normalizedLives = Math.max(0, lives);
-  const label = ariaLabel ?? `${normalizedLives}/${maxLives}`;
+  const label = ariaLabel ?? (showMax ? `${normalizedLives}/${maxLives}` : `${normalizedLives}`);
   return (
     <span
       className={cn(
@@ -31,7 +34,8 @@ export function TaLivesIndicator({
       )}
       aria-label={label}
     >
-      ♥ {normalizedLives}/{maxLives}
+      ♥ {normalizedLives}
+      {showMax && `/${maxLives}`}
     </span>
   );
 }

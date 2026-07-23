@@ -20,6 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
@@ -117,7 +118,8 @@ const PostRequestSchema = z
  * PUT request body schema.
  * Supports multiple update modes:
  * - "update_times": Update course times (requires times object or course+time pair)
- * - "update_lives": Change life count (requires livesDelta)
+ * - "update_lives": Change life count by a delta (requires livesDelta)
+ * - "set_lives": Set an active Phase 3 player's life count exactly
  * - "eliminate": Set elimination status (requires eliminated boolean)
  * - "reset_lives": Reset all active players' lives to initial value
  * - "set_partner": Set partner player ID for pair running (§3.1, admin only)
@@ -129,26 +131,31 @@ const PutRequestSchema = z
     time: z.string().optional(),
     times: TimesObjectSchema.optional(),
     livesDelta: z.number().optional(),
+    lives: z.number().int().min(1).max(10).optional(),
+    expectedVersion: z.number().int().nonnegative().optional(),
+    expectedLives: z.number().int().min(1).max(10).optional(),
     eliminated: z.boolean().optional(),
     partnerId: z.string().cuid().nullable().optional(),
     seeding: z.number().int().nonnegative().nullable().optional(),
     action: z
-      .enum(['update_times', 'update_lives', 'eliminate', 'reset_lives', 'set_partner', 'update_seeding'])
+      .enum(['update_times', 'update_lives', 'set_lives', 'eliminate', 'reset_lives', 'set_partner', 'update_seeding'])
       .optional(),
   })
   .refine(
     (data) =>
       data.action === 'update_lives'
         ? data.livesDelta !== undefined
-        : data.action === 'eliminate'
-          ? data.eliminated !== undefined
-          : data.action === 'reset_lives'
-            ? true
-            : data.action === 'set_partner'
+        : data.action === 'set_lives'
+          ? data.lives !== undefined && data.expectedVersion !== undefined && data.expectedLives !== undefined
+          : data.action === 'eliminate'
+            ? data.eliminated !== undefined
+            : data.action === 'reset_lives'
               ? true
-              : data.action === 'update_seeding'
+              : data.action === 'set_partner'
                 ? true
-                : data.times !== undefined || (data.course !== undefined && data.time !== undefined),
+                : data.action === 'update_seeding'
+                  ? true
+                  : data.times !== undefined || (data.course !== undefined && data.time !== undefined),
     { message: 'Invalid request for action' },
   );
 
@@ -549,7 +556,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const { entryId, action, eliminated, livesDelta, partnerId, seeding } = parseResult.data;
+    const { entryId, action, eliminated, livesDelta, lives, expectedVersion, expectedLives, partnerId, seeding } =
+      parseResult.data;
 
     // === Partner Assignment (§3.1) ===
     // Set or clear the partner player ID for pair running (admin only)
@@ -672,6 +680,100 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }),
       );
 
+      return createSuccessResponse({ entry: updatedEntry });
+    }
+
+    // === Exact Life Adjustment ===
+    // Live-operation correction for standard TA: sets an absolute target while
+    // rejecting a stale screen or any in-progress Phase 3 work.
+    if (action === 'set_lives') {
+      const authResult = await requireAdminSession();
+      if (authResult.error) return authResult.error;
+
+      const entry = await prisma.tTEntry.findUnique({
+        where: { id: entryId },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
+      });
+      if (!entry || entry.tournamentId !== tournamentId) {
+        return createErrorResponse('Entry not found', 404, 'NOT_FOUND');
+      }
+      if (entry.stage !== 'phase3' || entry.eliminated) {
+        return createErrorResponse('Lives can only be adjusted for active Phase 3 entries', 409, 'CONFLICT');
+      }
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { taBattleRoyaleMode: true },
+      });
+      if (tournament?.taBattleRoyaleMode === true) {
+        return createErrorResponse('Manual life adjustment is only available for standard TA', 409, 'CONFLICT');
+      }
+      const livesFreeze = await checkStageFrozen(prisma, tournamentId, entry.stage);
+      if (livesFreeze) return livesFreeze;
+      const activePhase3Work = await prisma.tTPhaseRound.findFirst({
+        where: {
+          tournamentId,
+          phase: 'phase3',
+          OR: [{ submittedAt: null }, { suddenDeathRounds: { some: { resolved: false } } }],
+        },
+        select: { id: true },
+      });
+      if (activePhase3Work) {
+        return createErrorResponse('Lives can only be adjusted between fully resolved Phase 3 rounds', 409, 'CONFLICT');
+      }
+      // Keep the phase-state predicate in the same SQL statement as the CAS
+      // update. A separate read followed by update has a gap where a round can
+      // open after the read but before the life value is written.
+      const updated = await prisma.$executeRaw(
+        Prisma.sql`
+          UPDATE "TTEntry"
+          SET "lives" = ${lives}, "version" = "version" + 1, "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "id" = ${entryId}
+            AND "tournamentId" = ${tournamentId}
+            AND "stage" = 'phase3'
+            AND "eliminated" = false
+            AND "version" = ${expectedVersion}
+            AND "lives" = ${expectedLives}
+            AND NOT EXISTS (
+              SELECT 1
+              FROM "TTPhaseRound" AS round
+              LEFT JOIN "TTPhaseSuddenDeathRound" AS sudden
+                ON sudden."phaseRoundId" = round."id" AND sudden."resolved" = false
+              WHERE round."tournamentId" = ${tournamentId}
+                AND round."phase" = 'phase3'
+                AND (round."submittedAt" IS NULL OR sudden."id" IS NOT NULL)
+            )
+        `,
+      );
+      if (Number(updated) !== 1) {
+        return createErrorResponse(
+          'The entry was modified by another user. Please refresh and try again.',
+          409,
+          'OPTIMISTIC_LOCK_ERROR',
+        );
+      }
+      const updatedEntry = await prisma.tTEntry.findUnique({
+        where: { id: entryId },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
+      });
+      await createAuditLog({
+        userId: resolveAuditUserId(authResult.session),
+        ipAddress: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+        targetId: entryId,
+        targetType: 'TTEntry',
+        details: {
+          tournamentId,
+          phase: 'phase3',
+          action: 'set_lives',
+          playerNickname: entry.player.nickname,
+          oldLives: entry.lives,
+          newLives: lives,
+          manualUpdate: true,
+        },
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', { error: err, tournamentId, entryId, action: 'SET_TA_ENTRY_LIVES' }),
+      );
       return createSuccessResponse({ entry: updatedEntry });
     }
 
