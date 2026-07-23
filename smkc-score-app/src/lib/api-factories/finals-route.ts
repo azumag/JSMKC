@@ -917,7 +917,7 @@ async function applyAuditedPlayoffReconcileWrite(params: {
        * primary key is NOT NULL, so deliberately make this statement fail in
        * that case; D1 batch then rolls both statements back. */
       sql: `INSERT INTO "AuditLog" ("id", "userId", "ipAddress", "userAgent", "action", "targetId", "targetType", "details")
-        SELECT CASE WHEN changes() = ? THEN ? ELSE NULL END, ?, ?, ?, ?, ?, ?`,
+        SELECT CASE WHEN changes() = ? THEN ? ELSE NULL END, ?, ?, ?, ?, ?, ?, ?`,
       values: [
         params.changes.length,
         auditId,
@@ -4630,6 +4630,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
             },
           });
         } catch (error) {
+          logger.error('Playoff reconciliation batch failed', {
+            error,
+            tournamentId,
+            eventTypeCode: config.eventTypeCode,
+          });
           /* The deliberate NOT NULL assertion in the D1 batch means a stale
            * version is surfaced as a batch error. Re-read only the guarded
            * rows to classify that expected race without misreporting a real

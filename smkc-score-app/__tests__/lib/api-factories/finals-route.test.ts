@@ -4784,6 +4784,7 @@ describe('Finals Route Factory', () => {
       expect(statements[0].sql).toContain('"slotOverrideBy" = NULL');
       expect(statements[0].sql).toContain('protected."slotOverrideBy" IS NULL');
       expect(statements[1].sql).toContain('CASE WHEN changes() = ? THEN ? ELSE NULL END');
+      expect(statements[1].sql.match(/\?/g)).toHaveLength(statements[1].values.length);
       expect(statements[1].values).toContain(AUDIT_ACTIONS.RECONCILE_PLAYOFF_UPPER_SLOTS);
     });
 
