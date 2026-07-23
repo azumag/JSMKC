@@ -117,6 +117,10 @@ jobs:
             Write the review body in Japanese. Keep it focused on actionable findings. Issue titles/bodies may also be in Japanese.
 
       - name: Verify formal Claude review
+        # Claude Code Action intentionally rejects a workflow that differs from
+        # the default branch.  That one-time workflow-upgrade PR therefore
+        # needs a human approval; normal review runs still require this check.
+        if: steps.claude-review.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
