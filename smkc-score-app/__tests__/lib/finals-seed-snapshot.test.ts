@@ -23,10 +23,21 @@ const row = (
   slotOverrideAt,
 });
 
+const partialTop24Playoff = () =>
+  generatePlayoffStructure(12, 2).map((match) => {
+    if (match.round === 'playoff_r1') {
+      return row(match.matchNumber, 'playoff', match.round, `p${match.player1Seed}`, `p${match.player2Seed}`);
+    }
+    return row(match.matchNumber, 'playoff', match.round, `p${match.player1Seed}`, 'placeholder');
+  });
+
 describe('ensureFinalsSeedSnapshot', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ bmFinalsSeedSnapshot: null });
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      status: 'completed',
+      bmFinalsSeedSnapshot: null,
+    });
     (prisma.tournament.update as jest.Mock).mockResolvedValue({});
   });
 
@@ -68,13 +79,7 @@ describe('ensureFinalsSeedSnapshot', () => {
   });
 
   it('does not persist a partial Top-24 snapshot when only Phase 1 exists', async () => {
-    const playoff = generatePlayoffStructure(12, 2).map((match) => {
-      if (match.round === 'playoff_r1') {
-        return row(match.matchNumber, 'playoff', match.round, `p${match.player1Seed}`, `p${match.player2Seed}`);
-      }
-      return row(match.matchNumber, 'playoff', match.round, `p${match.player1Seed}`, 'placeholder');
-    });
-    (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(playoff);
+    (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(partialTop24Playoff());
     (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
 
     await expect(ensureFinalsSeedSnapshot('t1', 'bm')).resolves.toEqual([]);
@@ -100,13 +105,61 @@ describe('ensureFinalsSeedSnapshot', () => {
     expect(prisma.tournament.update).not.toHaveBeenCalled();
   });
 
-  it('marks an incomplete legacy standard opening round as unsafe', async () => {
+  it('marks an incomplete completed-tournament opening round as unsafe', async () => {
     (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([row(1, 'finals', 'winners_qf', 'p1', 'p8')]);
 
     await expect(resolveFinalsSeedSnapshot('t1', 'bm')).resolves.toEqual({
       status: 'unsafe',
       snapshot: [],
       reason: 'incomplete_opening_round',
+    });
+    expect(prisma.tournament.update).not.toHaveBeenCalled();
+  });
+
+  it.each(['draft', 'active'] as const)(
+    'treats an incomplete opening round as absent while tournament status is %s',
+    async (status) => {
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        status,
+        bmFinalsSeedSnapshot: null,
+      });
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([row(1, 'finals', 'winners_qf', 'p1', 'p8')]);
+
+      await expect(resolveFinalsSeedSnapshot('t1', 'bm')).resolves.toEqual({
+        status: 'absent',
+        snapshot: [],
+      });
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('treats a partial Top-24 bracket as absent while the tournament is active', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      status: 'active',
+      bmFinalsSeedSnapshot: null,
+    });
+    (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(partialTop24Playoff());
+    (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+
+    await expect(resolveFinalsSeedSnapshot('t1', 'bm')).resolves.toEqual({
+      status: 'absent',
+      snapshot: [],
+    });
+    expect(prisma.tournament.update).not.toHaveBeenCalled();
+  });
+
+  it('treats a manual slot override as absent while the tournament is active', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      status: 'active',
+      bmFinalsSeedSnapshot: null,
+    });
+    (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([
+      row(1, 'finals', 'winners_qf', 'p1', 'p8', new Date('2026-07-24T00:00:00.000Z')),
+    ]);
+
+    await expect(resolveFinalsSeedSnapshot('t1', 'bm')).resolves.toEqual({
+      status: 'absent',
+      snapshot: [],
     });
     expect(prisma.tournament.update).not.toHaveBeenCalled();
   });

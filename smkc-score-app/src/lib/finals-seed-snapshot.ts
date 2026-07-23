@@ -36,6 +36,10 @@ type SeedMatch = {
 const modelByMode = { bm: 'bMMatch', mr: 'mRMatch', gp: 'gPMatch' } as const;
 const qualificationModelByMode = { bm: 'bMQualification', mr: 'mRQualification', gp: 'gPQualification' } as const;
 
+function isInProgressTournamentStatus(status: unknown): status is 'draft' | 'active' {
+  return status === 'draft' || status === 'active';
+}
+
 export function getFinalsSeedSnapshotField(mode: FinalsSeedMode): FinalsSeedSnapshotField {
   return `${mode}FinalsSeedSnapshot` as FinalsSeedSnapshotField;
 }
@@ -90,7 +94,10 @@ export async function ensureFinalsSeedSnapshot(
 
 /**
  * Resolve a KO seed snapshot without ever making a best-effort guess look
- * authoritative. Consumers that publish official output must reject `unsafe`.
+ * authoritative. Completed tournaments remain strict: consumers that publish
+ * official output must reject `unsafe`. Draft/active tournaments may naturally
+ * contain a partial bracket, so structural incompleteness is reported as
+ * `absent` and administrator exports can still capture the current state.
  */
 export async function resolveFinalsSeedSnapshot(
   tournamentId: string,
@@ -111,12 +118,14 @@ async function resolveFinalsSeedSnapshotInner(
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
     select: {
+      status: true,
       bmFinalsSeedSnapshot: true,
       mrFinalsSeedSnapshot: true,
       gpFinalsSeedSnapshot: true,
     },
   });
   const existing = parseFinalsSeedSnapshot(tournament?.[field]);
+  const isInProgress = isInProgressTournamentStatus(tournament?.status);
   /* A 12-row snapshot is an old, partial Top-24 Phase-1 artifact. It is not
    * a complete seed contract and must not suppress a later full snapshot. */
   if (isCompleteFinalsSeedSnapshot(existing)) return { status: 'complete', snapshot: existing };
@@ -136,9 +145,13 @@ async function resolveFinalsSeedSnapshotInner(
 
   /* A legacy manual slot adjustment destroys the only reliable structural
    * evidence of the original label. Do not fossilize the adjusted slot as a
-   * new seed; a director must supply the explicit correction instead. */
+   * new seed. During an in-progress tournament, however, the live arrangement
+   * is still valid administrator-export data even though it is not an official
+   * immutable seed contract. */
   if (matches.some((match) => match.slotOverrideAt)) {
-    return { status: 'unsafe', snapshot: [], reason: 'manual_slot_override' };
+    return isInProgress
+      ? { status: 'absent', snapshot: [] }
+      : { status: 'unsafe', snapshot: [], reason: 'manual_slot_override' };
   }
 
   const entries = new Map<string, FinalsSeedSnapshotEntry>();
@@ -187,6 +200,7 @@ async function resolveFinalsSeedSnapshotInner(
     });
     return { status: 'complete', snapshot };
   }
+  if (isInProgress) return { status: 'absent', snapshot: [] };
   return {
     status: 'unsafe',
     snapshot: [],
