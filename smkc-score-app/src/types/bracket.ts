@@ -63,7 +63,13 @@ export interface BracketMatch {
 
 /** Seeded player payload used by finals bracket components. */
 export interface SeededPlayer {
+  /** Structural bracket slot used to place this player. */
   seed: number;
+  /**
+   * Seed earned in qualification. This remains stable after a player advances
+   * through the bracket, and can differ from `seed` for Top-24 barrage winners.
+   */
+  originalSeed?: number;
   playerId: string;
   player: Player;
   qualificationRankLabel?: string;

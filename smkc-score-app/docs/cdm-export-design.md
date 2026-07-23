@@ -172,7 +172,10 @@ UBF=AM(39), GF1=AT(46), GF2=BA(53)。下段 LB は R/Y/AF/AM/AT/BA の rows 41..
   保護ビューなどで再計算が遅れてもトーナメント表が空欄にならないよう、
   **実 match record の player1/player2 を同一性解決した現在値で書く**。スコアと同じく
   losers_final の反転などテンプレートの slot 意味論に従う。
-- 進出数式・最終順位ブロック（BG/BH/BI）・"First to"・Arena ヘッダ・B32/B33 は非接触。
+- 進出数式・最終順位ブロック（BG/BH/BI）・`First to` のラベル・Arena ヘッダ・B32/B33 は非接触。
+  ただし #3038 以降、各 `First to` ラベル直下の数値セル（D3/K3/R3/Y3/AF3/AM3/AT3/BA3 と
+  losers 側の R39/Y39/AF39/AM39/AT39/BA39）は、保存済み `targetWins` があるラウンドだけ
+  数値更新する。書式・ヘッダ・数式は保持し、legacy の `targetWins = null` 行はテンプレート既定値を残す。
 - TV 番号はテンプレートに該当セルが無いため**書かない**。
 - GF reset 不要時はスコアをクリアするだけ（数式が空欄処理）。
 

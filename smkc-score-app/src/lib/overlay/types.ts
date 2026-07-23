@@ -8,22 +8,22 @@
  * the type level so it cannot accidentally leak through the public API.
  */
 
-import type { OverlayBroadcastLayout } from "@/lib/overlay/layout";
+import type { OverlayBroadcastLayout } from '@/lib/overlay/layout';
 
-export type OverlayMode = "ta" | "bm" | "mr" | "gp";
+export type OverlayMode = 'ta' | 'bm' | 'mr' | 'gp';
 
 export type OverlayEventType =
-  | "score_reported"
-  | "match_completed"
-  | "mode_champion_decided"
-  | "ta_time_recorded"
-  | "qualification_confirmed"
-  | "finals_started"
-  | "ta_phase_advanced"
-  | "ta_phase_completed"
-  | "ta_lives_reset"
-  | "ta_champion_decided"
-  | "overall_ranking_updated";
+  | 'score_reported'
+  | 'match_completed'
+  | 'mode_champion_decided'
+  | 'ta_time_recorded'
+  | 'qualification_confirmed'
+  | 'finals_started'
+  | 'ta_phase_advanced'
+  | 'ta_phase_completed'
+  | 'ta_lives_reset'
+  | 'ta_champion_decided'
+  | 'overall_ranking_updated';
 
 /**
  * A single overlay event.
@@ -49,6 +49,9 @@ export interface OverlayMatchResult {
   player2: string;
   score1: number;
   score2: number;
+  /** Explicitly resolved winner side. This is present for audited tie
+   * corrections, where comparing the displayed totals would be ambiguous. */
+  winnerSide?: 1 | 2;
   /**
    * BM/MR only. Pre-assigned courses for this match (e.g. ["MC1","DP1",
    * "GV1","BC1"]). Omitted when the source row has null/empty
@@ -170,6 +173,7 @@ export interface OverlayEvent {
  * (display name on stream); we never expose email / password / userId.
  */
 export interface OverlayPlayerRef {
+  id?: string;
   nickname: string;
 }
 
@@ -190,6 +194,8 @@ export interface OverlayMatchInput {
   player2: OverlayPlayerRef | null;
   score1: number;
   score2: number;
+  winnerOverrideId?: string | null;
+  suddenDeathWinnerId?: string | null;
   /** BM/MR only. Raw `assignedCourses` JSON column. Aggregator filters this
       to a string[] of valid course abbreviations before exposing it. */
   assignedCourses?: unknown;

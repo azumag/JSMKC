@@ -22,34 +22,34 @@ The quotas are shared, but placement into bracket slots differs by group count.
 
 `perGroup = 6`. Each group's places 1-6 advance directly and places 7-12 enter barrage. Cross-group statistics must not move these placements.
 
-With two groups, even distribution and same-group Round-1 avoidance can both be achieved, so the handwritten fixed map is authoritative.
+With two groups, the alternating A/B displayed-seed map is authoritative.
 
 ### 2.1 Direct entrants
 
 ```text
 Upper seed → group place
-1:A1  2:B3  3:B1  4:A3  5:B2  6:A4
-7:A2  8:B4  9:A5  11:B5  13:B6  15:A6
+1:A1  2:B1  3:A2  4:B2  5:A3  6:B3
+7:A4  8:B4  9:A5  10:B5 11:A6 12:B6
 ```
 
-Upper seeds `10 / 12 / 14 / 16` are reserved for barrage winners.
+Upper seeds `13 / 14 / 15 / 16` are filled by the four barrage survivors.
 
 ### 2.2 Barrage
 
 The fixed placement under displayed seeds 13-24 is:
 
 ```text
-13:B8  14:B7  15:A8  16:A7  17:B9  18:A11
-19:B10 20:A12 21:A10 22:B12 23:A9  24:B11
+13:A7  14:B7  15:A8  16:B8  17:A9  18:B9
+19:A10 20:B10 21:A11 22:B11 23:A12 24:B12
 ```
 
 Round 1 and Upper destinations are:
 
 ```text
-winner of [23,22] vs [13] → Upper 16
-winner of [19,18] vs [16] → Upper 12
-winner of [17,20] vs [15] → Upper 14
-winner of [21,24] vs [14] → Upper 10
+winner of [17,24] vs [16] → Upper 16
+winner of [20,21] vs [13] → Upper 13
+winner of [18,23] vs [15] → Upper 15
+winner of [19,22] vs [14] → Upper 14
 ```
 
 Match points, point differential, and seeding never change this placement.
@@ -90,7 +90,7 @@ After a BM/MR finals bracket is generated, the exporter reconstructs the seed li
 
 - Two groups use the fixed layout in section 2.
 - Three groups use the dynamic order and CDM 2025 layout in section 3.
-- GP Finals keeps its Excel formula spill, so exact parity is not guaranteed when qualification order differs.
+- All BM/MR/GP Finals exports replace the seed-list input with the immutable KO seed snapshot. Later qualification corrections never relabel a published bracket.
 - The Excel qualification standings recalculate independently. They can differ from JSMKC when head-to-head, sudden-death overrides, or uneven groups are involved.
 
 ## 6. Related files

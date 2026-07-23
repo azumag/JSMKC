@@ -10,17 +10,13 @@
  *  - unknown finals round strings fall through unchanged (forward compat)
  */
 
-import {
-  buildMatchLabel,
-  computeCurrentPhase,
-  computeCurrentPhaseFormat,
-} from "@/lib/overlay/phase";
-import { getBmFinalsTargetWins, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
+import { buildMatchLabel, computeCurrentPhase, computeCurrentPhaseFormat } from '@/lib/overlay/phase';
+import { getBmFinalsTargetWins, getGpFinalsTargetWins, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 
 function input(overrides: Partial<Parameters<typeof computeCurrentPhase>[0]> = {}) {
   return {
     qualificationConfirmed: false,
-    taCurrentPhase: "qualification" as const,
+    taCurrentPhase: 'qualification' as const,
     taLatestPhaseRoundNumber: null,
     latestFinalsRound: null,
     latestFinalsStage: null,
@@ -29,227 +25,225 @@ function input(overrides: Partial<Parameters<typeof computeCurrentPhase>[0]> = {
   };
 }
 
-describe("computeCurrentPhase", () => {
-  it("returns Qualification by default when nothing has been confirmed", () => {
-    expect(computeCurrentPhase(input())).toBe("Qualification");
+describe('computeCurrentPhase', () => {
+  it('returns Qualification by default when nothing has been confirmed', () => {
+    expect(computeCurrentPhase(input())).toBe('Qualification');
   });
 
-  it("returns Qualification Locked once qualification is locked but no barrage/finals exists", () => {
-    expect(computeCurrentPhase(input({ qualificationConfirmed: true }))).toBe("Qualification Locked");
+  it('returns Qualification Locked once qualification is locked but no barrage/finals exists', () => {
+    expect(computeCurrentPhase(input({ qualificationConfirmed: true }))).toBe('Qualification Locked');
   });
 
-  it("returns Time Attack Phase 1 Round <n> when TA is in phase1 with rounds", () => {
+  it('returns Time Attack Phase 1 Round <n> when TA is in phase1 with rounds', () => {
     expect(
       computeCurrentPhase(
         input({
           qualificationConfirmed: true,
-          taCurrentPhase: "phase1",
+          taCurrentPhase: 'phase1',
           taLatestPhaseRoundNumber: 3,
         }),
       ),
-    ).toBe("Time Attack Phase 1 Round 3");
+    ).toBe('Time Attack Phase 1 Round 3');
   });
 
-  it("returns Time Attack Phase 2 Round <n> when TA is in phase2 with rounds", () => {
+  it('returns Time Attack Phase 2 Round <n> when TA is in phase2 with rounds', () => {
     expect(
       computeCurrentPhase(
         input({
           qualificationConfirmed: true,
-          taCurrentPhase: "phase2",
+          taCurrentPhase: 'phase2',
           taLatestPhaseRoundNumber: 2,
         }),
       ),
-    ).toBe("Time Attack Phase 2 Round 2");
+    ).toBe('Time Attack Phase 2 Round 2');
   });
 
-  it("omits the round suffix when TA phase has entries but no rounds yet", () => {
+  it('omits the round suffix when TA phase has entries but no rounds yet', () => {
     expect(
       computeCurrentPhase(
         input({
           qualificationConfirmed: true,
-          taCurrentPhase: "phase1",
+          taCurrentPhase: 'phase1',
           taLatestPhaseRoundNumber: null,
         }),
       ),
-    ).toBe("Time Attack Phase 1");
+    ).toBe('Time Attack Phase 1');
   });
 
-  it("returns Time Attack Phase 3 Round <n> when TA reaches phase3", () => {
+  it('returns Time Attack Phase 3 Round <n> when TA reaches phase3', () => {
     expect(
       computeCurrentPhase(
         input({
           qualificationConfirmed: true,
-          taCurrentPhase: "phase3",
+          taCurrentPhase: 'phase3',
           taLatestPhaseRoundNumber: 4,
         }),
       ),
-    ).toBe("Time Attack Phase 3 Round 4");
+    ).toBe('Time Attack Phase 3 Round 4');
   });
 
-  it("maps known BM/MR/GP finals rounds to mode-free English labels", () => {
+  it('maps known BM/MR/GP finals rounds to mode-free English labels', () => {
     const cases: Array<[string, string]> = [
-      ["winners_qf", "Finals Winners Quarter Final"],
-      ["qf", "Finals Quarter Final"],
-      ["winners_sf", "Finals Winners Semi Final"],
-      ["winners_final", "Finals Winners Final"],
-      ["losers_r1", "Finals Losers Round 1"],
-      ["losers_r4", "Finals Losers Round 4"],
-      ["losers_sf", "Finals Losers Semi Final"],
-      ["losers_final", "Finals Losers Final"],
-      ["grand_final", "Finals Grand Final"],
-      ["grand_final_reset", "Finals Grand Final Reset"],
+      ['winners_qf', 'Finals Winners Quarter Final'],
+      ['qf', 'Finals Quarter Final'],
+      ['winners_sf', 'Finals Winners Semi Final'],
+      ['winners_final', 'Finals Winners Final'],
+      ['losers_r1', 'Finals Losers Round 1'],
+      ['losers_r4', 'Finals Losers Round 4'],
+      ['losers_sf', 'Finals Losers Semi Final'],
+      ['losers_final', 'Finals Losers Final'],
+      ['grand_final', 'Finals Grand Final'],
+      ['grand_final_reset', 'Finals Grand Final Reset'],
     ];
     for (const [round, expected] of cases) {
       expect(
-        computeCurrentPhase(
-          input({ qualificationConfirmed: true, latestFinalsRound: round, latestFinalsMode: "bm" }),
-        ),
+        computeCurrentPhase(input({ qualificationConfirmed: true, latestFinalsRound: round, latestFinalsMode: 'bm' })),
       ).toBe(expected);
     }
   });
 
-  it("omits the active BM/MR/GP mode in finals labels", () => {
+  it('omits the active BM/MR/GP mode in finals labels', () => {
     expect(
       computeCurrentPhase(
-        input({ qualificationConfirmed: true, latestFinalsRound: "winners_qf", latestFinalsMode: "mr" }),
+        input({ qualificationConfirmed: true, latestFinalsRound: 'winners_qf', latestFinalsMode: 'mr' }),
       ),
-    ).toBe("Finals Winners Quarter Final");
+    ).toBe('Finals Winners Quarter Final');
     expect(
       computeCurrentPhase(
-        input({ qualificationConfirmed: true, latestFinalsRound: "winners_sf", latestFinalsMode: "gp" }),
+        input({ qualificationConfirmed: true, latestFinalsRound: 'winners_sf', latestFinalsMode: 'gp' }),
       ),
-    ).toBe("Finals Winners Semi Final");
+    ).toBe('Finals Winners Semi Final');
   });
 
-  it("falls through unchanged for unknown finals round strings (forward compat)", () => {
+  it('falls through unchanged for unknown finals round strings (forward compat)', () => {
     expect(
       computeCurrentPhase(
-        input({ qualificationConfirmed: true, latestFinalsRound: "weird_round_x", latestFinalsMode: "bm" }),
+        input({ qualificationConfirmed: true, latestFinalsRound: 'weird_round_x', latestFinalsMode: 'bm' }),
       ),
-    ).toBe("Finals weird_round_x");
+    ).toBe('Finals weird_round_x');
   });
 
-  it("prefers a finals round over an in-progress TA phase (highest signal wins)", () => {
+  it('prefers a finals round over an in-progress TA phase (highest signal wins)', () => {
     // BM is in winners quarter final while TA phase2 is still running — broadcast should show
     // the bracket-finals round, not the barrage.
     expect(
       computeCurrentPhase(
         input({
           qualificationConfirmed: true,
-          taCurrentPhase: "phase2",
+          taCurrentPhase: 'phase2',
           taLatestPhaseRoundNumber: 2,
-          latestFinalsRound: "winners_qf",
-          latestFinalsMode: "bm",
+          latestFinalsRound: 'winners_qf',
+          latestFinalsMode: 'bm',
         }),
       ),
-    ).toBe("Finals Winners Quarter Final");
+    ).toBe('Finals Winners Quarter Final');
   });
 });
 
-describe("computeCurrentPhaseFormat", () => {
-  it("keeps latestFinalsStage explicit even when no finals stage is active", () => {
+describe('computeCurrentPhaseFormat', () => {
+  it('keeps latestFinalsStage explicit even when no finals stage is active', () => {
     expect(input()).toEqual(expect.objectContaining({ latestFinalsStage: null }));
   });
 
-  it("returns First to 5 for BM bracket finals", () => {
+  it('returns First to 5 for BM bracket finals', () => {
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          latestFinalsRound: "winners_qf",
-          latestFinalsMode: "bm",
+          latestFinalsRound: 'winners_qf',
+          latestFinalsMode: 'bm',
         }),
       ),
-    ).toBe(`First to ${getBmFinalsTargetWins({ round: "winners_qf" })}`);
+    ).toBe(`First to ${getBmFinalsTargetWins({ round: 'winners_qf' })}`);
   });
 
-  it("uses the stage context for BM playoff first-to values", () => {
+  it('uses the stage context for BM playoff first-to values', () => {
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          latestFinalsStage: "playoff",
-          latestFinalsRound: "playoff_r1",
-          latestFinalsMode: "bm",
+          latestFinalsStage: 'playoff',
+          latestFinalsRound: 'playoff_r1',
+          latestFinalsMode: 'bm',
         }),
       ),
-    ).toBe(`First to ${getBmFinalsTargetWins({ stage: "playoff", round: "playoff_r1" })}`);
+    ).toBe(`First to ${getBmFinalsTargetWins({ stage: 'playoff', round: 'playoff_r1' })}`);
 
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          latestFinalsStage: "playoff",
-          latestFinalsRound: "playoff_r2",
-          latestFinalsMode: "bm",
+          latestFinalsStage: 'playoff',
+          latestFinalsRound: 'playoff_r2',
+          latestFinalsMode: 'bm',
         }),
       ),
-    ).toBe(`First to ${getBmFinalsTargetWins({ stage: "playoff", round: "playoff_r2" })}`);
+    ).toBe(`First to ${getBmFinalsTargetWins({ stage: 'playoff', round: 'playoff_r2' })}`);
   });
 
-  it("returns First to 9 for MR bracket grand finals", () => {
+  it('returns First to 9 for MR bracket grand finals', () => {
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          latestFinalsRound: "grand_final",
-          latestFinalsMode: "mr",
+          latestFinalsRound: 'grand_final',
+          latestFinalsMode: 'mr',
         }),
       ),
-    ).toBe(`First to ${getMrFinalsTargetWins({ round: "grand_final" })}`);
+    ).toBe(`First to ${getMrFinalsTargetWins({ round: 'grand_final' })}`);
   });
 
-  it("uses the stage context for MR playoff first-to values", () => {
+  it('uses the stage context for MR playoff first-to values', () => {
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          latestFinalsStage: "playoff",
-          latestFinalsRound: "playoff_r1",
-          latestFinalsMode: "mr",
+          latestFinalsStage: 'playoff',
+          latestFinalsRound: 'playoff_r1',
+          latestFinalsMode: 'mr',
         }),
       ),
-    ).toBe(`First to ${getMrFinalsTargetWins({ stage: "playoff", round: "playoff_r1" })}`);
+    ).toBe(`First to ${getMrFinalsTargetWins({ stage: 'playoff', round: 'playoff_r1' })}`);
 
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          latestFinalsStage: "playoff",
-          latestFinalsRound: "playoff_r2",
-          latestFinalsMode: "mr",
+          latestFinalsStage: 'playoff',
+          latestFinalsRound: 'playoff_r2',
+          latestFinalsMode: 'mr',
         }),
       ),
-    ).toBe(`First to ${getMrFinalsTargetWins({ stage: "playoff", round: "playoff_r2" })}`);
+    ).toBe(`First to ${getMrFinalsTargetWins({ stage: 'playoff', round: 'playoff_r2' })}`);
   });
 
-  it("returns null for GP finals (point-total, no first-to threshold)", () => {
+  it('returns the persisted/default first-to format for GP finals', () => {
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          latestFinalsRound: "winners_sf",
-          latestFinalsMode: "gp",
+          latestFinalsRound: 'winners_sf',
+          latestFinalsMode: 'gp',
         }),
       ),
-    ).toBeNull();
+    ).toBe(`First to ${getGpFinalsTargetWins({ round: 'winners_sf' })}`);
   });
 
-  it("returns null while qualification or barrage is active", () => {
+  it('returns null while qualification or barrage is active', () => {
     expect(computeCurrentPhaseFormat(input())).toBeNull();
     expect(
       computeCurrentPhaseFormat(
-        input({ qualificationConfirmed: true, taCurrentPhase: "phase1", taLatestPhaseRoundNumber: 2 }),
+        input({ qualificationConfirmed: true, taCurrentPhase: 'phase1', taLatestPhaseRoundNumber: 2 }),
       ),
     ).toBeNull();
   });
 
-  it("returns null when TA reaches phase3 (TA finals are timed, not FT)", () => {
+  it('returns null when TA reaches phase3 (TA finals are timed, not FT)', () => {
     expect(
       computeCurrentPhaseFormat(
         input({
           qualificationConfirmed: true,
-          taCurrentPhase: "phase3",
+          taCurrentPhase: 'phase3',
           taLatestPhaseRoundNumber: 2,
         }),
       ),
@@ -257,20 +251,14 @@ describe("computeCurrentPhaseFormat", () => {
   });
 });
 
-describe("buildMatchLabel", () => {
-  it("omits BM/MR/GP mode names from pinned footer labels", () => {
-    expect(buildMatchLabel("winners_qf", { winners_qf: "QF" }, "bm")).toBe(
-      "Finals Winners Quarter Final",
-    );
-    expect(buildMatchLabel("winners_sf", { winners_sf: "SF" }, "mr")).toBe(
-      "Finals Winners Semi Final",
-    );
-    expect(buildMatchLabel("grand_final", { grand_final: "Grand Final" }, "gp")).toBe(
-      "Finals Grand Final",
-    );
+describe('buildMatchLabel', () => {
+  it('omits BM/MR/GP mode names from pinned footer labels', () => {
+    expect(buildMatchLabel('winners_qf', { winners_qf: 'QF' }, 'bm')).toBe('Finals Winners Quarter Final');
+    expect(buildMatchLabel('winners_sf', { winners_sf: 'SF' }, 'mr')).toBe('Finals Winners Semi Final');
+    expect(buildMatchLabel('grand_final', { grand_final: 'Grand Final' }, 'gp')).toBe('Finals Grand Final');
   });
 
-  it("keeps the legacy no-mode label when mode is omitted", () => {
-    expect(buildMatchLabel("winners_qf", { winners_qf: "QF" })).toBe("Finals Winners Quarter Final");
+  it('keeps the legacy no-mode label when mode is omitted', () => {
+    expect(buildMatchLabel('winners_qf', { winners_qf: 'QF' })).toBe('Finals Winners Quarter Final');
   });
 });

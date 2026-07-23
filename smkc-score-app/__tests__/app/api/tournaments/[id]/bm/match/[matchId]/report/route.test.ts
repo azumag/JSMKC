@@ -25,12 +25,11 @@
  */
 // @ts-nocheck
 
-
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/request-utils', () => ({
   getClientIdentifier: jest.fn(),
-  getUserAgent: jest.fn()
+  getUserAgent: jest.fn(),
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/optimistic-locking', () => ({
@@ -40,24 +39,30 @@ jest.mock('@/lib/optimistic-locking', () => ({
       super(message);
       this.name = 'OptimisticLockError';
     }
-  }
+  },
 }));
 jest.mock('@/lib/score-validation', () => ({
   validateBattleModeScores: jest.fn(),
-  calculateMatchResult: jest.fn()
+  calculateMatchResult: jest.fn(),
 }));
 jest.mock('@/lib/constants', () => ({
   RATE_LIMIT_SCORE_INPUT: 10,
   RATE_LIMIT_SCORE_INPUT_DURATION: 60,
-  SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'yoshi', 'toad', 'bowser', 'donkey-kong', 'koopa']
+  SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'yoshi', 'toad', 'bowser', 'donkey-kong', 'koopa'],
 }));
 jest.mock('@/lib/error-handling', () => ({
   createSuccessResponse: jest.fn((data, message) => ({ data, message, status: 200 })),
-  createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
+  createErrorResponse: jest.fn((message, status, code, details) => ({
+    data: { error: message, code, details },
+    status,
+  })),
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
   handleAuthError: jest.fn((message) => ({ data: { error: message }, status: 401 })),
   handleRateLimitError: jest.fn((retryAfter) => ({ data: { error: 'Rate limit exceeded', retryAfter }, status: 429 })),
-  handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+  handleDatabaseError: jest.fn((error, operation) => ({
+    data: { error: `Database error: ${operation}` },
+    status: 500,
+  })),
 }));
 
 import prisma from '@/lib/prisma';
@@ -76,7 +81,7 @@ const {
   handleValidationError,
   handleAuthError,
   handleRateLimitError: _handleRateLimitError,
-  handleDatabaseError
+  handleDatabaseError,
 } = jest.requireMock('@/lib/error-handling');
 
 // Mock NextRequest class
@@ -85,14 +90,16 @@ class MockNextRequest {
 
   constructor(
     private body?: any,
-    headers?: Map<string, string>
+    headers?: Map<string, string>,
   ) {
     this._headers = headers || new Map();
     this._headers.set('user-agent', 'test-agent');
   }
-  async json() { return this.body; }
+  async json() {
+    return this.body;
+  }
   headers = {
-    get: (key: string) => this._headers.get(key)
+    get: (key: string) => this._headers.get(key),
   };
 }
 
@@ -120,6 +127,28 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
   });
 
   describe('POST - Report score from a player', () => {
+    it('rejects a BREAK before writing reports, logs, or standings', async () => {
+      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
+        id: 'break-1',
+        isBye: true,
+        player1Id: 'p1',
+        player2Id: '__BREAK__',
+        player1: null,
+        player2: null,
+      });
+
+      const result = await POST(
+        new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1, character: 'mario' }) as any,
+        { params: Promise.resolve({ id: 't1', matchId: 'break-1' }) },
+      );
+
+      expect(result).toMatchObject({ status: 409, data: { code: 'NON_COMPETITIVE_MATCH' } });
+      expect(prisma.scoreEntryLog.create).not.toHaveBeenCalled();
+      expect(prisma.matchCharacterUsage.create).not.toHaveBeenCalled();
+      expect(prisma.bMMatch.update).not.toHaveBeenCalled();
+      expect(updateWithRetry).not.toHaveBeenCalled();
+    });
+
     // Success case - Reports score as player1 with valid authentication
     it('should report score successfully for player1 with valid authentication', async () => {
       const mockMatch = {
@@ -154,7 +183,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       expect(result).toEqual({
         data: { match: mockUpdateResult, waitingFor: 'player2' },
         message: 'Score reported successfully',
-        status: 200
+        status: 200,
       });
       expect(updateWithRetry).toHaveBeenCalled();
       /* Source wraps the create argument in a `data` key per Prisma conventions */
@@ -284,7 +313,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       expect(result.status).toBe(200);
     });
 
-      // Success case - Auto-confirms match when both players report matching scores
+    // Success case - Auto-confirms match when both players report matching scores
     it('should auto-confirm match when both players report matching scores', async () => {
       const mockMatch = {
         id: 'm1',
@@ -317,9 +346,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       jest.mocked(auth).mockResolvedValue(mockAuth);
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      (updateWithRetry as jest.Mock)
-        .mockResolvedValueOnce(mockUpdateResult)
-        .mockResolvedValueOnce(mockFinalMatch);
+      (updateWithRetry as jest.Mock).mockResolvedValueOnce(mockUpdateResult).mockResolvedValueOnce(mockFinalMatch);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([mockFinalMatch]);
       (prisma.bMQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
@@ -333,7 +360,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       expect(result).toEqual({
         data: { match: mockFinalMatch, autoConfirmed: true },
         message: 'Scores confirmed and match completed',
-        status: 200
+        status: 200,
       });
       expect(updateWithRetry).toHaveBeenCalledTimes(2);
     });
@@ -377,10 +404,9 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
           player2Report: { score1: 2, score2: 2 },
         },
         message: 'Score reported but mismatch detected - awaiting admin review',
-        status: 200
+        status: 200,
       });
     });
-
 
     // Validation error case - Returns 400 when character is invalid
     it('should return 400 when character is not valid', async () => {
@@ -390,7 +416,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Invalid character', field: 'character' },
-        status: 400
+        status: 400,
       });
       expect(handleValidationError).toHaveBeenCalledWith('Invalid character', 'character');
     });
@@ -405,7 +431,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Match not found', field: 'matchId' },
-        status: 400
+        status: 400,
       });
     });
 
@@ -438,7 +464,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       expect(result).toEqual({
         data: { match: correctedMatch, corrected: true },
         message: 'Score correction saved',
-        status: 200
+        status: 200,
       });
       expect(updateWithRetry).toHaveBeenCalledTimes(1);
     });
@@ -464,7 +490,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Unauthorized: Not authorized for this match' },
-        status: 401
+        status: 401,
       });
       expect(handleAuthError).toHaveBeenCalledWith('Unauthorized: Not authorized for this match');
     });
@@ -488,7 +514,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'reportingPlayer must be 1 or 2', field: 'reportingPlayer' },
-        status: 400
+        status: 400,
       });
     });
 
@@ -512,7 +538,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Invalid score combination', field: 'scores' },
-        status: 400
+        status: 400,
       });
       expect(handleValidationError).toHaveBeenCalledWith('Invalid score combination', 'scores');
     });
@@ -542,15 +568,15 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
         data: {
           error: 'This match was updated by someone else. Please refresh and try again.',
           code: 'OPTIMISTIC_LOCK_ERROR',
-          details: { requiresRefresh: true }
+          details: { requiresRefresh: true },
         },
-        status: 409
+        status: 409,
       });
       expect(createErrorResponse).toHaveBeenCalledWith(
         'This match was updated by someone else. Please refresh and try again.',
         409,
         'OPTIMISTIC_LOCK_ERROR',
-        { requiresRefresh: true }
+        { requiresRefresh: true },
       );
     });
 
@@ -564,7 +590,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       expect(result).toEqual({
         data: { error: 'Database error: score report' },
-        status: 500
+        status: 500,
       });
       expect(handleDatabaseError).toHaveBeenCalledWith(expect.any(Error), 'score report');
     });
@@ -715,7 +741,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       expect(result).toEqual({
         data: { match: mockUpdateResult, waitingFor: 'player1' },
         message: 'Score reported successfully',
-        status: 200
+        status: 200,
       });
     });
   });

@@ -19,7 +19,6 @@
  */
 // @ts-nocheck
 
-
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/excel', () => ({ formatDate: jest.fn(() => '2024-01-15'), formatTime: jest.fn(() => '1:23.456') }));
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
@@ -164,7 +163,7 @@ function cdmWorkbookFromResult(result: { data: Uint8Array }): {
 describe('Export API Route - /api/tournaments/[id]/export', () => {
   const loggerMock = { error: jest.fn(), warn: jest.fn() };
   const makeCdmMainHubPlayer = (index: number) => {
-    const n = String(index + 1).padStart(2, "0");
+    const n = String(index + 1).padStart(2, '0');
     return {
       playerId: `p${index + 1}`,
       player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
@@ -194,6 +193,11 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     }));
     (formatDate as jest.Mock).mockReturnValue('2024-01-15');
     (formatTime as jest.Mock).mockReturnValue('1:23.456');
+    /* Legacy seed backfill queries the live KO models before the full export
+     * include. Fixtures that do not exercise that path represent no KO rows. */
+    (prisma.bMMatch as jest.Mocked<typeof prisma.bMMatch>).findMany.mockResolvedValue([] as never);
+    (prisma.mRMatch as jest.Mocked<typeof prisma.mRMatch>).findMany.mockResolvedValue([] as never);
+    (prisma.gPMatch as jest.Mocked<typeof prisma.gPMatch>).findMany.mockResolvedValue([] as never);
   });
 
   describe('GET - Export tournament data as CSV', () => {
@@ -229,9 +233,15 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         where: { id: 't1' },
         include: {
           bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-          bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
-          mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
-          gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          bmMatches: {
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          },
+          mrMatches: {
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          },
+          gpMatches: {
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          },
           ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
         },
       });
@@ -243,39 +253,45 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         name: 'CDM Tournament',
         date: new Date('2024-01-15'),
         status: 'completed',
-        bmQualifications: [{
-          player: { id: 'p1', name: 'Player One', nickname: 'P1' },
-          seeding: 1,
-          group: 'A',
-          points: 3,
-          score: 1000,
-        }],
+        bmQualifications: [
+          {
+            player: { id: 'p1', name: 'Player One', nickname: 'P1' },
+            seeding: 1,
+            group: 'A',
+            points: 3,
+            score: 1000,
+          },
+        ],
         mrQualifications: [],
         gpQualifications: [],
-        bmMatches: [{
-          matchNumber: 1,
-          stage: 'finals',
-          round: 'gf',
-          bracketPosition: 'gf',
-          isGrandFinal: true,
-          player1: { id: 'p1', name: 'Player One', nickname: 'P1' },
-          player2: { id: 'p2', name: 'Player Two', nickname: 'P2' },
-          score1: 5,
-          score2: 3,
-          completed: true,
-        }],
+        bmMatches: [
+          {
+            matchNumber: 1,
+            stage: 'finals',
+            round: 'gf',
+            bracketPosition: 'gf',
+            isGrandFinal: true,
+            player1: { id: 'p1', name: 'Player One', nickname: 'P1' },
+            player2: { id: 'p2', name: 'Player Two', nickname: 'P2' },
+            score1: 5,
+            score2: 3,
+            completed: true,
+          },
+        ],
         mrMatches: [],
         gpMatches: [],
-        ttEntries: [{
-          playerId: 'p1',
-          player: { id: 'p1', name: 'Player One', nickname: 'P1' },
-          stage: 'qualification',
-          seeding: 1,
-          lives: 3,
-          eliminated: false,
-          times: { MC1: '0:12.345' },
-          totalTime: 12345,
-        }],
+        ttEntries: [
+          {
+            playerId: 'p1',
+            player: { id: 'p1', name: 'Player One', nickname: 'P1' },
+            stage: 'qualification',
+            seeding: 1,
+            lives: 3,
+            eliminated: false,
+            times: { MC1: '0:12.345' },
+            totalTime: 12345,
+          },
+        ],
         ttPhaseRounds: [],
       };
 
@@ -294,9 +310,15 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         where: { id: 't1' },
         include: {
           bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
-          bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
-          mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
-          gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          bmMatches: {
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          },
+          mrMatches: {
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          },
+          gpMatches: {
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          },
           ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
           mrQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
           gpQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
@@ -308,6 +330,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
                 select: { sequence: true, results: true },
               },
             },
+          },
+          finalsRoundSettings: {
+            select: { mode: true, stage: true, round: true, targetWins: true },
           },
         },
       });
@@ -338,6 +363,8 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         matchNumber,
         stage,
         round,
+        player1Id: p1,
+        player2Id: p2,
         bracketPosition: round === 'gf' ? 'gf' : round,
         isGrandFinal: round === 'gf',
         player1: player(p1),
@@ -436,12 +463,12 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
 
       const workbook = cdmWorkbookFromResult(result);
       // Universe sorted by name asc: Name 01..Name 60 land on rows 2..61.
-      expect(workbook.Sheets["Main Hub"].B2.v).toBe('Name 01');
-      expect(workbook.Sheets["Main Hub"].B61.v).toBe('Name 60');
-      expect(workbook.Sheets["Main Hub"].C61.v).toBe('Player 60');
+      expect(workbook.Sheets['Main Hub'].B2.v).toBe('Name 01');
+      expect(workbook.Sheets['Main Hub'].B61.v).toBe('Name 60');
+      expect(workbook.Sheets['Main Hub'].C61.v).toBe('Player 60');
       // Row 62 is past the fixed 60-row table; the template has no B62 and the
       // exporter must never address it, so the decoded cell stays undefined.
-      expect(workbook.Sheets["Main Hub"].B62).toBeUndefined();
+      expect(workbook.Sheets['Main Hub'].B62).toBeUndefined();
     });
 
     it('should cap Main Hub player rows at 60 when more players are provided', async () => {
@@ -470,21 +497,41 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const workbook = cdmWorkbookFromResult(result);
       // The 60th player still lands on B61; the 61st is dropped (truncate + log),
       // and no row-62 cell is ever created (KEEP-OUT-OF-BOUNDS of the fixed table).
-      expect(workbook.Sheets["Main Hub"].B2.v).toBe('Name 01');
-      expect(workbook.Sheets["Main Hub"].B61.v).toBe('Name 60');
+      expect(workbook.Sheets['Main Hub'].B2.v).toBe('Name 01');
+      expect(workbook.Sheets['Main Hub'].B61.v).toBe('Name 60');
       for (const column of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']) {
-        expect(workbook.Sheets["Main Hub"][`${column}62`]).toBeUndefined();
+        expect(workbook.Sheets['Main Hub'][`${column}62`]).toBeUndefined();
       }
     });
 
     it('should cap TT Qualifications rows at 60 when more entries are provided', async () => {
       const ttBoundaryColumns = [
-        "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
-        "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+        'E',
+        'F',
+        'G',
+        'H',
+        'I',
+        'J',
+        'K',
+        'L',
+        'M',
+        'N',
+        'O',
+        'P',
+        'Q',
+        'R',
+        'S',
+        'T',
+        'U',
+        'V',
+        'W',
+        'X',
+        'Y',
+        'Z',
       ];
 
       const makeTtQualificationPlayer = (index: number) => {
-        const n = String(index + 1).padStart(2, "0");
+        const n = String(index + 1).padStart(2, '0');
         return {
           playerId: `p${index + 1}`,
           player: { id: `p${index + 1}`, name: `Name ${n}`, nickname: `Player ${n}` },
@@ -524,9 +571,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       // its template table is smaller than Main Hub's. Row 2 gets the first
       // nickname-sorted entry's MC1 time; the row-62 cells stay unwritten.
       // (Nicknames "Player 01".."Player 61" sort ascending, so Player 01 -> row 2.)
-      expect(workbook.Sheets["TT Qualifications"].G2.v).toBe(100); // 0:01.000 -> 100
+      expect(workbook.Sheets['TT Qualifications'].G2.v).toBe(100); // 0:01.000 -> 100
       for (const col of ttBoundaryColumns) {
-        expect(workbook.Sheets["TT Qualifications"][`${col}62`]).toBeUndefined();
+        expect(workbook.Sheets['TT Qualifications'][`${col}62`]).toBeUndefined();
       }
     });
 
@@ -548,16 +595,18 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         bmMatches: [],
         mrMatches: [],
         gpMatches: [],
-        ttEntries: [{
-          playerId: 'p1',
-          player,
-          stage: 'qualification',
-          seeding: 1,
-          lives: 3,
-          eliminated: false,
-          times: { MC1: '1:10.34' },
-          totalTime: 70340,
-        }],
+        ttEntries: [
+          {
+            playerId: 'p1',
+            player,
+            stage: 'qualification',
+            seeding: 1,
+            lives: 3,
+            eliminated: false,
+            times: { MC1: '1:10.34' },
+            totalTime: 70340,
+          },
+        ],
         ttPhaseRounds: [],
       };
 
@@ -569,7 +618,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const result = await GET(request, { params });
 
       const workbook = cdmWorkbookFromResult(result);
-      const ttSheet = workbook.Sheets["TT Qualifications"];
+      const ttSheet = workbook.Sheets['TT Qualifications'];
       // The single qualifier lands on row 2 with the MSSCC-encoded time...
       expect(ttSheet.G2.v).toBe(11034); // 1:10.34
       // ...and the stale 2025 times on the spare rows are gone (template G3=5979,
@@ -632,7 +681,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const result = await GET(request, { params });
 
       const workbook = cdmWorkbookFromResult(result);
-      const sheet = workbook.Sheets["BM Finals"];
+      const sheet = workbook.Sheets['BM Finals'];
       // winners_qf[0] is a degraded-8 path (winners_qf is the first round): the
       // template's row-7 score cells (AC7/AC8) get the overwritten 2-1 result.
       expect(sheet.AC7.v).toBe(2);
@@ -649,11 +698,13 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual(expect.objectContaining({
-        success: false,
-        error: 'Authentication required',
-        code: 'UNAUTHORIZED',
-      }));
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: 'Authentication required',
+          code: 'UNAUTHORIZED',
+        }),
+      );
       expect(result.status).toBe(401);
       expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
     });
@@ -665,11 +716,13 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual(expect.objectContaining({
-        success: false,
-        error: 'Admin access required',
-        code: 'FORBIDDEN',
-      }));
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: 'Admin access required',
+          code: 'FORBIDDEN',
+        }),
+      );
       expect(result.status).toBe(403);
       expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
     });
@@ -700,11 +753,13 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual(expect.objectContaining({
-        success: false,
-        error: 'Failed to load CDM export template',
-        code: 'SERVICE_UNAVAILABLE',
-      }));
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: 'Failed to load CDM export template',
+          code: 'SERVICE_UNAVAILABLE',
+        }),
+      );
       expect(result.status).toBe(503);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to load CDM export template', {
         source: 'fetch',
@@ -746,11 +801,13 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
 
       expect(assetFetch).toHaveBeenCalledWith(new URL('/templates/cdm-2025-template.xlsm', 'https://assets.local'));
       expect(global.fetch).not.toHaveBeenCalled();
-      expect(result.data).toEqual(expect.objectContaining({
-        success: false,
-        error: 'Failed to load CDM export template',
-        code: 'SERVICE_UNAVAILABLE',
-      }));
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: 'Failed to load CDM export template',
+          code: 'SERVICE_UNAVAILABLE',
+        }),
+      );
       expect(result.status).toBe(503);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to load CDM export template', {
         source: 'ASSETS',
@@ -771,28 +828,34 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         name: '__proto__',
         date: new Date('2024-01-15'),
         status: 'completed',
-        bmQualifications: [{
-          player: { id: 'p1', name: '__proto__', nickname: '__proto__', country: 'constructor' },
-          seeding: 1,
-          group: 'A',
-          points: 3,
-          score: 1000,
-        }],
+        bmQualifications: [
+          {
+            player: { id: 'p1', name: '__proto__', nickname: '__proto__', country: 'constructor' },
+            seeding: 1,
+            group: 'A',
+            points: 3,
+            score: 1000,
+          },
+        ],
         mrQualifications: [],
         gpQualifications: [],
         bmMatches: [],
         mrMatches: [],
         gpMatches: [],
-        ttEntries: [{
-          playerId: 'p1',
-          player: { id: 'p1', name: '__proto__', nickname: '__proto__', country: 'constructor' },
-          stage: 'qualification',
-          seeding: 1,
-          lives: 3,
-          eliminated: false,
-          times: JSON.parse(`{"MC1":"0:12.345","__proto__":{"${pollutionKey}":true},"constructor":{"prototype":{"${pollutionKey}":true}}}`),
-          totalTime: 12345,
-        }],
+        ttEntries: [
+          {
+            playerId: 'p1',
+            player: { id: 'p1', name: '__proto__', nickname: '__proto__', country: 'constructor' },
+            stage: 'qualification',
+            seeding: 1,
+            lives: 3,
+            eliminated: false,
+            times: JSON.parse(
+              `{"MC1":"0:12.345","__proto__":{"${pollutionKey}":true},"constructor":{"prototype":{"${pollutionKey}":true}}}`,
+            ),
+            totalTime: 12345,
+          },
+        ],
         ttPhaseRounds: [],
       };
 
@@ -808,8 +871,8 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         expect(result.headers['Content-Disposition']).toContain('__proto__-cdm-2024-01-15.xlsm');
         // Nicknames are written as inline strings (never as object keys/formulas),
         // so the malicious "__proto__" / "constructor" time keys cannot pollute.
-        expect(workbook.Sheets["Main Hub"].B2.v).toBe('__proto__');
-        expect(workbook.Sheets["Main Hub"].C2.v).toBe('__proto__');
+        expect(workbook.Sheets['Main Hub'].B2.v).toBe('__proto__');
+        expect(workbook.Sheets['Main Hub'].C2.v).toBe('__proto__');
         expect(({} as Record<string, unknown>)[pollutionKey]).toBeUndefined();
         expect(Object.prototype[pollutionKey]).toBeUndefined();
       } finally {
@@ -879,8 +942,8 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       // 8-player degraded bracket: winners_final[0] score cells AQ19/AQ20 are
       // value-overwritten from the GP match points1/points2 (2-1) — no cupResults
       // summary string is written anywhere (the per-cup detail stays in the app).
-      expect(workbook.Sheets["GP Finals"].AQ19.v).toBe(2);
-      expect(workbook.Sheets["GP Finals"].AQ20.v).toBe(1);
+      expect(workbook.Sheets['GP Finals'].AQ19.v).toBe(2);
+      expect(workbook.Sheets['GP Finals'].AQ20.v).toBe(1);
     });
 
     it('should export BM qualification data grouped by group', async () => {
@@ -1329,13 +1392,18 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const result = await GET(request, { params });
 
       // createErrorResponse includes success: false and error message
-      expect(result.data).toEqual(expect.objectContaining({ success: false, error: 'Failed to export tournament data' }));
+      expect(result.data).toEqual(
+        expect.objectContaining({ success: false, error: 'Failed to export tournament data' }),
+      );
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', expect.objectContaining({
-        errorMessage: 'Database error',
-        errorName: expect.any(String),
-        tournamentId: 't1',
-      }));
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        'Failed to export tournament',
+        expect.objectContaining({
+          errorMessage: 'Database error',
+          errorName: expect.any(String),
+          tournamentId: 't1',
+        }),
+      );
     });
 
     it('should handle invalid tournament ID gracefully', async () => {
@@ -1367,10 +1435,13 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(result.status).toBe(500);
       expect(result.data).toEqual(expect.objectContaining({ success: false }));
       // Logger should capture the error with the raw id as tournamentId fallback
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', expect.objectContaining({
-        errorMessage: expect.any(String),
-        tournamentId: badId,
-      }));
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        'Failed to export tournament',
+        expect.objectContaining({
+          errorMessage: expect.any(String),
+          tournamentId: badId,
+        }),
+      );
     });
 
     it('should handle tournament with all empty data', async () => {
@@ -1609,6 +1680,52 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     });
   });
 
+  it('rejects CDM export when a legacy manual finals-slot adjustment has no seed snapshot', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ bmFinalsSeedSnapshot: null });
+    (prisma.bMMatch as jest.Mocked<typeof prisma.bMMatch>).findMany.mockResolvedValue([
+      {
+        matchNumber: 1,
+        stage: 'finals',
+        round: 'winners_qf',
+        player1Id: 'p8',
+        player2Id: 'p1',
+        player1: { id: 'p8' },
+        player2: { id: 'p1' },
+        slotOverrideAt: new Date('2026-07-22T00:00:00.000Z'),
+      },
+    ] as never);
+
+    const result = await GET(new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm'), {
+      params: Promise.resolve({ id: 't1' }),
+    });
+
+    expect(result.status).toBe(409);
+    expect(result.data).toEqual(expect.objectContaining({ success: false, code: 'FINALS_SEED_REPAIR_REQUIRED' }));
+  });
+
+  it('rejects CDM export when a legacy standard opening round is incomplete', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ bmFinalsSeedSnapshot: null });
+    (prisma.bMMatch as jest.Mocked<typeof prisma.bMMatch>).findMany.mockResolvedValue([
+      {
+        matchNumber: 1,
+        stage: 'finals',
+        round: 'winners_qf',
+        player1Id: 'p1',
+        player2Id: 'p8',
+        player1: { id: 'p1' },
+        player2: { id: 'p8' },
+        slotOverrideAt: null,
+      },
+    ] as never);
+
+    const result = await GET(new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm'), {
+      params: Promise.resolve({ id: 't1' }),
+    });
+
+    expect(result.status).toBe(409);
+    expect(result.data).toEqual(expect.objectContaining({ success: false, code: 'FINALS_SEED_REPAIR_REQUIRED' }));
+  });
+
   /*
    * Regression coverage for the CDM Export HTTP 500 reported when the export
    * encounters a row whose `player` / `player1` / `player2` relation came back
@@ -1625,9 +1742,11 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       const templateBuf = readFileSync(CDM_TEMPLATE_PATH);
       const assetFetch = jest.fn().mockResolvedValue({
         ok: true,
-        arrayBuffer: jest.fn().mockResolvedValue(
-          templateBuf.buffer.slice(templateBuf.byteOffset, templateBuf.byteOffset + templateBuf.byteLength),
-        ),
+        arrayBuffer: jest
+          .fn()
+          .mockResolvedValue(
+            templateBuf.buffer.slice(templateBuf.byteOffset, templateBuf.byteOffset + templateBuf.byteLength),
+          ),
       });
       (getCloudflareContext as jest.Mock).mockReturnValue({
         env: { DB: {}, ASSETS: { fetch: assetFetch } },
@@ -1700,20 +1819,95 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
 
       expect(result.status).toBe(200);
       expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect(loggerMock.warn).not.toHaveBeenCalledWith(
         'Dropped CDM export match rows with missing/invalid players',
         expect.objectContaining({ category: 'bmMatches', droppedCount: 1 }),
       );
     });
 
     it.each([
-      ['mrQualification', 'mrQualifications', { player: null, seeding: 1, group: 'A', points: 0, score: 0 }, 'Dropped CDM export rows with missing/invalid player'],
-      ['gpQualification', 'gpQualifications', { player: null, seeding: 1, group: 'A', points: 0, score: 0 }, 'Dropped CDM export rows with missing/invalid player'],
-      ['bmMatch player2', 'bmMatches', { matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Alice', nickname: 'Alice' }, player2: null, score1: 4, score2: 2, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
-      ['mrMatch player1', 'mrMatches', { matchNumber: 1, stage: 'qualification', player1: null, player2: { id: 'p2', name: 'Bob', nickname: 'Bob' }, score1: 3, score2: 1, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
-      ['mrMatch player2', 'mrMatches', { matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Alice', nickname: 'Alice' }, player2: null, score1: 3, score2: 1, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
-      ['gpMatch player1', 'gpMatches', { matchNumber: 1, stage: 'qualification', player1: null, player2: { id: 'p2', name: 'Bob', nickname: 'Bob' }, points1: 45, points2: 0, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
-      ['gpMatch player2', 'gpMatches', { matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Alice', nickname: 'Alice' }, player2: null, points1: 45, points2: 0, completed: true }, 'Dropped CDM export match rows with missing/invalid players'],
+      [
+        'mrQualification',
+        'mrQualifications',
+        { player: null, seeding: 1, group: 'A', points: 0, score: 0 },
+        'Dropped CDM export rows with missing/invalid player',
+      ],
+      [
+        'gpQualification',
+        'gpQualifications',
+        { player: null, seeding: 1, group: 'A', points: 0, score: 0 },
+        'Dropped CDM export rows with missing/invalid player',
+      ],
+      [
+        'bmMatch player2',
+        'bmMatches',
+        {
+          matchNumber: 1,
+          stage: 'qualification',
+          player1: { id: 'p1', name: 'Alice', nickname: 'Alice' },
+          player2: null,
+          score1: 4,
+          score2: 2,
+          completed: true,
+        },
+        'Dropped CDM export match rows with missing/invalid players',
+      ],
+      [
+        'mrMatch player1',
+        'mrMatches',
+        {
+          matchNumber: 1,
+          stage: 'qualification',
+          player1: null,
+          player2: { id: 'p2', name: 'Bob', nickname: 'Bob' },
+          score1: 3,
+          score2: 1,
+          completed: true,
+        },
+        'Dropped CDM export match rows with missing/invalid players',
+      ],
+      [
+        'mrMatch player2',
+        'mrMatches',
+        {
+          matchNumber: 1,
+          stage: 'qualification',
+          player1: { id: 'p1', name: 'Alice', nickname: 'Alice' },
+          player2: null,
+          score1: 3,
+          score2: 1,
+          completed: true,
+        },
+        'Dropped CDM export match rows with missing/invalid players',
+      ],
+      [
+        'gpMatch player1',
+        'gpMatches',
+        {
+          matchNumber: 1,
+          stage: 'qualification',
+          player1: null,
+          player2: { id: 'p2', name: 'Bob', nickname: 'Bob' },
+          points1: 45,
+          points2: 0,
+          completed: true,
+        },
+        'Dropped CDM export match rows with missing/invalid players',
+      ],
+      [
+        'gpMatch player2',
+        'gpMatches',
+        {
+          matchNumber: 1,
+          stage: 'qualification',
+          player1: { id: 'p1', name: 'Alice', nickname: 'Alice' },
+          player2: null,
+          points1: 45,
+          points2: 0,
+          completed: true,
+        },
+        'Dropped CDM export match rows with missing/invalid players',
+      ],
     ])('should still export when a %s row has a missing player relation', async (_label, category, row, warning) => {
       setupRealTemplateMock();
       const mockTournament = {
@@ -1732,15 +1926,18 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       };
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
 
-      const request = new MockNextRequest(`http://localhost:3000/api/tournaments/${mockTournament.id}/export?format=cdm`);
+      const request = new MockNextRequest(
+        `http://localhost:3000/api/tournaments/${mockTournament.id}/export?format=cdm`,
+      );
       const result = await GET(request, { params: Promise.resolve({ id: mockTournament.id }) });
 
       expect(result.status).toBe(200);
       expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(loggerMock.warn).toHaveBeenCalledWith(
-        warning,
-        expect.objectContaining({ category, droppedCount: 1 }),
-      );
+      if (warning === 'Dropped CDM export match rows with missing/invalid players') {
+        expect(loggerMock.warn).not.toHaveBeenCalledWith(warning, expect.anything());
+      } else {
+        expect(loggerMock.warn).toHaveBeenCalledWith(warning, expect.objectContaining({ category, droppedCount: 1 }));
+      }
     });
 
     it('should still export when a ttEntry has player: null', async () => {
@@ -1757,7 +1954,15 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
         gpMatches: [],
         ttEntries: [
           { player: null, playerId: 'p1', stage: 'qualification', seeding: 1, lives: 3, eliminated: false, times: {} },
-          { player: { id: 'p2', name: 'Bob', nickname: 'Bob' }, playerId: 'p2', stage: 'qualification', seeding: 2, lives: 3, eliminated: false, times: {} },
+          {
+            player: { id: 'p2', name: 'Bob', nickname: 'Bob' },
+            playerId: 'p2',
+            stage: 'qualification',
+            seeding: 2,
+            lives: 3,
+            eliminated: false,
+            times: {},
+          },
         ],
         ttPhaseRounds: [],
       };
@@ -1866,10 +2071,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
 
       expect(result.status).toBe(200);
       expect(result.data).toBeInstanceOf(Uint8Array);
-      expect(loggerMock.error).not.toHaveBeenCalledWith(
-        'Failed to export tournament',
-        expect.anything(),
-      );
+      expect(loggerMock.error).not.toHaveBeenCalledWith('Failed to export tournament', expect.anything());
       expect(loggerMock.warn).toHaveBeenCalledWith(
         'TT Finals phase1 round 1: invalid timeMs for player p1; treating as missing time',
       );

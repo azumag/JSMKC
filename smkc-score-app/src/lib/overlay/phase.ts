@@ -11,8 +11,8 @@
  * That keeps the decision tree unit-testable without Prisma.
  */
 
-import type { OverlayMode } from "./types";
-import { getBmFinalsTargetWins, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
+import type { OverlayMode } from './types';
+import { getBmFinalsTargetWins, getGpFinalsTargetWins, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 
 /** Decision-tree input. All fields come from a handful of cheap DB lookups. */
 export interface ComputeCurrentPhaseInput {
@@ -23,7 +23,7 @@ export interface ComputeCurrentPhaseInput {
    * no phase rows exist yet — matches the contract of the existing
    * `getPhaseStatus()` helper in `src/lib/ta/finals-phase-manager.ts`.
    */
-  taCurrentPhase: "qualification" | "phase1" | "phase2" | "phase3";
+  taCurrentPhase: 'qualification' | 'phase1' | 'phase2' | 'phase3';
   /**
    * Round number of the latest TTPhaseRound row in `taCurrentPhase`, or null
    * if none exist (e.g. the phase has been entered via TTEntry but no round
@@ -46,6 +46,8 @@ export interface ComputeCurrentPhaseInput {
    * Null when there is no finals match yet, or when the latest match has no mode.
    */
   latestFinalsMode: OverlayMode | null;
+  /** Persisted round setting, if the latest match was generated or configured after #3038. */
+  latestFinalsTargetWins?: number | null;
 }
 
 /**
@@ -55,21 +57,21 @@ export interface ComputeCurrentPhaseInput {
  * doesn't silently disappear from the broadcast.
  */
 const FINALS_ROUND_LABEL: Record<string, string> = {
-  qf: "Quarter Final",
-  playoff_r1: "Playoff Round 1",
-  playoff_r2: "Playoff Round 2",
-  winners_qf: "Winners Quarter Final",
-  sf: "Semi Final",
-  winners_sf: "Winners Semi Final",
-  winners_final: "Winners Final",
-  losers_r1: "Losers Round 1",
-  losers_r2: "Losers Round 2",
-  losers_r3: "Losers Round 3",
-  losers_r4: "Losers Round 4",
-  losers_sf: "Losers Semi Final",
-  losers_final: "Losers Final",
-  grand_final: "Grand Final",
-  grand_final_reset: "Grand Final Reset",
+  qf: 'Quarter Final',
+  playoff_r1: 'Playoff Round 1',
+  playoff_r2: 'Playoff Round 2',
+  winners_qf: 'Winners Quarter Final',
+  sf: 'Semi Final',
+  winners_sf: 'Winners Semi Final',
+  winners_final: 'Winners Final',
+  losers_r1: 'Losers Round 1',
+  losers_r2: 'Losers Round 2',
+  losers_r3: 'Losers Round 3',
+  losers_r4: 'Losers Round 4',
+  losers_sf: 'Losers Semi Final',
+  losers_final: 'Losers Final',
+  grand_final: 'Grand Final',
+  grand_final_reset: 'Grand Final Reset',
 };
 
 function labelFinalsRound(round: string): string {
@@ -88,37 +90,26 @@ function labelFinalsRound(round: string): string {
  *  6. Default                                → `Qualification`
  */
 export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
-  const {
-    qualificationConfirmed,
-    taCurrentPhase,
-    taLatestPhaseRoundNumber,
-    latestFinalsRound,
-  } = input;
+  const { qualificationConfirmed, taCurrentPhase, taLatestPhaseRoundNumber, latestFinalsRound } = input;
 
   if (latestFinalsRound) {
     return `Finals ${labelFinalsRound(latestFinalsRound)}`;
   }
-  if (taCurrentPhase === "phase3") {
-    return taLatestPhaseRoundNumber
-      ? `Time Attack Phase 3 Round ${taLatestPhaseRoundNumber}`
-      : "Time Attack Phase 3";
+  if (taCurrentPhase === 'phase3') {
+    return taLatestPhaseRoundNumber ? `Time Attack Phase 3 Round ${taLatestPhaseRoundNumber}` : 'Time Attack Phase 3';
   }
-  if (taCurrentPhase === "phase2") {
-    return taLatestPhaseRoundNumber
-      ? `Time Attack Phase 2 Round ${taLatestPhaseRoundNumber}`
-      : "Time Attack Phase 2";
+  if (taCurrentPhase === 'phase2') {
+    return taLatestPhaseRoundNumber ? `Time Attack Phase 2 Round ${taLatestPhaseRoundNumber}` : 'Time Attack Phase 2';
   }
-  if (taCurrentPhase === "phase1") {
-    return taLatestPhaseRoundNumber
-      ? `Time Attack Phase 1 Round ${taLatestPhaseRoundNumber}`
-      : "Time Attack Phase 1";
+  if (taCurrentPhase === 'phase1') {
+    return taLatestPhaseRoundNumber ? `Time Attack Phase 1 Round ${taLatestPhaseRoundNumber}` : 'Time Attack Phase 1';
   }
   if (qualificationConfirmed) {
     // Interregnum: qualification locked but barrage/finals haven't started
     // anywhere yet. Visually distinct from the live qualification state.
-    return "Qualification Locked";
+    return 'Qualification Locked';
   }
-  return "Qualification";
+  return 'Qualification';
 }
 
 /**
@@ -140,9 +131,9 @@ export function buildMatchLabel(
   mode?: OverlayMode,
 ): string {
   void mode;
-  if (!roundKey) return "Finals";
+  if (!roundKey) return 'Finals';
   const roundName = FINALS_ROUND_LABEL[roundKey] ?? roundNames[roundKey] ?? roundKey;
-  return roundName ? `Finals ${roundName}` : "Finals";
+  return roundName ? `Finals ${roundName}` : 'Finals';
 }
 
 /**
@@ -155,27 +146,35 @@ export function buildMatchLabel(
  * when there is nothing to show — joining it onto `computeCurrentPhase`'s
  * label would force a placeholder in the no-FT case.
  */
-export function computeCurrentPhaseFormat(
-  input: ComputeCurrentPhaseInput,
-): string | null {
-  const { latestFinalsRound, latestFinalsStage, latestFinalsMode } = input;
+export function computeCurrentPhaseFormat(input: ComputeCurrentPhaseInput): string | null {
+  const { latestFinalsRound, latestFinalsStage, latestFinalsMode, latestFinalsTargetWins } = input;
 
   if (latestFinalsRound && latestFinalsMode) {
-    if (latestFinalsMode === "bm") {
-      const targetWins = getBmFinalsTargetWins({
+    if (latestFinalsMode === 'bm') {
+      const targetWins =
+        latestFinalsTargetWins ??
+        getBmFinalsTargetWins({
+          round: latestFinalsRound,
+          stage: latestFinalsStage,
+        });
+      return `First to ${targetWins}`;
+    }
+    if (latestFinalsMode === 'mr') {
+      const targetWins =
+        latestFinalsTargetWins ??
+        getMrFinalsTargetWins({
+          round: latestFinalsRound,
+          stage: latestFinalsStage,
+        });
+      return `First to ${targetWins}`;
+    }
+    const targetWins =
+      latestFinalsTargetWins ??
+      getGpFinalsTargetWins({
         round: latestFinalsRound,
         stage: latestFinalsStage,
       });
-      return `First to ${targetWins}`;
-    }
-    if (latestFinalsMode === "mr") {
-      const targetWins = getMrFinalsTargetWins({
-        round: latestFinalsRound,
-        stage: latestFinalsStage,
-      });
-      return `First to ${targetWins}`;
-    }
-    return null;
+    return `First to ${targetWins}`;
   }
 
   // No FT label for qualification, barrage, or TA finals — those are scored

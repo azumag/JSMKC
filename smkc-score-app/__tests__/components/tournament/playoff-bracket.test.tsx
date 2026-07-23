@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
 
 const seededPlayers = [
@@ -68,6 +68,40 @@ describe('PlayoffBracket qualification rank labels', () => {
     expect(round1Match.textContent).toContain('[2]');
     expect(round1Match.textContent).not.toContain('[A9]');
     expect(round1Match.textContent).not.toContain('[B12]');
+  });
+
+  it("uses the player's original qualification seed after a playoff advance", () => {
+    const barrageWinner = { id: 'p17', name: 'Barrage Winner', nickname: 'Barrage' };
+    render(
+      <PlayoffBracket
+        playoffMatches={[
+          {
+            id: 'm5',
+            matchNumber: 5,
+            round: 'playoff_r2',
+            stage: 'playoff',
+            player1Id: barrageWinner.id,
+            player2Id: 'p1',
+            player1: barrageWinner,
+            player2: seededPlayers[0].player,
+            score1: 3,
+            score2: 1,
+            completed: true,
+          },
+        ]}
+        playoffStructure={[{ matchNumber: 5, round: 'playoff_r2', bracket: 'winners', advancesToUpperSeed: 16 }]}
+        roundNames={{ playoff_r2: 'Round 2' }}
+        seededPlayers={[
+          ...seededPlayers,
+          { seed: 16, originalSeed: 17, playerId: barrageWinner.id, player: barrageWinner },
+        ]}
+      />,
+    );
+
+    const round2Match = screen.getByRole('button', { name: /Match 5: Barrage vs Alice/ });
+    expect(round2Match.textContent).toContain('[17]');
+    expect(round2Match.textContent).toContain('[1]');
+    expect(round2Match.textContent).not.toContain('[16]');
   });
 });
 
@@ -164,6 +198,35 @@ describe('PlayoffBracket manual slot placement adjustment (issue #3017 playoff s
     expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
   });
 
+  it('shows a NULL R2 opponent as TBD and never opens score entry', () => {
+    const onMatchClick = jest.fn();
+    render(
+      <PlayoffBracket
+        playoffMatches={[
+          buildMatch({ id: 'm1', matchNumber: 1, completed: false }),
+          buildMatch({
+            id: 'm5',
+            matchNumber: 5,
+            round: 'playoff_r2',
+            player2Id: null,
+            player2: null,
+          }),
+        ]}
+        playoffStructure={[
+          { ...r1Structure[0], winnerGoesTo: 5, position: 2 },
+          { matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 16 },
+        ]}
+        roundNames={{}}
+        onMatchClick={onMatchClick}
+      />,
+    );
+
+    const card = screen.getByRole('button', { name: /Match 5: Alice vs TBD/ });
+    expect(card).toHaveAttribute('tabindex', '-1');
+    fireEvent.click(card);
+    expect(onMatchClick).not.toHaveBeenCalled();
+  });
+
   it('hides the edit button for a slot that is still TBD', () => {
     /* R2 match (M5): player2Seed is omitted (R1 winner not yet routed), and
      * player1Id === player2Id is the placeholder heuristic for "not yet
@@ -189,6 +252,7 @@ describe('PlayoffBracket manual slot placement adjustment (issue #3017 playoff s
 
     expect(screen.getByTestId('slot-edit-button-1')).toBeInTheDocument();
     expect(screen.queryByTestId('slot-edit-button-2')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Match 5: Alice vs Alice/ }).textContent).not.toContain('[1]');
   });
 
   it('calls onSlotClick with the match and slot, without triggering onMatchClick', () => {

@@ -38,6 +38,10 @@
  *   TC-3029 BM manual bracket slot adjustment — cross-match swapSlots (issue #3017)
  *   TC-3030 BM manual bracket slot adjustment — guards (issue #3017)
  *   TC-3031 BM manual bracket slot adjustment — playoff-stage swap (issue #3017 playoff support)
+ *   TC-3038A BM finals round FT update is atomic and completed rounds stay frozen
+ *   TC-3038B BM tied corrected result preserves the selected winner and routes it
+ *   TC-3038C BM finals round FT update rejects a stale optimistic-lock version
+ *   TC-3040 BM Top-24 barrage correction safely reconciles the affected Upper slot
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -65,6 +69,7 @@ const {
   apiGenerateBmFinals,
   apiFetchBmFinalsMatches,
   apiFetchBmFinalsState,
+  setupBm28PlayerFinals,
   apiPutAllBmQualScores,
   apiUpdateTournament,
   apiJson,
@@ -3313,6 +3318,243 @@ async function runTc531(adminPage) {
   }
 }
 
+/* ───────── TC-3038: finals administrative corrections (#3038) ─────────
+ * These use a newly generated bracket and remove it in finally so each case
+ * remains independent from the shared qualification fixture. */
+async function runTc3038A(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const roundMatches = matches.filter((match) => match.round === 'winners_qf' && !match.completed);
+    if (roundMatches.length < 2) throw new Error(`Expected pending winners_qf matches, got ${roundMatches.length}`);
+    const expectedVersions = Object.fromEntries(roundMatches.map((match) => [match.id, match.version]));
+    const patch = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { matchId: roundMatches[0].id, roundSettings: { targetWins: 7, expectedVersions } },
+    });
+    if (patch.status !== 200) throw new Error(`Round FT PATCH failed (${patch.status})`);
+
+    const after = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const updatedRound = after.filter((match) => match.round === 'winners_qf');
+    const allFt7 = updatedRound.every((match) => match.targetWins === 7);
+    const scored = await apiSetBmFinalsScore(adminPage, tournamentId, updatedRound[0].id, 7, 0);
+    if (scored.s !== 200) throw new Error(`FT7 score failed (${scored.s})`);
+    const currentRound = (await apiFetchBmFinalsMatches(adminPage, tournamentId)).filter(
+      (match) => match.round === 'winners_qf',
+    );
+    const pendingOnly = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: {
+        matchId: updatedRound[0].id,
+        roundSettings: {
+          targetWins: 9,
+          expectedVersions: Object.fromEntries(currentRound.map((match) => [match.id, match.version])),
+        },
+      },
+    });
+    const finalRound = (await apiFetchBmFinalsMatches(adminPage, tournamentId)).filter(
+      (match) => match.round === 'winners_qf',
+    );
+    const completedFrozen = finalRound.find((match) => match.id === updatedRound[0].id)?.targetWins === 7;
+    const pendingUpdated = finalRound
+      .filter((match) => match.id !== updatedRound[0].id)
+      .every((match) => match.targetWins === 9);
+    const pass = allFt7 && pendingOnly.status === 200 && completedFrozen && pendingUpdated;
+    log(
+      'TC-3038A',
+      pass ? 'PASS' : 'FAIL',
+      !allFt7 ? 'Round did not normalize to FT7' : `pending=${pendingOnly.status}, frozen=${completedFrozen}`,
+    );
+  } catch (err) {
+    log('TC-3038A', 'FAIL', err instanceof Error ? err.message : 'TC-3038A failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup.tournamentId}/bm/finals`);
+    }
+  }
+}
+
+async function runTc3038B(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+    const before = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const source = before.find((match) => match.matchNumber === 1);
+    if (!source) throw new Error('Bracket missing M1');
+
+    const corrected = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PUT',
+      body: {
+        matchId: source.id,
+        expectedVersion: source.version,
+        score1: -2,
+        score2: -2,
+        winnerId: source.player2Id,
+        override: true,
+      },
+    });
+    if (corrected.status !== 200) throw new Error(`Corrected score PUT failed (${corrected.status})`);
+
+    const after = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const updated = after.find((match) => match.id === source.id);
+    const winnerTarget = after.find((match) => match.matchNumber === 5);
+    const loserTarget = after.find((match) => match.matchNumber === 8);
+    const pass =
+      updated?.winnerOverrideId === source.player2Id &&
+      [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(source.player2Id) &&
+      [loserTarget?.player1Id, loserTarget?.player2Id].includes(source.player1Id);
+    log('TC-3038B', pass ? 'PASS' : 'FAIL', pass ? '' : 'Tie override winner was not retained/routed correctly');
+  } catch (err) {
+    log('TC-3038B', 'FAIL', err instanceof Error ? err.message : 'TC-3038B failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup.tournamentId}/bm/finals`);
+    }
+  }
+}
+
+async function runTc3038C(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+    const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const roundMatches = matches.filter((match) => match.round === 'winners_qf');
+    const expectedVersions = Object.fromEntries(roundMatches.map((match) => [match.id, match.version]));
+    const first = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { matchId: roundMatches[0].id, roundSettings: { targetWins: 7, expectedVersions } },
+    });
+    const stale = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { matchId: roundMatches[0].id, roundSettings: { targetWins: 9, expectedVersions } },
+    });
+    log(
+      'TC-3038C',
+      first.status === 200 && stale.status === 409 ? 'PASS' : 'FAIL',
+      `first=${first.status}, stale=${stale.status}`,
+    );
+  } catch (err) {
+    log('TC-3038C', 'FAIL', err instanceof Error ? err.message : 'TC-3038C failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup.tournamentId}/bm/finals`);
+    }
+  }
+}
+
+/* ───────── TC-3040: Top-24 barrage correction → Upper-slot reconciliation ─────────
+ * Complete a fresh Top-24 playoff and materialise Phase 2, then reverse one
+ * completed R2 result. The result PUT deliberately leaves the already-created
+ * Upper opening slot stale; GET must expose the one safe repair, PATCH must
+ * change only that slot, and a second PATCH with the now-stale versions must
+ * be a harmless in-sync no-op. This is intentionally an API E2E (browser
+ * admin session + deployed route), not a mocked route assertion. */
+async function runTc3040(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupBm28PlayerFinals(adminPage, 'TC3040');
+    const { tournamentId } = setup;
+    const confirmed = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
+    if (confirmed.s !== 200) throw new Error(`Failed to confirm qualification (${confirmed.s})`);
+
+    const playoff = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    if (playoff.s !== 200 && playoff.s !== 201) throw new Error(`Top-24 playoff generation failed (${playoff.s})`);
+    for (let matchNumber = 1; matchNumber <= 8; matchNumber++) {
+      const state = await apiFetchBmFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((row) => row.matchNumber === matchNumber);
+      if (!match) throw new Error(`Playoff M${matchNumber} missing`);
+      const score = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, matchNumber <= 4 ? 3 : 4, 0);
+      if (score.s !== 200) throw new Error(`Playoff M${matchNumber} score failed (${score.s})`);
+    }
+    const phase2 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    if (phase2.s !== 200 && phase2.s !== 201) throw new Error(`Phase 2 generation failed (${phase2.s})`);
+
+    const beforeCorrection = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const correctedR2 = beforeCorrection.playoffMatches.find((match) => match.matchNumber === 5);
+    if (!correctedR2) throw new Error('Playoff R2 M5 missing after Phase 2');
+    const correction = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PUT',
+      body: { matchId: correctedR2.id, score1: 0, score2: 4, expectedVersion: correctedR2.version, override: true },
+    });
+    if (correction.status !== 200) throw new Error(`R2 correction failed (${correction.status})`);
+
+    const stale = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const preview = stale.raw?.data?.upperReconciliation;
+    const changes = preview?.changes || [];
+    const change = changes.find((entry) => entry.sourceMatchId === correctedR2.id);
+    if (preview?.status !== 'stale' || changes.length !== 1 || !change) {
+      throw new Error(`Expected exactly one stale Upper slot, got ${JSON.stringify(preview)}`);
+    }
+    const beforeSlots = new Map(
+      stale.matches.map((match) => [
+        match.id,
+        { player1Id: match.player1Id, player2Id: match.player2Id, version: match.version },
+      ]),
+    );
+    const reconcile = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const after = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const target = after.matches.find((match) => match.id === change.targetMatchId);
+    const targetBefore = beforeSlots.get(change.targetMatchId);
+    const oppositeKey = change.slot === 1 ? 'player2Id' : 'player1Id';
+    const targetSlotUpdated =
+      target &&
+      targetBefore &&
+      target[`player${change.slot}Id`] === change.afterPlayerId &&
+      target[oppositeKey] === targetBefore[oppositeKey] &&
+      target.version === targetBefore.version + 1;
+    const onlyTargetChanged = after.matches.every((match) => {
+      const before = beforeSlots.get(match.id);
+      if (!before) return false;
+      if (match.id === change.targetMatchId) return true;
+      return (
+        match.player1Id === before.player1Id && match.player2Id === before.player2Id && match.version === before.version
+      );
+    });
+    const retry = await apiJson(adminPage, `/api/tournaments/${tournamentId}/bm/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const ok =
+      reconcile.status === 200 &&
+      reconcile.body?.data?.status === 'updated' &&
+      targetSlotUpdated &&
+      onlyTargetChanged &&
+      retry.status === 200 &&
+      retry.body?.data?.status === 'in_sync';
+    log(
+      'TC-3040',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `reconcile=${reconcile.status}/${reconcile.body?.data?.status} target=${targetSlotUpdated} onlyTarget=${onlyTargetChanged} retry=${retry.status}/${retry.body?.data?.status}`,
+    );
+  } catch (err) {
+    log('TC-3040', 'FAIL', err instanceof Error ? err.message : 'TC-3040 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -3359,6 +3601,10 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-3029', fn: runTc3029 },
       { name: 'TC-3030', fn: runTc3030 },
       { name: 'TC-3031', fn: runTc3031 },
+      { name: 'TC-3038A', fn: runTc3038A },
+      { name: 'TC-3038B', fn: runTc3038B },
+      { name: 'TC-3038C', fn: runTc3038C },
+      { name: 'TC-3040', fn: runTc3040 },
       { name: 'TC-1046', fn: runTc1046 },
       { name: 'TC-1052', fn: runTc1052 },
       { name: 'TC-515', fn: runTc515 },
@@ -3417,6 +3663,7 @@ module.exports = {
   runTc2334,
   runTc1046,
   runTc1052,
+  runTc3040,
   bmFinalsTargetWinsForMatch,
   getSuite,
   results,

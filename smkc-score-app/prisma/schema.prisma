@@ -46,9 +46,9 @@ model Account {
   access_token      String?
   expires_at        Int?
   token_type        String?
-  scope              String?
-  id_token           String?
-  session_state      String?
+  scope             String?
+  id_token          String?
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -130,35 +130,39 @@ model Player {
 
 // Tournament model
 model Tournament {
-  id                       String    @id @default(cuid())
-  name                     String
-  slug                     String?   @unique
-  date                     DateTime
-  status                   String    @default("draft") // draft, active, completed
-  dualReportEnabled        Boolean   @default(false) // When true, both players must report matching scores for auto-confirmation
-  taPlayerSelfEdit         Boolean   @default(true) // §3.1: When false, players cannot edit their own TA times (only partner's)
-  taBattleRoyaleMode       Boolean   @default(false) // Phase 1/2を省略する少人数TAバトロワ
-  frozenStages             Json      @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
-  overlayPlayer1Name       String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
-  overlayPlayer2Name       String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
-  overlayPlayer1NoCamera   Boolean   @default(false) // 配信中1Pがカメラなしの場合、代替画像を表示
-  overlayPlayer2NoCamera   Boolean   @default(false) // 配信中2Pがカメラなしの場合、代替画像を表示
-  overlayMatchLabel        String? // 「配信に反映」時に設定される試合ラウンド表示名 (例: "決勝 QF")
-  overlayPlayer1Wins       Int? // 配信中試合の1P勝利数
-  overlayPlayer2Wins       Int? // 配信中試合の2P勝利数
-  overlayMatchFt           Int? // 配信中試合のFirst-To目標勝利数 (BM/MR決勝: 5)
-  overlayLayout            Json      @default("{}") // 配信オーバーレイの名前・点数・下枠の座標設定
-  qualificationConfirmed   Boolean   @default(false) // 後方互換レガシーフィールド（オーバーレイ参照のみ）
-  qualificationConfirmedAt DateTime? // 最後に予選が確定された日時（監査証跡・オーバーレイイベント用）
-  bmQualificationConfirmed Boolean   @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可
-  mrQualificationConfirmed Boolean   @default(false) // MRモード予選確定フラグ。trueの場合MRスコア編集不可
-  gpQualificationConfirmed Boolean   @default(false) // GPモード予選確定フラグ。trueの場合GPスコア編集不可
-  debugMode                Boolean   @default(false) // デバッグ用トーナメント。trueの場合、admin に予選スコア自動入力ボタンを表示
-  publicModes              Json      @default("[]") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）
-  deletedAt                DateTime? // ソフトデリート用タイムスタンプ
-  version                  Int       @default(0) // 楽観的ロック用
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  id                          String    @id @default(cuid())
+  name                        String
+  slug                        String?   @unique
+  date                        DateTime
+  status                      String    @default("draft") // draft, active, completed
+  dualReportEnabled           Boolean   @default(false) // When true, both players must report matching scores for auto-confirmation
+  taPlayerSelfEdit            Boolean   @default(true) // §3.1: When false, players cannot edit their own TA times (only partner's)
+  taBattleRoyaleMode          Boolean   @default(false) // Phase 1/2を省略する少人数TAバトロワ
+  frozenStages                Json      @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
+  overlayPlayer1Name          String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
+  overlayPlayer2Name          String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
+  overlayPlayer1NoCamera      Boolean   @default(false) // 配信中1Pがカメラなしの場合、代替画像を表示
+  overlayPlayer2NoCamera      Boolean   @default(false) // 配信中2Pがカメラなしの場合、代替画像を表示
+  overlayMatchLabel           String? // 「配信に反映」時に設定される試合ラウンド表示名 (例: "決勝 QF")
+  overlayPlayer1Wins          Int? // 配信中試合の1P勝利数
+  overlayPlayer2Wins          Int? // 配信中試合の2P勝利数
+  overlayMatchFt              Int? // 配信中試合のFirst-To目標勝利数 (BM/MR決勝: 5)
+  overlayLayout               Json      @default("{}") // 配信オーバーレイの名前・点数・下枠の座標設定
+  qualificationConfirmed      Boolean   @default(false) // 後方互換レガシーフィールド（オーバーレイ参照のみ）
+  qualificationConfirmedAt    DateTime? // 最後に予選が確定された日時（監査証跡・オーバーレイイベント用）
+  bmQualificationConfirmed    Boolean   @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可
+  mrQualificationConfirmed    Boolean   @default(false) // MRモード予選確定フラグ。trueの場合MRスコア編集不可
+  gpQualificationConfirmed    Boolean   @default(false) // GPモード予選確定フラグ。trueの場合GPスコア編集不可
+  bmFinalsSeedSnapshot        Json? // BM決勝生成時の選手別オリジナルシード。不変の表示・export正本
+  mrFinalsSeedSnapshot        Json? // MR決勝生成時の選手別オリジナルシード。不変の表示・export正本
+  gpFinalsSeedSnapshot        Json? // GP決勝生成時の選手別オリジナルシード。不変の表示・export正本
+  qualificationScheduleMethod String    @default("circle") // circle (legacy) or cdm (RR 2025 Start fixture)
+  debugMode                   Boolean   @default(false) // デバッグ用トーナメント。trueの場合、admin に予選スコア自動入力ボタンを表示
+  publicModes                 Json      @default("[]") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）
+  deletedAt                   DateTime? // ソフトデリート用タイムスタンプ
+  version                     Int       @default(0) // 楽観的ロック用
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   // Related data
   bmMatches                BMMatch[]
@@ -167,6 +171,7 @@ model Tournament {
   mrQualifications         MRQualification[]
   gpMatches                GPMatch[]
   gpQualifications         GPQualification[]
+  finalsRoundSettings      FinalsRoundSetting[]
   ttEntries                TTEntry[]
   ttPhaseRounds            TTPhaseRound[]
   ttPhaseSuddenDeathRounds TTPhaseSuddenDeathRound[]
@@ -230,14 +235,16 @@ model BMMatch {
   tvNumber             Int?
   roundNumber          Int? // サークル方式のDay番号 (1-based, qualification only)
   isBye                Boolean    @default(false) // BREAK不戦勝マッチ
-  player1              Player     @relation("BMPlayer1", fields: [player1Id], references: [id])
-  player1Id            String
+  player1              Player?    @relation("BMPlayer1", fields: [player1Id], references: [id])
+  player1Id            String?
   player1Side          Int        @default(1) // 1 or 2 (which controller)
-  player2              Player     @relation("BMPlayer2", fields: [player2Id], references: [id])
-  player2Id            String
+  player2              Player?    @relation("BMPlayer2", fields: [player2Id], references: [id])
+  player2Id            String?
   player2Side          Int        @default(2)
   score1               Int        @default(0) // Player 1's wins (e.g., 4 in "4-0")
   score2               Int        @default(0) // Player 2's wins
+  targetWins           Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
+  winnerOverrideId     String? // Admin-resolved winner when a corrected result cannot be derived from scores
   completed            Boolean    @default(false)
   assignedCourses      Json? // Pre-assigned courses for this match (§5.4, §6.3): ["MC1", "DP1", "GV1", "BC1"]
   rounds               Json? // [{arena: "Arena 1", winner: 1}, ...]
@@ -311,14 +318,16 @@ model MRMatch {
   tvNumber        Int?
   roundNumber     Int? // サークル方式のDay番号 (1-based, qualification only)
   isBye           Boolean    @default(false) // BREAK不戦勝マッチ
-  player1         Player     @relation("MRPlayer1", fields: [player1Id], references: [id])
-  player1Id       String
+  player1         Player?    @relation("MRPlayer1", fields: [player1Id], references: [id])
+  player1Id       String?
   player1Side     Int        @default(1) // 1 or 2 (which controller)
-  player2         Player     @relation("MRPlayer2", fields: [player2Id], references: [id])
-  player2Id       String
+  player2         Player?    @relation("MRPlayer2", fields: [player2Id], references: [id])
+  player2Id       String?
   player2Side     Int        @default(2)
   score1          Int        @default(0)
   score2          Int        @default(0)
+  targetWins      Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
+  winnerOverrideId String? // Admin-resolved winner when a corrected result cannot be derived from scores
   completed       Boolean    @default(false)
   scoresConfirmed Boolean    @default(false)
   assignedCourses Json? // Pre-assigned courses for this match (§10.5): ["MC1", "DP1", "GV1", "BC1"]
@@ -393,14 +402,16 @@ model GPMatch {
   tvNumber            Int?
   roundNumber         Int? // サークル方式のDay番号 (1-based, qualification only)
   isBye               Boolean    @default(false) // BREAK不戦勝マッチ
-  player1             Player     @relation("GPPlayer1", fields: [player1Id], references: [id])
-  player1Id           String
+  player1             Player?    @relation("GPPlayer1", fields: [player1Id], references: [id])
+  player1Id           String?
   player1Side         Int        @default(1)
-  player2             Player     @relation("GPPlayer2", fields: [player2Id], references: [id])
-  player2Id           String
+  player2             Player?    @relation("GPPlayer2", fields: [player2Id], references: [id])
+  player2Id           String?
   player2Side         Int        @default(2)
   points1             Int        @default(0) // Driver points for player 1
   points2             Int        @default(0) // Driver points for player 2
+  targetWins          Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
+  winnerOverrideId    String? // Admin-resolved winner when a corrected result cannot be derived from scores
   completed           Boolean    @default(false)
   suddenDeathWinnerId String? // Legacy GP finals tie-break winner; retained for historical bracket display
   races               Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
@@ -427,6 +438,23 @@ model GPMatch {
   @@unique([tournamentId, matchNumber, stage])
   @@index([tournamentId, stage, player1Id])
   @@index([tournamentId, stage, player2Id])
+}
+
+/// Current configurable First-To value for a finals/playoff round. Individual
+/// match rows keep their historical snapshot after completion; this record is
+/// the round-level value used by exports and remaining pending matches.
+model FinalsRoundSetting {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  mode         String
+  stage        String
+  round        String
+  targetWins   Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tournamentId, mode, stage, round])
 }
 
 // ==========================================

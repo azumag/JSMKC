@@ -58,6 +58,9 @@ import { DoubleEliminationBracket } from '@/components/tournament/double-elimina
 import { BracketSlotEditDialog } from '@/components/tournament/bracket-slot-edit-dialog';
 import { PlayoffBracket } from '@/components/tournament/playoff-bracket';
 import { PlayoffCompleteCard } from '@/components/tournament/playoff-complete-card';
+import { FinalsRoundSettings } from '@/components/tournament/finals-round-settings';
+import { FinalsScoreOverride } from '@/components/tournament/finals-score-override';
+import { FinalsPlayoffReconciliation } from '@/components/tournament/finals-playoff-reconciliation';
 import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from '@/lib/constants';
 import { getBmFinalsTargetWins } from '@/lib/finals-target-wins';
 import { usePolling } from '@/lib/hooks/usePolling';
@@ -87,6 +90,8 @@ interface BMMatch {
   stage?: string | null;
   tvNumber?: number | null;
   startingCourseNumber?: number | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -125,6 +130,8 @@ function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
 
 function getMatchWinner(match: BMMatch): Player | null {
   if (!match.completed) return null;
+  if (match.winnerOverrideId === match.player1Id) return match.player1;
+  if (match.winnerOverrideId === match.player2Id) return match.player2;
   if (match.score1 > match.score2) return match.player1;
   if (match.score2 > match.score1) return match.player2;
   return null;
@@ -135,8 +142,9 @@ function getCompletedChampion(matches: BMMatch[]): Player | null {
   if (reset) return getMatchWinner(reset);
 
   const grandFinal = matches.find((m) => m.round === 'grand_final' && m.completed);
-  if (!grandFinal || grandFinal.score1 <= grandFinal.score2) return null;
-  return grandFinal.player1;
+  if (!grandFinal) return null;
+  const winner = getMatchWinner(grandFinal);
+  return winner?.id === grandFinal.player1Id ? winner : null;
 }
 
 /**
@@ -206,7 +214,8 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
   const [slotEditMode, setSlotEditMode] = useState(false);
   const [slotEditTarget, setSlotEditTarget] = useState<{ match: BMMatch; slot: 1 | 2 } | null>(null);
   const handleSlotClick = (match: BMMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
-  const selectedMatchTargetWins = selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins();
+  const selectedMatchTargetWins =
+    selectedMatch?.targetWins ?? (selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins());
 
   /* Tournament completion state */
   const [champion, setChampion] = useState<Player | null>(null);
@@ -517,6 +526,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           matchId: selectedMatch.id,
+          expectedVersion: selectedMatch.version,
           score1: currentScores.score1,
           score2: currentScores.score2,
           tvNumber: currentScores.tvNumber,
@@ -729,6 +739,15 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
           </div>
         )}
 
+        {isAdmin && (
+          <FinalsPlayoffReconciliation
+            matches={matches}
+            playoffMatches={playoffMatches}
+            endpoint={`/api/tournaments/${tournamentId}/bm/finals`}
+            onSaved={refetch}
+          />
+        )}
+
         {/* Main content: playoff bracket, empty state, or bracket visualization */}
         {matches.length === 0 && playoffMatches.length === 0 ? (
           <Card>
@@ -769,6 +788,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
                 roundNames={roundNames}
                 seededPlayers={seededPlayers}
                 getTargetWins={(match, bracketMatch) =>
+                  match?.targetWins ??
                   getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
                 }
                 onMatchClick={isAdmin ? openScoreDialog : undefined}
@@ -786,6 +806,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
                 onMatchClick={isAdmin ? openScoreDialog : undefined}
                 onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
                 getTargetWins={(match, bracketMatch) =>
+                  match?.targetWins ??
                   getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
                 }
                 slotEditMode={isAdmin ? slotEditMode : undefined}
@@ -812,6 +833,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
               onMatchClick={isAdmin ? openScoreDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
               getTargetWins={(match, bracketMatch) =>
+                match?.targetWins ??
                 getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
               }
               slotEditMode={isAdmin ? slotEditMode : undefined}
@@ -833,6 +855,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
             roundNames={roundNames}
             seededPlayers={seededPlayers}
             getTargetWins={(match, bracketMatch) =>
+              match?.targetWins ??
               getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
             }
             onMatchClick={isAdmin ? openScoreDialog : undefined}
@@ -881,6 +904,32 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {selectedMatch && (
+                  <FinalsRoundSettings
+                    match={selectedMatch}
+                    matches={selectedMatch.stage === 'playoff' ? playoffMatches : matches}
+                    endpoint={`/api/tournaments/${tournamentId}/bm/finals`}
+                    effectiveTargetWins={selectedMatchTargetWins}
+                    onSaved={() => {
+                      setIsScoreDialogOpen(false);
+                      setSelectedMatch(null);
+                      refetch();
+                    }}
+                  />
+                )}
+                {selectedMatch && (
+                  <FinalsScoreOverride
+                    key={`${selectedMatch.id}:${selectedMatch.version}`}
+                    match={selectedMatch}
+                    endpoint={`/api/tournaments/${tournamentId}/bm/finals`}
+                    score1={selectedMatch.score1}
+                    score2={selectedMatch.score2}
+                    onSaved={() => {
+                      setIsScoreDialogOpen(false);
+                      refetch();
+                    }}
+                  />
+                )}
                 <div className="flex items-center justify-center gap-4">
                   {/* Player 1 score input with accessible label */}
                   <div className="min-w-0 text-center">

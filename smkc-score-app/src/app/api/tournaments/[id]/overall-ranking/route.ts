@@ -17,24 +17,33 @@
  * caller is admin; POST requires admin role.
  */
 
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { createLogger } from "@/lib/logger";
+import { NextRequest } from 'next/server';
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { createLogger } from '@/lib/logger';
 import {
   calculateOverallRankings,
   saveOverallRankings,
   getOverallRankings,
-} from "@/lib/points/overall-ranking";
-import {
-  createSuccessResponse,
-  createErrorResponse,
-  handleAuthError,
-  handleAuthzError,
-} from "@/lib/error-handling";
-import { resolveTournament } from "@/lib/tournament-identifier";
-import { withApiTiming } from "@/lib/perf/api-timing";
-import { readTournamentArchive } from "@/lib/tournament-archive";
+  invalidateOverallRankingsCache,
+} from '@/lib/points/overall-ranking';
+import { createSuccessResponse, createErrorResponse, handleAuthError, handleAuthzError } from '@/lib/error-handling';
+import { resolveTournament } from '@/lib/tournament-identifier';
+import { withApiTiming } from '@/lib/perf/api-timing';
+import { readTournamentArchive } from '@/lib/tournament-archive';
+import { bmConfig } from '@/lib/event-types/bm-config';
+import { mrConfig } from '@/lib/event-types/mr-config';
+import { gpConfig } from '@/lib/event-types/gp-config';
+import { repairQualificationStats } from '@/lib/api-factories/score-report-helpers';
+
+async function repairLegacyBreakStats(tournamentId: string): Promise<boolean> {
+  const repaired = await Promise.all([
+    repairQualificationStats(bmConfig, tournamentId),
+    repairQualificationStats(mrConfig, tournamentId),
+    repairQualificationStats(gpConfig, tournamentId),
+  ]);
+  return repaired.some((count) => count > 0);
+}
 
 /**
  * GET /api/tournaments/[id]/overall-ranking
@@ -45,11 +54,8 @@ import { readTournamentArchive } from "@/lib/tournament-archive";
  *
  * Public endpoint when `overall` is included in publicModes.
  */
-async function handleGET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const logger = createLogger("overall-ranking-api");
+async function handleGET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('overall-ranking-api');
 
   const { id } = await params;
 
@@ -66,25 +72,28 @@ async function handleGET(
       if (archived) {
         return createSuccessResponse({ ...archived.overallRanking, archived: true });
       }
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
     const session = await auth();
-    const isAdmin = session?.user?.role === "admin";
-    const publicModes = tournament.publicModes as string[] || [];
-    if (!isAdmin && !publicModes.includes("overall")) {
-      return handleAuthzError("Overall ranking is not public");
+    const isAdmin = session?.user?.role === 'admin';
+    const publicModes = (tournament.publicModes as string[]) || [];
+    if (!isAdmin && !publicModes.includes('overall')) {
+      return handleAuthzError('Overall ranking is not public');
     }
     const tournamentId = tournament.id;
 
-    /* Fetch stored rankings (pre-calculated via POST) */
+    /* Public polling remains read-only. A legacy BREAK repair is performed by
+     * the authenticated POST path below, which recalculates and persists the
+     * matching overall table in the same operation. */
     const rankings = await getOverallRankings(prisma, tournamentId);
 
     /* Derive lastUpdated from the most recent DB record, fall back to now */
-    const lastUpdated = rankings.length > 0
-      ? new Date(Math.max(...rankings.map(r => new Date(r.updatedAt ?? new Date()).getTime()))).toISOString()
-      : new Date().toISOString();
+    const lastUpdated =
+      rankings.length > 0
+        ? new Date(Math.max(...rankings.map((r) => new Date(r.updatedAt ?? new Date()).getTime()))).toISOString()
+        : new Date().toISOString();
 
-    logger.info("Fetched overall rankings", {
+    logger.info('Fetched overall rankings', {
       tournamentId,
       playerCount: rankings.length,
     });
@@ -96,12 +105,12 @@ async function handleGET(
       rankings,
     });
   } catch (error) {
-    logger.error("Failed to fetch overall rankings", { error, tournamentId: id });
+    logger.error('Failed to fetch overall rankings', { error, tournamentId: id });
     const archived = await readTournamentArchive(id);
     if (archived) {
       return createSuccessResponse({ ...archived.overallRanking, archived: true });
     }
-    return createErrorResponse("Failed to fetch overall rankings", 500);
+    return createErrorResponse('Failed to fetch overall rankings', 500);
   }
 }
 
@@ -122,20 +131,17 @@ async function handleGET(
  *
  * Requires admin authentication (returns 401 for unauthenticated, 403 for non-admin users).
  */
-async function handlePOST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const logger = createLogger("overall-ranking-api");
+async function handlePOST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('overall-ranking-api');
   const session = await auth();
 
   /* Authentication check: return 401 if no session */
   if (!session?.user) {
-    return handleAuthError("Authentication required");
+    return handleAuthError('Authentication required');
   }
 
   /* Authorization check: return 403 if not admin */
-  if (session.user.role !== "admin") {
+  if (session.user.role !== 'admin') {
     return handleAuthzError();
   }
 
@@ -146,17 +152,23 @@ async function handlePOST(
     const tournament = await resolveTournament(id, { id: true, name: true });
 
     if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
     const tournamentId = tournament.id;
 
-    /* Calculate rankings from current data across all 4 modes */
+    /* POST is the one-shot repair path for pre-#3032 BREAK aggregates. Clear
+     * the five-minute source cache before calculating so an older cached
+     * ranking can never be written back after a repair. */
+    const repairedLegacyStats = await repairLegacyBreakStats(tournamentId);
+    if (repairedLegacyStats) {
+      invalidateOverallRankingsCache(tournamentId);
+    }
     const rankings = await calculateOverallRankings(prisma, tournamentId);
 
     /* Persist rankings to TournamentPlayerScore table using transaction */
     await saveOverallRankings(prisma, tournamentId, rankings);
 
-    logger.info("Recalculated overall rankings", {
+    logger.info('Recalculated overall rankings', {
       tournamentId,
       playerCount: rankings.length,
     });
@@ -168,20 +180,16 @@ async function handlePOST(
       rankings,
     });
   } catch (error) {
-    logger.error("Failed to recalculate overall rankings", {
+    logger.error('Failed to recalculate overall rankings', {
       error,
       tournamentId: id,
     });
-    return createErrorResponse("Failed to recalculate overall rankings", 500);
+    return createErrorResponse('Failed to recalculate overall rankings', 500);
   }
 }
 
-export const GET = (
-  ...args: Parameters<typeof handleGET>
-): ReturnType<typeof handleGET> =>
+export const GET = (...args: Parameters<typeof handleGET>): ReturnType<typeof handleGET> =>
   withApiTiming('overall-ranking.GET', () => handleGET(...args));
 
-export const POST = (
-  ...args: Parameters<typeof handlePOST>
-): ReturnType<typeof handlePOST> =>
+export const POST = (...args: Parameters<typeof handlePOST>): ReturnType<typeof handlePOST> =>
   withApiTiming('overall-ranking.POST', () => handlePOST(...args));

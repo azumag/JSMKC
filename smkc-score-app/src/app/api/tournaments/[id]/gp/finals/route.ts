@@ -59,14 +59,17 @@ function normalizeCupResults(input: unknown): { results?: Array<Record<string, u
     const cup = typeof raw.cup === 'string' && raw.cup.length > 0 ? raw.cup : fallbackCup;
     const racePoints1 = sumRacePoints(raw.races, 1);
     const racePoints2 = sumRacePoints(raw.races, 2);
-    const points1 = Number.isInteger(raw.points1) && Number(raw.points1) >= 0
-      ? Number(raw.points1)
-      : racePoints1;
-    const points2 = Number.isInteger(raw.points2) && Number(raw.points2) >= 0
-      ? Number(raw.points2)
-      : racePoints2;
+    const points1 = Number.isInteger(raw.points1) && Number(raw.points1) >= 0 ? Number(raw.points1) : racePoints1;
+    const points2 = Number.isInteger(raw.points2) && Number(raw.points2) >= 0 ? Number(raw.points2) : racePoints2;
 
-    if (points1 === null || points2 === null || !Number.isInteger(points1) || !Number.isInteger(points2) || points1 < 0 || points2 < 0) {
+    if (
+      points1 === null ||
+      points2 === null ||
+      !Number.isInteger(points1) ||
+      !Number.isInteger(points2) ||
+      points1 < 0 ||
+      points2 < 0
+    ) {
       return { error: `cupResults[${index}] requires non-negative integer points` };
     }
     const p1 = points1;
@@ -84,7 +87,12 @@ function normalizeCupResults(input: unknown): { results?: Array<Record<string, u
   return { results };
 }
 
-const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
+const {
+  GET: _GET,
+  POST,
+  PUT,
+  PATCH,
+} = createFinalsHandlers({
   eventTypeCode: 'gp',
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
@@ -106,6 +114,7 @@ const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
     const targetWins = getGpFinalsTargetWins({
       round: match.round as string | null | undefined,
       stage: match.stage as string | null | undefined,
+      targetWins: match.targetWins as number | null | undefined,
     });
 
     if (body.cupResults !== undefined) {
@@ -123,8 +132,8 @@ const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
 
       if (player1ReachedTarget || player2ReachedTarget) {
         return {
-          winnerId: player1ReachedTarget ? match.player1Id as string : match.player2Id as string,
-          loserId: player1ReachedTarget ? match.player2Id as string : match.player1Id as string,
+          winnerId: player1ReachedTarget ? (match.player1Id as string) : (match.player2Id as string),
+          loserId: player1ReachedTarget ? (match.player2Id as string) : (match.player1Id as string),
           completed: true,
           updateData: {
             points1: cupWins1,
@@ -160,8 +169,8 @@ const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
     if (player1ReachedTarget || player2ReachedTarget) {
       const winnerIsP1 = player1ReachedTarget;
       return {
-        winnerId: winnerIsP1 ? match.player1Id as string : match.player2Id as string,
-        loserId: winnerIsP1 ? match.player2Id as string : match.player1Id as string,
+        winnerId: winnerIsP1 ? (match.player1Id as string) : (match.player2Id as string),
+        loserId: winnerIsP1 ? (match.player2Id as string) : (match.player1Id as string),
         completed: true,
         updateData: {
           points1: score1,

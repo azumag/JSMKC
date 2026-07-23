@@ -19,25 +19,30 @@
  * Access: CSV is public; CDM workbook export requires an admin session.
  * Response: CSV file download
  */
-import { NextResponse } from "next/server";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { NextResponse } from 'next/server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import prisma from "@/lib/prisma";
-import { formatDate, formatTime } from "@/lib/excel";
-import { createLogger } from "@/lib/logger";
-import { createErrorResponse, handleAuthError, handleAuthzError } from "@/lib/error-handling";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
-import { auth } from "@/lib/auth";
-import { generateCdmWorkbook } from "@/lib/cdm-export";
+import prisma from '@/lib/prisma';
+import { formatDate, formatTime } from '@/lib/excel';
+import { createLogger } from '@/lib/logger';
+import { createErrorResponse, handleAuthError, handleAuthzError } from '@/lib/error-handling';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { auth } from '@/lib/auth';
+import { generateCdmWorkbook } from '@/lib/cdm-export';
+import { getBmFinalsTargetWins, getGpFinalsTargetWins, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
+import { resolveFinalsSeedSnapshot } from '@/lib/finals-seed-snapshot';
+import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
+import { serializeFinalsSlots, type SlotStatusMatch } from '@/lib/finals-slot-status';
 import type {
   CdmMatch,
   CdmModeQualification,
   CdmTTEntry,
   CdmTTPhaseRound,
   CdmTournamentData,
-} from "@/lib/cdm-export/types";
+  CdmFinalsRoundSetting,
+} from '@/lib/cdm-export/types';
 
-const CDM_TEMPLATE_PATH = "/templates/cdm-2025-template.xlsm";
+const CDM_TEMPLATE_PATH = '/templates/cdm-2025-template.xlsm';
 
 /*
  * Prisma row shapes the CDM mapper reads. These mirror the columns the
@@ -72,17 +77,23 @@ type CdmMatchRow = {
   roundNumber?: number | null;
   tvNumber?: number | null;
   isBye?: boolean;
-  player1: CdmPlayerRow;
-  player2: CdmPlayerRow;
+  player1Id?: string | null;
+  player2Id?: string | null;
+  player1: CdmPlayerRow | null;
+  player2: CdmPlayerRow | null;
   player1Side?: number | null;
   player2Side?: number | null;
   score1?: number | null;
   score2?: number | null;
   points1?: number | null;
   points2?: number | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
+  suddenDeathWinnerId?: string | null;
   completed: boolean;
   assignedCourses?: unknown;
   cup?: string | null;
+  assignedCups?: unknown;
 };
 
 type CdmTtEntryRow = {
@@ -124,6 +135,10 @@ type CdmTournamentRow = {
   gpMatches: CdmMatchRow[];
   ttEntries: CdmTtEntryRow[];
   ttPhaseRounds: CdmTtPhaseRoundRow[];
+  bmFinalsSeedSnapshot?: unknown;
+  mrFinalsSeedSnapshot?: unknown;
+  gpFinalsSeedSnapshot?: unknown;
+  finalsRoundSettings?: CdmFinalsRoundSetting[];
 };
 
 /*
@@ -158,6 +173,39 @@ type CsvTournamentRow = {
   ttEntries: CsvTtEntryRow[];
 };
 
+function csvPlayerCells(player: CdmPlayerRow | null | undefined): [string, string] {
+  return player ? [player.name, player.nickname] : ['TBD', 'TBD'];
+}
+
+function csvResolvedWinner(
+  match: CsvMatchRow,
+  score1: number | null | undefined,
+  score2: number | null | undefined,
+  mode: 'bm' | 'mr' | 'gp',
+): string {
+  if (!match.completed) return '-';
+  if (match.winnerOverrideId === match.player1Id) return match.player1?.nickname ?? 'TBD';
+  if (match.winnerOverrideId === match.player2Id) return match.player2?.nickname ?? 'TBD';
+  if (score1 != null && score2 != null && score1 !== score2) {
+    return score1 > score2 ? (match.player1?.nickname ?? 'TBD') : (match.player2?.nickname ?? 'TBD');
+  }
+  if (mode === 'gp' && match.suddenDeathWinnerId === match.player1Id) return match.player1?.nickname ?? 'TBD';
+  if (mode === 'gp' && match.suddenDeathWinnerId === match.player2Id) return match.player2?.nickname ?? 'TBD';
+  return '-';
+}
+
+function csvTargetWins(match: CsvMatchRow, mode: 'bm' | 'mr' | 'gp'): string {
+  if (match.stage !== 'playoff' && match.stage !== 'finals') return '-';
+  const context = { stage: match.stage, round: match.round, targetWins: match.targetWins };
+  const targetWins =
+    mode === 'bm'
+      ? getBmFinalsTargetWins(context)
+      : mode === 'mr'
+        ? getMrFinalsTargetWins(context)
+        : getGpFinalsTargetWins(context);
+  return String(targetWins);
+}
+
 const BASE_EXPORT_INCLUDE = {
   bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
   bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
@@ -189,17 +237,19 @@ const CDM_EXPORT_INCLUDE = {
        */
       suddenDeathRounds: {
         where: { resolved: true },
-        orderBy: { sequence: "asc" as const },
+        orderBy: { sequence: 'asc' as const },
         select: { sequence: true, results: true },
       },
     },
   },
+  finalsRoundSettings: {
+    select: { mode: true, stage: true, round: true, targetWins: true },
+  },
 };
 
-async function loadCDMTemplate(request: Request): Promise<
-  | { ok: true; buffer: ArrayBuffer }
-  | { ok: false; status: number; source: string; error?: unknown }
-> {
+async function loadCDMTemplate(
+  request: Request,
+): Promise<{ ok: true; buffer: ArrayBuffer } | { ok: false; status: number; source: string; error?: unknown }> {
   let assets: { fetch?: (input: URL) => Promise<Response> } | undefined;
   try {
     assets = getCloudflareContext().env.ASSETS;
@@ -209,13 +259,13 @@ async function loadCDMTemplate(request: Request): Promise<
 
   if (assets?.fetch) {
     try {
-      const response = await assets.fetch(new URL(CDM_TEMPLATE_PATH, "https://assets.local"));
+      const response = await assets.fetch(new URL(CDM_TEMPLATE_PATH, 'https://assets.local'));
       if (response.ok) {
         return { ok: true, buffer: await response.arrayBuffer() };
       }
-      return { ok: false, status: response.status, source: "ASSETS" };
+      return { ok: false, status: response.status, source: 'ASSETS' };
     } catch (error) {
-      return { ok: false, status: 500, source: "ASSETS", error };
+      return { ok: false, status: 500, source: 'ASSETS', error };
     }
   }
 
@@ -223,7 +273,7 @@ async function loadCDMTemplate(request: Request): Promise<
   if (response.ok) {
     return { ok: true, buffer: await response.arrayBuffer() };
   }
-  return { ok: false, status: response.status, source: "fetch" };
+  return { ok: false, status: response.status, source: 'fetch' };
 }
 
 /*
@@ -248,20 +298,20 @@ async function loadCDMTemplate(request: Request): Promise<
 function isPlayerUsable(player: CdmPlayerRow | null | undefined): player is CdmPlayerRow {
   return Boolean(
     player &&
-      typeof player.id === "string" &&
-      player.id.length > 0 &&
-      typeof player.name === "string" &&
-      typeof player.nickname === "string",
+    typeof player.id === 'string' &&
+    player.id.length > 0 &&
+    typeof player.name === 'string' &&
+    typeof player.nickname === 'string',
   );
 }
 
-function mapPlayer(player: CdmPlayerRow): CdmTournamentData["bmQualifications"][number]["player"] {
+function mapPlayer(player: CdmPlayerRow | null | undefined): CdmTournamentData['bmQualifications'][number]['player'] {
   // Caller is responsible for filtering non-usable players via isPlayerUsable;
   // we still return a defensive placeholder here so a future caller bug cannot
   // surface as a 500 (the fill maps require player.id, but a "" placeholder
   // would simply sort that row to the top of its group by name ascending).
   if (!isPlayerUsable(player)) {
-    return { id: "", name: "", nickname: "", country: null };
+    return { id: '', name: '', nickname: '', country: null };
   }
   return {
     id: player.id,
@@ -300,9 +350,13 @@ function mapMatch(match: CdmMatchRow): CdmMatch {
     score2: match.score2 ?? null,
     points1: match.points1 ?? null,
     points2: match.points2 ?? null,
+    targetWins: match.targetWins ?? null,
+    winnerOverrideId: match.winnerOverrideId ?? null,
+    suddenDeathWinnerId: match.suddenDeathWinnerId ?? null,
     completed: match.completed,
     assignedCourses: match.assignedCourses,
     cup: match.cup ?? null,
+    assignedCups: match.assignedCups,
   };
 }
 
@@ -354,7 +408,7 @@ function dropIncompletePlayerRows<T extends { player?: CdmPlayerRow | null }>(
     return false;
   });
   if (droppedCount > 0) {
-    logger.warn("Dropped CDM export rows with missing/invalid player", {
+    logger.warn('Dropped CDM export rows with missing/invalid player', {
       category,
       droppedCount,
     });
@@ -362,81 +416,110 @@ function dropIncompletePlayerRows<T extends { player?: CdmPlayerRow | null }>(
   return kept;
 }
 
-function dropIncompleteMatchRows(
-  rows: CdmMatchRow[],
-  category: string,
-  logger: ReturnType<typeof createLogger>,
-): CdmMatchRow[] {
-  const dropped: unknown[] = [];
-  const kept = rows.filter((row) => {
-    if (isPlayerUsable(row.player1) && isPlayerUsable(row.player2)) return true;
-    dropped.push({ matchNumber: row.matchNumber, stage: row.stage, round: row.round });
-    return false;
-  });
-  if (dropped.length > 0) {
-    logger.warn("Dropped CDM export match rows with missing/invalid players", {
-      category,
-      droppedCount: dropped.length,
-      sample: dropped.slice(0, 3),
-    });
+/**
+ * Keep unresolved knockout rows. The CDM template has fixed bracket cells, so
+ * dropping a NULL/TBD row changes match coordinates. `mapPlayer()` turns the
+ * unresolved side into a blank workbook slot and score writers clear it.
+ */
+function normalizeCdmKnockoutSlots(rows: CdmMatchRow[], groupCount: 2 | 3): CdmMatchRow[] {
+  const byStage = (stage: 'finals' | 'playoff', structure: ReturnType<typeof generateBracketStructure>) => {
+    const stageRows = rows.filter((row) => row.stage === stage);
+    if (stageRows.length === 0) return new Map<number, CdmMatchRow>();
+    const normalized = serializeFinalsSlots(
+      stageRows as unknown as SlotStatusMatch[],
+      structure,
+    ) as unknown as CdmMatchRow[];
+    return new Map(normalized.map((row) => [row.matchNumber, row]));
+  };
+
+  const finalsRows = rows.filter((row) => row.stage === 'finals');
+  const finalsStructure =
+    finalsRows.length > 0
+      ? finalsRows.length > 20
+        ? generateBracketStructure(16, groupCount)
+        : generateBracketStructure(8)
+      : [];
+  const byStageAndMatch = new Map<string, CdmMatchRow>();
+  for (const [stage, structure] of [
+    ['finals', finalsStructure],
+    ['playoff', generatePlayoffStructure(12, groupCount)],
+  ] as const) {
+    for (const row of byStage(stage, structure).values()) {
+      byStageAndMatch.set(`${stage}:${row.matchNumber}`, row);
+    }
   }
-  return kept;
+  return rows.map((row) => byStageAndMatch.get(`${row.stage}:${row.matchNumber}`) ?? row);
 }
 
 function mapToCdmTournamentData(
   tournament: CdmTournamentRow,
   logger: ReturnType<typeof createLogger>,
 ): CdmTournamentData {
+  const groupCountFor = (qualifications: CdmQualificationRow[]): 2 | 3 =>
+    new Set(qualifications.map((qualification) => qualification.group).filter(Boolean)).size === 2 ? 2 : 3;
+  const mapSeedSnapshot = (value: unknown) =>
+    Array.isArray(value)
+      ? value.flatMap((entry) => {
+          if (!entry || typeof entry !== 'object') return [];
+          const candidate = entry as {
+            seed?: unknown;
+            originalSeed?: unknown;
+            playerId?: unknown;
+            player?: CdmPlayerRow;
+          };
+          if (
+            typeof candidate.seed !== 'number' ||
+            typeof candidate.originalSeed !== 'number' ||
+            typeof candidate.playerId !== 'string' ||
+            !candidate.player
+          ) {
+            return [];
+          }
+          return [
+            {
+              seed: candidate.seed,
+              originalSeed: candidate.originalSeed,
+              playerId: candidate.playerId,
+              player: mapPlayer(candidate.player),
+            },
+          ];
+        })
+      : [];
   return {
     name: tournament.name,
     date: tournament.date,
-    bmQualifications: dropIncompletePlayerRows(
-      tournament.bmQualifications,
-      "bmQualifications",
-      logger,
-    ).map(mapQualification),
-    mrQualifications: dropIncompletePlayerRows(
-      tournament.mrQualifications,
-      "mrQualifications",
-      logger,
-    ).map(mapQualification),
-    gpQualifications: dropIncompletePlayerRows(
-      tournament.gpQualifications,
-      "gpQualifications",
-      logger,
-    ).map(mapQualification),
-    bmMatches: dropIncompleteMatchRows(
-      tournament.bmMatches,
-      "bmMatches",
-      logger,
-    ).map(mapMatch),
-    mrMatches: dropIncompleteMatchRows(
-      tournament.mrMatches,
-      "mrMatches",
-      logger,
-    ).map(mapMatch),
-    gpMatches: dropIncompleteMatchRows(
-      tournament.gpMatches,
-      "gpMatches",
-      logger,
-    ).map(mapMatch),
-    ttEntries: dropIncompletePlayerRows(
-      tournament.ttEntries,
-      "ttEntries",
-      logger,
-    ).map(mapTtEntry),
+    bmQualifications: dropIncompletePlayerRows(tournament.bmQualifications, 'bmQualifications', logger).map(
+      mapQualification,
+    ),
+    mrQualifications: dropIncompletePlayerRows(tournament.mrQualifications, 'mrQualifications', logger).map(
+      mapQualification,
+    ),
+    gpQualifications: dropIncompletePlayerRows(tournament.gpQualifications, 'gpQualifications', logger).map(
+      mapQualification,
+    ),
+    bmMatches: normalizeCdmKnockoutSlots(tournament.bmMatches, groupCountFor(tournament.bmQualifications)).map(
+      mapMatch,
+    ),
+    mrMatches: normalizeCdmKnockoutSlots(tournament.mrMatches, groupCountFor(tournament.mrQualifications)).map(
+      mapMatch,
+    ),
+    gpMatches: normalizeCdmKnockoutSlots(tournament.gpMatches, groupCountFor(tournament.gpQualifications)).map(
+      mapMatch,
+    ),
+    bmFinalsSeedSnapshot: mapSeedSnapshot(tournament.bmFinalsSeedSnapshot),
+    mrFinalsSeedSnapshot: mapSeedSnapshot(tournament.mrFinalsSeedSnapshot),
+    gpFinalsSeedSnapshot: mapSeedSnapshot(tournament.gpFinalsSeedSnapshot),
+    finalsRoundSettings: tournament.finalsRoundSettings ?? [],
+    ttEntries: dropIncompletePlayerRows(tournament.ttEntries, 'ttEntries', logger).map(mapTtEntry),
     ttPhaseRounds: tournament.ttPhaseRounds.map(mapTtPhaseRound),
   };
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('tournament-export-api');
   const { id } = await params;
-  const exportFormat = new URL(request.url).searchParams.get("format");
+  const exportFormat = new URL(request.url).searchParams.get('format');
   // Use raw id as fallback so the catch-block logger always has a tournamentId,
   // even if resolveTournamentId throws before assigning.
   let tournamentId = id;
@@ -446,13 +529,26 @@ export async function GET(
     // (e.g. malformed id combined with a DB connectivity failure) are returned as
     // a structured 500 instead of an unhandled exception that crashes the handler.
     tournamentId = await resolveTournamentId(id);
-    if (exportFormat === "cdm") {
+    if (exportFormat === 'cdm') {
       const session = await auth();
       if (!session?.user) {
         return handleAuthError();
       }
-      if (session.user.role !== "admin") {
-        return handleAuthzError("Admin access required");
+      if (session.user.role !== 'admin') {
+        return handleAuthzError('Admin access required');
+      }
+
+      const seedResolutions = await Promise.all([
+        resolveFinalsSeedSnapshot(tournamentId, 'bm'),
+        resolveFinalsSeedSnapshot(tournamentId, 'mr'),
+        resolveFinalsSeedSnapshot(tournamentId, 'gp'),
+      ]);
+      if (seedResolutions.some((resolution) => resolution.status === 'unsafe')) {
+        return createErrorResponse(
+          'CDM export requires a complete original finals seed mapping. An administrator must reset and recreate the affected finals bracket first.',
+          409,
+          'FINALS_SEED_REPAIR_REQUIRED',
+        );
       }
 
       const tournament = await prisma.tournament.findUnique({
@@ -461,40 +557,35 @@ export async function GET(
       });
 
       if (!tournament) {
-        return createErrorResponse("Tournament not found", 404);
+        return createErrorResponse('Tournament not found', 404);
       }
 
       const template = await loadCDMTemplate(request);
       if (!template.ok) {
-        logger.error("Failed to load CDM export template", {
+        logger.error('Failed to load CDM export template', {
           source: template.source,
           status: template.status,
           ...(template.error !== undefined && { error: template.error }),
           tournamentId,
         });
-        return createErrorResponse("Failed to load CDM export template", 503, "SERVICE_UNAVAILABLE");
+        return createErrorResponse('Failed to load CDM export template', 503, 'SERVICE_UNAVAILABLE');
       }
 
       // The Prisma payload (player columns projected via PLAYER_PUBLIC_SELECT)
       // is structurally a CdmTournamentRow; cast through unknown because the
       // generated Prisma include type is wider/looser than our read-only shape.
-      const cdmData = mapToCdmTournamentData(
-        tournament as unknown as CdmTournamentRow,
-        logger,
-      );
+      const cdmData = mapToCdmTournamentData(tournament as unknown as CdmTournamentRow, logger);
       // generateCdmWorkbook returns a Uint8Array over the zip's backing buffer.
       // Re-wrap it so the response body is a Uint8Array<ArrayBuffer> (BodyInit);
       // the patcher's declared return widens to ArrayBufferLike, which NextResponse
       // does not accept directly. The copy is one-time and admin-only.
-      const workbookBytes = new Uint8Array(
-        generateCdmWorkbook(new Uint8Array(template.buffer), cdmData),
-      );
-      const filename = `${tournament.name.replace(/[^a-zA-Z0-9]/g, "_")}-cdm-${formatDate(new Date(tournament.date))}.xlsm`;
+      const workbookBytes = new Uint8Array(generateCdmWorkbook(new Uint8Array(template.buffer), cdmData));
+      const filename = `${tournament.name.replace(/[^a-zA-Z0-9]/g, '_')}-cdm-${formatDate(new Date(tournament.date))}.xlsm`;
 
       return new NextResponse(workbookBytes, {
         headers: {
-          "Content-Type": "application/vnd.ms-excel.sheet.macroEnabled.12",
-          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}; filename="${filename}"`,
+          'Content-Type': 'application/vnd.ms-excel.sheet.macroEnabled.12',
+          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}; filename="${filename}"`,
         },
       });
     }
@@ -502,13 +593,13 @@ export async function GET(
     // CSV does not read CDM-only qualification/phase/overall tables, so keep
     // its include narrow. The CDM workbook path above opts into the heavier
     // include set only when those workbook sheets need the extra data.
-    const tournament = await prisma.tournament.findUnique({
+    const tournament = (await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: BASE_EXPORT_INCLUDE,
-    }) as unknown as CsvTournamentRow | null;
+    })) as unknown as CsvTournamentRow | null;
 
     if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
 
     // UTF-8 BOM (Byte Order Mark) ensures Excel correctly interprets
@@ -528,20 +619,23 @@ export async function GET(
       ['', ''],
       ['Battle Mode', ''],
       ['BM Participants', String(tournament.bmQualifications.length)],
-      ['BM Qualification Matches', String(tournament.bmMatches.filter(m => m.stage === "qualification").length)],
-      ['BM Finals Matches', String(tournament.bmMatches.filter(m => m.stage === "finals").length)],
+      [
+        'BM Qualification Matches',
+        String(tournament.bmMatches.filter((m) => m.stage === 'qualification' && !m.isBye).length),
+      ],
+      ['BM Finals Matches', String(tournament.bmMatches.filter((m) => m.stage === 'finals').length)],
       ['', ''],
       ['Match Race', ''],
-      ['MR Matches', String(tournament.mrMatches.length)],
+      ['MR Matches', String(tournament.mrMatches.filter((m) => !m.isBye).length)],
       ['', ''],
       ['Grand Prix', ''],
-      ['GP Matches', String(tournament.gpMatches.length)],
+      ['GP Matches', String(tournament.gpMatches.filter((m) => !m.isBye).length)],
       ['', ''],
       ['Time Attack', ''],
       ['TA Entries', String(tournament.ttEntries.length)],
     ];
     csvContent += summaryHeaders.join(',') + '\n';
-    csvContent += summaryData.map(row => row.join(',')).join('\n');
+    csvContent += summaryData.map((row) => row.join(',')).join('\n');
 
     // ========================================
     // Section 2: BM Qualification Standings
@@ -558,8 +652,15 @@ export async function GET(
           .sort((a, b) => b.score - a.score || b.points - a.points);
 
         const qualHeaders = [
-          "Rank", "Player", "Nickname", "Matches Played", "Wins", "Ties",
-          "Losses", "Round Diff (+/-)", "Points",
+          'Rank',
+          'Player',
+          'Nickname',
+          'Matches Played',
+          'Wins',
+          'Ties',
+          'Losses',
+          'Round Diff (+/-)',
+          'Points',
         ];
 
         const qualData = groupQualifications.map((q, index) => [
@@ -575,56 +676,62 @@ export async function GET(
           String(q.score),
         ]);
 
-        const sheetName = group === "A" ? "BM Group A" : group === "B" ? "BM Group B" : `BM Group ${group}`;
+        const sheetName = group === 'A' ? 'BM Group A' : group === 'B' ? 'BM Group B' : `BM Group ${group}`;
         csvContent += `\n${sheetName}\n`;
         csvContent += qualHeaders.join(',') + '\n';
-        csvContent += qualData.map(row => row.join(',')).join('\n');
+        csvContent += qualData.map((row) => row.join(',')).join('\n');
       });
     }
 
     // ========================================
     // Section 3: BM Match Results
     // ========================================
-    if (tournament.bmMatches.length > 0) {
-      const qualMatches = tournament.bmMatches.filter(m => m.stage === "qualification");
-      const finalsMatches = tournament.bmMatches.filter(m => m.stage === "finals");
+    if (tournament.bmMatches.some((match) => !match.isBye)) {
+      const qualMatches = tournament.bmMatches.filter((m) => m.stage === 'qualification' && !m.isBye);
+      const finalsMatches = tournament.bmMatches.filter((m) => m.stage === 'playoff' || m.stage === 'finals');
 
       // 3a: Qualification matches
       if (qualMatches.length > 0) {
         const qualMatchHeaders = [
-          "Match #", "Player 1", "Nickname 1", "Player 2", "Nickname 2",
-          "Score", "Completed", "Rounds"
+          'Match #',
+          'Player 1',
+          'Nickname 1',
+          'Player 2',
+          'Nickname 2',
+          'Score',
+          'Completed',
+          'Rounds',
         ];
 
         const qualMatchData = qualMatches.map((match) => {
-          const score = match.completed ? `${match.score1} - ${match.score2}` : "Not started";
+          const score = match.completed ? `${match.score1} - ${match.score2}` : 'Not started';
 
           // Parse round details from the JSON rounds field.
           // Each round contains the arena played and which player won.
-          let roundsInfo = "-";
+          let roundsInfo = '-';
           if (match.rounds && Array.isArray(match.rounds)) {
             roundsInfo = match.rounds
               .map((r) => {
-                if (typeof r === "object" && r !== null && "arena" in r && "winner" in r) {
+                if (typeof r === 'object' && r !== null && 'arena' in r && 'winner' in r) {
                   return `Arena ${(r as { arena: string; winner: number }).arena}: P${(r as { arena: string; winner: number }).winner} wins`;
                 }
-                return "";
+                return '';
               })
               .filter(Boolean)
-              .join(", ");
+              .join(', ');
           }
 
           // Escape CSV values that contain commas by wrapping in double quotes
           return [
             String(match.matchNumber),
-            match.player1.name,
-            match.player1.nickname,
-            match.player2.name,
-            match.player2.nickname,
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
             score,
-            match.completed ? "Yes" : "No",
+            match.completed ? 'Yes' : 'No',
             roundsInfo,
-          ].map(v => v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v).join(',');
+          ]
+            .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
+            .join(',');
         });
 
         csvContent += '\nBM Qualification Matches\n';
@@ -635,40 +742,52 @@ export async function GET(
       // 3b: Finals matches (include round and TV number columns)
       if (finalsMatches.length > 0) {
         const finalsHeaders = [
-          "Match #", "Round", "TV #", "Player 1", "Nickname 1",
-          "Player 2", "Nickname 2", "Score", "Completed", "Rounds"
+          'Match #',
+          'Round',
+          'TV #',
+          'Player 1',
+          'Nickname 1',
+          'Player 2',
+          'Nickname 2',
+          'Score',
+          'Target Wins',
+          'Winner',
+          'Completed',
+          'Rounds',
         ];
 
         const finalsData = finalsMatches.map((match) => {
-          const score = match.completed ? `${match.score1} - ${match.score2}` : "Not started";
+          const score = match.completed ? `${match.score1} - ${match.score2}` : 'Not started';
 
           // Parse round details from JSON (same logic as qualification matches)
-          let roundsInfo = "-";
+          let roundsInfo = '-';
           if (match.rounds && Array.isArray(match.rounds)) {
             roundsInfo = match.rounds
               .map((r) => {
-                if (typeof r === "object" && r !== null && "arena" in r && "winner" in r) {
+                if (typeof r === 'object' && r !== null && 'arena' in r && 'winner' in r) {
                   return `Arena ${(r as { arena: string; winner: number }).arena}: P${(r as { arena: string; winner: number }).winner} wins`;
                 }
-                return "";
+                return '';
               })
               .filter(Boolean)
-              .join(", ");
+              .join(', ');
           }
 
           // Escape CSV values that contain commas
           return [
             String(match.matchNumber),
-            match.round || "-",
-            String(match.tvNumber || "-"),
-            match.player1.name,
-            match.player1.nickname,
-            match.player2.name,
-            match.player2.nickname,
+            match.round || '-',
+            String(match.tvNumber || '-'),
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
             score,
-            match.completed ? "Yes" : "No",
+            csvTargetWins(match, 'bm'),
+            csvResolvedWinner(match, match.score1, match.score2, 'bm'),
+            match.completed ? 'Yes' : 'No',
             roundsInfo,
-          ].map(v => v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v).join(',');
+          ]
+            .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
+            .join(',');
         });
 
         csvContent += '\nBM Finals Matches\n';
@@ -680,28 +799,45 @@ export async function GET(
     // ========================================
     // Section 4: Match Race Results
     // ========================================
-    if (tournament.mrMatches.length > 0) {
+    if (tournament.mrMatches.some((match) => !match.isBye)) {
       const mrHeaders = [
-        "Match #", "Stage", "Round", "Player 1", "Nickname 1", "Player 2", "Nickname 2",
-        "Score", "Completed"
+        'Match #',
+        'Stage',
+        'Round',
+        'Player 1',
+        'Nickname 1',
+        'Player 2',
+        'Nickname 2',
+        'Score',
+        'Target Wins',
+        'Winner',
+        'Courses',
+        'Completed',
       ];
 
-      const mrData = tournament.mrMatches.map((match) => {
-        const score = match.completed ? `${match.score1} - ${match.score2}` : "Not started";
+      const mrData = tournament.mrMatches
+        .filter((match) => !match.isBye)
+        .map((match) => {
+          const score = match.completed ? `${match.score1} - ${match.score2}` : 'Not started';
 
-        // Escape CSV values that contain commas
-        return [
-          String(match.matchNumber),
-          match.stage || "-",
-          match.round || "-",
-          match.player1.name,
-          match.player1.nickname,
-          match.player2.name,
-          match.player2.nickname,
-          score,
-          match.completed ? "Yes" : "No",
-        ].map(v => v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v).join(',');
-      });
+          // Escape CSV values that contain commas
+          return [
+            String(match.matchNumber),
+            match.stage || '-',
+            match.round || '-',
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
+            score,
+            csvTargetWins(match, 'mr'),
+            csvResolvedWinner(match, match.score1, match.score2, 'mr'),
+            Array.isArray(match.assignedCourses)
+              ? match.assignedCourses.filter((course) => typeof course === 'string').join(' / ')
+              : '-',
+            match.completed ? 'Yes' : 'No',
+          ]
+            .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
+            .join(',');
+        });
 
       csvContent += '\nMatch Race Matches\n';
       csvContent += mrHeaders.join(',') + '\n';
@@ -711,26 +847,43 @@ export async function GET(
     // ========================================
     // Section 5: Grand Prix Results
     // ========================================
-    if (tournament.gpMatches.length > 0) {
+    if (tournament.gpMatches.some((match) => !match.isBye)) {
       const gpHeaders = [
-        "Match #", "Stage", "Player 1", "Nickname 1", "Player 2", "Nickname 2",
-        "Points P1", "Points P2", "Completed"
+        'Match #',
+        'Stage',
+        'Player 1',
+        'Nickname 1',
+        'Player 2',
+        'Nickname 2',
+        'Points P1',
+        'Points P2',
+        'Target Wins',
+        'Winner',
+        'Cups',
+        'Completed',
       ];
 
-      const gpData = tournament.gpMatches.map((match) => {
-        // GP uses driver points (9, 6, 3, 1) instead of round scores
-        return [
-          String(match.matchNumber),
-          match.stage || "-",
-          match.player1.name,
-          match.player1.nickname,
-          match.player2.name,
-          match.player2.nickname,
-          String(match.points1 || 0),
-          String(match.points2 || 0),
-          match.completed ? "Yes" : "No",
-        ].map(v => v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v).join(',');
-      });
+      const gpData = tournament.gpMatches
+        .filter((match) => !match.isBye)
+        .map((match) => {
+          // GP uses driver points (9, 6, 3, 1) instead of round scores
+          return [
+            String(match.matchNumber),
+            match.stage || '-',
+            ...csvPlayerCells(match.player1),
+            ...csvPlayerCells(match.player2),
+            String(match.points1 || 0),
+            String(match.points2 || 0),
+            csvTargetWins(match, 'gp'),
+            csvResolvedWinner(match, match.points1, match.points2, 'gp'),
+            Array.isArray(match.assignedCups)
+              ? match.assignedCups.filter((cup) => typeof cup === 'string').join(' / ')
+              : match.cup || '-',
+            match.completed ? 'Yes' : 'No',
+          ]
+            .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
+            .join(',');
+        });
 
       csvContent += '\nGrand Prix Matches\n';
       csvContent += gpHeaders.join(',') + '\n';
@@ -741,23 +894,25 @@ export async function GET(
     // Section 6: Time Attack Entries
     // ========================================
     if (tournament.ttEntries.length > 0) {
-      const taHeaders = [
-        "Rank", "Player", "Nickname", "Stage", "Total Time", "Lives", "Date"
-      ];
+      const taHeaders = ['Rank', 'Player', 'Nickname', 'Stage', 'Total Time', 'Lives', 'Date'];
 
       // Filter out entries without times, then sort by fastest time for ranking
       const taData = tournament.ttEntries
-        .filter(entry => entry.totalTime !== null)
+        .filter((entry) => entry.totalTime !== null)
         .sort((a, b) => (a.totalTime || 0) - (b.totalTime || 0))
-        .map((entry, index) => [
-          String(index + 1),
-          entry.player.name,
-          entry.player.nickname,
-          entry.stage || "-",
-          formatTime(entry.totalTime || 0),
-          String(entry.lives),
-          formatDate(new Date(entry.createdAt)),
-        ].map(v => v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v).join(','));
+        .map((entry, index) =>
+          [
+            String(index + 1),
+            entry.player.name,
+            entry.player.nickname,
+            entry.stage || '-',
+            formatTime(entry.totalTime || 0),
+            String(entry.lives),
+            formatDate(new Date(entry.createdAt)),
+          ]
+            .map((v) => (v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v))
+            .join(','),
+        );
 
       csvContent += '\nTime Attack Entries\n';
       csvContent += taHeaders.join(',') + '\n';
@@ -766,13 +921,13 @@ export async function GET(
 
     // Generate a filesystem-safe filename from the tournament name and date.
     // Non-alphanumeric characters are replaced with underscores.
-    const filename = `${tournament.name.replace(/[^a-zA-Z0-9]/g, "_")}-full-${formatDate(new Date(tournament.date))}.csv`;
+    const filename = `${tournament.name.replace(/[^a-zA-Z0-9]/g, '_')}-full-${formatDate(new Date(tournament.date))}.csv`;
 
     // Return the CSV content as a file download response
     return new NextResponse(csvContent, {
       headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}; filename="${filename}"`,
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}; filename="${filename}"`,
       },
     });
   } catch (error) {
@@ -786,13 +941,13 @@ export async function GET(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
     const errorName = error instanceof Error ? error.name : undefined;
-    logger.error("Failed to export tournament", {
+    logger.error('Failed to export tournament', {
       errorMessage,
       errorName,
       errorStack,
       tournamentId,
       format: exportFormat,
     });
-    return createErrorResponse("Failed to export tournament data", 500);
+    return createErrorResponse('Failed to export tournament data', 500);
   }
 }

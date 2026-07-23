@@ -133,7 +133,7 @@ describe('DoubleEliminationBracket TBD rendering (issue #574)', () => {
     /* Locate losers_r1 cards (match 8 and 9) by their match-number label. */
     const losersR1Cards = Array.from(container.querySelectorAll<HTMLElement>("[role='button']")).filter((el) => {
       const label = el.querySelector('div.text-xs');
-      return label && (label.textContent === 'M8' || label.textContent === 'M9');
+      return label && /^(M8|M9)FT/.test(label.textContent || '');
     });
 
     expect(losersR1Cards).toHaveLength(2);
@@ -143,6 +143,7 @@ describe('DoubleEliminationBracket TBD rendering (issue #574)', () => {
        * seed-1 placeholder name that the DB stored. */
       expect(card.textContent).toContain('TBD');
       expect(card.textContent).not.toContain(seed1.nickname);
+      expect(card.textContent).not.toContain('[1]');
     }
   });
 
@@ -157,8 +158,8 @@ describe('DoubleEliminationBracket TBD rendering (issue #574)', () => {
     );
 
     /* Match 1 is Seed 1 vs Seed 8 -- must not be TBD. */
-    const winnersQF1 = Array.from(container.querySelectorAll<HTMLElement>("[role='button']")).find(
-      (el) => el.querySelector('div.text-xs')?.textContent === 'M1',
+    const winnersQF1 = Array.from(container.querySelectorAll<HTMLElement>("[role='button']")).find((el) =>
+      /^M1FT/.test(el.querySelector('div.text-xs')?.textContent || ''),
     );
 
     expect(winnersQF1).toBeDefined();
@@ -181,8 +182,8 @@ describe('DoubleEliminationBracket TBD rendering (issue #574)', () => {
       />,
     );
 
-    const winnersQF1 = Array.from(container.querySelectorAll<HTMLElement>("[role='button']")).find(
-      (el) => el.querySelector('div.text-xs')?.textContent === 'M1',
+    const winnersQF1 = Array.from(container.querySelectorAll<HTMLElement>("[role='button']")).find((el) =>
+      /^M1FT/.test(el.querySelector('div.text-xs')?.textContent || ''),
     );
 
     expect(winnersQF1).toBeDefined();
@@ -190,6 +191,42 @@ describe('DoubleEliminationBracket TBD rendering (issue #574)', () => {
     expect(winnersQF1!.textContent).toContain('[8]');
     expect(winnersQF1!.textContent).not.toContain('[A1]');
     expect(winnersQF1!.textContent).not.toContain('[B8]');
+  });
+
+  it("keeps a barrage winner's original seed in later KO rounds", () => {
+    const barrageWinner = { id: 'p17', name: 'Barrage Winner', nickname: 'Barrage' };
+    const semifinal = {
+      ...buildInitialMatches().find((match) => match.matchNumber === 5)!,
+      player1Id: barrageWinner.id,
+      player2Id: seed2.id,
+      player1: barrageWinner,
+      player2: seed2,
+      completed: true,
+      score1: 3,
+      score2: 1,
+    };
+
+    const { container } = render(
+      <DoubleEliminationBracket
+        matches={[semifinal]}
+        bracketStructure={build8PlayerStructure()}
+        roundNames={{}}
+        seededPlayers={[
+          ...seededPlayers,
+          /* The player was routed into structural Upper slot 16, but earned
+           * qualification seed 17 through the barrage. */
+          { seed: 16, originalSeed: 17, playerId: barrageWinner.id, player: barrageWinner },
+        ]}
+      />,
+    );
+
+    const winnersSF = Array.from(container.querySelectorAll<HTMLElement>("[role='button']")).find((el) =>
+      /^M5FT/.test(el.querySelector('div.text-xs')?.textContent || ''),
+    );
+
+    expect(winnersSF?.textContent).toContain('[17]');
+    expect(winnersSF?.textContent).toContain('[2]');
+    expect(winnersSF?.textContent).not.toContain('[16]');
   });
 
   it('renders unresolved Top-24 barrage seats as TBD in a previewed 16-player bracket', () => {
@@ -218,7 +255,7 @@ describe('DoubleEliminationBracket TBD rendering (issue #574)', () => {
      * two real names; matches 3/5/7 still have a TBD barrage seat. */
     const winnersR1Cards = Array.from(container.querySelectorAll<HTMLElement>("[role='button']")).filter((el) => {
       const label = el.querySelector('div.text-xs');
-      return label && ['M1', 'M3', 'M5', 'M7'].includes(label.textContent || '');
+      return label && /^(M1|M3|M5|M7)FT/.test(label.textContent || '');
     });
 
     expect(winnersR1Cards).toHaveLength(4);
@@ -252,7 +289,7 @@ describe('DoubleEliminationBracket TBD rendering (issue #574)', () => {
       name: /Match 1: TBD vs Mika/,
     });
 
-    expect(winnersR1M1.textContent).toContain('[1]');
+    expect(winnersR1M1.textContent).not.toContain('[1]');
     expect(winnersR1M1.textContent).toContain('TBD');
     expect(winnersR1M1.textContent).toContain('[16]');
     expect(winnersR1M1.textContent).toContain('Mika');

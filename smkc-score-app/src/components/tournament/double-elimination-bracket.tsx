@@ -42,15 +42,16 @@ interface BMMatch {
   stage?: string | null;
   tvNumber?: number | null;
   startingCourseNumber?: number | null;
-  player1Id: string;
-  player2Id: string;
+  assignedCourses?: unknown;
+  player1Id: string | null;
+  player2Id: string | null;
   score1: number;
   score2: number;
   completed: boolean;
   version?: number;
   slotOverrideAt?: string | Date | null;
-  player1: Player;
-  player2: Player;
+  player1: Player | null;
+  player2: Player | null;
 }
 
 /** Props for the main DoubleEliminationBracket component */
@@ -130,13 +131,22 @@ function MatchCard<TMatch extends BMMatch>({
   const seededEntry2 = bracketMatch.player2Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
-  /* The numeric bracket seed is always preferred over the group+rank label
-   * (e.g. "B1") -- it's the same overall tournament seed number shown
-   * elsewhere in the bracket, and is at least as informative (a
-   * qualificationRankLabel can only exist when the numeric seed does too,
-   * since both come from the same seededPlayers lookup). */
-  const seedLabel1 = bracketMatch.player1Seed ?? seededEntry1?.qualificationRankLabel;
-  const seedLabel2 = bracketMatch.player2Seed ?? seededEntry2?.qualificationRankLabel;
+  /* A structural bracket slot is only meaningful in the opening round.
+   * Resolve the qualification seed by player ID so a barrage winner retains
+   * (for example) [17] after entering upper slot 16 and in every later round. */
+  const originalSeedByPlayerId = new Map(
+    seededPlayers?.map((entry) => [entry.playerId, entry.originalSeed ?? entry.seed]),
+  );
+  const seedLabel1 =
+    (match?.player1Id ? originalSeedByPlayerId.get(match.player1Id) : undefined) ??
+    seededEntry1?.originalSeed ??
+    seededEntry1?.seed ??
+    bracketMatch.player1Seed;
+  const seedLabel2 =
+    (match?.player2Id ? originalSeedByPlayerId.get(match.player2Id) : undefined) ??
+    seededEntry2?.originalSeed ??
+    seededEntry2?.seed ??
+    bracketMatch.player2Seed;
 
   /* Use actual match players if available, fall back to seeded player data */
   const player1: Player | undefined = match?.player1 || seededEntry1?.player;
@@ -145,14 +155,11 @@ function MatchCard<TMatch extends BMMatch>({
   const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
   const { isWinner1, isWinner2 } = resolveBracketWinnerFlags(match, bracketMatch, targetWins, getWinnerId);
 
-  /*
-   * Per-slot TBD display. First-round matches (seeded) always show real names.
-   * For later rounds, show "TBD" only for the specific slot that hasn't been
-   * filled yet by a routing event from a completed prior match (issue #669).
-   */
-  const isFirstRound = bracketMatch.round === 'winners_r1' || bracketMatch.round === 'winners_qf';
-  const showTBD1 = !isFirstRound && isTBD.player1;
-  const showTBD2 = !isFirstRound && isTBD.player2;
+  /* Per-slot TBD display is based on persisted/routed slot state, including
+   * 16-player winners_qf which is not an initially seeded round (#3036). */
+  const showTBD1 = isTBD.player1;
+  const showTBD2 = isTBD.player2;
+  const canOpenScore = Boolean(onClick && !showTBD1 && !showTBD2);
 
   /* TV1 gets a subtle amber highlight so broadcast crew can spot it instantly. */
   const isTV1 = match?.tvNumber === 1;
@@ -160,18 +167,20 @@ function MatchCard<TMatch extends BMMatch>({
   return (
     <div
       className={cn(
-        'border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+        'border rounded-lg p-2 bg-card min-w-[180px] transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+        canOpenScore && 'cursor-pointer hover:border-primary',
+        !canOpenScore && 'cursor-not-allowed opacity-80',
         match?.completed && 'border-green-500/50',
         isTV1 && 'bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700',
       )}
-      onClick={onClick}
+      onClick={canOpenScore ? onClick : undefined}
       role="button"
-      tabIndex={0}
+      tabIndex={canOpenScore ? 0 : -1}
       data-testid="bracket-match-card"
       aria-label={`Match ${bracketMatch.matchNumber}: ${showTBD1 ? tc('tbd') : player1?.nickname || tc('tbd')} vs ${showTBD2 ? tc('tbd') : player2?.nickname || tc('tbd')}${showTBD1 || showTBD2 ? ' (Pending)' : ''}`}
       onKeyDown={(e) => {
         /* Support keyboard activation for accessibility */
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (canOpenScore && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           onClick?.();
         }
@@ -187,6 +196,7 @@ function MatchCard<TMatch extends BMMatch>({
       <div className="text-xs text-muted-foreground mb-1 flex justify-between items-center gap-1">
         <span className="flex items-center gap-1">
           M{bracketMatch.matchNumber}
+          <span className="rounded border px-1 py-0.5 font-medium text-foreground">FT{targetWins}</span>
           {match?.slotOverrideAt && (
             <span
               className="inline-flex items-center rounded-sm px-1 py-0.5 text-[10px] font-semibold flag-draft"
@@ -229,7 +239,9 @@ function MatchCard<TMatch extends BMMatch>({
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player1Seed && <span className="text-xs text-muted-foreground">[{seedLabel1}]</span>}
+          {!isTBD.player1 && seedLabel1 != null && (
+            <span className="text-xs text-muted-foreground">[{seedLabel1}]</span>
+          )}
           <PlayerName
             player={player1}
             locale={locale}
@@ -263,7 +275,9 @@ function MatchCard<TMatch extends BMMatch>({
         )}
       >
         <span className="flex items-center gap-1">
-          {bracketMatch.player2Seed && <span className="text-xs text-muted-foreground">[{seedLabel2}]</span>}
+          {!isTBD.player2 && seedLabel2 != null && (
+            <span className="text-xs text-muted-foreground">[{seedLabel2}]</span>
+          )}
           <PlayerName
             player={player2}
             locale={locale}
@@ -342,14 +356,19 @@ function BracketSection({
   );
 }
 
-/** Displays a round name with the assigned starting course below it. */
-function RoundHeader({ label, course }: { label: string; course: number | null }) {
+/** Displays a round name with its assigned Battle course or MR track list. */
+function RoundHeader({ label, course }: { label: string; course: number | string[] | null }) {
   const tf = useTranslations('finals');
   return (
     <div>
       <h4 className="text-sm font-medium text-muted-foreground">{label}</h4>
-      {course != null && (
+      {typeof course === 'number' && (
         <p className="text-xs font-semibold text-blue-500">{tf('battleCourse', { number: course })}</p>
+      )}
+      {Array.isArray(course) && course.length > 0 && (
+        <p className="text-xs font-semibold text-blue-500" data-testid="bracket-round-tracks">
+          {course.join(' / ')}
+        </p>
       )}
     </div>
   );
@@ -414,24 +433,27 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
    */
   const isTBD = (matchNumber: number): { player1: boolean; player2: boolean } => {
     const match = getMatch(matchNumber);
-    if (!match) return { player1: true, player2: true };
-    const bracket = getBracketMatch(matchNumber);
-    /* First-round seeded matches always have real players */
-    if (bracket?.round === 'winners_qf' || bracket?.round === 'winners_r1') {
-      return { player1: false, player2: false };
+    if (!match) {
+      const bracket = getBracketMatch(matchNumber);
+      return {
+        player1: !seededPlayers?.some((entry) => entry.seed === bracket?.player1Seed),
+        player2: !seededPlayers?.some((entry) => entry.seed === bracket?.player2Seed),
+      };
     }
-    if (match.completed) return { player1: false, player2: false };
-
+    const bracket = getBracketMatch(matchNumber);
     const isSlotTBD = (slot: 1 | 2): boolean => {
+      const playerId = slot === 1 ? match.player1Id : match.player2Id;
+      /* A NULL slot is unresolved even if an invalid/legacy row claims the
+       * match completed. */
+      if (playerId == null) return true;
       /* Seeded slots (playoff_r2 BYE seeds) are always filled */
       if (slot === 1 && bracket?.player1Seed != null) return false;
       if (slot === 2 && bracket?.player2Seed != null) return false;
       const sourceMatchNumber = slotSourceMap.get(`${matchNumber}-${slot}`);
       if (sourceMatchNumber == null) {
         /* Routing fields absent (should not happen with generateBracketStructure,
-         * but degrade gracefully using the placeholder heuristic: bracket creation
-         * initialises unfilled slots to seededPlayers[0].playerId for both players,
-         * so equal IDs means both slots are still placeholders. */
+         * but degrade gracefully. Equal non-null IDs preserve legacy seed-1
+         * placeholder rendering; new brackets use NULL above. */
         return !match.completed && match.player1Id === match.player2Id;
       }
       return !getMatch(sourceMatchNumber)?.completed;
@@ -440,9 +462,16 @@ export function DoubleEliminationBracket<TMatch extends BMMatch = BMMatch>({
     return { player1: isSlotTBD(1), player2: isSlotTBD(2) };
   };
 
-  /* Returns the startingCourseNumber for a given round (all matches in a round share the same value). */
-  const getCourseForRound = (round: string): number | null =>
-    matches.find((m) => m.round === round && m.startingCourseNumber != null)?.startingCourseNumber ?? null;
+  /* Returns the shared Battle starting course or MR track list for a round. */
+  const getCourseForRound = (round: string): number | string[] | null => {
+    const match =
+      matches.find((candidate) => candidate.round === round && !candidate.completed) ??
+      matches.find((candidate) => candidate.round === round);
+    if (match?.startingCourseNumber != null) return match.startingCourseNumber;
+    return Array.isArray(match?.assignedCourses)
+      ? match.assignedCourses.filter((course): course is string => typeof course === 'string')
+      : null;
+  };
 
   /* Group bracket positions by round for organized display */
   const winnersR1 = bracketStructure.filter((b) => b.round === 'winners_r1');

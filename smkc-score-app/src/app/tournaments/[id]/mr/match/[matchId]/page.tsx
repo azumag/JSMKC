@@ -16,37 +16,25 @@
  *
  * @route /tournaments/[id]/mr/match/[matchId]
  */
-"use client";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+'use client';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
-import { useState, useEffect, useCallback, use } from "react";
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
-import { usePolling } from "@/lib/hooks/usePolling";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
-import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { createLogger } from "@/lib/client-logger";
-import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
-import { getSharedMatchAccessState } from "@/lib/shared-match-access-state";
+import { useState, useEffect, useCallback, use } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, type CourseAbbr } from '@/lib/constants';
+import { usePolling } from '@/lib/hooks/usePolling';
+import { UpdateIndicator } from '@/components/ui/update-indicator';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { getMrFinalsTargetWins } from '@/lib/finals-target-wins';
+import { createLogger } from '@/lib/client-logger';
+import { useMatchReportAuth } from '@/lib/hooks/useMatchReportAuth';
+import { getSharedMatchAccessState } from '@/lib/shared-match-access-state';
 
-import type { Player } from "@/lib/types";
+import type { Player } from '@/lib/types';
 
 const logger = createLogger({ serviceName: 'tournaments-mr-match' });
 
@@ -60,7 +48,13 @@ interface MRMatch {
   player2Side: number;
   score1: number;
   score2: number;
+  stage?: string;
+  round?: string | null;
+  targetWins?: number | null;
+  winnerOverrideId?: string | null;
   completed: boolean;
+  player1OriginalSeed?: number;
+  player2OriginalSeed?: number;
   /** Pre-assigned course abbreviations for this match (§10.5). Set at qualification setup. */
   assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
@@ -80,15 +74,11 @@ interface Tournament {
 
 /** Individual race round entry */
 interface Round {
-  course: CourseAbbr | "";
+  course: CourseAbbr | '';
   winner: number | null;
 }
 
-export default function MatchDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string; matchId: string }>;
-}) {
+export default function MatchDetailPage({ params }: { params: Promise<{ id: string; matchId: string }> }) {
   const { id: tournamentId, matchId } = use(params);
 
   /**
@@ -107,8 +97,7 @@ export default function MatchDetailPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
-  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } =
-    useMatchReportAuth(match);
+  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } = useMatchReportAuth(match);
 
   const [submitting, setSubmitting] = useState(false);
   /*
@@ -117,7 +106,7 @@ export default function MatchDetailPage({
    * via useEffect when the match data arrives from the API.
    */
   const [rounds, setRounds] = useState<Round[]>(
-    Array.from({ length: TOTAL_MR_RACES }, () => ({ course: "" as CourseAbbr | "", winner: null }))
+    Array.from({ length: TOTAL_MR_RACES }, () => ({ course: '' as CourseAbbr | '', winner: null })),
   );
   /*
    * Track whether courses have been initialized from assignedCourses.
@@ -126,7 +115,7 @@ export default function MatchDetailPage({
    */
   const [coursesInitialized, setCoursesInitialized] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   /**
    * Fetch match and tournament data concurrently.
@@ -157,8 +146,13 @@ export default function MatchDetailPage({
   }, [tournamentId, matchId]);
 
   /* Poll at the standard interval for live updates */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
-    fetchMatchData, {
+  const {
+    data: pollData,
+    isLoading: pollLoading,
+    lastUpdated,
+    isPolling,
+    refetch,
+  } = usePolling(fetchMatchData, {
     interval: POLLING_INTERVAL,
   });
 
@@ -180,11 +174,11 @@ export default function MatchDetailPage({
   useEffect(() => {
     if (!coursesInitialized && pollData?.match?.assignedCourses?.length) {
       const assigned = pollData.match.assignedCourses as string[];
-      setRounds(prev =>
+      setRounds((prev) =>
         prev.map((r, i) => ({
           ...r,
           course: (assigned[i] as CourseAbbr) ?? r.course,
-        }))
+        })),
       );
       setCoursesInitialized(true);
     }
@@ -206,49 +200,46 @@ export default function MatchDetailPage({
    */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
-      setError("Please select which player you are");
+      setError('Please select which player you are');
       return;
     }
 
     /* Validate all 4 race winners are selected */
-    const allWinnersSelected = rounds.every(r => r.winner !== null);
+    const allWinnersSelected = rounds.every((r) => r.winner !== null);
     if (!allWinnersSelected) {
       setError(`Please select the winner for all ${TOTAL_MR_RACES} races`);
       return;
     }
 
     /* Count race wins for each player (2-2 draw is valid) */
-    const winnerCount = rounds.filter(r => r.winner === 1).length;
-    const loserCount = rounds.filter(r => r.winner === 2).length;
+    const winnerCount = rounds.filter((r) => r.winner === 1).length;
+    const loserCount = rounds.filter((r) => r.winner === 2).length;
 
     setSubmitting(true);
-    setError("");
+    setError('');
 
     try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/mr/match/${matchId}/report`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reportingPlayer: selectedPlayer,
-            score1: winnerCount,
-            score2: loserCount,
-            rounds,
-          }),
-        }
-      );
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr/match/${matchId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportingPlayer: selectedPlayer,
+          score1: winnerCount,
+          score2: loserCount,
+          rounds,
+        }),
+      });
 
       if (response.ok) {
         setSubmitted(true);
         refetch();
       } else {
         const data = await response.json();
-        setError(data.error || "Failed to submit result");
+        setError(data.error || 'Failed to submit result');
       }
     } catch (err) {
-      logger.error("Failed to submit result:", { error: err });
-      setError("Failed to submit result");
+      logger.error('Failed to submit result:', { error: err });
+      setError('Failed to submit result');
     } finally {
       setSubmitting(false);
     }
@@ -256,7 +247,7 @@ export default function MatchDetailPage({
 
   /** Look up course display name from abbreviation */
   const getCourseName = (abbr: string) => {
-    const course = COURSE_INFO.find(c => c.abbr === abbr);
+    const course = COURSE_INFO.find((c) => c.abbr === abbr);
     return course ? course.name : abbr;
   };
 
@@ -285,8 +276,8 @@ export default function MatchDetailPage({
   }
 
   /* Calculate current score from rounds for display */
-  const p1Wins = rounds.filter(r => r.winner === 1).length;
-  const p2Wins = rounds.filter(r => r.winner === 2).length;
+  const p1Wins = rounds.filter((r) => r.winner === 1).length;
+  const p2Wins = rounds.filter((r) => r.winner === 2).length;
   const accessState = getSharedMatchAccessState({
     canReport,
     isSessionLoading,
@@ -311,9 +302,15 @@ export default function MatchDetailPage({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex justify-between items-center">
-              <span>{match.player1.nickname}</span>
+              <span>
+                {match.player1OriginalSeed != null ? `[${match.player1OriginalSeed}] ` : ''}
+                {match.player1.nickname}
+              </span>
               <span className="text-2xl font-mono">vs</span>
-              <span>{match.player2.nickname}</span>
+              <span>
+                {match.player2OriginalSeed != null ? `[${match.player2OriginalSeed}] ` : ''}
+                {match.player2.nickname}
+              </span>
             </CardTitle>
             {match.completed && (
               <CardDescription className="text-center">
@@ -327,7 +324,7 @@ export default function MatchDetailPage({
 
         {/* Not authorized message - shown to users who are not match participants.
             Guarded by !isSessionLoading to avoid flash during session fetch. */}
-        {accessState === "unauthorized" && (
+        {accessState === 'unauthorized' && (
           <Card>
             <CardContent className="py-8 text-center">
               <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
@@ -342,9 +339,7 @@ export default function MatchDetailPage({
             <CardHeader>
               {/* i18n: Score entry form header */}
               <CardTitle>{tMatch('enterResult')}</CardTitle>
-              <CardDescription>
-                {tMatch('selectIdentityRace')}
-              </CardDescription>
+              <CardDescription>{tMatch('selectIdentityRace')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Player identity selection */}
@@ -353,14 +348,14 @@ export default function MatchDetailPage({
                 <p className="text-sm font-medium">{tMatch('iAm')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
-                    variant={selectedPlayer === 1 ? "default" : "outline"}
+                    variant={selectedPlayer === 1 ? 'default' : 'outline'}
                     className="h-16 text-lg"
                     onClick={() => setSelectedPlayer(1)}
                   >
                     {match.player1.nickname}
                   </Button>
                   <Button
-                    variant={selectedPlayer === 2 ? "default" : "outline"}
+                    variant={selectedPlayer === 2 ? 'default' : 'outline'}
                     className="h-16 text-lg"
                     onClick={() => setSelectedPlayer(2)}
                   >
@@ -400,10 +395,10 @@ export default function MatchDetailPage({
                          * so we show the course name as a static label instead of a dropdown.
                          */}
                         <span className="min-w-0 truncate rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                          {round.course ? getCourseName(round.course) : "—"}
+                          {round.course ? getCourseName(round.course) : '—'}
                         </span>
                         <Button
-                          variant={round.winner === 1 ? "default" : "outline"}
+                          variant={round.winner === 1 ? 'default' : 'outline'}
                           size="sm"
                           onClick={() => {
                             const newRounds = [...rounds];
@@ -414,11 +409,13 @@ export default function MatchDetailPage({
                         >
                           {/* i18n: Winner buttons use 'I Won' or 'Player Won' depending on identity */}
                           <span className="truncate">
-                            {selectedPlayer === 1 ? tMatch('iWon') : tMatch('playerWon', { player: match.player1.nickname })}
+                            {selectedPlayer === 1
+                              ? tMatch('iWon')
+                              : tMatch('playerWon', { player: match.player1.nickname })}
                           </span>
                         </Button>
                         <Button
-                          variant={round.winner === 2 ? "default" : "outline"}
+                          variant={round.winner === 2 ? 'default' : 'outline'}
                           size="sm"
                           onClick={() => {
                             const newRounds = [...rounds];
@@ -428,21 +425,21 @@ export default function MatchDetailPage({
                           className="w-full min-w-0"
                         >
                           <span className="truncate">
-                            {selectedPlayer === 2 ? tMatch('iWon') : tMatch('playerWon', { player: match.player2.nickname })}
+                            {selectedPlayer === 2
+                              ? tMatch('iWon')
+                              : tMatch('playerWon', { player: match.player2.nickname })}
                           </span>
                         </Button>
                       </div>
                     ))}
                   </div>
 
-                  {error && (
-                    <p className="text-red-500 text-sm text-center">{error}</p>
-                  )}
+                  {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
                   <Button
                     className="w-full h-14 text-lg"
                     onClick={handleSubmit}
-                    disabled={submitting || !rounds.every(r => r.winner !== null)}
+                    disabled={submitting || !rounds.every((r) => r.winner !== null)}
                   >
                     {/* i18n: Submit button with loading state */}
                     {submitting ? tMatch('submitting') : tMatch('submitResult')}
@@ -460,62 +457,77 @@ export default function MatchDetailPage({
               <div className="text-4xl mb-4">&#10003;</div>
               {/* i18n: Post-submission confirmation messages */}
               <h3 className="text-lg font-semibold mb-2">{tMatch('resultSubmitted')}</h3>
-              <p className="text-muted-foreground">
-                {tMatch('waitingConfirm')}
-              </p>
-              <p className="text-sm mt-4">
-                {tMatch('yourReport', { score1: p1Wins, score2: p2Wins })}
-              </p>
+              <p className="text-muted-foreground">{tMatch('waitingConfirm')}</p>
+              <p className="text-sm mt-4">{tMatch('yourReport', { score1: p1Wins, score2: p2Wins })}</p>
             </CardContent>
           </Card>
         )}
 
-        {/* Completed match display with race details */}
-        {match.completed && match.rounds && (
+        {/* The planned MR tracks are relevant before, during, and after score
+            entry, including aggregate-score matches with no per-race rows. */}
+        {match.assignedCourses && match.assignedCourses.length > 0 && (
+          <Card data-testid="mr-match-assigned-courses">
+            <CardHeader>
+              <CardTitle className="text-base">Tracks</CardTitle>
+              <CardDescription>{match.assignedCourses.join(' / ')}</CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        {/* Completed match display also supports aggregate-score saves where
+            `rounds` is intentionally absent. */}
+        {match.completed && (
           <Card>
             <CardHeader>
               {/* i18n: Completed match header with final score */}
               <CardTitle>{tMatch('matchComplete')}</CardTitle>
-              <CardDescription>
-                {tMatch('finalScore', { score1: match.score1, score2: match.score2 })}
-              </CardDescription>
+              <CardDescription>{tMatch('finalScore', { score1: match.score1, score2: match.score2 })}</CardDescription>
+              {(match.stage === 'finals' || match.stage === 'playoff') && (
+                <CardDescription>
+                  FT{getMrFinalsTargetWins({ stage: match.stage, round: match.round, targetWins: match.targetWins })}
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent>
-              <Table className="text-sm">
-                <TableHeader>
-                  <TableRow>
-                    {/* i18n: Completed match table headers */}
-                    <TableHead>{tCommon('race')}</TableHead>
-                    <TableHead>{tCommon('course')}</TableHead>
-                    <TableHead>{tCommon('winner')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {match.rounds.map((round, index) => (
-                    <TableRow key={index}>
-                      {/* i18n: Race number in completed match table */}
-                      <TableCell>{tMatch('raceN', { n: index + 1 })}</TableCell>
-                      <TableCell>{getCourseName(round.course)}</TableCell>
-                      <TableCell className="font-medium">
-                        {round.winner === 1
-                          ? match.player1.nickname
-                          : round.winner === 2
-                          ? match.player2.nickname
-                          : "-"}
-                      </TableCell>
+              {match.rounds && (
+                <Table className="text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{tCommon('race')}</TableHead>
+                      <TableHead>{tCommon('course')}</TableHead>
+                      <TableHead>{tCommon('winner')}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {/* i18n: Match winner announcement or draw.
-                  A player wins by taking more than half the races (> TOTAL_MR_RACES/2).
-                  For 4 races this means 3 or more wins; a 2-2 result is a draw. */}
+                  </TableHeader>
+                  <TableBody>
+                    {match.rounds.map((round, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{tMatch('raceN', { n: index + 1 })}</TableCell>
+                        <TableCell>{getCourseName(round.course)}</TableCell>
+                        <TableCell className="font-medium">
+                          {round.winner === 1
+                            ? match.player1.nickname
+                            : round.winner === 2
+                              ? match.player2.nickname
+                              : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              {/* Finals can have a persisted First-To other than the four
+                  qualification races, so an explicit correction or completed
+                  finals score resolves by score comparison. */}
               <p className="mt-4 text-center">
-                {match.score1 > TOTAL_MR_RACES / 2
+                {match.winnerOverrideId === match.player1Id
                   ? tMatch('playerWins', { player: match.player1.nickname })
-                  : match.score2 > TOTAL_MR_RACES / 2
-                  ? tMatch('playerWins', { player: match.player2.nickname })
-                  : tMatch('draw')}
+                  : match.winnerOverrideId === match.player2Id
+                    ? tMatch('playerWins', { player: match.player2.nickname })
+                    : match.score1 > match.score2
+                      ? tMatch('playerWins', { player: match.player1.nickname })
+                      : match.score2 > match.score1
+                        ? tMatch('playerWins', { player: match.player2.nickname })
+                        : tMatch('draw')}
               </p>
             </CardContent>
           </Card>
@@ -523,10 +535,7 @@ export default function MatchDetailPage({
 
         {/* Navigation link back to MR main page */}
         <div className="text-center">
-          <a
-            href={`/tournaments/${tournamentId}/mr`}
-            className="text-sm text-muted-foreground hover:underline"
-          >
+          <a href={`/tournaments/${tournamentId}/mr`} className="text-sm text-muted-foreground hover:underline">
             {/* i18n: Back navigation to MR main page */}
             &larr; {tMatch('backToMR')}
           </a>

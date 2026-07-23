@@ -78,7 +78,13 @@ jest.mock('next/server', () => {
       this.data = body;
       this.status = options?.status ?? 200;
       const h: Record<string, string> = {};
-      this.headers = { set: (k, v) => { h[k] = v; }, get: (k) => h[k], _store: h };
+      this.headers = {
+        set: (k, v) => {
+          h[k] = v;
+        },
+        get: (k) => h[k],
+        _store: h,
+      };
     }
   }
   (NextResponseMock as unknown as { json: jest.Mock }).json = jest.fn(
@@ -229,10 +235,29 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
   });
 
   describe('TC-2485 / TC-2555: full-build path returns events with Cache-Control: no-store', () => {
+    it('does not pass a legacy BREAK score report to the event builder', async () => {
+      const id = 'break-score-log-tc-3032';
+      mockResolveTournament.mockResolvedValue(makeTournament(id));
+      const now = new Date();
+      stubAggregatesAt(now);
+      stubPhaseInputEmpty();
+      stubFindManyEmpty();
+      mockPrisma.gPMatch.findMany.mockResolvedValue([{ id: 'break-1', isBye: true }]);
+      mockPrisma.scoreEntryLog.findMany.mockResolvedValue([
+        { id: 'log-break', matchId: 'break-1', matchType: 'GP', timestamp: now, player: { nickname: 'Player' } },
+      ]);
+
+      await GET(makeRequest({ since: new Date(now.getTime() - 60_000).toISOString() }), makeParams(id));
+
+      expect(mockBuildOverlayEvents).toHaveBeenCalledWith(expect.objectContaining({ scoreLogs: [], gpMatches: [] }));
+    });
+
     it('returns events from buildOverlayEvents when latestChange > since', async () => {
       const id = 'full-build-tc-2485';
       mockResolveTournament.mockResolvedValue(makeTournament(id));
-      mockBuildOverlayEvents.mockReturnValue([{ id: 'evt-1', type: 'score_reported', title: 'Score', timestamp: new Date().toISOString() }]);
+      mockBuildOverlayEvents.mockReturnValue([
+        { id: 'evt-1', type: 'score_reported', title: 'Score', timestamp: new Date().toISOString() },
+      ]);
 
       // Aggregate returns a timestamp from NOW (after since = 1 hour ago).
       const now = new Date();
@@ -286,6 +311,44 @@ describe('GET /api/tournaments/[id]/overlay-events', () => {
       expect(res.status).toBe(200);
       // buildOverlayEvents MUST be called on initial=1 path even with no recent changes.
       expect(mockBuildOverlayEvents).toHaveBeenCalled();
+    });
+  });
+
+  describe('TC-3038: current finals format query is stable across poll paths', () => {
+    it('uses the same unresolved, fully assigned match query for fast and initial responses', async () => {
+      const id = 'current-finals-query-tc-3038';
+      mockResolveTournament.mockResolvedValue(makeTournament(id));
+      const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      stubAggregatesAt(old);
+      stubFindManyEmpty();
+      const current = { stage: 'finals', round: 'winners_r1', targetWins: 7, createdAt: old };
+      for (const model of [mockPrisma.bMMatch, mockPrisma.mRMatch, mockPrisma.gPMatch]) {
+        model.findFirst.mockImplementation((args: { select?: { targetWins?: boolean } }) =>
+          args.select?.targetWins ? Promise.resolve(current) : Promise.resolve(null),
+        );
+      }
+
+      await GET(makeRequest({ since: new Date(Date.now() - 60 * 60 * 1000).toISOString() }), makeParams(id));
+      await GET(makeRequest({ initial: '1' }), makeParams(id));
+
+      const expectedWhere = {
+        tournamentId: id,
+        stage: { in: ['playoff', 'finals'] },
+        round: { not: null },
+        completed: false,
+        player1Id: { not: null },
+        player2Id: { not: null },
+      };
+      for (const model of [mockPrisma.bMMatch, mockPrisma.mRMatch, mockPrisma.gPMatch]) {
+        const phaseQueries = model.findFirst.mock.calls
+          .map(([args]: [{ select?: { targetWins?: boolean } }]) => args)
+          .filter((args: { select?: { targetWins?: boolean } }) => args.select?.targetWins);
+        expect(phaseQueries).toHaveLength(2);
+        for (const query of phaseQueries) {
+          expect(query.where).toEqual(expectedWhere);
+          expect(query.orderBy).toEqual({ matchNumber: 'asc' });
+        }
+      }
     });
   });
 

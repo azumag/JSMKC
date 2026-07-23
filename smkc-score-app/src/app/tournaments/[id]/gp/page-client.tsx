@@ -127,6 +127,8 @@ interface GPMatch {
     points1: number;
     points2: number;
   }[];
+  player1ReportedRaces?: unknown;
+  player2ReportedRaces?: unknown;
   player1ReportedPoints1?: number | null;
   player1ReportedPoints2?: number | null;
   player2ReportedPoints1?: number | null;
@@ -164,6 +166,7 @@ export default function GrandPrixPageClient({
   const [matchGroupFilter, setMatchGroupFilter] = useState<string>('all');
   const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>('all');
   const [selectedCup, setSelectedCup] = useState<string>('');
+  const [cupChangeResolution, setCupChangeResolution] = useState<'keep' | 'clear' | 'cancel'>('keep');
   /* GP matches have exactly 5 races per cup (§7.2) */
   const [races, setRaces] = useState<Race[]>(
     Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })),
@@ -245,8 +248,9 @@ export default function GrandPrixPageClient({
   const canCreateFinals = canCreateFinalsFromQualification({
     qualificationConfirmed,
     qualificationCount: qualifications.length,
-    matchCount: matches.length,
-    allMatchesCompleted: matches.every((m) => m.completed),
+    matchCount: matches.filter((m) => !m.isBye).length,
+    allMatchesCompleted:
+      matches.filter((m) => !m.isBye).length > 0 && matches.filter((m) => !m.isBye).every((m) => m.completed),
   });
   const canResetFinals = canResetFinalsFromQualification({
     qualificationConfirmed,
@@ -382,9 +386,12 @@ export default function GrandPrixPageClient({
 
   const openMatchDialog = (match: GPMatch) => {
     setSelectedMatch(match);
-    setManualScoreEnabled(false);
+    // New qualification matches use the manual driver-point total. A complete
+    // stored race breakdown is the only signal that should reopen details.
+    setManualScoreEnabled(!(match.races && match.races.length === TOTAL_GP_RACES));
     setManualPoints1(match.points1.toString());
     setManualPoints2(match.points2.toString());
+    setCupChangeResolution('keep');
     if (match.cup && match.races && match.races.length === TOTAL_GP_RACES) {
       /* Pre-fill form with existing match data for editing */
       setSelectedCup(match.cup);
@@ -402,6 +409,37 @@ export default function GrandPrixPageClient({
       }
     }
     setIsMatchDialogOpen(true);
+  };
+
+  const saveQualificationCup = async () => {
+    if (!selectedMatch || !selectedCup || selectedCup === selectedMatch.cup) return;
+    if (cupChangeResolution === 'cancel') {
+      setSelectedCup(selectedMatch.cup ?? '');
+      setCupChangeResolution('keep');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchId: selectedMatch.id,
+          cupAssignment: { cup: selectedCup, expectedVersion: selectedMatch.version, resolution: cupChangeResolution },
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || 'Failed to save cup assignment');
+        return;
+      }
+      const json = await response.json();
+      const match = json.data?.match;
+      if (match) setSelectedMatch(match);
+      setCupChangeResolution('keep');
+      refetch();
+    } catch (error) {
+      logger.error('Failed to update qualification cup', { error });
+    }
   };
 
   const getCurrentBroadcastPoints = () => {
@@ -467,6 +505,7 @@ export default function GrandPrixPageClient({
             points2,
             completed: true,
             version: selectedMatch.version,
+            races: null,
           }),
         });
 
@@ -875,7 +914,7 @@ export default function GrandPrixPageClient({
                 <CardTitle>{tc('matchList')}</CardTitle>
                 <CardDescription>
                   {tc('completedOf', {
-                    completed: matches.filter((m) => m.completed).length,
+                    completed: matches.filter((m) => !m.isBye && m.completed).length,
                     total: matches.filter((m) => !m.isBye).length,
                   })}
                 </CardDescription>
@@ -1144,11 +1183,13 @@ export default function GrandPrixPageClient({
                   <SelectValue placeholder={t('selectCupPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(selectedMatch?.cup
-                    ? /* Pre-assigned: show assigned cup + substitute if available */
-                      [selectedMatch.cup, CUP_SUBSTITUTIONS[selectedMatch.cup]].filter(Boolean)
-                    : /* No pre-assignment: show all cups */
-                      [...CUPS]
+                  {(isAdmin
+                    ? [...CUPS]
+                    : selectedMatch?.cup
+                      ? /* Pre-assigned: show assigned cup + substitute if available */
+                        [selectedMatch.cup, CUP_SUBSTITUTIONS[selectedMatch.cup]].filter(Boolean)
+                      : /* No pre-assignment: show all cups */
+                        [...CUPS]
                   ).map((cup) => (
                     <SelectItem key={cup} value={cup!}>
                       {cup}
@@ -1157,6 +1198,27 @@ export default function GrandPrixPageClient({
                   ))}
                 </SelectContent>
               </Select>
+              {isAdmin && selectedMatch && selectedCup !== selectedMatch.cup && (
+                <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="gp-qualification-cup-assignment">
+                  {[selectedMatch.races, selectedMatch.player1ReportedRaces, selectedMatch.player2ReportedRaces].some(
+                    (details) => Array.isArray(details) && details.length > 0,
+                  ) && (
+                    <select
+                      aria-label="Cup detail resolution"
+                      className="h-9 rounded border bg-background px-2 text-sm"
+                      value={cupChangeResolution}
+                      onChange={(event) => setCupChangeResolution(event.target.value as 'keep' | 'clear' | 'cancel')}
+                    >
+                      <option value="keep">Keep entered details</option>
+                      <option value="clear">Clear entered details</option>
+                      <option value="cancel">Cancel cup change</option>
+                    </select>
+                  )}
+                  <Button type="button" size="sm" variant="outline" onClick={saveQualificationCup}>
+                    Save cup assignment
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 rounded-lg border p-4">

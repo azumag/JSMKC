@@ -99,6 +99,7 @@ export const bmConfig: EventTypeConfig = {
   aggregatePlayerStats: (matches, playerId, calcResult) => {
     const stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of matches) {
+      if (m.isBye) continue;
       // Skip 0-0 matches: these are admin-cleared matches (not actual ties).
       // A 0-0 score indicates the match was voided and should not affect standings.
       const isClearedMatch = m.score1 === 0 && m.score2 === 0;
@@ -108,10 +109,7 @@ export const bmConfig: EventTypeConfig = {
       const isPlayer1 = m.player1Id === playerId;
       stats.winRounds += isPlayer1 ? m.score1 : m.score2;
       stats.lossRounds += isPlayer1 ? m.score2 : m.score1;
-      const { result1 } = calcResult(
-        isPlayer1 ? m.score1 : m.score2,
-        isPlayer1 ? m.score2 : m.score1,
-      );
+      const { result1 } = calcResult(isPlayer1 ? m.score1 : m.score2, isPlayer1 ? m.score2 : m.score1);
       if (result1 === 'win') stats.wins++;
       else if (result1 === 'loss') stats.losses++;
       else stats.ties++;

@@ -45,6 +45,11 @@ jest.mock('@/lib/points/overall-ranking', () => ({
   calculateOverallRankings: jest.fn(),
   saveOverallRankings: jest.fn(),
   getOverallRankings: jest.fn(),
+  invalidateOverallRankingsCache: jest.fn(),
+}));
+
+jest.mock('@/lib/api-factories/score-report-helpers', () => ({
+  repairQualificationStats: jest.fn().mockResolvedValue(0),
 }));
 
 import { NextResponse } from 'next/server';
@@ -54,7 +59,9 @@ import {
   calculateOverallRankings,
   saveOverallRankings,
   getOverallRankings,
+  invalidateOverallRankingsCache,
 } from '@/lib/points/overall-ranking';
+import { repairQualificationStats } from '@/lib/api-factories/score-report-helpers';
 import { GET, POST } from '@/app/api/tournaments/[id]/overall-ranking/route';
 
 const mockParams = (id: string) => ({ params: Promise.resolve({ id }) });
@@ -99,10 +106,7 @@ describe('Overall Ranking Route', () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (getOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
 
-      const response = await GET(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await GET({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(200);
       expect(response.data.success).toBe(true);
@@ -115,10 +119,7 @@ describe('Overall Ranking Route', () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (getOverallRankings as jest.Mock).mockResolvedValue([]);
 
-      const response = await GET(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await GET({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(200);
       expect(response.data.success).toBe(true);
@@ -135,10 +136,7 @@ describe('Overall Ranking Route', () => {
         publicModes: ['ta', 'bm', 'mr', 'gp'],
       });
 
-      const response = await GET(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await GET({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(403);
       expect(response.data.success).toBe(false);
@@ -155,10 +153,7 @@ describe('Overall Ranking Route', () => {
       });
       (getOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
 
-      const response = await GET(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await GET({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(200);
       expect(response.data.success).toBe(true);
@@ -169,10 +164,7 @@ describe('Overall Ranking Route', () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (getOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
 
-      const response = await GET(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await GET({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(200);
       /* lastUpdated should be a valid ISO date string derived from updatedAt */
@@ -184,10 +176,7 @@ describe('Overall Ranking Route', () => {
     it('returns 404 when tournament is not found', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
 
-      const response = await GET(
-        {} as any,
-        mockParams('nonexistent-id')
-      );
+      const response = await GET({} as any, mockParams('nonexistent-id'));
 
       expect(response.status).toBe(404);
       expect(response.data.success).toBe(false);
@@ -195,14 +184,9 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 500 on database errors', async () => {
-      (prisma.tournament.findFirst as jest.Mock).mockRejectedValue(
-        new Error('Database connection failed')
-      );
+      (prisma.tournament.findFirst as jest.Mock).mockRejectedValue(new Error('Database connection failed'));
 
-      const response = await GET(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await GET({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(500);
       expect(response.data.success).toBe(false);
@@ -213,10 +197,7 @@ describe('Overall Ranking Route', () => {
     it('returns 401 for unauthenticated users', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
-      const response = await POST(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await POST({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(401);
       expect(response.data.success).toBe(false);
@@ -227,10 +208,7 @@ describe('Overall Ranking Route', () => {
         user: { id: 'user-1', role: 'user' },
       });
 
-      const response = await POST(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await POST({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(403);
       expect(response.data.success).toBe(false);
@@ -242,10 +220,7 @@ describe('Overall Ranking Route', () => {
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
 
-      const response = await POST(
-        {} as any,
-        mockParams('nonexistent-id')
-      );
+      const response = await POST({} as any, mockParams('nonexistent-id'));
 
       expect(response.status).toBe(404);
       expect(response.data.success).toBe(false);
@@ -259,24 +234,28 @@ describe('Overall Ranking Route', () => {
       (calculateOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
       (saveOverallRankings as jest.Mock).mockResolvedValue(undefined);
 
-      const response = await POST(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await POST({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(200);
       expect(response.data.success).toBe(true);
       expect(response.data.data.rankings).toEqual(mockRankings);
       expect(response.data.data.tournamentName).toBe('Test Tournament 2026');
-      expect(calculateOverallRankings).toHaveBeenCalledWith(
-        prisma,
-        'tournament-1'
-      );
-      expect(saveOverallRankings).toHaveBeenCalledWith(
-        prisma,
-        'tournament-1',
-        mockRankings
-      );
+      expect(calculateOverallRankings).toHaveBeenCalledWith(prisma, 'tournament-1');
+      expect(saveOverallRankings).toHaveBeenCalledWith(prisma, 'tournament-1', mockRankings);
+    });
+
+    it('invalidates the source cache before saving a repaired legacy BREAK ranking', async () => {
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
+      (repairQualificationStats as jest.Mock).mockResolvedValueOnce(1).mockResolvedValue(0);
+      (calculateOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
+      (saveOverallRankings as jest.Mock).mockResolvedValue(undefined);
+
+      await POST({} as any, mockParams('tournament-1'));
+
+      expect(invalidateOverallRankingsCache).toHaveBeenCalledWith('tournament-1');
+      expect(calculateOverallRankings).toHaveBeenCalledWith(prisma, 'tournament-1');
+      expect(saveOverallRankings).toHaveBeenCalledWith(prisma, 'tournament-1', mockRankings);
     });
 
     it('returns 500 when saveOverallRankings fails', async () => {
@@ -285,14 +264,9 @@ describe('Overall Ranking Route', () => {
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (calculateOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
-      (saveOverallRankings as jest.Mock).mockRejectedValue(
-        new Error('DB write failed')
-      );
+      (saveOverallRankings as jest.Mock).mockRejectedValue(new Error('DB write failed'));
 
-      const response = await POST(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await POST({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(500);
       expect(response.data.success).toBe(false);
@@ -303,14 +277,9 @@ describe('Overall Ranking Route', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
-      (calculateOverallRankings as jest.Mock).mockRejectedValue(
-        new Error('Calculation failed')
-      );
+      (calculateOverallRankings as jest.Mock).mockRejectedValue(new Error('Calculation failed'));
 
-      const response = await POST(
-        {} as any,
-        mockParams('tournament-1')
-      );
+      const response = await POST({} as any, mockParams('tournament-1'));
 
       expect(response.status).toBe(500);
       expect(response.data.success).toBe(false);

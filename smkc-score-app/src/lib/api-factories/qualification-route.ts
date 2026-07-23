@@ -13,7 +13,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
+import { AUDIT_ACTIONS, buildAuditLogData, createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
+import { executeD1Batch } from '@/lib/d1-batch';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier, getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
@@ -34,8 +35,16 @@ import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks, type RankableMatch, type RankableQualification } from '@/lib/server-ranking';
 import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
-import { generateRoundRobinSchedule, getByeMatchData, BREAK_PLAYER_ID } from '@/lib/round-robin';
+import {
+  generateRoundRobinSchedule,
+  getByeMatchData,
+  getScheduleOnlyBreakData,
+  BREAK_PLAYER_ID,
+  UnsupportedRoundRobinPlayerCountError,
+  type QualificationScheduleMethod,
+} from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
+import { getCdmQualificationRoundFixture } from '@/lib/cdm-qualification-round-fixtures';
 
 export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
 const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
@@ -449,6 +458,59 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         );
       }
 
+      /* Read and validate every generated schedule before destructive writes.
+       * Existing tournaments default to circle; CDM is an explicit, persisted
+       * opt-in so a legacy re-setup can never silently change its draw. */
+      const tournament = await resolveTournament(id, { id: true, qualificationScheduleMethod: true });
+      if (!tournament) return createErrorResponse('Tournament not found', 404);
+      const scheduleMethod: QualificationScheduleMethod =
+        tournament.qualificationScheduleMethod === 'cdm' ? 'cdm' : 'circle';
+      // Preserve the submitted group order for legacy circle tournaments.
+      // CDM fixtures are deterministic inside each group from its seed order.
+      const groups = [...new Set(players.map((p: { group: string }) => p.group))];
+      const schedules = new Map<string, ReturnType<typeof generateRoundRobinSchedule>>();
+
+      for (const group of groups) {
+        const groupPlayers = players
+          .filter((p: { group: string }) => p.group === group)
+          .sort(
+            (a: { seeding?: number }, b: { seeding?: number }) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity),
+          );
+
+        if (scheduleMethod === 'cdm') {
+          const seeds = groupPlayers.map((player: { seeding?: number }) => player.seeding);
+          if (
+            seeds.some((seed) => !Number.isInteger(seed) || (seed as number) < 1) ||
+            new Set(seeds).size !== seeds.length
+          ) {
+            return createErrorResponse(
+              'CDM scheduling requires each group to have unique positive integer seeds',
+              400,
+              'INVALID_CDM_SEED_ORDER',
+            );
+          }
+        }
+
+        schedules.set(
+          group,
+          generateRoundRobinSchedule(
+            groupPlayers.map((p: { playerId: string }) => p.playerId),
+            { method: scheduleMethod },
+          ),
+        );
+      }
+
+      /* CDM MR/GP cards are a finite 1–20 fixture. Validate every future
+       * round before deleting the current setup so a malformed fixture cannot
+       * leave the tournament without qualification rows. */
+      if (scheduleMethod === 'cdm' && (config.assignCoursesRandomly || config.assignCupRandomly)) {
+        for (const schedule of schedules.values()) {
+          for (const match of schedule.matches) {
+            if (!match.isBye) getCdmQualificationRoundFixture(match.day);
+          }
+        }
+      }
+
       /*
        * Delete existing qualification records and matches first to avoid
        * unique-constraint violations on re-setup (e.g. グループ編集). Without
@@ -505,9 +567,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * Each group gets its own schedule with Day-numbered rounds.
        * BYE matches (odd-numbered groups) are auto-completed with fixed scores.
        */
-      const groups = [...new Set(players.map((p: { group: string }) => p.group))];
       let matchNumber = 1;
       const byeData = getByeMatchData(config.eventTypeCode);
+      const scheduleOnlyBreakData = getScheduleOnlyBreakData(config.eventTypeCode);
 
       /*
        * §10.5 course assignment: generate the VSMR qualification course deck
@@ -516,7 +578,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * real match in the same round shares the same pre-determined course card.
        * Only applies when config.assignCoursesRandomly is true (MR only).
        */
-      const shuffledCourses = config.assignCoursesRandomly ? generateShuffledCourseList() : null;
+      const shuffledCourses =
+        config.assignCoursesRandomly && scheduleMethod === 'circle' ? generateShuffledCourseList() : null;
       /*
        * §5.4 fixed course assignment: BM always uses the same 4 battle courses
        * in order for every qualification match. `fixedCourseList` stores these
@@ -533,18 +596,12 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * Only applies when config.assignCupRandomly is true (GP only).
        */
       const shuffledCups =
-        config.assignCupRandomly && config.cupList ? generateShuffledCupList(config.cupList, logger) : null;
+        config.assignCupRandomly && config.cupList && scheduleMethod === 'circle'
+          ? generateShuffledCupList(config.cupList, logger)
+          : null;
       // matchSequenceIndex tracks the overall real-match number across all groups
       // for consistent GP cup assignment from the shared list.
       let matchSequenceIndex = 0;
-      /*
-       * Track players who receive BYE matches so their qualification stats
-       * can be updated immediately after setup (BYE = auto-completed win).
-       * Without this, BYE wins would only appear in standings after the player's
-       * first real match is submitted via PUT (which triggers a full recalculation).
-       */
-      const byeRecipientIds: Set<string> = new Set();
-
       /*
        * Collect all match payloads in memory, then bulk-insert with a single
        * createMany call (issue #420). For an 8-player single-group BM tournament
@@ -559,15 +616,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
          * so placing the top-seeded player first ensures seeding-aware match ordering
          * per requirements §10.4. Players without seeding are placed last.
          */
-        const groupPlayers = players
-          .filter((p: { group: string }) => p.group === group)
-          .sort((a: { seeding?: number }, b: { seeding?: number }) => {
-            const sa = a.seeding ?? Infinity;
-            const sb = b.seeding ?? Infinity;
-            return sa - sb;
-          });
-        const playerIds = groupPlayers.map((p: { playerId: string }) => p.playerId);
-        const schedule = generateRoundRobinSchedule(playerIds);
+        const schedule = schedules.get(group)!;
 
         for (const m of schedule.matches) {
           /*
@@ -578,28 +627,35 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           const p1Id = m.isBye ? (m.player1Id === BREAK_PLAYER_ID ? m.player2Id : m.player1Id) : m.player1Id;
           const p2Id = m.isBye ? BREAK_PLAYER_ID : m.player2Id;
 
-          /*
-           * §10.5: Assign 4 pre-determined courses to this round from the shuffled list.
-           * BM/MR BYE matches are auto-completed walkovers and skip course/cup assignment.
-           * GP BREAK matches are scoreable solo cups, so they receive the same assignment
-           * as real GP matches and remain pending until actual driver points are entered.
-           */
-          const isScoreableGpBye = config.eventTypeCode === 'gp' && m.isBye;
+          /* BREAK is a schedule record, never a playable qualification match. */
           const isRealMatch = !m.isBye;
-          const shouldAssignPlayableCourse = isRealMatch || isScoreableGpBye;
+          const shouldAssignPlayableCourse = isRealMatch;
           // MR: random per-round course draw shared by every match in that round
           // BM: fixed battle-course list (same for every real match)
+          const cdmRoundFixture =
+            scheduleMethod === 'cdm' &&
+            shouldAssignPlayableCourse &&
+            (config.assignCoursesRandomly || config.assignCupRandomly)
+              ? getCdmQualificationRoundFixture(m.day)
+              : null;
           const assignedCourses =
-            shuffledCourses && shouldAssignPlayableCourse
-              ? getAssignedCoursesForRound(shuffledCourses, m.day)
-              : fixedCourses && shouldAssignPlayableCourse
-                ? fixedCourses
-                : undefined;
+            cdmRoundFixture && config.assignCoursesRandomly
+              ? [...cdmRoundFixture.courses]
+              : shuffledCourses && shouldAssignPlayableCourse
+                ? getAssignedCoursesForRound(shuffledCourses, m.day)
+                : fixedCourses && shouldAssignPlayableCourse
+                  ? fixedCourses
+                  : undefined;
 
           /* §7.4: Pick a cup from the shuffled list for this round (GP only) */
           const assignedCup =
-            shuffledCups && shouldAssignPlayableCourse ? getAssignedCupForRound(shuffledCups, m.day) : undefined;
-          const autoCompleteBye = m.isBye && !isScoreableGpBye;
+            cdmRoundFixture && config.assignCupRandomly
+              ? cdmRoundFixture.cup
+              : shuffledCups && shouldAssignPlayableCourse
+                ? getAssignedCupForRound(shuffledCups, m.day)
+                : undefined;
+          const autoCompleteBye = m.isBye;
+          const isBreakVsBreak = p1Id === BREAK_PLAYER_ID && p2Id === BREAK_PLAYER_ID;
 
           matchData.push({
             tournamentId,
@@ -615,17 +671,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ...(assignedCourses ? { assignedCourses } : {}),
             /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
             ...(assignedCup ? { cup: assignedCup } : {}),
-            /*
-             * BM/MR BREAK remains an auto-completed walkover. GP BREAK is a
-             * scoreable solo cup: the player runs alone and records the actual
-             * driver points earned, so it must stay pending until score entry.
-             */
-            ...(autoCompleteBye ? { completed: true, ...byeData } : {}),
+            /* Keep a resolved schedule result, but exclude it from all aggregates. */
+            ...(autoCompleteBye ? { completed: true, ...(isBreakVsBreak ? scheduleOnlyBreakData : byeData) } : {}),
           });
 
-          if (autoCompleteBye) {
-            byeRecipientIds.add(p1Id);
-          } else {
+          if (!autoCompleteBye) {
             matchSequenceIndex++;
           }
 
@@ -649,42 +699,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         } else {
           await matchModel(prisma).createMany({ data: matchData });
         }
-      }
-
-      /*
-       * Update qualification stats for BYE recipients immediately.
-       * BM/MR BYE matches are auto-completed on creation, so the player's
-       * win must be reflected in standings right away — not deferred until
-       * their first real match is submitted via PUT. GP BREAK matches are
-       * scoreable and intentionally excluded from this immediate update path.
-       *
-       * Implementation: a single findMany retrieves every completed BYE
-       * match touching any recipient, then we partition the result in
-       * memory before issuing the per-player updateMany. This replaces an
-       * earlier N+1 pattern that issued one findMany per BYE recipient
-       * (visible in profiling as duplicated `Match.findMany` queries
-       * during tournament setup).
-       */
-      const byeRecipientList = [...byeRecipientIds];
-      if (byeRecipientList.length > 0) {
-        const allByeMatches = await matchModel(prisma).findMany({
-          where: {
-            tournamentId,
-            stage: 'qualification',
-            completed: true,
-            OR: [{ player1Id: { in: byeRecipientList } }, { player2Id: { in: byeRecipientList } }],
-          },
-        });
-
-        const byeUpdates = byeRecipientList.map((playerId) => {
-          const playerByeMatches = allByeMatches.filter(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (m: any) => m.player1Id === playerId || m.player2Id === playerId,
-          );
-          const stats = config.aggregatePlayerStats(playerByeMatches, playerId, config.calculateMatchResult);
-          return { playerId, ...stats.qualificationData };
-        });
-        await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, byeUpdates);
       }
 
       /* Audit logging if configured.
@@ -738,6 +752,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         { status: 201 },
       );
     } catch (error) {
+      if (error instanceof UnsupportedRoundRobinPlayerCountError) {
+        return createErrorResponse(error.message, 400, error.code);
+      }
       logger.error(`Failed to setup ${config.eventDisplayName}`, { error, tournamentId });
       return createErrorResponse(`Failed to setup ${config.eventDisplayName}`, 500, 'INTERNAL_ERROR');
     }
@@ -781,6 +798,15 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       const putData = { ...parseResult.data!, tournamentId };
+      const existingMatch = await (
+        matchModel(prisma) as unknown as { findUnique: (args: unknown) => Promise<{ isBye: boolean } | null> }
+      ).findUnique({
+        where: { id: putData.matchId, tournamentId },
+        select: { isBye: true },
+      });
+      if (existingMatch?.isBye) {
+        return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
+      }
       const { match, score1OrPoints1, score2OrPoints2 } = await config.updateMatch(prisma, putData);
       const { result1, result2 } = config.calculateMatchResult(score1OrPoints1, score2OrPoints2);
 
@@ -875,7 +901,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     try {
       const body = sanitizeInput(await request.json());
-      const { matchId, tvNumber, qualificationId, rankOverride, combinedRankOverride } = body;
+      const { matchId, tvNumber, qualificationId, rankOverride, combinedRankOverride, cupAssignment } = body;
 
       /*
        * Reject ambiguous requests that supply both qualificationId and matchId.
@@ -946,6 +972,135 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       /* TV number assignment path (original behavior) */
       if (!matchId) {
         return handleValidationError('matchId is required', 'matchId');
+      }
+
+      /* #3039: an admin may override the planned cup for one GP qualification
+       * match. Score/race details are retained unless the caller explicitly
+       * asks to clear them; a stale browser cannot overwrite a newer edit. */
+      if (cupAssignment !== undefined && cupAssignment !== null) {
+        if (config.eventTypeCode !== 'gp' || tvNumber !== undefined) {
+          return handleValidationError('cupAssignment cannot be combined with other edits', 'cupAssignment');
+        }
+        if (!cupAssignment || typeof cupAssignment !== 'object' || Array.isArray(cupAssignment)) {
+          return handleValidationError('cupAssignment must be an object', 'cupAssignment');
+        }
+        const assignment = cupAssignment as Record<string, unknown>;
+        const cup = assignment.cup;
+        const expectedVersion = assignment.expectedVersion;
+        const resolution = assignment.resolution ?? 'keep';
+        if (typeof cup !== 'string' || !config.cupList?.includes(cup)) {
+          return handleValidationError('cupAssignment.cup must be a valid cup', 'cupAssignment.cup');
+        }
+        if (!Number.isInteger(expectedVersion) || (expectedVersion as number) < 0) {
+          return handleValidationError('cupAssignment.expectedVersion is required', 'cupAssignment.expectedVersion');
+        }
+        if (resolution !== 'keep' && resolution !== 'clear' && resolution !== 'cancel') {
+          return handleValidationError(
+            'cupAssignment.resolution must be keep, clear, or cancel',
+            'cupAssignment.resolution',
+          );
+        }
+        if (resolution === 'cancel') {
+          return createErrorResponse('Cup change cancelled', 409, 'CUP_CHANGE_CANCELLED');
+        }
+        const existingMatch = await matchModel(prisma).findFirst({
+          where: { id: matchId, tournamentId, stage: 'qualification' },
+        });
+        if (!existingMatch) return createErrorResponse('Match not found', 404, 'NOT_FOUND');
+        if (existingMatch.version !== expectedVersion) {
+          return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT', {
+            currentVersion: existingMatch.version,
+          });
+        }
+        const hasDetails = [
+          existingMatch.races,
+          existingMatch.cupResults,
+          existingMatch.player1ReportedRaces,
+          existingMatch.player2ReportedRaces,
+        ].some((value) => (Array.isArray(value) ? value.length > 0 : Boolean(value && typeof value === 'object')));
+        if (hasDetails && assignment.resolution === undefined) {
+          return createErrorResponse(
+            'Cup details exist; choose whether to keep or clear them',
+            409,
+            'CUP_DETAILS_RESOLUTION_REQUIRED',
+          );
+        }
+        const audit = buildAuditLogData({
+          userId: resolveAuditUserId(session),
+          ipAddress: patchClientIp,
+          userAgent: request.headers.get('user-agent') || 'unknown',
+          action: AUDIT_ACTIONS.UPDATE_QUALIFICATION_MATCH_CUP,
+          targetId: String(existingMatch.id),
+          targetType: 'QualificationMatch',
+          details: {
+            eventType: 'gp',
+            before: {
+              cup: existingMatch.cup ?? null,
+              racesCount: Array.isArray(existingMatch.races) ? existingMatch.races.length : 0,
+              cupResultsCount: Array.isArray(existingMatch.cupResults) ? existingMatch.cupResults.length : 0,
+              player1ReportedRacesCount: Array.isArray(existingMatch.player1ReportedRaces)
+                ? existingMatch.player1ReportedRaces.length
+                : 0,
+              player2ReportedRacesCount: Array.isArray(existingMatch.player2ReportedRaces)
+                ? existingMatch.player2ReportedRaces.length
+                : 0,
+            },
+            after: { cup, resolution },
+            clearedDetails: resolution === 'clear',
+          },
+        });
+        const auditId =
+          globalThis.crypto?.randomUUID?.() ?? `audit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const details = audit.details === undefined ? null : JSON.stringify(audit.details);
+        const clear =
+          resolution === 'clear'
+            ? ', "races" = NULL, "cupResults" = NULL, "player1ReportedRaces" = NULL, "player2ReportedRaces" = NULL, "player1ReportedPoints1" = NULL, "player1ReportedPoints2" = NULL, "player2ReportedPoints1" = NULL, "player2ReportedPoints2" = NULL'
+            : '';
+        const [updated, audited] = await executeD1Batch([
+          {
+            sql: `UPDATE "GPMatch" SET "cup" = ?${clear}, "version" = "version" + 1, "updatedAt" = ?
+                  WHERE "id" = ? AND "tournamentId" = ? AND "stage" = 'qualification'
+                    AND "completed" = ? AND "version" = ?`,
+            values: [
+              cup,
+              new Date().toISOString(),
+              matchId,
+              tournamentId,
+              existingMatch.completed ? 1 : 0,
+              expectedVersion,
+            ],
+          },
+          {
+            sql: `INSERT INTO "AuditLog" ("id", "userId", "ipAddress", "userAgent", "action", "targetId", "targetType", "details")
+                  SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                  WHERE changes() = 1 AND EXISTS (
+                    SELECT 1 FROM "GPMatch" WHERE "id" = ? AND "tournamentId" = ?
+                      AND "stage" = 'qualification' AND "version" = ? AND "cup" = ?
+                  )`,
+            values: [
+              auditId,
+              audit.userId ?? null,
+              audit.ipAddress,
+              audit.userAgent,
+              audit.action,
+              audit.targetId ?? null,
+              audit.targetType ?? null,
+              details,
+              matchId,
+              tournamentId,
+              (expectedVersion as number) + 1,
+              cup,
+            ],
+          },
+        ]);
+        if (updated !== 1 || audited !== 1) {
+          return createErrorResponse('Match has been modified since it was loaded', 409, 'VERSION_CONFLICT');
+        }
+        const match = await matchModel(prisma).findFirst({
+          where: { id: matchId, tournamentId },
+          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        });
+        return createSuccessResponse({ match, detailsCleared: resolution === 'clear' });
       }
 
       /* tvNumber must be between 1 and the supported TV count, or null to clear it. */

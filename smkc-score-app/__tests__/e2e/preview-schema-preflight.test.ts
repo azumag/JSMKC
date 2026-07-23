@@ -49,8 +49,16 @@ describe('preview schema preflight', () => {
       { table: 'Tournament', column: 'publicModes' },
       { table: 'GPMatch', column: 'assignedCups' },
       { table: 'GPMatch', column: 'suddenDeathWinnerId' },
+      { table: 'BMMatch', column: 'targetWins' },
+      { table: 'BMMatch', column: 'winnerOverrideId' },
+      { table: 'MRMatch', column: 'targetWins' },
+      { table: 'MRMatch', column: 'winnerOverrideId' },
+      { table: 'GPMatch', column: 'targetWins' },
+      { table: 'GPMatch', column: 'winnerOverrideId' },
+      { table: 'FinalsRoundSetting', column: 'targetWins' },
     ]);
     expect(preflight.WRANGLER_TIMEOUT_MS).toBe(30_000);
+    expect(preflight.PREVIEW_SCHEMA_CHECK_BATCH_SIZE).toBe(1);
     expect(preflight.buildPreviewSchemaCheckSql()).toContain("pragma_table_info('Tournament')");
     expect(preflight.buildPreviewSchemaCheckSql()).toContain("pragma_table_info('GPMatch')");
   });
@@ -65,6 +73,13 @@ describe('preview schema preflight', () => {
             { required_column: 'Tournament.publicModes' },
             { required_column: 'GPMatch.assignedCups' },
             { required_column: 'GPMatch.suddenDeathWinnerId' },
+            { required_column: 'BMMatch.targetWins' },
+            { required_column: 'BMMatch.winnerOverrideId' },
+            { required_column: 'MRMatch.targetWins' },
+            { required_column: 'MRMatch.winnerOverrideId' },
+            { required_column: 'GPMatch.targetWins' },
+            { required_column: 'GPMatch.winnerOverrideId' },
+            { required_column: 'FinalsRoundSetting.targetWins' },
           ],
         },
       ]),
@@ -84,6 +99,10 @@ describe('preview schema preflight', () => {
         }),
       }),
     );
+    expect(spawnSyncMock).toHaveBeenCalledTimes(preflight.REQUIRED_PREVIEW_COLUMNS.length);
+    for (const [, args] of spawnSyncMock.mock.calls) {
+      expect(args.at(-1)).not.toContain('UNION ALL');
+    }
   });
 
   it('preserves an explicit Wrangler log path for preview preflight', () => {
@@ -96,6 +115,13 @@ describe('preview schema preflight', () => {
             { required_column: 'Tournament.publicModes' },
             { required_column: 'GPMatch.assignedCups' },
             { required_column: 'GPMatch.suddenDeathWinnerId' },
+            { required_column: 'BMMatch.targetWins' },
+            { required_column: 'BMMatch.winnerOverrideId' },
+            { required_column: 'MRMatch.targetWins' },
+            { required_column: 'MRMatch.winnerOverrideId' },
+            { required_column: 'GPMatch.targetWins' },
+            { required_column: 'GPMatch.winnerOverrideId' },
+            { required_column: 'FinalsRoundSetting.targetWins' },
           ],
         },
       ]),
@@ -130,11 +156,13 @@ describe('preview schema preflight', () => {
     const preflight = loadPreflight();
 
     expect(
-      preflight.parsePresentColumns(JSON.stringify({
-        result: {
-          results: [{ required_column: 'Tournament.publicModes' }],
-        },
-      })),
+      preflight.parsePresentColumns(
+        JSON.stringify({
+          result: {
+            results: [{ required_column: 'Tournament.publicModes' }],
+          },
+        }),
+      ),
     ).toEqual(new Set());
   });
 
@@ -144,10 +172,7 @@ describe('preview schema preflight', () => {
       status: 0,
       stdout: JSON.stringify([
         {
-          results: [
-            { required_column: 'Tournament.publicModes' },
-            { required_column: 'GPMatch.assignedCups' },
-          ],
+          results: [{ required_column: 'Tournament.publicModes' }, { required_column: 'GPMatch.assignedCups' }],
         },
       ]),
       stderr: '',
@@ -269,7 +294,9 @@ describe('preview schema preflight', () => {
     });
     expect(preflight.isWranglerStdoutAuthError(stdoutJson)).toBe(true);
     // flat {"error": "string"} shape is not supported (no real-world Wrangler version emits it)
-    expect(preflight.isWranglerStdoutAuthError('{"error": "CLOUDFLARE_API_TOKEN environment variable required"}')).toBe(false);
+    expect(preflight.isWranglerStdoutAuthError('{"error": "CLOUDFLARE_API_TOKEN environment variable required"}')).toBe(
+      false,
+    );
     expect(preflight.isWranglerStdoutAuthError('{"error": "non-interactive environment detected"}')).toBe(false);
     expect(preflight.isWranglerStdoutAuthError('')).toBe(false);
     expect(preflight.isWranglerStdoutAuthError('{"results": []}')).toBe(false);
@@ -293,7 +320,9 @@ describe('preview schema preflight', () => {
     const preflight = loadPreflight();
 
     expect(preflight.isWranglerStdoutAuthError(STUB_7403_STDOUT)).toBe(true);
-    expect(preflight.isWranglerStdoutAuthError('{"error":{"code":7403,"notes":[{"text":"database missing table"}]}}')).toBe(false);
+    expect(
+      preflight.isWranglerStdoutAuthError('{"error":{"code":7403,"notes":[{"text":"database missing table"}]}}'),
+    ).toBe(false);
   });
 
   it('continues preview startup on Wrangler stdout JSON CLOUDFLARE_API_TOKEN auth error by default', () => {
@@ -407,10 +436,9 @@ describe('preview schema preflight', () => {
     expect(message).toMatch(/E2E run will continue/);
     expect(message).toMatch(/WRANGLER_LOG_PATH/);
     expect(message).not.toMatch(/db:migrations:apply:preview/);
-    expect(message.split('\n')).toEqual(expect.arrayContaining([
-      expect.stringMatching(/Command exited 1/),
-      expect.stringMatching(/WRANGLER_LOG_PATH=/),
-    ]));
+    expect(message.split('\n')).toEqual(
+      expect.arrayContaining([expect.stringMatching(/Command exited 1/), expect.stringMatching(/WRANGLER_LOG_PATH=/)]),
+    );
   });
 
   it('can require Wrangler auth and log failures to block preview startup', () => {
@@ -469,11 +497,7 @@ describe('preview schema preflight', () => {
   });
 
   it('fails the runWranglerSchemaCheck section guard before slicing when markers drift', () => {
-    const source = [
-      'function runWranglerSchemaCheck() {',
-      '  return { result, args };',
-      '}',
-    ].join('\n');
+    const source = ['function runWranglerSchemaCheck() {', '  return { result, args };', '}'].join('\n');
 
     expect(() => runWranglerSchemaCheckSection(source)).toThrow();
   });
@@ -534,11 +558,7 @@ describe('preview schema preflight', () => {
   });
 
   it('keeps the missing GP sudden death column in Wrangler migrations', () => {
-    const migrationPath = path.join(
-      process.cwd(),
-      'migrations',
-      '0035_add_gp_match_sudden_death_winner.sql',
-    );
+    const migrationPath = path.join(process.cwd(), 'migrations', '0035_add_gp_match_sudden_death_winner.sql');
 
     expect(readFileSync(migrationPath, 'utf8')).toContain(
       'ALTER TABLE `GPMatch` ADD COLUMN `suddenDeathWinnerId` TEXT',
@@ -546,15 +566,8 @@ describe('preview schema preflight', () => {
   });
 
   it('keeps the GP assigned cups column in Wrangler migrations', () => {
-    const migrationPath = path.join(
-      process.cwd(),
-      'migrations',
-      '0033_gp_finals_assigned_cups.sql',
-    );
+    const migrationPath = path.join(process.cwd(), 'migrations', '0033_gp_finals_assigned_cups.sql');
 
-    expect(readFileSync(migrationPath, 'utf8')).toContain(
-      'ALTER TABLE GPMatch ADD COLUMN assignedCups TEXT',
-    );
+    expect(readFileSync(migrationPath, 'utf8')).toContain('ALTER TABLE GPMatch ADD COLUMN assignedCups TEXT');
   });
-
 });

@@ -54,11 +54,21 @@ function getSessionDb(raw: D1Database): D1Database {
   const cached = sessionCache.get(raw);
   if (cached) return cached;
   const withSession = (raw as SessionCapable).withSession;
-  const session = typeof withSession === 'function'
-    ? withSession.call(raw)
-    : raw;
+  const session = typeof withSession === 'function' ? withSession.call(raw) : raw;
   sessionCache.set(raw, session);
   return session;
+}
+
+/**
+ * Return this request's session-aware D1 binding.
+ *
+ * Native D1 writes (for example the atomic finals/audit batch) must use this
+ * exact binding too: a session is what gives the Prisma reads that follow a
+ * write read-your-own-writes behaviour when D1 read replication is enabled.
+ */
+export function getD1SessionDatabase(): D1Database {
+  const { env } = getCloudflareContext();
+  return getSessionDb(env.DB as unknown as D1Database);
 }
 
 /*
@@ -80,9 +90,7 @@ const SLOW_QUERY_THRESHOLD_MS = Number(process.env.PERF_SLOW_QUERY_MS ?? 100);
 const perfLog = createLogger('prisma-perf');
 
 function getOrCreateClient(): PrismaClient {
-  const { env } = getCloudflareContext();
-  const rawDb = env.DB as unknown as D1Database;
-  const db = getSessionDb(rawDb);
+  const db = getD1SessionDatabase();
   let client = clientCache.get(db);
   if (!client) {
     const adapter = new PrismaD1(db);
@@ -98,7 +106,17 @@ function getOrCreateClient(): PrismaClient {
       ? base.$extends({
           name: 'perf-instrumentation',
           query: {
-            $allOperations: async ({ model, operation, args, query }: { model?: string; operation: string; args: unknown; query: (args: unknown) => Promise<unknown> }) => {
+            $allOperations: async ({
+              model,
+              operation,
+              args,
+              query,
+            }: {
+              model?: string;
+              operation: string;
+              args: unknown;
+              query: (args: unknown) => Promise<unknown>;
+            }) => {
               const start = Date.now();
               try {
                 return await query(args);

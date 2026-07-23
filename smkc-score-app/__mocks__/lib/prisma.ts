@@ -52,6 +52,10 @@ const mockPrisma = {
     updateMany: jest.fn(),
     findMany: jest.fn(),
   },
+  finalsRoundSetting: {
+    createMany: jest.fn(),
+    findMany: jest.fn(),
+  },
   tTEntry: {
     update: jest.fn(),
     findMany: jest.fn(),

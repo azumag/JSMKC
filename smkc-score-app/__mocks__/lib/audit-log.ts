@@ -1,5 +1,7 @@
 // Create mock for audit-log module
 export const createAuditLog = jest.fn();
+export const createRequiredAuditLog = jest.fn();
+export const buildAuditLogData = jest.fn((params) => params);
 
 export const AUDIT_ACTIONS = {
   CREATE_TOURNAMENT: 'CREATE_TOURNAMENT',
@@ -18,6 +20,7 @@ export const AUDIT_ACTIONS = {
   UPDATE_MR_MATCH: 'UPDATE_MR_MATCH',
   DELETE_MR_MATCH: 'DELETE_MR_MATCH',
   CREATE_GP_MATCH: 'CREATE_GP_MATCH',
+  RECONCILE_PLAYOFF_UPPER_SLOTS: 'RECONCILE_PLAYOFF_UPPER_SLOTS',
   CREATE_BRACKET: 'CREATE_BRACKET',
   DEBUG_FILL_SCORES: 'DEBUG_FILL_SCORES',
   LOGIN_SUCCESS: 'LOGIN_SUCCESS',

@@ -200,7 +200,7 @@ export interface AuditLogParams {
  */
 export async function createAuditLog(params: AuditLogParams): Promise<void> {
   try {
-    const sanitized = sanitizeAuditLogParams(params);
+    const sanitized = buildAuditLogData(params);
 
     // Create the audit log entry in the database.
     // The AuditLog model has indexes on timestamp, userId, action,
@@ -233,7 +233,28 @@ export async function createAuditLog(params: AuditLogParams): Promise<void> {
   }
 }
 
-function sanitizeAuditLogParams(params: AuditLogParams) {
+/**
+ * Persists an audit record for workflows where the business action must not
+ * proceed without an auditable request (for example an admin result
+ * correction). Unlike `createAuditLog`, this deliberately propagates a DB
+ * failure so callers can stop before their own mutation.
+ */
+export async function createRequiredAuditLog(params: AuditLogParams): Promise<void> {
+  const sanitized = buildAuditLogData(params);
+  await prisma.auditLog.create({
+    data: {
+      userId: sanitized.userId,
+      ipAddress: sanitized.ipAddress,
+      userAgent: sanitized.userAgent,
+      action: sanitized.action,
+      targetId: sanitized.targetId,
+      targetType: sanitized.targetType,
+      details: sanitized.details,
+    },
+  });
+}
+
+export function buildAuditLogData(params: AuditLogParams) {
   const sanitizedDetails = params.details ? sanitizeObjectForAuditLog(params.details) : undefined;
 
   return {
@@ -252,7 +273,7 @@ export async function createAuditLogs(paramsList: AuditLogParams[]): Promise<voi
 
   try {
     await prisma.auditLog.createMany({
-      data: paramsList.map(sanitizeAuditLogParams),
+      data: paramsList.map(buildAuditLogData),
     });
 
     logger.debug('Audit logs created', { count: paramsList.length });
@@ -336,6 +357,22 @@ export const AUDIT_ACTIONS = {
   CREATE_BRACKET: 'CREATE_BRACKET',
   /** An admin manually reassigned a finals/playoff bracket slot (issue #3017) */
   OVERRIDE_FINALS_SLOT: 'OVERRIDE_FINALS_SLOT',
+  /** An admin saved a corrected finals/playoff score and explicit winner. */
+  OVERRIDE_FINALS_SCORE: 'OVERRIDE_FINALS_SCORE',
+  /** Durable precondition record for an admin corrected-score request. */
+  OVERRIDE_FINALS_SCORE_ATTEMPT: 'OVERRIDE_FINALS_SCORE_ATTEMPT',
+  /** An admin changed the stored first-to value for pending finals/playoff matches. */
+  UPDATE_FINALS_ROUND_TARGET_WINS: 'UPDATE_FINALS_ROUND_TARGET_WINS',
+  /** Durable precondition record for a pending round-format change request. */
+  UPDATE_FINALS_ROUND_TARGET_WINS_ATTEMPT: 'UPDATE_FINALS_ROUND_TARGET_WINS_ATTEMPT',
+  /** An admin changed the shared MR course sequence for pending finals/playoff matches. */
+  UPDATE_FINALS_ROUND_COURSES: 'UPDATE_FINALS_ROUND_COURSES',
+  /** An admin changed a GP match's assigned cup while preserving or explicitly clearing details. */
+  UPDATE_FINALS_MATCH_CUP: 'UPDATE_FINALS_MATCH_CUP',
+  /** An admin changed a GP qualification match cup while preserving or explicitly clearing details. */
+  UPDATE_QUALIFICATION_MATCH_CUP: 'UPDATE_QUALIFICATION_MATCH_CUP',
+  /** An admin reconciled Top-24 barrage winners into pending Upper slots. */
+  RECONCILE_PLAYOFF_UPPER_SLOTS: 'RECONCILE_PLAYOFF_UPPER_SLOTS',
   /** Automatic bracket advancement overwrote a slot that had a manual override */
   AUTO_ADVANCE_OVERRODE_MANUAL_SLOT: 'AUTO_ADVANCE_OVERRODE_MANUAL_SLOT',
 

@@ -115,7 +115,9 @@ export function generateBracketStructure(playerCount: number, groupCount: 2 | 3 
     loserGoesTo: 15,
     // Enters Grand Final as player 1 (advantaged position for display)
     position: 1,
-    loserPosition: 2,
+    // The Winners Final loser occupies Lower Final player 1.  This matches
+    // the CDM bracket sheet and keeps the upper-side path in the top slot.
+    loserPosition: 1,
   });
   matchNumber++;
 
@@ -175,12 +177,12 @@ export function generateBracketStructure(playerCount: number, groupCount: 2 | 3 
     bracket: 'losers',
     // Winner advances to Losers Final (match 15)
     winnerGoesTo: 15,
-    position: 1,
+    // The lower-side winner occupies Lower Final player 2.
+    position: 2,
   });
   matchNumber++;
 
-  // Losers Final (Match 15): Losers SF winner vs Winners Final loser
-  // The Winners Final loser enters as player 2 (set by getNextMatchInfo).
+  // Losers Final (Match 15): Winners Final loser vs Losers SF winner.
   matches.push({
     matchNumber: matchNumber,
     round: 'losers_final',
@@ -223,40 +225,25 @@ export function generateBracketStructure(playerCount: number, groupCount: 2 | 3 
 /**
  * Generate a 16-player double elimination bracket (31 matches).
  *
- * The sum-17 pair set is shared, but visual match order and player placement
- * depend on the qualification group count:
- *   - two groups use the fixed paper layout, with barrage winners reserved at
- *     Upper seeds 10/12/14/16;
- *   - three groups use the CDM 2025 verified contiguous 1-12 direct and 13-16
- *     barrage split. Same-group Round-1 matches may occur in that layout.
+ * The sum-17 pair set uses the verified contiguous 1-12 direct and 13-16
+ * barrage split. Group membership selects the player for a displayed seed;
+ * it does not redefine these numbered bracket positions.
  */
-function generate16PlayerBracket(groupCount: 2 | 3 | 4): BracketMatch[] {
+function generate16PlayerBracket(_groupCount: 2 | 3 | 4): BracketMatch[] {
   const matches: BracketMatch[] = [];
   let mn = 1;
 
   // --- WINNERS R1 (Matches 1-8): 16 players → 8 winners ---
-  const seedPairs16 =
-    groupCount === 2
-      ? [
-          [1, 16],
-          [8, 9],
-          [5, 12],
-          [4, 13],
-          [3, 14],
-          [6, 11],
-          [7, 10],
-          [2, 15],
-        ]
-      : [
-          [1, 16],
-          [8, 9],
-          [4, 13],
-          [5, 12],
-          [2, 15],
-          [7, 10],
-          [3, 14],
-          [6, 11],
-        ];
+  const seedPairs16 = [
+    [1, 16],
+    [8, 9],
+    [4, 13],
+    [5, 12],
+    [2, 15],
+    [7, 10],
+    [3, 14],
+    [6, 11],
+  ];
   for (let i = 0; i < 8; i++) {
     matches.push({
       matchNumber: mn,
@@ -313,7 +300,8 @@ function generate16PlayerBracket(groupCount: 2 | 3 | 4): BracketMatch[] {
     winnerGoesTo: 30,
     loserGoesTo: 29,
     position: 1,
-    loserPosition: 2,
+    // The Winners Final loser occupies Lower Final player 1 (#3036).
+    loserPosition: 1,
   });
   mn++;
 
@@ -371,11 +359,12 @@ function generate16PlayerBracket(groupCount: 2 | 3 | 4): BracketMatch[] {
     round: 'losers_sf',
     bracket: 'losers',
     winnerGoesTo: 29,
-    position: 1,
+    // The lower-side winner occupies Lower Final player 2 (#3036).
+    position: 2,
   });
   mn++;
 
-  // --- LOSERS FINAL (Match 29): LSF winner vs WF loser ---
+  // --- LOSERS FINAL (Match 29): WF loser vs LSF winner ---
   matches.push({
     matchNumber: mn,
     round: 'losers_final',
@@ -431,30 +420,19 @@ function generate16PlayerBracket(groupCount: 2 | 3 | 4): BracketMatch[] {
  * @returns Array of BracketMatch objects defining the full playoff
  * @throws Error if entrantCount is not 12
  */
-export function generatePlayoffStructure(entrantCount: number, groupCount: 2 | 3 | 4 = 3): BracketMatch[] {
+export function generatePlayoffStructure(entrantCount: number, _groupCount: 2 | 3 | 4 = 3): BracketMatch[] {
   if (entrantCount !== 12) {
     throw new Error('Only 12-entrant playoff is supported');
   }
 
   const matches: BracketMatch[] = [];
 
-  /* Three groups use the CDM 2025 dynamic ordering. Two groups use the
-   * fixed paper-layout slots (the former local seeds 1-12 shifted to the
-   * global 13-24 label range) so every R1 pairing is cross-group. */
-  const r1Pairs =
-    groupCount === 2
-      ? [
-          [23, 22],
-          [19, 18],
-          [17, 20],
-          [21, 24],
-        ]
-      : [
-          [17, 24],
-          [20, 21],
-          [18, 23],
-          [19, 22],
-        ];
+  const r1Pairs = [
+    [17, 24],
+    [20, 21],
+    [18, 23],
+    [19, 22],
+  ];
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: i + 1,
@@ -471,10 +449,9 @@ export function generatePlayoffStructure(entrantCount: number, groupCount: 2 | 3
 
   /* --- PLAYOFF ROUND 2 (Matches 5-8): BYE seeds meet R1 winners ---
    * Each R2 match is a "decider": the winner advances to the Upper slot for
-   * the active group-count layout. Three groups preserve the BYE seed; two
-   * groups use the fixed 16/12/14/10 destinations. */
-  const byeSeeds = groupCount === 2 ? [13, 16, 15, 14] : [16, 13, 15, 14];
-  const upperSeeds = groupCount === 2 ? [16, 12, 14, 10] : byeSeeds;
+   * the active group-count layout and keeps the R2 bye seed. */
+  const byeSeeds = [16, 13, 15, 14];
+  const upperSeeds = byeSeeds;
   for (let i = 0; i < 4; i++) {
     matches.push({
       matchNumber: 5 + i,

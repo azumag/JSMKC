@@ -21,7 +21,6 @@
  */
 // @ts-nocheck
 
-
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/tournament-identifier', () => ({
   resolveTournamentId: jest.fn(async (identifier: string) => identifier),
@@ -30,18 +29,27 @@ jest.mock('@/lib/tournament-identifier', () => ({
 jest.mock('@/lib/optimistic-locking', () => ({
   updateBMMatchScore: jest.fn(),
   OptimisticLockError: class OptimisticLockError extends Error {
-    constructor(message: string, public currentVersion: number) {
+    constructor(
+      message: string,
+      public currentVersion: number,
+    ) {
       super(message);
       this.name = 'OptimisticLockError';
     }
-  }
+  },
 }));
 
 jest.mock('@/lib/error-handling', () => ({
   createSuccessResponse: jest.fn((data, message) => ({ data, message, status: 200 })),
-  createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
+  createErrorResponse: jest.fn((message, status, code, details) => ({
+    data: { error: message, code, details },
+    status,
+  })),
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
-  handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+  handleDatabaseError: jest.fn((error, operation) => ({
+    data: { error: `Database error: ${operation}` },
+    status: 500,
+  })),
   handleAuthzError: jest.fn((message = 'Forbidden') => ({ data: { error: message, code: 'FORBIDDEN' }, status: 403 })),
 }));
 
@@ -66,8 +74,13 @@ const {
 
 // Mock NextRequest class
 class MockNextRequest {
-  constructor(private body?: any, private headers: Map<string, string> = new Map()) {}
-  async json() { return this.body; }
+  constructor(
+    private body?: any,
+    private headers: Map<string, string> = new Map(),
+  ) {}
+  async json() {
+    return this.body;
+  }
 }
 
 describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => {
@@ -104,7 +117,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       expect(result).toEqual({
         data: mockMatch,
         message: undefined,
-        status: 200
+        status: 200,
       });
     });
 
@@ -133,7 +146,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       expect(result).toEqual({
         data: mockMatch,
         message: undefined,
-        status: 200
+        status: 200,
       });
       expect(prisma.bMMatch.findUnique).toHaveBeenCalledWith({
         where: { id: 'm1' },
@@ -179,7 +192,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'Match not found', code: 'NOT_FOUND', details: undefined },
-        status: 404
+        status: 404,
       });
       expect(createErrorResponse).toHaveBeenCalledWith('Match not found', 404, 'NOT_FOUND');
     });
@@ -194,7 +207,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'Database error: fetch match' },
-        status: 500
+        status: 500,
       });
       expect(handleDatabaseError).toHaveBeenCalledWith(expect.any(Error), 'fetch match');
     });
@@ -243,6 +256,29 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
   });
 
   describe('PUT - Update battle mode match score with optimistic locking', () => {
+    it('rejects finals updates so winner routing can only use the canonical finals endpoint', async () => {
+      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValueOnce({
+        stage: 'finals',
+        round: 'winners_qf',
+        tournamentId: 't1',
+        isBye: false,
+      });
+
+      const result = await PUT(new MockNextRequest({ score1: 5, score2: 0, version: 3 }), {
+        params: Promise.resolve({ id: 't1', matchId: 'm1' }),
+      });
+
+      expect(result).toEqual({
+        data: {
+          error: 'Use the finals endpoint to update a bracket match',
+          code: 'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+          details: undefined,
+        },
+        status: 409,
+      });
+      expect(updateBMMatchScore).not.toHaveBeenCalled();
+    });
+
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
@@ -253,7 +289,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'Forbidden', code: 'FORBIDDEN' },
-        status: 403
+        status: 403,
       });
       expect(handleAuthzError).toHaveBeenCalled();
     });
@@ -268,7 +304,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'Forbidden', code: 'FORBIDDEN' },
-        status: 403
+        status: 403,
       });
       expect(handleAuthzError).toHaveBeenCalled();
     });
@@ -303,17 +339,9 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       expect(result).toEqual({
         data: { match: expect.objectContaining({ id: 'm1' }), version: 2 },
         message: undefined,
-        status: 200
+        status: 200,
       });
-      expect(updateBMMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        3,
-        1,
-        undefined,
-        undefined
-      );
+      expect(updateBMMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 3, 1, undefined, undefined);
       /* PUT calls findUnique twice — once for the stage/round/tournamentId
        * pre-check (reused by the round-aware finals validator) and once for
        * the player-relation re-fetch. Neither currently scopes the where-
@@ -321,7 +349,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
        * pre-check variant's current shape. */
       expect(prisma.bMMatch.findUnique).toHaveBeenCalledWith({
         where: { id: 'm1' },
-        select: { stage: true, round: true, tournamentId: true },
+        select: { stage: true, round: true, targetWins: true, tournamentId: true, isBye: true },
       });
     });
 
@@ -353,15 +381,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(updateBMMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        3,
-        1,
-        true,
-        undefined
-      );
+      expect(updateBMMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 3, 1, true, undefined);
     });
 
     // Success case - Updates match with rounds data
@@ -393,15 +413,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(updateBMMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        3,
-        1,
-        undefined,
-        [1, 2, 3, 4]
-      );
+      expect(updateBMMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 3, 1, undefined, [1, 2, 3, 4]);
     });
 
     // Validation error case - Returns 400 when score1 is missing
@@ -412,7 +424,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'score1 and score2 are required', field: 'scores' },
-        status: 400
+        status: 400,
       });
       expect(handleValidationError).toHaveBeenCalledWith('score1 and score2 are required', 'scores');
       expect(updateBMMatchScore).not.toHaveBeenCalled();
@@ -426,7 +438,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'score1 and score2 are required', field: 'scores' },
-        status: 400
+        status: 400,
       });
       expect(handleValidationError).toHaveBeenCalledWith('score1 and score2 are required', 'scores');
       expect(updateBMMatchScore).not.toHaveBeenCalled();
@@ -440,7 +452,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'score1 and score2 are required', field: 'scores' },
-        status: 400
+        status: 400,
       });
       expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
@@ -483,7 +495,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'version is required and must be a number', field: 'version' },
-        status: 400
+        status: 400,
       });
       expect(handleValidationError).toHaveBeenCalledWith('version is required and must be a number', 'version');
       expect(updateBMMatchScore).not.toHaveBeenCalled();
@@ -497,7 +509,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'version is required and must be a number', field: 'version' },
-        status: 400
+        status: 400,
       });
       expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
@@ -510,7 +522,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'version is required and must be a number', field: 'version' },
-        status: 400
+        status: 400,
       });
       expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
@@ -528,15 +540,15 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         data: {
           error: 'The match was modified by another user. Please refresh and try again.',
           code: 'VERSION_CONFLICT',
-          details: { currentVersion: 3 }
+          details: { currentVersion: 3 },
         },
-        status: 409
+        status: 409,
       });
       expect(createErrorResponse).toHaveBeenCalledWith(
         'The match was modified by another user. Please refresh and try again.',
         409,
         'VERSION_CONFLICT',
-        { currentVersion: 3 }
+        { currentVersion: 3 },
       );
     });
 
@@ -550,7 +562,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
 
       expect(result).toEqual({
         data: { error: 'Database error: update match' },
-        status: 500
+        status: 500,
       });
       expect(handleDatabaseError).toHaveBeenCalledWith(expect.any(Error), 'update match');
     });
@@ -619,7 +631,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       // Version check fails because '1' is a string, not a number
       expect(result).toEqual({
         data: { error: 'version is required and must be a number', field: 'version' },
-        status: 400
+        status: 400,
       });
     });
 

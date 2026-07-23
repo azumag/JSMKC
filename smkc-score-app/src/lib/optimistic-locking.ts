@@ -22,7 +22,7 @@
  * each accessed through mode-specific exported functions.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 // PrismaClientKnownRequestError was moved out of the Prisma namespace in v6
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
@@ -86,7 +86,10 @@ type UpdateData<T> = Partial<T> & {
  * re-read and retry or surface the conflict to the user.
  */
 export class OptimisticLockError extends Error {
-  constructor(message: string, public readonly currentVersion: number) {
+  constructor(
+    message: string,
+    public readonly currentVersion: number,
+  ) {
     super(message);
     this.name = 'OptimisticLockError';
   }
@@ -157,7 +160,7 @@ function calculateDelay(attempt: number, config: RetryConfig): number {
 export async function updateWithRetry<T>(
   prisma: PrismaClient,
   updateFn: (client: PrismaClient) => Promise<T>,
-  config: Partial<RetryConfig> = {}
+  config: Partial<RetryConfig> = {},
 ): Promise<T> {
   const finalConfig = { ...DEFAULT_RETRY_CONFIG, ...config };
   let lastError: Error;
@@ -173,8 +176,7 @@ export async function updateWithRetry<T>(
       // Only retry on optimistic lock errors (version mismatch).
       // Any other error (network, constraint violation, etc.) is re-thrown immediately
       // to avoid masking unrelated issues.
-      if (!(error instanceof PrismaClientKnownRequestError) ||
-          !isOptimisticLockError(error)) {
+      if (!(error instanceof PrismaClientKnownRequestError) || !isOptimisticLockError(error)) {
         throw error;
       }
 
@@ -185,7 +187,7 @@ export async function updateWithRetry<T>(
 
       // Wait with exponential backoff + jitter before retrying
       const delay = calculateDelay(attempt, finalConfig);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -211,9 +213,9 @@ function isOptimisticLockError(error: PrismaClientKnownRequestError): boolean {
   // 2. The record exists but the version doesn't match (optimistic lock failure)
   // We require BOTH the P2025 code AND a version-related message to avoid
   // treating generic "not found" errors as lock conflicts.
-  return error.code === 'P2025' && (
-    error.message.includes('version') ||
-    error.message.includes('Record to update not found')
+  return (
+    error.code === 'P2025' &&
+    (error.message.includes('version') || error.message.includes('Record to update not found'))
   );
 }
 
@@ -222,11 +224,7 @@ function isOptimisticLockError(error: PrismaClientKnownRequestError): boolean {
  * Used by the generic `createUpdateFunction` to dynamically access
  * the correct Prisma model within a transaction.
  */
-type PrismaModelKeys =
-  | 'bMMatch'
-  | 'mRMatch'
-  | 'gPMatch'
-  | 'tTEntry';
+type PrismaModelKeys = 'bMMatch' | 'mRMatch' | 'gPMatch' | 'tTEntry';
 
 /**
  * Factory function that creates a model-specific optimistic lock update function.
@@ -249,15 +247,12 @@ type PrismaModelKeys =
  * @param defaultNotFoundError - Error message when the record doesn't exist
  * @returns An async function that performs a versioned update with retry
  */
-function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
-  modelName: TModel,
-  defaultNotFoundError: string
-) {
+function createUpdateFunction<TModel extends PrismaModelKeys, TData>(modelName: TModel, defaultNotFoundError: string) {
   return async function updateWithVersion(
     prisma: PrismaClient,
     id: string,
     expectedVersion: number,
-    data: TData
+    data: TData,
   ): Promise<{ version: number }> {
     return updateWithRetry(prisma, async (client) => {
       // Dynamic model access - required for the generic pattern
@@ -270,12 +265,12 @@ function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
         const updated = await model.update({
           where: {
             id,
-            version: expectedVersion
+            version: expectedVersion,
           },
           data: {
             ...data,
-            version: { increment: 1 }
-          }
+            version: { increment: 1 },
+          },
         });
 
         return { version: updated.version };
@@ -289,7 +284,7 @@ function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
           }
           throw new OptimisticLockError(
             `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
-            current.version
+            current.version,
           );
         }
         throw error;
@@ -305,10 +300,7 @@ function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
 /**
  * Internal Battle Mode match score updater, bound to the 'bMMatch' model.
  */
-const _updateBMMatchScore = createUpdateFunction(
-  'bMMatch',
-  'Match not found'
-);
+const _updateBMMatchScore = createUpdateFunction('bMMatch', 'Match not found');
 
 /**
  * Update a Battle Mode match score with optimistic locking.
@@ -332,23 +324,22 @@ export async function updateBMMatchScore(
   score1: number,
   score2: number,
   completed: boolean = false,
-  rounds?: BMRound[]
+  rounds?: BMRound[],
+  clearWinnerOverride = false,
 ): Promise<{ version: number }> {
   return _updateBMMatchScore(prisma, matchId, expectedVersion, {
     score1,
     score2,
     completed,
-    rounds
+    rounds,
+    ...(clearWinnerOverride ? { winnerOverrideId: null } : {}),
   });
 }
 
 /**
  * Internal Match Race score updater, bound to the 'mRMatch' model.
  */
-const _updateMRMatchScore = createUpdateFunction(
-  'mRMatch',
-  'Match not found'
-);
+const _updateMRMatchScore = createUpdateFunction('mRMatch', 'Match not found');
 
 /**
  * Update a Match Race match score with optimistic locking.
@@ -374,6 +365,7 @@ export async function updateMRMatchScore(
   completed: boolean = false,
   rounds?: MRRound[],
   scoresConfirmed?: boolean,
+  clearWinnerOverride = false,
 ): Promise<{ version: number }> {
   return _updateMRMatchScore(prisma, matchId, expectedVersion, {
     score1,
@@ -381,16 +373,14 @@ export async function updateMRMatchScore(
     completed,
     rounds,
     ...(typeof scoresConfirmed === 'boolean' ? { scoresConfirmed } : {}),
+    ...(clearWinnerOverride ? { winnerOverrideId: null } : {}),
   });
 }
 
 /**
  * Internal Grand Prix score updater, bound to the 'gPMatch' model.
  */
-const _updateGPMatchScore = createUpdateFunction(
-  'gPMatch',
-  'Match not found'
-);
+const _updateGPMatchScore = createUpdateFunction('gPMatch', 'Match not found');
 
 /**
  * Update a Grand Prix match score with optimistic locking.
@@ -405,7 +395,8 @@ const _updateGPMatchScore = createUpdateFunction(
  * @param points1         - Updated total driver points for player 1
  * @param points2         - Updated total driver points for player 2
  * @param completed       - Whether the match is finished (default false)
- * @param races           - Optional array of per-race results
+ * @param races           - Optional array of per-race results; null explicitly
+ *                          clears a previously saved race breakdown.
  * @returns Object containing the new version number after update
  */
 export async function updateGPMatchScore(
@@ -415,23 +406,22 @@ export async function updateGPMatchScore(
   points1: number,
   points2: number,
   completed: boolean = false,
-  races?: GPRace[]
+  races?: GPRace[] | null,
+  clearWinnerOverride = false,
 ): Promise<{ version: number }> {
   return _updateGPMatchScore(prisma, matchId, expectedVersion, {
     points1,
     points2,
     completed,
-    races
+    races: races === null ? Prisma.DbNull : races,
+    ...(clearWinnerOverride ? { winnerOverrideId: null, suddenDeathWinnerId: null } : {}),
   });
 }
 
 /**
  * Internal Time Trial entry updater, bound to the 'tTEntry' model.
  */
-const _updateTTEntry = createUpdateFunction(
-  'tTEntry',
-  'Entry not found'
-);
+const _updateTTEntry = createUpdateFunction('tTEntry', 'Entry not found');
 
 /**
  * Update a Time Trial entry with optimistic locking.
@@ -450,7 +440,7 @@ export async function updateTTEntry(
   prisma: PrismaClient,
   entryId: string,
   expectedVersion: number,
-  data: TTEntryData
+  data: TTEntryData,
 ): Promise<{ version: number }> {
   return _updateTTEntry(prisma, entryId, expectedVersion, data);
 }

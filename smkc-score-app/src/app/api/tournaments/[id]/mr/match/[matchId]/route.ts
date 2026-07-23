@@ -16,9 +16,9 @@ import { validateMatchRaceScores } from '@/lib/score-validation';
 function validateRoundAwareMrFinalsScores(
   score1: number,
   score2: number,
-  match: { stage?: string | null; round?: string | null },
+  match: { stage?: string | null; round?: string | null; targetWins?: number | null },
 ) {
-  const targetWins = getMrFinalsTargetWins({ stage: match.stage, round: match.round });
+  const targetWins = getMrFinalsTargetWins({ stage: match.stage, round: match.round, targetWins: match.targetWins });
 
   if (!Number.isInteger(score1) || !Number.isInteger(score2)) {
     return { isValid: false, error: 'Match Race finals scores must be integers' };
@@ -47,7 +47,13 @@ const { GET, PUT } = createMatchDetailHandlers({
   detailField: 'rounds',
   updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail, body) => {
     if (body?.scoresConfirmed === true) {
+      if (body?.__clearWinnerOverride === true) {
+        return updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail, true, true);
+      }
       return updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail, true);
+    }
+    if (body?.__clearWinnerOverride === true) {
+      return updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail, undefined, true);
     }
     return updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail);
   },
@@ -61,8 +67,7 @@ const { GET, PUT } = createMatchDetailHandlers({
     matchModel: 'mRMatch',
     qualificationModel: 'mRQualification',
     scoreFields: { p1: 'score1', p2: 'score2' },
-    determineResult: (myScore, oppScore) =>
-      myScore > oppScore ? 'win' : myScore < oppScore ? 'loss' : 'tie',
+    determineResult: (myScore, oppScore) => (myScore > oppScore ? 'win' : myScore < oppScore ? 'loss' : 'tie'),
     useRoundDifferential: true,
   },
 });

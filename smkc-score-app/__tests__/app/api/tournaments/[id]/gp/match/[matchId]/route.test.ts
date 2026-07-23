@@ -29,13 +29,24 @@ jest.mock('@/lib/optimistic-locking', () => ({
 
 jest.mock('@/lib/error-handling', () => ({
   createSuccessResponse: jest.fn((data) => ({ data, status: 200 })),
-  createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
+  createErrorResponse: jest.fn((message, status, code, details) => ({
+    data: { error: message, code, details },
+    status,
+  })),
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
-  handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
-  handleAuthzError: jest.fn((message = 'Forbidden') => ({ data: { error: message, code: 'FORBIDDEN', details: undefined }, status: 403 })),
+  handleDatabaseError: jest.fn((error, operation) => ({
+    data: { error: `Database error: ${operation}` },
+    status: 500,
+  })),
+  handleAuthzError: jest.fn((message = 'Forbidden') => ({
+    data: { error: message, code: 'FORBIDDEN', details: undefined },
+    status: 403,
+  })),
 }));
 
-jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })) }));
+jest.mock('@/lib/logger', () => ({
+  createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })),
+}));
 jest.mock('@/lib/sanitize', () => ({
   sanitizeInput: jest.fn((input: unknown) => input),
 }));
@@ -47,20 +58,17 @@ import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { GET, PUT } from '@/app/api/tournaments/[id]/gp/match/[matchId]/route';
 import { updateGPMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 
-const {
-  createSuccessResponse,
-  createErrorResponse,
-  handleValidationError,
-  handleDatabaseError,
-  handleAuthzError,
-} = jest.requireMock('@/lib/error-handling');
+const { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError, handleAuthzError } =
+  jest.requireMock('@/lib/error-handling');
 
 class MockNextRequest {
   constructor(
     private url: string,
     private body?: any,
   ) {}
-  async json() { return this.body; }
+  async json() {
+    return this.body;
+  }
 }
 
 describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => {
@@ -167,12 +175,43 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
   });
 
   describe('PUT - Update match score with optimistic locking', () => {
+    it('rejects playoff updates so winner routing can only use the canonical finals endpoint', async () => {
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce({
+        stage: 'playoff',
+        round: 'playoff_r1',
+        tournamentId: 't1',
+        isBye: false,
+      });
+
+      const result = await PUT(
+        new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
+          points1: 10,
+          points2: 9,
+          version: 3,
+        }),
+        { params: Promise.resolve({ id: 't1', matchId: 'm1' }) },
+      );
+
+      expect(result).toEqual({
+        data: {
+          error: 'Use the finals endpoint to update a bracket match',
+          code: 'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+          details: undefined,
+        },
+        status: 409,
+      });
+      expect(updateGPMatchScore).not.toHaveBeenCalled();
+    });
+
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, completed: true, version: 1,
+        points1: 18,
+        points2: 6,
+        completed: true,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -189,7 +228,10 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, completed: true, version: 1,
+        points1: 18,
+        points2: 6,
+        completed: true,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -224,7 +266,11 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, completed: true, races, version: 1,
+        points1: 18,
+        points2: 6,
+        completed: true,
+        races,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -234,9 +280,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         status: 200,
       });
       expect(createSuccessResponse).toHaveBeenCalledWith({ match: mockMatch, version: 2 });
-      expect(updateGPMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 18, 6, true, races
-      );
+      expect(updateGPMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 18, 6, true, races);
     });
 
     // Success case - Updates match without completed flag
@@ -256,16 +300,16 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 12, points2: 12, version: 2,
+        points1: 12,
+        points2: 12,
+        version: 2,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
       expect(result.data).toEqual({ match: mockMatch, version: 3 });
       expect(result.status).toBe(200);
-      expect(updateGPMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 2, 12, 12, undefined, undefined
-      );
+      expect(updateGPMatchScore).toHaveBeenCalledWith(prisma, 'm1', 2, 12, 12, undefined, undefined);
     });
 
     // Version conflict case - Returns 409 when version mismatch occurs
@@ -275,7 +319,10 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       (updateGPMatchScore as jest.Mock).mockRejectedValue(conflictError);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, completed: true, version: 1,
+        points1: 18,
+        points2: 6,
+        completed: true,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -292,14 +339,15 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         'The match was modified by another user. Please refresh and try again.',
         409,
         'VERSION_CONFLICT',
-        { currentVersion: 5 }
+        { currentVersion: 5 },
       );
     });
 
     // Validation error case - Returns 400 when points1 is missing
     it('should return 400 when points1 is missing', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points2: 6, version: 1,
+        points2: 6,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -314,7 +362,8 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Validation error case - Returns 400 when points2 is missing
     it('should return 400 when points2 is missing', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, version: 1,
+        points1: 18,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -342,7 +391,8 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Validation error case - Returns 400 when version is missing
     it('should return 400 when version is missing', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6,
+        points1: 18,
+        points2: 6,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -357,7 +407,9 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Validation error case - Returns 400 when version is not a number
     it('should return 400 when version is not a number', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, version: 'not-a-number',
+        points1: 18,
+        points2: 6,
+        version: 'not-a-number',
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -371,7 +423,9 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Validation error case - Returns 400 when version is null
     it('should return 400 when version is null', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, version: null,
+        points1: 18,
+        points2: 6,
+        version: null,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -387,7 +441,10 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       (updateGPMatchScore as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, completed: true, version: 1,
+        points1: 18,
+        points2: 6,
+        completed: true,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -416,7 +473,10 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 0, points2: 0, completed: false, version: 1,
+        points1: 0,
+        points2: 0,
+        completed: false,
+        version: 1,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -442,16 +502,18 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
-        points1: 18, points2: 6, completed: true, version: 1, races: undefined,
+        points1: 18,
+        points2: 6,
+        completed: true,
+        version: 1,
+        races: undefined,
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
       expect(result.data).toEqual({ match: mockMatch, version: 2 });
       expect(result.status).toBe(200);
-      expect(updateGPMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 18, 6, true, undefined
-      );
+      expect(updateGPMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 18, 6, true, undefined);
     });
   });
 });

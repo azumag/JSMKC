@@ -32,6 +32,7 @@ import { invalidate as invalidateStandingsCache } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { retryDbRead } from '@/lib/db-read-retry';
 import { recalculatePlayersStats, type RecalculateStatsConfig } from './score-report-helpers';
+import { resolveFinalsSeedSnapshot } from '@/lib/finals-seed-snapshot';
 
 /**
  * Configuration for the match detail route factory.
@@ -83,7 +84,7 @@ export interface MatchDetailConfig {
   validateFinalsScores?: (
     val1: number,
     val2: number,
-    context?: { round?: string | null; stage?: string | null }
+    context?: { round?: string | null; stage?: string | null },
   ) => { isValid: boolean; error?: string };
   /**
    * Optional finals validator that needs match context such as the bracket round.
@@ -125,10 +126,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
    * Authentication: if getRequiresAuth is set, requires session auth (admin or player).
    * If not set, returns match data without authentication (backward-compatible default).
    */
-  async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string; matchId: string }> },
-  ) {
+  async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; matchId: string }> }) {
     const { id: identifier, matchId } = await params;
 
     /* Optional auth check for GET endpoint */
@@ -140,8 +138,8 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     }
 
     try {
-      const [tournamentId, match] = await retryDbRead(
-        () => Promise.all([
+      const [tournamentId, match] = await retryDbRead(() =>
+        Promise.all([
           resolveTournamentId(identifier),
           model(prisma).findUnique({
             where: { id: matchId },
@@ -152,6 +150,23 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
 
       if (!match || ('tournamentId' in match && match.tournamentId && match.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
+      }
+
+      if ((match.stage === 'finals' || match.stage === 'playoff') && match.player1Id && match.player2Id) {
+        const seedResolution = await resolveFinalsSeedSnapshot(tournamentId, config.qualMode);
+        if (seedResolution.status === 'unsafe') {
+          return createErrorResponse(
+            'Original finals seed mapping cannot be safely reconstructed. An administrator must reset and recreate the finals bracket before this match can be displayed.',
+            409,
+            'FINALS_SEED_REPAIR_REQUIRED',
+          );
+        }
+        const seedByPlayerId = new Map(seedResolution.snapshot.map((entry) => [entry.playerId, entry.originalSeed]));
+        return createSuccessResponse({
+          ...match,
+          player1OriginalSeed: seedByPlayerId.get(match.player1Id),
+          player2OriginalSeed: seedByPlayerId.get(match.player2Id),
+        });
       }
 
       return createSuccessResponse(match);
@@ -167,10 +182,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
    * Authentication: admin only. Players should use the score report endpoint
    * to submit their own match results.
    */
-  async function PUT(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string; matchId: string }> },
-  ) {
+  async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; matchId: string }> }) {
     const logger = createLogger(config.loggerName);
 
     /* Auth check for PUT endpoint */
@@ -219,10 +231,25 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
        * by the stage-aware validation below so there's no wasted DB call. */
       const matchMeta = await model(prisma).findUnique({
         where: { id: matchId },
-        select: { stage: true, round: true, tournamentId: true },
+        select: { stage: true, round: true, targetWins: true, tournamentId: true, isBye: true },
       });
       if (!matchMeta || (matchMeta.tournamentId && matchMeta.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
+      }
+      if (matchMeta.isBye) {
+        return createErrorResponse('BREAK is a non-competitive schedule record', 409, 'NON_COMPETITIVE_MATCH');
+      }
+      /* Finals writes must use the canonical /finals endpoint. That endpoint
+       * atomically reroutes downstream slots, protects GF reset state and
+       * keeps the winner override/audit trail coherent. Updating the source
+       * row through this generic detail endpoint would otherwise leave an old
+       * winner in the next bracket slot. */
+      if (matchMeta.stage === 'finals' || matchMeta.stage === 'playoff') {
+        return createErrorResponse(
+          'Use the finals endpoint to update a bracket match',
+          409,
+          'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+        );
       }
       if (matchMeta?.stage === 'qualification') {
         const lockError = await checkQualificationConfirmed(prisma, matchMeta.tournamentId, config.qualMode);
@@ -260,9 +287,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         }
       }
 
-      const result = await config.updateMatchScore(
-        prisma, matchId, version, val1, val2, completed, detail, body,
-      );
+      const result = await config.updateMatchScore(prisma, matchId, version, val1, val2, completed, detail, body);
 
       /* Re-fetch the updated match with player relations for the response */
       const updatedMatch = await model(prisma).findUnique({
@@ -275,11 +300,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
        * stats so standings, H2H tiebreakers, and overall-ranking stay in
        * sync. Skipped for finals matches (no qualification record exists)
        * and when no recalc config is supplied. */
-      if (
-        config.recalcStatsConfig &&
-        updatedMatch &&
-        matchMeta?.stage === 'qualification'
-      ) {
+      if (config.recalcStatsConfig && updatedMatch && matchMeta?.stage === 'qualification') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const um = updatedMatch as any;
         try {

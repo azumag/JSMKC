@@ -6,8 +6,8 @@
  * this module only does the shape transformation and broadcast title rendering.
  */
 
-import { COURSE_INFO } from "@/lib/constants";
-import { msToDisplayTime } from "@/lib/ta/time-utils";
+import { COURSE_INFO } from '@/lib/constants';
+import { msToDisplayTime } from '@/lib/ta/time-utils';
 import type {
   BuildOverlayEventsInput,
   OverlayEvent,
@@ -16,9 +16,9 @@ import type {
   OverlayTaChampionStanding,
   OverlayTaPhaseResult,
   OverlayTaTimeRecord,
-} from "./types";
+} from './types';
 
-const NICKNAME_PLACEHOLDER = "BYE";
+const NICKNAME_PLACEHOLDER = 'BYE';
 
 function nick(player: { nickname: string } | null | undefined): string {
   return player?.nickname ?? NICKNAME_PLACEHOLDER;
@@ -30,10 +30,10 @@ function nick(player: { nickname: string } | null | undefined): string {
  * sequential survival phases, not a bracket.
  */
 const TA_STAGE_LABEL: Record<string, string> = {
-  qualification: "Qualification",
-  phase1: "Phase 1",
-  phase2: "Phase 2",
-  phase3: "Phase 3",
+  qualification: 'Qualification',
+  phase1: 'Phase 1',
+  phase2: 'Phase 2',
+  phase3: 'Phase 3',
 };
 
 function courseName(abbr: string): string {
@@ -48,17 +48,12 @@ function taPhaseResults(
   if (!Array.isArray(raw)) return [];
   return raw
     .flatMap((result): Array<OverlayTaPhaseResult & { timeMs: number }> => {
-      if (
-        typeof result !== "object" ||
-        result === null ||
-        !("playerId" in result) ||
-        !("timeMs" in result)
-      ) {
+      if (typeof result !== 'object' || result === null || !('playerId' in result) || !('timeMs' in result)) {
         return [];
       }
       const playerId = (result as { playerId?: unknown }).playerId;
       const timeMs = (result as { timeMs?: unknown }).timeMs;
-      if (typeof playerId !== "string" || typeof timeMs !== "number") return [];
+      if (typeof playerId !== 'string' || typeof timeMs !== 'number') return [];
       const isRetry = (result as { isRetry?: unknown }).isRetry === true;
       return [
         {
@@ -78,9 +73,7 @@ function taPhaseResults(
 }
 
 function jsonStringArray(raw: unknown): string[] {
-  return Array.isArray(raw)
-    ? raw.filter((value): value is string => typeof value === "string")
-    : [];
+  return Array.isArray(raw) ? raw.filter((value): value is string => typeof value === 'string') : [];
 }
 
 /**
@@ -96,55 +89,63 @@ function jsonStringArray(raw: unknown): string[] {
  */
 function normalizeCourses(raw: unknown): string[] | undefined {
   if (!Array.isArray(raw)) return undefined;
-  const courses = raw.filter(
-    (c): c is string => typeof c === "string" && c.length > 0,
-  );
+  const courses = raw.filter((c): c is string => typeof c === 'string' && c.length > 0);
   return courses.length > 0 ? courses : undefined;
 }
 
 function matchStageLabel(stage: string): string {
-  if (stage === "finals") return "Finals";
-  if (stage === "playoff") return "Playoff";
-  return "Qualification";
+  if (stage === 'finals') return 'Finals';
+  if (stage === 'playoff') return 'Playoff';
+  return 'Qualification';
 }
 
 function modeName(mode: OverlayMode): string {
-  if (mode === "bm") return "Battle Mode";
-  if (mode === "mr") return "Match Race";
-  if (mode === "gp") return "Grand Prix";
-  return "Time Attack";
+  if (mode === 'bm') return 'Battle Mode';
+  if (mode === 'mr') return 'Match Race';
+  if (mode === 'gp') return 'Grand Prix';
+  return 'Time Attack';
 }
 
 function winnerLoser(match: OverlayMatchInput): {
   winner: { nickname: string } | null;
   loser: { nickname: string } | null;
 } {
-  if (match.score1 === match.score2) return { winner: null, loser: null };
-  return match.score1 > match.score2
-    ? { winner: match.player1, loser: match.player2 }
-    : { winner: match.player2, loser: match.player1 };
+  if (match.winnerOverrideId && match.winnerOverrideId === match.player1?.id)
+    return { winner: match.player1, loser: match.player2 };
+  if (match.winnerOverrideId && match.winnerOverrideId === match.player2?.id)
+    return { winner: match.player2, loser: match.player1 };
+  if (match.score1 !== match.score2) {
+    return match.score1 > match.score2
+      ? { winner: match.player1, loser: match.player2 }
+      : { winner: match.player2, loser: match.player1 };
+  }
+  if (match.suddenDeathWinnerId === match.player1?.id) return { winner: match.player1, loser: match.player2 };
+  if (match.suddenDeathWinnerId === match.player2?.id) return { winner: match.player2, loser: match.player1 };
+  return { winner: null, loser: null };
 }
 
 function modeChampionStandings(
   matches: OverlayMatchInput[],
   decidingMatch: OverlayMatchInput,
 ): OverlayTaChampionStanding[] | null {
-  const isGrandFinal = decidingMatch.round === "grand_final";
-  const isReset = decidingMatch.round === "grand_final_reset";
+  const isGrandFinal = decidingMatch.round === 'grand_final';
+  const isReset = decidingMatch.round === 'grand_final_reset';
   if (!isGrandFinal && !isReset) return null;
-  if (isGrandFinal && decidingMatch.score1 <= decidingMatch.score2) return null;
 
   const { winner, loser } = winnerLoser(decidingMatch);
   if (!winner || !loser) return null;
+  /* In a first grand final, player 1 is the winners-bracket finalist. A
+   * player-2 win schedules the reset instead of deciding the championship.
+   * Use the resolved winner (including an audited tie override), never the
+   * displayed numeric totals. */
+  if (isGrandFinal && winner !== decidingMatch.player1) return null;
 
   const standings: OverlayTaChampionStanding[] = [
     { rank: 1, player: nick(winner) },
     { rank: 2, player: nick(loser) },
   ];
 
-  const losersFinal = matches.find(
-    (match) => match.round === "losers_final" && match.completed,
-  );
+  const losersFinal = matches.find((match) => match.round === 'losers_final' && match.completed);
   if (losersFinal) {
     const third = winnerLoser(losersFinal).loser;
     if (third) standings.push({ rank: 3, player: nick(third) });
@@ -153,11 +154,7 @@ function modeChampionStandings(
   return standings;
 }
 
-function matchEvents(
-  matches: OverlayMatchInput[],
-  mode: OverlayMode,
-  since: Date,
-): OverlayEvent[] {
+function matchEvents(matches: OverlayMatchInput[], mode: OverlayMode, since: Date): OverlayEvent[] {
   const out: OverlayEvent[] = [];
   for (const m of matches) {
     if (!m.completed) continue;
@@ -167,21 +164,16 @@ function matchEvents(
     // BM/MR carry `assignedCourses`; GP carries a single `cup`. Build both
     // the structured payload and the subtitle suffix so the legacy toast
     // overlay (which only reads `subtitle`) shows the new context too.
-    const courses = mode === "gp" ? undefined : normalizeCourses(m.assignedCourses);
-    const cup =
-      mode === "gp" && typeof m.cup === "string" && m.cup.length > 0
-        ? m.cup
-        : undefined;
-    const contextSuffix = cup
-      ? ` [${cup}]`
-      : courses
-        ? ` [${courses.join(", ")}]`
-        : "";
+    const courses = mode === 'gp' ? undefined : normalizeCourses(m.assignedCourses);
+    const cup = mode === 'gp' && typeof m.cup === 'string' && m.cup.length > 0 ? m.cup : undefined;
+    const contextSuffix = cup ? ` [${cup}]` : courses ? ` [${courses.join(', ')}]` : '';
+    const resolved = winnerLoser(m);
+    const winnerSide = resolved.winner === m.player1 ? 1 : resolved.winner === m.player2 ? 2 : undefined;
     const matchEvent: OverlayEvent = {
       // Deterministic id ties the event to the underlying row so repeated
       // polls (or `since` overlap) collapse to the same event.
       id: `match_completed:${mode}:${m.id}:${m.updatedAt.getTime()}`,
-      type: "match_completed",
+      type: 'match_completed',
       timestamp: m.updatedAt.toISOString(),
       mode,
       title: `${stageLabel} Match #${m.matchNumber} Completed`,
@@ -194,6 +186,7 @@ function matchEvents(
         player2: nick(m.player2),
         score1: m.score1,
         score2: m.score2,
+        ...(winnerSide ? { winnerSide } : {}),
         ...(courses ? { courses } : {}),
         ...(cup ? { cup } : {}),
       },
@@ -204,7 +197,7 @@ function matchEvents(
     if (championStandings) {
       out.push({
         id: `mode_champion_decided:${mode}:${m.id}:${m.updatedAt.getTime()}`,
-        type: "mode_champion_decided",
+        type: 'mode_champion_decided',
         timestamp: new Date(m.updatedAt.getTime() + 2).toISOString(),
         mode,
         title: `${modeName(mode)} Champion Decided`,
@@ -226,38 +219,38 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
   const sinceMs = since.getTime();
   const events: OverlayEvent[] = [];
 
-  events.push(...matchEvents(input.bmMatches, "bm", since));
-  events.push(...matchEvents(input.mrMatches, "mr", since));
-  events.push(...matchEvents(input.gpMatches, "gp", since));
+  events.push(...matchEvents(input.bmMatches, 'bm', since));
+  events.push(...matchEvents(input.mrMatches, 'mr', since));
+  events.push(...matchEvents(input.gpMatches, 'gp', since));
 
   for (const log of scoreLogs) {
     if (log.timestamp.getTime() <= sinceMs) continue;
     const modeKey = log.matchType.toLowerCase();
     const mode: OverlayMode | undefined =
-      modeKey === "bm" || modeKey === "mr" || modeKey === "gp" || modeKey === "ta"
+      modeKey === 'bm' || modeKey === 'mr' || modeKey === 'gp' || modeKey === 'ta'
         ? (modeKey as OverlayMode)
         : undefined;
     events.push({
       id: `score_reported:${log.id}`,
-      type: "score_reported",
+      type: 'score_reported',
       timestamp: log.timestamp.toISOString(),
       mode,
-      title: "Score Reported",
+      title: 'Score Reported',
       subtitle: `${nick(log.player)} reported a result`,
     });
   }
 
   for (const e of ttEntries) {
     if (e.updatedAt.getTime() <= sinceMs) continue;
-    const stageLabel = TA_STAGE_LABEL[e.stage] ?? "";
-    const prefix = stageLabel ? `[${stageLabel}] ` : "";
+    const stageLabel = TA_STAGE_LABEL[e.stage] ?? '';
+    const prefix = stageLabel ? `[${stageLabel}] ` : '';
     const playerName = nick(e.player);
 
     let title: string;
     let taTimeRecord: OverlayTaTimeRecord;
     let eventId: string;
 
-    if (e.stage === "qualification") {
+    if (e.stage === 'qualification') {
       // Qualification fires a single notification once all 20 courses are in
       // (totalTime becomes non-null). This collapses what used to be 20
       // per-course toasts per player into one summary card.
@@ -273,7 +266,7 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       // even 10ms) produces a fresh id and re-fires intentionally.
       if (e.totalTime == null) continue;
       const totalTimeFormatted = msToDisplayTime(e.totalTime);
-      const rankPart = e.rank ? `, Rank #${e.rank}` : "";
+      const rankPart = e.rank ? `, Rank #${e.rank}` : '';
       title = `${prefix}${playerName} completed Qualification (${totalTimeFormatted}${rankPart})`;
       taTimeRecord = {
         player: playerName,
@@ -287,7 +280,7 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       // Phase rounds (phase1/2/3) are single-course; per-course notification
       // remains the right granularity. Skip until lastRecorded* is populated.
       if (!e.lastRecordedCourse || !e.lastRecordedTime) continue;
-      const rankSuffix = e.rank ? ` (Rank #${e.rank})` : "";
+      const rankSuffix = e.rank ? ` (Rank #${e.rank})` : '';
       title = `${prefix}${playerName} recorded ${e.lastRecordedTime} on ${e.lastRecordedCourse}${rankSuffix}`;
       taTimeRecord = {
         player: playerName,
@@ -301,9 +294,9 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
 
     events.push({
       id: eventId,
-      type: "ta_time_recorded",
+      type: 'ta_time_recorded',
       timestamp: e.updatedAt.toISOString(),
-      mode: "ta",
+      mode: 'ta',
       title,
       // Subtitle stays undefined: the dashboard's TA card consumes the
       // structured payload directly, and falling back to title would render
@@ -313,15 +306,15 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
   }
 
   for (const r of ttPhaseRounds) {
-    const stageLabel = TA_STAGE_LABEL[r.phase] ?? "";
+    const stageLabel = TA_STAGE_LABEL[r.phase] ?? '';
     const prefix = stageLabel ? `${stageLabel} ` : `${r.phase} `;
     const displayCourse = courseName(r.course);
     if (r.createdAt.getTime() > sinceMs) {
       events.push({
         id: `ta_phase_advanced:${r.id}`,
-        type: "ta_phase_advanced",
+        type: 'ta_phase_advanced',
         timestamp: r.createdAt.toISOString(),
-        mode: "ta",
+        mode: 'ta',
         title: `Time Attack ${prefix}Round ${r.roundNumber} Started`,
         subtitle: `Course: ${displayCourse}`,
         taPhaseRound: {
@@ -343,14 +336,11 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       );
       events.push({
         id: `ta_phase_completed:${r.id}:${r.submittedAt.getTime()}`,
-        type: "ta_phase_completed",
+        type: 'ta_phase_completed',
         timestamp: r.submittedAt.toISOString(),
-        mode: "ta",
+        mode: 'ta',
         title: `Time Attack ${prefix}Round ${r.roundNumber} Completed`,
-        subtitle:
-          eliminatedPlayers.length > 0
-            ? `Eliminated: ${eliminatedPlayers.join(", ")}`
-            : "No eliminations",
+        subtitle: eliminatedPlayers.length > 0 ? `Eliminated: ${eliminatedPlayers.join(', ')}` : 'No eliminations',
         taPhaseCompleted: {
           phase: r.phase,
           phaseLabel: stageLabel || undefined,
@@ -365,14 +355,13 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
 
       if (r.livesReset) {
         const remainingCount = Math.max(0, results.length - eliminatedPlayers.length);
-        const remainingLabel =
-          remainingCount === 1 ? "1 player remains" : `${remainingCount} players remain`;
+        const remainingLabel = remainingCount === 1 ? '1 player remains' : `${remainingCount} players remain`;
         events.push({
           id: `ta_lives_reset:${r.id}:${r.submittedAt.getTime()}`,
-          type: "ta_lives_reset",
+          type: 'ta_lives_reset',
           timestamp: new Date(r.submittedAt.getTime() + 1).toISOString(),
-          mode: "ta",
-          title: "Time Attack Lives Reset",
+          mode: 'ta',
+          title: 'Time Attack Lives Reset',
           subtitle: `${prefix}Round ${r.roundNumber}: ${remainingLabel}`,
         });
       }
@@ -381,10 +370,10 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
         const champion = r.championStandings[0];
         events.push({
           id: `ta_champion_decided:${r.id}:${r.submittedAt.getTime()}`,
-          type: "ta_champion_decided",
+          type: 'ta_champion_decided',
           timestamp: new Date(r.submittedAt.getTime() + 2).toISOString(),
-          mode: "ta",
-          title: "Time Attack Champion Decided",
+          mode: 'ta',
+          title: 'Time Attack Champion Decided',
           subtitle: champion ? `Champion: ${champion.player}` : undefined,
           taChampion: {
             roundNumber: r.roundNumber,
@@ -395,47 +384,36 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
     }
   }
 
-  if (
-    tournament.qualificationConfirmedAt &&
-    tournament.qualificationConfirmedAt.getTime() > sinceMs
-  ) {
+  if (tournament.qualificationConfirmedAt && tournament.qualificationConfirmedAt.getTime() > sinceMs) {
     events.push({
       id: `qualification_confirmed:${tournament.qualificationConfirmedAt.getTime()}`,
-      type: "qualification_confirmed",
+      type: 'qualification_confirmed',
       timestamp: tournament.qualificationConfirmedAt.toISOString(),
-      title: "Qualification Locked",
-      subtitle: "Proceeding to finals",
+      title: 'Qualification Locked',
+      subtitle: 'Proceeding to finals',
     });
   }
 
-  if (
-    tournament.earliestFinalsCreatedAt &&
-    tournament.earliestFinalsCreatedAt.getTime() > sinceMs
-  ) {
+  if (tournament.earliestFinalsCreatedAt && tournament.earliestFinalsCreatedAt.getTime() > sinceMs) {
     events.push({
       id: `finals_started:${tournament.earliestFinalsCreatedAt.getTime()}`,
-      type: "finals_started",
+      type: 'finals_started',
       timestamp: tournament.earliestFinalsCreatedAt.toISOString(),
-      title: "Finals Bracket Generated",
-      subtitle: "Finals bracket has started",
+      title: 'Finals Bracket Generated',
+      subtitle: 'Finals bracket has started',
     });
   }
 
-  if (
-    tournament.latestOverallRankingUpdatedAt &&
-    tournament.latestOverallRankingUpdatedAt.getTime() > sinceMs
-  ) {
+  if (tournament.latestOverallRankingUpdatedAt && tournament.latestOverallRankingUpdatedAt.getTime() > sinceMs) {
     events.push({
       id: `overall_ranking_updated:${tournament.latestOverallRankingUpdatedAt.getTime()}`,
-      type: "overall_ranking_updated",
+      type: 'overall_ranking_updated',
       timestamp: tournament.latestOverallRankingUpdatedAt.toISOString(),
-      title: "Overall Ranking Updated",
-      subtitle: "All-mode standings have been updated",
+      title: 'Overall Ranking Updated',
+      subtitle: 'All-mode standings have been updated',
     });
   }
 
-  events.sort(
-    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || a.id.localeCompare(b.id),
-  );
+  events.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || a.id.localeCompare(b.id));
   return events;
 }

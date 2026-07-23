@@ -68,6 +68,7 @@ interface MatchSpec {
   p2: number; // B-position of player2
   s1?: number; // score1 (BM/MR) — omit for incomplete
   s2?: number;
+  targetWins?: number;
   bracketPosition?: string;
 }
 
@@ -81,6 +82,7 @@ function mk(spec: MatchSpec, mode: CdmVersusMode = 'bm'): CdmMatch {
     player1: bp(spec.p1),
     player2: bp(spec.p2),
     completed,
+    targetWins: spec.targetWins,
   };
   if (completed) {
     if (mode === 'gp') {
@@ -231,7 +233,7 @@ describe('buildFinalsWrites — faithful 24-player bracket', () => {
   });
 });
 
-describe('buildFinalsWrites — faithful two-group paper layout', () => {
+describe('buildFinalsWrites — official two-group displayed-seed layout', () => {
   const player = (token: string): CdmPlayer => ({ id: token, name: token, nickname: token });
   const match = (
     matchNumber: number,
@@ -278,21 +280,21 @@ describe('buildFinalsWrites — faithful two-group paper layout', () => {
     })),
   );
 
-  it('reconstructs the fixed direct and barrage seed-list order', () => {
+  it('reconstructs the fixed alternating direct and barrage seed-list order', () => {
     const data = emptyData({ bmMatches: matches, bmQualifications: qualifications });
     const map = indexWrites(buildFinalsWrites(data, 'bm'), 'BM Finals');
 
     expectString(map, 'B3', 'A1');
-    expectString(map, 'B4', 'B3');
-    expectString(map, 'B14', 'A6');
-    expectString(map, 'B15', 'B8');
-    expectString(map, 'B26', 'B11');
+    expectString(map, 'B4', 'B1');
+    expectString(map, 'B14', 'B6');
+    expectString(map, 'B15', 'A7');
+    expectString(map, 'B26', 'B12');
   });
 });
 
-describe('buildFinalsWrites — losers_final slot reversal (faithful)', () => {
+describe('buildFinalsWrites — losers_final slot order (faithful)', () => {
   it("writes the WF loser's score to slot1 and the LSF winner's score to slot2", () => {
-    // App losers_final: player1 = Losers-SF winner, player2 = Winners-Final loser.
+    // App losers_final: player1 = Winners-Final loser, player2 = Losers-SF winner.
     // Template slot1 (BE47) = loserOf winners_final; slot2 (BE48) = winnerOf losers_sf.
     // Stack the feeders onto a real 24 bracket so the faithful path is selected.
     const matches: CdmMatch[] = [
@@ -301,16 +303,16 @@ describe('buildFinalsWrites — losers_final slot reversal (faithful)', () => {
       mk({ matchNumber: 28, stage: 'finals', round: 'winners_final', p1: 101, p2: 102, s1: 4, s2: 2 }),
       // losers_sf[0]: bp201 beats bp202 -> LSF winner = bp201.
       mk({ matchNumber: 27, stage: 'finals', round: 'losers_sf', p1: 201, p2: 202, s1: 4, s2: 0 }),
-      // losers_final[0]: app p1 = LSF winner (bp201), app p2 = WF loser (bp102).
-      mk({ matchNumber: 29, stage: 'finals', round: 'losers_final', p1: 201, p2: 102, s1: 1, s2: 4 }),
+      // losers_final[0]: app p1 = WF loser (bp102), app p2 = LSF winner (bp201).
+      mk({ matchNumber: 29, stage: 'finals', round: 'losers_final', p1: 102, p2: 201, s1: 4, s2: 1 }),
     ];
     const map = indexWrites(buildFinalsWrites(emptyData({ bmMatches: matches }), 'bm'), 'BM Finals');
     // Names are written under the same template slot order as the scores.
     expect(map.get('BC47')).toMatchObject({ op: 'overwriteString', value: 'B102' });
     expect(map.get('BC48')).toMatchObject({ op: 'overwriteString', value: 'B201' });
-    // bp102 (WF loser, app player2, score 4) -> template slot1 score cell BE47.
+    // bp102 (WF loser, app player1, score 4) -> template slot1 score cell BE47.
     expectNumber(map, 'BE47', 4);
-    // bp201 (LSF winner, app player1, score 1) -> template slot2 score cell BE48.
+    // bp201 (LSF winner, app player2, score 1) -> template slot2 score cell BE48.
     expectNumber(map, 'BE48', 1);
   });
 });
@@ -585,6 +587,79 @@ describe('buildFinalsWrites — no finals', () => {
  * ----------------------------------------------------------------- */
 
 describe('buildFinalsWrites — GP points and per-mode sheet targeting', () => {
+  it('writes persisted First-To values into the real template header cells', () => {
+    const matches = build24WinnersAndPlayoff('bm').map((match) => ({ ...match, targetWins: 7 }));
+    const map = indexWrites(buildFinalsWrites(emptyData({ bmMatches: matches }), 'bm'), 'BM Finals');
+
+    // winners_r1 is R3 and playoff_r1 is D3 in the shipped XLSM. This is a
+    // numeric overwrite of the value below the static `First to` label.
+    expectNumber(map, 'D3', 7);
+    expectNumber(map, 'R3', 7);
+  });
+
+  it.each([
+    ['playoff_r1', 'D3'],
+    ['playoff_r2', 'K3'],
+    ['winners_r1', 'R3'],
+    ['winners_qf', 'Y3'],
+    ['winners_sf', 'AF3'],
+    ['winners_final', 'AM3'],
+    ['grand_final', 'AT3'],
+    ['grand_final_reset', 'BA3'],
+    ['losers_r1', 'R39'],
+    ['losers_r2', 'Y39'],
+    ['losers_r3', 'AF39'],
+    ['losers_r4', 'AM39'],
+    ['losers_sf', 'AT39'],
+    ['losers_final', 'BA39'],
+  ])('maps %s First-To to the verified template cell %s', (round, ref) => {
+    const map = indexWrites(
+      buildFinalsWrites(
+        emptyData({
+          bmMatches: [mk({ matchNumber: 1, stage: 'finals', round, p1: 1, p2: 2, targetWins: 7 })],
+          finalsRoundSettings: [{ mode: 'bm', stage: 'finals', round, targetWins: 7 }],
+        }),
+        'bm',
+      ),
+      'BM Finals',
+    );
+
+    expectNumber(map, ref, 7);
+  });
+
+  it('exports the active First-To when completed rows retain their historic format', () => {
+    const matches = build24WinnersAndPlayoff('bm').map((match) =>
+      match.round === 'winners_r1'
+        ? { ...match, completed: false, score1: undefined, score2: undefined, targetWins: 7 }
+        : { ...match, targetWins: 5 },
+    );
+    // #3038 freezes M1 at its original FT5 while the unfinished remainder of
+    // the round moves to FT7. The sheet header must describe what is playable.
+    const firstWinnersMatch = matches.findIndex((match) => match.round === 'winners_r1');
+    matches[firstWinnersMatch] = { ...matches[firstWinnersMatch], completed: true, targetWins: 5 };
+    const map = indexWrites(buildFinalsWrites(emptyData({ bmMatches: matches }), 'bm'), 'BM Finals');
+
+    expectNumber(map, 'R3', 7);
+  });
+
+  it('keeps the configured First-To after every match has completed with historic snapshots', () => {
+    const matches = build24WinnersAndPlayoff('bm').map((match) => ({ ...match, targetWins: 5 }));
+    const firstWinnersMatch = matches.findIndex((match) => match.round === 'winners_r1');
+    matches[firstWinnersMatch + 1] = { ...matches[firstWinnersMatch + 1], targetWins: 7 };
+    const map = indexWrites(
+      buildFinalsWrites(
+        emptyData({
+          bmMatches: matches,
+          finalsRoundSettings: [{ mode: 'bm', stage: 'finals', round: 'winners_r1', targetWins: 7 }],
+        }),
+        'bm',
+      ),
+      'BM Finals',
+    );
+
+    expectNumber(map, 'R3', 7);
+  });
+
   it('writes GP scores from points1/points2', () => {
     const matches = build24WinnersAndPlayoff('gp');
     const map = indexWrites(buildFinalsWrites(emptyData({ gpMatches: matches }), 'gp'), 'GP Finals');
@@ -611,16 +686,13 @@ describe('buildFinalsWrites — GP points and per-mode sheet targeting', () => {
 });
 
 /* ----------------------------------------------------------------- *
- * GP seed list is a formula spill — never written (regression for the bug
- * found during route integration: GP Finals B3 is an array-spill XLOOKUP with
- * ref="B3:B26", so B3:B26 are formula/spill cells, unlike BM/MR's typed seeds).
- * buildFinalsWrites returns writes (it never throws — the patcher does), so the
- * only way to lock this in at the unit level is to positively assert the seed
- * list is untouched for GP while it IS written/cleared for BM/MR.
+ * GP's original seed list is a qualification-derived spill. KO export replaces
+ * it with canonical bracket entrants because later qualification corrections
+ * must not rewrite a published KO seed.
  * ----------------------------------------------------------------- */
 
-describe('buildFinalsWrites — GP seed list is a formula spill (never written)', () => {
-  it('writes GP scores but emits no write to the B3:B26 seed list', () => {
+describe('buildFinalsWrites — GP seed list is canonical KO data', () => {
+  it('writes GP scores and replaces the B3:B26 spill with the bracket seed list', () => {
     const map = indexWrites(
       buildFinalsWrites(emptyData({ gpMatches: build24WinnersAndPlayoff('gp') }), 'gp'),
       'GP Finals',
@@ -628,19 +700,17 @@ describe('buildFinalsWrites — GP seed list is a formula spill (never written)'
     // Scores still land (GP uses points1/points2): winners_r1[1] bp8/bp9 -> V9/V10.
     expectNumber(map, 'V9', 4);
     expectNumber(map, 'V10', 1);
-    // The seed list (B3:B26) is a formula spill on GP and must stay untouched.
-    for (let row = 3; row <= 26; row++) expectUntouched(map, `B${row}`);
+    expect(map.get('B3')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B1' }));
+    expect(map.get('B26')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B24' }));
   });
 
-  it('does not clear the GP seed list on the no-finals path but still clears typed seeds', () => {
+  it('removes the GP seed list on the no-finals path and still clears typed seeds', () => {
     const map = indexWrites(buildFinalsWrites(emptyData(), 'gp'), 'GP Finals');
-    // The GP skip is scoped to the seed list — NOT an early return: the typed
-    // seed cells are still cleared so a blank GP bracket recomputes cleanly.
-    for (let row = 3; row <= 26; row++) expectUntouched(map, `B${row}`);
+    for (let row = 3; row <= 26; row++) expect(map.get(`B${row}`)).toEqual(expect.objectContaining({ op: 'strip' }));
     expectClear(map, 'S5'); // a typed winners_r1 seed cell is still cleared.
   });
 
-  it('contrast: BM/MR DO write the typed seed list while GP does not', () => {
+  it('writes seed lists for BM/MR and the canonical overwrite list for GP', () => {
     const bm = indexWrites(
       buildFinalsWrites(emptyData({ bmMatches: build24WinnersAndPlayoff('bm') }), 'bm'),
       'BM Finals',
@@ -650,7 +720,7 @@ describe('buildFinalsWrites — GP seed list is a formula spill (never written)'
       'GP Finals',
     );
     expectString(bm, 'B3', 'B1'); // BM seed list is a typed input.
-    expectUntouched(gp, 'B3'); // GP seed list is a formula spill.
+    expect(gp.get('B3')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B1' }));
   });
 });
 
@@ -693,6 +763,59 @@ describe('buildFinalsWrites — excess match index in a round', () => {
   });
 });
 
+describe('buildFinalsWrites — explicit Grand Final standings (#3038)', () => {
+  function grandFinalMatch(
+    player1: number,
+    player2: number,
+    winnerOverrideId: string,
+    round: 'grand_final' | 'grand_final_reset' = 'grand_final',
+  ): CdmMatch {
+    return {
+      ...mk({
+        matchNumber: round === 'grand_final' ? 16 : 17,
+        stage: 'finals',
+        round,
+        p1: player1,
+        p2: player2,
+        s1: 3,
+        s2: 3,
+      }),
+      winnerOverrideId,
+    };
+  }
+
+  it('writes BH3/BH4 for a tied upper-side Grand Final override', () => {
+    const match = grandFinalMatch(1, 2, 'bp1');
+    const map = indexWrites(
+      buildFinalsWrites(emptyData({ bmMatches: [...build24WinnersAndPlayoff(), match] }), 'bm'),
+      'BM Finals',
+    );
+    expect(map.get('BH3')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B1' }));
+    expect(map.get('BH4')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B2' }));
+  });
+
+  it('does not decide BH3/BH4 when the lower side wins Grand Final before reset', () => {
+    const match = grandFinalMatch(1, 2, 'bp2');
+    const map = indexWrites(
+      buildFinalsWrites(emptyData({ bmMatches: [...build24WinnersAndPlayoff(), match] }), 'bm'),
+      'BM Finals',
+    );
+    expectUntouched(map, 'BH3');
+    expectUntouched(map, 'BH4');
+  });
+
+  it('uses a tied reset override as the decisive BH3/BH4 result', () => {
+    const grandFinal = grandFinalMatch(1, 2, 'bp2');
+    const reset = grandFinalMatch(2, 1, 'bp2', 'grand_final_reset');
+    const map = indexWrites(
+      buildFinalsWrites(emptyData({ bmMatches: [...build24WinnersAndPlayoff(), grandFinal, reset] }), 'bm'),
+      'BM Finals',
+    );
+    expect(map.get('BH3')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B2' }));
+    expect(map.get('BH4')).toEqual(expect.objectContaining({ op: 'overwriteString', value: 'B1' }));
+  });
+});
+
 describe('buildFinalsWrites — playoff-only B1..12 ranking tiebreaks', () => {
   function qual(id: string, over: Partial<CdmModeQualification> = {}): CdmModeQualification {
     return {
@@ -726,5 +849,26 @@ describe('buildFinalsWrites — playoff-only B1..12 ranking tiebreaks', () => {
     expectString(map, 'B5', 'tieB'); // B-pos 3 (score30, points9)
     expectString(map, 'B6', 'tieA'); // B-pos 4 (score30, points5)
     expectString(map, 'B7', 'aNickLowScore'); // B-pos 5 (lowest score)
+  });
+});
+
+describe('buildFinalsWrites — MR/GP assignment headers (#3039)', () => {
+  it('writes the MR round track list to the matching Finals header', () => {
+    const matches = build24WinnersAndPlayoff();
+    const playoff = matches.find((match) => match.round === 'playoff_r1')!;
+    playoff.assignedCourses = ['MC1', 'DP1', 'GV1', 'BC1', 'MC2'];
+    const map = indexWrites(buildFinalsWrites(emptyData({ mrMatches: matches }), 'mr'), 'MR Finals');
+    expectString(map, 'E2', 'MC1 - DP1 - GV1 - BC1 - MC2');
+  });
+
+  it('keeps every divergent individual GP cup assignment in the one available header', () => {
+    const matches = build24WinnersAndPlayoff();
+    const round = matches.filter((match) => match.round === 'playoff_r1');
+    round[0].cup = 'Mushroom';
+    round[0].assignedCups = ['Mushroom'];
+    round[1].cup = 'Flower';
+    round[1].assignedCups = ['Flower'];
+    const map = indexWrites(buildFinalsWrites(emptyData({ gpMatches: matches }), 'gp'), 'GP Finals');
+    expectString(map, 'E2', `M${round[0].matchNumber}: Mushroom | M${round[1].matchNumber}: Flower`);
   });
 });

@@ -40,6 +40,10 @@ const RESTORED_TOURNAMENT_SELECT = {
   bmQualificationConfirmed: true,
   mrQualificationConfirmed: true,
   gpQualificationConfirmed: true,
+  bmFinalsSeedSnapshot: true,
+  mrFinalsSeedSnapshot: true,
+  gpFinalsSeedSnapshot: true,
+  qualificationScheduleMethod: true,
   publicModes: true,
   createdAt: true,
   updatedAt: true,
@@ -82,6 +86,25 @@ function normalizeDateFields(record: ArchivedRecord): ArchivedRecord {
     }
   }
   return normalized;
+}
+
+function remapFinalsSeedSnapshot(
+  value: unknown,
+  playerIds: Map<string, string>,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
+  if (!Array.isArray(value)) return Prisma.JsonNull;
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const row = { ...(entry as ArchivedRecord) };
+    if (typeof row.playerId !== 'string') return [];
+    row.playerId = remapPlayerId(row.playerId, playerIds);
+    if (row.player && typeof row.player === 'object') {
+      const player = { ...(row.player as ArchivedRecord) };
+      if (typeof player.id === 'string') player.id = remapPlayerId(player.id, playerIds);
+      row.player = player;
+    }
+    return [row];
+  }) as Prisma.InputJsonValue;
 }
 
 function normalizeNullableJsonFields(record: ArchivedRecord, fields: readonly string[]): ArchivedRecord {
@@ -264,6 +287,9 @@ function matchRows(
     if (row.suddenDeathWinnerId !== undefined && row.suddenDeathWinnerId !== null) {
       row.suddenDeathWinnerId = remapPlayerId(row.suddenDeathWinnerId, playerIds);
     }
+    if (row.winnerOverrideId !== undefined && row.winnerOverrideId !== null) {
+      row.winnerOverrideId = remapPlayerId(row.winnerOverrideId, playerIds);
+    }
     return normalizeNullableJsonFields(row, nullableJsonFields);
   });
 }
@@ -361,6 +387,10 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
           bmQualificationConfirmed: bundle.tournament.bmQualificationConfirmed,
           mrQualificationConfirmed: bundle.tournament.mrQualificationConfirmed,
           gpQualificationConfirmed: bundle.tournament.gpQualificationConfirmed,
+          bmFinalsSeedSnapshot: remapFinalsSeedSnapshot(bundle.tournament.bmFinalsSeedSnapshot, playerIds),
+          mrFinalsSeedSnapshot: remapFinalsSeedSnapshot(bundle.tournament.mrFinalsSeedSnapshot, playerIds),
+          gpFinalsSeedSnapshot: remapFinalsSeedSnapshot(bundle.tournament.gpFinalsSeedSnapshot, playerIds),
+          qualificationScheduleMethod: bundle.tournament.qualificationScheduleMethod === 'cdm' ? 'cdm' : 'circle',
           publicModes: [],
           createdAt: asDate(bundle.tournament.createdAt),
           updatedAt: new Date(),
@@ -375,6 +405,13 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     const bmMatches = matchRows(bundle.modes.bm.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.bmMatch);
     const mrMatches = matchRows(bundle.modes.mr.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.mrMatch);
     const gpMatches = matchRows(bundle.modes.gp.matches, tournamentId, playerIds, NULLABLE_JSON_FIELDS.gpMatch);
+    const finalsRoundSettings = (bundle.tournament.finalsRoundSettings ?? []).map((setting) => ({
+      tournamentId,
+      mode: setting.mode,
+      stage: setting.stage,
+      round: setting.round,
+      targetWins: setting.targetWins,
+    }));
     const ttEntries = ttEntryRows(bundle, tournamentId, playerIds);
     const ttPhaseRounds = ttPhaseRoundRows(bundle, tournamentId, playerIds);
     const ttSuddenDeathRounds = ttSuddenDeathRows(bundle, tournamentId, playerIds);
@@ -403,6 +440,9 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     );
     await createManyInD1Chunks('GP matches', gpMatches, (chunk) =>
       prisma.gPMatch.createMany({ data: chunk as unknown as Prisma.GPMatchCreateManyInput[] }),
+    );
+    await createManyInD1Chunks('finals round settings', finalsRoundSettings, (chunk) =>
+      prisma.finalsRoundSetting.createMany({ data: chunk }),
     );
     await createManyInD1Chunks('TA entries', ttEntries, (chunk) =>
       prisma.tTEntry.createMany({ data: chunk as unknown as Prisma.TTEntryCreateManyInput[] }),

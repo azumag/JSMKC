@@ -124,6 +124,7 @@ export const mrConfig: EventTypeConfig = {
   aggregatePlayerStats: (matches, playerId, calcResult) => {
     const stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of matches) {
+      if (m.isBye) continue;
       // Skip 0-0 matches: admin-cleared matches should not affect standings
       const isClearedMatch = m.score1 === 0 && m.score2 === 0;
       if (isClearedMatch) continue;

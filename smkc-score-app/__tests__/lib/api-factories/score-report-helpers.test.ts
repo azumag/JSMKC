@@ -27,6 +27,7 @@ import {
   recalculatePlayerStats,
   recalculatePlayersStats,
   bulkUpdateQualificationStats,
+  repairQualificationStats,
 } from '@/lib/api-factories/score-report-helpers';
 
 import { NextRequest } from 'next/server';
@@ -252,15 +253,12 @@ describe('Score Report Helpers', () => {
 
       await createScoreEntryLog(mockLogger, mockLogData);
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Failed to create score entry log',
-        {
-          error: expect.any(Error),
-          tournamentId: mockLogData.tournamentId,
-          matchId: mockLogData.matchId,
-          playerId: mockLogData.playerId,
-        }
-      );
+      expect(mockLogger.warn).toHaveBeenCalledWith('Failed to create score entry log', {
+        error: expect.any(Error),
+        tournamentId: mockLogData.tournamentId,
+        matchId: mockLogData.matchId,
+        playerId: mockLogData.playerId,
+      });
     });
   });
 
@@ -301,16 +299,13 @@ describe('Score Report Helpers', () => {
 
       await createCharacterUsageLog(mockLogger, mockCharacterData);
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Failed to create character usage log',
-        {
-          error: expect.any(Error),
-          tournamentId: mockCharacterData.tournamentId,
-          matchId: mockCharacterData.matchId,
-          playerId: mockCharacterData.playerId,
-          character: mockCharacterData.character,
-        }
-      );
+      expect(mockLogger.warn).toHaveBeenCalledWith('Failed to create character usage log', {
+        error: expect.any(Error),
+        tournamentId: mockCharacterData.tournamentId,
+        matchId: mockCharacterData.matchId,
+        playerId: mockCharacterData.playerId,
+        character: mockCharacterData.character,
+      });
     });
   });
 
@@ -323,11 +318,7 @@ describe('Score Report Helpers', () => {
      * Create a mock match record with player IDs and score fields.
      * Supports both score1/score2 (BM/MR) and points1/points2 (GP) patterns.
      */
-    function createMockMatch(
-      player1Id: string,
-      player2Id: string,
-      scores: Record<string, number>,
-    ) {
+    function createMockMatch(player1Id: string, player2Id: string, scores: Record<string, number>) {
       return { player1Id, player2Id, ...scores };
     }
 
@@ -336,8 +327,7 @@ describe('Score Report Helpers', () => {
       matchModel: 'testMatch',
       qualificationModel: 'bMQualification',
       scoreFields: { p1: 'score1', p2: 'score2' },
-      determineResult: (my, opp) =>
-        my > opp ? 'win' : my < opp ? 'loss' : 'tie',
+      determineResult: (my, opp) => (my > opp ? 'win' : my < opp ? 'loss' : 'tie'),
       useRoundDifferential: true,
     };
 
@@ -346,8 +336,7 @@ describe('Score Report Helpers', () => {
       matchModel: 'testMatch',
       qualificationModel: 'gPQualification',
       scoreFields: { p1: 'points1', p2: 'points2' },
-      determineResult: (my, opp) =>
-        my > opp ? 'win' : my < opp ? 'loss' : 'tie',
+      determineResult: (my, opp) => (my > opp ? 'win' : my < opp ? 'loss' : 'tie'),
       useRoundDifferential: false,
     };
 
@@ -389,10 +378,8 @@ describe('Score Report Helpers', () => {
           tournamentId: 'tourney-1',
           stage: 'qualification',
           completed: true,
-          OR: [
-            { player1Id: { in: ['p1'] } },
-            { player2Id: { in: ['p1'] } },
-          ],
+          isBye: false,
+          OR: [{ player1Id: { in: ['p1'] } }, { player2Id: { in: ['p1'] } }],
         },
       });
 
@@ -403,10 +390,10 @@ describe('Score Report Helpers', () => {
           wins: 1,
           ties: 1,
           losses: 1,
-          winRounds: 6,     // 3 + 1 + 2 (as player2 in 3rd match)
-          lossRounds: 6,    // 1 + 3 + 2
-          points: 0,        // 6 - 6 = 0 differential
-          score: 3,         // 1*2 + 1 = 3 match points
+          winRounds: 6, // 3 + 1 + 2 (as player2 in 3rd match)
+          lossRounds: 6, // 1 + 3 + 2
+          points: 0, // 6 - 6 = 0 differential
+          score: 3, // 1*2 + 1 = 3 match points
         },
       ]);
     });
@@ -427,8 +414,8 @@ describe('Score Report Helpers', () => {
           wins: 1,
           ties: 0,
           losses: 1,
-          points: 24,       // 18 + 6 = total driver points
-          score: 2,         // 1*2 + 0 = 2 match points
+          points: 24, // 18 + 6 = total driver points
+          score: 2, // 1*2 + 0 = 2 match points
         },
       ]);
     });
@@ -441,8 +428,14 @@ describe('Score Report Helpers', () => {
       expectBulkUpdateWith('BMQualification', [
         {
           playerId: 'p1',
-          mp: 0, wins: 0, ties: 0, losses: 0,
-          winRounds: 0, lossRounds: 0, points: 0, score: 0,
+          mp: 0,
+          wins: 0,
+          ties: 0,
+          losses: 0,
+          winRounds: 0,
+          lossRounds: 0,
+          points: 0,
+          score: 0,
         },
       ]);
     });
@@ -463,10 +456,10 @@ describe('Score Report Helpers', () => {
           wins: 1,
           losses: 1,
           ties: 0,
-          winRounds: 3,     // 3 + 0
-          lossRounds: 5,    // 1 + 4
-          points: -2,       // 3 - 5 = -2
-          score: 2,         // 1*2 + 0
+          winRounds: 3, // 3 + 0
+          lossRounds: 5, // 1 + 4
+          points: -2, // 3 - 5 = -2
+          score: 2, // 1*2 + 0
         },
       ]);
     });
@@ -494,8 +487,14 @@ describe('Score Report Helpers', () => {
       expectBulkUpdateWith('BMQualification', [
         {
           playerId: 'p1',
-          mp: 2, wins: 1, ties: 1, losses: 0,
-          winRounds: 5, lossRounds: 3, points: 2, score: 3,
+          mp: 2,
+          wins: 1,
+          ties: 1,
+          losses: 0,
+          winRounds: 5,
+          lossRounds: 3,
+          points: 2,
+          score: 3,
         },
       ]);
     });
@@ -513,10 +512,8 @@ describe('Score Report Helpers', () => {
           tournamentId: 'tourney-1',
           stage: 'qualification',
           completed: true,
-          OR: [
-            { player1Id: { in: ['p1', 'p2'] } },
-            { player2Id: { in: ['p1', 'p2'] } },
-          ],
+          isBye: false,
+          OR: [{ player1Id: { in: ['p1', 'p2'] } }, { player2Id: { in: ['p1', 'p2'] } }],
         },
       });
       expectBulkUpdateWith('BMQualification', [
@@ -545,26 +542,71 @@ describe('Score Report Helpers', () => {
       ]);
     });
 
+    it('repairs legacy BREAK-inflated qualification rows from competitive matches only', async () => {
+      const qualificationFindMany = jest.fn().mockResolvedValue([
+        {
+          playerId: 'p1',
+          mp: 2,
+          wins: 2,
+          ties: 0,
+          losses: 0,
+          winRounds: 7,
+          lossRounds: 1,
+          points: 6,
+          score: 4,
+        },
+      ]);
+      (mockPrisma as any).bMQualification = { findMany: qualificationFindMany };
+      mockFindMany.mockResolvedValue([createMockMatch('p1', 'p2', { score1: 3, score2: 1 })]);
+
+      const repaired = await repairQualificationStats(
+        {
+          eventTypeCode: 'bm',
+          matchModel: 'testMatch',
+          qualificationModel: 'bMQualification',
+          matchScoreFields: { p1: 'score1', p2: 'score2' },
+          calculateMatchResult: (score1, score2) => ({
+            winner: score1 > score2 ? 1 : score1 < score2 ? 2 : null,
+            result1: score1 > score2 ? 'win' : score1 < score2 ? 'loss' : 'tie',
+            result2: score1 > score2 ? 'loss' : score1 < score2 ? 'win' : 'tie',
+          }),
+        },
+        'tourney-1',
+      );
+
+      expect(repaired).toBe(1);
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tourney-1', stage: 'qualification', completed: true, isBye: false },
+      });
+      expectBulkUpdateWith('BMQualification', [
+        {
+          playerId: 'p1',
+          mp: 1,
+          wins: 1,
+          ties: 0,
+          losses: 0,
+          winRounds: 3,
+          lossRounds: 1,
+          points: 2,
+          score: 2,
+        },
+      ]);
+    });
+
     it('should throw for an unknown qualificationModel before issuing bulk SQL', async () => {
       await expect(
         bulkUpdateQualificationStats('unknownModel' as any, 'tourney-1', [{ playerId: 'p1' }]),
       ).rejects.toThrow(
-        'Unsupported qualification stats bulk update model: unknownModel. Supported: bMQualification, gPQualification, mRQualification'
+        'Unsupported qualification stats bulk update model: unknownModel. Supported: bMQualification, gPQualification, mRQualification',
       );
 
       expect(mockExecuteRawUnsafe).not.toHaveBeenCalled();
     });
 
     it('should use the MR qualification table for round-differential stats', async () => {
-      mockFindMany.mockResolvedValue([
-        createMockMatch('p1', 'p2', { score1: 3, score2: 1 }),
-      ]);
+      mockFindMany.mockResolvedValue([createMockMatch('p1', 'p2', { score1: 3, score2: 1 })]);
 
-      await recalculatePlayerStats(
-        { ...differentialConfig, qualificationModel: 'mRQualification' },
-        'tourney-1',
-        'p1',
-      );
+      await recalculatePlayerStats({ ...differentialConfig, qualificationModel: 'mRQualification' }, 'tourney-1', 'p1');
 
       expectBulkUpdateWith('MRQualification', [
         {

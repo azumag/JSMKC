@@ -106,6 +106,7 @@ export default function TournamentsPage() {
     dualReportEnabled: false,
     taPlayerSelfEdit: true,
     taBattleRoyaleMode: false,
+    qualificationScheduleMethod: 'circle' as 'circle' | 'cdm',
     debugMode: false,
   });
   const [error, setError] = useState('');
@@ -180,6 +181,7 @@ export default function TournamentsPage() {
           dualReportEnabled: false,
           taPlayerSelfEdit: true,
           taBattleRoyaleMode: false,
+          qualificationScheduleMethod: 'circle',
           debugMode: false,
         });
         setIsBattleRoyaleConfirmOpen(false);
@@ -317,6 +319,7 @@ export default function TournamentsPage() {
                     dualReportEnabled: false,
                     taPlayerSelfEdit: true,
                     taBattleRoyaleMode: false,
+                    qualificationScheduleMethod: 'circle',
                     debugMode: false,
                   })
                 }
@@ -394,6 +397,24 @@ export default function TournamentsPage() {
                         setFormData({ ...formData, taBattleRoyaleMode: mode === 'battle_royale' })
                       }
                     />
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="qualificationScheduleMethod">{t('qualificationScheduleMethod')}</Label>
+                    <select
+                      id="qualificationScheduleMethod"
+                      value={formData.qualificationScheduleMethod}
+                      onChange={(event) =>
+                        setFormData({
+                          ...formData,
+                          qualificationScheduleMethod: event.target.value as 'circle' | 'cdm',
+                        })
+                      }
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="circle">{t('qualificationScheduleCircle')}</option>
+                      <option value="cdm">{t('qualificationScheduleCdm')}</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">{t('qualificationScheduleMethodHelp')}</p>
                   </div>
                   <div className="flex items-center gap-3 pt-2">
                     <input

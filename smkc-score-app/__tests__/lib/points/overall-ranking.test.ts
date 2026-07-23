@@ -117,10 +117,7 @@ describe('Overall Ranking module', () => {
       mockPrisma.tTEntry.findMany.mockResolvedValue([]);
       getMockCalculateAllCourseScores().mockReturnValue(new Map());
 
-      const result = await calculateTAQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateTAQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.size).toBe(0);
     });
@@ -130,13 +127,10 @@ describe('Overall Ranking module', () => {
         { id: 'e1', playerId: 'p1', times: { course1: '1:30.00' }, player: PLAYER_P1 },
       ]);
       getMockCalculateAllCourseScores().mockReturnValue(
-        new Map([['e1', { courseScores: { course1: 500 }, qualificationPoints: 800 }]])
+        new Map([['e1', { courseScores: { course1: 500 }, qualificationPoints: 800 }]]),
       );
 
-      const result = await calculateTAQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateTAQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.get('p1')).toEqual({
         playerId: 'p1',
@@ -154,7 +148,7 @@ describe('Overall Ranking module', () => {
       expect(mockPrisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ stage: 'qualification' }),
-        })
+        }),
       );
     });
 
@@ -170,10 +164,7 @@ describe('Overall Ranking module', () => {
         ]),
       );
 
-      const result = await calculateTAQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID,
-      );
+      const result = await calculateTAQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.get('p1')?.totalPoints).toBe(0);
       expect(result.get('p2')?.totalPoints).toBe(0);
@@ -190,37 +181,25 @@ describe('Overall Ranking module', () => {
       mockPrisma.bMQualification.findMany.mockResolvedValue([]);
       getMockCalculateQualificationPointsFromMatches().mockReturnValue([]);
 
-      const result = await calculateBMQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateBMQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.size).toBe(0);
     });
 
     it('maps results by player ID', async () => {
-      mockPrisma.bMMatch.findMany.mockResolvedValueOnce([
-        { id: 'bm-real-1' },
-      ]);
+      mockPrisma.bMMatch.findMany.mockResolvedValueOnce([{ id: 'bm-real-1' }]);
       mockPrisma.bMQualification.findMany.mockResolvedValue([
         { playerId: 'p1', wins: 5, ties: 1, losses: 2, mp: 8, player: PLAYER_P1 },
       ]);
-      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
-        { playerId: 'p1', normalizedPoints: 700 },
-      ]);
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([{ playerId: 'p1', normalizedPoints: 700 }]);
 
-      const result = await calculateBMQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateBMQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.get('p1')?.normalizedPoints).toBe(700);
     });
 
     it('normalizes by each player actual match count instead of total participants', async () => {
-      mockPrisma.bMMatch.findMany.mockResolvedValueOnce([
-        { id: 'bm-real-1' },
-      ]);
+      mockPrisma.bMMatch.findMany.mockResolvedValueOnce([{ id: 'bm-real-1' }]);
       mockPrisma.bMQualification.findMany.mockResolvedValue([
         ...Array.from({ length: 12 }, (_, i) => ({
           playerId: `a${i + 1}`,
@@ -245,17 +224,15 @@ describe('Overall Ranking module', () => {
         records.map((record: { playerId: string; wins: number; ties: number; matchesPlayed: number }) => ({
           playerId: record.playerId,
           matchPoints: record.wins * 2 + record.ties,
-          normalizedPoints: record.matchesPlayed === 0
-            ? 0
-            : Math.round((1000 * (record.wins * 2 + record.ties)) / (2 * record.matchesPlayed)),
+          normalizedPoints:
+            record.matchesPlayed === 0
+              ? 0
+              : Math.round((1000 * (record.wins * 2 + record.ties)) / (2 * record.matchesPlayed)),
           rank: 1,
         })),
       );
 
-      const result = await calculateBMQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateBMQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.get('a1')?.normalizedPoints).toBe(1000);
       expect(getMockCalculateQualificationPointsFromMatches()).toHaveBeenCalledWith(
@@ -270,24 +247,17 @@ describe('Overall Ranking module', () => {
   // =========================================================================
   describe('calculateMRQualificationPointsFromDB', () => {
     it('delegates to calculateQualificationPoints with MR data', async () => {
-      mockPrisma.mRMatch.findMany.mockResolvedValueOnce([
-        { id: 'mr-real-1' },
-      ]);
+      mockPrisma.mRMatch.findMany.mockResolvedValueOnce([{ id: 'mr-real-1' }]);
       mockPrisma.mRQualification.findMany.mockResolvedValue([
         { playerId: 'p2', wins: 3, ties: 0, losses: 4, mp: 7, player: PLAYER_P2 },
       ]);
-      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
-        { playerId: 'p2', normalizedPoints: 400 },
-      ]);
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([{ playerId: 'p2', normalizedPoints: 400 }]);
 
-      const result = await calculateMRQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateMRQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.get('p2')?.normalizedPoints).toBe(400);
       expect(mockPrisma.mRQualification.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { tournamentId: TOURNAMENT_ID } })
+        expect.objectContaining({ where: { tournamentId: TOURNAMENT_ID } }),
       );
     });
   });
@@ -295,51 +265,39 @@ describe('Overall Ranking module', () => {
   // =========================================================================
   describe('calculateGPQualificationPointsFromDB', () => {
     it('delegates to calculateQualificationPoints with GP data', async () => {
-      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([
-        { id: 'gp-real-1' },
-      ]);
+      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([{ id: 'gp-real-1' }]);
       mockPrisma.gPQualification.findMany.mockResolvedValue([
         { playerId: 'p1', wins: 8, ties: 0, losses: 0, mp: 8, player: PLAYER_P1 },
       ]);
-      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
-        { playerId: 'p1', normalizedPoints: 1000 },
-      ]);
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([{ playerId: 'p1', normalizedPoints: 1000 }]);
 
-      const result = await calculateGPQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateGPQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.get('p1')?.normalizedPoints).toBe(1000);
     });
 
-    it('awards GP qualification points when only scoreable BREAK matches are completed', async () => {
-      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([
-        { id: 'gp-bye-1' },
-      ]);
+    it('excludes GP BREAK matches from qualification-point eligibility', async () => {
+      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([{ id: 'gp-bye-1' }]);
       mockPrisma.gPQualification.findMany.mockResolvedValue([
         { playerId: 'p1', wins: 1, ties: 0, losses: 0, mp: 1, points: 45, player: PLAYER_P1 },
       ]);
-      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
-        { playerId: 'p1', normalizedPoints: 1000 },
-      ]);
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([{ playerId: 'p1', normalizedPoints: 1000 }]);
 
-      const result = await calculateGPQualificationPointsFromDB(
-        mockPrisma as any,
-        TOURNAMENT_ID
-      );
+      const result = await calculateGPQualificationPointsFromDB(mockPrisma as any, TOURNAMENT_ID);
 
       expect(result.get('p1')?.normalizedPoints).toBe(1000);
-      expect(mockPrisma.gPMatch.findMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({
-          tournamentId: TOURNAMENT_ID,
-          stage: 'qualification',
-          completed: true,
+      expect(mockPrisma.gPMatch.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tournamentId: TOURNAMENT_ID,
+            stage: 'qualification',
+            completed: true,
+          }),
         }),
-      }));
-      expect(mockPrisma.gPMatch.findMany.mock.calls[0][0].where).not.toHaveProperty('isBye');
+      );
+      expect(mockPrisma.gPMatch.findMany.mock.calls[0][0].where).toHaveProperty('isBye', false);
       expect(mockPrisma.gPQualification.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { tournamentId: TOURNAMENT_ID } })
+        expect.objectContaining({ where: { tournamentId: TOURNAMENT_ID } }),
       );
     });
   });
@@ -374,9 +332,7 @@ describe('Overall Ranking module', () => {
     it('falls back to legacy "finals" stage when phase3 is empty', async () => {
       mockPrisma.tTEntry.findMany
         .mockResolvedValueOnce([]) // phase stages return nothing
-        .mockResolvedValueOnce([
-          { playerId: 'p1', eliminated: false, lives: 1, totalTime: 80000 },
-        ]);
+        .mockResolvedValueOnce([{ playerId: 'p1', eliminated: false, lives: 1, totalTime: 80000 }]);
       mockPrisma.tTPhaseRound.findMany.mockResolvedValueOnce([]);
 
       const positions = await getTAFinalsPositions(mockPrisma as any, TOURNAMENT_ID);
@@ -565,12 +521,22 @@ describe('Overall Ranking module', () => {
         { phase: 'phase1', roundNumber: 2, results: [{ playerId: 'p23', timeMs: 123000 }], eliminatedIds: ['p23'] },
         { phase: 'phase1', roundNumber: 3, results: [{ playerId: 'p22', timeMs: 122000 }], eliminatedIds: ['p22'] },
         { phase: 'phase1', roundNumber: 4, results: [{ playerId: 'p21', timeMs: 121000 }], eliminatedIds: ['p21'] },
-        { phase: 'phase1', roundNumber: 5, results: [{ playerId: 'p20-overflow', timeMs: 120000 }], eliminatedIds: ['p20-overflow'] },
+        {
+          phase: 'phase1',
+          roundNumber: 5,
+          results: [{ playerId: 'p20-overflow', timeMs: 120000 }],
+          eliminatedIds: ['p20-overflow'],
+        },
         { phase: 'phase2', roundNumber: 1, results: [{ playerId: 'p20', timeMs: 116000 }], eliminatedIds: ['p20'] },
         { phase: 'phase2', roundNumber: 2, results: [{ playerId: 'p19', timeMs: 115000 }], eliminatedIds: ['p19'] },
         { phase: 'phase2', roundNumber: 3, results: [{ playerId: 'p18', timeMs: 114000 }], eliminatedIds: ['p18'] },
         { phase: 'phase2', roundNumber: 4, results: [{ playerId: 'p17', timeMs: 113000 }], eliminatedIds: ['p17'] },
-        { phase: 'phase2', roundNumber: 5, results: [{ playerId: 'p16-overflow', timeMs: 112000 }], eliminatedIds: ['p16-overflow'] },
+        {
+          phase: 'phase2',
+          roundNumber: 5,
+          results: [{ playerId: 'p16-overflow', timeMs: 112000 }],
+          eliminatedIds: ['p16-overflow'],
+        },
         { phase: 'phase3', roundNumber: 1, results: [{ playerId: 'p2', timeMs: 111000 }], eliminatedIds: ['p2'] },
       ]);
 
@@ -596,7 +562,14 @@ describe('Overall Ranking module', () => {
   // =========================================================================
   describe('getMatchFinalsPositions', () => {
     /** Helper: build a completed finals match row for BM/MR */
-    function makeMatch(matchNumber: number, round: string, player1Id: string, player2Id: string, score1: number, score2: number) {
+    function makeMatch(
+      matchNumber: number,
+      round: string,
+      player1Id: string,
+      player2Id: string,
+      score1: number,
+      score2: number,
+    ) {
       return { matchNumber, round, player1Id, player2Id, score1, score2 };
     }
 
@@ -609,14 +582,12 @@ describe('Overall Ranking module', () => {
     });
 
     it('determines 1st and 2nd from Grand Final winner/loser (BM)', async () => {
-      mockPrisma.bMMatch.findMany.mockResolvedValue([
-        makeMatch(16, 'grand_final', 'p1', 'p2', 5, 3),
-      ]);
+      mockPrisma.bMMatch.findMany.mockResolvedValue([makeMatch(16, 'grand_final', 'p1', 'p2', 5, 3)]);
 
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
 
-      expect(positions.find(p => p.playerId === 'p1')).toEqual({ playerId: 'p1', position: 1 });
-      expect(positions.find(p => p.playerId === 'p2')).toEqual({ playerId: 'p2', position: 2 });
+      expect(positions.find((p) => p.playerId === 'p1')).toEqual({ playerId: 'p1', position: 1 });
+      expect(positions.find((p) => p.playerId === 'p2')).toEqual({ playerId: 'p2', position: 2 });
     });
 
     it('uses GF Reset result when both GF and GF Reset are completed (BM)', async () => {
@@ -628,40 +599,50 @@ describe('Overall Ranking module', () => {
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
 
       // Reset result overrides GF result for 1st/2nd
-      expect(positions.find(p => p.position === 1)?.playerId).toBe('p1');
-      expect(positions.find(p => p.position === 2)?.playerId).toBe('p2');
+      expect(positions.find((p) => p.position === 1)?.playerId).toBe('p1');
+      expect(positions.find((p) => p.position === 2)?.playerId).toBe('p2');
+    });
+
+    it('leaves first and second unresolved until a reset after the lower side wins Grand Final 1', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValue([
+        { ...makeMatch(16, 'grand_final', 'p1', 'p2', 0, 0), winnerOverrideId: 'p2' },
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
+
+      expect(positions.some((p) => p.position === 1 || p.position === 2)).toBe(false);
     });
 
     it('assigns 3rd to Losers Final loser (MR)', async () => {
       mockPrisma.mRMatch.findMany.mockResolvedValue([
         makeMatch(15, 'losers_final', 'p3', 'p4', 3, 0), // p3 wins, p4 gets 3rd
-        makeMatch(16, 'grand_final', 'p1', 'p3', 5, 2),  // p1 wins GF
+        makeMatch(16, 'grand_final', 'p1', 'p3', 5, 2), // p1 wins GF
       ]);
 
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'MR');
 
-      expect(positions.find(p => p.playerId === 'p4')?.position).toBe(3);
+      expect(positions.find((p) => p.playerId === 'p4')?.position).toBe(3);
     });
 
     it('assigns 4th to Losers SF loser, 5th to Losers R3 losers, 7th to Losers R2 losers', async () => {
       mockPrisma.bMMatch.findMany.mockResolvedValue([
         makeMatch(16, 'grand_final', 'p1', 'p2', 5, 3),
         makeMatch(15, 'losers_final', 'p2', 'p3', 5, 2), // p3 gets 3rd
-        makeMatch(14, 'losers_sf', 'p4', 'p5', 5, 1),   // p5 gets 4th
-        makeMatch(12, 'losers_r3', 'p6', 'p7', 5, 0),   // p7 gets 5th
-        makeMatch(13, 'losers_r3', 'p8', 'p9', 0, 5),   // p8 gets 5th
+        makeMatch(14, 'losers_sf', 'p4', 'p5', 5, 1), // p5 gets 4th
+        makeMatch(12, 'losers_r3', 'p6', 'p7', 5, 0), // p7 gets 5th
+        makeMatch(13, 'losers_r3', 'p8', 'p9', 0, 5), // p8 gets 5th
         makeMatch(10, 'losers_r2', 'p10', 'p11', 5, 2), // p11 gets 7th
         makeMatch(11, 'losers_r2', 'p12', 'p13', 1, 5), // p12 gets 7th
       ]);
 
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
 
-      expect(positions.find(p => p.playerId === 'p3')?.position).toBe(3);
-      expect(positions.find(p => p.playerId === 'p5')?.position).toBe(4);
-      expect(positions.find(p => p.playerId === 'p7')?.position).toBe(5);
-      expect(positions.find(p => p.playerId === 'p8')?.position).toBe(5);
-      expect(positions.find(p => p.playerId === 'p11')?.position).toBe(7);
-      expect(positions.find(p => p.playerId === 'p12')?.position).toBe(7);
+      expect(positions.find((p) => p.playerId === 'p3')?.position).toBe(3);
+      expect(positions.find((p) => p.playerId === 'p5')?.position).toBe(4);
+      expect(positions.find((p) => p.playerId === 'p7')?.position).toBe(5);
+      expect(positions.find((p) => p.playerId === 'p8')?.position).toBe(5);
+      expect(positions.find((p) => p.playerId === 'p11')?.position).toBe(7);
+      expect(positions.find((p) => p.playerId === 'p12')?.position).toBe(7);
     });
 
     it('maps 16-player finals and Top24 playoff losses to standard point bands', async () => {
@@ -679,12 +660,12 @@ describe('Overall Ranking module', () => {
 
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
 
-      expect(positions.find(p => p.playerId === 'p7')?.position).toBe(5);
-      expect(positions.find(p => p.playerId === 'p9')?.position).toBe(7);
-      expect(positions.find(p => p.playerId === 'p11')?.position).toBe(9);
-      expect(positions.find(p => p.playerId === 'p13')?.position).toBe(13);
-      expect(positions.find(p => p.playerId === 'p15')?.position).toBe(17);
-      expect(positions.find(p => p.playerId === 'p17')?.position).toBe(21);
+      expect(positions.find((p) => p.playerId === 'p7')?.position).toBe(5);
+      expect(positions.find((p) => p.playerId === 'p9')?.position).toBe(7);
+      expect(positions.find((p) => p.playerId === 'p11')?.position).toBe(9);
+      expect(positions.find((p) => p.playerId === 'p13')?.position).toBe(13);
+      expect(positions.find((p) => p.playerId === 'p15')?.position).toBe(17);
+      expect(positions.find((p) => p.playerId === 'p17')?.position).toBe(21);
     });
 
     it('uses points1/points2 for GP mode', async () => {
@@ -695,8 +676,26 @@ describe('Overall Ranking module', () => {
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'GP');
 
       expect(mockPrisma.gPMatch.findMany).toHaveBeenCalled();
-      expect(positions.find(p => p.playerId === 'p1')?.position).toBe(1);
-      expect(positions.find(p => p.playerId === 'p2')?.position).toBe(2);
+      expect(positions.find((p) => p.playerId === 'p1')?.position).toBe(1);
+      expect(positions.find((p) => p.playerId === 'p2')?.position).toBe(2);
+    });
+
+    it('uses a non-tied GP score before a stale sudden-death winner', async () => {
+      mockPrisma.gPMatch.findMany.mockResolvedValue([
+        {
+          matchNumber: 16,
+          round: 'grand_final',
+          player1Id: 'p1',
+          player2Id: 'p2',
+          points1: 2,
+          points2: 1,
+          suddenDeathWinnerId: 'p2',
+        },
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'GP');
+
+      expect(positions.find((p) => p.position === 1)?.playerId).toBe('p1');
     });
   });
 
@@ -715,10 +714,10 @@ describe('Overall Ranking module', () => {
       const p2Entry = { id: 'e2', playerId: 'p2', times: {}, player: PLAYER_P2 };
 
       mockPrisma.tTEntry.findMany
-        .mockResolvedValueOnce([p1Entry, p2Entry])  // call 1: collect player IDs
-        .mockResolvedValueOnce([p1Entry, p2Entry])  // call 2: calculateTAQualificationPointsFromDB
-        .mockResolvedValueOnce([])                   // call 3: getTAFinalsPositions phase3 (empty)
-        .mockResolvedValueOnce([]);                  // call 4: getTAFinalsPositions legacy fallback
+        .mockResolvedValueOnce([p1Entry, p2Entry]) // call 1: collect player IDs
+        .mockResolvedValueOnce([p1Entry, p2Entry]) // call 2: calculateTAQualificationPointsFromDB
+        .mockResolvedValueOnce([]) // call 3: getTAFinalsPositions phase3 (empty)
+        .mockResolvedValueOnce([]); // call 4: getTAFinalsPositions legacy fallback
       // No phase rounds in this scenario (no finals played)
       mockPrisma.tTPhaseRound.findMany.mockResolvedValue([]);
 
@@ -726,7 +725,7 @@ describe('Overall Ranking module', () => {
         new Map([
           ['e1', { courseScores: {}, qualificationPoints: p1Points }],
           ['e2', { courseScores: {}, qualificationPoints: p2Points }],
-        ])
+        ]),
       );
 
       mockPrisma.bMQualification.findMany.mockResolvedValue([]);
@@ -747,8 +746,8 @@ describe('Overall Ranking module', () => {
 
       const rankings = await calculateOverallRankings(mockPrisma as any, TOURNAMENT_ID);
 
-      const p1 = rankings.find(r => r.playerId === 'p1')!;
-      const p2 = rankings.find(r => r.playerId === 'p2')!;
+      const p1 = rankings.find((r) => r.playerId === 'p1')!;
+      const p2 = rankings.find((r) => r.playerId === 'p2')!;
 
       expect(p1.overallRank).toBe(1);
       expect(p1.taQualificationPoints).toBe(800);
@@ -762,7 +761,7 @@ describe('Overall Ranking module', () => {
       const rankings = await calculateOverallRankings(mockPrisma as any, TOURNAMENT_ID);
 
       // Both share rank 1 (1224 style — neither gets rank 2)
-      expect(rankings.every(r => r.overallRank === 1)).toBe(true);
+      expect(rankings.every((r) => r.overallRank === 1)).toBe(true);
     });
 
     it('includes player name and nickname in the result', async () => {
@@ -770,7 +769,7 @@ describe('Overall Ranking module', () => {
 
       const rankings = await calculateOverallRankings(mockPrisma as any, TOURNAMENT_ID);
 
-      const p1 = rankings.find(r => r.playerId === 'p1')!;
+      const p1 = rankings.find((r) => r.playerId === 'p1')!;
       expect(p1.playerName).toBe('Alice');
       expect(p1.playerNickname).toBe('alice');
     });
@@ -779,21 +778,23 @@ describe('Overall Ranking module', () => {
   // =========================================================================
   describe('getOverallRankings', () => {
     it('maps stored records to PlayerTournamentScore', async () => {
-      mockPrisma.tournamentPlayerScore.findMany.mockResolvedValue([{
-        playerId: 'p1',
-        player: PLAYER_P1,
-        taQualificationPoints: 800,
-        bmQualificationPoints: 700,
-        mrQualificationPoints: 600,
-        gpQualificationPoints: 500,
-        taFinalsPoints: 2000,
-        bmFinalsPoints: 1800,
-        mrFinalsPoints: 1600,
-        gpFinalsPoints: 1400,
-        totalPoints: 9400,
-        overallRank: 1,
-        updatedAt: new Date('2026-01-01T00:00:00Z'),
-      }]);
+      mockPrisma.tournamentPlayerScore.findMany.mockResolvedValue([
+        {
+          playerId: 'p1',
+          player: PLAYER_P1,
+          taQualificationPoints: 800,
+          bmQualificationPoints: 700,
+          mrQualificationPoints: 600,
+          gpQualificationPoints: 500,
+          taFinalsPoints: 2000,
+          bmFinalsPoints: 1800,
+          mrFinalsPoints: 1600,
+          gpFinalsPoints: 1400,
+          totalPoints: 9400,
+          overallRank: 1,
+          updatedAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ]);
 
       const rankings = await getOverallRankings(mockPrisma as any, TOURNAMENT_ID);
 
@@ -823,18 +824,34 @@ describe('Overall Ranking module', () => {
 
       const scores = [
         {
-          playerId: 'p1', playerName: 'Alice', playerNickname: 'alice',
-          taQualificationPoints: 800, bmQualificationPoints: 0,
-          mrQualificationPoints: 0, gpQualificationPoints: 0,
-          taFinalsPoints: 0, bmFinalsPoints: 0, mrFinalsPoints: 0, gpFinalsPoints: 0,
-          totalPoints: 800, overallRank: 1,
+          playerId: 'p1',
+          playerName: 'Alice',
+          playerNickname: 'alice',
+          taQualificationPoints: 800,
+          bmQualificationPoints: 0,
+          mrQualificationPoints: 0,
+          gpQualificationPoints: 0,
+          taFinalsPoints: 0,
+          bmFinalsPoints: 0,
+          mrFinalsPoints: 0,
+          gpFinalsPoints: 0,
+          totalPoints: 800,
+          overallRank: 1,
         },
         {
-          playerId: 'p2', playerName: 'Bob', playerNickname: 'bob',
-          taQualificationPoints: 600, bmQualificationPoints: 0,
-          mrQualificationPoints: 0, gpQualificationPoints: 0,
-          taFinalsPoints: 0, bmFinalsPoints: 0, mrFinalsPoints: 0, gpFinalsPoints: 0,
-          totalPoints: 600, overallRank: 2,
+          playerId: 'p2',
+          playerName: 'Bob',
+          playerNickname: 'bob',
+          taQualificationPoints: 600,
+          bmQualificationPoints: 0,
+          mrQualificationPoints: 0,
+          gpQualificationPoints: 0,
+          taFinalsPoints: 0,
+          bmFinalsPoints: 0,
+          mrFinalsPoints: 0,
+          gpFinalsPoints: 0,
+          totalPoints: 600,
+          overallRank: 2,
         },
       ];
 

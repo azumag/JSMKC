@@ -95,6 +95,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 frozenStages: true,
                 qualificationConfirmed: true,
                 taBattleRoyaleMode: true,
+                qualificationScheduleMethod: true,
                 debugMode: true,
                 createdAt: true,
                 updatedAt: true,
@@ -109,6 +110,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 frozenStages: true,
                 qualificationConfirmed: true,
                 taBattleRoyaleMode: true,
+                qualificationScheduleMethod: true,
                 debugMode: true,
                 createdAt: true,
                 updatedAt: true,
@@ -265,6 +267,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       // debugMode: enables auto-fill buttons; admin-only toggle (#746)
       debugMode,
       taBattleRoyaleMode,
+      qualificationScheduleMethod,
     } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
@@ -298,6 +301,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (taBattleRoyaleMode !== undefined && typeof taBattleRoyaleMode !== 'boolean') {
       return handleValidationError('taBattleRoyaleMode must be a boolean', 'taBattleRoyaleMode');
+    }
+    if (qualificationScheduleMethod !== undefined && !['circle', 'cdm'].includes(qualificationScheduleMethod)) {
+      return handleValidationError(
+        'qualificationScheduleMethod must be "circle" or "cdm"',
+        'qualificationScheduleMethod',
+      );
+    }
+    if (qualificationScheduleMethod !== undefined && status !== undefined) {
+      return handleValidationError(
+        'qualificationScheduleMethod and status cannot be changed in the same request',
+        'qualificationScheduleMethod',
+      );
     }
     if (taBattleRoyaleMode !== undefined && status !== undefined) {
       return handleValidationError(
@@ -350,13 +365,32 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       ...(publicModes !== undefined && { publicModes }),
       ...(debugMode !== undefined && { debugMode: debugMode === true }),
       ...(taBattleRoyaleMode !== undefined && { taBattleRoyaleMode }),
+      ...(qualificationScheduleMethod !== undefined && { qualificationScheduleMethod }),
     };
 
     let tournament;
     let reopenedFromCompleted = false;
     let previousTaBattleRoyaleMode: boolean | undefined;
     let modeChanged = false;
-    if (taBattleRoyaleMode !== undefined) {
+    if (qualificationScheduleMethod !== undefined) {
+      const current = await prisma.tournament.findUnique({
+        where: { id: resolvedId },
+        select: { qualificationScheduleMethod: true },
+      });
+      if (!current) return createErrorResponse('Tournament not found', 404);
+
+      if (current.qualificationScheduleMethod !== qualificationScheduleMethod) {
+        return createErrorResponse(
+          'Qualification schedule method is selected when the tournament is created and cannot be changed later',
+          409,
+          'QUALIFICATION_SCHEDULE_IMMUTABLE',
+        );
+      } else {
+        await prisma.tournament.update({ where: { id: resolvedId }, data: updateData });
+      }
+      tournament = await prisma.tournament.findUnique({ where: { id: resolvedId } });
+      if (!tournament) return createErrorResponse('Tournament not found', 404);
+    } else if (taBattleRoyaleMode !== undefined) {
       const current = await prisma.tournament.findUnique({
         where: { id: resolvedId },
         select: { status: true, taBattleRoyaleMode: true },
@@ -518,6 +552,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           bmQualificationConfirmed,
           mrQualificationConfirmed,
           gpQualificationConfirmed,
+          qualificationScheduleMethod,
           publicModes: reopenedFromCompleted ? [] : publicModes,
           ...(modeChanged && {
             action: 'update_ta_mode',

@@ -1,11 +1,12 @@
-import type { BracketMatch } from "@/types/bracket";
+import type { BracketMatch } from '@/types/bracket';
 
 export interface BracketWinnerMatch {
   completed: boolean;
-  player1Id: string;
-  player2Id: string;
+  player1Id: string | null;
+  player2Id: string | null;
   score1: number;
   score2: number;
+  winnerOverrideId?: string | null;
 }
 
 export type BracketWinnerResolver<TMatch extends BracketWinnerMatch> = (
@@ -21,6 +22,13 @@ export function resolveBracketWinnerFlags<TMatch extends BracketWinnerMatch>(
 ) {
   if (!match?.completed) {
     return { isWinner1: false, isWinner2: false };
+  }
+
+  if (match.winnerOverrideId) {
+    return {
+      isWinner1: match.winnerOverrideId === match.player1Id,
+      isWinner2: match.winnerOverrideId === match.player2Id,
+    };
   }
 
   /*

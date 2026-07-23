@@ -37,17 +37,17 @@ describe('Double Elimination Bracket Structure', () => {
       expect(matches).toHaveLength(17);
     });
 
-    it('uses the fixed two-group Upper R1 visual order when requested', () => {
+    it('uses the official two-group displayed-seed order when requested', () => {
       const r1 = generateBracketStructure(16, 2).filter((m) => m.round === 'winners_r1');
       expect(r1.map((m) => [m.player1Seed, m.player2Seed])).toEqual([
         [1, 16],
         [8, 9],
-        [5, 12],
         [4, 13],
+        [5, 12],
+        [2, 15],
+        [7, 10],
         [3, 14],
         [6, 11],
-        [7, 10],
-        [2, 15],
       ]);
     });
 
@@ -223,6 +223,37 @@ describe('Double Elimination Bracket Structure', () => {
       expect(losersFinal?.winnerGoesTo).toBe(16);
     });
 
+    it.each([
+      [8, 7, 14, 15],
+      [16, 15, 28, 29],
+    ])(
+      'routes the Winners Final loser to Lower Final P1 and the lower-side winner to P2 (%i players)',
+      (bracketSize, winnersFinalNumber, losersSemiFinalNumber, losersFinalNumber) => {
+        const matches = generateBracketStructure(bracketSize);
+        expect(getNextMatchInfo(matches, winnersFinalNumber, false)).toEqual({
+          nextMatchNumber: losersFinalNumber,
+          position: 1,
+        });
+        expect(getNextMatchInfo(matches, losersSemiFinalNumber, true)).toEqual({
+          nextMatchNumber: losersFinalNumber,
+          position: 2,
+        });
+      },
+    );
+
+    it.each([8, 16])('routes every upstream result to one distinct destination slot (%i players)', (bracketSize) => {
+      const matches = generateBracketStructure(bracketSize);
+      const destinations = matches
+        .flatMap((match) => [
+          match.winnerGoesTo ? getNextMatchInfo(matches, match.matchNumber, true) : null,
+          match.loserGoesTo ? getNextMatchInfo(matches, match.matchNumber, false) : null,
+        ])
+        .filter((destination): destination is { nextMatchNumber: number; position: number } => destination !== null);
+
+      const slotKeys = destinations.map(({ nextMatchNumber, position }) => `${nextMatchNumber}:${position}`);
+      expect(new Set(slotKeys).size).toBe(slotKeys.length);
+    });
+
     it('should create correct Grand Final structure', () => {
       const matches = generateBracketStructure(8);
       const grandFinal = matches.find((m) => m.round === 'grand_final');
@@ -377,7 +408,7 @@ describe('Double Elimination Bracket Structure', () => {
       const result = getNextMatchInfo(matches, 7, false);
       expect(result).toEqual({
         nextMatchNumber: 15,
-        position: 2,
+        position: 1,
       });
     });
 
@@ -524,21 +555,21 @@ describe('Double Elimination Bracket Structure', () => {
       expect(matches.map((m) => m.matchNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     });
 
-    describe('two-group fixed paper layout', () => {
-      it('uses the handwritten cross-group R1 pairings', () => {
+    describe('two-group official displayed-seed layout', () => {
+      it('uses the same official R1 seed pairings as the verified CDM layout', () => {
         const matches = generatePlayoffStructure(12, 2);
         expect(matches.filter((m) => m.round === 'playoff_r1').map((m) => [m.player1Seed, m.player2Seed])).toEqual([
-          [23, 22],
-          [19, 18],
-          [17, 20],
-          [21, 24],
+          [17, 24],
+          [20, 21],
+          [18, 23],
+          [19, 22],
         ]);
       });
 
-      it('routes the fixed BYE slots to Upper seeds 16/12/14/10', () => {
+      it('retains each R2 bye seed in the specified Upper slot', () => {
         const r2 = generatePlayoffStructure(12, 2).filter((m) => m.round === 'playoff_r2');
-        expect(r2.map((m) => m.player1Seed)).toEqual([13, 16, 15, 14]);
-        expect(r2.map((m) => m.advancesToUpperSeed)).toEqual([16, 12, 14, 10]);
+        expect(r2.map((m) => m.player1Seed)).toEqual([16, 13, 15, 14]);
+        expect(r2.map((m) => m.advancesToUpperSeed)).toEqual([16, 13, 15, 14]);
       });
     });
   });

@@ -26,7 +26,10 @@ jest.mock('@/lib/tournament-identifier', () => ({
 jest.mock('@/lib/optimistic-locking', () => ({
   updateMRMatchScore: jest.fn(),
   OptimisticLockError: class OptimisticLockError extends Error {
-    constructor(message: string, public currentVersion: number) {
+    constructor(
+      message: string,
+      public currentVersion: number,
+    ) {
       super(message);
       this.name = 'OptimisticLockError';
     }
@@ -35,14 +38,25 @@ jest.mock('@/lib/optimistic-locking', () => ({
 
 jest.mock('@/lib/error-handling', () => ({
   createSuccessResponse: jest.fn((data) => ({ data, status: 200 })),
-  createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
+  createErrorResponse: jest.fn((message, status, code, details) => ({
+    data: { error: message, code, details },
+    status,
+  })),
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
-  handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
-  handleAuthzError: jest.fn((message = 'Forbidden') => ({ data: { error: message, code: 'FORBIDDEN', details: undefined }, status: 403 })),
+  handleDatabaseError: jest.fn((error, operation) => ({
+    data: { error: `Database error: ${operation}` },
+    status: 500,
+  })),
+  handleAuthzError: jest.fn((message = 'Forbidden') => ({
+    data: { error: message, code: 'FORBIDDEN', details: undefined },
+    status: 403,
+  })),
 }));
 
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
-jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })) }));
+jest.mock('@/lib/logger', () => ({
+  createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })),
+}));
 jest.mock('@/lib/score-validation', () => ({
   validateMatchRaceScores: jest.requireActual('@/lib/score-validation').validateMatchRaceScores,
 }));
@@ -67,13 +81,8 @@ import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { updateMRMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/mr/match/[matchId]/route';
 
-const {
-  createSuccessResponse,
-  createErrorResponse,
-  handleValidationError,
-  handleDatabaseError,
-  handleAuthzError,
-} = jest.requireMock('@/lib/error-handling');
+const { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError, handleAuthzError } =
+  jest.requireMock('@/lib/error-handling');
 
 // Mock NextRequest class
 class MockNextRequest {
@@ -81,7 +90,9 @@ class MockNextRequest {
     private url: string,
     private body?: Record<string, unknown>,
   ) {}
-  async json() { return this.body; }
+  async json() {
+    return this.body;
+  }
 }
 
 describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => {
@@ -182,7 +193,13 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     it('should return 403 when user is not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        completed: true,
+        rounds: [1, 2, 3, 4],
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -197,7 +214,13 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     it('should return 403 when user is not admin', async () => {
       jest.mocked(auth).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        completed: true,
+        rounds: [1, 2, 3, 4],
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -221,7 +244,13 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        completed: true,
+        rounds: [1, 2, 3, 4],
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -230,9 +259,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         status: 200,
       });
       expect(createSuccessResponse).toHaveBeenCalledWith({ match: mockUpdatedMatch, version: 2 });
-      expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 3, 1, true, [1, 2, 3, 4]
-      );
+      expect(updateMRMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 3, 1, true, [1, 2, 3, 4]);
     });
 
     it('should persist scoresConfirmed when admin confirms a dual-report mismatch', async () => {
@@ -260,9 +287,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 3, 1, true, undefined, true,
-      );
+      expect(updateMRMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 3, 1, true, undefined, true);
     });
 
     it('should ignore scoresConfirmed false so admin PUT cannot un-confirm a match', async () => {
@@ -290,9 +315,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 3, 1, true, undefined,
-      );
+      expect(updateMRMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 3, 1, true, undefined);
     });
 
     // Success case - Updates match without rounds data
@@ -309,14 +332,16 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 2, score2: 2, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 2,
+        score2: 2,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 2, 2, undefined, undefined
-      );
+      expect(updateMRMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 2, 2, undefined, undefined);
     });
 
     // Success case - Updates incomplete match (2-2 draw)
@@ -333,7 +358,12 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 2, score2: 2, completed: false, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 2,
+        score2: 2,
+        completed: false,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -342,7 +372,10 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
     // Validation error case - Returns 400 when score1 is missing
     it('should return 400 when score1 is missing', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score2: 1, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score2: 1,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -355,7 +388,10 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
     // Validation error case - Returns 400 when score2 is missing
     it('should return 400 when score2 is missing', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -367,7 +403,10 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
     // Validation error case - Returns 400 when version is missing
     it('should return 400 when version is missing', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -380,7 +419,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
     // Validation error case - Returns 400 when version is not a number
     it('should return 400 when version is not a number', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, version: 'not-a-number' });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        version: 'not-a-number',
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -392,7 +435,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
     // Validation error case - Rejects out-of-range MR score
     it('should return 400 when score exceeds MAX_RACE_WIN_SCORE', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 5, score2: 0, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 5,
+        score2: 0,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -403,22 +450,13 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       expect(updateMRMatchScore).not.toHaveBeenCalled();
     });
 
-    it('should accept finals single-match updates that reach the round target', async () => {
-      const mockUpdatedMatch = {
-        id: 'm1',
-        round: 'winners_sf',
+    it('rejects finals updates so winner routing can only use the canonical finals endpoint', async () => {
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValueOnce({
         stage: 'finals',
-        score1: 7,
-        score2: 5,
-        completed: true,
-        player1: { id: 'p1', name: 'Player 1' },
-        player2: { id: 'p2', name: 'Player 2' },
-      };
-
-      (prisma.mRMatch.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'finals', round: 'winners_sf', tournamentId: 't1' })
-        .mockResolvedValueOnce(mockUpdatedMatch);
-      (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
+        round: 'winners_sf',
+        tournamentId: 't1',
+        isBye: false,
+      });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
         score1: 7,
@@ -431,15 +469,17 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const result = await PUT(request, { params });
 
       expect(result).toEqual({
-        data: { match: mockUpdatedMatch, version: 2 },
-        status: 200,
+        data: {
+          error: 'Use the finals endpoint to update a bracket match',
+          code: 'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+          details: undefined,
+        },
+        status: 409,
       });
-      expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 7, 5, true, []
-      );
+      expect(updateMRMatchScore).not.toHaveBeenCalled();
     });
 
-    it('should reject finals single-match updates below the round target', async () => {
+    it('rejects invalid finals scores before they can bypass the canonical routing path', async () => {
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValueOnce({
         stage: 'finals',
         round: 'winners_sf',
@@ -457,15 +497,23 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const result = await PUT(request, { params });
 
       expect(result).toEqual({
-        data: { error: 'One player must reach exactly 7 wins', field: 'scores' },
-        status: 400,
+        data: {
+          error: 'Use the finals endpoint to update a bracket match',
+          code: 'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+          details: undefined,
+        },
+        status: 409,
       });
       expect(updateMRMatchScore).not.toHaveBeenCalled();
     });
 
     // Validation error case - Rejects negative MR score
     it('should return 400 when score is negative', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: -1, score2: 4, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: -1,
+        score2: 4,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -480,7 +528,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     it('should return 409 when optimistic lock conflict occurs', async () => {
       (updateMRMatchScore as jest.Mock).mockRejectedValue(new OptimisticLockError('Version conflict', 5));
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, version: 2 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        version: 2,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -496,7 +548,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         'The match was modified by another user. Please refresh and try again.',
         409,
         'VERSION_CONFLICT',
-        { currentVersion: 5 }
+        { currentVersion: 5 },
       );
     });
 
@@ -504,7 +556,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     it('should return 500 when database operation fails', async () => {
       (updateMRMatchScore as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
@@ -529,14 +585,16 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 0, score2: 4, version: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 0,
+        score2: 4,
+        version: 1,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma, 'm1', 1, 0, 4, undefined, undefined
-      );
+      expect(updateMRMatchScore).toHaveBeenCalledWith(prisma, 'm1', 1, 0, 4, undefined, undefined);
     });
 
     // Edge case - Increments version correctly
@@ -553,7 +611,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 5 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, version: 4 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 3,
+        score2: 1,
+        version: 4,
+      });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 

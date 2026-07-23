@@ -193,6 +193,7 @@ describe('GET /api/tournaments/[id]', () => {
       expect(callArgs.select).toHaveProperty('slug', true);
       expect(callArgs.select).toHaveProperty('name', true);
       expect(callArgs.select).toHaveProperty('status', true);
+      expect(callArgs.select).toHaveProperty('qualificationScheduleMethod', true);
     });
 
     it('should retry transient summary read failures', async () => {
@@ -1192,5 +1193,36 @@ describe('TA mode update invariant', () => {
       expect.objectContaining({ success: false, code: 'TOURNAMENT_UPDATE_CONFLICT' }),
       { status: 409 },
     );
+  });
+});
+
+describe('qualification schedule method invariant', () => {
+  const { NextResponse } = jest.requireMock('next/server');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
+    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+    sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
+    jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+  });
+
+  async function put(body: unknown) {
+    await tournamentRoute.PUT(
+      new NextRequest('http://localhost:3000/api/tournaments/t1', { method: 'PUT', body: JSON.stringify(body) }),
+      { params: Promise.resolve({ id: 't1' }) },
+    );
+  }
+
+  it('rejects a schedule change after creation, before any qualification exists', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ qualificationScheduleMethod: 'circle' });
+
+    await put({ qualificationScheduleMethod: 'cdm' });
+
+    expect(NextResponse.json).toHaveBeenLastCalledWith(
+      expect.objectContaining({ success: false, code: 'QUALIFICATION_SCHEDULE_IMMUTABLE' }),
+      { status: 409 },
+    );
+    expect(prisma.tournament.updateMany).not.toHaveBeenCalled();
   });
 });

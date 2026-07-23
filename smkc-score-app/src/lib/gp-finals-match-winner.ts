@@ -1,4 +1,4 @@
-import type { Player } from "@/lib/types";
+import type { Player } from '@/lib/types';
 
 interface GpFinalsWinnerMatch {
   completed: boolean;
@@ -9,16 +9,19 @@ interface GpFinalsWinnerMatch {
   player1: Player;
   player2: Player;
   suddenDeathWinnerId?: string | null;
+  /** Explicitly selected by an administrator for a corrected result (#3038). */
+  winnerOverrideId?: string | null;
 }
 
 function gpFinalsScore(match: GpFinalsWinnerMatch, side: 1 | 2): number {
-  return side === 1
-    ? match.points1 ?? match.score1 ?? 0
-    : match.points2 ?? match.score2 ?? 0;
+  return side === 1 ? (match.points1 ?? match.score1 ?? 0) : (match.points2 ?? match.score2 ?? 0);
 }
 
 export function getGpFinalsMatchWinner(match: GpFinalsWinnerMatch): Player | null {
   if (!match.completed) return null;
+
+  if (match.winnerOverrideId === match.player1.id) return match.player1;
+  if (match.winnerOverrideId === match.player2.id) return match.player2;
 
   const score1 = gpFinalsScore(match, 1);
   const score2 = gpFinalsScore(match, 2);

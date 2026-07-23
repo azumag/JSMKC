@@ -70,10 +70,10 @@ describe('finals-slot-status', () => {
       expect(isFinalsSlotConfirmed(8, 1, matches, bracketStructure)).toBe(false);
     });
 
-    it('treats a completed match as fully confirmed regardless of routing', () => {
+    it('does not treat a completed row as confirmed when its upstream slots were never routed', () => {
       const matches = [makeMatch({ matchNumber: 5, round: 'winners_sf', completed: true })];
       const status = getFinalsSlotStatus(5, matches, bracketStructure);
-      expect(status).toEqual({ player1: false, player2: false });
+      expect(status).toEqual({ player1: true, player2: true });
     });
 
     it('does not depend on placeholder ID equality when a source match exists', () => {
@@ -111,6 +111,27 @@ describe('finals-slot-status', () => {
       expect(getFinalsSlotStatus(16, matches, bracketStructure)).toEqual({ player1: false, player2: true });
     });
 
+    it('resolves Lower Final P1 from Winners Final and P2 from the lower-side semi-final', () => {
+      const matches = [
+        makeMatch({ matchNumber: 7, round: 'winners_final', completed: true }),
+        makeMatch({ matchNumber: 14, round: 'losers_sf', completed: false }),
+        makeMatch({ matchNumber: 15, round: 'losers_final' }),
+      ];
+      expect(getFinalsSlotStatus(15, matches, bracketStructure)).toEqual({ player1: false, player2: true });
+
+      matches[1].completed = true;
+      expect(getFinalsSlotStatus(15, matches, bracketStructure)).toEqual({ player1: false, player2: false });
+    });
+
+    it('treats NULL slots as TBD even when a legacy row has a completed source', () => {
+      const matches = [
+        makeMatch({ matchNumber: 7, round: 'winners_final', completed: true }),
+        makeMatch({ matchNumber: 14, round: 'losers_sf', completed: true }),
+        makeMatch({ matchNumber: 15, round: 'losers_final', player1Id: null, player2Id: null }),
+      ];
+      expect(getFinalsSlotStatus(15, matches, bracketStructure)).toEqual({ player1: true, player2: true });
+    });
+
     it('returns fully TBD for a match number that is not present at all', () => {
       expect(getFinalsSlotStatus(999, [], bracketStructure)).toEqual({ player1: true, player2: true });
     });
@@ -129,19 +150,18 @@ describe('finals-slot-status', () => {
       });
     });
 
-    it("treats winners_qf slots as confirmed even in the 16-player bracket (mirrors the UI's isTBD, which special-cases the round name rather than bracket size)", () => {
-      // winners_qf in the 16-player bracket is actually routed from
-      // winners_r1 (not seeded), but the client-side isTBD this helper
-      // mirrors short-circuits on round name alone. Keeping parity here is
-      // intentional: diverging would let the edit guard disagree with what
-      // the bracket UI displays as TBD, which is worse for CDM operators
-      // than the underlying frontend quirk. Fixing that quirk is out of
-      // scope for issue #3017.
+    it('keeps 16-player winners_qf slots TBD until their winners_r1 sources complete', () => {
       const qf = bracketStructure.find((b) => b.round === 'winners_qf')!;
-      const matches = [makeMatch({ matchNumber: qf.matchNumber, round: 'winners_qf', completed: false })];
+      const sources = bracketStructure.filter((b) => b.winnerGoesTo === qf.matchNumber);
+      const matches = [
+        ...sources.map((source) =>
+          makeMatch({ matchNumber: source.matchNumber, round: 'winners_r1', completed: false }),
+        ),
+        makeMatch({ matchNumber: qf.matchNumber, round: 'winners_qf', completed: false }),
+      ];
       expect(getFinalsSlotStatus(qf.matchNumber, matches, bracketStructure)).toEqual({
-        player1: false,
-        player2: false,
+        player1: true,
+        player2: true,
       });
     });
 

@@ -24,12 +24,12 @@
  *     characterUsage: Array<MatchCharacterUsage>
  *   }
  */
-import { NextRequest } from "next/server";
+import { NextRequest } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { createLogger } from "@/lib/logger";
-import { createSuccessResponse, createErrorResponse, handleAuthError, handleAuthzError } from "@/lib/error-handling";
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { createLogger } from '@/lib/logger';
+import { createSuccessResponse, createErrorResponse, handleAuthError, handleAuthzError } from '@/lib/error-handling';
 
 /**
  * Interface representing a match record with the fields needed for
@@ -38,8 +38,8 @@ import { createSuccessResponse, createErrorResponse, handleAuthError, handleAuth
 interface MatchWithInfo {
   id: string;
   matchType?: string;
-  player1Id: string;
-  player2Id: string;
+  player1Id: string | null;
+  player2Id: string | null;
   completed: boolean;
   /** Score for player 1 (used in BM and MR) */
   score1?: number;
@@ -51,10 +51,7 @@ interface MatchWithInfo {
   points2?: number;
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('players-character-stats-api');
 
@@ -82,7 +79,7 @@ export async function GET(
 
     // Group character usages by match type (BM, MR, GP) to batch-fetch
     // the corresponding match records efficiently.
-    const usagesByType = new Map<string, Array<typeof characterUsages[0]>>();
+    const usagesByType = new Map<string, Array<(typeof characterUsages)[0]>>();
     for (const usage of characterUsages) {
       const type = usage.matchType;
       if (!usagesByType.has(type)) {
@@ -97,7 +94,7 @@ export async function GET(
 
     for (const [matchType, usages] of usagesByType.entries()) {
       // Deduplicate match IDs to minimize database queries
-      const matchIds = [...new Set(usages.map(u => u.matchId))];
+      const matchIds = [...new Set(usages.map((u) => u.matchId))];
 
       let matches: MatchWithInfo[] = [];
 
@@ -121,12 +118,15 @@ export async function GET(
     // Win determination logic differs by match type:
     //   - BM/MR: compare score1 vs score2 based on player position
     //   - GP: compare points1 vs points2 (driver points system)
-    const characterStats = new Map<string, {
-      character: string;
-      matchCount: number;
-      winCount: number;
-      winRate: number;
-    }>();
+    const characterStats = new Map<
+      string,
+      {
+        character: string;
+        matchCount: number;
+        winCount: number;
+        winRate: number;
+      }
+    >();
 
     for (const usage of characterUsages) {
       const char = usage.character;
@@ -171,8 +171,7 @@ export async function GET(
     }
 
     // Convert to array and sort by most-used character first
-    const statsArray = Array.from(characterStats.values())
-      .sort((a, b) => b.matchCount - a.matchCount);
+    const statsArray = Array.from(characterStats.values()).sort((a, b) => b.matchCount - a.matchCount);
 
     return createSuccessResponse({
       playerId,
@@ -185,10 +184,10 @@ export async function GET(
     });
   } catch (error) {
     // Log error with structured metadata including the player ID for debugging
-    logger.error("Failed to fetch character stats", {
+    logger.error('Failed to fetch character stats', {
       error,
       playerId: (await params).id,
     });
-    return createErrorResponse("Failed to fetch character stats", 500);
+    return createErrorResponse('Failed to fetch character stats', 500);
   }
 }

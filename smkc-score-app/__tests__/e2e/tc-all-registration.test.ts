@@ -67,16 +67,14 @@ describe('tc-all focused suite registration', () => {
 
     expect(rootPage.context).not.toHaveBeenCalled();
     // 0 = detected-and-resolved violations count; the mock env triggers no parallel violations.
-    await expect(assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta'))
-      .resolves.toBe(0);
+    await expect(assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta')).resolves.toBe(0);
     expect(rootPage.context).toHaveBeenCalled();
     expect(newPage).toHaveBeenCalled();
     expect(rootPage.goto).not.toHaveBeenCalled();
     expect(targetPage.bringToFront).toHaveBeenCalled();
-    expect(targetPage.goto).toHaveBeenCalledWith(
-      expect.stringContaining('/tournaments/tournament-1/ta'),
-      { waitUntil: 'domcontentloaded' },
-    );
+    expect(targetPage.goto).toHaveBeenCalledWith(expect.stringContaining('/tournaments/tournament-1/ta'), {
+      waitUntil: 'domcontentloaded',
+    });
     expect(targetPage.waitForFunction).toHaveBeenCalledWith(
       expect.any(Function),
       null, // Playwright arg param: null is the explicit contract in tc-archive.js; undefined has the same runtime effect but null is passed intentionally
@@ -103,7 +101,7 @@ describe('tc-all focused suite registration', () => {
     expect(source).toContain('hasSafeCopy=${hasSafeCopy}');
     expect(source).toContain('hasRecoveryLinks=${hasRecoveryLinks}');
 
-    expect(source).toContain("log('TC-2070B'");
+    expect(source).toMatch(/log\(\s*['"]TC-2070B['"]/);
     expect(source).toContain('/api/internal/vitals');
     expect(source).toContain("navigationType: 'navigate'");
     expect(source).toContain('vitalsStatus === 204');
@@ -112,10 +110,12 @@ describe('tc-all focused suite registration', () => {
   it('reports all TC-939 tab navigation failure reasons', () => {
     const { describeTc939TabNavigation } = requireFromApp('./e2e/lib/tc939-reporting');
 
-    expect(describeTc939TabNavigation({
-      spaMarker: null,
-      cleanClasses: false,
-    })).toEqual({
+    expect(
+      describeTc939TabNavigation({
+        spaMarker: null,
+        cleanClasses: false,
+      }),
+    ).toEqual({
       status: 'FAIL',
       detail: 'Tab click caused a full document reload / Hydrated tab className contains extra whitespace',
     });

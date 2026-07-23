@@ -27,9 +27,10 @@
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
  *   TC-724  GP combined standings tab shows rows with point headers and ascending ranks
- *   TC-729  GP odd-player BREAK stays scoreable as a solo driver-points cup
+ *   TC-729  GP odd-player BREAK is a schedule-only record
  *   TC-3033 GP manual bracket slot adjustment — same-match swap (issue #3017
  *           Phase 2 UI wiring; API-level, mirrors tc-bm.js TC-3027)
+ *   TC-3040 GP Top-24 barrage correction safely reconciles the affected Upper slot
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -56,6 +57,7 @@ const {
   apiGenerateGpFinals,
   apiFetchGpFinalsMatches,
   apiFetchGpFinalsState,
+  setupGp28PlayerFinals,
   apiUpdateTournament,
   apiJson,
   makeRacesP1Wins,
@@ -488,13 +490,13 @@ function makeSoloGpByeRaces(cup = 'Mushroom') {
   }));
 }
 
-/* ───────── TC-729: GP odd-player BREAK is a scoreable solo cup ───────── */
+/* ───────── TC-729: GP odd-player BREAK is schedule-only ───────── */
 async function runTc729(adminPage) {
   let tournamentId = null;
   const players = [];
   try {
-    tournamentId = await uiCreateTournament(adminPage, `GP Solo BREAK ${Date.now()}`, {
-      slug: `gp-solo-break-${Date.now()}`,
+    tournamentId = await uiCreateTournament(adminPage, `GP BREAK schedule ${Date.now()}`, {
+      slug: `gp-break-schedule-${Date.now()}`,
     });
     for (let i = 0; i < 3; i++) {
       const stamp = Date.now();
@@ -505,31 +507,29 @@ async function runTc729(adminPage) {
     const before = await apiFetchGp(adminPage, tournamentId);
     const bye = (before.matches || []).find((m) => m.isBye && m.player2Id === '__BREAK__');
     if (!bye) throw new Error('No GP BREAK match found for odd group');
-    if (!bye.cup) throw new Error('GP BREAK match has no assigned cup');
-
-    const soloRaces = makeSoloGpByeRaces(bye.cup);
-    // race 1: 1st place = 9 pts; races 2-5: 2nd place = 6 pts each.
-    const expectedPoints = 9 + 6 + 6 + 6 + 6;
-    const put = await apiPutGpQualScore(adminPage, tournamentId, bye.id, bye.cup, soloRaces);
+    const put = await apiPutGpQualScore(adminPage, tournamentId, bye.id, 'Mushroom', makeSoloGpByeRaces());
     const after = await apiFetchGp(adminPage, tournamentId);
     const updated = (after.matches || []).find((m) => m.id === bye.id);
     const qualification = (after.qualifications || []).find((q) => q.playerId === bye.player1Id);
 
-    const initiallyPending = bye.completed === false && (bye.points1 ?? 0) === 0 && (bye.points2 ?? 0) === 0;
-    const persisted =
-      put.s === 200 && updated?.completed === true && updated.points1 === expectedPoints && updated.points2 === 0;
-    const standingsUpdated = qualification?.points === expectedPoints && qualification?.wins === 1;
+    const scheduleRecord = bye.completed === true && bye.cup == null && bye.points1 === 45 && bye.points2 === 0;
+    const rejected = put.s === 409 && put.b?.error?.code === 'NON_COMPETITIVE_MATCH';
+    const unchanged = updated?.completed === true && updated.points1 === 45 && updated.points2 === 0;
+    const excludedFromStandings =
+      qualification?.mp === 0 && qualification?.wins === 0 && qualification?.points === 0 && qualification?.score === 0;
 
     log(
       'TC-729',
-      initiallyPending && persisted && standingsUpdated ? 'PASS' : 'FAIL',
-      !initiallyPending
-        ? `initial BREAK completed=${bye.completed} points=${bye.points1}-${bye.points2}`
-        : !persisted
-          ? `PUT=${put.s} updated=${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
-          : !standingsUpdated
-            ? `qualification points=${qualification?.points} wins=${qualification?.wins}`
-            : '',
+      scheduleRecord && rejected && unchanged && excludedFromStandings ? 'PASS' : 'FAIL',
+      !scheduleRecord
+        ? `initial BREAK completed=${bye.completed} cup=${bye.cup} points=${bye.points1}-${bye.points2}`
+        : !rejected
+          ? `PUT=${put.s} code=${put.b?.error?.code}`
+          : !unchanged
+            ? `updated=${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
+            : !excludedFromStandings
+              ? `qualification mp=${qualification?.mp} wins=${qualification?.wins} points=${qualification?.points} score=${qualification?.score}`
+              : '',
     );
   } catch (err) {
     log('TC-729', 'FAIL', err instanceof Error ? err.message : 'GP 729 failed');
@@ -1007,11 +1007,12 @@ async function runTc709(adminPage) {
 }
 
 /* ───────── TC-717: GP finals assigned-cup sequence enforcement ─────────
- * Every match in the same finals round must share one assignedCups sequence.
+ * Every match has a valid assignedCups sequence. Admin cup overrides may make
+ * valid sequences differ within the same finals round.
  * FT2 rounds must stay within three unique cups; FT3 rounds use five cups
  * with only the fifth allowed to repeat one of the first four cups. Legacy
- * divergent rows with tied valid sequence counts are normalized by the API to
- * the first sequence seen in that round. */
+ * missing or invalid legacy sequences are backfilled without rewriting valid
+ * per-match overrides. */
 async function runTc717(adminPage) {
   let setup = null;
   try {
@@ -1205,7 +1206,9 @@ async function runTc727(adminPage) {
  * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
  * 2. Clicking it stores topN=24 in sessionStorage
  * 3. Finals page renders PlayoffBracket with M1..M8
- * 4. Scoring all playoff_r2 matches sets playoffComplete=true
+ * 4. A new playoff match opens score-only by default, can switch to details,
+ *    and saves its FT1 cup score through the browser UI
+ * 5. Scoring all playoff_r2 matches sets playoffComplete=true
  * 5. Phase 2 creates the Upper Bracket and switches to finals phase */
 async function runTc715(adminPage) {
   let setup = null;
@@ -1287,7 +1290,43 @@ async function runTc715(adminPage) {
       finalsText.includes('プレーオフ');
     const hasM1 = finalsText.includes('M1');
 
-    for (let mn = 1; mn <= 4; mn++) {
+    /* #3037: playoff must use the same score-only default as every other new
+     * GP KO match. Exercise M1 through the real dialog, including the optional
+     * details toggle; the remaining matches stay API-driven to keep this
+     * Top-24 flow fast. */
+    const m1Card = adminPage.getByRole('button', { name: /Match 1:/ }).first();
+    await m1Card.waitFor({ state: 'visible', timeout: 10000 });
+    await m1Card.click();
+    const playoffDialog = adminPage.getByRole('dialog');
+    const score1Input = playoffDialog.locator('#gp-finals-simple-score1');
+    const score2Input = playoffDialog.locator('#gp-finals-simple-score2');
+    await score1Input.waitFor({ state: 'visible', timeout: 5000 });
+    const scoreOnlyDefault = (await score1Input.count()) === 1 && (await score2Input.count()) === 1;
+    await playoffDialog.getByRole('button', { name: /Record cup details|カップ内訳を記録/ }).click();
+    const detailsOptional = (await playoffDialog.getByTestId('gp-finals-cup-form-0').count()) === 1;
+    await playoffDialog.getByRole('button', { name: /Enter cup score only|取得カップ数のみ入力/ }).click();
+    await score1Input.fill('1');
+    await score2Input.fill('0');
+    const saveScore = playoffDialog.getByRole('button', { name: /^(Save Score|スコア保存)$/ });
+    const [uiSaveResponse] = await Promise.all([
+      adminPage.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/tournaments/${tournamentId}/gp/finals`) &&
+          response.request().method() === 'PUT',
+      ),
+      saveScore.click(),
+    ]);
+    const afterUiSave = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const m1AfterUiSave = afterUiSave.playoffMatches.find((m) => m.matchNumber === 1);
+    const playoffUiScoreSaved =
+      uiSaveResponse.ok() &&
+      m1AfterUiSave?.completed === true &&
+      m1AfterUiSave?.points1 === 1 &&
+      m1AfterUiSave?.points2 === 0 &&
+      m1AfterUiSave?.cupResults == null &&
+      m1AfterUiSave?.races == null;
+
+    for (let mn = 2; mn <= 4; mn++) {
       const state = await apiFetchGpFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R1 M${mn} missing`);
@@ -1324,6 +1363,9 @@ async function runTc715(adminPage) {
       playoffCreated &&
       hasPlayoffLabel &&
       hasM1 &&
+      scoreOnlyDefault &&
+      detailsOptional &&
+      playoffUiScoreSaved &&
       playoffComplete &&
       phase2ActionVisible &&
       phase2Ok &&
@@ -1339,15 +1381,21 @@ async function runTc715(adminPage) {
             ? 'Playoff label missing on finals page'
             : !hasM1
               ? 'M1 missing on playoff bracket'
-              : !playoffComplete
-                ? 'playoffComplete not true'
-                : !phase2ActionVisible
-                  ? 'Create Upper Bracket action missing after playoff completion'
-                  : !phase2Ok
-                    ? `Phase 2 failed (${phase2.s})`
-                    : !hasFinalsPhase
-                      ? 'Finals phase not shown after Upper Bracket creation'
-                      : '',
+              : !scoreOnlyDefault
+                ? 'playoff M1 did not open in score-only mode'
+                : !detailsOptional
+                  ? 'playoff M1 details toggle did not open a cup form'
+                  : !playoffUiScoreSaved
+                    ? `playoff M1 UI save failed: ${JSON.stringify(m1AfterUiSave)}`
+                    : !playoffComplete
+                      ? 'playoffComplete not true'
+                      : !phase2ActionVisible
+                        ? 'Create Upper Bracket action missing after playoff completion'
+                        : !phase2Ok
+                          ? `Phase 2 failed (${phase2.s})`
+                          : !hasFinalsPhase
+                            ? 'Finals phase not shown after Upper Bracket creation'
+                            : '',
     );
   } catch (err) {
     log('TC-715', 'FAIL', err instanceof Error ? err.message : 'GP 715 failed');
@@ -2246,6 +2294,100 @@ async function runTc722(adminPage) {
   }
 }
 
+/* ───────── TC-3040: Top-24 barrage correction → Upper-slot reconciliation ─────────
+ * The GP path uses the production score-only R2 endpoint (FT1). After Phase
+ * 2, a corrected R2 winner must appear as exactly one stale Upper opening
+ * slot in GET. PATCH repairs only that slot, and retrying the original plan
+ * remains idempotently in_sync despite its stale target version. */
+async function runTc3040(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupGp28PlayerFinals(adminPage, 'TC3040');
+    const { tournamentId } = setup;
+    const confirmed = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: true });
+    if (confirmed.s !== 200) throw new Error(`Failed to confirm qualification (${confirmed.s})`);
+
+    const playoff = await apiGenerateGpFinals(adminPage, tournamentId, 24);
+    if (playoff.s !== 200 && playoff.s !== 201) throw new Error(`Top-24 playoff generation failed (${playoff.s})`);
+    for (let matchNumber = 1; matchNumber <= 8; matchNumber++) {
+      const state = await apiFetchGpFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((row) => row.matchNumber === matchNumber);
+      if (!match) throw new Error(`Playoff M${matchNumber} missing`);
+      const score = await apiSetGpFinalsWinner(adminPage, tournamentId, match, 1);
+      if (score.s !== 200) throw new Error(`Playoff M${matchNumber} score failed (${score.s})`);
+    }
+    const phase2 = await apiGenerateGpFinals(adminPage, tournamentId, 24);
+    if (phase2.s !== 200 && phase2.s !== 201) throw new Error(`Phase 2 generation failed (${phase2.s})`);
+
+    const beforeCorrection = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const correctedR2 = beforeCorrection.playoffMatches.find((match) => match.matchNumber === 5);
+    if (!correctedR2) throw new Error('Playoff R2 M5 missing after Phase 2');
+    const correction = await apiJson(adminPage, `/api/tournaments/${tournamentId}/gp/finals`, {
+      method: 'PUT',
+      body: { matchId: correctedR2.id, score1: 0, score2: 1, expectedVersion: correctedR2.version, override: true },
+    });
+    if (correction.status !== 200) throw new Error(`R2 correction failed (${correction.status})`);
+
+    const stale = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const preview = stale.raw?.data?.upperReconciliation;
+    const changes = preview?.changes || [];
+    const change = changes.find((entry) => entry.sourceMatchId === correctedR2.id);
+    if (preview?.status !== 'stale' || changes.length !== 1 || !change) {
+      throw new Error(`Expected exactly one stale Upper slot, got ${JSON.stringify(preview)}`);
+    }
+    const beforeSlots = new Map(
+      stale.matches.map((match) => [
+        match.id,
+        { player1Id: match.player1Id, player2Id: match.player2Id, version: match.version },
+      ]),
+    );
+    const reconcile = await apiJson(adminPage, `/api/tournaments/${tournamentId}/gp/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const after = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const target = after.matches.find((match) => match.id === change.targetMatchId);
+    const targetBefore = beforeSlots.get(change.targetMatchId);
+    const oppositeKey = change.slot === 1 ? 'player2Id' : 'player1Id';
+    const targetSlotUpdated =
+      target &&
+      targetBefore &&
+      target[`player${change.slot}Id`] === change.afterPlayerId &&
+      target[oppositeKey] === targetBefore[oppositeKey] &&
+      target.version === targetBefore.version + 1;
+    const onlyTargetChanged = after.matches.every((match) => {
+      const before = beforeSlots.get(match.id);
+      if (!before) return false;
+      if (match.id === change.targetMatchId) return true;
+      return (
+        match.player1Id === before.player1Id && match.player2Id === before.player2Id && match.version === before.version
+      );
+    });
+    const retry = await apiJson(adminPage, `/api/tournaments/${tournamentId}/gp/finals`, {
+      method: 'PATCH',
+      body: { upperReconciliation: { expectedVersions: preview.expectedVersions } },
+    });
+    const ok =
+      reconcile.status === 200 &&
+      reconcile.body?.data?.status === 'updated' &&
+      targetSlotUpdated &&
+      onlyTargetChanged &&
+      retry.status === 200 &&
+      retry.body?.data?.status === 'in_sync';
+    log(
+      'TC-3040',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? ''
+        : `reconcile=${reconcile.status}/${reconcile.body?.data?.status} target=${targetSlotUpdated} onlyTarget=${onlyTargetChanged} retry=${retry.status}/${retry.body?.data?.status}`,
+    );
+  } catch (err) {
+    log('TC-3040', 'FAIL', err instanceof Error ? err.message : 'TC-3040 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -2277,6 +2419,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-703', fn: runTc703 },
       { name: 'TC-704', fn: runTc704 },
       { name: 'TC-3033', fn: runTc3033 },
+      { name: 'TC-3040', fn: runTc3040 },
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
@@ -2338,6 +2481,7 @@ module.exports = {
   runTc831,
   runTc832,
   runTc3033,
+  runTc3040,
   gpAssignedCupSequence,
   gpFinalsUpdatedMatchFromPutResult,
   gpFinalsTargetWins,

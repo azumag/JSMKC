@@ -51,6 +51,13 @@ import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/finals/route';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
+const completeFinalsSnapshot = Array.from({ length: 8 }, (_, index) => ({
+  seed: index + 1,
+  originalSeed: index + 1,
+  playerId: `seed-${index + 1}`,
+  player: { id: `seed-${index + 1}` },
+}));
+
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -86,7 +93,10 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
     sanitizeMock.sanitizeInput.mockImplementation((data) => data);
     /* finals-route GET hits prisma.tournament.findUnique defensively — provide
      * a non-null default so the existence-check doesn't short-circuit to 404. */
-    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 't1',
+      mrFinalsSeedSnapshot: completeFinalsSnapshot,
+    });
     /* PUT handler now calls model.count() to infer bracket size + findFirst() /
      * updateMany() / createMany() for bracket advancement. The auto-mock lacks
      * those members for mRMatch, so patch them in with safe defaults here. */
@@ -98,6 +108,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
     mrMatch.count.mockResolvedValue(17);
     mrMatch.findFirst.mockResolvedValue(null);
     mrMatch.createMany.mockResolvedValue({ count: 0 });
+    mrMatch.updateMany.mockResolvedValue({ count: 1 });
     (generateBracketStructure as jest.Mock).mockReturnValue([
       {
         matchNumber: 1,
@@ -121,6 +132,10 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
           matchNumber: 1,
           stage: 'finals',
           round: 'winners_qf',
+          player1Id: 'p1',
+          player2Id: 'p8',
+          player1Tbd: false,
+          player2Tbd: false,
           player1: { id: 'p1' },
           player2: { id: 'p8' },
         },
@@ -145,7 +160,15 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         playoffStructure: [],
         playoffSeededPlayers: [],
         playoffComplete: false,
+        upperReconciliation: {
+          status: 'unavailable',
+          changes: [],
+          affectedMatches: [],
+          blockers: [],
+          expectedVersions: {},
+        },
         qualificationConfirmed: false,
+        seededPlayers: completeFinalsSnapshot,
       });
       expect(result.status).toBe(200);
     });
@@ -210,20 +233,19 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
           mixedRound.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })),
         );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma.mRMatch as any).update = jest.fn().mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updateMock = (prisma.mRMatch as any).update as jest.Mock;
+      const updateMock = (prisma.mRMatch as any).updateMany as jest.Mock;
       /* mf3 (different array) and mf4 (empty) both need repair. mf1 and mf2
        * already agree with the canonical, so they must be skipped. */
       const updatedIds = updateMock.mock.calls.map(([arg]) => arg.where.id);
       expect(updatedIds.sort()).toEqual(['mf3', 'mf4']);
       for (const [arg] of updateMock.mock.calls) {
-        expect(arg.data).toEqual({ assignedCourses: dominant });
+        expect(arg.data).toEqual({ assignedCourses: dominant, version: { increment: 1 } });
       }
     });
 
@@ -248,14 +270,13 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
           nullRound.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })),
         );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma.mRMatch as any).update = jest.fn().mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updateMock = (prisma.mRMatch as any).update as jest.Mock;
+      const updateMock = (prisma.mRMatch as any).updateMany as jest.Mock;
       /* All four rows get the same canonical array. */
       expect(updateMock).toHaveBeenCalledTimes(4);
       const canonical = updateMock.mock.calls[0][0].data.assignedCourses;
@@ -296,14 +317,13 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
           normalized.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })),
         );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma.mRMatch as any).update = jest.fn();
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((prisma.mRMatch as any).update).not.toHaveBeenCalled();
+      expect((prisma.mRMatch as any).updateMany).not.toHaveBeenCalled();
     });
   });
 

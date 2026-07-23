@@ -59,6 +59,13 @@ import { configureNextResponseMock } from '../../../../../../helpers/next-respon
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const _jsonMock = NextResponseMock.NextResponse.json;
 
+const completeFinalsSnapshot = Array.from({ length: 8 }, (_, index) => ({
+  seed: index + 1,
+  originalSeed: index + 1,
+  playerId: `seed-${index + 1}`,
+  player: { id: `seed-${index + 1}` },
+}));
+
 class MockNextRequest {
   private _headers: Map<string, string>;
 
@@ -93,7 +100,10 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     (createLogger as jest.Mock).mockReturnValue(logger);
     /* finals-route defensive tournament existence check */
-    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      id: 't1',
+      gpFinalsSeedSnapshot: completeFinalsSnapshot,
+    });
     /* Patch in missing gPMatch members used by PUT bracket advancement. */
 
     const gpMatch = prisma.gPMatch as any;
@@ -121,6 +131,10 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
           matchNumber: 1,
           stage: 'finals',
           round: 'winners_qf',
+          player1Id: 'p1',
+          player2Id: 'p2',
+          player1Tbd: false,
+          player2Tbd: false,
           player1: { id: 'p1' },
           player2: { id: 'p2' },
         },
@@ -134,7 +148,12 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
       /* Playoff findMany query must return empty array for non-playoff tests */
-      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.gPMatch.findMany as jest.Mock).mockImplementation(
+        (args: { where?: { stage?: string }; select?: { completed?: boolean } }) =>
+          args?.where?.stage === 'finals' && args.select?.completed
+            ? Promise.resolve(mockMatches)
+            : Promise.resolve([]),
+      );
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
       const params = Promise.resolve({ id: 't1' });
@@ -150,7 +169,15 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         playoffStructure: [],
         playoffSeededPlayers: [],
         playoffComplete: false,
+        upperReconciliation: {
+          status: 'unavailable',
+          changes: [],
+          affectedMatches: [],
+          blockers: [],
+          expectedVersions: {},
+        },
         qualificationConfirmed: false,
+        seededPlayers: completeFinalsSnapshot,
       });
       expect(result.status).toBe(200);
       expect(paginate).toHaveBeenCalledWith(
@@ -239,7 +266,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(logger.error).toHaveBeenCalled();
     });
 
-    it('should backfill one shared assigned cup sequence per legacy playoff round', async () => {
+    it('should backfill each legacy playoff match without coalescing its individual cup', async () => {
       const mixedRoundMatches = [
         { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
         { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star', player1: {}, player2: {} },
@@ -247,8 +274,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         { id: 'pm4', matchNumber: 4, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
       ];
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValueOnce(mixedRoundMatches).mockResolvedValueOnce([]);
-
-      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 4 });
+      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -261,15 +287,25 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await GET(request, { params });
 
       expect(result.status).toBe(200);
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm1', 'pm2', 'pm3', 'pm4'] } },
-        data: { cup: 'Flower', assignedCups: ['Flower'] },
-      });
+      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(4);
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+      const assignments = new Map(
+        (prisma.gPMatch.updateMany as jest.Mock).mock.calls.map(([arg]) => [arg.where.id, arg.data.cup]),
+      );
+      expect(assignments).toEqual(
+        new Map([
+          ['pm1', 'Flower'],
+          ['pm2', 'Star'],
+          ['pm3', 'Flower'],
+          ['pm4', 'Flower'],
+        ]),
+      );
+      expect(
+        (prisma.gPMatch.updateMany as jest.Mock).mock.calls.every(([arg]) => arg.data.assignedCups.length === 1),
+      ).toBe(true);
     });
 
-    it('should issue one GP assigned cup backfill updateMany per divergent round', async () => {
+    it('should backfill legacy cups independently across playoff rounds', async () => {
       const mixedRoundMatches = [
         { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
         { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star', player1: {}, player2: {} },
@@ -277,8 +313,36 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         { id: 'pm4', matchNumber: 4, round: 'playoff_r2', cup: 'Special', player1: {}, player2: {} },
       ];
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValueOnce(mixedRoundMatches).mockResolvedValueOnce([]);
+      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
-      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (paginate as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
+      });
+      (generateBracketStructure as jest.Mock).mockReturnValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(4);
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+      expect((prisma.gPMatch.updateMany as jest.Mock).mock.calls.map(([arg]) => arg.data.cup).sort()).toEqual(
+        ['Flower', 'Mushroom', 'Special', 'Star'].sort(),
+      );
+    });
+
+    it('should keep returning finals data when an individual cup backfill update fails', async () => {
+      const mixedRoundMatches = [
+        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star', player1: {}, player2: {} },
+      ];
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValueOnce(mixedRoundMatches).mockResolvedValueOnce([]);
+
+      (prisma.gPMatch.updateMany as jest.Mock)
+        .mockRejectedValueOnce(new Error('D1 update failed'))
+        .mockResolvedValueOnce({ count: 1 });
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -292,46 +356,14 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.status).toBe(200);
       expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(2);
-      expect(prisma.gPMatch.updateMany).toHaveBeenNthCalledWith(1, {
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm1', 'pm2'] } },
-        data: { cup: 'Flower', assignedCups: ['Flower'] },
-      });
-      expect(prisma.gPMatch.updateMany).toHaveBeenNthCalledWith(2, {
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r2', id: { in: ['pm3', 'pm4'] } },
-        data: { cup: 'Mushroom', assignedCups: ['Mushroom'] },
-      });
-      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
-    });
-
-    it('should keep returning finals data when a round assigned cup backfill update fails', async () => {
-      const mixedRoundMatches = [
-        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
-        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star', player1: {}, player2: {} },
-      ];
-      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValueOnce(mixedRoundMatches).mockResolvedValueOnce([]);
-
-      (prisma.gPMatch.updateMany as jest.Mock).mockRejectedValueOnce(new Error('D1 update failed'));
-
-      (paginate as jest.Mock).mockResolvedValue({
-        data: [],
-        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
-      });
-      (generateBracketStructure as jest.Mock).mockReturnValue([]);
-
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
-
-      expect(result.status).toBe(200);
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith('Failed to backfill some GP assigned cup rounds', {
         failedWrites: 1,
-        totalWrites: 1,
+        totalWrites: 2,
         reasons: ['D1 update failed'],
       });
     });
 
-    it('should assign the same planned cup to every entirely null-cup playoff match in a round', async () => {
+    it('should backfill a valid cup sequence for every entirely null-cup playoff match', async () => {
       const nullRoundMatches = [1, 2, 3, 4].map((n) => ({
         id: `pm${n}`,
         matchNumber: n,
@@ -343,8 +375,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       // playoff fetch + legacy finals scan (no second playoff fetch — the route
       // now relies on the in-memory canonical map from the normalizer)
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValueOnce(nullRoundMatches).mockResolvedValueOnce([]);
-
-      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 4 });
+      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -358,24 +389,20 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.status).toBe(200);
 
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
-      const updateCall = (prisma.gPMatch.updateMany as jest.Mock).mock.calls[0][0];
-      expect(updateCall.where).toEqual({
-        tournamentId: 't1',
-        stage: 'playoff',
-        round: 'playoff_r1',
-        id: { in: ['pm1', 'pm2', 'pm3', 'pm4'] },
-      });
-      expect(updateCall.data.assignedCups).toHaveLength(1);
-      expect(updateCall.data.cup).toBe(updateCall.data.assignedCups[0]);
-      expect(['Mushroom', 'Flower', 'Star', 'Special']).toContain(updateCall.data.cup);
+      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(4);
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+      for (const [updateCall] of (prisma.gPMatch.updateMany as jest.Mock).mock.calls) {
+        expect(updateCall.data.assignedCups).toHaveLength(1);
+        expect(updateCall.data.cup).toBe(updateCall.data.assignedCups[0]);
+        expect(['Mushroom', 'Flower', 'Star', 'Special']).toContain(updateCall.data.cup);
+      }
     });
 
     /**
      * Already-normalized tournaments must not trigger any writes. Prevents
      * polling from churning the DB on every GET.
      */
-    it('should repair divergent playoff cup sequences even when each match is individually valid', async () => {
+    it('should preserve divergent valid individual playoff cup sequences', async () => {
       const normalized = [
         {
           id: 'pm1',
@@ -398,8 +425,6 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       ];
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValueOnce(normalized).mockResolvedValueOnce([]);
 
-      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 2 });
-
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
         meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
@@ -410,15 +435,11 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm2'] } },
-        data: { cup: 'Flower', assignedCups: ['Flower'] },
-      });
+      expect(prisma.gPMatch.updateMany).not.toHaveBeenCalled();
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
 
-    it('should tie-break equal valid playoff cup sequences by first seen order', async () => {
+    it('should preserve a different valid cup sequence without a refetch rewrite', async () => {
       const tiedSequences = [
         {
           id: 'pm1',
@@ -440,8 +461,6 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         },
       ];
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValueOnce(tiedSequences).mockResolvedValueOnce([]);
-
-      (prisma.gPMatch.updateMany as jest.Mock).mockResolvedValue({ count: 2 });
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -466,11 +485,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
           orderBy: { matchNumber: 'asc' },
         }),
       );
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledTimes(1);
-      expect(prisma.gPMatch.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', stage: 'playoff', round: 'playoff_r1', id: { in: ['pm2'] } },
-        data: { cup: 'Star', assignedCups: ['Star'] },
-      });
+      expect(prisma.gPMatch.updateMany).not.toHaveBeenCalled();
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
 

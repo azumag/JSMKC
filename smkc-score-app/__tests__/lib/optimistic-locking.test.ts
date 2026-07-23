@@ -176,7 +176,13 @@ describe('updateWithRetry', () => {
     });
 
     await expect(
-      updateWithRetry(mockPrisma, async () => { throw lockError; }, { maxRetries: 2 })
+      updateWithRetry(
+        mockPrisma,
+        async () => {
+          throw lockError;
+        },
+        { maxRetries: 2 },
+      ),
     ).rejects.toThrow(lockError);
   });
 
@@ -185,7 +191,10 @@ describe('updateWithRetry', () => {
 
     let callCount = 0;
     await expect(
-      updateWithRetry(mockPrisma, async () => { callCount++; throw otherError; })
+      updateWithRetry(mockPrisma, async () => {
+        callCount++;
+        throw otherError;
+      }),
     ).rejects.toThrow('Database connection failed');
 
     expect(callCount).toBe(1); // no retries
@@ -193,14 +202,24 @@ describe('updateWithRetry', () => {
 
   it('should succeed without retries on first attempt', async () => {
     let callCount = 0;
-    await updateWithRetry(mockPrisma, async () => { callCount++; return 'result'; });
+    await updateWithRetry(mockPrisma, async () => {
+      callCount++;
+      return 'result';
+    });
 
     expect(callCount).toBe(1);
   });
 
   it('should merge custom config with defaults', async () => {
     let callCount = 0;
-    await updateWithRetry(mockPrisma, async () => { callCount++; return 'result'; }, { maxRetries: 5 });
+    await updateWithRetry(
+      mockPrisma,
+      async () => {
+        callCount++;
+        return 'result';
+      },
+      { maxRetries: 5 },
+    );
 
     expect(callCount).toBe(1);
   });
@@ -223,11 +242,15 @@ describe('updateWithRetry', () => {
     let callCount = 0;
 
     try {
-      await updateWithRetry(mockPrisma, async () => {
-        callCount++;
-        if (callCount === 1) throw lockError;
-        return 'success';
-      }, { baseDelay: 10, maxDelay: 100 });
+      await updateWithRetry(
+        mockPrisma,
+        async () => {
+          callCount++;
+          if (callCount === 1) throw lockError;
+          return 'success';
+        },
+        { baseDelay: 10, maxDelay: 100 },
+      );
     } finally {
       setTimeoutSpy.mockRestore();
     }
@@ -281,15 +304,7 @@ describe('updateBMMatchScore', () => {
       { arena: 'Arena 2', winner: 2 },
     ];
 
-    const result = await updateBMMatchScore(
-      mockPrisma,
-      matchId,
-      expectedVersion,
-      3,
-      1,
-      true,
-      rounds
-    );
+    const result = await updateBMMatchScore(mockPrisma, matchId, expectedVersion, 3, 1, true, rounds);
 
     expect(result.version).toBe(2);
     expect(mockBMMatch.update).toHaveBeenCalledWith({
@@ -307,6 +322,17 @@ describe('updateBMMatchScore', () => {
     });
   });
 
+  it('clears only the explicit winner override for a bracket score edit', async () => {
+    mockBMMatch.update.mockResolvedValue({ version: 2 });
+
+    await updateBMMatchScore(mockPrisma, 'bm-match-123', 1, 3, 1, true, [], true);
+
+    expect(mockBMMatch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ winnerOverrideId: null }) }),
+    );
+    expect(mockBMMatch.update.mock.calls[0][0].data).not.toHaveProperty('suddenDeathWinnerId');
+  });
+
   it('should throw OptimisticLockError when bMMatch not found', async () => {
     const matchId = 'bm-match-123';
     const expectedVersion = 1;
@@ -315,9 +341,7 @@ describe('updateBMMatchScore', () => {
     mockBMMatch.update.mockRejectedValue(createP2025Error());
     mockBMMatch.findUnique.mockResolvedValue(null);
 
-    await expect(
-      updateBMMatchScore(mockPrisma, matchId, expectedVersion, 3, 1)
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateBMMatchScore(mockPrisma, matchId, expectedVersion, 3, 1)).rejects.toThrow(OptimisticLockError);
 
     try {
       await updateBMMatchScore(mockPrisma, matchId, expectedVersion, 3, 1);
@@ -340,9 +364,7 @@ describe('updateBMMatchScore', () => {
       version: 3,
     });
 
-    await expect(
-      updateBMMatchScore(mockPrisma, matchId, expectedVersion, 3, 1)
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateBMMatchScore(mockPrisma, matchId, expectedVersion, 3, 1)).rejects.toThrow(OptimisticLockError);
 
     try {
       await updateBMMatchScore(mockPrisma, matchId, expectedVersion, 3, 1);
@@ -419,15 +441,7 @@ describe('updateMRMatchScore', () => {
       { course: 'Course 2', winner: 2 },
     ];
 
-    const result = await updateMRMatchScore(
-      mockPrisma,
-      matchId,
-      expectedVersion,
-      5,
-      3,
-      false,
-      rounds
-    );
+    const result = await updateMRMatchScore(mockPrisma, matchId, expectedVersion, 5, 3, false, rounds);
 
     expect(result.version).toBe(3);
     expect(mockMRMatch.update).toHaveBeenCalledWith({
@@ -452,9 +466,7 @@ describe('updateMRMatchScore', () => {
     mockMRMatch.update.mockRejectedValue(createP2025Error());
     mockMRMatch.findUnique.mockResolvedValue(null);
 
-    await expect(
-      updateMRMatchScore(mockPrisma, matchId, expectedVersion, 5, 3)
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateMRMatchScore(mockPrisma, matchId, expectedVersion, 5, 3)).rejects.toThrow(OptimisticLockError);
   });
 
   it('should throw OptimisticLockError on mRMatch version mismatch', async () => {
@@ -467,9 +479,7 @@ describe('updateMRMatchScore', () => {
       version: 4,
     });
 
-    await expect(
-      updateMRMatchScore(mockPrisma, matchId, expectedVersion, 5, 3)
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateMRMatchScore(mockPrisma, matchId, expectedVersion, 5, 3)).rejects.toThrow(OptimisticLockError);
   });
 
   it('should handle without optional parameters', async () => {
@@ -542,15 +552,7 @@ describe('updateGPMatchScore', () => {
       },
     ];
 
-    const result = await updateGPMatchScore(
-      mockPrisma,
-      matchId,
-      expectedVersion,
-      10,
-      5,
-      true,
-      races
-    );
+    const result = await updateGPMatchScore(mockPrisma, matchId, expectedVersion, 10, 5, true, races);
 
     expect(result.version).toBe(1);
     expect(mockGPMatch.update).toHaveBeenCalledWith({
@@ -568,6 +570,18 @@ describe('updateGPMatchScore', () => {
     });
   });
 
+  it('clears both explicit and legacy sudden-death winners for a bracket score edit', async () => {
+    mockGPMatch.update.mockResolvedValue({ version: 1 });
+
+    await updateGPMatchScore(mockPrisma, 'gp-match-123', 0, 2, 1, true, [], true);
+
+    expect(mockGPMatch.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ winnerOverrideId: null, suddenDeathWinnerId: null }),
+      }),
+    );
+  });
+
   it('should throw OptimisticLockError when gPMatch not found', async () => {
     const matchId = 'gp-match-123';
     const expectedVersion = 1;
@@ -575,9 +589,7 @@ describe('updateGPMatchScore', () => {
     mockGPMatch.update.mockRejectedValue(createP2025Error());
     mockGPMatch.findUnique.mockResolvedValue(null);
 
-    await expect(
-      updateGPMatchScore(mockPrisma, matchId, expectedVersion, 10, 5)
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateGPMatchScore(mockPrisma, matchId, expectedVersion, 10, 5)).rejects.toThrow(OptimisticLockError);
   });
 
   it('should throw OptimisticLockError on gPMatch version mismatch', async () => {
@@ -590,9 +602,7 @@ describe('updateGPMatchScore', () => {
       version: 5,
     });
 
-    await expect(
-      updateGPMatchScore(mockPrisma, matchId, expectedVersion, 10, 5)
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateGPMatchScore(mockPrisma, matchId, expectedVersion, 10, 5)).rejects.toThrow(OptimisticLockError);
   });
 
   it('should handle without optional parameters', async () => {
@@ -619,6 +629,26 @@ describe('updateGPMatchScore', () => {
         points2: 5,
         completed: false,
         races: undefined,
+        version: { increment: 1 },
+      },
+    });
+  });
+
+  it('clears saved race detail when manual totals explicitly replace it', async () => {
+    const matchId = 'gp-match-123';
+    const expectedVersion = 1;
+
+    mockGPMatch.update.mockResolvedValue({ id: matchId, version: 2, points1: 10, points2: 5 });
+
+    await updateGPMatchScore(mockPrisma, matchId, expectedVersion, 10, 5, true, null);
+
+    expect(mockGPMatch.update).toHaveBeenCalledWith({
+      where: { id: matchId, version: expectedVersion },
+      data: {
+        points1: 10,
+        points2: 5,
+        completed: true,
+        races: Prisma.DbNull,
         version: { increment: 1 },
       },
     });
@@ -687,9 +717,7 @@ describe('updateTTEntry', () => {
     mockTTEntry.update.mockRejectedValue(createP2025Error());
     mockTTEntry.findUnique.mockResolvedValue(null);
 
-    await expect(
-      updateTTEntry(mockPrisma, entryId, expectedVersion, {})
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateTTEntry(mockPrisma, entryId, expectedVersion, {})).rejects.toThrow(OptimisticLockError);
   });
 
   it('should throw OptimisticLockError on tTEntry version mismatch', async () => {
@@ -702,9 +730,7 @@ describe('updateTTEntry', () => {
       version: 6,
     });
 
-    await expect(
-      updateTTEntry(mockPrisma, entryId, expectedVersion, {})
-    ).rejects.toThrow(OptimisticLockError);
+    await expect(updateTTEntry(mockPrisma, entryId, expectedVersion, {})).rejects.toThrow(OptimisticLockError);
   });
 
   it('should handle with empty data', async () => {

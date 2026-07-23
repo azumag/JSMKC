@@ -50,6 +50,7 @@ const createMockConfig = (overrides = {}) => ({
   auditAction: 'CREATE_BM_MATCH',
   auditTargetType: 'BMMatch',
   sanitizeBody: false,
+  getTargetWins: () => 5,
   ...overrides,
 });
 
@@ -171,9 +172,7 @@ describe('Finals Matches Route Factory', () => {
   it('should return 404 when player1 not found', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
     /* player1 not found, player2 found */
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce(mockPlayer2);
 
     const request = createPostRequest(validBody);
     const params = Promise.resolve({ id: 't1' });
@@ -188,9 +187,7 @@ describe('Finals Matches Route Factory', () => {
   it('should return 404 when player2 not found', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
     /* player1 found, player2 not found */
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(null);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(null);
 
     const request = createPostRequest(validBody);
     const params = Promise.resolve({ id: 't1' });
@@ -206,9 +203,7 @@ describe('Finals Matches Route Factory', () => {
   // Auto-increment: Sets matchNumber from last finals match + 1
   it('should auto-increment matchNumber from last finals match', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
     /* Last match has matchNumber 5, so new one should be 6 */
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue({ matchNumber: 5 });
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue({ ...mockCreatedMatch, matchNumber: 6 });
@@ -228,9 +223,7 @@ describe('Finals Matches Route Factory', () => {
   // Auto-increment: Sets matchNumber to 1 when no existing matches
   it('should set matchNumber to 1 when no existing finals matches', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
     /* No existing finals matches */
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue(mockCreatedMatch);
@@ -252,9 +245,7 @@ describe('Finals Matches Route Factory', () => {
   // Success: Creates match and returns 201 with match data
   it('should create match and return 201 with match data', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue(mockCreatedMatch);
 
@@ -271,9 +262,7 @@ describe('Finals Matches Route Factory', () => {
   // Include: Player1 and player2 relations are included in create query
   it('should include player1 and player2 relations in create query', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue(mockCreatedMatch);
 
@@ -297,9 +286,7 @@ describe('Finals Matches Route Factory', () => {
     const { POST: sanitizedPOST } = createFinalsMatchesHandlers(sanitizeConfig);
 
     jest.mocked(auth).mockResolvedValue(adminSession);
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue(mockCreatedMatch);
 
@@ -315,9 +302,7 @@ describe('Finals Matches Route Factory', () => {
   // No sanitize: Does not call sanitizeInput when sanitizeBody=false
   it('should not call sanitizeInput when sanitizeBody=false', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue(mockCreatedMatch);
 
@@ -334,9 +319,7 @@ describe('Finals Matches Route Factory', () => {
   // Audit: Succeeds even when audit log creation fails
   it('should succeed even when audit log creation fails', async () => {
     jest.mocked(auth).mockResolvedValue(adminSession);
-    (prisma.player.findUnique as jest.Mock)
-      .mockResolvedValueOnce(mockPlayer1)
-      .mockResolvedValueOnce(mockPlayer2);
+    (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(mockPlayer1).mockResolvedValueOnce(mockPlayer2);
     (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue(mockCreatedMatch);
     /* Audit log throws but should not break the main flow */

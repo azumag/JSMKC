@@ -62,7 +62,13 @@ import { auth } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/sanitize';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { recalculatePlayersStats } from '@/lib/api-factories/score-report-helpers';
-import { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError, handleAuthzError } from '@/lib/error-handling';
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleValidationError,
+  handleDatabaseError,
+  handleAuthzError,
+} from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 
@@ -162,6 +168,94 @@ describe('Match Detail Route Factory', () => {
         include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
       expect(mockResolveTournamentId).toHaveBeenCalledWith('tournament-1');
+    });
+
+    it.each([
+      ['bm', 'bmFinalsSeedSnapshot'],
+      ['mr', 'mrFinalsSeedSnapshot'],
+      ['gp', 'gpFinalsSeedSnapshot'],
+    ] as const)('returns immutable %s KO seeds from the tournament snapshot', async (qualMode, snapshotField) => {
+      const mockMatch = createMockMatch({
+        tournamentId: 'tournament-1',
+        stage: 'finals',
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        [snapshotField]: Array.from({ length: 24 }, (_, index) => {
+          const originalSeed = index + 1;
+          if (originalSeed === 17) {
+            return { seed: 16, originalSeed, playerId: 'player-1', player: mockMatch.player1 };
+          }
+          if (originalSeed === 2) {
+            return { seed: 2, originalSeed, playerId: 'player-2', player: mockMatch.player2 };
+          }
+          return {
+            seed: originalSeed,
+            originalSeed,
+            playerId: `player-${originalSeed + 100}`,
+            player: { id: `player-${originalSeed + 100}` },
+          };
+        }),
+      });
+
+      const { GET } = createMatchDetailHandlers({ ...baseConfig, qualMode });
+      await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockCreateSuccessResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ player1OriginalSeed: 17, player2OriginalSeed: 2 }),
+      );
+    });
+
+    it('rejects a legacy KO match whose manual slot adjustment has no seed snapshot', async () => {
+      const mockMatch = createMockMatch({
+        tournamentId: 'tournament-1',
+        stage: 'finals',
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+        slotOverrideAt: '2026-07-22T00:00:00.000Z',
+      });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).findMany.mockResolvedValue([mockMatch]);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ bmFinalsSeedSnapshot: null });
+
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
+      await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        expect.stringContaining('cannot be safely reconstructed'),
+        409,
+        'FINALS_SEED_REPAIR_REQUIRED',
+      );
+    });
+
+    it('rejects an incomplete legacy standard opening round without a seed snapshot', async () => {
+      const mockMatch = createMockMatch({
+        tournamentId: 'tournament-1',
+        stage: 'finals',
+        round: 'winners_qf',
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).findMany.mockResolvedValue([mockMatch]);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ bmFinalsSeedSnapshot: null });
+
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
+      await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        expect.stringContaining('cannot be safely reconstructed'),
+        409,
+        'FINALS_SEED_REPAIR_REQUIRED',
+      );
     });
 
     it('should allow unauthenticated GET by default', async () => {
@@ -295,16 +389,7 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(config.updateMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'match-123',
-        1,
-        3,
-        1,
-        true,
-        [],
-        mockRequestBody,
-      );
+      expect(config.updateMatchScore).toHaveBeenCalledWith(prisma, 'match-123', 1, 3, 1, true, [], mockRequestBody);
     });
 
     it('should return success response with match and version', async () => {
@@ -347,10 +432,7 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(mockHandleValidationError).toHaveBeenCalledWith(
-        'score1 and score2 are required',
-        'scores'
-      );
+      expect(mockHandleValidationError).toHaveBeenCalledWith('score1 and score2 are required', 'scores');
     });
 
     it('should return 400 when version is not a number', async () => {
@@ -366,10 +448,7 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(mockHandleValidationError).toHaveBeenCalledWith(
-        'version is required and must be a number',
-        'version'
-      );
+      expect(mockHandleValidationError).toHaveBeenCalledWith('version is required and must be a number', 'version');
     });
 
     it('should return 400 when validateScores rejects (qualification match)', async () => {
@@ -397,7 +476,7 @@ describe('Match Detail Route Factory', () => {
       expect(mockHandleValidationError).toHaveBeenCalledWith('Sum must be 4', 'scores');
     });
 
-    it('should use validateFinalsScores for finals matches', async () => {
+    it('rejects finals writes before a detail-route validator can bypass bracket routing', async () => {
       const mockRequestBody = { score1: 5, score2: 2, completed: true, version: 1, rounds: [] };
 
       // Stage = finals → validateFinalsScores is used instead of validateScores
@@ -421,13 +500,15 @@ describe('Match Detail Route Factory', () => {
       });
 
       expect(config.validateScores).not.toHaveBeenCalled();
-      expect(config.validateFinalsScores).toHaveBeenCalledWith(5, 2, {
-        round: 'winners_sf',
-        stage: 'finals',
-      });
+      expect(config.validateFinalsScores).not.toHaveBeenCalled();
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Use the finals endpoint to update a bracket match',
+        409,
+        'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+      );
     });
 
-    it('should prefer validateFinalsScoresWithMatch for finals matches', async () => {
+    it('rejects finals writes before a match-aware detail-route validator can run', async () => {
       const mockRequestBody = { score1: 7, score2: 5, completed: true, version: 1, rounds: [] };
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue({
@@ -456,14 +537,15 @@ describe('Match Detail Route Factory', () => {
 
       expect(config.validateScores).not.toHaveBeenCalled();
       expect(config.validateFinalsScores).not.toHaveBeenCalled();
-      expect(config.validateFinalsScoresWithMatch).toHaveBeenCalledWith(
-        7,
-        5,
-        expect.objectContaining({ stage: 'finals', round: 'winners_sf' }),
+      expect(config.validateFinalsScoresWithMatch).not.toHaveBeenCalled();
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Use the finals endpoint to update a bracket match',
+        409,
+        'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
       );
     });
 
-    it('should return 400 when validateFinalsScores rejects (finals match)', async () => {
+    it('rejects invalid finals writes through the canonical-route guard', async () => {
       const mockRequestBody = { score1: 4, score2: 3, completed: true, version: 1, rounds: [] };
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals', round: 'winners_sf' });
@@ -485,17 +567,22 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(config.validateFinalsScores).toHaveBeenCalledWith(4, 3, {
-        round: 'winners_sf',
-        stage: 'finals',
-      });
+      expect(config.validateFinalsScores).not.toHaveBeenCalled();
       expect(config.validateScores).not.toHaveBeenCalled();
-      expect(mockHandleValidationError).toHaveBeenCalledWith('One player must reach 5 wins', 'scores');
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Use the finals endpoint to update a bracket match',
+        409,
+        'FINALS_UPDATE_REQUIRES_CANONICAL_ROUTE',
+      );
       expect(config.updateMatchScore).not.toHaveBeenCalled();
     });
 
     it('should return 409 with currentVersion on OptimisticLockError', async () => {
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
+      (prisma.bMMatch as any).findUnique.mockResolvedValueOnce({
+        stage: 'qualification',
+        tournamentId: 'tournament-1',
+      });
 
       const config = {
         ...baseConfig,
@@ -516,12 +603,16 @@ describe('Match Detail Route Factory', () => {
         'The match was modified by another user. Please refresh and try again.',
         409,
         'VERSION_CONFLICT',
-        { currentVersion: 5 }
+        { currentVersion: 5 },
       );
     });
 
     it('should delegate database errors to handleDatabaseError on PUT', async () => {
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
+      (prisma.bMMatch as any).findUnique.mockResolvedValueOnce({
+        stage: 'qualification',
+        tournamentId: 'tournament-1',
+      });
 
       const config = {
         ...baseConfig,
@@ -611,8 +702,7 @@ describe('Match Detail Route Factory', () => {
       matchModel: 'bMMatch',
       qualificationModel: 'bMQualification',
       scoreFields: { p1: 'score1', p2: 'score2' },
-      determineResult: (a: number, b: number) =>
-        (a > b ? 'win' : a < b ? 'loss' : 'tie') as 'win' | 'loss' | 'tie',
+      determineResult: (a: number, b: number) => (a > b ? 'win' : a < b ? 'loss' : 'tie') as 'win' | 'loss' | 'tie',
       useRoundDifferential: true,
     };
     const qualificationMatch = {
@@ -630,9 +720,7 @@ describe('Match Detail Route Factory', () => {
       version: 1,
       rounds: [],
     };
-    const mockRecalc = recalculatePlayersStats as jest.MockedFunction<
-      typeof recalculatePlayersStats
-    >;
+    const mockRecalc = recalculatePlayersStats as jest.MockedFunction<typeof recalculatePlayersStats>;
 
     it('invokes recalculatePlayersStats for both players on qualification-stage PUT', async () => {
       /* Two findUnique calls: (1) stage lookup before updateMatchScore,
@@ -655,11 +743,7 @@ describe('Match Detail Route Factory', () => {
       });
 
       expect(mockRecalc).toHaveBeenCalledTimes(1);
-      expect(mockRecalc).toHaveBeenCalledWith(
-        recalcConfig,
-        'tournament-1',
-        ['player-1', 'player-2'],
-      );
+      expect(mockRecalc).toHaveBeenCalledWith(recalcConfig, 'tournament-1', ['player-1', 'player-2']);
     });
 
     it('does not invoke recalculatePlayersStats when recalcStatsConfig is omitted', async () => {

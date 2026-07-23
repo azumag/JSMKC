@@ -29,6 +29,7 @@ function makeArchive(): TournamentArchiveBundle {
       bmQualificationConfirmed: true,
       mrQualificationConfirmed: false,
       gpQualificationConfirmed: false,
+      bmFinalsSeedSnapshot: [{ seed: 16, originalSeed: 17, playerId: 'player-1', player }],
       createdAt: '2026-06-01T00:00:00.000Z',
       updatedAt: '2026-07-11T00:00:00.000Z',
     },
@@ -200,6 +201,7 @@ describe('restoreTournamentArchiveForReopen', () => {
       prisma.bMMatch,
       prisma.mRMatch,
       prisma.gPMatch,
+      prisma.finalsRoundSetting,
       prisma.tTEntry,
       prisma.tTPhaseRound,
       prisma.tournamentPlayerScore,
@@ -214,10 +216,12 @@ describe('restoreTournamentArchiveForReopen', () => {
     expect(prisma.tournament.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: 'archived-1',
+        bmFinalsSeedSnapshot: [expect.objectContaining({ seed: 16, originalSeed: 17, playerId: 'player-1' })],
         slug: 'archived-one',
         status: 'active',
         publicModes: [],
         bmQualificationConfirmed: true,
+        qualificationScheduleMethod: 'circle',
       }),
     });
     // The archive fixture's player still carries a legacy taHandicapSeconds
@@ -247,6 +251,28 @@ describe('restoreTournamentArchiveForReopen', () => {
       data: [expect.objectContaining({ tournamentId: 'archived-1', totalPoints: 2000 })],
     });
     expect(restored.tournament).toEqual({ id: 'archived-1', status: 'active', publicModes: [] });
+  });
+
+  it('restores the CDM schedule method from a current archive', async () => {
+    const archive = makeArchive();
+    archive.tournament.qualificationScheduleMethod = 'cdm';
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.tournament.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ qualificationScheduleMethod: 'cdm' }),
+    });
+  });
+
+  it('restores finals round settings so a reopened all-complete bracket exports its configured FT', async () => {
+    const archive = makeArchive();
+    archive.tournament.finalsRoundSettings = [{ mode: 'bm', stage: 'finals', round: 'winners_r1', targetWins: 7 }];
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.finalsRoundSetting.createMany).toHaveBeenCalledWith({
+      data: [{ tournamentId: 'archived-1', mode: 'bm', stage: 'finals', round: 'winners_r1', targetWins: 7 }],
+    });
   });
 
   it('normalizes nullable TA JSON columns to database NULL', async () => {

@@ -34,18 +34,17 @@
  * and xl/calcChain.xml is removed entirely. Every other (non-worksheet) part is
  * byte-identical — that fidelity is what the old SheetJS exporter could not keep.
  */
-import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
-import type { CdmCellWrite } from "@/lib/cdm-export/types";
-import { SheetXmlPatcher } from "@/lib/cdm-export/sheet-xml-patcher";
+import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
+import type { CdmCellWrite } from '@/lib/cdm-export/types';
+import { SheetXmlPatcher } from '@/lib/cdm-export/sheet-xml-patcher';
 
 /** OOXML part path of the worksheet relationship Content-Type filter. */
-const WORKSHEET_REL_TYPE =
-  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
+const WORKSHEET_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet';
 
-const CALC_CHAIN_PART = "xl/calcChain.xml";
-const WORKBOOK_PART = "xl/workbook.xml";
-const WORKBOOK_RELS_PART = "xl/_rels/workbook.xml.rels";
-const CONTENT_TYPES_PART = "[Content_Types].xml";
+const CALC_CHAIN_PART = 'xl/calcChain.xml';
+const WORKBOOK_PART = 'xl/workbook.xml';
+const WORKBOOK_RELS_PART = 'xl/_rels/workbook.xml.rels';
+const CONTENT_TYPES_PART = '[Content_Types].xml';
 
 /**
  * Resolve "<sheet name=..>" → "xl/worksheets/sheetN.xml" from the workbook
@@ -54,10 +53,7 @@ const CONTENT_TYPES_PART = "[Content_Types].xml";
  * workbook.xml.rels rather than hard-coding sheet numbers (which would silently
  * write into the wrong sheet if the template is ever re-saved).
  */
-function buildSheetPathResolver(
-  workbookXml: string,
-  workbookRelsXml: string
-): Map<string, string> {
+function buildSheetPathResolver(workbookXml: string, workbookRelsXml: string): Map<string, string> {
   // r:id → Target path (relative to xl/), worksheet relationships only.
   const ridToTarget = new Map<string, string>();
   // Each <Relationship Id=".." Type=".." Target=".."/>; attribute order varies,
@@ -66,10 +62,10 @@ function buildSheetPathResolver(
   let relMatch: RegExpExecArray | null;
   while ((relMatch = relRegex.exec(workbookRelsXml)) !== null) {
     const tag = relMatch[0];
-    const type = readAttr(tag, "Type");
+    const type = readAttr(tag, 'Type');
     if (type !== WORKSHEET_REL_TYPE) continue;
-    const id = readAttr(tag, "Id");
-    const target = readAttr(tag, "Target");
+    const id = readAttr(tag, 'Id');
+    const target = readAttr(tag, 'Target');
     if (id && target) {
       // Targets are relative to the xl/ folder, e.g. "worksheets/sheet1.xml".
       ridToTarget.set(id, `xl/${target}`);
@@ -82,8 +78,8 @@ function buildSheetPathResolver(
   let sheetMatch: RegExpExecArray | null;
   while ((sheetMatch = sheetRegex.exec(workbookXml)) !== null) {
     const tag = sheetMatch[0];
-    const name = readAttr(tag, "name");
-    const rid = readAttr(tag, "r:id");
+    const name = readAttr(tag, 'name');
+    const rid = readAttr(tag, 'r:id');
     if (name && rid) {
       const path = ridToTarget.get(rid);
       if (path) nameToPath.set(decodeXmlEntities(name), path);
@@ -96,7 +92,7 @@ function buildSheetPathResolver(
 function readAttr(tag: string, name: string): string | undefined {
   // Escape ":" in qualified names (r:id) for the RegExp; "\b" before a "r" in
   // "r:id" still anchors on the word boundary preceding it.
-  const re = new RegExp(`\\b${name.replace(/[:.]/g, "\\$&")}="([^"]*)"`);
+  const re = new RegExp(`\\b${name.replace(/[:.]/g, '\\$&')}="([^"]*)"`);
   const m = re.exec(tag);
   return m ? m[1] : undefined;
 }
@@ -104,11 +100,11 @@ function readAttr(tag: string, name: string): string | undefined {
 /** Decode the XML entities Excel may use inside a sheet name attribute. */
 function decodeXmlEntities(value: string): string {
   return value
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&"); // ampersand last so we do not double-decode
+    .replace(/&amp;/g, '&'); // ampersand last so we do not double-decode
 }
 
 /**
@@ -132,9 +128,9 @@ function ensureFullRecalculation(workbookXml: string): string {
   const calcPrMatch = /<calcPr\b([^>]*)\/>/.exec(workbookXml);
   if (calcPrMatch) {
     let attrs = calcPrMatch[1];
-    attrs = upsertAttr(attrs, "calcMode", "auto");
-    attrs = upsertAttr(attrs, "fullCalcOnLoad", "1");
-    attrs = upsertAttr(attrs, "forceFullCalc", "1");
+    attrs = upsertAttr(attrs, 'calcMode', 'auto');
+    attrs = upsertAttr(attrs, 'fullCalcOnLoad', '1');
+    attrs = upsertAttr(attrs, 'forceFullCalc', '1');
     const replacement = `<calcPr${attrs}/>`;
     return workbookXml.replace(calcPrMatch[0], replacement);
   }
@@ -142,9 +138,9 @@ function ensureFullRecalculation(workbookXml: string): string {
   // for calcPr (CT_Workbook orders sheets before calcPr). Falling back to just
   // before </workbook> would violate the element order and can make Excel
   // repair the file, so we anchor on </sheets> instead.
-  const sheetsClose = workbookXml.indexOf("</sheets>");
+  const sheetsClose = workbookXml.indexOf('</sheets>');
   if (sheetsClose !== -1) {
-    const insertAt = sheetsClose + "</sheets>".length;
+    const insertAt = sheetsClose + '</sheets>'.length;
     return (
       workbookXml.slice(0, insertAt) +
       '<calcPr calcId="0" calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/>' +
@@ -152,7 +148,7 @@ function ensureFullRecalculation(workbookXml: string): string {
     );
   }
   // Last resort: a workbook without <sheets> is malformed for our purposes.
-  throw new Error("patchCdmWorkbook: workbook.xml has neither <calcPr> nor <sheets>");
+  throw new Error('patchCdmWorkbook: workbook.xml has neither <calcPr> nor <sheets>');
 }
 
 /** A rectangular cell range (1-based, inclusive on both corners). */
@@ -177,6 +173,21 @@ function columnLettersToNumber(letters: string): number {
   return col;
 }
 
+function columnNumberToLetters(col: number): string {
+  let result = '';
+  let value = col;
+  while (value > 0) {
+    value -= 1;
+    result = String.fromCharCode(65 + (value % 26)) + result;
+    value = Math.floor(value / 26);
+  }
+  return result;
+}
+
+function spillAnchorRef(range: SpillRange): string {
+  return `${columnNumberToLetters(range.anchorCol)}${range.anchorRow}`;
+}
+
 /** Parse an A1 ref ("B12") into 1-based {col,row}, or undefined if malformed. */
 function parseA1(ref: string): { col: number; row: number } | undefined {
   const m = /^([A-Za-z]+)(\d+)$/.exec(ref);
@@ -186,7 +197,7 @@ function parseA1(ref: string): { col: number; row: number } | undefined {
 
 /** Parse an A1 range ("B2:B48" or a bare single cell "B2") into a CellRange. */
 function parseRange(ref: string): CellRange | undefined {
-  const [a, b] = ref.split(":");
+  const [a, b] = ref.split(':');
   const start = parseA1(a);
   const end = b ? parseA1(b) : start;
   if (!start || !end) return undefined;
@@ -225,7 +236,7 @@ function collectSpillRanges(sheetXml: string): SpillRange[] {
     const refMatch = /\bref="([^"]*)"/.exec(attrs);
     if (!refMatch) continue;
     const range = parseRange(refMatch[1]);
-    const anchor = parseA1(refMatch[1].split(":")[0]);
+    const anchor = parseA1(refMatch[1].split(':')[0]);
     if (range && anchor) {
       ranges.push({ ...range, anchorCol: anchor.col, anchorRow: anchor.row });
     }
@@ -237,25 +248,26 @@ function collectSpillRanges(sheetXml: string): SpillRange[] {
 function isWithinAnySpillChild(ref: string, ranges: SpillRange[]): boolean {
   const cell = parseA1(ref);
   if (!cell) return false;
-  return ranges.some((range) =>
-    cell.col >= range.minCol &&
-    cell.col <= range.maxCol &&
-    cell.row >= range.minRow &&
-    cell.row <= range.maxRow &&
-    (cell.col !== range.anchorCol || cell.row !== range.anchorRow)
+  return ranges.some(
+    (range) =>
+      cell.col >= range.minCol &&
+      cell.col <= range.maxCol &&
+      cell.row >= range.minRow &&
+      cell.row <= range.maxRow &&
+      (cell.col !== range.anchorCol || cell.row !== range.anchorRow),
   );
 }
 
 /** Exhaustive classification: adding a future value op must update this guard. */
-function writesCellValue(op: CdmCellWrite["op"]): boolean {
+function writesCellValue(op: CdmCellWrite['op']): boolean {
   switch (op) {
-    case "number":
-    case "inlineString":
-    case "overwriteNumber":
-    case "overwriteString":
+    case 'number':
+    case 'inlineString':
+    case 'overwriteNumber':
+    case 'overwriteString':
       return true;
-    case "clearValue":
-    case "strip":
+    case 'clearValue':
+    case 'strip':
       return false;
     default: {
       const exhaustive: never = op;
@@ -270,12 +282,7 @@ function isWithinAnyRange(ref: string, ranges: CellRange[]): boolean {
   const cell = parseA1(ref);
   if (!cell) return false;
   for (const r of ranges) {
-    if (
-      cell.col >= r.minCol &&
-      cell.col <= r.maxCol &&
-      cell.row >= r.minRow &&
-      cell.row <= r.maxRow
-    ) {
+    if (cell.col >= r.minCol && cell.col <= r.maxCol && cell.row >= r.minRow && cell.row <= r.maxRow) {
       return true;
     }
   }
@@ -300,17 +307,14 @@ function isWithinAnyRange(ref: string, ranges: CellRange[]): boolean {
  *     spill range also blocks Excel from re-spilling fresh values on open, must
  *     be cleared so the anchor can repopulate them. See {@link collectSpillRanges}.
  */
-function stripFormulaCachedValues(
-  sheetXml: string,
-  spillRanges: SpillRange[] = collectSpillRanges(sheetXml),
-): string {
+function stripFormulaCachedValues(sheetXml: string, spillRanges: SpillRange[] = collectSpillRanges(sheetXml)): string {
   // Match one <c> element at a time. The self-closing form is listed FIRST and
   // both forms use a lazy attribute run (`[^>]*?`); otherwise a self-closing cell
   // (<c r=".." t="s"/>) would greedily swallow the following cells up to the next
   // </c>, and the per-cell ref/spill test below would then key off only the
   // leading cell — silently skipping any spill child caught inside that span.
   return sheetXml.replace(/<c\b[^>]*?\/>|<c\b[^>]*?>[\s\S]*?<\/c>/g, (cell) => {
-    if (!cell.includes("<f")) {
+    if (!cell.includes('<f')) {
       // Not a formula cell. Only strip it when it is a spill child of some
       // dynamic-array anchor; a true input/static cell must keep its value.
       // The cell's own address is the first r="…" in the element (a `ref="…"`
@@ -320,8 +324,8 @@ function stripFormulaCachedValues(
     }
     return (
       cell
-        .replace(/<v(?:\s*\/|>[\s\S]*?<\/v>)/g, "")
-        .replace(/<is>[\s\S]*?<\/is>/g, "")
+        .replace(/<v(?:\s*\/|>[\s\S]*?<\/v>)/g, '')
+        .replace(/<is>[\s\S]*?<\/is>/g, '')
         // Drop the now-stale cached-value type from the <c> opening tag. The `t`
         // attribute records the type of the cached <v>/<is> we just removed; the
         // alternation mirrors those value forms (t="str"/"e"/"b"/"s" pair with the
@@ -343,7 +347,7 @@ function stripFormulaCachedValues(
         // open and re-establish the spill. Only the attribute run before the
         // first '>' is touched, so the formula's own <f t="array"> marker — which
         // lives after that '>' and is never in this alternation — is preserved.
-        .replace(/^(<c\b[^>]*?)\s+t="(?:str|e|b|s|inlineStr)"/, "$1")
+        .replace(/^(<c\b[^>]*?)\s+t="(?:str|e|b|s|inlineStr)"/, '$1')
         // Drop `vm` (value metadata) too. On a rich-value cell `vm` points into
         // xl/richData at the cached linked value (the CDM2025 country flags). The
         // value we just removed is gone, but a surviving `vm` still resolves to
@@ -351,7 +355,7 @@ function stripFormulaCachedValues(
         // children on Main Hub (T3:T12). Stripping it makes the cell truly blank;
         // a real recalc re-establishes `vm` from the recomputed result. `cm`
         // (the dynamic-array marker) is intentionally KEPT so anchors still spill.
-        .replace(/^(<c\b[^>]*?)\s+vm="\d+"/, "$1")
+        .replace(/^(<c\b[^>]*?)\s+vm="\d+"/, '$1')
     );
   });
 }
@@ -363,10 +367,7 @@ function stripFormulaCachedValues(
  */
 function removeCalcChainOverride(contentTypesXml: string): string {
   // Match the single self-closing Override whose PartName targets calcChain.
-  return contentTypesXml.replace(
-    /<Override\b[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/,
-    ""
-  );
+  return contentTypesXml.replace(/<Override\b[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/, '');
 }
 
 /**
@@ -376,10 +377,7 @@ function removeCalcChainOverride(contentTypesXml: string): string {
 function removeCalcChainRelationship(workbookRelsXml: string): string {
   // The Relationship may declare its attributes in any order; match any
   // self-closing Relationship whose Target ends in calcChain.xml.
-  return workbookRelsXml.replace(
-    /<Relationship\b[^>]*Target="calcChain\.xml"[^>]*\/>/,
-    ""
-  );
+  return workbookRelsXml.replace(/<Relationship\b[^>]*Target="calcChain\.xml"[^>]*\/>/, '');
 }
 
 /**
@@ -390,16 +388,13 @@ function removeCalcChainRelationship(workbookRelsXml: string): string {
  * An unknown sheet name throws — it means the fill map references a sheet the
  * template does not contain, which must never be silently ignored.
  */
-export function patchCdmWorkbook(
-  template: Uint8Array,
-  writes: CdmCellWrite[]
-): Uint8Array {
+export function patchCdmWorkbook(template: Uint8Array, writes: CdmCellWrite[]): Uint8Array {
   const parts = unzipSync(template);
 
   const workbookBytes = parts[WORKBOOK_PART];
   const workbookRelsBytes = parts[WORKBOOK_RELS_PART];
   if (!workbookBytes || !workbookRelsBytes) {
-    throw new Error("patchCdmWorkbook: template is missing workbook.xml or its rels");
+    throw new Error('patchCdmWorkbook: template is missing workbook.xml or its rels');
   }
   const workbookXml = strFromU8(workbookBytes);
   const workbookRelsXml = strFromU8(workbookRelsBytes);
@@ -414,9 +409,7 @@ export function patchCdmWorkbook(
   for (const write of writes) {
     const path = sheetPathByName.get(write.sheet);
     if (!path) {
-      throw new Error(
-        `patchCdmWorkbook: unknown sheet name "${write.sheet}" — not present in workbook.xml`
-      );
+      throw new Error(`patchCdmWorkbook: unknown sheet name "${write.sheet}" — not present in workbook.xml`);
     }
     const list = writesByPath.get(path);
     if (list) {
@@ -456,13 +449,21 @@ export function patchCdmWorkbook(
       const spillRanges = collectSpillRanges(sheetXml);
       reusableSpillRanges = spillRanges;
       for (const write of sheetWrites) {
-        if (
-          writesCellValue(write.op) &&
-          isWithinAnySpillChild(write.ref, spillRanges)
-        ) {
+        const disabledSpillAnchors = new Set(
+          sheetWrites
+            .filter(
+              (candidate) =>
+                candidate.op === 'overwriteNumber' || candidate.op === 'overwriteString' || candidate.op === 'strip',
+            )
+            .map((candidate) => candidate.ref),
+        );
+        const writesIntoActiveSpillChild = spillRanges.some(
+          (range) => isWithinAnySpillChild(write.ref, [range]) && !disabledSpillAnchors.has(spillAnchorRef(range)),
+        );
+        if (writesCellValue(write.op) && writesIntoActiveSpillChild) {
           throw new Error(
             `patchCdmWorkbook: refusing to write a value into the dynamic-array ` +
-              `spill cell ${write.sheet}!${write.ref}; the fill map disagrees with the template`
+              `spill cell ${write.sheet}!${write.ref}; the fill map disagrees with the template`,
           );
         }
       }
@@ -479,11 +480,11 @@ export function patchCdmWorkbook(
       /* Formula-altering ops may remove an array anchor, so only ordinary
        * input/cache writes can safely reuse the pre-patch spill analysis.
        * Degraded bracket writes deliberately recompute from post-patch XML. */
-      if (sheetWrites.some((write) =>
-        write.op === "overwriteNumber" ||
-        write.op === "overwriteString" ||
-        write.op === "strip"
-      )) {
+      if (
+        sheetWrites.some(
+          (write) => write.op === 'overwriteNumber' || write.op === 'overwriteString' || write.op === 'strip',
+        )
+      ) {
         reusableSpillRanges = undefined;
       }
     }
@@ -503,9 +504,7 @@ export function patchCdmWorkbook(
   // changed in between. If a future op kind ever mutates workbook.xml, re-read
   // parts[WORKBOOK_PART] here instead of reusing this string.
   parts[WORKBOOK_PART] = strToU8(ensureFullRecalculation(workbookXml));
-  parts[CONTENT_TYPES_PART] = strToU8(
-    removeCalcChainOverride(strFromU8(parts[CONTENT_TYPES_PART]))
-  );
+  parts[CONTENT_TYPES_PART] = strToU8(removeCalcChainOverride(strFromU8(parts[CONTENT_TYPES_PART])));
   parts[WORKBOOK_RELS_PART] = strToU8(removeCalcChainRelationship(workbookRelsXml));
 
   // Rebuild the zip preserving the original entry order minus the dropped
@@ -522,5 +521,5 @@ export function patchCdmWorkbook(
   // same data are byte-stable. fflate's default mtime is Date.now(), which
   // would make every export differ; 0 (1970) is outside the DOS date range, so
   // we use the earliest representable timestamp instead.
-  return zipSync(outParts, { mtime: new Date("1980-01-01T00:00:00Z") });
+  return zipSync(outParts, { mtime: new Date('1980-01-01T00:00:00Z') });
 }
