@@ -15,6 +15,7 @@
  *   TC-808  TA Finals page renders with champion banner on completion; its
  *           Undo-vs-Cancel info popover opens on click (read-only check —
  *           this test reuses the shared fixture's champion-decided state).
+ *   TC-3034 Top 2 manual 3→5 life adjustment; the next round persists 5/4.
  *   TC-812  TA qualification tie resolution — identical times share min-rank
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
@@ -1497,6 +1498,53 @@ async function runTc808(adminPage) {
       : '');
   } catch (err) {
     log('TC-808', 'FAIL', err instanceof Error ? err.message : 'TA 808 failed');
+  }
+}
+
+/* ───────── TC-3034: Top 2 manual life adjustment ───────── */
+async function runTc3034(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Top 2 life adjustment', sharedTaPlayers(2), { seedTimes: true });
+    const promote = await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+
+    let phase = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    let active = (phase.b?.data?.entries ?? []).filter((entry) => !entry.eliminated);
+    if (active.length !== 2 || active.some((entry) => entry.lives !== 3)) throw new Error('expected two 3-life Phase 3 entries');
+
+    await nav(adminPage, `/tournaments/${setup.tournamentId}/ta/finals`);
+    if (!(await adminPage.getByTestId('ta-top2-life-adjustment-warning').isVisible({ timeout: 10000 }).catch(() => false))) {
+      throw new Error('Top 2 adjustment warning was not visible');
+    }
+    for (const entry of active) {
+      const input = adminPage.getByTestId(`ta-set-lives-${entry.id}`);
+      await input.fill('5');
+      await adminPage.getByTestId(`ta-save-lives-${entry.id}`).click();
+      await adminPage.waitForFunction(
+        async ([url, entryId]) => {
+          const response = await fetch(url);
+          const json = await response.json();
+          const entries = (json.data ?? json).entries ?? [];
+          return entries.some((candidate) => candidate.id === entryId && candidate.lives === 5);
+        },
+        [`/api/tournaments/${setup.tournamentId}/ta/phases?phase=phase3`, entry.id],
+        { timeout: 10000 },
+      );
+    }
+
+    phase = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    active = (phase.b?.data?.entries ?? []).filter((entry) => !entry.eliminated);
+    if (active.some((entry) => entry.lives !== 5)) throw new Error('Top 2 life update was not persisted');
+    await submitTaPhaseRoundByApi(adminPage, setup.tournamentId, 'phase3', active);
+    phase = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    const lives = (phase.b?.data?.entries ?? []).filter((entry) => !entry.eliminated).map((entry) => entry.lives).sort((a, b) => b - a);
+    const ok = lives.length === 2 && lives[0] === 5 && lives[1] === 4;
+    log('TC-3034', ok ? 'PASS' : 'FAIL', ok ? '' : `expected 5/4, got ${lives.join('/')}`);
+  } catch (err) {
+    log('TC-3034', 'FAIL', err instanceof Error ? err.message : 'Top 2 life adjustment failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
   }
 }
 
@@ -3007,6 +3055,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-806', fn: runTc806 },
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },
+      { name: 'TC-3034', fn: runTc3034 },
       { name: 'TC-812', fn: runTc812 },
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
@@ -3034,7 +3083,7 @@ module.exports = {
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913, runTc1987,
   runTc812, runTc813, runTc814, runTc1032, runTc1033, runTc815, runTc816, runTc817, runTc1005, runTc2293, runTc2400,
   runTc2773a, runTc2773b, runTc2779, runTc2781,
-  runTc3001, runTc3002, runTc3003,
+  runTc3001, runTc3002, runTc3003, runTc3034,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,

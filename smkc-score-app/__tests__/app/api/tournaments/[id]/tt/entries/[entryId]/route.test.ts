@@ -283,6 +283,25 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.data.success).toBe(true);
     });
 
+    it('does not allow a player to change their own lives through the legacy entry endpoint', async () => {
+      jest.mocked(auth).mockResolvedValue({
+        user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
+      });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({
+        playerId: 'p1',
+        stage: 'phase3',
+        tournamentId: 't1',
+      });
+
+      const result = await PUT(
+        new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', { lives: 5, version: 0 }),
+        { params: Promise.resolve({ id: 't1', entryId: 'e1' }) },
+      );
+
+      expect(result.status).toBe(403);
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
     // Authorization: player cannot update another player's entry
     it('should return 403 when player tries to update another player\'s entry', async () => {
       jest.mocked(auth).mockResolvedValue({

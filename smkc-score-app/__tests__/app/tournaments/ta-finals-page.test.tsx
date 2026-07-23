@@ -10,7 +10,7 @@
  * logic (isAdmin && isComplete && !pendingSuddenDeath && completedRoundsCount > 0),
  * so a regression here would otherwise go undetected.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import TimeAttackFinals from '@/app/tournaments/[id]/ta/finals/page';
 
@@ -72,6 +72,7 @@ function makeEntry(overrides: {
     playerId: overrides.playerId,
     stage: 'phase3',
     lives: overrides.lives ?? 3,
+    version: 0,
     eliminated: overrides.eliminated ?? false,
     times: null,
     totalTime: null,
@@ -81,14 +82,19 @@ function makeEntry(overrides: {
 }
 
 /** In-progress payload: two active players remain, no rounds submitted yet. */
-function makeInProgressPayload(taMode: 'standard' | 'battle_royale') {
+function makeInProgressPayload(
+  taMode: 'standard' | 'battle_royale',
+  archived = false,
+  marioState: { lives: number; version: number } = { lives: 3, version: 0 },
+) {
   return {
     ok: true,
     json: jest.fn().mockResolvedValue({
       data: {
         taMode,
+        archived,
         entries: [
-          makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario' }),
+          { ...makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: marioState.lives }), version: marioState.version },
           makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi' }),
         ],
         rounds: [],
@@ -238,6 +244,115 @@ describe('TimeAttackFinals — per-round life loss control (TA battle royale)', 
       expect(screen.getByRole('button', { name: /Start Round/ })).toBeInTheDocument();
     });
     expect(screen.queryByText('Life loss for this round')).not.toBeInTheDocument();
+  });
+
+  it('keeps manual elimination available but hides exact-life inputs in TA battle royale', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('battle_royale'));
+
+    await renderFinals();
+
+    expect((await screen.findAllByRole('button', { name: 'Eliminate' })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('spinbutton', { name: 'Set lives for Mario' })).not.toBeInTheDocument();
+  });
+});
+
+describe('TimeAttackFinals — manual life adjustment', () => {
+  it('lets an admin set an active player to five lives through the versioned exact-life API', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    const payload = makeInProgressPayload('standard');
+    // The second response is consumed by fetchData after the successful save.
+    global.fetch = jest.fn().mockResolvedValue(payload);
+
+    await renderFinals();
+
+    const input = await screen.findByRole('spinbutton', { name: 'Set lives for Mario' });
+    fireEvent.change(input, { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save lives for Mario' }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/tournaments/tournament-1/ta',
+        expect.objectContaining({ method: 'PUT' }),
+      );
+    });
+    const [, request] = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]: [string]) => url === '/api/tournaments/tournament-1/ta',
+    );
+    expect(JSON.parse(request.body)).toEqual({
+      entryId: 'e-1',
+      action: 'set_lives',
+      lives: 5,
+      expectedVersion: 0,
+      expectedLives: 3,
+    });
+  });
+
+  it('preserves the version and lives from when an administrator begins editing across a polling refresh', async () => {
+    jest.useFakeTimers();
+    try {
+      mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+      global.fetch = jest
+        .fn()
+        .mockResolvedValueOnce(makeInProgressPayload('standard'))
+        .mockResolvedValueOnce(makeInProgressPayload('standard', false, { lives: 4, version: 1 }))
+        .mockResolvedValueOnce({ ok: false, json: jest.fn().mockResolvedValue({ error: 'stale edit' }) });
+
+      await renderFinals();
+
+      const input = await screen.findByRole('spinbutton', { name: 'Set lives for Mario' });
+      fireEvent.change(input, { target: { value: '5' } });
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+      });
+      await waitFor(() => {
+        expect(screen.getByRole('spinbutton', { name: 'Set lives for Mario' })).toHaveValue(5);
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Save lives for Mario' }));
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+      });
+      const [, request] = (global.fetch as jest.Mock).mock.calls[2];
+      expect(JSON.parse(request.body)).toMatchObject({ expectedVersion: 0, expectedLives: 3, lives: 5 });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not expose life adjustment controls to non-admins', async () => {
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('standard'));
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getByText('Finals Standings')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('spinbutton', { name: 'Set lives for Mario' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ta-top2-life-adjustment-warning')).not.toBeInTheDocument();
+  });
+
+  it('warns administrators to set both Top 2 players to five lives', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('standard'));
+
+    await renderFinals();
+
+    expect(await screen.findByTestId('ta-top2-life-adjustment-warning')).toHaveTextContent(
+      'set both remaining players to 5 lives',
+    );
+  });
+
+  it('does not show the Top 2 adjustment warning for an archived tournament', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('standard', true));
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getByText('Archived')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('ta-top2-life-adjustment-warning')).not.toBeInTheDocument();
   });
 });
 

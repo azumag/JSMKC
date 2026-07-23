@@ -1208,6 +1208,15 @@ describe("TA Finals Phase Manager", () => {
       );
     });
 
+    it("invalidates active Phase 3 entry versions before opening the round", async () => {
+      await startPhaseRound(mockPrismaClient as any, context, "phase3");
+
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: "phase3", eliminated: false },
+        data: { version: { increment: 1 } },
+      });
+    });
+
     it("stores a custom lifeLoss on the created round when provided", async () => {
       const result = await startPhaseRound(
         mockPrismaClient as any,

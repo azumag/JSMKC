@@ -166,6 +166,12 @@ export async function PUT(
 
     const { times, totalTime, rank, eliminated, lives, version } = body;
 
+    // Player self-service is limited to time data; competition state remains
+    // administrator-only even through this legacy endpoint.
+    if (!isAdmin && (rank !== undefined || eliminated !== undefined || lives !== undefined)) {
+      return handleAuthzError();
+    }
+
     // Version field is mandatory for optimistic locking.
     // Must be a non-negative integer — version starts at 0 for new entries.
     // Rejecting negative values prevents the sentinel -1 (from missing/undefined
