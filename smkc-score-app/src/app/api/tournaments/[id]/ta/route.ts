@@ -147,15 +147,15 @@ const PutRequestSchema = z
         ? data.livesDelta !== undefined
         : data.action === 'set_lives'
           ? data.lives !== undefined && data.expectedVersion !== undefined && data.expectedLives !== undefined
-        : data.action === 'eliminate'
-          ? data.eliminated !== undefined
-          : data.action === 'reset_lives'
-            ? true
-            : data.action === 'set_partner'
+          : data.action === 'eliminate'
+            ? data.eliminated !== undefined
+            : data.action === 'reset_lives'
               ? true
-              : data.action === 'update_seeding'
+              : data.action === 'set_partner'
                 ? true
-                : data.times !== undefined || (data.course !== undefined && data.time !== undefined),
+                : data.action === 'update_seeding'
+                  ? true
+                  : data.times !== undefined || (data.course !== undefined && data.time !== undefined),
     { message: 'Invalid request for action' },
   );
 
@@ -556,7 +556,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const { entryId, action, eliminated, livesDelta, lives, expectedVersion, expectedLives, partnerId, seeding } = parseResult.data;
+    const { entryId, action, eliminated, livesDelta, lives, expectedVersion, expectedLives, partnerId, seeding } =
+      parseResult.data;
 
     // === Partner Assignment (§3.1) ===
     // Set or clear the partner player ID for pair running (admin only)
@@ -744,17 +745,35 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         `,
       );
       if (Number(updated) !== 1) {
-        return createErrorResponse('The entry was modified by another user. Please refresh and try again.', 409, 'OPTIMISTIC_LOCK_ERROR');
+        return createErrorResponse(
+          'The entry was modified by another user. Please refresh and try again.',
+          409,
+          'OPTIMISTIC_LOCK_ERROR',
+        );
       }
       const updatedEntry = await prisma.tTEntry.findUnique({
         where: { id: entryId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
       await createAuditLog({
-        userId: resolveAuditUserId(authResult.session), ipAddress: getClientIdentifier(request), userAgent: getUserAgent(request),
-        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY, targetId: entryId, targetType: 'TTEntry',
-        details: { tournamentId, phase: 'phase3', action: 'set_lives', playerNickname: entry.player.nickname, oldLives: entry.lives, newLives: lives, manualUpdate: true },
-      }).catch((err) => logger.warn('Failed to create audit log', { error: err, tournamentId, entryId, action: 'SET_TA_ENTRY_LIVES' }));
+        userId: resolveAuditUserId(authResult.session),
+        ipAddress: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+        targetId: entryId,
+        targetType: 'TTEntry',
+        details: {
+          tournamentId,
+          phase: 'phase3',
+          action: 'set_lives',
+          playerNickname: entry.player.nickname,
+          oldLives: entry.lives,
+          newLives: lives,
+          manualUpdate: true,
+        },
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', { error: err, tournamentId, entryId, action: 'SET_TA_ENTRY_LIVES' }),
+      );
       return createSuccessResponse({ entry: updatedEntry });
     }
 

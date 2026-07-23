@@ -1,6 +1,6 @@
 describe('TC-2078 TA E2E suite timeout contract', () => {
   it('runs the full TA suite with an explicit preview-sized timeout', async () => {
-    const taSuite = await import('../../e2e/tc-ta.js') as {
+    const taSuite = (await import('../../e2e/tc-ta.js')) as {
       TA_SUITE_TIMEOUT_MS: number;
       getSuite: () => {
         suiteTimeoutMs?: number;

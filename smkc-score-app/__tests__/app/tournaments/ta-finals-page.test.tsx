@@ -94,7 +94,10 @@ function makeInProgressPayload(
         taMode,
         archived,
         entries: [
-          { ...makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: marioState.lives }), version: marioState.version },
+          {
+            ...makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: marioState.lives }),
+            version: marioState.version,
+          },
           makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi' }),
         ],
         rounds: [],

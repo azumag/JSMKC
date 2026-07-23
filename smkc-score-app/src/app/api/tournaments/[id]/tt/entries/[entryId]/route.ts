@@ -20,30 +20,32 @@
  * to ensure proper test mocking per the project's mock architecture pattern.
  */
 
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { updateTTEntry, OptimisticLockError } from "@/lib/optimistic-locking";
-import { createLogger } from "@/lib/logger";
-import { checkStageFrozen } from "@/lib/ta/freeze-check";
-import { timeToMs } from "@/lib/ta/time-utils";
-import { sanitizeInput } from "@/lib/sanitize";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
-import { recalculateRanks } from "@/lib/ta/rank-calculation";
-import { COURSES } from "@/lib/constants";
+import { NextRequest } from 'next/server';
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { updateTTEntry, OptimisticLockError } from '@/lib/optimistic-locking';
+import { createLogger } from '@/lib/logger';
+import { checkStageFrozen } from '@/lib/ta/freeze-check';
+import { timeToMs } from '@/lib/ta/time-utils';
+import { sanitizeInput } from '@/lib/sanitize';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { recalculateRanks } from '@/lib/ta/rank-calculation';
+import { COURSES } from '@/lib/constants';
 import {
   createErrorResponse,
   createSuccessResponse,
   handleValidationError,
   handleAuthzError,
   handleDatabaseError,
-} from "@/lib/error-handling";
+} from '@/lib/error-handling';
 
 function isTimeRecord(value: unknown): value is Record<string, string> {
-  return typeof value === "object" &&
+  return (
+    typeof value === 'object' &&
     value !== null &&
     !Array.isArray(value) &&
-    Object.values(value).every((entry) => typeof entry === "string");
+    Object.values(value).every((entry) => typeof entry === 'string')
+  );
 }
 
 /**
@@ -55,16 +57,12 @@ function isTimeRecord(value: unknown): value is Record<string, string> {
  * Returns 404 if the entry does not exist.
  */
 // GET single Time Trial entry
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; entryId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; entryId: string }> }) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('tt-entry-api');
   const { id, entryId } = await params;
   const tournamentId = await resolveTournamentId(id);
   try {
-
     // Fetch entry with related player and tournament data
     // Verify entry belongs to the specified tournament (IDOR prevention)
     const entry = await prisma.tTEntry.findUnique({
@@ -76,14 +74,14 @@ export async function GET(
     });
 
     if (!entry) {
-      return createErrorResponse("Entry not found", 404);
+      return createErrorResponse('Entry not found', 404);
     }
 
     return createSuccessResponse(entry);
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to fetch entry", { error, entryId, tournamentId });
-    return handleDatabaseError(error, "fetch time trial entry");
+    logger.error('Failed to fetch entry', { error, entryId, tournamentId });
+    return handleDatabaseError(error, 'fetch time trial entry');
   }
 }
 
@@ -109,10 +107,7 @@ export async function GET(
  * - 500: Internal server error
  */
 // PUT update Time Trial entry with optimistic locking
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; entryId: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; entryId: string }> }) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('tt-entry-api');
 
@@ -124,8 +119,8 @@ export async function PUT(
     return handleAuthzError();
   }
 
-  const isAdmin = session.user.role === "admin";
-  const isPlayer = session.user.userType === "player";
+  const isAdmin = session.user.role === 'admin';
+  const isPlayer = session.user.userType === 'player';
 
   if (!isAdmin && !isPlayer) {
     return handleAuthzError();
@@ -154,7 +149,7 @@ export async function PUT(
       select: { stage: true, tournamentId: true },
     });
     if (!entryForFreeze) {
-      return createErrorResponse("Entry not found", 404);
+      return createErrorResponse('Entry not found', 404);
     }
     // Admins are also blocked from editing frozen stages (intentional lock)
     const freezeError = await checkStageFrozen(prisma, entryForFreeze.tournamentId, entryForFreeze.stage);
@@ -178,15 +173,15 @@ export async function PUT(
     // version on the client) from reaching the comparator and causing a misleading
     // OptimisticLockError (#735).
     if (typeof version !== 'number' || !Number.isInteger(version) || version < 0) {
-      return handleValidationError("version is required and must be a non-negative integer", "version");
+      return handleValidationError('version is required and must be a non-negative integer', 'version');
     }
 
     // Validate time strings before update so malformed values such as "0:84:00"
     // are rejected instead of being persisted through this legacy endpoint.
     if (times !== undefined && isTimeRecord(times)) {
       for (const [course, time] of Object.entries(times)) {
-        if (time !== "" && timeToMs(time) === null) {
-          return handleValidationError(`Invalid time format for ${course}: ${time}`, "times");
+        if (time !== '' && timeToMs(time) === null) {
+          return handleValidationError(`Invalid time format for ${course}: ${time}`, 'times');
         }
       }
       // Reject partial times: all 20 courses must have non-empty values.
@@ -195,26 +190,21 @@ export async function PUT(
       const missingCourses = COURSES.filter((c) => !times[c]);
       if (missingCourses.length > 0) {
         return handleValidationError(
-          `times must include all ${COURSES.length} courses. Missing: ${missingCourses.join(", ")}`,
-          "times"
+          `times must include all ${COURSES.length} courses. Missing: ${missingCourses.join(', ')}`,
+          'times',
         );
       }
     }
 
     // Attempt update with optimistic lock check
     // This will throw OptimisticLockError if the version has changed
-    const result = await updateTTEntry(
-      prisma,
-      entryId,
-      version,
-      {
-        times,
-        totalTime,
-        rank,
-        eliminated,
-        lives
-      }
-    );
+    const result = await updateTTEntry(prisma, entryId, version, {
+      times,
+      totalTime,
+      rank,
+      eliminated,
+      lives,
+    });
 
     // Recalculate qualification points and ranks when times were updated.
     // The tt/entries endpoint is used for bulk time seeding (e.g., admin tools
@@ -267,19 +257,19 @@ export async function PUT(
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to update entry", { error, entryId });
+    logger.error('Failed to update entry', { error, entryId });
 
     // Handle optimistic lock conflicts with a specific 409 response
     // This tells the client to refresh their data and retry
     if (error instanceof OptimisticLockError) {
       return createErrorResponse(
-        "The entry was modified by another user. Please refresh and try again.",
+        'The entry was modified by another user. Please refresh and try again.',
         409,
-        "OPTIMISTIC_LOCK_ERROR",
-        { currentVersion: error.currentVersion, requiresRefresh: true }
+        'OPTIMISTIC_LOCK_ERROR',
+        { currentVersion: error.currentVersion, requiresRefresh: true },
       );
     }
 
-    return handleDatabaseError(error, "update time trial entry");
+    return handleDatabaseError(error, 'update time trial entry');
   }
 }

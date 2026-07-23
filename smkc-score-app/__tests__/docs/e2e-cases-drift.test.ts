@@ -1547,8 +1547,8 @@ describe('E2E case drift coverage', () => {
       '    });\n  });',
     );
 
-    expect(testCase).toContain('expect(result.eliminatedIds).toEqual(["p5"])');
-    expect(testCase).toContain('for (const protectedPlayerId of ["p1", "p2", "p3"])');
+    expect(testCase).toContain("expect(result.eliminatedIds).toEqual(['p5'])");
+    expect(testCase).toContain("for (const protectedPlayerId of ['p1', 'p2', 'p3'])");
     expect(testCase).toContain('expect(result.eliminatedIds).not.toContain(protectedPlayerId)');
   });
 
