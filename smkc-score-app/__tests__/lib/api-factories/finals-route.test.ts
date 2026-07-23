@@ -769,6 +769,88 @@ describe('Finals Route Factory', () => {
       expect(json.data.playoffComplete).toBe(false);
     });
 
+    it('builds a stale Top-24 reconciliation from R2 when GET also returns R1 rows', async () => {
+      const upperStructure = mockGenerateBracketStructure(16, 2);
+      const winnersBySeed: Record<number, string> = {
+        16: 'winner-16',
+        13: 'winner-13',
+        15: 'winner-15',
+        14: 'winner-14',
+      };
+      const finals = upperStructure.map((entry: any) => {
+        const seeded = [16, 13, 15, 14].find((seed) => entry.player1Seed === seed || entry.player2Seed === seed);
+        const seededSlot = seeded && entry.player1Seed === seeded ? 'player1Id' : 'player2Id';
+        return createMockMatch({
+          id: `final-${entry.matchNumber}`,
+          matchNumber: entry.matchNumber,
+          stage: 'finals',
+          round: entry.round,
+          version: 1,
+          ...(seeded ? { [seededSlot]: `stale-${seeded}` } : {}),
+        });
+      });
+      const playoff = [
+        ...Array.from({ length: 4 }, (_, index) =>
+          createMockMatch({
+            id: `r1-${index + 1}`,
+            matchNumber: index + 1,
+            stage: 'playoff',
+            round: 'playoff_r1',
+          }),
+        ),
+        ...[16, 13, 15, 14].map((seed, index) =>
+          createMockMatch({
+            id: `r2-${seed}`,
+            matchNumber: index + 5,
+            stage: 'playoff',
+            round: 'playoff_r2',
+            completed: true,
+            score1: 4,
+            score2: 0,
+            version: 2,
+            player1Id: winnersBySeed[seed],
+            player2Id: `loser-${seed}`,
+          }),
+        ),
+      ];
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        bmQualificationConfirmed: true,
+        mrQualificationConfirmed: false,
+        gpQualificationConfirmed: false,
+        bmFinalsSeedSnapshot: Array.from({ length: 24 }, (_, index) => ({
+          seed: index + 1,
+          originalSeed: index + 1,
+          playerId: `seed-${index + 1}`,
+          player: { id: `seed-${index + 1}`, name: `Seed ${index + 1}` },
+        })),
+      });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([{ group: 'A' }, { group: 'B' }]);
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff' || typeof args?.where?.stage === 'object') return Promise.resolve(playoff);
+        return Promise.resolve(finals);
+      });
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'grouped' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.upperReconciliation).toEqual(
+        expect.objectContaining({
+          status: 'stale',
+          changes: expect.arrayContaining([expect.objectContaining({ upperSeed: 16 })]),
+        }),
+      );
+      expect(json.data.upperReconciliation.changes).toHaveLength(4);
+      expect(Object.keys(json.data.upperReconciliation.expectedVersions).filter((id) => id.startsWith('r1-'))).toEqual(
+        [],
+      );
+    });
+
     it('should infer 16-player bracket when matches > 20 (grouped)', async () => {
       // 16-player bracket has 31 matches
       const mockMatches = Array.from({ length: 31 }, (_, i) => createMockMatch({ matchNumber: i + 1 }));

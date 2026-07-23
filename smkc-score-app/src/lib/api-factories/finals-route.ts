@@ -1705,11 +1705,21 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const blockers: Array<Record<string, unknown>> = [];
     const canonical = new Set<string>();
     const r2Definitions = playoffStructure.filter((entry) => entry.round === 'playoff_r2');
-    if (r2Definitions.length !== 4 || playoffRows.length !== 4) {
+    /* The finals GET returns both barrage rounds. Reconciliation is defined
+     * only by the four R2 winners, so ignore the R1 rows rather than treating
+     * a complete (eight-row) barrage as unavailable. */
+    const r2MatchNumbers = new Set(r2Definitions.map((entry) => entry.matchNumber));
+    const playoffR2Rows = playoffRows.filter((row) => row.round === 'playoff_r2');
+    if (
+      r2Definitions.length !== 4 ||
+      playoffR2Rows.length !== 4 ||
+      new Set(playoffR2Rows.map((row) => Number(row.matchNumber))).size !== 4 ||
+      playoffR2Rows.some((row) => !r2MatchNumbers.has(Number(row.matchNumber)))
+    ) {
       return { status: 'unavailable', changes, affectedMatches: [], blockers, expectedVersions };
     }
     for (const definition of r2Definitions) {
-      const source = playoffRows.find((row) => row.matchNumber === definition.matchNumber);
+      const source = playoffR2Rows.find((row) => row.matchNumber === definition.matchNumber);
       const upperSeed = definition.advancesToUpperSeed;
       if (
         !source ||
