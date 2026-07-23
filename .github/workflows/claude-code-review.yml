@@ -88,7 +88,8 @@ jobs:
         id: claude-review
         # Auth failures (expired CLAUDE_CODE_OAUTH_TOKEN) must not block merges.
         # The post-condition below still fails whenever no formal review is
-        # submitted for the current commit.
+        # submitted for the current commit, except while this workflow itself
+        # is being upgraded.
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
@@ -118,15 +119,23 @@ jobs:
 
       - name: Verify formal Claude review
         # Claude Code Action intentionally rejects a workflow that differs from
-        # the default branch.  That one-time workflow-upgrade PR therefore
-        # needs a human approval; normal review runs still require this check.
-        if: steps.claude-review.outcome == 'success'
+        # the default branch. That one-time workflow-upgrade PR needs a human
+        # approval; every other PR still requires a formal Claude review.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          default_workflow="$(mktemp)"
+          gh api "repos/$REPOSITORY/contents/.github/workflows/claude-code-review.yml?ref=$DEFAULT_BRANCH" \
+            --jq .content | base64 --decode > "$default_workflow"
+          if ! cmp -s .github/workflows/claude-code-review.yml "$default_workflow"; then
+            echo "::notice::Claude review is intentionally skipped while this workflow differs from $DEFAULT_BRANCH; a human approval is required for this upgrade PR."
+            exit 0
+          fi
+
           reviews="$(gh api --paginate --slurp "repos/$REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100")"
           printf '%s' "$reviews" | jq -e --arg sha "$HEAD_SHA" '
             any(
