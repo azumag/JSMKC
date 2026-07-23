@@ -4783,6 +4783,8 @@ describe('Finals Route Factory', () => {
       expect(statements).toHaveLength(2);
       expect(statements[0].sql).toContain('"slotOverrideBy" = NULL');
       expect(statements[0].sql).toContain('protected."slotOverrideBy" IS NULL');
+      expect(statements[0].sql.match(/\?/g)).toHaveLength(statements[0].values.length);
+      expect(statements[0].values.length).toBeLessThanOrEqual(100);
       expect(statements[1].sql).toContain('CASE WHEN changes() = ? THEN ? ELSE NULL END');
       expect(statements[1].sql.match(/\?/g)).toHaveLength(statements[1].values.length);
       expect(statements[1].values).toContain(AUDIT_ACTIONS.RECONCILE_PLAYOFF_UPPER_SLOTS);
@@ -4823,7 +4825,15 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
-      expect(statements[0].sql).toContain('existing."id" NOT IN');
+      expect(statements[0].sql).toContain('json_each(?)');
+      expect(statements[0].sql).toContain('canonicalSlots intended');
+      expect(statements[0].sql).toContain('JOIN canonicalSlots ON existing."player1Id" = canonicalSlots."playerId"');
+      expect(statements[0].sql).toContain('JOIN canonicalSlots ON existing."player2Id" = canonicalSlots."playerId"');
+      expect(statements[0].sql).not.toContain('canonicalSlots."side" = 1');
+      expect(statements[0].sql).not.toContain('canonicalSlots."side" = 2');
+      expect(statements[0].sql).toContain('EXISTS (SELECT 1 FROM changes changed');
+      expect(statements[0].sql).toContain('OR existing."player2Id" = intended."playerId"');
+      expect(statements[0].sql).toContain('canonicalSlots."version" = canonical."version"');
     });
 
     it('protects a started downstream match before issuing a write', async () => {

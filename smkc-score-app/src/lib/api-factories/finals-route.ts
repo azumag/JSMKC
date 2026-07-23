@@ -808,7 +808,7 @@ type PlayoffReconcileChange = {
 };
 
 type PlayoffReconcileGuard = { id: string; version: number };
-type PlayoffCanonicalSlot = { id: string; side: 1 | 2; playerId: string };
+type PlayoffCanonicalSlot = { id: string; version: number; side: 1 | 2; playerId: string };
 
 /** Atomically place corrected barrage winners in their Upper opening slots.
  * Every source/result guard is in the same D1 batch as the write and audit so
@@ -824,91 +824,107 @@ async function applyAuditedPlayoffReconcileWrite(params: {
   canonicalSlots: PlayoffCanonicalSlot[];
   audit: Parameters<typeof buildAuditLogData>[0];
 }): Promise<{ updated: number; audited: number }> {
-  const p1 = params.changes.filter((change) => change.side === 1);
-  const p2 = params.changes.filter((change) => change.side === 2);
-  const p1Case = p1.length
-    ? `CASE "id" ${p1.map(() => 'WHEN ? THEN ?').join(' ')} ELSE "player1Id" END`
-    : '"player1Id"';
-  const p2Case = p2.length
-    ? `CASE "id" ${p2.map(() => 'WHEN ? THEN ?').join(' ')} ELSE "player2Id" END`
-    : '"player2Id"';
-  const sourceClauses = params.sources
-    .map(
-      () =>
-        '(source."id" = ? AND source."version" = ? AND source."stage" = \'playoff\' AND source."round" = \'playoff_r2\' AND source."completed" = 1)',
-    )
-    .join(' OR ');
-  const targetClauses = params.changes
-    .map(
-      () =>
-        '(target."id" = ? AND target."version" = ? AND target."stage" = \'finals\' AND target."round" = \'winners_r1\' AND target."completed" = 0 AND COALESCE(target."isBye", 0) = 0)',
-    )
-    .join(' OR ');
-  const protectedClauses = params.protectedRows
-    .map(
-      () =>
-        `(protected."id" = ? AND protected."version" = ? AND ${downstreamPristineSql(params.eventTypeCode, 'protected')} AND protected."slotOverrideBy" IS NULL AND protected."slotOverrideAt" IS NULL)`,
-    )
-    .join(' OR ');
-  /* Every barrage winner must appear only in the one server-derived Upper
-   * slot. This repeats the read-time duplicate check in the guarded UPDATE,
-   * closing the window where a concurrent manual slot edit could place that
-   * player into an unaffected finals row after the preflight read. */
-  const canonicalP1Ids = params.canonicalSlots.filter((slot) => slot.side === 1).map((slot) => slot.id);
-  const canonicalP2Ids = params.canonicalSlots.filter((slot) => slot.side === 2).map((slot) => slot.id);
-  const canonicalP1Outside = canonicalP1Ids.length
-    ? `existing."id" NOT IN (${canonicalP1Ids.map(() => '?').join(',')})`
-    : '1 = 1';
-  const canonicalP2Outside = canonicalP2Ids.length
-    ? `existing."id" NOT IN (${canonicalP2Ids.map(() => '?').join(',')})`
-    : '1 = 1';
-  const duplicateGuards = params.canonicalSlots
-    .map(
-      () => `NOT EXISTS (SELECT 1 FROM ${params.tableName} existing
-            WHERE existing."tournamentId" = ? AND existing."stage" = 'finals'
-              AND ((existing."player1Id" = ? AND ${canonicalP1Outside}) OR (existing."player2Id" = ? AND ${canonicalP2Outside})))`,
-    )
-    .join(' AND ');
+  /* D1 allows at most 100 bound values per statement. Serialize the
+   * server-derived guards once and expand them with json_each() so a four-slot
+   * correction retains the same atomic validation without exceeding that cap. */
+  const changesJson = JSON.stringify(params.changes);
+  const sourcesJson = JSON.stringify(params.sources);
+  const protectedRowsJson = JSON.stringify(params.protectedRows);
+  const canonicalSlotsJson = JSON.stringify(params.canonicalSlots);
   const audit = buildAuditLogData(params.audit);
   const auditId = globalThis.crypto?.randomUUID?.() ?? `audit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const updatedAt = new Date().toISOString();
   const details = audit.details === undefined ? null : JSON.stringify(audit.details);
   const [updated, audited] = await executeD1Batch([
     {
-      sql: `UPDATE ${params.tableName}
-        SET "player1Id" = ${p1Case}, "player2Id" = ${p2Case},
+      sql: `WITH
+          changes AS (
+            SELECT json_extract(value, '$.id') AS "id",
+              CAST(json_extract(value, '$.version') AS INTEGER) AS "version",
+              CAST(json_extract(value, '$.side') AS INTEGER) AS "side",
+              json_extract(value, '$.playerId') AS "playerId"
+            FROM json_each(?)
+          ),
+          sources AS (
+            SELECT json_extract(value, '$.id') AS "id", CAST(json_extract(value, '$.version') AS INTEGER) AS "version"
+            FROM json_each(?)
+          ),
+          protectedRows AS (
+            SELECT json_extract(value, '$.id') AS "id", CAST(json_extract(value, '$.version') AS INTEGER) AS "version"
+            FROM json_each(?)
+          ),
+          canonicalSlots AS (
+            SELECT json_extract(value, '$.id') AS "id", CAST(json_extract(value, '$.version') AS INTEGER) AS "version",
+              CAST(json_extract(value, '$.side') AS INTEGER) AS "side",
+              json_extract(value, '$.playerId') AS "playerId"
+            FROM json_each(?)
+          )
+        UPDATE ${params.tableName}
+        SET "player1Id" = COALESCE(
+              (SELECT "playerId" FROM changes WHERE changes."id" = ${params.tableName}."id" AND changes."side" = 1),
+              "player1Id"
+            ),
+            "player2Id" = COALESCE(
+              (SELECT "playerId" FROM changes WHERE changes."id" = ${params.tableName}."id" AND changes."side" = 2),
+              "player2Id"
+            ),
             "slotOverrideBy" = NULL, "slotOverrideAt" = NULL,
             "version" = "version" + 1, "updatedAt" = ?
-        WHERE "tournamentId" = ? AND "stage" = 'finals' AND "id" IN (${params.changes.map(() => '?').join(',')})
+        WHERE "tournamentId" = ? AND "stage" = 'finals' AND "id" IN (SELECT "id" FROM changes)
           AND (SELECT COUNT(*) FROM ${params.tableName} source
-               WHERE source."tournamentId" = ? AND source."stage" = 'playoff' AND (${sourceClauses})) = ?
+               JOIN sources ON sources."id" = source."id" AND sources."version" = source."version"
+               WHERE source."tournamentId" = ? AND source."stage" = 'playoff'
+                 AND source."round" = 'playoff_r2' AND source."completed" = 1) = (SELECT COUNT(*) FROM sources)
           AND (SELECT COUNT(*) FROM ${params.tableName} target
-               WHERE target."tournamentId" = ? AND target."stage" = 'finals' AND (${targetClauses})) = ?
+               JOIN changes ON changes."id" = target."id" AND changes."version" = target."version"
+               WHERE target."tournamentId" = ? AND target."stage" = 'finals' AND target."round" = 'winners_r1'
+                 AND target."completed" = 0 AND COALESCE(target."isBye", 0) = 0) = (SELECT COUNT(*) FROM changes)
           AND (SELECT COUNT(*) FROM ${params.tableName} protected
-               WHERE protected."tournamentId" = ? AND protected."stage" = 'finals' AND (${protectedClauses})) = ?
-          AND ${duplicateGuards}`,
+               JOIN protectedRows ON protectedRows."id" = protected."id" AND protectedRows."version" = protected."version"
+               WHERE protected."tournamentId" = ? AND protected."stage" = 'finals'
+                 AND ${downstreamPristineSql(params.eventTypeCode, 'protected')}
+                 AND protected."slotOverrideBy" IS NULL AND protected."slotOverrideAt" IS NULL) = (SELECT COUNT(*) FROM protectedRows)
+          AND (SELECT COUNT(*) FROM ${params.tableName} canonical
+               JOIN canonicalSlots ON canonicalSlots."id" = canonical."id" AND canonicalSlots."version" = canonical."version"
+               WHERE canonical."tournamentId" = ? AND canonical."stage" = 'finals') = (SELECT COUNT(*) FROM canonicalSlots)
+          AND NOT EXISTS (
+            SELECT 1 FROM ${params.tableName} existing
+            JOIN canonicalSlots ON existing."player1Id" = canonicalSlots."playerId"
+            WHERE existing."tournamentId" = ? AND existing."stage" = 'finals'
+              AND NOT EXISTS (
+                SELECT 1 FROM canonicalSlots intended
+                WHERE intended."id" = existing."id" AND intended."side" = 1
+                  AND (
+                    EXISTS (SELECT 1 FROM changes changed WHERE changed."id" = existing."id" AND changed."side" = 1)
+                    OR existing."player1Id" = intended."playerId"
+                  )
+              )
+            UNION ALL
+            SELECT 1 FROM ${params.tableName} existing
+            JOIN canonicalSlots ON existing."player2Id" = canonicalSlots."playerId"
+            WHERE existing."tournamentId" = ? AND existing."stage" = 'finals'
+              AND NOT EXISTS (
+                SELECT 1 FROM canonicalSlots intended
+                WHERE intended."id" = existing."id" AND intended."side" = 2
+                  AND (
+                    EXISTS (SELECT 1 FROM changes changed WHERE changed."id" = existing."id" AND changed."side" = 2)
+                    OR existing."player2Id" = intended."playerId"
+                  )
+              )
+          )`,
       values: [
-        ...p1.flatMap((change) => [change.id, change.playerId]),
-        ...p2.flatMap((change) => [change.id, change.playerId]),
+        changesJson,
+        sourcesJson,
+        protectedRowsJson,
+        canonicalSlotsJson,
         updatedAt,
         params.tournamentId,
-        ...params.changes.map((change) => change.id),
         params.tournamentId,
-        ...params.sources.flatMap((source) => [source.id, source.version]),
-        params.sources.length,
         params.tournamentId,
-        ...params.changes.flatMap((change) => [change.id, change.version]),
-        params.changes.length,
         params.tournamentId,
-        ...params.protectedRows.flatMap((row) => [row.id, row.version]),
-        params.protectedRows.length,
-        ...params.canonicalSlots.flatMap((slot) => [
-          params.tournamentId,
-          slot.playerId,
-          ...canonicalP1Ids,
-          slot.playerId,
-          ...canonicalP2Ids,
-        ]),
+        params.tournamentId,
+        params.tournamentId,
+        params.tournamentId,
       ],
     },
     {
@@ -4606,6 +4622,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             protectedRows: protectedRows.map((row) => ({ id: row.id as string, version: row.version as number })),
             canonicalSlots: canonicalSlots.map(({ target, side, winnerId }) => ({
               id: target.id as string,
+              version: target.version as number,
               side,
               playerId: winnerId,
             })),
@@ -4631,7 +4648,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           });
         } catch (error) {
           logger.error('Playoff reconciliation batch failed', {
-            error,
+            ...getSafeErrorLogFields(error),
             tournamentId,
             eventTypeCode: config.eventTypeCode,
           });
