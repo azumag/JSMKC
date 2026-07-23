@@ -589,6 +589,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
           phaseStatus: defaultPhaseStatus,
           taMode: 'standard',
           taBattleRoyaleMode: false,
+          frozenStages: [],
           phase3Rules: {
             initialLives: 3,
             lifeResetThresholds: [8, 4, 2],
@@ -623,6 +624,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
           phaseStatus: defaultPhaseStatus,
           taMode: 'standard',
           taBattleRoyaleMode: false,
+          frozenStages: [],
           phase3Rules: {
             initialLives: 3,
             lifeResetThresholds: [8, 4, 2],
