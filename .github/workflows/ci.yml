@@ -9,6 +9,9 @@ on:
     paths:
       - "smkc-score-app/**"
 
+permissions:
+  contents: write
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -33,6 +36,44 @@ jobs:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: smkc-score-app/package-lock.json
+
+      - name: Build minimal Auth.js lockfile update
+        run: |
+          git show origin/main:smkc-score-app/package-lock.json > /tmp/base-package-lock.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const lock = JSON.parse(fs.readFileSync('/tmp/base-package-lock.json', 'utf8'));
+          lock.packages[''].dependencies['next-auth'] = '^5.0.0-beta.32';
+
+          Object.assign(lock.packages['node_modules/@auth/core'], {
+            version: '0.41.3',
+            resolved: 'https://registry.npmjs.org/@auth/core/-/core-0.41.3.tgz',
+            integrity: 'sha512-sJ3JMHHkXMD3aOjopv7mOBTO1Ocw4b0fAEXJBz6k7YHLpYQI6C40jCUPc5fNvUKxXRXNE1/sRISA15UrwWJBTw==',
+          });
+          lock.packages['node_modules/@auth/core'].peerDependencies.nodemailer = '^7.0.7 || ^8.0.5';
+
+          Object.assign(lock.packages['node_modules/next-auth'], {
+            version: '5.0.0-beta.32',
+            resolved: 'https://registry.npmjs.org/next-auth/-/next-auth-5.0.0-beta.32.tgz',
+            integrity: 'sha512-CGlChIEWZ6LltNVxrE5yiySMID+Idpmry47JYA5lLwgD8Sx02a8M65VL0TWVz9nbnOioS/tCW/rP/0+mE7Qp4Q==',
+          });
+          lock.packages['node_modules/next-auth'].dependencies['@auth/core'] = '0.41.3';
+          lock.packages['node_modules/next-auth'].peerDependencies.nodemailer = '^7.0.7 || ^8.0.5';
+
+          fs.writeFileSync('package-lock.json', `${JSON.stringify(lock, null, 2)}\n`);
+          NODE
+
+      - name: Commit minimal lockfile update
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "fix: minimize Auth.js lockfile update"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
 
       - name: Install dependencies
         run: npm ci
