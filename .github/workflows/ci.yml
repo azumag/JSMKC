@@ -9,9 +9,6 @@ on:
     paths:
       - "smkc-score-app/**"
 
-permissions:
-  contents: write
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -37,29 +34,6 @@ jobs:
           cache: "npm"
           cache-dependency-path: smkc-score-app/package-lock.json
 
-      - name: Refresh dependency lockfile
-        run: npm install --package-lock-only --ignore-scripts
-
-      - name: Upload refreshed lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: refreshed-package-lock
-          path: smkc-score-app/package-lock.json
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Commit refreshed lockfile
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        run: |
-          if git diff --quiet -- package-lock.json; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "fix: refresh Auth.js lockfile"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
-
       - name: Install dependencies
         run: npm ci
 
@@ -73,22 +47,8 @@ jobs:
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Security audit
-        id: security-audit
-        # Capture the machine-readable report so dependency failures can be diagnosed
-        # without weakening the high/critical vulnerability gate.
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          npm audit --audit-level=high --json | tee npm-audit.json
-
-      - name: Upload npm audit report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-audit-report
-          path: smkc-score-app/npm-audit.json
-          if-no-files-found: error
-          retention-days: 1
+        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
+        run: npm audit --audit-level=high
 
       - name: Unit tests
         run: npm test -- --ci --forceExit
@@ -96,7 +56,3 @@ jobs:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
-
-      - name: Enforce security audit result
-        if: steps.security-audit.outcome == 'failure'
-        run: exit 1
