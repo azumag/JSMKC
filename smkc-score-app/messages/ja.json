@@ -840,7 +840,6 @@
     "saveLives": "ライフを保存",
     "invalidLives": "1から10までの整数を入力してください。",
     "livesUpdateFailed": "ライフの更新に失敗しました。",
-    "top2LifeAdjustmentWarning": "Top 2：次のラウンド開始前に、残った2選手をともに5ライフへ設定してください。",
     "eliminate": "敗退させる",
     "roundsCompleted": "{count}ラウンド完了",
     "noRoundsYet": "まだラウンドが行われていません",

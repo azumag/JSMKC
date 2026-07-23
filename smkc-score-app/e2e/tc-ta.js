@@ -1717,13 +1717,9 @@ async function runTc3034(adminPage) {
       throw new Error('expected two 3-life Phase 3 entries');
 
     await nav(adminPage, `/tournaments/${setup.tournamentId}/ta/finals`);
-    if (
-      !(await adminPage
-        .getByTestId('ta-top2-life-adjustment-warning')
-        .isVisible({ timeout: 10000 })
-        .catch(() => false))
-    ) {
-      throw new Error('Top 2 adjustment warning was not visible');
+    await adminPage.getByTestId(`ta-set-lives-${active[0].id}`).waitFor({ state: 'visible', timeout: 10000 });
+    if ((await adminPage.getByTestId('ta-top2-life-adjustment-warning').count()) !== 0) {
+      throw new Error('Top 2 adjustment must remain optional and show no fixed warning');
     }
     for (const entry of active) {
       const input = adminPage.getByTestId(`ta-set-lives-${entry.id}`);
