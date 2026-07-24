@@ -12,23 +12,31 @@ def replace_exact(path: Path, old: str, new: str, label: str, count: int = 1) ->
     path.write_text(source.replace(old, new, count))
 
 
+def replace_regex(path: Path, pattern: str, replacement: str, label: str, count: int = 1) -> None:
+    source = path.read_text()
+    updated, actual = re.subn(pattern, replacement, source, count=count, flags=re.MULTILINE | re.DOTALL)
+    if actual != count:
+        raise SystemExit(f"{label}: expected {count} occurrence(s), found {actual}")
+    path.write_text(updated)
+
+
 # Remove the schedule selector and its form state. The server now owns the policy.
 page = ROOT / "src/app/tournaments/page.tsx"
-replace_exact(
+replace_regex(
     page,
-    "    qualificationScheduleMethod: 'circle' as 'circle' | 'cdm',\n",
+    r"^    qualificationScheduleMethod: 'circle' as 'circle' \| 'cdm',\n",
     "",
     "initial form schedule state",
 )
-replace_exact(
+replace_regex(
     page,
-    "          qualificationScheduleMethod: 'circle',\n",
+    r"^          qualificationScheduleMethod: 'circle',\n",
     "",
     "success reset schedule state",
 )
-replace_exact(
+replace_regex(
     page,
-    "                    qualificationScheduleMethod: 'circle',\n",
+    r"^                    qualificationScheduleMethod: 'circle',\n",
     "",
     "dialog reset schedule state",
 )
