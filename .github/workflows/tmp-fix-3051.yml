@@ -1,0 +1,167 @@
+name: Temporary fix and verify PR 3052
+
+on:
+  push:
+    branches:
+      - codex/3051-cdm-archive-schedule-reconcile
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/3051-cdm-archive-schedule-reconcile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Install
+        working-directory: smkc-score-app
+        run: npm ci --silent --no-audit --no-fund
+      - name: Apply portable digest and cache-safety fixes
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          planner_path = Path('smkc-score-app/src/lib/cdm-qualification-reconciliation.ts')
+          planner = planner_path.read_text()
+          old_digest = """export async function digestCdmQualificationReconciliationPlan(
+            plan: CdmQualificationReconciliationPlan,
+          ): Promise<string> {
+            const encoded = new TextEncoder().encode(JSON.stringify(plan.digestPayload));
+            const digest = await crypto.subtle.digest('SHA-256', encoded);
+            return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+          }
+          """
+          new_digest = """const FNV_64_OFFSET = 0xcbf29ce484222325n;
+          const FNV_64_PRIME = 0x100000001b3n;
+          const FNV_64_MASK = 0xffffffffffffffffn;
+          const FALLBACK_HASH_SEEDS = [
+            0n,
+            0x9e3779b97f4a7c15n,
+            0xd6e8feb86659fd93n,
+            0xa5a3564e27f8862fn,
+          ] as const;
+
+          function fallbackDigest(serialized: string): string {
+            return FALLBACK_HASH_SEEDS.map((seed) => {
+              let hash = (FNV_64_OFFSET ^ seed) & FNV_64_MASK;
+              for (let index = 0; index < serialized.length; index++) {
+                const codeUnit = serialized.charCodeAt(index);
+                hash ^= BigInt(codeUnit & 0xff);
+                hash = (hash * FNV_64_PRIME) & FNV_64_MASK;
+                hash ^= BigInt(codeUnit >>> 8);
+                hash = (hash * FNV_64_PRIME) & FNV_64_MASK;
+              }
+              return hash.toString(16).padStart(16, '0');
+            }).join('');
+          }
+
+          export async function digestCdmPayload(value: unknown): Promise<string> {
+            const serialized = JSON.stringify(value);
+            const subtle = globalThis.crypto?.subtle;
+            if (!subtle) return fallbackDigest(serialized);
+
+            const encoded = new TextEncoder().encode(serialized);
+            const digest = await subtle.digest('SHA-256', encoded);
+            return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+          }
+
+          export async function digestCdmQualificationReconciliationPlan(
+            plan: CdmQualificationReconciliationPlan,
+          ): Promise<string> {
+            return digestCdmPayload(plan.digestPayload);
+          }
+          """
+          if old_digest not in planner:
+              raise SystemExit('planner digest snippet not found')
+          planner_path.write_text(planner.replace(old_digest, new_digest))
+
+          service_path = Path('smkc-score-app/src/lib/cdm-qualification-reconciliation-service.ts')
+          service = service_path.read_text()
+          service = service.replace(
+              "import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';\n",
+              "import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';\nimport { createLogger } from '@/lib/logger';\n",
+          )
+          service = service.replace(
+              "  digestCdmQualificationReconciliationPlan,\n",
+              "  digestCdmPayload,\n  digestCdmQualificationReconciliationPlan,\n",
+          )
+          service = service.replace(
+              "const MODES: readonly CdmReconciliationMode[] = ['bm', 'mr', 'gp'];\n",
+              "const MODES: readonly CdmReconciliationMode[] = ['bm', 'mr', 'gp'];\nconst logger = createLogger('cdm-qualification-reconciliation');\n",
+          )
+          old_sha = """async function sha256(value: unknown): Promise<string> {
+            const encoded = new TextEncoder().encode(JSON.stringify(value));
+            const digest = await crypto.subtle.digest('SHA-256', encoded);
+            return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+          }
+
+          """
+          if old_sha not in service:
+              raise SystemExit('service sha snippet not found')
+          service = service.replace(old_sha, '')
+          service = service.replace(
+              "  const digest = await sha256({\n",
+              "  const digest = await digestCdmPayload({\n",
+          )
+          old_create_id = """function createId(): string {
+            return crypto.randomUUID();
+          }
+          """
+          new_create_id = """function createId(): string {
+            if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+            return `reconcile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+          }
+          """
+          if old_create_id not in service:
+              raise SystemExit('createId snippet not found')
+          service = service.replace(old_create_id, new_create_id)
+          old_cache = """  invalidateOverallRankingsCache(params.tournamentId);
+            await invalidate(params.tournamentId);
+            const archive = await persistTournamentArchive(params.tournamentId);
+          """
+          new_cache = """  invalidateOverallRankingsCache(params.tournamentId);
+            try {
+              await invalidate(params.tournamentId);
+            } catch (error) {
+              logger.warn('Failed to invalidate standings cache after CDM reconciliation', {
+                error,
+                tournamentId: params.tournamentId,
+              });
+            }
+            const archive = await persistTournamentArchive(params.tournamentId);
+          """
+          if old_cache not in service:
+              raise SystemExit('cache snippet not found')
+          service_path.write_text(service.replace(old_cache, new_cache))
+          PY
+      - name: Format
+        working-directory: smkc-score-app
+        run: |
+          npx prettier --write \
+            src/lib/cdm-qualification-reconciliation.ts \
+            src/lib/cdm-qualification-reconciliation-service.ts
+      - name: Focused tests
+        working-directory: smkc-score-app
+        run: >-
+          npx jest
+          __tests__/lib/cdm-qualification-reconciliation.test.ts
+          __tests__/lib/cdm-qualification-reconciliation-service.test.ts
+          --runInBand --no-coverage
+      - name: Commit fixes
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add smkc-score-app
+          git commit -m "fix: make reconciliation digest portable"
+          git push origin HEAD:codex/3051-cdm-archive-schedule-reconcile
