@@ -55,32 +55,14 @@ jobs:
             package-lock.json
 
       - name: Focused tests
-        id: focused
-        shell: bash
-        run: |
-          set +e
-          cd smkc-score-app
-          npx jest --runTestsByPath \
-            "__tests__/lib/api-factories/qualification-route.test.ts" \
-            "__tests__/app/api/tournaments/route.test.ts" \
-            --runInBand --no-coverage > ../.github/pr3053-focused-test.log 2>&1
-          status=$?
-          cat ../.github/pr3053-focused-test.log
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Commit focused-test diagnostics on failure
-        if: steps.focused.outputs.status != '0'
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/pr3053-focused-test.log
-          git commit -m "chore: record PR 3053 focused-test failure"
-          git push origin HEAD:codex/new-tournaments-cdm-only
-          exit 1
+        working-directory: smkc-score-app
+        run: >-
+          npx jest --runTestsByPath
+          "__tests__/lib/api-factories/qualification-route.test.ts"
+          "__tests__/app/api/tournaments/route.test.ts"
+          --runInBand --no-coverage
 
       - name: Full unit tests
-        if: steps.focused.outputs.status == '0'
         working-directory: smkc-score-app
         run: npm test -- --ci --forceExit
         env:
@@ -89,17 +71,14 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Security audit
-        if: steps.focused.outputs.status == '0'
         working-directory: smkc-score-app
         run: npm audit --audit-level=high
 
       - name: Production build
-        if: steps.focused.outputs.status == '0'
         working-directory: smkc-score-app
         run: npm run build
 
       - name: Commit verified fixes
-        if: steps.focused.outputs.status == '0'
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
