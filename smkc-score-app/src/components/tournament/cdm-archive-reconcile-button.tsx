@@ -86,30 +86,16 @@ export function CdmArchiveReconcileButton({
       const preview = unwrap<Preview>(previewJson);
       const details = (['bm', 'mr', 'gp'] as const)
         .map((mode) => modeLine(mode, preview.modes[mode], japanese))
-        .join('
-');
+        .join('\n');
       const pending = archivePending || preview.archivePending;
+      const pendingLine = pending
+        ? japanese
+          ? '\n前回の補正後、アーカイブ再生成が未完了です。今回は再生成を再試行します。\n'
+          : '\nA previous correction is waiting for archive regeneration. This will retry it.\n'
+        : '\n';
       const confirmation = japanese
-        ? `CDMアーカイブ用の日程補正を確認します。
-
-変更件数: ${preview.totalChanges}
-${details}
-${pending ? '
-前回の補正後、アーカイブ再生成が未完了です。今回は再生成を再試行します。
-' : '
-'}
-実試合ID・得点・自己申告は保持されます。JSMKC大会には適用されません。
-確定するには大会名を正確に入力してください。`
-        : `Review the CDM archive schedule reconciliation.
-
-Changes: ${preview.totalChanges}
-${details}
-${pending ? '
-A previous correction is waiting for archive regeneration. This will retry it.
-' : '
-'}
-Competitive match IDs, results, and reports are preserved. JSMKC tournaments are excluded.
-Type the exact tournament name to continue.`;
+        ? `CDMアーカイブ用の日程補正を確認します。\n\n変更件数: ${preview.totalChanges}\n${details}\n${pendingLine}\n実試合ID・得点・自己申告は保持されます。JSMKC大会には適用されません。\n確定するには大会名を正確に入力してください。`
+        : `Review the CDM archive schedule reconciliation.\n\nChanges: ${preview.totalChanges}\n${details}\n${pendingLine}\nCompetitive match IDs, results, and reports are preserved. JSMKC tournaments are excluded.\nType the exact tournament name to continue.`;
       const typedName = window.prompt(confirmation);
       if (typedName !== tournamentName) return;
 
@@ -127,15 +113,11 @@ Type the exact tournament name to continue.`;
       alert(
         japanese
           ? result.applied
-            ? `CDM日程へ補正し、アーカイブを再生成しました。
-${result.archiveGeneratedAt}`
-            : `日程は既に一致していました。アーカイブを再生成しました。
-${result.archiveGeneratedAt}`
+            ? `CDM日程へ補正し、アーカイブを再生成しました。\n${result.archiveGeneratedAt}`
+            : `日程は既に一致していました。アーカイブを再生成しました。\n${result.archiveGeneratedAt}`
           : result.applied
-            ? `CDM schedule reconciled and archive regenerated.
-${result.archiveGeneratedAt}`
-            : `Schedule already matched. The archive was regenerated.
-${result.archiveGeneratedAt}`,
+            ? `CDM schedule reconciled and archive regenerated.\n${result.archiveGeneratedAt}`
+            : `Schedule already matched. The archive was regenerated.\n${result.archiveGeneratedAt}`,
       );
       window.location.reload();
     } catch (error) {
