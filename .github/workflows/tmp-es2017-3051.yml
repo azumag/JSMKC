@@ -1,0 +1,103 @@
+name: Temporary ES2017 verification for PR 3052
+
+on:
+  push:
+    branches:
+      - codex/3051-cdm-archive-schedule-reconcile
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/3051-cdm-archive-schedule-reconcile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Install
+        working-directory: smkc-score-app
+        run: npm ci --silent --no-audit --no-fund
+      - name: Replace BigInt fallback with ES2017-compatible hash streams
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('smkc-score-app/src/lib/cdm-qualification-reconciliation.ts')
+          source = path.read_text()
+          old = """const FNV_64_OFFSET = 0xcbf29ce484222325n;
+          const FNV_64_PRIME = 0x100000001b3n;
+          const FNV_64_MASK = 0xffffffffffffffffn;
+          const FALLBACK_HASH_SEEDS = [0n, 0x9e3779b97f4a7c15n, 0xd6e8feb86659fd93n, 0xa5a3564e27f8862fn] as const;
+
+          function fallbackDigest(serialized: string): string {
+            return FALLBACK_HASH_SEEDS.map((seed) => {
+              let hash = (FNV_64_OFFSET ^ seed) & FNV_64_MASK;
+              for (let index = 0; index < serialized.length; index++) {
+                const codeUnit = serialized.charCodeAt(index);
+                hash ^= BigInt(codeUnit & 0xff);
+                hash = (hash * FNV_64_PRIME) & FNV_64_MASK;
+                hash ^= BigInt(codeUnit >>> 8);
+                hash = (hash * FNV_64_PRIME) & FNV_64_MASK;
+              }
+              return hash.toString(16).padStart(16, '0');
+            }).join('');
+          }
+          """
+          new = """const FNV_32_PRIME = 0x01000193;
+          const FALLBACK_HASH_SEEDS = [
+            0x811c9dc5,
+            0x9e3779b9,
+            0x85ebca6b,
+            0xc2b2ae35,
+            0x27d4eb2f,
+            0x165667b1,
+            0xd3a2646c,
+            0xfd7046c5,
+          ] as const;
+
+          function fallbackDigest(serialized: string): string {
+            return FALLBACK_HASH_SEEDS.map((seed) => {
+              let hash = seed >>> 0;
+              for (let index = 0; index < serialized.length; index++) {
+                const codeUnit = serialized.charCodeAt(index);
+                hash = Math.imul(hash ^ (codeUnit & 0xff), FNV_32_PRIME) >>> 0;
+                hash = Math.imul(hash ^ (codeUnit >>> 8), FNV_32_PRIME) >>> 0;
+              }
+              return hash.toString(16).padStart(8, '0');
+            }).join('');
+          }
+          """
+          if old not in source:
+              raise SystemExit('BigInt fallback block not found')
+          path.write_text(source.replace(old, new))
+          PY
+      - name: Format
+        working-directory: smkc-score-app
+        run: npx prettier --write src/lib/cdm-qualification-reconciliation.ts
+      - name: Focused tests
+        working-directory: smkc-score-app
+        run: >-
+          npx jest
+          __tests__/lib/cdm-qualification-reconciliation.test.ts
+          __tests__/lib/cdm-qualification-reconciliation-service.test.ts
+          --runInBand --no-coverage
+      - name: Production build
+        working-directory: smkc-score-app
+        run: npm run build
+      - name: Commit verified fix
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add smkc-score-app
+          git commit -m "fix: keep reconciliation fallback ES2017-compatible"
+          git push origin HEAD:codex/3051-cdm-archive-schedule-reconcile
