@@ -1,0 +1,67 @@
+name: Temporary new tournaments CDM-only change
+
+on:
+  push:
+    branches:
+      - codex/new-tournaments-cdm-only
+
+concurrency:
+  group: new-tournaments-cdm-only
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/new-tournaments-cdm-only
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: smkc-score-app
+        run: npm ci --silent --no-audit --no-fund
+
+      - name: Apply CDM-only policy
+        run: python3 .github/scripts/apply_new_tournaments_cdm_only.py
+
+      - name: Format changed files
+        working-directory: smkc-score-app
+        run: |
+          npx prettier --write \
+            src/app/tournaments/page.tsx \
+            src/app/api/tournaments/route.ts \
+            __tests__/app/api/tournaments/route.test.ts
+          npx prisma format
+
+      - name: Focused API tests
+        working-directory: smkc-score-app
+        run: >-
+          npx jest --runTestsByPath
+          "__tests__/app/api/tournaments/route.test.ts"
+          --runInBand --no-coverage
+
+      - name: Production build
+        working-directory: smkc-score-app
+        run: npm run build
+
+      - name: Commit verified changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add smkc-score-app
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit'
+            exit 0
+          fi
+          git commit -m "feat: use CDM scheduling for all new tournaments"
+          git push origin HEAD:codex/new-tournaments-cdm-only
