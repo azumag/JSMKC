@@ -35,9 +35,29 @@ jobs:
         run: npm ci --silent --no-audit --no-fund
 
       - name: Apply CDM-only policy
-        run: python3 .github/scripts/apply_new_tournaments_cdm_only.py
+        id: apply
+        shell: bash
+        run: |
+          set +e
+          python3 .github/scripts/apply_new_tournaments_cdm_only.py > .github/new-tournaments-cdm-only.log 2>&1
+          status=$?
+          cat .github/new-tournaments-cdm-only.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit diagnostics when patching fails
+        if: steps.apply.outputs.status != '0'
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/new-tournaments-cdm-only.log
+          git commit -m "chore: record CDM-only patch failure"
+          git push origin HEAD:codex/new-tournaments-cdm-only
+          exit 1
 
       - name: Format changed files
+        if: steps.apply.outputs.status == '0'
         working-directory: smkc-score-app
         run: |
           npx prettier --write \
@@ -47,6 +67,7 @@ jobs:
           npx prisma format
 
       - name: Focused API tests
+        if: steps.apply.outputs.status == '0'
         working-directory: smkc-score-app
         run: >-
           npx jest --runTestsByPath
@@ -54,10 +75,12 @@ jobs:
           --runInBand --no-coverage
 
       - name: Production build
+        if: steps.apply.outputs.status == '0'
         working-directory: smkc-score-app
         run: npm run build
 
       - name: Commit verified changes
+        if: steps.apply.outputs.status == '0'
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
