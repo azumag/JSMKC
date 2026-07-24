@@ -20,9 +20,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
+import { executeD1Batch } from '@/lib/d1-batch';
 import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
@@ -720,31 +720,85 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (activePhase3Work) {
         return createErrorResponse('Lives can only be adjusted between fully resolved Phase 3 rounds', 409, 'CONFLICT');
       }
-      // Keep the phase-state predicate in the same SQL statement as the CAS
-      // update. A separate read followed by update has a gap where a round can
-      // open after the read but before the life value is written.
-      const updated = await prisma.$executeRaw(
-        Prisma.sql`
-          UPDATE "TTEntry"
-          SET "lives" = ${lives}, "version" = "version" + 1, "updatedAt" = CURRENT_TIMESTAMP
-          WHERE "id" = ${entryId}
-            AND "tournamentId" = ${tournamentId}
-            AND "stage" = 'phase3'
-            AND "eliminated" = false
-            AND "version" = ${expectedVersion}
-            AND "lives" = ${expectedLives}
-            AND NOT EXISTS (
-              SELECT 1
-              FROM "TTPhaseRound" AS round
-              LEFT JOIN "TTPhaseSuddenDeathRound" AS sudden
-                ON sudden."phaseRoundId" = round."id" AND sudden."resolved" = false
-              WHERE round."tournamentId" = ${tournamentId}
-                AND round."phase" = 'phase3'
-                AND (round."submittedAt" IS NULL OR sudden."id" IS NOT NULL)
+      const adjustedAt = new Date().toISOString();
+      const adjustmentId =
+        globalThis.crypto?.randomUUID?.() ?? `ta-life-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const adjustedById = resolveAuditUserId(authResult.session) ?? null;
+      const adjustedByName = authResult.session?.user?.name?.trim() || 'Administrator';
+
+      // D1's native batch is atomic. The guarded current-state update and its
+      // durable replay event therefore either both commit or both disappear.
+      // The second statement observes changes() from the first statement, so
+      // a stale retry writes neither current state nor a duplicate event.
+      const [updated, eventCreated] = await executeD1Batch([
+        {
+          sql: `UPDATE "TTEntry"
+            SET "lives" = ?, "version" = "version" + 1, "updatedAt" = ?
+            WHERE "id" = ?
+              AND "tournamentId" = ?
+              AND "stage" = 'phase3'
+              AND "eliminated" = false
+              AND "version" = ?
+              AND "lives" = ?
+              AND NOT EXISTS (
+                SELECT 1
+                FROM "TTPhaseRound" AS round
+                LEFT JOIN "TTPhaseSuddenDeathRound" AS sudden
+                  ON sudden."phaseRoundId" = round."id" AND sudden."resolved" = false
+                WHERE round."tournamentId" = ?
+                  AND round."phase" = 'phase3'
+                  AND (round."submittedAt" IS NULL OR sudden."id" IS NOT NULL)
+              )`,
+          values: [lives, adjustedAt, entryId, tournamentId, expectedVersion, expectedLives, tournamentId],
+        },
+        {
+          sql: `INSERT INTO "TTPhaseLifeAdjustment" (
+              "id", "tournamentId", "entryId", "playerId",
+              "oldLives", "newLives", "entryVersion",
+              "adjustedById", "adjustedByName",
+              "afterRoundId", "afterRoundNumber", "createdAt"
             )
-        `,
-      );
-      if (Number(updated) !== 1) {
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              (
+                SELECT round."id"
+                FROM "TTPhaseRound" AS round
+                WHERE round."tournamentId" = ?
+                  AND round."phase" = 'phase3'
+                  AND round."submittedAt" IS NOT NULL
+                ORDER BY round."submittedAt" DESC, round."roundNumber" DESC
+                LIMIT 1
+              ),
+              COALESCE(
+                (
+                  SELECT round."roundNumber"
+                  FROM "TTPhaseRound" AS round
+                  WHERE round."tournamentId" = ?
+                    AND round."phase" = 'phase3'
+                    AND round."submittedAt" IS NOT NULL
+                  ORDER BY round."submittedAt" DESC, round."roundNumber" DESC
+                  LIMIT 1
+                ),
+                0
+              ),
+              ?
+            WHERE changes() = 1`,
+          values: [
+            adjustmentId,
+            tournamentId,
+            entryId,
+            entry.playerId,
+            entry.lives,
+            lives,
+            expectedVersion! + 1,
+            adjustedById,
+            adjustedByName,
+            tournamentId,
+            tournamentId,
+            adjustedAt,
+          ],
+        },
+      ]);
+      if (updated !== 1 || eventCreated !== 1) {
         return createErrorResponse(
           'The entry was modified by another user. Please refresh and try again.',
           409,

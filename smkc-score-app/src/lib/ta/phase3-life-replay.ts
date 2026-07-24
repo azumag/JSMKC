@@ -1,7 +1,8 @@
 /**
  * Reconstructs each player's remaining Phase 3 (life-based elimination) life
- * total after every round, from the round history alone (results,
- * eliminatedIds, livesReset, resolved sudden-death sub-rounds). TTEntry.lives
+ * total after every round from the durable Phase 3 timeline (round results,
+ * life resets, resolved sudden-death sub-rounds, and absolute manual life
+ * adjustments). TTEntry.lives
  * only tracks the CURRENT total, so the round-history UI needs this replay to
  * show "remaining life at round N" for rounds that are no longer the latest
  * one.
@@ -45,6 +46,7 @@ export interface Phase3SuddenDeathRoundLike {
 }
 
 export interface Phase3RoundLike {
+  id?: string;
   roundNumber: number;
   results: readonly Phase3RoundResultLike[];
   eliminatedIds?: readonly string[] | null;
@@ -65,6 +67,19 @@ export interface Phase3RoundLike {
    * Falls back to 1 when absent (rounds recorded before this column existed).
    */
   lifeLoss?: number | null;
+  submittedAt?: string | Date | null;
+  createdAt?: string | Date | null;
+}
+
+export interface Phase3LifeAdjustmentLike {
+  id: string;
+  playerId: string;
+  oldLives: number;
+  newLives: number;
+  entryVersion: number;
+  afterRoundId?: string | null;
+  afterRoundNumber?: number | null;
+  createdAt: string | Date;
 }
 
 export interface Phase3LifeReplay {
@@ -98,15 +113,70 @@ export function replayPhase3Lives(
   rounds: readonly Phase3RoundLike[],
   playerIds: Iterable<string>,
   rules: Phase3LifeRules,
+  adjustments: readonly Phase3LifeAdjustmentLike[] = [],
 ): Phase3LifeReplay {
   const livesByPlayer = new Map<string, number>([...playerIds].map((playerId) => [playerId, rules.initialLives]));
   const eliminated = new Set<string>();
   const roundLivesByPlayer = new Map<number, Map<string, number>>();
   const lifeLostByPlayer = new Map<number, Set<string>>();
 
-  const sortedRounds = [...rounds].sort((a, b) => a.roundNumber - b.roundNumber);
+  type TimelineEvent =
+    { kind: 'round'; value: Phase3RoundLike } | { kind: 'adjustment'; value: Phase3LifeAdjustmentLike };
 
-  for (const round of sortedRounds) {
+  const eventTime = (event: TimelineEvent): number => {
+    const value = event.kind === 'round' ? (event.value.submittedAt ?? event.value.createdAt) : event.value.createdAt;
+    if (!value) return 0;
+    const timestamp = value instanceof Date ? value.getTime() : Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  };
+
+  const timeline: TimelineEvent[] = [
+    ...rounds.map((value): TimelineEvent => ({ kind: 'round', value })),
+    ...adjustments.map((value): TimelineEvent => ({ kind: 'adjustment', value })),
+  ];
+  timeline.sort((a, b) => {
+    const timeDifference = eventTime(a) - eventTime(b);
+    if (timeDifference !== 0) return timeDifference;
+
+    if (a.kind === 'round' && b.kind === 'round') {
+      return a.value.roundNumber - b.value.roundNumber;
+    }
+    if (a.kind === 'adjustment' && b.kind === 'adjustment') {
+      if (a.value.playerId === b.value.playerId && a.value.entryVersion !== b.value.entryVersion) {
+        return a.value.entryVersion - b.value.entryVersion;
+      }
+      return a.value.id.localeCompare(b.value.id);
+    }
+
+    if (a.kind === 'round' && b.kind === 'adjustment') {
+      const adjustmentIsAfterRound =
+        (b.value.afterRoundId != null && a.value.id != null && b.value.afterRoundId === a.value.id) ||
+        (b.value.afterRoundId == null && (b.value.afterRoundNumber ?? 0) >= a.value.roundNumber);
+      return adjustmentIsAfterRound ? -1 : 1;
+    }
+    if (a.kind === 'adjustment' && b.kind === 'round') {
+      const adjustmentIsAfterRound =
+        (a.value.afterRoundId != null && b.value.id != null && a.value.afterRoundId === b.value.id) ||
+        (a.value.afterRoundId == null && (a.value.afterRoundNumber ?? 0) >= b.value.roundNumber);
+      return adjustmentIsAfterRound ? 1 : -1;
+    }
+    return 0;
+  });
+
+  for (const event of timeline) {
+    if (event.kind === 'adjustment') {
+      // set_lives is accepted only for an active player and stores an
+      // absolute target. Reasserting that invariant makes replay idempotent:
+      // retries never add a delta, and removing an unrelated round cannot
+      // silently leave the player at 0/eliminated.
+      if (livesByPlayer.has(event.value.playerId)) {
+        livesByPlayer.set(event.value.playerId, event.value.newLives);
+        eliminated.delete(event.value.playerId);
+      }
+      continue;
+    }
+
+    const round = event.value;
     const ordered = orderRoundResults(round);
     const bottomHalf = ordered.slice(Math.ceil(ordered.length / 2));
     const lostThisRound = new Set<string>();
@@ -158,8 +228,9 @@ export function attachLivesAfterToRounds<
   rounds: readonly TRound[],
   playerIds: Iterable<string>,
   rules: Phase3LifeRules,
+  adjustments: readonly Phase3LifeAdjustmentLike[] = [],
 ): Array<TRound & { results: Array<TResult & { livesAfter: number | null; lifeLost: boolean }> }> {
-  const { roundLivesByPlayer, lifeLostByPlayer } = replayPhase3Lives(rounds, playerIds, rules);
+  const { roundLivesByPlayer, lifeLostByPlayer } = replayPhase3Lives(rounds, playerIds, rules, adjustments);
   return rounds.map((round) => ({
     ...round,
     results: round.results.map(

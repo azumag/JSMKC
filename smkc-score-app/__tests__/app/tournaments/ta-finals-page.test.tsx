@@ -391,4 +391,62 @@ describe('TimeAttackFinals — round history remaining-life display', () => {
     expect(text).not.toMatch(/Luigi.*\(-1 lives\)/);
     expect(text).toMatch(/Luigi.*3 left/);
   });
+
+  it('interleaves a manual life adjustment with round history and shows before/after, timestamp, and actor', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          entries: [
+            makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: 5 }),
+            makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi', lives: 3 }),
+          ],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase3',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [
+                { playerId: 'p-1', timeMs: 50000, isRetry: false, livesAfter: 3, lifeLost: false },
+                { playerId: 'p-2', timeMs: 70000, isRetry: false, livesAfter: 2, lifeLost: true },
+              ],
+              eliminatedIds: [],
+              livesReset: false,
+              manualOverride: false,
+              submittedAt: '2026-07-24T01:00:00.000Z',
+              createdAt: '2026-07-24T00:55:00.000Z',
+            },
+          ],
+          lifeAdjustments: [
+            {
+              id: 'adjustment-1',
+              entryId: 'e-1',
+              playerId: 'p-1',
+              oldLives: 3,
+              newLives: 5,
+              entryVersion: 8,
+              adjustedByName: 'Ops Admin',
+              afterRoundId: 'r-1',
+              afterRoundNumber: 1,
+              createdAt: '2026-07-24T01:05:00.000Z',
+            },
+          ],
+          availableCourses: ['GV2'],
+          playedCourses: ['GV1'],
+        },
+      }),
+    });
+
+    const { container } = render(<TimeAttackFinals params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    const adjustment = await screen.findByTestId('ta-life-adjustment-adjustment-1');
+    expect(adjustment).toHaveTextContent('Life adjustment');
+    expect(adjustment).toHaveTextContent('Mario');
+    expect(adjustment).toHaveTextContent('3 → 5');
+    expect(adjustment).toHaveTextContent('By Ops Admin');
+    const historyText = (container.textContent ?? '').slice((container.textContent ?? '').indexOf('Round History'));
+    expect(historyText.indexOf('Life adjustment')).toBeLessThan(historyText.indexOf('Round 1'));
+  });
 });

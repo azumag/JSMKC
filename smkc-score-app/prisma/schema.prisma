@@ -175,6 +175,7 @@ model Tournament {
   ttEntries                TTEntry[]
   ttPhaseRounds            TTPhaseRound[]
   ttPhaseSuddenDeathRounds TTPhaseSuddenDeathRound[]
+  ttPhaseLifeAdjustments   TTPhaseLifeAdjustment[]
   playerScores             TournamentPlayerScore[]
 }
 
@@ -580,6 +581,33 @@ model TTPhaseSuddenDeathRound {
   @@index([phaseRoundId])
 }
 
+// Absolute-value life corrections made between standard TA Phase 3 rounds.
+// These are timeline events, not deltas: undo/cancel replays them together
+// with submitted rounds so a correction cannot silently disappear.
+model TTPhaseLifeAdjustment {
+  id               String     @id @default(cuid())
+  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId     String
+  entry            TTEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId          String
+  playerId         String
+  oldLives         Int
+  newLives         Int
+  entryVersion     Int
+  adjustedById     String?
+  adjustedByName   String
+  // Snapshot of the latest submitted round at creation time. The ID is
+  // intentionally not a foreign key: cancel may delete that round, while the
+  // adjustment must remain replayable.
+  afterRoundId     String?
+  afterRoundNumber Int        @default(0)
+  createdAt        DateTime   @default(now())
+
+  @@index([tournamentId, createdAt])
+  @@index([tournamentId, afterRoundNumber])
+  @@index([entryId, createdAt])
+}
+
 model TTEntry {
   id                  String     @id @default(cuid())
   tournament          Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
@@ -606,6 +634,7 @@ model TTEntry {
   version             Int        @default(0) // 楽観的ロック用
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+  lifeAdjustments     TTPhaseLifeAdjustment[]
 
   @@unique([tournamentId, playerId, stage])
   @@index([tournamentId, stage])

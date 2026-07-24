@@ -573,6 +573,36 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             }),
         },
       );
+      const lifeAdjustments =
+        phaseValue === 'phase3'
+          ? await retryDbRead(
+              () =>
+                prisma.tTPhaseLifeAdjustment.findMany({
+                  where: { tournamentId },
+                  select: {
+                    id: true,
+                    entryId: true,
+                    playerId: true,
+                    oldLives: true,
+                    newLives: true,
+                    entryVersion: true,
+                    adjustedByName: true,
+                    afterRoundId: true,
+                    afterRoundNumber: true,
+                    createdAt: true,
+                  },
+                  orderBy: [{ createdAt: 'asc' }, { entryVersion: 'asc' }, { id: 'asc' }],
+                }),
+              {
+                onRetry: ({ attempt, error }) =>
+                  logger.warn('Retrying TA Phase 3 life-adjustment read', {
+                    attempt,
+                    tournamentId,
+                    error: error instanceof Error ? error.message : error,
+                  }),
+              },
+            )
+          : [];
       const playedCourses = await retryDbRead(() => getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phaseValue), {
         onRetry: ({ attempt, error }) =>
           logger.warn('Retrying TA phase course read', {
@@ -593,8 +623,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
               normalizedRounds,
               entries.map((entry: { playerId: string }) => entry.playerId),
               response.phase3Rules,
+              lifeAdjustments,
             )
           : normalizedRounds;
+      if (phaseValue === 'phase3') response.lifeAdjustments = lifeAdjustments;
       response.availableCourses = getAvailableCourses(playedCourses);
       response.playedCourses = playedCourses;
     }

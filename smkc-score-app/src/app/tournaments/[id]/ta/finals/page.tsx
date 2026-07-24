@@ -29,7 +29,7 @@
 
 import { useState, useEffect, useCallback, use, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,7 +78,7 @@ import { TaHandicapBadge } from '@/components/tournament/ta-handicap-badge';
 import { TaLivesIndicator } from '@/components/tournament/ta-lives-indicator';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
 import { buildTaRoundPreview, type TaRoundPreviewRow } from '@/lib/ta/round-preview';
-import type { Phase3RulesDto, TaMode } from '@/lib/ta/phase-api-types';
+import type { Phase3RulesDto, TaMode, TaPhaseLifeAdjustment } from '@/lib/ta/phase-api-types';
 import { TA_ROUND_LIFE_LOSS_MIN, TA_ROUND_LIFE_LOSS_MAX } from '@/lib/ta/battle-royale-constants';
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
@@ -142,6 +142,7 @@ interface PhaseRound {
     resolved: boolean;
   }>;
   createdAt: string;
+  submittedAt?: string | null;
 }
 
 export default function TimeAttackFinals({ params }: { params: Promise<{ id: string }> }) {
@@ -152,6 +153,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   const tTaSuddenDeath = useTranslations('taSuddenDeath');
   const tFinals = useTranslations('finals');
   const tCommon = useTranslations('common');
+  const locale = useLocale();
   // Input is a native element, so this does not skip rendering by reference equality.
   // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(tTaFinals('timeInputTitle')), [tTaFinals]);
@@ -166,6 +168,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [rounds, setRounds] = useState<PhaseRound[]>([]);
+  const [lifeAdjustments, setLifeAdjustments] = useState<TaPhaseLifeAdjustment[]>([]);
   // Available courses for the next round (received from GET response).
   // Used to populate the manual course selector dropdown.
   const [availableCourses, setAvailableCourses] = useState<string[]>([]);
@@ -260,8 +263,10 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setPhase3Frozen(Array.isArray(data.frozenStages) && data.frozenStages.includes('phase3'));
       const fetchedEntries: TTEntry[] = data.entries || [];
       const fetchedRounds: PhaseRound[] = data.rounds || [];
+      const fetchedLifeAdjustments: TaPhaseLifeAdjustment[] = data.lifeAdjustments || [];
       setEntries(fetchedEntries);
       setRounds(fetchedRounds);
+      setLifeAdjustments(fetchedLifeAdjustments);
       setAvailableCourses(data.availableCourses || []);
       setPlayedCourses(data.playedCourses || []);
 
@@ -766,6 +771,41 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
 
   /** Count of completed rounds (with submitted results), used in multiple sections */
   const completedRoundsCount = rounds.filter((r) => (r.results as unknown[]).length > 0).length;
+  const historyItems = [
+    ...rounds
+      .filter((round) => (round.results as unknown[]).length > 0)
+      .map((round) => ({
+        kind: 'round' as const,
+        id: round.id,
+        timestamp: new Date(round.submittedAt ?? round.createdAt ?? 0).getTime(),
+        round,
+      })),
+    ...lifeAdjustments.map((adjustment) => ({
+      kind: 'life-adjustment' as const,
+      id: adjustment.id,
+      timestamp: new Date(adjustment.createdAt).getTime(),
+      adjustment,
+    })),
+  ].sort((a, b) => {
+    if (a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
+    if (a.kind === b.kind) return b.id.localeCompare(a.id);
+
+    if (a.kind === 'life-adjustment' && b.kind === 'round') {
+      const adjustmentIsAfterRound =
+        a.adjustment.afterRoundId === b.round.id ||
+        (!a.adjustment.afterRoundId && a.adjustment.afterRoundNumber >= b.round.roundNumber);
+      // Newest first. Preserve the captured round boundary when two timeline
+      // events share the same millisecond.
+      return adjustmentIsAfterRound ? -1 : 1;
+    }
+    if (a.kind === 'round' && b.kind === 'life-adjustment') {
+      const adjustmentIsAfterRound =
+        b.adjustment.afterRoundId === a.round.id ||
+        (!b.adjustment.afterRoundId && b.adjustment.afterRoundNumber >= a.round.roundNumber);
+      return adjustmentIsAfterRound ? 1 : -1;
+    }
+    return 0;
+  });
   const courseCycleStatus = getCourseCycleStatus(playedCourses);
 
   // Life reset notification: show when lives were just reset
@@ -1330,126 +1370,154 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         </CardHeader>
         {historyExpanded && (
           <CardContent>
-            {rounds.length === 0 ? (
+            {historyItems.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">{tTaFinals('noRoundsYet')}</p>
             ) : (
               <div className="space-y-4">
-                {[...rounds]
-                  .filter((r) => (r.results as unknown[]).length > 0)
-                  .reverse()
-                  .map((round) => {
-                    const courseInfo = COURSE_INFO.find((c) => c.abbr === round.course);
-                    const sortedResults = [...round.results].sort((a, b) => a.timeMs - b.timeMs);
-                    const halfPoint = Math.ceil(sortedResults.length / 2);
-                    const roundLifeLossCount = round.lifeLoss ?? 1;
+                {historyItems.map((item) => {
+                  if (item.kind === 'life-adjustment') {
+                    const adjustment = item.adjustment;
                     return (
-                      <div key={round.id} className="border rounded-lg p-4 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <h4 className="font-semibold">
-                            {tTaFinals('roundCourse', {
-                              number: round.roundNumber,
-                              course: courseInfo?.name || round.course,
-                            })}
-                          </h4>
-                          <div className="flex gap-2">
-                            {round.tvNumber && (
-                              <Badge variant="outline" className="text-blue-600 border-blue-400 text-xs">
-                                TV{round.tvNumber}
-                              </Badge>
-                            )}
-                            {roundLifeLossCount !== 1 && (
-                              <Badge variant="outline" className="text-orange-600 border-orange-400 text-xs">
-                                {tTaFinals('lifeLossTag', { count: roundLifeLossCount })}
-                              </Badge>
-                            )}
-                            {round.livesReset && (
-                              <Badge className="bg-yellow-500 text-black">{tTaFinals('livesReset')}</Badge>
-                            )}
-                            {/* Show "手動選択" badge when admin manually specified the course */}
-                            {round.manualOverride && (
-                              <Badge variant="outline" className="text-amber-600 border-amber-400 text-xs">
-                                {tTaFinals('manualCourseOverride')}
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {round.course}
-                            </Badge>
-                          </div>
+                      <div
+                        key={`life-adjustment-${adjustment.id}`}
+                        className="border border-blue-300 bg-blue-50/50 rounded-lg p-4 space-y-2 dark:border-blue-800 dark:bg-blue-950/20"
+                        data-testid={`ta-life-adjustment-${adjustment.id}`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="font-semibold">{tTaFinals('lifeAdjustmentHistoryTitle')}</h4>
+                          <Badge variant="outline" className="border-blue-400 text-blue-700 dark:text-blue-300">
+                            {tTaFinals('manualAdjustment')}
+                          </Badge>
                         </div>
-                        <div className="space-y-1">
-                          {sortedResults.map((result, idx) => {
-                            const isEliminated = round.eliminatedIds?.includes(result.playerId);
-                            // Prefer the server-computed lifeLost (accounts for a resolved
-                            // sudden-death tiebreak on a boundary tie); a plain "slower half
-                            // of raw time" split gets the boundary wrong for tied rounds.
-                            // The raw-time fallback only applies to stale/legacy responses
-                            // that predate this field.
-                            const isBottomHalf =
-                              typeof result.lifeLost === 'boolean' ? result.lifeLost : idx >= halfPoint;
-                            return (
-                              <div
-                                key={result.playerId}
-                                className={`flex justify-between text-sm ${isEliminated ? 'text-red-500 font-semibold' : isBottomHalf ? 'text-orange-500' : ''}`}
-                              >
-                                <span>
-                                  {idx + 1}. {playerNames[result.playerId] || result.playerId}
-                                  {result.isRetry && (
-                                    <Badge variant="outline" className="ml-1 text-xs">
-                                      {tCommon('retry')}
-                                    </Badge>
-                                  )}
-                                  {isBottomHalf &&
-                                    !isEliminated &&
-                                    ` ${tTaFinals('lifeLossTag', { count: roundLifeLossCount })}`}
-                                  {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
-                                  {typeof result.livesAfter === 'number' && (
-                                    <span className="ml-1 font-mono text-xs text-muted-foreground">
-                                      {tTaFinals('roundLivesRemaining', { lives: result.livesAfter })}
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="text-right font-mono tabular-nums">
-                                  {phase3Rules.handicapEnabled ? (
-                                    <span className="flex flex-col">
-                                      <strong>{msToDisplayTime(result.timeMs)}</strong>
-                                      <span className="text-xs text-muted-foreground">
-                                        {tTaFinals('rawTimeShort')} {msToDisplayTime(result.rawTimeMs ?? result.timeMs)}{' '}
-                                        / {result.handicapSeconds ?? 0}s
-                                      </span>
-                                    </span>
-                                  ) : (
-                                    msToDisplayTime(result.timeMs)
-                                  )}
-                                </span>
-                              </div>
-                            );
+                        <p className="text-sm">
+                          <span className="font-medium">{playerNames[adjustment.playerId] || adjustment.playerId}</span>{' '}
+                          <span className="font-mono">
+                            {adjustment.oldLives} → {adjustment.newLives}
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {tTaFinals('lifeAdjustmentHistoryMeta', {
+                            actor: adjustment.adjustedByName,
+                            date: new Date(adjustment.createdAt).toLocaleString(locale),
                           })}
-                        </div>
-                        {(round.suddenDeathRounds || []).length > 0 && (
-                          <div className="mt-3 border-t pt-2 space-y-2">
-                            {(round.suddenDeathRounds || []).map((sd) => (
-                              <div key={sd.id} className="text-sm">
-                                <div className="flex justify-between">
-                                  <span className="font-medium">
-                                    {tTaSuddenDeath('suddenDeathRoundLabel', { sequence: sd.sequence })}
-                                  </span>
-                                  <Badge variant="outline" className="font-mono text-xs">
-                                    {sd.course}
-                                  </Badge>
-                                </div>
-                                {sortResultsByTime(sd.results || []).map((result) => (
-                                  <div key={result.playerId} className="flex justify-between text-muted-foreground">
-                                    <span>{playerNames[result.playerId] || result.playerId}</span>
-                                    <span className="font-mono">{msToDisplayTime(result.timeMs)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        </p>
                       </div>
                     );
-                  })}
+                  }
+
+                  const round = item.round;
+                  const courseInfo = COURSE_INFO.find((c) => c.abbr === round.course);
+                  const sortedResults = [...round.results].sort((a, b) => a.timeMs - b.timeMs);
+                  const halfPoint = Math.ceil(sortedResults.length / 2);
+                  const roundLifeLossCount = round.lifeLoss ?? 1;
+                  return (
+                    <div key={round.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-semibold">
+                          {tTaFinals('roundCourse', {
+                            number: round.roundNumber,
+                            course: courseInfo?.name || round.course,
+                          })}
+                        </h4>
+                        <div className="flex gap-2">
+                          {round.tvNumber && (
+                            <Badge variant="outline" className="text-blue-600 border-blue-400 text-xs">
+                              TV{round.tvNumber}
+                            </Badge>
+                          )}
+                          {roundLifeLossCount !== 1 && (
+                            <Badge variant="outline" className="text-orange-600 border-orange-400 text-xs">
+                              {tTaFinals('lifeLossTag', { count: roundLifeLossCount })}
+                            </Badge>
+                          )}
+                          {round.livesReset && (
+                            <Badge className="bg-yellow-500 text-black">{tTaFinals('livesReset')}</Badge>
+                          )}
+                          {/* Show "手動選択" badge when admin manually specified the course */}
+                          {round.manualOverride && (
+                            <Badge variant="outline" className="text-amber-600 border-amber-400 text-xs">
+                              {tTaFinals('manualCourseOverride')}
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {round.course}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        {sortedResults.map((result, idx) => {
+                          const isEliminated = round.eliminatedIds?.includes(result.playerId);
+                          // Prefer the server-computed lifeLost (accounts for a resolved
+                          // sudden-death tiebreak on a boundary tie); a plain "slower half
+                          // of raw time" split gets the boundary wrong for tied rounds.
+                          // The raw-time fallback only applies to stale/legacy responses
+                          // that predate this field.
+                          const isBottomHalf =
+                            typeof result.lifeLost === 'boolean' ? result.lifeLost : idx >= halfPoint;
+                          return (
+                            <div
+                              key={result.playerId}
+                              className={`flex justify-between text-sm ${isEliminated ? 'text-red-500 font-semibold' : isBottomHalf ? 'text-orange-500' : ''}`}
+                            >
+                              <span>
+                                {idx + 1}. {playerNames[result.playerId] || result.playerId}
+                                {result.isRetry && (
+                                  <Badge variant="outline" className="ml-1 text-xs">
+                                    {tCommon('retry')}
+                                  </Badge>
+                                )}
+                                {isBottomHalf &&
+                                  !isEliminated &&
+                                  ` ${tTaFinals('lifeLossTag', { count: roundLifeLossCount })}`}
+                                {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
+                                {typeof result.livesAfter === 'number' && (
+                                  <span className="ml-1 font-mono text-xs text-muted-foreground">
+                                    {tTaFinals('roundLivesRemaining', { lives: result.livesAfter })}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-right font-mono tabular-nums">
+                                {phase3Rules.handicapEnabled ? (
+                                  <span className="flex flex-col">
+                                    <strong>{msToDisplayTime(result.timeMs)}</strong>
+                                    <span className="text-xs text-muted-foreground">
+                                      {tTaFinals('rawTimeShort')} {msToDisplayTime(result.rawTimeMs ?? result.timeMs)} /{' '}
+                                      {result.handicapSeconds ?? 0}s
+                                    </span>
+                                  </span>
+                                ) : (
+                                  msToDisplayTime(result.timeMs)
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {(round.suddenDeathRounds || []).length > 0 && (
+                        <div className="mt-3 border-t pt-2 space-y-2">
+                          {(round.suddenDeathRounds || []).map((sd) => (
+                            <div key={sd.id} className="text-sm">
+                              <div className="flex justify-between">
+                                <span className="font-medium">
+                                  {tTaSuddenDeath('suddenDeathRoundLabel', { sequence: sd.sequence })}
+                                </span>
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {sd.course}
+                                </Badge>
+                              </div>
+                              {sortResultsByTime(sd.results || []).map((result) => (
+                                <div key={result.playerId} className="flex justify-between text-muted-foreground">
+                                  <span>{playerNames[result.playerId] || result.playerId}</span>
+                                  <span className="font-mono">{msToDisplayTime(result.timeMs)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

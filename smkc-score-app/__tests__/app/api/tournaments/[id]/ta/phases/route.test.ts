@@ -54,6 +54,9 @@ jest.mock('@/lib/prisma', () => {
       update: jest.fn(),
       count: jest.fn(),
     },
+    tTPhaseLifeAdjustment: {
+      findMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
   return {
@@ -643,6 +646,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       (getPhaseStatus as jest.Mock).mockResolvedValue(defaultPhaseStatus);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
       (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.tTPhaseLifeAdjustment.findMany as jest.Mock).mockResolvedValue([]);
       (getPlayedCoursesWithSuddenDeath as jest.Mock).mockResolvedValue([]);
       (getAvailableCourses as jest.Mock).mockReturnValue([
         'MC1',
@@ -679,10 +683,96 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
             phaseStatus: defaultPhaseStatus,
             entries: mockEntries,
             rounds: [],
+            lifeAdjustments: [],
             availableCourses: expect.arrayContaining(['MC1', 'DP1']),
             playedCourses: [],
           }),
         }),
+      );
+    });
+
+    it('returns durable life-adjustment history and uses it when replaying later round lives', async () => {
+      const createdAt = new Date('2026-07-24T01:00:00.000Z');
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([
+        {
+          ...mockEntries[0],
+          id: 'entry-a',
+          playerId: 'player-a',
+          lives: 5,
+          eliminated: false,
+          player: { ...mockEntries[0].player, id: 'player-a', nickname: 'A' },
+        },
+        {
+          ...mockEntries[0],
+          id: 'entry-b',
+          playerId: 'player-b',
+          lives: 4,
+          eliminated: false,
+          player: { ...mockEntries[0].player, id: 'player-b', nickname: 'B' },
+        },
+      ]);
+      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'round-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'MC1',
+          results: [
+            { playerId: 'player-a', timeMs: 60000, isRetry: false },
+            { playerId: 'player-b', timeMs: 70000, isRetry: false },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+          submittedAt: new Date('2026-07-24T02:00:00.000Z'),
+          createdAt: new Date('2026-07-24T01:30:00.000Z'),
+          suddenDeathRounds: [],
+        },
+      ]);
+      (prisma.tTPhaseLifeAdjustment.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'adjustment-1',
+          entryId: 'entry-a',
+          playerId: 'player-a',
+          oldLives: 3,
+          newLives: 5,
+          entryVersion: 1,
+          adjustedByName: 'Ops Admin',
+          afterRoundId: null,
+          afterRoundNumber: 0,
+          createdAt,
+        },
+        {
+          id: 'adjustment-2',
+          entryId: 'entry-b',
+          playerId: 'player-b',
+          oldLives: 3,
+          newLives: 5,
+          entryVersion: 1,
+          adjustedByName: 'Ops Admin',
+          afterRoundId: null,
+          afterRoundNumber: 0,
+          createdAt,
+        },
+      ]);
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      expect(call.data.lifeAdjustments).toHaveLength(2);
+      expect(call.data.lifeAdjustments[0]).toEqual(
+        expect.objectContaining({
+          playerId: 'player-a',
+          oldLives: 3,
+          newLives: 5,
+          adjustedByName: 'Ops Admin',
+          createdAt,
+        }),
+      );
+      expect(call.data.rounds[0].results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: 'player-a', livesAfter: 5 }),
+          expect.objectContaining({ playerId: 'player-b', livesAfter: 4 }),
+        ]),
       );
     });
 

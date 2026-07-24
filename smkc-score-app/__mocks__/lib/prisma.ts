@@ -75,6 +75,11 @@ const mockPrisma = {
     findFirst: jest.fn(),
     count: jest.fn(),
   },
+  tTPhaseLifeAdjustment: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   tournamentPlayerScore: {
     upsert: jest.fn(),
     findMany: jest.fn(),
