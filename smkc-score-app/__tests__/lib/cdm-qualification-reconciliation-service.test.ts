@@ -135,7 +135,7 @@ describe('CDM qualification reconciliation service', () => {
     expect(executeD1Batch).toHaveBeenCalledTimes(1);
     const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
     expect(statements).toHaveLength(6);
-    expect(statements[0].sql).toContain('guard:tournament-state'.split(':')[0] === 'guard' ? 'json_extract' : '');
+    expect(statements[0].sql).toContain('SELECT json_extract');
     expect(statements[0].sql).toContain('qualificationScheduleMethod');
     expect(statements[1].sql).toContain('json_array_length');
     expect(statements[1].sql).toContain('actual."version"');
