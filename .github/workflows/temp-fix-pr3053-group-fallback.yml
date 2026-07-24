@@ -35,7 +35,9 @@ jobs:
         run: npm ci --silent --no-audit --no-fund
 
       - name: Apply review fixes
-        run: python3 .github/scripts/fix_pr3053_group_fallback.py
+        run: |
+          python3 .github/scripts/fix_pr3053_group_fallback.py
+          python3 .github/scripts/fix_pr3053_legacy_test_expectations.py
 
       - name: Refresh lockfile for safe PostCSS
         working-directory: smkc-score-app
