@@ -1,0 +1,30 @@
+name: Temporary focused tests for PR 3052
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Install
+        working-directory: smkc-score-app
+        run: npm ci --silent --no-audit --no-fund
+      - name: Run focused tests
+        working-directory: smkc-score-app
+        run: >-
+          npx jest
+          __tests__/lib/cdm-qualification-reconciliation.test.ts
+          __tests__/lib/cdm-qualification-reconciliation-service.test.ts
+          --runInBand --no-coverage
