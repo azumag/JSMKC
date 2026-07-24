@@ -6,6 +6,7 @@ import {
   generateRoundRobinSchedule,
   getByeMatchData,
   getScheduleOnlyBreakData,
+  UnsupportedRoundRobinPlayerCountError,
 } from '@/lib/round-robin';
 
 export type CdmReconciliationMode = 'bm' | 'mr' | 'gp';
@@ -486,7 +487,20 @@ function buildModePlan(
 
   for (const group of orderedGroups) {
     const players = groups.get(group)!.map((entry) => entry.playerId);
-    const schedule = generateRoundRobinSchedule(players, { method: 'cdm' });
+    let schedule;
+    try {
+      schedule = generateRoundRobinSchedule(players, { method: 'cdm' });
+    } catch (error) {
+      if (error instanceof UnsupportedRoundRobinPlayerCountError) {
+        const unsupported = error as Error & { code: string };
+        throw new CdmQualificationReconciliationError(unsupported.message, unsupported.code, {
+          mode,
+          group,
+          playerCount: players.length,
+        });
+      }
+      throw error;
+    }
     for (const target of schedule.matches) {
       if (!target.isBye) {
         const key = pairKey(target.player1Id, target.player2Id);
