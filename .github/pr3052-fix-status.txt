@@ -15,678 +15,163 @@ Prisma schema loaded from prisma/schema.prisma
 │    npm i @prisma/client@latest                          │
 └─────────────────────────────────────────────────────────┘
 
-✔ Generated Prisma Client (v6.19.3) to ./node_modules/@prisma/client in 230ms
+✔ Generated Prisma Client (v6.19.3) to ./node_modules/@prisma/client in 233ms
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
-Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
 
 exit_code=0
-===== repair generated quote =====
+===== align test expectations =====
 exit_code=0
 ===== prettier =====
-[90msrc/lib/cdm-archive-reconciliation-policy.ts[39m 76ms (unchanged)
-[90msrc/lib/cdm-qualification-reconciliation.ts[39m 165ms (unchanged)
-[90msrc/lib/cdm-qualification-reconciliation-service.ts[39m 84ms (unchanged)
-[90msrc/app/api/tournaments/route.ts[39m 30ms (unchanged)
-[90msrc/app/api/tournaments/[id]/route.ts[39m 63ms (unchanged)
-[90msrc/app/api/tournaments/[id]/qualification-schedule/reconcile/route.ts[39m 6ms (unchanged)
-[90msrc/app/api/tournaments/[id]/archive/route.ts[39m 6ms (unchanged)
-[90msrc/app/tournaments/[id]/cdm-archive-reconcile/page.tsx[39m 11ms (unchanged)
+[90msrc/lib/cdm-archive-reconciliation-policy.ts[39m 81ms (unchanged)
+[90msrc/lib/cdm-qualification-reconciliation.ts[39m 176ms (unchanged)
+[90msrc/lib/cdm-qualification-reconciliation-service.ts[39m 87ms (unchanged)
+[90msrc/app/api/tournaments/route.ts[39m 32ms (unchanged)
+[90msrc/app/api/tournaments/[id]/route.ts[39m 64ms (unchanged)
+[90msrc/app/api/tournaments/[id]/qualification-schedule/reconcile/route.ts[39m 7ms (unchanged)
+[90msrc/app/api/tournaments/[id]/archive/route.ts[39m 7ms (unchanged)
+[90msrc/app/tournaments/[id]/cdm-archive-reconcile/page.tsx[39m 12ms (unchanged)
 [90msrc/components/tournament/cdm-archive-reconcile-button.tsx[39m 22ms (unchanged)
-[90m__tests__/lib/cdm-qualification-reconciliation.test.ts[39m 32ms (unchanged)
-[90m__tests__/lib/cdm-qualification-reconciliation-service.test.ts[39m 33ms (unchanged)
-[90m__tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts[39m 15ms (unchanged)
-[90m__tests__/app/api/tournaments/[id]/archive/route.test.ts[39m 23ms (unchanged)
+[90m__tests__/lib/cdm-qualification-reconciliation.test.ts[39m 34ms (unchanged)
+[90m__tests__/lib/cdm-qualification-reconciliation-service.test.ts[39m 39ms (unchanged)
+[90m__tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts[39m 14ms (unchanged)
+[90m__tests__/app/api/tournaments/[id]/archive/route.test.ts[39m 25ms (unchanged)
 [90m__tests__/docs/prisma-migrations.test.ts[39m 27ms (unchanged)
 Loaded Prisma config from prisma.config.ts.
 
 Prisma schema loaded from prisma/schema.prisma
-Formatted prisma/schema.prisma in 41ms 🚀
+Formatted prisma/schema.prisma in 38ms 🚀
 exit_code=0
 ===== focused tests =====
-(node:2854) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(node:2931) ExperimentalWarning: SQLite is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-FAIL __tests__/docs/prisma-migrations.test.ts
-  ● Prisma migration compatibility › keeps TTEntry TA handicap schema and Prisma/Wrangler migrations aligned
-
-    expect(received).toContain(expected) // indexOf
-
-    Expected substring: "taHandicapSeconds   Int        @default(0)"
-    Received string:    "// This is your Prisma schema file,
-    // learn more about it in the docs: https://pris.ly/d/prisma-schema·
-    generator client {
-      provider = \"prisma-client-js\"
-      // Driver adapters (see src/lib/prisma.ts) are GA in Prisma 6 — no
-      // previewFeatures flag needed. Removing the deprecated \"driverAdapters\"
-      // flag ensures copyEngine=true in the generated client, which is
-      // required for the adapter option to work on Cloudflare Workers.
-    }·
-    datasource db {
-      provider = \"sqlite\"
-      url      = env(\"DATABASE_URL\")
-    }·
-    // User model (for NextAuth.js)
-    model User {
-      id        String   @id @default(cuid())
-      email     String   @unique
-      name      String?
-      image     String?
-      role      String   @default(\"member\") // member, admin
-      createdAt DateTime @default(now())
-      updatedAt DateTime @updatedAt·
-      // NextAuth.js relations
-      accounts Account[]
-      sessions Session[]·
-      // Relations
-      auditLogs AuditLog[]
-      player    Player?·
-      @@index([email])
-    }·
-    // NextAuth.js Account model
-    model Account {
-      id                String  @id @default(cuid())
-      userId            String
-      type              String
-      provider          String
-      providerAccountId String
-      refresh_token     String?
-      access_token      String?
-      expires_at        Int?
-      token_type        String?
-      scope             String?
-      id_token          String?
-      session_state     String?·
-      user User @relation(fields: [userId], references: [id], onDelete: Cascade)·
-      @@unique([provider, providerAccountId])
-    }·
-    // NextAuth.js Session model
-    model Session {
-      id           String   @id @default(cuid())
-      sessionToken String   @unique
-      userId       String
-      expires      DateTime
-      user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    }·
-    // NextAuth.js VerificationToken model
-    model VerificationToken {
-      identifier String
-      token      String   @unique
-      expires    DateTime·
-      @@unique([identifier, token])
-    }·
-    // Player model
-    // Note: taHandicapSeconds was removed from here (previously a \"new tournament
-    // default\" that only ever seeded a new TTEntry and never affected an
-    // already-entered player — a misleading Player Management control). The
-    // column is intentionally left in place in D1/SQLite rather than dropped:
-    // SQLite/D1 does not support DROP COLUMN reliably here. Player.ttSeeding is
-    // handled the same way; see docs/d1-orphaned-columns.md for the maintained
-    // inventory and cleanup policy.
-    // The orphaned column is simply ignored at the application level.
-    // TTEntry.taHandicapSeconds remains the sole, authoritative per-tournament
-    // handicap.
-    model Player {
-      id        String    @id @default(cuid())
-      name      String
-      nickname  String    @unique
-      country   String?
-      noCamera  Boolean   @default(false) // カメラなしフラグ（配信時のオーバーレイ制御用）
-      password  String? // bcrypt hashed password for player authentication
-      deletedAt DateTime? // ソフトデリート用タイムスタンプ
-      version   Int       @default(0) // 楽観的ロック用
-      createdAt DateTime  @default(now())
-      updatedAt DateTime  @updatedAt·
-      // User relation (Optional, for linked users)
-      userId String? @unique
-      user   User?   @relation(fields: [userId], references: [id])·
-      // Battle Mode relations
-      bmPlayer1Matches BMMatch[]         @relation(\"BMPlayer1\")
-      bmPlayer2Matches BMMatch[]         @relation(\"BMPlayer2\")
-      bmQualifications BMQualification[]·
-      // Match Race relations
-      mrPlayer1Matches MRMatch[]         @relation(\"MRPlayer1\")
-      mrPlayer2Matches MRMatch[]         @relation(\"MRPlayer2\")
-      mrQualifications MRQualification[]·
-      // Grand Prix relations
-      gpPlayer1Matches GPMatch[]         @relation(\"GPPlayer1\")
-      gpPlayer2Matches GPMatch[]         @relation(\"GPPlayer2\")
-      gpQualifications GPQualification[]·
-      // Time Trial relations
-      ttEntries TTEntry[]·
-      // Score entry logs (all match types)
-      scoreEntryLogs ScoreEntryLog[]·
-      // Character usage tracking
-      characterUsages MatchCharacterUsage[]·
-      // Tournament scores (aggregated points)
-      tournamentScores TournamentPlayerScore[]
-    }·
-    // Tournament model
-    model Tournament {
-      id                               String    @id @default(cuid())
-      name                             String
-      slug                             String?   @unique
-      date                             DateTime
-      status                           String    @default(\"draft\") // draft, active, completed
-      dualReportEnabled                Boolean   @default(false) // When true, both players must report matching scores for auto-confirmation
-      taPlayerSelfEdit                 Boolean   @default(true) // §3.1: When false, players cannot edit their own TA times (only partner's)
-      taBattleRoyaleMode               Boolean   @default(false) // Phase 1/2を省略する少人数TAバトロワ
-      frozenStages                     Json      @default(\"[]\") // 凍結されたTAステージ名の配列 (例: [\"qualification\", \"phase1\"])
-      overlayPlayer1Name               String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
-      overlayPlayer2Name               String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
-      overlayPlayer1NoCamera           Boolean   @default(false) // 配信中1Pがカメラなしの場合、代替画像を表示
-      overlayPlayer2NoCamera           Boolean   @default(false) // 配信中2Pがカメラなしの場合、代替画像を表示
-      overlayMatchLabel                String? // 「配信に反映」時に設定される試合ラウンド表示名 (例: \"決勝 QF\")
-      overlayPlayer1Wins               Int? // 配信中試合の1P勝利数
-      overlayPlayer2Wins               Int? // 配信中試合の2P勝利数
-      overlayMatchFt                   Int? // 配信中試合のFirst-To目標勝利数 (BM/MR決勝: 5)
-      overlayLayout                    Json      @default(\"{}\") // 配信オーバーレイの名前・点数・下枠の座標設定
-      qualificationConfirmed           Boolean   @default(false) // 後方互換レガシーフィールド（オーバーレイ参照のみ）
-      qualificationConfirmedAt         DateTime? // 最後に予選が確定された日時（監査証跡・オーバーレイイベント用）
-      bmQualificationConfirmed         Boolean   @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可
-      mrQualificationConfirmed         Boolean   @default(false) // MRモード予選確定フラグ。trueの場合MRスコア編集不可
-      gpQualificationConfirmed         Boolean   @default(false) // GPモード予選確定フラグ。trueの場合GPスコア編集不可
-      bmFinalsSeedSnapshot             Json? // BM決勝生成時の選手別オリジナルシード。不変の表示・export正本
-      mrFinalsSeedSnapshot             Json? // MR決勝生成時の選手別オリジナルシード。不変の表示・export正本
-      gpFinalsSeedSnapshot             Json? // GP決勝生成時の選手別オリジナルシード。不変の表示・export正本
-      qualificationScheduleMethod      String    @default(\"circle\") // circle (legacy) or cdm (RR 2025 Start fixture)
-      cdmArchiveReconciliationExcluded Boolean   @default(false) // Sticky protection for JSMKC and explicit exclusions
-      cdmArchiveReconciliationPending  Boolean   @default(false) // Blocks stale archive use until R2 regeneration succeeds
-      debugMode                        Boolean   @default(false) // デバッグ用トーナメント。trueの場合、admin に予選スコア自動入力ボタンを表示
-      publicModes                      Json      @default(\"[]\") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）
-      deletedAt                        DateTime? // ソフトデリート用タイムスタンプ
-      version                          Int       @default(0) // 楽観的ロック用
-      createdAt                        DateTime  @default(now())
-      updatedAt                        DateTime  @updatedAt·
-      // Related data
-      bmMatches                BMMatch[]
-      bmQualifications         BMQualification[]
-      mrMatches                MRMatch[]
-      mrQualifications         MRQualification[]
-      gpMatches                GPMatch[]
-      gpQualifications         GPQualification[]
-      finalsRoundSettings      FinalsRoundSetting[]
-      ttEntries                TTEntry[]
-      ttPhaseRounds            TTPhaseRound[]
-      ttPhaseSuddenDeathRounds TTPhaseSuddenDeathRound[]
-      ttPhaseLifeAdjustments   TTPhaseLifeAdjustment[]
-      playerScores             TournamentPlayerScore[]
-    }·
-    // Course model (for Time Trial and Match Race)
-    model Course {
-      id   String @id @default(cuid())
-      name String
-      abbr String @unique // MC1, DP1, GV1, etc.
-      cup  String // Mushroom, Flower, Star, Special
-    }·
-    // Battle Arena model
-    model Arena {
-      id   String @id @default(cuid())
-      name String
-      abbr String @unique // Arena 1-4
-    }·
-    // ==========================================
-    // Battle Mode Models
-    // ==========================================·
-    model BMQualification {
-      id                     String     @id @default(cuid())
-      tournament             Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId           String
-      player                 Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-      playerId               String
-      group                  String // A, B, C
-      seeding                Int?
-      mp                     Int        @default(0) // Matches Played
-      wins                   Int        @default(0)
-      ties                   Int        @default(0)
-      losses                 Int        @default(0)
-      winRounds              Int        @default(0)
-      lossRounds             Int        @default(0)
-      points                 Int        @default(0) // Calculated: winRounds - lossRounds
-      score                  Int        @default(0) // Ranking score
-      rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
-      rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-      rankOverrideAt         DateTime? // 上書き日時（監査用）
-      combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
-      combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
-      combinedRankOverrideAt DateTime? // 横断順位の記録日時
-      deletedAt              DateTime? // ソフトデリート用タイムスタンプ
-      version                Int        @default(0) // 楽観的ロック用·
-      @@unique([tournamentId, playerId])
-    }·
-    model BMMatch {
-      id                   String     @id @default(cuid())
-      tournament           Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId         String
-      matchNumber          Int
-      stage                String     @default(\"qualification\") // qualification, finals, grand_final
-      round                String? // For finals: \"wb-r1\", \"wb-r2\", \"wb-semi\", \"wb-final\", \"lb-r1\", \"lb-r2\", etc.
-      tvNumber             Int?
-      roundNumber          Int? // サークル方式のDay番号 (1-based, qualification only)
-      isBye                Boolean    @default(false) // BREAK不戦勝マッチ
-      player1              Player?    @relation(\"BMPlayer1\", fields: [player1Id], references: [id])
-      player1Id            String?
-      player1Side          Int        @default(1) // 1 or 2 (which controller)
-      player2              Player?    @relation(\"BMPlayer2\", fields: [player2Id], references: [id])
-      player2Id            String?
-      player2Side          Int        @default(2)
-      score1               Int        @default(0) // Player 1's wins (e.g., 4 in \"4-0\")
-      score2               Int        @default(0) // Player 2's wins
-      targetWins           Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
-      winnerOverrideId     String? // Admin-resolved winner when a corrected result cannot be derived from scores
-      completed            Boolean    @default(false)
-      assignedCourses      Json? // Pre-assigned courses for this match (§5.4, §6.3): [\"MC1\", \"DP1\", \"GV1\", \"BC1\"]
-      rounds               Json? // [{arena: \"Arena 1\", winner: 1}, ...]
-      startingCourseNumber Int? // BM: starting Battle Course (1-4). Qualification: shared per round-robin day (issue #724). Finals/playoff: shared per bracket round.·
-      // Double elimination fields
-      bracket         String? // \"winners\", \"losers\", \"grand_final\"
-      bracketPosition String? // \"wb-r1\", \"wb-r2\", \"wb-semi\", \"wb-final\", \"lb-r1\", \"lb-r2\"
-      losses          Int     @default(0) // Losses in this stage
-      isGrandFinal    Boolean @default(false)·
-      // Player-reported scores (for participant score entry)
-      player1ReportedScore1 Int? // Player 1's report: score for player 1
-      player1ReportedScore2 Int? // Player 1's report: score for player 2
-      player2ReportedScore1 Int? // Player 2's report: score for player 1
-      player2ReportedScore2 Int? // Player 2's report: score for player 2·
-      // Manual slot placement adjustment (CDM emergency correction, issue #3017)
-      slotOverrideBy String? // スロットを手動調整した管理者ユーザーID(監査用)
-      slotOverrideAt DateTime? // 手動調整日時(監査用・UIバッジ判定。自動進出による上書き時はNULLクリア)·
-      deletedAt DateTime? // ソフトデリート用タイムスタンプ
-      version   Int       @default(0) // 楽観的ロック用
-      createdAt DateTime  @default(now())
-      updatedAt DateTime  @updatedAt·
-      @@unique([tournamentId, matchNumber, stage])
-      @@index([tournamentId, stage, player1Id])
-      @@index([tournamentId, stage, player2Id])
-    }·
-    // ==========================================
-    // Match Race Models
-    // ==========================================·
-    model MRQualification {
-      id                     String     @id @default(cuid())
-      tournament             Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId           String
-      player                 Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-      playerId               String
-      group                  String
-      seeding                Int?
-      mp                     Int        @default(0)
-      wins                   Int        @default(0)
-      ties                   Int        @default(0)
-      losses                 Int        @default(0)
-      winRounds              Int        @default(0)
-      lossRounds             Int        @default(0)
-      points                 Int        @default(0)
-      score                  Int        @default(0)
-      rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
-      rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-      rankOverrideAt         DateTime? // 上書き日時（監査用）
-      combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
-      combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
-      combinedRankOverrideAt DateTime? // 横断順位の記録日時
-      deletedAt              DateTime? // ソフトデリート用タイムスタンプ
-      version                Int        @default(0) // 楽観的ロック用·
-      @@unique([tournamentId, playerId])
-    }·
-    model MRMatch {
-      id               String     @id @default(cuid())
-      tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId     String
-      matchNumber      Int
-      stage            String     @default(\"qualification\") // qualification, finals, grand_final
-      round            String? // For finals: \"wb-r1\", \"wb-r2\", \"wb-semi\", \"wb-final\", \"lb-r1\", \"lb-r2\", etc.
-      tvNumber         Int?
-      roundNumber      Int? // サークル方式のDay番号 (1-based, qualification only)
-      isBye            Boolean    @default(false) // BREAK不戦勝マッチ
-      player1          Player?    @relation(\"MRPlayer1\", fields: [player1Id], references: [id])
-      player1Id        String?
-      player1Side      Int        @default(1) // 1 or 2 (which controller)
-      player2          Player?    @relation(\"MRPlayer2\", fields: [player2Id], references: [id])
-      player2Id        String?
-      player2Side      Int        @default(2)
-      score1           Int        @default(0)
-      score2           Int        @default(0)
-      targetWins       Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
-      winnerOverrideId String? // Admin-resolved winner when a corrected result cannot be derived from scores
-      completed        Boolean    @default(false)
-      scoresConfirmed  Boolean    @default(false)
-      assignedCourses  Json? // Pre-assigned courses for this match (§10.5): [\"MC1\", \"DP1\", \"GV1\", \"BC1\"]
-      rounds           Json? // [{course: \"MC1\", winner: 1}, ...]·
-      // Double elimination fields
-      bracket         String? // \"winners\", \"losers\", \"grand_final\"
-      bracketPosition String? // \"wb-r1\", \"wb-r2\", \"wb-semi\", \"wb-final\", \"lb-r1\", \"lb-r2\"
-      losses          Int     @default(0) // Losses in this stage
-      isGrandFinal    Boolean @default(false)·
-      // Player-reported scores
-      player1ReportedPoints1 Int? // Player 1's report: points for player 1
-      player1ReportedPoints2 Int? // Player 1's report: points for player 2
-      player1ReportedRaces   Json? // Player 1's report: races details
-      player2ReportedPoints1 Int? // Player 2's report: points for player 1
-      player2ReportedPoints2 Int? // Player 2's report: points for player 2
-      player2ReportedRaces   Json? // Player 2's report: races details·
-      // Manual slot placement adjustment (CDM emergency correction, issue #3017)
-      slotOverrideBy String? // スロットを手動調整した管理者ユーザーID(監査用)
-      slotOverrideAt DateTime? // 手動調整日時(監査用・UIバッジ判定。自動進出による上書き時はNULLクリア)·
-      deletedAt DateTime? // ソフトデリート用タイムスタンプ
-      version   Int       @default(0) // 楽観的ロック用
-      createdAt DateTime  @default(now())
-      updatedAt DateTime  @updatedAt·
-      @@unique([tournamentId, matchNumber, stage])
-      @@index([tournamentId, stage, player1Id])
-      @@index([tournamentId, stage, player2Id])
-    }·
-    // ==========================================
-    // Grand Prix Models
-    // ==========================================·
-    model GPQualification {
-      id                     String     @id @default(cuid())
-      tournament             Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId           String
-      player                 Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-      playerId               String
-      group                  String
-      seeding                Int?
-      mp                     Int        @default(0)
-      wins                   Int        @default(0)
-      ties                   Int        @default(0)
-      losses                 Int        @default(0)
-      points                 Int        @default(0) // Driver points total
-      score                  Int        @default(0)
-      rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
-      rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-      rankOverrideAt         DateTime? // 上書き日時（監査用）
-      combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
-      combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
-      combinedRankOverrideAt DateTime? // 横断順位の記録日時
-      deletedAt              DateTime? // ソフトデリート用タイムスタンプ
-      version                Int        @default(0) // 楽観的ロック用·
-      @@unique([tournamentId, playerId])
-    }·
-    model GPMatch {
-      id                  String     @id @default(cuid())
-      tournament          Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId        String
-      matchNumber         Int
-      stage               String     @default(\"qualification\")
-      round               String?
-      cup                 String? // Mushroom, Flower, Star, Special
-      tvNumber            Int?
-      roundNumber         Int? // サークル方式のDay番号 (1-based, qualification only)
-      isBye               Boolean    @default(false) // BREAK不戦勝マッチ
-      player1             Player?    @relation(\"GPPlayer1\", fields: [player1Id], references: [id])
-      player1Id           String?
-      player1Side         Int        @default(1)
-      player2             Player?    @relation(\"GPPlayer2\", fields: [player2Id], references: [id])
-      player2Id           String?
-      player2Side         Int        @default(2)
-      points1             Int        @default(0) // Driver points for player 1
-      points2             Int        @default(0) // Driver points for player 2
-      targetWins          Int? // Frozen first-to value for finals/playoff rounds; null preserves legacy defaults
-      winnerOverrideId    String? // Admin-resolved winner when a corrected result cannot be derived from scores
-      completed           Boolean    @default(false)
-      suddenDeathWinnerId String? // Legacy GP finals tie-break winner; retained for historical bracket display
-      races               Json? // [{course: \"MC1\", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
-      assignedCups        Json? // Finals/playoff: planned cup sequence for this matchup
-      cupResults          Json? // Finals/playoff: [{cup, races, points1, points2, winner}], one entry per played cup·
-      // Player-reported scores (for participant score entry)
-      player1ReportedPoints1 Int? // Player 1's report: points for player 1
-      player1ReportedPoints2 Int? // Player 1's report: points for player 2
-      player1ReportedRaces   Json? // Player 1's report: races details
-      player2ReportedPoints1 Int? // Player 2's report: points for player 1
-      player2ReportedPoints2 Int? // Player 2's report: points for player 2
-      player2ReportedRaces   Json? // Player 2's report: races details·
-      // Manual slot placement adjustment (CDM emergency correction, issue #3017)
-      slotOverrideBy String? // スロットを手動調整した管理者ユーザーID(監査用)
-      slotOverrideAt DateTime? // 手動調整日時(監査用・UIバッジ判定。自動進出による上書き時はNULLクリア)·
-      deletedAt DateTime? // ソフトデリート用タイムスタンプ
-      version   Int       @default(0) // 楽観的ロック用
-      createdAt DateTime  @default(now())
-      updatedAt DateTime  @updatedAt·
-      @@unique([tournamentId, matchNumber, stage])
-      @@index([tournamentId, stage, player1Id])
-      @@index([tournamentId, stage, player2Id])
-    }·
-    /// Current configurable First-To value for a finals/playoff round. Individual
-    /// match rows keep their historical snapshot after completion; this record is
-    /// the round-level value used by exports and remaining pending matches.
-    model FinalsRoundSetting {
-      id           String     @id @default(cuid())
-      tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId String
-      mode         String
-      stage        String
-      round        String
-      targetWins   Int
-      createdAt    DateTime   @default(now())
-      updatedAt    DateTime   @updatedAt·
-      @@unique([tournamentId, mode, stage, round])
-    }·
-    // ==========================================
-    // Time Trial Models
-    // ==========================================·
-    // Audit Log model
-    model AuditLog {
-      id         String   @id @default(cuid())
-      userId     String? // User ID (null for anonymous actions)
-      user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-      ipAddress  String
-      userAgent  String
-      action     String // CREATE_TOURNAMENT, UPDATE_MATCH, etc.
-      targetId   String? // Target resource ID
-      targetType String? // Target resource type: Tournament, Player, Match, etc.
-      timestamp  DateTime @default(now())
-      details    Json? // Additional details·
-      @@index([timestamp])
-      @@index([userId])
-      @@index([action])
-      @@index([targetType, targetId])
-    }·
-    // Score Entry Log model - Tracks participant score submissions
-    model ScoreEntryLog {
-      id           String @id @default(cuid())
-      tournamentId String
-      matchId      String
-      matchType    String // BM, MR, GP
-      playerId     String
-      player       Player @relation(fields: [playerId], references: [id])·
-      // Reported data (varies by match type)
-      reportedData Json // Flexible storage for different match types·
-      // Metadata
-      ipAddress String
-      userAgent String
-      timestamp DateTime @default(now())·
-      @@index([matchId])
-      @@index([playerId])
-      @@index([timestamp])
-      @@index([tournamentId])
-    }·
-    // Match Character Usage model - Tracks which characters players use in matches
-    model MatchCharacterUsage {
-      id        String @id @default(cuid())
-      matchId   String
-      matchType String // BM, MR, GP
-      playerId  String
-      player    Player @relation(fields: [playerId], references: [id])·
-      // Character used
-      character String // Mario, Luigi, Peach, Toad, Yoshi, DK Jr., Bowser, Koopa·
-      // Metadata
-      createdAt DateTime @default(now())·
-      @@unique([matchId, matchType, playerId])
-      @@index([playerId])
-      @@index([character])
-    }·
-    // ==========================================
-    // Time Trial Models
-    // ==========================================·
-    // TTPhaseRound - Tracks each round played within a finals phase.
-    // Stores the randomly selected course, all player results, and elimination outcomes.
-    // Used for:
-    // - Random course selection (no repeat until all 20 used per phase)
-    // - Round-by-round history display
-    // - Elimination and life-reset tracking
-    model TTPhaseRound {
-      id                String                    @id @default(cuid())
-      tournament        Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId      String
-      phase             String // \"phase1\", \"phase2\", \"phase3\"
-      roundNumber       Int // Sequential round number within the phase
-      course            String // Course abbreviation (e.g., \"MC1\")
-      tvNumber          Int? // Broadcast TV screen number (1-4), optional
-      results           Json // Array: [{playerId, timeMs, isRetry}]
-      eliminatedIds     Json? // Array of player IDs eliminated this round
-      livesReset        Boolean                   @default(false) // Whether lives were reset after this round
-      manualOverride    Boolean                   @default(false) // True when admin manually specified the course
-      lifeLoss          Int                       @default(1) // Phase3のみ: このラウンドで下位半分が失うライフ数。既定1。TAバトルロワイヤルのみ管理者が変更可
-      submittedAt       DateTime? // Set when the round has final results and elimination outcomes
-      createdAt         DateTime                  @default(now())
-      suddenDeathRounds TTPhaseSuddenDeathRound[]·
-      @@unique([tournamentId, phase, roundNumber])
-      @@index([tournamentId, phase])
-      @@index([tournamentId, submittedAt])
-    }·
-    model TTPhaseSuddenDeathRound {
-      id              String       @id @default(cuid())
-      tournament      Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId    String
-      phaseRound      TTPhaseRound @relation(fields: [phaseRoundId], references: [id], onDelete: Cascade)
-      phaseRoundId    String
-      phase           String
-      sequence        Int
-      course          String
-      // Why this sudden death was run: \"elimination\" | \"revival\" | \"life_loss\" | \"bronze\"
-      // (see SuddenDeathKind in finals-phase-manager.ts). Persisted so course-pool
-      // accounting and the \"same course as base round\" guard don't have to infer
-      // the kind from course equality, which can misclassify a coincidental
-      // same-course draw at a 20-course cycle boundary (issue #2775).
-      kind            String       @default(\"elimination\")
-      targetPlayerIds Json
-      results         Json?
-      resolved        Boolean      @default(false)
-      createdAt       DateTime     @default(now())
-      updatedAt       DateTime     @updatedAt·
-      @@unique([phaseRoundId, sequence])
-      @@index([tournamentId, phase])
-      @@index([phaseRoundId])
-    }·
-    // Absolute-value life corrections made between standard TA Phase 3 rounds.
-    // These are timeline events, not deltas: undo/cancel replays them together
-    // with submitted rounds so a correction cannot silently disappear.
-    model TTPhaseLifeAdjustment {
-      id               String     @id @default(cuid())
-      tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId     String
-      entry            TTEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
-      entryId          String
-      playerId         String
-      oldLives         Int
-      newLives         Int
-      entryVersion     Int
-      adjustedById     String?
-      adjustedByName   String
-      // Snapshot of the latest submitted round at creation time. The ID is
-      // intentionally not a foreign key: cancel may delete that round, while the
-      // adjustment must remain replayable.
-      afterRoundId     String?
-      afterRoundNumber Int        @default(0)
-      createdAt        DateTime   @default(now())·
-      @@index([tournamentId, createdAt])
-      @@index([tournamentId, afterRoundNumber])
-      @@index([entryId, createdAt])
-    }·
-    model TTEntry {
-      id                  String                  @id @default(cuid())
-      tournament          Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId        String
-      player              Player                  @relation(fields: [playerId], references: [id], onDelete: Cascade)
-      playerId            String
-      stage               String                  @default(\"qualification\") // qualification, phase1, phase2, phase3
-      lives               Int                     @default(3) // For phase3 finals
-      eliminated          Boolean                 @default(false)
-      seeding             Int? // §3.1: TA pair assignment seed ranking (lower = stronger), per-tournament
-      partnerId           String? // §3.1: Partner player ID for pair running (partner enters your times)
-      taHandicapSeconds   Int                     @default(0) // Per-tournament TA handicap snapshot: 0, -1, -3, -5
-      times               Json? // {\"MC1\": \"1:23.45\", \"DP1\": \"1:12.34\", ...}
-      totalTime           Int? // Total time in milliseconds
-      rank                Int?
-      // Most recently recorded (course, raw time string) on this entry. Persisted
-      // by the TA PUT route so the overlay can show \"<player> が <course> で
-      // <time> を記録しました\" without needing per-course history.
-      lastRecordedCourse  String?
-      lastRecordedTime    String?
-      courseScores        Json? // Points per course: {\"MC1\": 45, \"DP1\": 50, ...}
-      qualificationPoints Int? // Total qualification points (max 1000)
-      deletedAt           DateTime? // ソフトデリート用タイムスタンプ
-      version             Int                     @default(0) // 楽観的ロック用
-      createdAt           DateTime                @default(now())
-      updatedAt           DateTime                @updatedAt
-      lifeAdjustments     TTPhaseLifeAdjustment[]·
-      @@unique([tournamentId, playerId, stage])
-      @@index([tournamentId, stage])
-      @@index([tournamentId, stage, qualificationPoints, totalTime])
-    }·
-    // ==========================================
-    // Tournament Points System
-    // ==========================================·
-    // Aggregated tournament points for each player across all 4 modes
-    model TournamentPlayerScore {
-      id           String     @id @default(cuid())
-      tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-      tournamentId String
-      player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-      playerId     String·
-      // Qualification points (each mode max 1000)
-      taQualificationPoints Int @default(0)
-      bmQualificationPoints Int @default(0)
-      mrQualificationPoints Int @default(0)
-      gpQualificationPoints Int @default(0)·
-      // Finals points (each mode max 2000)
-      taFinalsPoints Int @default(0)
-      bmFinalsPoints Int @default(0)
-      mrFinalsPoints Int @default(0)
-      gpFinalsPoints Int @default(0)·
-      // Total and ranking
-      totalPoints Int  @default(0) // Max 12000 (4 modes × 3000 max each)
-      overallRank Int?·
-      createdAt DateTime @default(now())
-      updatedAt DateTime @updatedAt·
-      @@unique([tournamentId, playerId])
-      @@index([tournamentId])
-      @@index([totalPoints])
-    }
-    "
-
-    [0m [90m 149 |[39m     [36mconst[39m expectedColumn [33m=[39m [32m'ADD COLUMN "taHandicapSeconds" INTEGER NOT NULL DEFAULT 0;'[39m[33m;[39m
-     [90m 150 |[39m
-    [31m[1m>[22m[39m[90m 151 |[39m     expect(schema)[33m.[39mtoContain([32m'taHandicapSeconds   Int        @default(0)'[39m)[33m;[39m
-     [90m     |[39m                    [31m[1m^[22m[39m
-     [90m 152 |[39m     expect(prismaMigration)[33m.[39mtoContain([32m'ALTER TABLE "TTEntry"'[39m)[33m;[39m
-     [90m 153 |[39m     expect(prismaMigration)[33m.[39mtoContain(expectedColumn)[33m;[39m
-     [90m 154 |[39m     expect(wranglerMigration)[33m.[39mtoBe(prismaMigration)[33m;[39m[0m
-
-      at Object.<anonymous> (__tests__/docs/prisma-migrations.test.ts:151:20)
-
+PASS __tests__/docs/prisma-migrations.test.ts
+PASS __tests__/lib/cdm-qualification-reconciliation.test.ts
 PASS __tests__/lib/cdm-qualification-reconciliation-service.test.ts
-FAIL __tests__/lib/cdm-qualification-reconciliation.test.ts
-  ● CDM qualification reconciliation › preserves real match IDs and reverses every side-indexed BM result when fixture orientation changes
 
-    expect(received).toBe(expected) // Object.is equality
-
-    Expected: 28
-    Received: 24
-
-    [0m [90m 106 |[39m     )[33m.[39mtoEqual(input[33m.[39mbm[33m.[39mmatches[33m.[39mmap((match) [33m=>[39m match[33m.[39mid)[33m.[39msort())[33m;[39m
-     [90m 107 |[39m     expect(plan[33m.[39mmodes[33m.[39mbm[33m.[39msideSwaps)[33m.[39mtoBeGreaterThan([35m0[39m)[33m;[39m
-    [31m[1m>[22m[39m[90m 108 |[39m     expect(plan[33m.[39mmodes[33m.[39mbm[33m.[39mrowUpdates)[33m.[39mtoBe([35m28[39m)[33m;[39m
-     [90m     |[39m                                      [31m[1m^[22m[39m
-     [90m 109 |[39m
-     [90m 110 |[39m     [36mconst[39m swapped [33m=[39m plan[33m.[39mmodes[33m.[39mbm[33m.[39mretainedRows[33m.[39mfind((row) [33m=>[39m row[33m.[39mplayer1Id [33m===[39m [32m'A6'[39m [33m&&[39m row[33m.[39mplayer2Id [33m===[39m [32m'A3'[39m)[33m;[39m
-     [90m 111 |[39m     expect(swapped)[33m.[39mtoMatchObject({ score1[33m:[39m [35m1[39m[33m,[39m score2[33m:[39m [35m3[39m })[33m;[39m[0m
-
-      at Object.<anonymous> (__tests__/lib/cdm-qualification-reconciliation.test.ts:108:38)
-
-Test Suites: 2 failed, 1 passed, 3 total
-Tests:       2 failed, 26 passed, 28 total
+Test Suites: 3 passed, 3 total
+Tests:       28 passed, 28 total
 Snapshots:   0 total
-Time:        1.982 s
-exit_code=1
-final_status=1
+Time:        2.169 s
+exit_code=0
+===== production build =====
+
+> smkc-score-app@0.1.0 build
+> next build
+
+⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+▲ Next.js 16.2.11 (Turbopack)
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 9.2s
+  Running TypeScript ...
+  Finished TypeScript in 19.9s ...
+  Collecting page data using 3 workers ...
+⚠ You are using an experimental edge runtime, the API might change.
+  Generating static pages using 3 workers (0/14) ...
+  Generating static pages using 3 workers (3/14) 
+  Generating static pages using 3 workers (6/14) 
+  Generating static pages using 3 workers (10/14) 
+✓ Generating static pages using 3 workers (14/14) in 195ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/auth/session-status
+├ ƒ /api/internal/vitals
+├ ƒ /api/locale
+├ ƒ /api/monitor/polling-stats
+├ ƒ /api/players
+├ ƒ /api/players/[id]
+├ ƒ /api/players/[id]/character-stats
+├ ƒ /api/players/[id]/reset-password
+├ ƒ /api/tournaments
+├ ƒ /api/tournaments/[id]
+├ ƒ /api/tournaments/[id]/archive
+├ ƒ /api/tournaments/[id]/bm
+├ ƒ /api/tournaments/[id]/bm/debug-fill
+├ ƒ /api/tournaments/[id]/bm/finals
+├ ƒ /api/tournaments/[id]/bm/finals/bracket
+├ ƒ /api/tournaments/[id]/bm/finals/matches
+├ ƒ /api/tournaments/[id]/bm/match/[matchId]
+├ ƒ /api/tournaments/[id]/bm/match/[matchId]/report
+├ ƒ /api/tournaments/[id]/bm/matches
+├ ƒ /api/tournaments/[id]/bm/standings
+├ ƒ /api/tournaments/[id]/broadcast
+├ ƒ /api/tournaments/[id]/export
+├ ƒ /api/tournaments/[id]/gp
+├ ƒ /api/tournaments/[id]/gp/debug-fill
+├ ƒ /api/tournaments/[id]/gp/finals
+├ ƒ /api/tournaments/[id]/gp/match/[matchId]
+├ ƒ /api/tournaments/[id]/gp/match/[matchId]/report
+├ ƒ /api/tournaments/[id]/gp/matches
+├ ƒ /api/tournaments/[id]/gp/standings
+├ ƒ /api/tournaments/[id]/mr
+├ ƒ /api/tournaments/[id]/mr/debug-fill
+├ ƒ /api/tournaments/[id]/mr/finals
+├ ƒ /api/tournaments/[id]/mr/finals/bracket
+├ ƒ /api/tournaments/[id]/mr/finals/matches
+├ ƒ /api/tournaments/[id]/mr/match/[matchId]
+├ ƒ /api/tournaments/[id]/mr/match/[matchId]/report
+├ ƒ /api/tournaments/[id]/mr/matches
+├ ƒ /api/tournaments/[id]/mr/standings
+├ ƒ /api/tournaments/[id]/overall-ranking
+├ ƒ /api/tournaments/[id]/overlay-events
+├ ƒ /api/tournaments/[id]/qualification-schedule/reconcile
+├ ƒ /api/tournaments/[id]/restore
+├ ƒ /api/tournaments/[id]/score-entry-logs
+├ ƒ /api/tournaments/[id]/ta
+├ ƒ /api/tournaments/[id]/ta/battle-royale
+├ ƒ /api/tournaments/[id]/ta/debug-fill
+├ ƒ /api/tournaments/[id]/ta/phases
+├ ƒ /api/tournaments/[id]/ta/standings
+├ ƒ /api/tournaments/[id]/tt/entries/[entryId]
+├ ƒ /auth/error
+├ ƒ /auth/signin
+├ ƒ /players
+├ ƒ /profile
+├ ƒ /tournaments
+├ ƒ /tournaments/[id]
+├ ƒ /tournaments/[id]/bm
+├ ƒ /tournaments/[id]/bm/finals
+├ ƒ /tournaments/[id]/bm/match/[matchId]
+├ ƒ /tournaments/[id]/bm/participant
+├ ƒ /tournaments/[id]/broadcast
+├ ƒ /tournaments/[id]/cdm-archive-reconcile
+├ ƒ /tournaments/[id]/gp
+├ ƒ /tournaments/[id]/gp/finals
+├ ƒ /tournaments/[id]/gp/match/[matchId]
+├ ƒ /tournaments/[id]/gp/participant
+├ ƒ /tournaments/[id]/mr
+├ ƒ /tournaments/[id]/mr/finals
+├ ƒ /tournaments/[id]/mr/match/[matchId]
+├ ƒ /tournaments/[id]/mr/participant
+├ ƒ /tournaments/[id]/overall-ranking
+├ ƒ /tournaments/[id]/overlay
+├ ƒ /tournaments/[id]/overlay/dashboard
+├ ƒ /tournaments/[id]/participant
+├ ƒ /tournaments/[id]/ta
+├ ƒ /tournaments/[id]/ta/finals
+├ ƒ /tournaments/[id]/ta/participant
+├ ƒ /tournaments/[id]/ta/phase1
+├ ƒ /tournaments/[id]/ta/phase2
+├ ƒ /tournaments/[id]/ta/revival-1
+└ ƒ /tournaments/[id]/ta/revival-2
+
+
+ƒ Proxy (Middleware)
+
+ƒ  (Dynamic)  server-rendered on demand
+
+exit_code=0
+final_status=0

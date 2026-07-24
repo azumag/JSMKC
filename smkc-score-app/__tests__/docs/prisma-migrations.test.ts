@@ -148,7 +148,8 @@ describe('Prisma migration compatibility', () => {
     const wranglerMigration = readWranglerMigration('0041_add_tt_entry_ta_handicap.sql').trim();
     const expectedColumn = 'ADD COLUMN "taHandicapSeconds" INTEGER NOT NULL DEFAULT 0;';
 
-    expect(schema).toContain('taHandicapSeconds   Int        @default(0)');
+    const ttEntryModel = schema.match(/model TTEntry \{[\s\S]*?\n\}/)?.[0];
+    expect(ttEntryModel).toMatch(/taHandicapSeconds\s+Int\s+@default\(0\)/);
     expect(prismaMigration).toContain('ALTER TABLE "TTEntry"');
     expect(prismaMigration).toContain(expectedColumn);
     expect(wranglerMigration).toBe(prismaMigration);
