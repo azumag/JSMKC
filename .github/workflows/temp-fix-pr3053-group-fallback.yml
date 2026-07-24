@@ -38,6 +38,7 @@ jobs:
         run: |
           python3 .github/scripts/fix_pr3053_group_fallback.py
           python3 .github/scripts/fix_pr3053_legacy_test_expectations.py
+          python3 .github/scripts/fix_pr3053_bm_audit_expectations.py
 
       - name: Refresh lockfile for safe PostCSS
         working-directory: smkc-score-app
@@ -53,6 +54,7 @@ jobs:
           npx prettier --write \
             src/lib/api-factories/qualification-route.ts \
             __tests__/lib/api-factories/qualification-route.test.ts \
+            "__tests__/app/api/tournaments/[id]/bm/route.test.ts" \
             package.json \
             package-lock.json
 
@@ -62,28 +64,29 @@ jobs:
           npx jest --runTestsByPath
           "__tests__/lib/api-factories/qualification-route.test.ts"
           "__tests__/app/api/tournaments/route.test.ts"
+          "__tests__/app/api/tournaments/[id]/bm/route.test.ts"
           --runInBand --no-coverage
 
-      - name: Capture full unit-test diagnostics
-        shell: bash
-        run: |
-          set +e
-          cd smkc-score-app
-          npm test -- --ci --forceExit > ../.github/pr3053-full-test.log 2>&1
-          status=$?
-          cat ../.github/pr3053-full-test.log
-          echo "$status" > ../.github/pr3053-full-test.status
-          exit 0
+      - name: Full unit tests
+        working-directory: smkc-score-app
+        run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-      - name: Commit full-test diagnostics
+      - name: Security audit
+        working-directory: smkc-score-app
+        run: npm audit --audit-level=high
+
+      - name: Production build
+        working-directory: smkc-score-app
+        run: npm run build
+
+      - name: Commit verified fixes
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/pr3053-full-test.log .github/pr3053-full-test.status
-          git commit -m "chore: record PR 3053 full-test diagnostics"
+          git add smkc-score-app
+          git commit -m "fix: fall back to circle schedule for small groups"
           git push origin HEAD:codex/new-tournaments-cdm-only
-          exit 1
