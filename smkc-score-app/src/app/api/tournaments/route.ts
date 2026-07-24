@@ -147,15 +147,7 @@ export async function POST(request: NextRequest) {
   try {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const {
-      name,
-      date,
-      dualReportEnabled,
-      taPlayerSelfEdit,
-      taBattleRoyaleMode,
-      debugMode,
-      qualificationScheduleMethod,
-    } = body;
+    const { name, date, dualReportEnabled, taPlayerSelfEdit, taBattleRoyaleMode, debugMode } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     // Validate required fields
@@ -165,13 +157,6 @@ export async function POST(request: NextRequest) {
     if (taBattleRoyaleMode !== undefined && typeof taBattleRoyaleMode !== 'boolean') {
       return handleValidationError('taBattleRoyaleMode must be a boolean', 'taBattleRoyaleMode');
     }
-    if (qualificationScheduleMethod !== undefined && !['circle', 'cdm'].includes(qualificationScheduleMethod)) {
-      return handleValidationError(
-        'qualificationScheduleMethod must be "circle" or "cdm"',
-        'qualificationScheduleMethod',
-      );
-    }
-
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
       return handleValidationError('Slug must contain only lowercase letters, numbers, and hyphens', 'slug');
     }
@@ -189,7 +174,7 @@ export async function POST(request: NextRequest) {
         dualReportEnabled: dualReportEnabled === true,
         taPlayerSelfEdit: taPlayerSelfEdit !== false,
         taBattleRoyaleMode: taBattleRoyaleMode === true,
-        ...(qualificationScheduleMethod !== undefined && { qualificationScheduleMethod }),
+        qualificationScheduleMethod: 'cdm',
         ...(hasJsmkcIdentity({ name, slug }) && { cdmArchiveReconciliationExcluded: true }),
         debugMode: debugMode === true,
         publicModes: [],
@@ -213,6 +198,7 @@ export async function POST(request: NextRequest) {
           date,
           debugMode: debugMode === true,
           taBattleRoyaleMode: taBattleRoyaleMode === true,
+          qualificationScheduleMethod: 'cdm',
         },
       }).catch((err) =>
         logger.warn('Failed to create audit log', {

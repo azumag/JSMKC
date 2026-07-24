@@ -432,6 +432,7 @@ describe('POST /api/tournaments', () => {
             dualReportEnabled: false,
             taPlayerSelfEdit: true,
             taBattleRoyaleMode: true,
+            qualificationScheduleMethod: 'cdm',
             debugMode: false,
             publicModes: [],
           },
@@ -452,19 +453,25 @@ describe('POST /api/tournaments', () => {
       expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: mockTournament }, { status: 201 });
     });
 
-    it('persists an explicitly selected CDM qualification schedule', async () => {
+    it('always creates new tournaments with the CDM qualification schedule', async () => {
       jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
       (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'CDM Tournament',
         date: '2024-01-01',
-        qualificationScheduleMethod: 'cdm',
+        // A stale client may still submit the removed legacy field. It must not
+        // be able to create a new circle-scheduled tournament.
+        qualificationScheduleMethod: 'circle',
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
 
       await tournamentsRoute.POST(
         new NextRequest('http://localhost:3000/api/tournaments', {
           method: 'POST',
-          body: JSON.stringify({ name: 'CDM Tournament', date: '2024-01-01', qualificationScheduleMethod: 'cdm' }),
+          body: JSON.stringify({
+            name: 'CDM Tournament',
+            date: '2024-01-01',
+            qualificationScheduleMethod: 'circle',
+          }),
         }),
       );
 
