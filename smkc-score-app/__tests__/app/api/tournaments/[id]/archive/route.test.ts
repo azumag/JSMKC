@@ -44,11 +44,15 @@ jest.mock('@/lib/tournament-archive', () => ({
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { resolveTournament } from '@/lib/tournament-identifier';
-import { readTournamentArchive, persistTournamentArchive, type TournamentArchiveBundle } from '@/lib/tournament-archive';
+import {
+  readTournamentArchive,
+  persistTournamentArchive,
+  type TournamentArchiveBundle,
+} from '@/lib/tournament-archive';
 import { GET, POST } from '@/app/api/tournaments/[id]/archive/route';
 
 const mockParams = (id: string) => ({ params: Promise.resolve({ id }) });
-const mockReq = () => ({} as unknown as NextRequest);
+const mockReq = () => ({}) as unknown as NextRequest;
 
 const mockAuth = jest.mocked(auth);
 const mockResolveTournament = jest.mocked(resolveTournament);
@@ -82,7 +86,25 @@ function makeArchiveBundle(publicModes: string[]) {
 }
 
 describe('GET /api/tournaments/[id]/archive', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockResolveTournament.mockResolvedValue(null);
+  });
+
+  it('returns 409 and does not serve the previous bundle while reconciliation is pending', async () => {
+    mockResolveTournament.mockResolvedValue({
+      id: 'tournament-1',
+      cdmArchiveReconciliationPending: true,
+    });
+
+    await GET(mockReq(), mockParams('tournament-1'));
+
+    expect(mockReadTournamentArchive).not.toHaveBeenCalled();
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, code: 'ARCHIVE_REGENERATION_PENDING' }),
+      { status: 409 },
+    );
+  });
 
   // TC-2473
   it('returns 404 when archive does not exist', async () => {
@@ -90,10 +112,9 @@ describe('GET /api/tournaments/[id]/archive', () => {
 
     await GET(mockReq(), mockParams('tournament-1'));
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'NOT_FOUND' }),
-      { status: 404 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'NOT_FOUND' }), {
+      status: 404,
+    });
   });
 
   // TC-2472
@@ -102,10 +123,9 @@ describe('GET /api/tournaments/[id]/archive', () => {
 
     await GET(mockReq(), mockParams('tournament-1'));
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'FORBIDDEN' }),
-      { status: 403 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'FORBIDDEN' }), {
+      status: 403,
+    });
   });
 
   it('returns archive bundle when publicModes has entries', async () => {
@@ -115,9 +135,7 @@ describe('GET /api/tournaments/[id]/archive', () => {
     await GET(mockReq(), mockParams('tournament-1'));
 
     // createSuccessResponse calls NextResponse.json(body) without status for 200
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, data: bundle })
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: bundle }));
   });
 
   it('returns 403 when publicModes is null (null || [] coerces to empty array)', async () => {
@@ -128,10 +146,9 @@ describe('GET /api/tournaments/[id]/archive', () => {
 
     await GET(mockReq(), mockParams('tournament-1'));
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'FORBIDDEN' }),
-      { status: 403 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'FORBIDDEN' }), {
+      status: 403,
+    });
   });
 
   // The GET handler has no try-catch: R2 read errors propagate to Next.js's error boundary.
@@ -151,10 +168,9 @@ describe('POST /api/tournaments/[id]/archive', () => {
 
     await POST(mockReq(), mockParams('tournament-1'));
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'UNAUTHORIZED' }),
-      { status: 401 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'UNAUTHORIZED' }), {
+      status: 401,
+    });
   });
 
   // TC-2475 — authenticated but not admin
@@ -163,10 +179,9 @@ describe('POST /api/tournaments/[id]/archive', () => {
 
     await POST(mockReq(), mockParams('tournament-1'));
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'FORBIDDEN' }),
-      { status: 403 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'FORBIDDEN' }), {
+      status: 403,
+    });
   });
 
   it('returns 404 when tournament not found', async () => {
@@ -175,10 +190,9 @@ describe('POST /api/tournaments/[id]/archive', () => {
 
     await POST(mockReq(), mockParams('tournament-1'));
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'NOT_FOUND' }),
-      { status: 404 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'NOT_FOUND' }), {
+      status: 404,
+    });
   });
 
   // TC-2474
@@ -188,10 +202,9 @@ describe('POST /api/tournaments/[id]/archive', () => {
 
     await POST(mockReq(), mockParams('tournament-1'));
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, code: 'CONFLICT' }),
-      { status: 409 }
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code: 'CONFLICT' }), {
+      status: 409,
+    });
   });
 
   it('returns the generated archive bundle on success', async () => {
@@ -204,9 +217,7 @@ describe('POST /api/tournaments/[id]/archive', () => {
 
     expect(mockPersistTournamentArchive).toHaveBeenCalledWith('tournament-1');
     // createSuccessResponse calls NextResponse.json(body) without status for 200
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, data: bundle })
-    );
+    expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: bundle }));
   });
 
   it('returns 500 and logs error when persistTournamentArchive throws', async () => {
@@ -218,13 +229,13 @@ describe('POST /api/tournaments/[id]/archive', () => {
 
     expect(NextResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, code: 'INTERNAL_ERROR' }),
-      { status: 500 }
+      { status: 500 },
     );
     const { createLogger } = jest.requireMock('@/lib/logger');
     const logger = createLogger();
     expect(logger.error).toHaveBeenCalledWith(
       'Failed to persist tournament archive',
-      expect.objectContaining({ tournamentId: 'tournament-1', error: expect.any(Error) })
+      expect.objectContaining({ tournamentId: 'tournament-1', error: expect.any(Error) }),
     );
   });
 });
