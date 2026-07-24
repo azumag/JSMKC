@@ -1,0 +1,78 @@
+name: Temporary fix PR 3052 review findings
+
+on:
+  push:
+    branches:
+      - codex/3051-cdm-archive-schedule-reconcile
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/3051-cdm-archive-schedule-reconcile
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: smkc-score-app
+        run: npm ci --silent --no-audit --no-fund
+
+      - name: Apply review fixes
+        run: python3 .github/scripts/fix_pr3052_review.py
+
+      - name: Format changed files
+        working-directory: smkc-score-app
+        run: |
+          npx prettier --write \
+            src/lib/cdm-archive-reconciliation-policy.ts \
+            src/lib/cdm-qualification-reconciliation.ts \
+            src/lib/cdm-qualification-reconciliation-service.ts \
+            src/app/api/tournaments/route.ts \
+            src/app/api/tournaments/[id]/route.ts \
+            src/app/api/tournaments/[id]/qualification-schedule/reconcile/route.ts \
+            src/app/api/tournaments/[id]/archive/route.ts \
+            src/app/tournaments/[id]/cdm-archive-reconcile/page.tsx \
+            src/components/tournament/cdm-archive-reconcile-button.tsx \
+            __tests__/lib/cdm-qualification-reconciliation.test.ts \
+            __tests__/lib/cdm-qualification-reconciliation-service.test.ts \
+            __tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts \
+            __tests__/app/api/tournaments/[id]/archive/route.test.ts \
+            __tests__/docs/prisma-migrations.test.ts
+          npx prisma format
+
+      - name: Focused tests
+        working-directory: smkc-score-app
+        run: >-
+          npx jest
+          __tests__/lib/cdm-qualification-reconciliation.test.ts
+          __tests__/lib/cdm-qualification-reconciliation-service.test.ts
+          __tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts
+          __tests__/app/api/tournaments/[id]/archive/route.test.ts
+          __tests__/docs/prisma-migrations.test.ts
+          --runInBand --no-coverage
+
+      - name: Production build
+        working-directory: smkc-score-app
+        run: npm run build
+
+      - name: Commit verified fixes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add smkc-score-app
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit'
+            exit 0
+          fi
+          git commit -m "fix: address CDM reconciliation review findings"
+          git push origin HEAD:codex/3051-cdm-archive-schedule-reconcile
