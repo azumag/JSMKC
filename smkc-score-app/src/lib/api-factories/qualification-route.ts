@@ -45,6 +45,9 @@ import {
 } from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 import { getCdmQualificationRoundFixture } from '@/lib/cdm-qualification-round-fixtures';
+import { resolveQualificationScheduleMethodForGroup } from '@/lib/qualification-schedule-policy';
+
+export { resolveQualificationScheduleMethodForGroup };
 
 export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
 const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
@@ -53,20 +56,6 @@ const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
  * are out of scope for now). Group setup UI is likewise limited to 2/3
  * (group-setup-dialog.tsx). */
 const SUPPORTED_QUALIFICATION_GROUPS = ['A', 'B', 'C'] as const;
-
-/**
- * New tournaments are CDM-first, but the workbook fixture is only used for
- * normal championship-sized groups. Groups of 13 or fewer intentionally keep
- * the flexible legacy circle schedule; groups above the 20-player workbook
- * ceiling also fall back defensively instead of becoming impossible to set up.
- */
-export function resolveQualificationScheduleMethodForGroup(
-  configuredMethod: QualificationScheduleMethod,
-  playerCount: number,
-): QualificationScheduleMethod {
-  if (configuredMethod !== 'cdm') return 'circle';
-  return playerCount >= 14 && playerCount <= 20 ? 'cdm' : 'circle';
-}
 
 /**
  * Shuffle an array using the Fisher-Yates algorithm.
