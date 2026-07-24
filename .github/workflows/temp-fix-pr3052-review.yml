@@ -92,16 +92,18 @@ jobs:
               src/components/tournament/cdm-archive-reconcile-button.tsx \
               __tests__/lib/cdm-qualification-reconciliation.test.ts \
               __tests__/lib/cdm-qualification-reconciliation-service.test.ts \
+              __tests__/lib/cdm-qualification-reconciliation-sqlite.test.ts \
               __tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts \
               __tests__/app/api/tournaments/[id]/archive/route.test.ts \
               __tests__/docs/prisma-migrations.test.ts && npx prisma format'
           fi
           if [ "$status" -eq 0 ]; then
-            run_step "focused tests" bash -lc 'cd smkc-score-app && npx jest \
+            run_step "focused tests" bash -lc 'cd smkc-score-app && npx jest --runTestsByPath \
               __tests__/lib/cdm-qualification-reconciliation.test.ts \
               __tests__/lib/cdm-qualification-reconciliation-service.test.ts \
-              __tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts \
-              __tests__/app/api/tournaments/[id]/archive/route.test.ts \
+              __tests__/lib/cdm-qualification-reconciliation-sqlite.test.ts \
+              "__tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts" \
+              "__tests__/app/api/tournaments/[id]/archive/route.test.ts" \
               __tests__/docs/prisma-migrations.test.ts \
               --runInBand --no-coverage'
           fi
