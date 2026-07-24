@@ -15,7 +15,7 @@ Prisma schema loaded from prisma/schema.prisma
 │    npm i @prisma/client@latest                          │
 └─────────────────────────────────────────────────────────┘
 
-✔ Generated Prisma Client (v6.19.3) to ./node_modules/@prisma/client in 233ms
+✔ Generated Prisma Client (v6.19.3) to ./node_modules/@prisma/client in 244ms
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
@@ -25,153 +25,62 @@ exit_code=0
 ===== align test expectations =====
 exit_code=0
 ===== prettier =====
-[90msrc/lib/cdm-archive-reconciliation-policy.ts[39m 81ms (unchanged)
-[90msrc/lib/cdm-qualification-reconciliation.ts[39m 176ms (unchanged)
-[90msrc/lib/cdm-qualification-reconciliation-service.ts[39m 87ms (unchanged)
-[90msrc/app/api/tournaments/route.ts[39m 32ms (unchanged)
-[90msrc/app/api/tournaments/[id]/route.ts[39m 64ms (unchanged)
-[90msrc/app/api/tournaments/[id]/qualification-schedule/reconcile/route.ts[39m 7ms (unchanged)
-[90msrc/app/api/tournaments/[id]/archive/route.ts[39m 7ms (unchanged)
-[90msrc/app/tournaments/[id]/cdm-archive-reconcile/page.tsx[39m 12ms (unchanged)
+[90msrc/lib/cdm-archive-reconciliation-policy.ts[39m 80ms (unchanged)
+[90msrc/lib/cdm-qualification-reconciliation.ts[39m 177ms (unchanged)
+[90msrc/lib/cdm-qualification-reconciliation-service.ts[39m 82ms (unchanged)
+[90msrc/app/api/tournaments/route.ts[39m 29ms (unchanged)
+[90msrc/app/api/tournaments/[id]/route.ts[39m 67ms (unchanged)
+[90msrc/app/api/tournaments/[id]/qualification-schedule/reconcile/route.ts[39m 6ms (unchanged)
+[90msrc/app/api/tournaments/[id]/archive/route.ts[39m 6ms (unchanged)
+[90msrc/app/tournaments/[id]/cdm-archive-reconcile/page.tsx[39m 13ms (unchanged)
 [90msrc/components/tournament/cdm-archive-reconcile-button.tsx[39m 22ms (unchanged)
-[90m__tests__/lib/cdm-qualification-reconciliation.test.ts[39m 34ms (unchanged)
-[90m__tests__/lib/cdm-qualification-reconciliation-service.test.ts[39m 39ms (unchanged)
+[90m__tests__/lib/cdm-qualification-reconciliation.test.ts[39m 35ms (unchanged)
+[90m__tests__/lib/cdm-qualification-reconciliation-service.test.ts[39m 42ms (unchanged)
+__tests__/lib/cdm-qualification-reconciliation-sqlite.test.ts 19ms
 [90m__tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts[39m 14ms (unchanged)
-[90m__tests__/app/api/tournaments/[id]/archive/route.test.ts[39m 25ms (unchanged)
-[90m__tests__/docs/prisma-migrations.test.ts[39m 27ms (unchanged)
+[90m__tests__/app/api/tournaments/[id]/archive/route.test.ts[39m 26ms (unchanged)
+[90m__tests__/docs/prisma-migrations.test.ts[39m 16ms (unchanged)
 Loaded Prisma config from prisma.config.ts.
 
 Prisma schema loaded from prisma/schema.prisma
-Formatted prisma/schema.prisma in 38ms 🚀
+Formatted prisma/schema.prisma in 42ms 🚀
 exit_code=0
 ===== focused tests =====
-(node:2931) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(node:3052) ExperimentalWarning: SQLite is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
 PASS __tests__/docs/prisma-migrations.test.ts
 PASS __tests__/lib/cdm-qualification-reconciliation.test.ts
 PASS __tests__/lib/cdm-qualification-reconciliation-service.test.ts
+FAIL __tests__/lib/cdm-qualification-reconciliation-sqlite.test.ts
+  ● CDM reconciliation generated SQL › rolls back every prior write when a postcondition fails inside the SQLite/D1-style batch
 
-Test Suites: 3 passed, 3 total
-Tests:       28 passed, 28 total
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 3
+    + Received  + 1
+
+    - Object {
+    -   "code": "RECONCILIATION_POSTCONDITION_FAILED",
+    - }
+    + [TypeError: Cannot read properties of undefined (reading 'generatedAt')]
+
+    [0m [90m 269 |[39m           audit[33m:[39m { userId[33m:[39m [32m'admin'[39m[33m,[39m ipAddress[33m:[39m [32m'127.0.0.1'[39m[33m,[39m userAgent[33m:[39m [32m'jest'[39m }[33m,[39m
+     [90m 270 |[39m         })[33m,[39m
+    [31m[1m>[22m[39m[90m 271 |[39m       )[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'RECONCILIATION_POSTCONDITION_FAILED'[39m })[33m;[39m
+     [90m     |[39m                 [31m[1m^[22m[39m
+     [90m 272 |[39m
+     [90m 273 |[39m       expect(db[33m.[39mprepare([32m'SELECT id, matchNumber, version FROM "BMMatch" ORDER BY id'[39m)[33m.[39mall())[33m.[39mtoEqual(beforeMatches)[33m;[39m
+     [90m 274 |[39m       expect([0m
+
+      at Object.toMatchObject (node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (__tests__/lib/cdm-qualification-reconciliation-sqlite.test.ts:271:17)
+
+PASS __tests__/app/api/tournaments/[id]/archive/route.test.ts
+PASS __tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts
+
+Test Suites: 1 failed, 5 passed, 6 total
+Tests:       1 failed, 42 passed, 43 total
 Snapshots:   0 total
-Time:        2.169 s
-exit_code=0
-===== production build =====
-
-> smkc-score-app@0.1.0 build
-> next build
-
-⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
-Attention: Next.js now collects completely anonymous telemetry regarding usage.
-This information is used to shape Next.js' roadmap and prioritize features.
-You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
-https://nextjs.org/telemetry
-
-▲ Next.js 16.2.11 (Turbopack)
-
-⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
-  Creating an optimized production build ...
-✓ Compiled successfully in 9.2s
-  Running TypeScript ...
-  Finished TypeScript in 19.9s ...
-  Collecting page data using 3 workers ...
-⚠ You are using an experimental edge runtime, the API might change.
-  Generating static pages using 3 workers (0/14) ...
-  Generating static pages using 3 workers (3/14) 
-  Generating static pages using 3 workers (6/14) 
-  Generating static pages using 3 workers (10/14) 
-✓ Generating static pages using 3 workers (14/14) in 195ms
-  Finalizing page optimization ...
-
-Route (app)
-┌ ƒ /
-├ ƒ /_not-found
-├ ƒ /api/auth/[...nextauth]
-├ ƒ /api/auth/session-status
-├ ƒ /api/internal/vitals
-├ ƒ /api/locale
-├ ƒ /api/monitor/polling-stats
-├ ƒ /api/players
-├ ƒ /api/players/[id]
-├ ƒ /api/players/[id]/character-stats
-├ ƒ /api/players/[id]/reset-password
-├ ƒ /api/tournaments
-├ ƒ /api/tournaments/[id]
-├ ƒ /api/tournaments/[id]/archive
-├ ƒ /api/tournaments/[id]/bm
-├ ƒ /api/tournaments/[id]/bm/debug-fill
-├ ƒ /api/tournaments/[id]/bm/finals
-├ ƒ /api/tournaments/[id]/bm/finals/bracket
-├ ƒ /api/tournaments/[id]/bm/finals/matches
-├ ƒ /api/tournaments/[id]/bm/match/[matchId]
-├ ƒ /api/tournaments/[id]/bm/match/[matchId]/report
-├ ƒ /api/tournaments/[id]/bm/matches
-├ ƒ /api/tournaments/[id]/bm/standings
-├ ƒ /api/tournaments/[id]/broadcast
-├ ƒ /api/tournaments/[id]/export
-├ ƒ /api/tournaments/[id]/gp
-├ ƒ /api/tournaments/[id]/gp/debug-fill
-├ ƒ /api/tournaments/[id]/gp/finals
-├ ƒ /api/tournaments/[id]/gp/match/[matchId]
-├ ƒ /api/tournaments/[id]/gp/match/[matchId]/report
-├ ƒ /api/tournaments/[id]/gp/matches
-├ ƒ /api/tournaments/[id]/gp/standings
-├ ƒ /api/tournaments/[id]/mr
-├ ƒ /api/tournaments/[id]/mr/debug-fill
-├ ƒ /api/tournaments/[id]/mr/finals
-├ ƒ /api/tournaments/[id]/mr/finals/bracket
-├ ƒ /api/tournaments/[id]/mr/finals/matches
-├ ƒ /api/tournaments/[id]/mr/match/[matchId]
-├ ƒ /api/tournaments/[id]/mr/match/[matchId]/report
-├ ƒ /api/tournaments/[id]/mr/matches
-├ ƒ /api/tournaments/[id]/mr/standings
-├ ƒ /api/tournaments/[id]/overall-ranking
-├ ƒ /api/tournaments/[id]/overlay-events
-├ ƒ /api/tournaments/[id]/qualification-schedule/reconcile
-├ ƒ /api/tournaments/[id]/restore
-├ ƒ /api/tournaments/[id]/score-entry-logs
-├ ƒ /api/tournaments/[id]/ta
-├ ƒ /api/tournaments/[id]/ta/battle-royale
-├ ƒ /api/tournaments/[id]/ta/debug-fill
-├ ƒ /api/tournaments/[id]/ta/phases
-├ ƒ /api/tournaments/[id]/ta/standings
-├ ƒ /api/tournaments/[id]/tt/entries/[entryId]
-├ ƒ /auth/error
-├ ƒ /auth/signin
-├ ƒ /players
-├ ƒ /profile
-├ ƒ /tournaments
-├ ƒ /tournaments/[id]
-├ ƒ /tournaments/[id]/bm
-├ ƒ /tournaments/[id]/bm/finals
-├ ƒ /tournaments/[id]/bm/match/[matchId]
-├ ƒ /tournaments/[id]/bm/participant
-├ ƒ /tournaments/[id]/broadcast
-├ ƒ /tournaments/[id]/cdm-archive-reconcile
-├ ƒ /tournaments/[id]/gp
-├ ƒ /tournaments/[id]/gp/finals
-├ ƒ /tournaments/[id]/gp/match/[matchId]
-├ ƒ /tournaments/[id]/gp/participant
-├ ƒ /tournaments/[id]/mr
-├ ƒ /tournaments/[id]/mr/finals
-├ ƒ /tournaments/[id]/mr/match/[matchId]
-├ ƒ /tournaments/[id]/mr/participant
-├ ƒ /tournaments/[id]/overall-ranking
-├ ƒ /tournaments/[id]/overlay
-├ ƒ /tournaments/[id]/overlay/dashboard
-├ ƒ /tournaments/[id]/participant
-├ ƒ /tournaments/[id]/ta
-├ ƒ /tournaments/[id]/ta/finals
-├ ƒ /tournaments/[id]/ta/participant
-├ ƒ /tournaments/[id]/ta/phase1
-├ ƒ /tournaments/[id]/ta/phase2
-├ ƒ /tournaments/[id]/ta/revival-1
-└ ƒ /tournaments/[id]/ta/revival-2
-
-
-ƒ Proxy (Middleware)
-
-ƒ  (Dynamic)  server-rendered on demand
-
-exit_code=0
-final_status=0
+Time:        2.666 s
+exit_code=1
+final_status=1

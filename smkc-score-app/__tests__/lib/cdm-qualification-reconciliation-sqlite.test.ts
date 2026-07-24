@@ -86,7 +86,10 @@ function bmLegacyFixture() {
   return { qualifications, matches };
 }
 
-function createDatabase(tournament: ReturnType<typeof tournamentRow>, matches: ReturnType<typeof bmLegacyFixture>['matches']) {
+function createDatabase(
+  tournament: ReturnType<typeof tournamentRow>,
+  matches: ReturnType<typeof bmLegacyFixture>['matches'],
+) {
   const db = new DatabaseSync(':memory:');
   db.exec(`
     PRAGMA foreign_keys = ON;
@@ -141,13 +144,15 @@ function createDatabase(tournament: ReturnType<typeof tournamentRow>, matches: R
     );
   `);
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO "Tournament" (
       "id", "name", "slug", "status", "qualificationScheduleMethod",
       "cdmArchiveReconciliationExcluded", "cdmArchiveReconciliationPending",
       "bmQualificationConfirmed", "mrQualificationConfirmed", "gpQualificationConfirmed", "version"
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `,
+  ).run(
     tournament.id,
     tournament.name,
     tournament.slug,
@@ -248,9 +253,7 @@ describe('CDM reconciliation generated SQL', () => {
           SELECT RAISE(IGNORE);
         END;
       `);
-      const beforeMatches = db
-        .prepare('SELECT id, matchNumber, version FROM "BMMatch" ORDER BY id')
-        .all();
+      const beforeMatches = db.prepare('SELECT id, matchNumber, version FROM "BMMatch" ORDER BY id').all();
       const beforeTournament = db
         .prepare(
           'SELECT qualificationScheduleMethod, cdmArchiveReconciliationPending, version FROM "Tournament" WHERE id = ?',
