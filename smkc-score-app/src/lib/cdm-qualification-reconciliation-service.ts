@@ -351,7 +351,7 @@ function tournamentStateGuardStatement(tournament: ReconciliationTournament) {
           AND "mrQualificationConfirmed" = ?
           AND "gpQualificationConfirmed" = ?
           AND "version" = ?
-      ) THEN '$' ELSE '$[RECONCILIATION_STALE_PREVIEW' END
+      ) THEN '$' ELSE '$..RECONCILIATION_STALE_PREVIEW' END
     )`,
     values: [
       tournament.id,
@@ -393,7 +393,7 @@ function modeStateGuardStatement(
           WHERE actual."id" IS NULL
              OR actual."version" <> json_extract(expected.value, '$.version')
         )
-      THEN '$' ELSE '$[RECONCILIATION_STALE_PREVIEW' END
+      THEN '$' ELSE '$..RECONCILIATION_STALE_PREVIEW' END
     )`,
     values: [tournamentId, payload, payload, tournamentId],
   };
@@ -538,7 +538,7 @@ function postconditionGuardStatement(statement: BatchStatement): BatchStatement 
     expectedChanges: null,
     sql: `SELECT json_extract(
       'null',
-      CASE WHEN changes() = ? THEN '$' ELSE '$[RECONCILIATION_POSTCONDITION_FAILED' END
+      CASE WHEN changes() = ? THEN '$' ELSE '$..RECONCILIATION_POSTCONDITION_FAILED' END
     )`,
     values: [statement.expectedChanges],
   };
