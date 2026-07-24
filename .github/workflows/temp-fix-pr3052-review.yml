@@ -1,15 +1,19 @@
-name: Temporary fix PR 3052 review findings
+name: Temporary verify PR 3052 review findings
 
 on:
   push:
     branches:
       - codex/3051-cdm-archive-schedule-reconcile
 
+concurrency:
+  group: pr-3052-review-fix
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
-  fix-and-verify:
+  verify:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -23,8 +27,7 @@ jobs:
           cache: npm
           cache-dependency-path: smkc-score-app/package-lock.json
 
-      - name: Apply fixes and run verification
-        id: pipeline
+      - name: Run verification and capture diagnostics
         continue-on-error: true
         shell: bash
         run: |
@@ -49,7 +52,17 @@ jobs:
 
           run_step "npm ci" bash -lc 'cd smkc-score-app && npm ci --silent --no-audit --no-fund'
           if [ "$status" -eq 0 ]; then
-            run_step "apply review fixes" python3 .github/scripts/fix_pr3052_review.py
+            run_step "repair generated quote" python3 - <<'PY'
+          from pathlib import Path
+          path = Path('smkc-score-app/__tests__/docs/prisma-migrations.test.ts')
+          source = path.read_text()
+          broken = 'expect(prismaMigration).toContain("instr(lower("name"), \'jsmkc\') > 0");'
+          fixed = 'expect(prismaMigration).toContain(\'instr(lower("name"), \\\'jsmkc\\\') > 0\');'
+          if broken in source:
+              path.write_text(source.replace(broken, fixed, 1))
+          elif fixed not in source:
+              raise SystemExit('migration assertion was neither broken nor already fixed')
+          PY
           fi
           if [ "$status" -eq 0 ]; then
             run_step "prettier" bash -lc 'cd smkc-score-app && npx prettier --write \
@@ -85,7 +98,7 @@ jobs:
           echo "final_status=$status" | tee -a "$log"
           exit 0
 
-      - name: Commit source changes or diagnostics
+      - name: Commit verified changes or diagnostics
         shell: bash
         run: |
           git config user.name github-actions[bot]
@@ -95,9 +108,9 @@ jobs:
             echo 'No source or diagnostic changes to commit'
           else
             if [ "${PIPELINE_STATUS:-1}" = "0" ]; then
-              git commit -m "fix: address CDM reconciliation review findings"
+              git commit -m "fix: verify CDM reconciliation review findings"
             else
-              git commit -m "chore: record PR 3052 fix failure"
+              git commit -m "chore: record PR 3052 verification failure"
             fi
             git push origin HEAD:codex/3051-cdm-archive-schedule-reconcile
           fi
