@@ -119,7 +119,7 @@ describe('CDM qualification reconciliation service', () => {
   it('atomically remaps existing rows, records an audit entry, and regenerates the archive', async () => {
     mockModeData();
     const preview = await previewCdmQualificationReconciliation('cdm-archive');
-    (executeD1Batch as jest.Mock).mockResolvedValue([28, 28, 1, 1]);
+    (executeD1Batch as jest.Mock).mockResolvedValue([0, 0, 28, 28, 1, 1]);
 
     const result = await applyCdmQualificationReconciliation({
       tournamentId: 'cdm-archive',
@@ -134,15 +134,36 @@ describe('CDM qualification reconciliation service', () => {
     });
     expect(executeD1Batch).toHaveBeenCalledTimes(1);
     const statements = (executeD1Batch as jest.Mock).mock.calls[0][0];
-    expect(statements).toHaveLength(4);
-    expect(statements[0].sql).toContain('SET "matchNumber" = -1000000000');
-    expect(statements[1].sql).toContain('UPDATE "BMMatch"');
-    expect(statements[2].sql).toContain('qualificationScheduleMethod');
-    expect(statements[3].sql).toContain('INSERT INTO "AuditLog"');
-    expect(statements[3].values).toContain('RECONCILE_QUALIFICATION_SCHEDULE');
+    expect(statements).toHaveLength(6);
+    expect(statements[0].sql).toContain('guard:tournament-state'.split(':')[0] === 'guard' ? 'json_extract' : '');
+    expect(statements[0].sql).toContain('qualificationScheduleMethod');
+    expect(statements[1].sql).toContain('json_array_length');
+    expect(statements[1].sql).toContain('actual."version"');
+    expect(statements[2].sql).toContain('SET "matchNumber" = -1000000000');
+    expect(statements[3].sql).toContain('UPDATE "BMMatch"');
+    expect(statements[4].sql).toContain('qualificationScheduleMethod');
+    expect(statements[5].sql).toContain('INSERT INTO "AuditLog"');
+    expect(statements[5].values).toContain('RECONCILE_QUALIFICATION_SCHEDULE');
     expect(invalidateOverallRankingsCache).toHaveBeenCalledWith('cdm-archive');
     expect(invalidate).toHaveBeenCalledWith('cdm-archive');
     expect(persistTournamentArchive).toHaveBeenCalledWith('cdm-archive');
+  });
+
+  it('rolls back and skips archive regeneration when an in-batch state guard fails', async () => {
+    mockModeData();
+    const preview = await previewCdmQualificationReconciliation('cdm-archive');
+    (executeD1Batch as jest.Mock).mockRejectedValue(new Error('malformed JSON'));
+
+    await expect(
+      applyCdmQualificationReconciliation({
+        tournamentId: 'cdm-archive',
+        expectedDigest: preview.digest,
+        audit: { userId: 'admin', ipAddress: '127.0.0.1', userAgent: 'jest' },
+      }),
+    ).rejects.toThrow('malformed JSON');
+
+    expect(persistTournamentArchive).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it('does not rewrite matches when a completed CDM schedule already matches, but refreshes the archive', async () => {

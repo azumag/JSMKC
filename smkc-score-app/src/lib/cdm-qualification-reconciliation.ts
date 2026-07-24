@@ -72,6 +72,7 @@ export type CdmReconciliationModePlan = {
   retainedRows: CdmReconciliationRow[];
   createBreakRows: CdmReconciliationBreakRow[];
   deleteBreakIds: string[];
+  sourceMatchVersions: Array<{ id: string; version: number }>;
   sourceMatchCount: number;
   realMatchCount: number;
   targetMatchCount: number;
@@ -356,6 +357,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
       retainedRows: [],
       createBreakRows: [],
       deleteBreakIds: [],
+      sourceMatchVersions: [],
       sourceMatchCount: 0,
       realMatchCount: 0,
       targetMatchCount: 0,
@@ -541,6 +543,9 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
     retainedRows,
     createBreakRows,
     deleteBreakIds,
+    sourceMatchVersions: qualificationMatches
+      .map(({ id, version }) => ({ id, version }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
     sourceMatchCount: qualificationMatches.length,
     realMatchCount: retainedRows.filter((row) => !row.isBye).length,
     targetMatchCount: retainedRows.length + createBreakRows.length,

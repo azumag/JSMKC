@@ -326,6 +326,69 @@ function createdBreakPayload(
   });
 }
 
+function tournamentStateGuardStatement(tournament: ReconciliationTournament) {
+  return {
+    label: 'guard:tournament-state',
+    expectedChanges: null as number | null,
+    sql: `SELECT json_extract(
+      CASE WHEN EXISTS (
+        SELECT 1 FROM "Tournament"
+        WHERE "id" = ?
+          AND "name" = ?
+          AND (("slug" IS NULL AND ? IS NULL) OR "slug" = ?)
+          AND "status" = ?
+          AND "qualificationScheduleMethod" = ?
+          AND "bmQualificationConfirmed" = ?
+          AND "mrQualificationConfirmed" = ?
+          AND "gpQualificationConfirmed" = ?
+          AND "version" = ?
+      ) THEN 'null' ELSE 'invalid' END,
+      '$'
+    )`,
+    values: [
+      tournament.id,
+      tournament.name,
+      tournament.slug,
+      tournament.slug,
+      tournament.status,
+      tournament.qualificationScheduleMethod,
+      tournament.bmQualificationConfirmed ? 1 : 0,
+      tournament.mrQualificationConfirmed ? 1 : 0,
+      tournament.gpQualificationConfirmed ? 1 : 0,
+      tournament.version,
+    ],
+  };
+}
+
+function modeStateGuardStatement(
+  mode: CdmReconciliationMode,
+  tournamentId: string,
+  plan: CdmQualificationReconciliationPlan,
+) {
+  const payload = JSON.stringify(plan.modes[mode].sourceMatchVersions);
+  return {
+    label: `guard:${mode}-match-state`,
+    expectedChanges: null as number | null,
+    sql: `SELECT json_extract(
+      CASE WHEN
+        (SELECT COUNT(*) FROM "${TABLES[mode]}" WHERE "tournamentId" = ? AND "stage" = 'qualification') = json_array_length(?)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM json_each(?) AS expected
+          LEFT JOIN "${TABLES[mode]}" AS actual
+            ON actual."id" = json_extract(expected.value, '$.id')
+           AND actual."tournamentId" = ?
+           AND actual."stage" = 'qualification'
+          WHERE actual."id" IS NULL
+             OR actual."version" <> json_extract(expected.value, '$.version')
+        )
+      THEN 'null' ELSE 'invalid' END,
+      '$'
+    )`,
+    values: [tournamentId, payload, payload, tournamentId],
+  };
+}
+
 function temporaryMoveStatement(mode: CdmReconciliationMode, tournamentId: string) {
   return {
     label: `${mode}:temporary-match-numbers`,
@@ -462,9 +525,13 @@ export async function applyCdmQualificationReconciliation(params: {
 
   const shouldMutate = preview.totalChanges > 0;
   if (shouldMutate) {
-    const statements: BatchStatement[] = MODES.flatMap((mode) =>
-      modeStatements(mode, params.tournamentId, preview.plan),
-    );
+    const statements: BatchStatement[] = [
+      tournamentStateGuardStatement(preview.tournament),
+      ...MODES.filter((mode) => !preview.plan.modes[mode].skipped).map((mode) =>
+        modeStateGuardStatement(mode, params.tournamentId, preview.plan),
+      ),
+      ...MODES.flatMap((mode) => modeStatements(mode, params.tournamentId, preview.plan)),
+    ];
     statements.push({
       label: 'tournament:set-cdm-method',
       expectedChanges: 1,
