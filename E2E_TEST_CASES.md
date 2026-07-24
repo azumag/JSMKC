@@ -4038,6 +4038,7 @@
 - **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-808 (`node e2e/tc-ta.js`)
 
 ## TC-3034: TA Top 2 の管理者ライフ調整
+
 - **URL**: /tournaments/[temp-id]/ta/finals
 - **authRequired**: true (admin)
 - **背景**: 標準 TA の Top 2 では、必要な大会に限り、管理者が次ラウンド開始前に両選手を3から5ライフへ手動調整できる。大会全体の初期ライフは変更しない。
@@ -4048,6 +4049,23 @@
   4. 一時トーナメントを削除する
 - **期待結果**: 管理者だけが必要に応じてTop 2のライフを補正でき、次ラウンドでは5/4が永続化される
 - **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-3034
+
+## TC-3047: TA 手動ライフ調整の履歴表示と undo/cancel 再生
+
+- **URL**: /api/tournaments/[temp-id]/ta, /api/tournaments/[temp-id]/ta/phases, /tournaments/[temp-id]/ta/finals
+- **authRequired**: true (admin)
+- **Issue**: #3047
+- **背景**: `set_lives` が現在の `TTEntry.lives` と監査ログだけを更新すると、Phase 3 の undo/cancel はラウンド結果だけから状態を再構築し、手動設定を失って誤敗退させる。手動設定を絶対値イベントとして永続化し、ラウンドと同じ時系列で再生する必要がある。
+- **手順**:
+  1. 2名を標準 TA の Phase 3 へ昇格し、両者を3から5ライフへ手動設定する
+  2. ラウンド1を確定して5/4になった後、`undo_round` を実行する
+  3. 両者が5ライフへ戻り、2件の手動設定イベントが残っていることを確認する
+  4. 同じラウンドを再送信し、4ライフになった選手を6へ手動設定する
+  5. `cancel_last_round` を実行し、ラウンドを削除しても調整後の6ライフと他選手の5ライフが維持されることを確認する
+  6. `/ta/finals` のラウンド履歴に、調整前後の値、実行日時、実行者を含む3件の手動ライフ調整が時系列表示されることを確認する
+  7. 一時トーナメントを削除する
+- **期待結果**: 調整前後どちらのラウンドを undo/cancel しても絶対値イベントが一度だけ再生され、現在ライフ・活動状態・順位表・履歴が一致する
+- **スクリプト**: smkc-score-app/e2e/tc-ta.js TC-3047
 
 ## TC-TA-FLOW-24: 24名 TA full lifecycle
 

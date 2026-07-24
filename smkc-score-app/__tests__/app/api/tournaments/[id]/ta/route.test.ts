@@ -98,6 +98,10 @@ jest.mock('@/lib/tournament-archive', () => {
   };
 });
 
+jest.mock('@/lib/d1-batch', () => ({
+  executeD1Batch: jest.fn(),
+}));
+
 // Mock next/server with MockNextRequest that supports URL parsing
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
@@ -169,6 +173,10 @@ const freezeCheckMock = jest.requireMock('@/lib/ta/freeze-check') as {
   checkStageFrozen: jest.Mock;
 };
 
+const d1BatchMock = jest.requireMock('@/lib/d1-batch') as {
+  executeD1Batch: jest.Mock;
+};
+
 // Valid CUIDs for tests — the TA route uses z.string().cuid() for validation
 const VALID_UUID = 'clxxxxxxxxxxxxxxxxtournmt';
 const VALID_UUID2 = 'clxxxxxxxxxxxxxxxxxplayer';
@@ -188,6 +196,7 @@ describe('/api/tournaments/[id]/ta', () => {
     rateLimitMock.getUserAgent.mockReturnValue('test-agent');
     (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
     (readTournamentArchive as jest.Mock).mockResolvedValue(null);
+    d1BatchMock.executeD1Batch.mockResolvedValue([1, 1]);
   });
 
   afterEach(() => {
@@ -928,10 +937,11 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('sets an active Phase 3 entry to an exact life total with optimistic locking', async () => {
-      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      jest.mocked(auth).mockResolvedValue({ user: { id: 'admin-1', name: 'Ops Admin', role: 'admin' } });
       const currentEntry = {
         id: VALID_ENTRY_ID,
         tournamentId: VALID_UUID,
+        playerId: 'p1',
         stage: 'phase3',
         lives: 3,
         eliminated: false,
@@ -940,7 +950,6 @@ describe('/api/tournaments/[id]/ta', () => {
       };
       const updatedEntry = { ...currentEntry, lives: 5, version: 8 };
       (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce(currentEntry).mockResolvedValueOnce(updatedEntry);
-      (prisma.$executeRaw as jest.Mock).mockResolvedValue(1);
 
       await taRoute.PUT(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -956,7 +965,15 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
-      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(d1BatchMock.executeD1Batch).toHaveBeenCalledTimes(1);
+      const statements = d1BatchMock.executeD1Batch.mock.calls[0][0];
+      expect(statements).toHaveLength(2);
+      expect(statements[0].sql).toContain('UPDATE "TTEntry"');
+      expect(statements[1].sql).toContain('INSERT INTO "TTPhaseLifeAdjustment"');
+      expect(statements[1].sql).toContain('WHERE changes() = 1');
+      expect(statements[1].values).toEqual(
+        expect.arrayContaining([VALID_UUID, VALID_ENTRY_ID, 'p1', 3, 5, 8, 'admin-1', 'Ops Admin']),
+      );
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           targetId: VALID_ENTRY_ID,
@@ -983,7 +1000,7 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(d1BatchMock.executeD1Batch).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 },
@@ -1008,7 +1025,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(prisma.tTEntry.findUnique).not.toHaveBeenCalled();
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(d1BatchMock.executeD1Batch).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'VALIDATION_ERROR' }), {
         status: 400,
       });
@@ -1043,7 +1060,7 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(d1BatchMock.executeD1Batch).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CONFLICT' }), { status: 409 });
     });
 
@@ -1076,7 +1093,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(response).toBe(frozenResponse);
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(d1BatchMock.executeD1Batch).not.toHaveBeenCalled();
     });
 
     it('rejects a stale exact-life adjustment instead of applying it to a newer round result', async () => {
@@ -1090,7 +1107,7 @@ describe('/api/tournaments/[id]/ta', () => {
         version: 8,
         player: { id: 'p1', nickname: 'Mario' },
       });
-      (prisma.$executeRaw as jest.Mock).mockResolvedValue(0);
+      d1BatchMock.executeD1Batch.mockResolvedValue([0, 0]);
 
       await taRoute.PUT(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -1137,7 +1154,7 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(d1BatchMock.executeD1Batch).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Entry not found', code: 'NOT_FOUND' },
         { status: 404 },
@@ -1171,7 +1188,7 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(d1BatchMock.executeD1Batch).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CONFLICT' }), { status: 409 });
     });
 
@@ -1202,7 +1219,7 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) },
       );
 
-      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(d1BatchMock.executeD1Batch).not.toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CONFLICT' }), { status: 409 });
     });
 

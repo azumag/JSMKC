@@ -368,6 +368,144 @@ describe('replayPhase3Lives', () => {
     expect(roundLivesByPlayer.get(1)?.get('b')).toBe(7); // 10 - 3
     expect(roundLivesByPlayer.get(2)?.get('b')).toBe(6); // 7 - 1
   });
+
+  it('applies an absolute manual adjustment before a later round during replay', () => {
+    const rounds = [
+      {
+        id: 'round-1',
+        roundNumber: 1,
+        results: [
+          { playerId: 'a', timeMs: 60000 },
+          { playerId: 'b', timeMs: 90000 },
+        ],
+        eliminatedIds: [],
+        livesReset: false,
+        submittedAt: '2026-07-24T02:00:00.000Z',
+      },
+    ];
+    const adjustments = [
+      {
+        id: 'adjust-a',
+        playerId: 'a',
+        oldLives: 3,
+        newLives: 5,
+        entryVersion: 1,
+        afterRoundId: null,
+        afterRoundNumber: 0,
+        createdAt: '2026-07-24T01:00:00.000Z',
+      },
+      {
+        id: 'adjust-b',
+        playerId: 'b',
+        oldLives: 3,
+        newLives: 5,
+        entryVersion: 1,
+        afterRoundId: null,
+        afterRoundNumber: 0,
+        createdAt: '2026-07-24T01:00:00.001Z',
+      },
+    ];
+
+    const replay = replayPhase3Lives(rounds, ['a', 'b'], standardRules, adjustments);
+
+    expect(replay.livesByPlayer.get('a')).toBe(5);
+    expect(replay.livesByPlayer.get('b')).toBe(4);
+    expect(replay.roundLivesByPlayer.get(1)?.get('b')).toBe(4);
+  });
+
+  it('keeps a post-round absolute adjustment when that round is removed by cancel', () => {
+    const adjustments = [
+      {
+        id: 'adjust-before',
+        playerId: 'a',
+        oldLives: 3,
+        newLives: 5,
+        entryVersion: 1,
+        afterRoundId: null,
+        afterRoundNumber: 0,
+        createdAt: '2026-07-24T01:00:00.000Z',
+      },
+      {
+        id: 'adjust-after-deleted-round',
+        playerId: 'a',
+        oldLives: 4,
+        newLives: 6,
+        entryVersion: 3,
+        afterRoundId: 'deleted-round',
+        afterRoundNumber: 1,
+        createdAt: '2026-07-24T03:00:00.000Z',
+      },
+    ];
+
+    const replay = replayPhase3Lives([], ['a'], standardRules, adjustments);
+
+    expect(replay.livesByPlayer.get('a')).toBe(6);
+    expect(replay.eliminated.has('a')).toBe(false);
+  });
+
+  it('does not reapply an adjustment from before a later life-reset boundary', () => {
+    const rounds = [
+      {
+        id: 'reset-round',
+        roundNumber: 1,
+        results: [
+          { playerId: 'a', timeMs: 60000 },
+          { playerId: 'b', timeMs: 90000 },
+        ],
+        eliminatedIds: [],
+        livesReset: true,
+        submittedAt: '2026-07-24T02:00:00.000Z',
+      },
+    ];
+    const adjustments = [
+      {
+        id: 'adjust-before-reset',
+        playerId: 'a',
+        oldLives: 3,
+        newLives: 5,
+        entryVersion: 1,
+        afterRoundId: null,
+        afterRoundNumber: 0,
+        createdAt: '2026-07-24T01:00:00.000Z',
+      },
+    ];
+
+    const replay = replayPhase3Lives(rounds, ['a', 'b'], standardRules, adjustments);
+
+    expect(replay.livesByPlayer.get('a')).toBe(3);
+    expect(replay.livesByPlayer.get('b')).toBe(3);
+  });
+
+  it('records round lives before a later adjustment while keeping the adjusted current state', () => {
+    const rounds = [
+      {
+        id: 'round-1',
+        roundNumber: 1,
+        results: [
+          { playerId: 'a', timeMs: 60000 },
+          { playerId: 'b', timeMs: 90000 },
+        ],
+        eliminatedIds: [],
+        livesReset: false,
+        submittedAt: '2026-07-24T01:00:00.000Z',
+      },
+    ];
+    const adjustment = {
+      id: 'adjust-after',
+      playerId: 'b',
+      oldLives: 2,
+      newLives: 5,
+      entryVersion: 2,
+      afterRoundId: 'round-1',
+      afterRoundNumber: 1,
+      createdAt: '2026-07-24T02:00:00.000Z',
+    };
+
+    const replay = replayPhase3Lives(rounds, ['a', 'b'], standardRules, [adjustment, adjustment]);
+
+    expect(replay.roundLivesByPlayer.get(1)?.get('b')).toBe(2);
+    expect(replay.livesByPlayer.get('b')).toBe(5);
+  });
 });
 
 describe('attachLivesAfterToRounds', () => {

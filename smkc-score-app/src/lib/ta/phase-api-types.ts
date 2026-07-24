@@ -37,6 +37,19 @@ export interface TaPhaseRound {
   [key: string]: unknown;
 }
 
+export interface TaPhaseLifeAdjustment {
+  id: string;
+  entryId: string;
+  playerId: string;
+  oldLives: number;
+  newLives: number;
+  entryVersion: number;
+  adjustedByName: string;
+  afterRoundId: string | null;
+  afterRoundNumber: number;
+  createdAt: string | Date;
+}
+
 export interface TaPhaseEntry {
   id: string;
   playerId: string;
@@ -64,6 +77,7 @@ export interface TaPhaseResponse {
   phase3Rules: Phase3RulesDto;
   entries?: TaPhaseEntry[];
   rounds?: TaPhaseRound[];
+  lifeAdjustments?: TaPhaseLifeAdjustment[];
   availableCourses?: string[];
   playedCourses?: string[];
   frozenStages?: string[];

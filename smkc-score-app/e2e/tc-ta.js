@@ -16,6 +16,7 @@
  *           Undo-vs-Cancel info popover opens on click (read-only check —
  *           this test reuses the shared fixture's champion-decided state).
  *   TC-3034 Top 2 manual 3→5 life adjustment; the next round persists 5/4.
+ *   TC-3047 Manual life adjustments survive undo/cancel and appear in history.
  *   TC-812  TA qualification tie resolution — identical times share min-rank
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
@@ -1755,6 +1756,140 @@ async function runTc3034(adminPage) {
   }
 }
 
+/* ───────── TC-3047: manual life adjustment history + undo/cancel replay ───────── */
+async function runTc3047(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Life adjustment replay', sharedTaPlayers(2), {
+      seedTimes: true,
+    });
+    const { tournamentId } = setup;
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+
+    const setExactLives = async (entry, targetLives) => {
+      const response = await adminPage.evaluate(
+        async ([url, body]) => {
+          const result = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return { status: result.status, body: await result.json().catch(() => ({})) };
+        },
+        [
+          `/api/tournaments/${tournamentId}/ta`,
+          {
+            entryId: entry.id,
+            action: 'set_lives',
+            lives: targetLives,
+            expectedVersion: entry.version,
+            expectedLives: entry.lives,
+          },
+        ],
+      );
+      if (response.status !== 200) {
+        throw new Error(`set_lives ${entry.playerId} failed (${response.status}): ${JSON.stringify(response.body)}`);
+      }
+    };
+
+    let phase = (await apiFetchTaPhase(adminPage, tournamentId, 'phase3')).b?.data ?? {};
+    let active = (phase.entries ?? []).filter((entry) => !entry.eliminated);
+    if (active.length !== 2) throw new Error(`expected 2 active entries, got ${active.length}`);
+    for (const entry of active) await setExactLives(entry, 5);
+
+    phase = (await apiFetchTaPhase(adminPage, tournamentId, 'phase3')).b?.data ?? {};
+    active = (phase.entries ?? []).filter((entry) => !entry.eliminated);
+    await submitTaPhaseRoundByApi(adminPage, tournamentId, 'phase3', active);
+
+    const undo = await apiPostTaPhase(adminPage, tournamentId, { action: 'undo_round', phase: 'phase3' });
+    if (undo.s !== 200) throw new Error(`undo_round failed (${undo.s})`);
+    phase = (await apiFetchTaPhase(adminPage, tournamentId, 'phase3')).b?.data ?? {};
+    const afterUndoLives = (phase.entries ?? [])
+      .filter((entry) => !entry.eliminated)
+      .map((entry) => entry.lives)
+      .sort((a, b) => b - a);
+    const openRound = (phase.rounds ?? []).find((round) => Array.isArray(round.results) && round.results.length === 0);
+    if (afterUndoLives.join('/') !== '5/5') {
+      throw new Error(`manual adjustment was lost after undo (${afterUndoLives.join('/')})`);
+    }
+    if (!openRound) throw new Error('undo did not preserve an open round for resubmission');
+    if ((phase.lifeAdjustments ?? []).length !== 2) {
+      throw new Error(`expected 2 adjustment events after undo, got ${(phase.lifeAdjustments ?? []).length}`);
+    }
+
+    active = (phase.entries ?? []).filter((entry) => !entry.eliminated);
+    const resubmit = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase: 'phase3',
+      roundNumber: openRound.roundNumber,
+      results: active.map((entry, index) => ({
+        playerId: entry.playerId,
+        timeMs: 60000 + index * 1000,
+      })),
+    });
+    if (resubmit.s !== 200) throw new Error(`resubmit failed (${resubmit.s})`);
+
+    phase = (await apiFetchTaPhase(adminPage, tournamentId, 'phase3')).b?.data ?? {};
+    const damaged = (phase.entries ?? []).find((entry) => !entry.eliminated && entry.lives === 4);
+    if (!damaged) throw new Error('resubmitted round did not produce a 4-life player');
+    await setExactLives(damaged, 6);
+
+    const cancel = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'cancel_last_round',
+      phase: 'phase3',
+    });
+    if (cancel.s !== 200) throw new Error(`cancel_last_round failed (${cancel.s})`);
+
+    phase = (await apiFetchTaPhase(adminPage, tournamentId, 'phase3')).b?.data ?? {};
+    const afterCancelLives = (phase.entries ?? [])
+      .filter((entry) => !entry.eliminated)
+      .map((entry) => entry.lives)
+      .sort((a, b) => b - a);
+    const adjustments = phase.lifeAdjustments ?? [];
+    const latestAdjustment = adjustments.find(
+      (adjustment) => adjustment.playerId === damaged.playerId && adjustment.newLives === 6,
+    );
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
+    const historyCard = latestAdjustment
+      ? adminPage.getByTestId(`ta-life-adjustment-${latestAdjustment.id}`)
+      : adminPage.locator('[data-testid^="ta-life-adjustment-"]').last();
+    const historyText = await historyCard.innerText({ timeout: 10000 }).catch(() => '');
+    const historyHasRequiredFields =
+      /Life adjustment|ライフ調整/.test(historyText) &&
+      /4\s*→\s*6/.test(historyText) &&
+      /By |実行者:/.test(historyText);
+
+    const ok =
+      afterCancelLives.join('/') === '6/5' &&
+      adjustments.length === 3 &&
+      Boolean(latestAdjustment?.createdAt) &&
+      Boolean(latestAdjustment?.adjustedByName) &&
+      (phase.rounds ?? []).length === 0 &&
+      historyHasRequiredFields;
+    log(
+      'TC-3047',
+      ok ? 'PASS' : 'FAIL',
+      afterCancelLives.join('/') !== '6/5'
+        ? `manual adjustment was lost after cancel (${afterCancelLives.join('/')})`
+        : adjustments.length !== 3
+          ? `expected 3 adjustment events, got ${adjustments.length}`
+          : !latestAdjustment?.createdAt || !latestAdjustment?.adjustedByName
+            ? 'adjustment history is missing timestamp or actor'
+            : (phase.rounds ?? []).length !== 0
+              ? 'cancel_last_round did not remove the round'
+              : !historyHasRequiredFields
+                ? `history card is missing required fields (${historyText})`
+                : '',
+    );
+  } catch (err) {
+    log('TC-3047', 'FAIL', err instanceof Error ? err.message : 'TA 3047 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
 /* ───────── TC-812: TA qualification tie resolution (shared min-rank points) ─────────
  * TA does NOT use the rankOverride flow used by BM/MR/GP — ties are resolved
  * automatically inside `calculateCourseScores` (src/lib/ta/qualification-scoring.ts):
@@ -3481,6 +3616,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },
       { name: 'TC-3034', fn: runTc3034 },
+      { name: 'TC-3047', fn: runTc3047 },
       { name: 'TC-812', fn: runTc812 },
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
@@ -3542,6 +3678,7 @@ module.exports = {
   runTc3002,
   runTc3003,
   runTc3034,
+  runTc3047,
   TA_SUITE_TIMEOUT_MS,
   getSuite,
   results,

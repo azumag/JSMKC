@@ -61,6 +61,10 @@ const mockPrismaClient = {
     count: jest.fn(),
     deleteMany: jest.fn(),
   },
+  tTPhaseLifeAdjustment: {
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
 
@@ -121,6 +125,7 @@ describe('TA Finals Phase Manager', () => {
     // earlier test would otherwise leak in and trip the guard. Tests that
     // exercise the guard override this explicitly.
     mockPrismaClient.tTEntry.findFirst.mockResolvedValue(null);
+    mockPrismaClient.tTPhaseLifeAdjustment.findMany.mockResolvedValue([]);
   });
 
   describe('PHASE_CONFIG', () => {
@@ -790,6 +795,101 @@ describe('TA Finals Phase Manager', () => {
       );
     });
 
+    it('replays manual life settings before and after the undone round without double-applying them', async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: 'round1',
+          roundNumber: 1,
+          phase: 'phase3',
+          course: 'MC1',
+          results: [
+            { playerId: 'p1', timeMs: 50000 },
+            { playerId: 'p2', timeMs: 80000 },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+          submittedAt: new Date('2026-07-24T02:00:00.000Z'),
+          createdAt: new Date('2026-07-24T01:30:00.000Z'),
+          suddenDeathRounds: [],
+        },
+        {
+          id: 'round2',
+          roundNumber: 2,
+          phase: 'phase3',
+          course: 'DP1',
+          results: [
+            { playerId: 'p1', timeMs: 50000 },
+            { playerId: 'p2', timeMs: 80000 },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+          submittedAt: new Date('2026-07-24T04:00:00.000Z'),
+          createdAt: new Date('2026-07-24T03:30:00.000Z'),
+          suddenDeathRounds: [],
+        },
+      ]);
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([{ playerId: 'p1' }, { playerId: 'p2' }]);
+      mockPrismaClient.tTPhaseLifeAdjustment.findMany.mockResolvedValue([
+        {
+          id: 'p1-to-5',
+          playerId: 'p1',
+          oldLives: 3,
+          newLives: 5,
+          entryVersion: 1,
+          afterRoundId: null,
+          afterRoundNumber: 0,
+          createdAt: new Date('2026-07-24T01:00:00.000Z'),
+        },
+        {
+          id: 'p2-to-5',
+          playerId: 'p2',
+          oldLives: 3,
+          newLives: 5,
+          entryVersion: 1,
+          afterRoundId: null,
+          afterRoundNumber: 0,
+          createdAt: new Date('2026-07-24T01:00:00.001Z'),
+        },
+        {
+          id: 'p2-to-6',
+          playerId: 'p2',
+          oldLives: 4,
+          newLives: 6,
+          entryVersion: 3,
+          afterRoundId: 'round1',
+          afterRoundNumber: 1,
+          createdAt: new Date('2026-07-24T03:00:00.000Z'),
+        },
+        {
+          id: 'p1-to-7-after-undone-round',
+          playerId: 'p1',
+          oldLives: 5,
+          newLives: 7,
+          entryVersion: 5,
+          afterRoundId: 'round2',
+          afterRoundNumber: 2,
+          createdAt: new Date('2026-07-24T05:00:00.000Z'),
+        },
+      ]);
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 1 });
+
+      await undoLastPhaseRound(mockPrismaClient as any, context, 'phase3');
+
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: ['p1'] } }),
+          data: { lives: 7, eliminated: false },
+        }),
+      );
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: ['p2'] } }),
+          data: { lives: 6, eliminated: false },
+        }),
+      );
+    });
+
     it('should honor a custom per-round lifeLoss when replaying phase3 rounds for undo', async () => {
       // Round 1 was started with lifeLoss: 2 (TA battle royale). Bottom half
       // (p3,p4) must lose 2 lives during replay, not the default 1.
@@ -1063,6 +1163,77 @@ describe('TA Finals Phase Manager', () => {
         }),
       );
       expect(mockPrismaClient.tTPhaseRound.delete).toHaveBeenCalledWith({ where: { id: 'round2' } });
+    });
+
+    it('keeps absolute manual life settings when cancelling the round they followed', async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: 'round1',
+          roundNumber: 1,
+          phase: 'phase3',
+          course: 'MC1',
+          results: [
+            { playerId: 'p1', timeMs: 50000 },
+            { playerId: 'p2', timeMs: 80000 },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+          submittedAt: new Date('2026-07-24T02:00:00.000Z'),
+          createdAt: new Date('2026-07-24T01:30:00.000Z'),
+          suddenDeathRounds: [],
+        },
+      ]);
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([{ playerId: 'p1' }, { playerId: 'p2' }]);
+      mockPrismaClient.tTPhaseLifeAdjustment.findMany.mockResolvedValue([
+        {
+          id: 'p1-to-5',
+          playerId: 'p1',
+          oldLives: 3,
+          newLives: 5,
+          entryVersion: 1,
+          afterRoundId: null,
+          afterRoundNumber: 0,
+          createdAt: new Date('2026-07-24T01:00:00.000Z'),
+        },
+        {
+          id: 'p2-to-5',
+          playerId: 'p2',
+          oldLives: 3,
+          newLives: 5,
+          entryVersion: 1,
+          afterRoundId: null,
+          afterRoundNumber: 0,
+          createdAt: new Date('2026-07-24T01:00:00.001Z'),
+        },
+        {
+          id: 'p2-to-6-after-round',
+          playerId: 'p2',
+          oldLives: 4,
+          newLives: 6,
+          entryVersion: 3,
+          afterRoundId: 'round1',
+          afterRoundNumber: 1,
+          createdAt: new Date('2026-07-24T03:00:00.000Z'),
+        },
+      ]);
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.tTPhaseRound.delete.mockResolvedValue({});
+
+      await cancelLastSubmittedPhaseRound(mockPrismaClient as any, context, 'phase3');
+
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: ['p1'] } }),
+          data: { lives: 5, eliminated: false },
+        }),
+      );
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: ['p2'] } }),
+          data: { lives: 6, eliminated: false },
+        }),
+      );
     });
   });
 
@@ -2577,6 +2748,7 @@ describe('TA Finals Phase Manager', () => {
       expect(mockPrismaClient.tTPhaseRound.deleteMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', phase: 'phase1' },
       });
+      expect(mockPrismaClient.tTPhaseLifeAdjustment.deleteMany).not.toHaveBeenCalled();
       expect(mockPrismaClient.tTEntry.deleteMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'phase1' },
       });
@@ -2615,6 +2787,7 @@ describe('TA Finals Phase Manager', () => {
 
       expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledTimes(2);
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrismaClient.tTPhaseLifeAdjustment.deleteMany).not.toHaveBeenCalled();
       expect(mockPrismaClient.tTPhaseRound.deleteMany).not.toHaveBeenCalled();
       expect(mockPrismaClient.tTEntry.deleteMany).not.toHaveBeenCalled();
     });
@@ -2632,6 +2805,9 @@ describe('TA Finals Phase Manager', () => {
       expect(mockPrismaClient.tTEntry.findFirst).not.toHaveBeenCalled();
       // No rounds existed, so the sudden-death cleanup query is skipped entirely.
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrismaClient.tTPhaseLifeAdjustment.deleteMany).toHaveBeenCalledWith({
+        where: { tournamentId: 't1' },
+      });
     });
 
     it('throws when the stage has no entries to reset', async () => {

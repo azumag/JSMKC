@@ -190,6 +190,24 @@ describe('Prisma migration compatibility', () => {
     expect(wranglerMigration).toBe(prismaMigration);
   });
 
+  it('keeps persistent TA Phase 3 life-adjustment events and the AuditLog backfill aligned', () => {
+    const schema = fs.readFileSync(path.join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+    const prismaMigration = readMigration('0029_add_tt_phase_life_adjustment', 'migration.sql').trim();
+    const wranglerMigration = readWranglerMigration('0048_add_tt_phase_life_adjustment.sql').trim();
+    const adjustmentModel = schema.match(/model TTPhaseLifeAdjustment \{[\s\S]*?\n\}/)?.[0];
+
+    expect(adjustmentModel).toContain('oldLives');
+    expect(adjustmentModel).toContain('newLives');
+    expect(adjustmentModel).toContain('adjustedByName');
+    expect(adjustmentModel).toContain('afterRoundId');
+    expect(adjustmentModel).toContain('createdAt');
+    expect(prismaMigration).toContain('CREATE TABLE "TTPhaseLifeAdjustment"');
+    expect(prismaMigration).toContain('INSERT INTO "TTPhaseLifeAdjustment"');
+    expect(prismaMigration).toContain("json_extract(audit.\"details\", '$.action') = 'set_lives'");
+    expect(prismaMigration).toContain('"submittedAt" <= audit."timestamp"');
+    expect(wranglerMigration).toBe(prismaMigration);
+  });
+
   it('never attempts to DROP COLUMN "taHandicapSeconds" from Player (D1 does not reliably support it here)', () => {
     const prismaMigrationsDir = path.join(__dirname, '../../prisma/migrations');
     const wranglerMigrationsDir = path.join(__dirname, '../../migrations');

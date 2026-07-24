@@ -49,6 +49,7 @@ import {
   type Phase3Rules,
 } from '@/lib/ta/battle-royale';
 import { orderResultsWithSuddenDeathChain } from '@/lib/ta/sudden-death-order';
+import { replayPhase3Lives, type Phase3LifeAdjustmentLike, type Phase3RoundLike } from '@/lib/ta/phase3-life-replay';
 
 /**
  * Phase configuration constants defining the rules for each phase.
@@ -1992,6 +1993,11 @@ async function findLastSubmittedRound(
 ) {
   const rounds = await prisma.tTPhaseRound.findMany({
     where: { tournamentId, phase },
+    include: {
+      suddenDeathRounds: {
+        orderBy: { sequence: 'asc' },
+      },
+    },
     orderBy: { roundNumber: 'asc' },
   });
 
@@ -2031,7 +2037,17 @@ async function restorePhaseStateBeforeRound(
   tournamentId: string,
   phase: 'phase1' | 'phase2' | 'phase3',
   lastRound: { eliminatedIds: unknown },
-  previousRounds: Array<{ results: unknown; livesReset: boolean; lifeLoss?: number }>,
+  previousRounds: Array<{
+    id?: string;
+    roundNumber: number;
+    results: unknown;
+    eliminatedIds?: unknown;
+    livesReset: boolean;
+    lifeLoss?: number;
+    submittedAt?: Date | string | null;
+    createdAt?: Date | string | null;
+    suddenDeathRounds?: unknown;
+  }>,
   taBattleRoyaleMode = false,
 ): Promise<void> {
   if (phase === 'phase1' || phase === 'phase2') {
@@ -2055,57 +2071,30 @@ async function restorePhaseStateBeforeRound(
     data: { lives: rules.initialLives, eliminated: false },
   });
 
-  // Replay each previous round's effects in memory, then apply as a batch
-  // playerId -> { lives, eliminated }
   const allEntries = await prisma.tTEntry.findMany({
     where: { tournamentId, stage: 'phase3' },
     select: { playerId: true },
   });
+  const playerIds = (allEntries as Array<{ playerId: string }>).map((entry) => entry.playerId);
+  const adjustments = await prisma.tTPhaseLifeAdjustment.findMany({
+    where: { tournamentId },
+    orderBy: [{ createdAt: 'asc' }, { entryVersion: 'asc' }, { id: 'asc' }],
+  });
+  const replay = replayPhase3Lives(
+    previousRounds as unknown as Phase3RoundLike[],
+    playerIds,
+    rules,
+    adjustments as unknown as Phase3LifeAdjustmentLike[],
+  );
   const playerState = new Map<string, { lives: number; eliminated: boolean }>(
-    (allEntries as Array<{ playerId: string }>).map((e) => [
-      e.playerId,
-      { lives: rules.initialLives, eliminated: false },
+    playerIds.map((playerId) => [
+      playerId,
+      {
+        lives: replay.livesByPlayer.get(playerId) ?? rules.initialLives,
+        eliminated: replay.eliminated.has(playerId),
+      },
     ]),
   );
-
-  for (const round of previousRounds) {
-    const results = round.results as Array<{ playerId: string; timeMs: number }>;
-    if (!Array.isArray(results) || results.length === 0) continue;
-
-    // Only process active (non-eliminated) players
-    const activeResults = results.filter((r) => {
-      const state = playerState.get(r.playerId);
-      return state && !state.eliminated;
-    });
-
-    // Sort by time ascending (fastest first); bottom half loses lifeLoss lives
-    // (this round's own configured value — TA battle royale rounds can differ
-    // from the default 1, so each round in the replay reads its own column
-    // rather than reusing one value across the whole history).
-    const sorted = [...activeResults].sort((a, b) => a.timeMs - b.timeMs);
-    const halfwayPoint = Math.ceil(sorted.length / 2);
-    const bottomHalf = sorted.slice(halfwayPoint);
-
-    const lifeLoss = round.lifeLoss ?? 1;
-    for (const result of bottomHalf) {
-      const state = playerState.get(result.playerId);
-      if (!state || state.eliminated) continue;
-      const newLives = state.lives - lifeLoss;
-      state.lives = Math.max(0, newLives);
-      if (state.lives <= 0) {
-        state.eliminated = true;
-      }
-    }
-
-    // Apply lives reset if it happened after this round
-    if (round.livesReset) {
-      for (const [, state] of playerState) {
-        if (!state.eliminated) {
-          state.lives = rules.initialLives;
-        }
-      }
-    }
-  }
 
   // Write reconstructed state to database using batched updateMany per unique state.
   // Groups players by (lives, eliminated) to reduce round-trips vs O(N) individual updates.
@@ -2470,7 +2459,15 @@ export async function resetPhase(
     where: { tournamentId, phase: stage },
   });
 
-  // 3. The stage roster itself, deleted last (see D1 ordering rationale above).
+  // 3. Phase 3 manual-life events belong to this roster. Delete them
+  // explicitly before the entries instead of depending on FK cascade behavior.
+  if (stage === 'phase3') {
+    await prisma.tTPhaseLifeAdjustment.deleteMany({
+      where: { tournamentId },
+    });
+  }
+
+  // 4. The stage roster itself, deleted last (see D1 ordering rationale above).
   await prisma.tTEntry.deleteMany({
     where: { tournamentId, stage },
   });
