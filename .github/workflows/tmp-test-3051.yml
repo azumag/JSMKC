@@ -22,9 +22,25 @@ jobs:
         working-directory: smkc-score-app
         run: npm ci --silent --no-audit --no-fund
       - name: Run focused tests
+        id: tests
         working-directory: smkc-score-app
-        run: >-
-          npx jest
-          __tests__/lib/cdm-qualification-reconciliation.test.ts
-          __tests__/lib/cdm-qualification-reconciliation-service.test.ts
-          --runInBand --no-coverage
+        shell: bash
+        run: |
+          set +e
+          npx jest \
+            __tests__/lib/cdm-qualification-reconciliation.test.ts \
+            __tests__/lib/cdm-qualification-reconciliation-service.test.ts \
+            --runInBand --no-coverage > focused-test.log 2>&1
+          status=$?
+          cat focused-test.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload focused test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-test-log
+          path: smkc-score-app/focused-test.log
+      - name: Fail when tests failed
+        if: steps.tests.outputs.status != '0'
+        run: exit 1
