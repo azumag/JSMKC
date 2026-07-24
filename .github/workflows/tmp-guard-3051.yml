@@ -1,0 +1,244 @@
+name: Temporary atomic guard verification for PR 3052
+
+on:
+  push:
+    branches:
+      - codex/3051-cdm-archive-schedule-reconcile
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/3051-cdm-archive-schedule-reconcile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Install
+        working-directory: smkc-score-app
+        run: npm ci --silent --no-audit --no-fund
+      - name: Add in-transaction stale-state guards
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          planner_path = Path('smkc-score-app/src/lib/cdm-qualification-reconciliation.ts')
+          planner = planner_path.read_text()
+          old_type = """  createBreakRows: CdmReconciliationBreakRow[];
+            deleteBreakIds: string[];
+            sourceMatchCount: number;
+          """
+          new_type = """  createBreakRows: CdmReconciliationBreakRow[];
+            deleteBreakIds: string[];
+            sourceMatchVersions: Array<{ id: string; version: number }>;
+            sourceMatchCount: number;
+          """
+          if old_type not in planner:
+              raise SystemExit('mode plan type snippet not found')
+          planner = planner.replace(old_type, new_type, 1)
+
+          old_skipped = """      createBreakRows: [],
+                deleteBreakIds: [],
+                sourceMatchCount: 0,
+          """
+          new_skipped = """      createBreakRows: [],
+                deleteBreakIds: [],
+                sourceMatchVersions: [],
+                sourceMatchCount: 0,
+          """
+          if old_skipped not in planner:
+              raise SystemExit('skipped plan snippet not found')
+          planner = planner.replace(old_skipped, new_skipped, 1)
+
+          old_final = """    createBreakRows,
+              deleteBreakIds,
+              sourceMatchCount: qualificationMatches.length,
+          """
+          new_final = """    createBreakRows,
+              deleteBreakIds,
+              sourceMatchVersions: qualificationMatches
+                .map(({ id, version }) => ({ id, version }))
+                .sort((a, b) => a.id.localeCompare(b.id)),
+              sourceMatchCount: qualificationMatches.length,
+          """
+          if old_final not in planner:
+              raise SystemExit('final plan snippet not found')
+          planner_path.write_text(planner.replace(old_final, new_final, 1))
+
+          service_path = Path('smkc-score-app/src/lib/cdm-qualification-reconciliation-service.ts')
+          service = service_path.read_text()
+          marker = """function temporaryMoveStatement(mode: CdmReconciliationMode, tournamentId: string) {
+          """
+          guards = """function tournamentStateGuardStatement(tournament: ReconciliationTournament) {
+            return {
+              label: 'guard:tournament-state',
+              expectedChanges: null as number | null,
+              sql: `SELECT json_extract(
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM "Tournament"
+                  WHERE "id" = ?
+                    AND "name" = ?
+                    AND (("slug" IS NULL AND ? IS NULL) OR "slug" = ?)
+                    AND "status" = ?
+                    AND "qualificationScheduleMethod" = ?
+                    AND "bmQualificationConfirmed" = ?
+                    AND "mrQualificationConfirmed" = ?
+                    AND "gpQualificationConfirmed" = ?
+                    AND "version" = ?
+                ) THEN 'null' ELSE 'invalid' END,
+                '$'
+              )`,
+              values: [
+                tournament.id,
+                tournament.name,
+                tournament.slug,
+                tournament.slug,
+                tournament.status,
+                tournament.qualificationScheduleMethod,
+                tournament.bmQualificationConfirmed ? 1 : 0,
+                tournament.mrQualificationConfirmed ? 1 : 0,
+                tournament.gpQualificationConfirmed ? 1 : 0,
+                tournament.version,
+              ],
+            };
+          }
+
+          function modeStateGuardStatement(
+            mode: CdmReconciliationMode,
+            tournamentId: string,
+            plan: CdmQualificationReconciliationPlan,
+          ) {
+            const payload = JSON.stringify(plan.modes[mode].sourceMatchVersions);
+            return {
+              label: `guard:${mode}-match-state`,
+              expectedChanges: null as number | null,
+              sql: `SELECT json_extract(
+                CASE WHEN
+                  (SELECT COUNT(*) FROM "${TABLES[mode]}" WHERE "tournamentId" = ? AND "stage" = 'qualification') = json_array_length(?)
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM json_each(?) AS expected
+                    LEFT JOIN "${TABLES[mode]}" AS actual
+                      ON actual."id" = json_extract(expected.value, '$.id')
+                     AND actual."tournamentId" = ?
+                     AND actual."stage" = 'qualification'
+                    WHERE actual."id" IS NULL
+                       OR actual."version" <> json_extract(expected.value, '$.version')
+                  )
+                THEN 'null' ELSE 'invalid' END,
+                '$'
+              )`,
+              values: [tournamentId, payload, payload, tournamentId],
+            };
+          }
+
+          """
+          if marker not in service:
+              raise SystemExit('temporary move marker not found')
+          service = service.replace(marker, guards + marker, 1)
+
+          old_statements = """    const statements: BatchStatement[] = MODES.flatMap((mode) =>
+                modeStatements(mode, params.tournamentId, preview.plan),
+              );
+          """
+          new_statements = """    const statements: BatchStatement[] = [
+                tournamentStateGuardStatement(preview.tournament),
+                ...MODES.filter((mode) => !preview.plan.modes[mode].skipped).map((mode) =>
+                  modeStateGuardStatement(mode, params.tournamentId, preview.plan),
+                ),
+                ...MODES.flatMap((mode) => modeStatements(mode, params.tournamentId, preview.plan)),
+              ];
+          """
+          if old_statements not in service:
+              raise SystemExit('batch statements snippet not found')
+          service_path.write_text(service.replace(old_statements, new_statements, 1))
+
+          test_path = Path('smkc-score-app/__tests__/lib/cdm-qualification-reconciliation-service.test.ts')
+          test = test_path.read_text()
+          old_mock = """    (executeD1Batch as jest.Mock).mockResolvedValue([28, 28, 1, 1]);
+          """
+          new_mock = """    (executeD1Batch as jest.Mock).mockResolvedValue([0, 0, 28, 28, 1, 1]);
+          """
+          if old_mock not in test:
+              raise SystemExit('batch mock snippet not found')
+          test = test.replace(old_mock, new_mock, 1)
+          old_assertions = """    expect(statements).toHaveLength(4);
+              expect(statements[0].sql).toContain('SET "matchNumber" = -1000000000');
+              expect(statements[1].sql).toContain('UPDATE "BMMatch"');
+              expect(statements[2].sql).toContain('qualificationScheduleMethod');
+              expect(statements[3].sql).toContain('INSERT INTO "AuditLog"');
+              expect(statements[3].values).toContain('RECONCILE_QUALIFICATION_SCHEDULE');
+          """
+          new_assertions = """    expect(statements).toHaveLength(6);
+              expect(statements[0].sql).toContain('guard:tournament-state'.split(':')[0] === 'guard' ? 'json_extract' : '');
+              expect(statements[0].sql).toContain('qualificationScheduleMethod');
+              expect(statements[1].sql).toContain('json_array_length');
+              expect(statements[1].sql).toContain('actual."version"');
+              expect(statements[2].sql).toContain('SET "matchNumber" = -1000000000');
+              expect(statements[3].sql).toContain('UPDATE "BMMatch"');
+              expect(statements[4].sql).toContain('qualificationScheduleMethod');
+              expect(statements[5].sql).toContain('INSERT INTO "AuditLog"');
+              expect(statements[5].values).toContain('RECONCILE_QUALIFICATION_SCHEDULE');
+          """
+          if old_assertions not in test:
+              raise SystemExit('statement assertions snippet not found')
+          test = test.replace(old_assertions, new_assertions, 1)
+
+          insert_before = """  it('does not rewrite matches when a completed CDM schedule already matches, but refreshes the archive', async () => {
+          """
+          guard_test = """  it('rolls back and skips archive regeneration when an in-batch state guard fails', async () => {
+            mockModeData();
+            const preview = await previewCdmQualificationReconciliation('cdm-archive');
+            (executeD1Batch as jest.Mock).mockRejectedValue(new Error('malformed JSON'));
+
+            await expect(
+              applyCdmQualificationReconciliation({
+                tournamentId: 'cdm-archive',
+                expectedDigest: preview.digest,
+                audit: { userId: 'admin', ipAddress: '127.0.0.1', userAgent: 'jest' },
+              }),
+            ).rejects.toThrow('malformed JSON');
+
+            expect(persistTournamentArchive).not.toHaveBeenCalled();
+            expect(invalidate).not.toHaveBeenCalled();
+          });
+
+          """
+          if insert_before not in test:
+              raise SystemExit('test insertion marker not found')
+          test_path.write_text(test.replace(insert_before, guard_test + insert_before, 1))
+          PY
+      - name: Format
+        working-directory: smkc-score-app
+        run: |
+          npx prettier --write \
+            src/lib/cdm-qualification-reconciliation.ts \
+            src/lib/cdm-qualification-reconciliation-service.ts \
+            __tests__/lib/cdm-qualification-reconciliation-service.test.ts
+      - name: Focused tests
+        working-directory: smkc-score-app
+        run: >-
+          npx jest
+          __tests__/lib/cdm-qualification-reconciliation.test.ts
+          __tests__/lib/cdm-qualification-reconciliation-service.test.ts
+          --runInBand --no-coverage
+      - name: Production build
+        working-directory: smkc-score-app
+        run: npm run build
+      - name: Commit verified guard
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add smkc-score-app
+          git commit -m "fix: guard reconciliation state inside D1 batch"
+          git push origin HEAD:codex/3051-cdm-archive-schedule-reconcile
