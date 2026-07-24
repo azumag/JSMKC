@@ -1,0 +1,80 @@
+name: Temporary fix PR 3053 reconciliation fallback
+
+on:
+  push:
+    branches:
+      - codex/new-tournaments-cdm-only
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: fix-pr3053-reconciliation-fallback
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/new-tournaments-cdm-only
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: smkc-score-app
+        run: npm ci --silent --no-audit --no-fund
+
+      - name: Apply reconciliation fallback
+        run: python3 .github/scripts/fix_pr3053_reconciliation_fallback.py
+
+      - name: Format changed files
+        working-directory: smkc-score-app
+        run: |
+          npx prettier --write \
+            src/lib/qualification-schedule-policy.ts \
+            src/lib/api-factories/qualification-route.ts \
+            src/lib/cdm-qualification-reconciliation.ts \
+            __tests__/lib/cdm-qualification-reconciliation.test.ts
+
+      - name: Focused tests
+        working-directory: smkc-score-app
+        run: >-
+          npx jest --runTestsByPath
+          "__tests__/lib/api-factories/qualification-route.test.ts"
+          "__tests__/lib/cdm-qualification-reconciliation.test.ts"
+          "__tests__/lib/cdm-qualification-reconciliation-service.test.ts"
+          --runInBand --no-coverage
+
+      - name: Full unit tests
+        working-directory: smkc-score-app
+        run: npm test -- --ci --forceExit
+        env:
+          SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
+          NODE_ENV: test
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Security audit
+        working-directory: smkc-score-app
+        run: npm audit --audit-level=high
+
+      - name: Production build
+        working-directory: smkc-score-app
+        run: npm run build
+
+      - name: Commit verified fixes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add smkc-score-app
+          git commit -m "fix: apply small-group fallback during archive reconciliation"
+          git push origin HEAD:codex/new-tournaments-cdm-only
