@@ -216,7 +216,7 @@ describe('Prisma migration compatibility', () => {
     expect(schema).toContain('cdmArchiveReconciliationExcluded');
     expect(schema).toContain('cdmArchiveReconciliationPending');
     expect(wranglerMigration).toBe(prismaMigration);
-    expect(prismaMigration).toContain("instr(lower("name"), 'jsmkc') > 0");
+    expect(prismaMigration).toContain('instr(lower("name"), \'jsmkc\') > 0');
 
     const db = new DatabaseSync(':memory:');
     try {
