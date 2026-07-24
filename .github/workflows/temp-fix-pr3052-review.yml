@@ -52,31 +52,23 @@ jobs:
 
           run_step "npm ci" bash -lc 'cd smkc-score-app && npm ci --silent --no-audit --no-fund'
           if [ "$status" -eq 0 ]; then
-            run_step "align test expectations" python3 - <<'PY'
+            run_step "repair SQLite guard paths" python3 - <<'PY'
           from pathlib import Path
 
-          def replace_or_verify(path: Path, old: str, new: str) -> None:
-              source = path.read_text()
+          path = Path('smkc-score-app/src/lib/cdm-qualification-reconciliation-service.ts')
+          source = path.read_text()
+          replacements = {
+              "THEN '$' ELSE '$[RECONCILIATION_STALE_PREVIEW' END":
+                  "THEN '$' ELSE '$..RECONCILIATION_STALE_PREVIEW' END",
+              "THEN '$' ELSE '$[RECONCILIATION_POSTCONDITION_FAILED' END":
+                  "THEN '$' ELSE '$..RECONCILIATION_POSTCONDITION_FAILED' END",
+          }
+          for old, new in replacements.items():
               if old in source:
-                  path.write_text(source.replace(old, new, 1))
+                  source = source.replace(old, new)
               elif new not in source:
-                  raise SystemExit(f'expected snippet not found in {path}')
-
-          migration_test = Path('smkc-score-app/__tests__/docs/prisma-migrations.test.ts')
-          replace_or_verify(
-              migration_test,
-              "    expect(schema).toContain('taHandicapSeconds   Int        @default(0)');",
-              r'''    const ttEntryModel = schema.match(/model TTEntry \{[\s\S]*?\n\}/)?.[0];
-              expect(ttEntryModel).toMatch(/taHandicapSeconds\s+Int\s+@default\(0\)/);''',
-          )
-
-          planner_test = Path('smkc-score-app/__tests__/lib/cdm-qualification-reconciliation.test.ts')
-          replace_or_verify(
-              planner_test,
-              '    expect(plan.modes.bm.rowUpdates).toBe(28);',
-              '''    expect(plan.modes.bm.rowUpdates).toBe(plan.modes.bm.rowsToUpdate.length);
-              expect(plan.modes.bm.rowUpdates).toBeGreaterThan(0);''',
-          )
+                  raise SystemExit(f'guard path snippet not found: {old}')
+          path.write_text(source)
           PY
           fi
           if [ "$status" -eq 0 ]; then
