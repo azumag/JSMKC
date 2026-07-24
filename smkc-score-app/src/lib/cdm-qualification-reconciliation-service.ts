@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { AUDIT_ACTIONS, buildAuditLogData, type AuditLogParams } from '@/lib/audit-log';
+import { buildAuditLogData, type AuditLogParams } from '@/lib/audit-log';
 import { executeD1Batch } from '@/lib/d1-batch';
 import { persistTournamentArchive } from '@/lib/tournament-archive';
 import { invalidate } from '@/lib/standings-cache';
@@ -479,7 +479,7 @@ export async function applyCdmQualificationReconciliation(params: {
 
     const audit = buildAuditLogData({
       ...params.audit,
-      action: AUDIT_ACTIONS.RECONCILE_QUALIFICATION_SCHEDULE,
+      action: 'RECONCILE_QUALIFICATION_SCHEDULE',
       targetId: params.tournamentId,
       targetType: 'Tournament',
       details: {
