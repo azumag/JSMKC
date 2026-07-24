@@ -1,4 +1,5 @@
 import { COURSE_INFO } from '@/lib/constants';
+import { isCdmArchiveReconciliationExcluded } from '@/lib/cdm-archive-reconciliation-policy';
 import { getCdmQualificationRoundFixture } from '@/lib/cdm-qualification-round-fixtures';
 import { GROUPS } from '@/lib/group-utils';
 import {
@@ -70,12 +71,14 @@ export type CdmReconciliationModePlan = {
   mode: CdmReconciliationMode;
   skipped: boolean;
   retainedRows: CdmReconciliationRow[];
+  rowsToUpdate: CdmReconciliationRow[];
   createBreakRows: CdmReconciliationBreakRow[];
   deleteBreakIds: string[];
   sourceMatchVersions: Array<{ id: string; version: number }>;
   sourceMatchCount: number;
   realMatchCount: number;
   targetMatchCount: number;
+  rowUpdates: number;
   movedMatches: number;
   sideSwaps: number;
   courseUpdates: number;
@@ -337,6 +340,72 @@ function relevantRowState(row: CdmReconciliationMatch): unknown {
   };
 }
 
+function updateRowState(mode: CdmReconciliationMode, row: CdmReconciliationMatch): unknown {
+  const common = {
+    matchNumber: row.matchNumber,
+    roundNumber: row.roundNumber,
+    isBye: Boolean(row.isBye),
+    player1Id: row.player1Id,
+    player2Id: row.player2Id,
+    player1Side: row.player1Side,
+    player2Side: row.player2Side,
+    completed: Boolean(row.completed),
+  };
+
+  if (mode === 'bm') {
+    return {
+      ...common,
+      score1: row.score1 ?? null,
+      score2: row.score2 ?? null,
+      assignedCourses: row.assignedCourses ?? null,
+      rounds: row.rounds ?? null,
+      player1ReportedScore1: row.player1ReportedScore1 ?? null,
+      player1ReportedScore2: row.player1ReportedScore2 ?? null,
+      player2ReportedScore1: row.player2ReportedScore1 ?? null,
+      player2ReportedScore2: row.player2ReportedScore2 ?? null,
+    };
+  }
+
+  if (mode === 'mr') {
+    return {
+      ...common,
+      score1: row.score1 ?? null,
+      score2: row.score2 ?? null,
+      scoresConfirmed: Boolean(row.scoresConfirmed),
+      assignedCourses: row.assignedCourses ?? null,
+      rounds: row.rounds ?? null,
+      player1ReportedPoints1: row.player1ReportedPoints1 ?? null,
+      player1ReportedPoints2: row.player1ReportedPoints2 ?? null,
+      player1ReportedRaces: row.player1ReportedRaces ?? null,
+      player2ReportedPoints1: row.player2ReportedPoints1 ?? null,
+      player2ReportedPoints2: row.player2ReportedPoints2 ?? null,
+      player2ReportedRaces: row.player2ReportedRaces ?? null,
+    };
+  }
+
+  return {
+    ...common,
+    points1: row.points1 ?? null,
+    points2: row.points2 ?? null,
+    cup: row.cup ?? null,
+    races: row.races ?? null,
+    player1ReportedPoints1: row.player1ReportedPoints1 ?? null,
+    player1ReportedPoints2: row.player1ReportedPoints2 ?? null,
+    player1ReportedRaces: row.player1ReportedRaces ?? null,
+    player2ReportedPoints1: row.player2ReportedPoints1 ?? null,
+    player2ReportedPoints2: row.player2ReportedPoints2 ?? null,
+    player2ReportedRaces: row.player2ReportedRaces ?? null,
+  };
+}
+
+function rowNeedsUpdate(
+  mode: CdmReconciliationMode,
+  source: CdmReconciliationMatch,
+  target: CdmReconciliationRow,
+): boolean {
+  return !jsonEqual(updateRowState(mode, source), updateRowState(mode, target));
+}
+
 function countMoved(source: CdmReconciliationMatch, target: CdmReconciliationRow): boolean {
   return (
     source.matchNumber !== target.matchNumber ||
@@ -355,12 +424,14 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
       mode,
       skipped: true,
       retainedRows: [],
+      rowsToUpdate: [],
       createBreakRows: [],
       deleteBreakIds: [],
       sourceMatchVersions: [],
       sourceMatchCount: 0,
       realMatchCount: 0,
       targetMatchCount: 0,
+      rowUpdates: 0,
       movedMatches: 0,
       sideSwaps: 0,
       courseUpdates: 0,
@@ -464,6 +535,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
   }
 
   const retainedRows: CdmReconciliationRow[] = [];
+  const rowsToUpdate: CdmReconciliationRow[] = [];
   const createBreakRows: CdmReconciliationBreakRow[] = [];
   let nextMatchNumber = 1;
   let byeCursor = 0;
@@ -510,6 +582,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
           target.player2Id,
         );
         retainedRows.push(oriented.row);
+        if (rowNeedsUpdate(mode, source, oriented.row)) rowsToUpdate.push(oriented.row);
         if (countMoved(source, oriented.row)) movedMatches++;
         if (oriented.swapped) sideSwaps++;
         if (oriented.courseChanged) courseUpdates++;
@@ -519,6 +592,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
         const row = buildBreakRow(mode, source, group, nextMatchNumber, target.day, target.player1Id, target.player2Id);
         if ('id' in row) {
           retainedRows.push(row);
+          if (source && rowNeedsUpdate(mode, source, row)) rowsToUpdate.push(row);
           if (source && countMoved(source, row)) movedMatches++;
         } else {
           createBreakRows.push(row);
@@ -541,6 +615,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
     mode,
     skipped: false,
     retainedRows,
+    rowsToUpdate,
     createBreakRows,
     deleteBreakIds,
     sourceMatchVersions: qualificationMatches
@@ -549,6 +624,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
     sourceMatchCount: qualificationMatches.length,
     realMatchCount: retainedRows.filter((row) => !row.isBye).length,
     targetMatchCount: retainedRows.length + createBreakRows.length,
+    rowUpdates: rowsToUpdate.length,
     movedMatches,
     sideSwaps,
     courseUpdates,
@@ -567,7 +643,7 @@ export function buildCdmQualificationReconciliationPlan(
   >;
   const totalChanges = MODE_ORDER.reduce((sum, mode) => {
     const plan = modes[mode];
-    return sum + plan.movedMatches + plan.courseUpdates + plan.cupUpdates + plan.createdBreaks + plan.deletedBreaks;
+    return sum + plan.rowUpdates + plan.createdBreaks + plan.deletedBreaks;
   }, 0);
 
   const digestPayload = {
@@ -590,6 +666,7 @@ export function buildCdmQualificationReconciliationPlan(
         mode,
         {
           retainedRows: modes[mode].retainedRows.map(relevantRowState),
+          rowsToUpdate: modes[mode].rowsToUpdate.map(relevantRowState),
           createBreakRows: modes[mode].createBreakRows,
           deleteBreakIds: modes[mode].deleteBreakIds,
         },
@@ -633,7 +710,4 @@ export async function digestCdmQualificationReconciliationPlan(
   return digestCdmPayload(plan.digestPayload);
 }
 
-export function isJsmkcTournamentIdentity(tournament: { name: string; slug?: string | null }): boolean {
-  const identity = `${tournament.name} ${tournament.slug ?? ''}`;
-  return /(^|[^a-z0-9])jsmkc([^a-z0-9]|$)/i.test(identity);
-}
+export const isJsmkcTournamentIdentity = isCdmArchiveReconciliationExcluded;

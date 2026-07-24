@@ -24,6 +24,8 @@ const DIGEST_RE = /^[a-f0-9]{64}$/;
 
 function statusForReconciliationError(code: string): number {
   if (code === 'TOURNAMENT_NOT_FOUND') return 404;
+  if (code === 'ARCHIVE_REGENERATION_PENDING') return 503;
+  if (code === 'RECONCILIATION_POSTCONDITION_FAILED') return 500;
   if (
     code === 'JSMKC_TOURNAMENT_EXCLUDED' ||
     code === 'TOURNAMENT_NOT_COMPLETED' ||

@@ -145,6 +145,8 @@ type ReconciliationTournament = {
   slug: string | null;
   status: string;
   qualificationScheduleMethod: string;
+  cdmArchiveReconciliationExcluded: boolean;
+  cdmArchiveReconciliationPending: boolean;
   bmQualificationConfirmed: boolean;
   mrQualificationConfirmed: boolean;
   gpQualificationConfirmed: boolean;
@@ -238,6 +240,8 @@ async function loadInput(tournamentId: string): Promise<{
       slug: true,
       status: true,
       qualificationScheduleMethod: true,
+      cdmArchiveReconciliationExcluded: true,
+      cdmArchiveReconciliationPending: true,
       bmQualificationConfirmed: true,
       mrQualificationConfirmed: true,
       gpQualificationConfirmed: true,
@@ -281,6 +285,8 @@ export async function previewCdmQualificationReconciliation(tournamentId: string
       id: tournament.id,
       status: tournament.status,
       scheduleMethod: tournament.qualificationScheduleMethod,
+      reconciliationExcluded: tournament.cdmArchiveReconciliationExcluded,
+      archivePending: tournament.cdmArchiveReconciliationPending,
       bmQualificationConfirmed: tournament.bmQualificationConfirmed,
       mrQualificationConfirmed: tournament.mrQualificationConfirmed,
       gpQualificationConfirmed: tournament.gpQualificationConfirmed,
@@ -331,6 +337,7 @@ function tournamentStateGuardStatement(tournament: ReconciliationTournament) {
     label: 'guard:tournament-state',
     expectedChanges: null as number | null,
     sql: `SELECT json_extract(
+      'null',
       CASE WHEN EXISTS (
         SELECT 1 FROM "Tournament"
         WHERE "id" = ?
@@ -338,12 +345,13 @@ function tournamentStateGuardStatement(tournament: ReconciliationTournament) {
           AND (("slug" IS NULL AND ? IS NULL) OR "slug" = ?)
           AND "status" = ?
           AND "qualificationScheduleMethod" = ?
+          AND "cdmArchiveReconciliationExcluded" = ?
+          AND "cdmArchiveReconciliationPending" = ?
           AND "bmQualificationConfirmed" = ?
           AND "mrQualificationConfirmed" = ?
           AND "gpQualificationConfirmed" = ?
           AND "version" = ?
-      ) THEN 'null' ELSE 'invalid' END,
-      '$'
+      ) THEN '$' ELSE '$[RECONCILIATION_STALE_PREVIEW' END
     )`,
     values: [
       tournament.id,
@@ -352,6 +360,8 @@ function tournamentStateGuardStatement(tournament: ReconciliationTournament) {
       tournament.slug,
       tournament.status,
       tournament.qualificationScheduleMethod,
+      tournament.cdmArchiveReconciliationExcluded ? 1 : 0,
+      tournament.cdmArchiveReconciliationPending ? 1 : 0,
       tournament.bmQualificationConfirmed ? 1 : 0,
       tournament.mrQualificationConfirmed ? 1 : 0,
       tournament.gpQualificationConfirmed ? 1 : 0,
@@ -370,6 +380,7 @@ function modeStateGuardStatement(
     label: `guard:${mode}-match-state`,
     expectedChanges: null as number | null,
     sql: `SELECT json_extract(
+      'null',
       CASE WHEN
         (SELECT COUNT(*) FROM "${TABLES[mode]}" WHERE "tournamentId" = ? AND "stage" = 'qualification') = json_array_length(?)
         AND NOT EXISTS (
@@ -382,19 +393,18 @@ function modeStateGuardStatement(
           WHERE actual."id" IS NULL
              OR actual."version" <> json_extract(expected.value, '$.version')
         )
-      THEN 'null' ELSE 'invalid' END,
-      '$'
+      THEN '$' ELSE '$[RECONCILIATION_STALE_PREVIEW' END
     )`,
     values: [tournamentId, payload, payload, tournamentId],
   };
 }
 
-function temporaryMoveStatement(mode: CdmReconciliationMode, tournamentId: string) {
+function temporaryMoveStatement(mode: CdmReconciliationMode, tournamentId: string, ids: string[]) {
   return {
     label: `${mode}:temporary-match-numbers`,
-    expectedChanges: null as number | null,
-    sql: `UPDATE "${TABLES[mode]}" SET "matchNumber" = -1000000000 - "matchNumber" WHERE "tournamentId" = ? AND "stage" = 'qualification'`,
-    values: [tournamentId],
+    expectedChanges: ids.length,
+    sql: `UPDATE "${TABLES[mode]}" SET "matchNumber" = -1000000000 - "matchNumber" WHERE "tournamentId" = ? AND "stage" = 'qualification' AND "id" IN (SELECT value FROM json_each(?))`,
+    values: [tournamentId, JSON.stringify(ids)],
   };
 }
 
@@ -460,18 +470,25 @@ function modeStatements(
   plan: CdmQualificationReconciliationPlan,
 ): BatchStatement[] {
   const modePlan = plan.modes[mode];
-  const modeChangeCount =
-    modePlan.movedMatches +
-    modePlan.courseUpdates +
-    modePlan.cupUpdates +
-    modePlan.createdBreaks +
-    modePlan.deletedBreaks;
+  const modeChangeCount = modePlan.rowsToUpdate.length + modePlan.createdBreaks + modePlan.deletedBreaks;
   if (modePlan.skipped || modeChangeCount === 0) return [];
-  const statements: BatchStatement[] = [temporaryMoveStatement(mode, tournamentId)];
+
+  const statements: BatchStatement[] = [];
+  if (modePlan.rowsToUpdate.length > 0) {
+    statements.push(
+      temporaryMoveStatement(
+        mode,
+        tournamentId,
+        modePlan.rowsToUpdate.map((row) => row.id),
+      ),
+    );
+  }
   if (modePlan.deleteBreakIds.length > 0) {
     statements.push(deleteBreaksStatement(mode, tournamentId, modePlan.deleteBreakIds));
   }
-  statements.push(updateRowsStatement(mode, tournamentId, modePlan.retainedRows));
+  if (modePlan.rowsToUpdate.length > 0) {
+    statements.push(updateRowsStatement(mode, tournamentId, modePlan.rowsToUpdate));
+  }
   if (modePlan.createBreakRows.length > 0) {
     statements.push(insertBreaksStatement(mode, tournamentId, modePlan.createBreakRows));
   }
@@ -489,6 +506,7 @@ function reconciliationSummary(plan: CdmQualificationReconciliationPlan) {
           sourceMatchCount: item.sourceMatchCount,
           targetMatchCount: item.targetMatchCount,
           realMatchCount: item.realMatchCount,
+          rowUpdates: item.rowUpdates,
           movedMatches: item.movedMatches,
           sideSwaps: item.sideSwaps,
           courseUpdates: item.courseUpdates,
@@ -506,8 +524,89 @@ export function publicCdmReconciliationPreview(preview: CdmReconciliationPreview
     digest: preview.digest,
     totalChanges: preview.totalChanges,
     requiresScheduleMethodUpdate: preview.requiresScheduleMethodUpdate,
+    archivePending: preview.tournament.cdmArchiveReconciliationPending,
     modes: reconciliationSummary(preview.plan),
   };
+}
+
+const STALE_GUARD_MARKER = 'RECONCILIATION_STALE_PREVIEW';
+const POSTCONDITION_GUARD_MARKER = 'RECONCILIATION_POSTCONDITION_FAILED';
+
+function postconditionGuardStatement(statement: BatchStatement): BatchStatement {
+  return {
+    label: `guard:${statement.label}-changes`,
+    expectedChanges: null,
+    sql: `SELECT json_extract(
+      'null',
+      CASE WHEN changes() = ? THEN '$' ELSE '$[RECONCILIATION_POSTCONDITION_FAILED' END
+    )`,
+    values: [statement.expectedChanges],
+  };
+}
+
+function expandAtomicStatements(statements: BatchStatement[]): BatchStatement[] {
+  return statements.flatMap((statement) =>
+    statement.expectedChanges === null ? [statement] : [statement, postconditionGuardStatement(statement)],
+  );
+}
+
+function mappedBatchError(error: unknown): CdmQualificationReconciliationError | null {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes(STALE_GUARD_MARKER)) {
+    return new CdmQualificationReconciliationError(
+      'Tournament data changed after the preview. Generate a new preview before applying.',
+      STALE_GUARD_MARKER,
+    );
+  }
+  if (message.includes(POSTCONDITION_GUARD_MARKER)) {
+    return new CdmQualificationReconciliationError(
+      'Reconciliation postcondition failed; the D1 batch was rolled back.',
+      POSTCONDITION_GUARD_MARKER,
+    );
+  }
+  return null;
+}
+
+async function executeAtomicStatements(statements: BatchStatement[]): Promise<void> {
+  try {
+    const expanded = expandAtomicStatements(statements);
+    await executeD1Batch(expanded.map(({ sql, values }) => ({ sql, values })));
+  } catch (error) {
+    const mapped = mappedBatchError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
+}
+
+function archiveCompletionStatements(
+  tournamentId: string,
+  auditId: string,
+  archiveGeneratedAt: string,
+): BatchStatement[] {
+  return [
+    {
+      label: 'tournament:clear-archive-pending',
+      expectedChanges: 1,
+      sql: `UPDATE "Tournament"
+        SET "cdmArchiveReconciliationPending" = 0,
+            "version" = "version" + 1,
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ? AND "status" = 'completed' AND "cdmArchiveReconciliationPending" = 1`,
+      values: [tournamentId],
+    },
+    {
+      label: 'audit:archive-complete',
+      expectedChanges: 1,
+      sql: `UPDATE "AuditLog"
+        SET "details" = json_set(
+          COALESCE("details", '{}'),
+          '$.archiveStatus', 'complete',
+          '$.archiveGeneratedAt', ?
+        )
+        WHERE "id" = ?`,
+      values: [archiveGeneratedAt, auditId],
+    },
+  ];
 }
 
 export async function applyCdmQualificationReconciliation(params: {
@@ -523,59 +622,61 @@ export async function applyCdmQualificationReconciliation(params: {
     );
   }
 
-  const shouldMutate = preview.totalChanges > 0;
-  if (shouldMutate) {
-    const statements: BatchStatement[] = [
-      tournamentStateGuardStatement(preview.tournament),
-      ...MODES.filter((mode) => !preview.plan.modes[mode].skipped).map((mode) =>
-        modeStateGuardStatement(mode, params.tournamentId, preview.plan),
-      ),
-      ...MODES.flatMap((mode) => modeStatements(mode, params.tournamentId, preview.plan)),
-    ];
-    statements.push({
-      label: 'tournament:set-cdm-method',
+  const scheduleApplied = preview.totalChanges > 0;
+  const auditId = createId();
+  const statements: BatchStatement[] = [
+    tournamentStateGuardStatement(preview.tournament),
+    ...MODES.filter((mode) => !preview.plan.modes[mode].skipped).map((mode) =>
+      modeStateGuardStatement(mode, params.tournamentId, preview.plan),
+    ),
+    ...MODES.flatMap((mode) => modeStatements(mode, params.tournamentId, preview.plan)),
+    {
+      label: 'tournament:mark-archive-pending',
       expectedChanges: 1,
-      sql: `UPDATE "Tournament" SET "qualificationScheduleMethod" = 'cdm', "version" = "version" + 1, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = ? AND "status" = 'completed'`,
-      values: [params.tournamentId],
-    });
+      sql: `UPDATE "Tournament"
+        SET "qualificationScheduleMethod" = 'cdm',
+            "cdmArchiveReconciliationPending" = 1,
+            "version" = "version" + 1,
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ?
+          AND "status" = 'completed'
+          AND "cdmArchiveReconciliationExcluded" = 0
+          AND "version" = ?`,
+      values: [params.tournamentId, preview.tournament.version],
+    },
+  ];
 
-    const audit = buildAuditLogData({
-      ...params.audit,
-      action: 'RECONCILE_QUALIFICATION_SCHEDULE',
-      targetId: params.tournamentId,
-      targetType: 'Tournament',
-      details: {
-        issue: 3051,
-        previousScheduleMethod: preview.tournament.qualificationScheduleMethod,
-        newScheduleMethod: 'cdm',
-        summary: reconciliationSummary(preview.plan),
-      },
-    });
-    statements.push({
-      label: 'audit:reconciliation',
-      expectedChanges: 1,
-      sql: `INSERT INTO "AuditLog" ("id", "userId", "ipAddress", "userAgent", "action", "targetId", "targetType", "timestamp", "details") VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, json(?))`,
-      values: [
-        createId(),
-        audit.userId,
-        audit.ipAddress,
-        audit.userAgent,
-        audit.action,
-        audit.targetId,
-        audit.targetType,
-        JSON.stringify(audit.details ?? {}),
-      ],
-    });
+  const audit = buildAuditLogData({
+    ...params.audit,
+    action: 'RECONCILE_QUALIFICATION_SCHEDULE',
+    targetId: params.tournamentId,
+    targetType: 'Tournament',
+    details: {
+      issue: 3051,
+      previousScheduleMethod: preview.tournament.qualificationScheduleMethod,
+      newScheduleMethod: 'cdm',
+      scheduleApplied,
+      archiveStatus: 'pending',
+      summary: reconciliationSummary(preview.plan),
+    },
+  });
+  statements.push({
+    label: 'audit:reconciliation',
+    expectedChanges: 1,
+    sql: `INSERT INTO "AuditLog" ("id", "userId", "ipAddress", "userAgent", "action", "targetId", "targetType", "timestamp", "details") VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, json(?))`,
+    values: [
+      auditId,
+      audit.userId,
+      audit.ipAddress,
+      audit.userAgent,
+      audit.action,
+      audit.targetId,
+      audit.targetType,
+      JSON.stringify(audit.details ?? {}),
+    ],
+  });
 
-    const results = await executeD1Batch(statements.map(({ sql, values }) => ({ sql, values })));
-    statements.forEach((statement, index) => {
-      if (statement.expectedChanges !== null && results[index] !== statement.expectedChanges) {
-        throw new Error(
-          `CDM reconciliation postcondition failed for ${statement.label}: expected ${statement.expectedChanges}, got ${results[index]}`,
-        );
-      }
-    });
-  }
+  await executeAtomicStatements(statements);
 
   invalidateOverallRankingsCache(params.tournamentId);
   try {
@@ -586,11 +687,47 @@ export async function applyCdmQualificationReconciliation(params: {
       tournamentId: params.tournamentId,
     });
   }
-  const archive = await persistTournamentArchive(params.tournamentId);
+
+  let archive;
+  try {
+    archive = await persistTournamentArchive(params.tournamentId);
+  } catch (error) {
+    logger.error('CDM schedule was saved but archive regeneration failed', {
+      error,
+      tournamentId: params.tournamentId,
+      scheduleApplied,
+    });
+    throw new CdmQualificationReconciliationError(
+      'The schedule correction was saved, but archive regeneration failed. Retry this operation to regenerate the archive.',
+      'ARCHIVE_REGENERATION_PENDING',
+      { scheduleApplied, archivePending: true, retryable: true },
+    );
+  }
+
+  try {
+    await executeAtomicStatements(archiveCompletionStatements(params.tournamentId, auditId, archive.generatedAt));
+  } catch (error) {
+    logger.error('Archive was regenerated but the durable pending state could not be cleared', {
+      error,
+      tournamentId: params.tournamentId,
+      archiveGeneratedAt: archive.generatedAt,
+    });
+    throw new CdmQualificationReconciliationError(
+      'The archive was regenerated, but its pending state could not be cleared. Retry this operation.',
+      'ARCHIVE_REGENERATION_PENDING',
+      {
+        scheduleApplied,
+        archivePending: true,
+        retryable: true,
+        archiveGeneratedAt: archive.generatedAt,
+      },
+    );
+  }
 
   return {
-    applied: shouldMutate,
+    applied: scheduleApplied,
     archiveGeneratedAt: archive.generatedAt,
     ...publicCdmReconciliationPreview(preview),
+    archivePending: false,
   };
 }

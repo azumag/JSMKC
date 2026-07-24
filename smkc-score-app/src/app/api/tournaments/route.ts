@@ -22,6 +22,7 @@ import { createLogger } from '@/lib/logger';
 import { retryDbRead } from '@/lib/db-read-retry';
 import { isValidTournamentSlug, normalizeTournamentSlug } from '@/lib/tournament-identifier';
 import { readTournamentArchiveIndex } from '@/lib/tournament-archive';
+import { hasJsmkcIdentity } from '@/lib/cdm-archive-reconciliation-policy';
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -189,6 +190,7 @@ export async function POST(request: NextRequest) {
         taPlayerSelfEdit: taPlayerSelfEdit !== false,
         taBattleRoyaleMode: taBattleRoyaleMode === true,
         ...(qualificationScheduleMethod !== undefined && { qualificationScheduleMethod }),
+        ...(hasJsmkcIdentity({ name, slug }) && { cdmArchiveReconciliationExcluded: true }),
         debugMode: debugMode === true,
         publicModes: [],
       },

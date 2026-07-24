@@ -1,0 +1,58 @@
+===== npm ci =====
+[prisma-generate] CI detected — using WASM engine overrides
+Loaded Prisma config from prisma.config.ts.
+
+Prisma config detected, skipping environment variable loading.
+Prisma schema loaded from prisma/schema.prisma
+┌─────────────────────────────────────────────────────────┐
+│  Update available 6.19.3 -> 7.9.0                       │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+
+✔ Generated Prisma Client (v6.19.3) to ./node_modules/@prisma/client in 237ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+
+exit_code=0
+===== apply review fixes =====
+PR 3052 review fixes applied
+exit_code=0
+===== prettier =====
+[90msrc/lib/cdm-archive-reconciliation-policy.ts[39m 81ms (unchanged)
+src/lib/cdm-qualification-reconciliation.ts 186ms
+src/lib/cdm-qualification-reconciliation-service.ts 90ms
+[90msrc/app/api/tournaments/route.ts[39m 30ms (unchanged)
+[90msrc/app/api/tournaments/[id]/route.ts[39m 70ms (unchanged)
+[90msrc/app/api/tournaments/[id]/qualification-schedule/reconcile/route.ts[39m 8ms (unchanged)
+[90msrc/app/api/tournaments/[id]/archive/route.ts[39m 5ms (unchanged)
+[90msrc/app/tournaments/[id]/cdm-archive-reconcile/page.tsx[39m 12ms (unchanged)
+[[31merror[39m] src/components/tournament/cdm-archive-reconcile-button.tsx: SyntaxError: Unterminated string literal. (89:16)
+[[31merror[39m]   87 |       const details = (['bm', 'mr', 'gp'] as const)
+[[31merror[39m]   88 |         .map((mode) => modeLine(mode, preview.modes[mode], japanese))
+[[31merror[39m] > 89 |         .join('
+[[31merror[39m]      |                ^
+[[31merror[39m]   90 | ');
+[[31merror[39m]   91 |       const pending = archivePending || preview.archivePending;
+[[31merror[39m]   92 |       const confirmation = japanese
+__tests__/lib/cdm-qualification-reconciliation.test.ts 46ms
+__tests__/lib/cdm-qualification-reconciliation-service.test.ts 42ms
+[90m__tests__/app/api/tournaments/[id]/qualification-schedule/reconcile/route.test.ts[39m 16ms (unchanged)
+__tests__/app/api/tournaments/[id]/archive/route.test.ts 27ms
+[[31merror[39m] __tests__/docs/prisma-migrations.test.ts: SyntaxError: ',' expected. (219:53)
+[[31merror[39m]   217 |     expect(schema).toContain('cdmArchiveReconciliationPending');
+[[31merror[39m]   218 |     expect(wranglerMigration).toBe(prismaMigration);
+[[31merror[39m] > 219 |     expect(prismaMigration).toContain("instr(lower("name"), 'jsmkc') > 0");
+[[31merror[39m]       |                                                     ^
+[[31merror[39m]   220 |
+[[31merror[39m]   221 |     const db = new DatabaseSync(':memory:');
+[[31merror[39m]   222 |     try {
+exit_code=2
+final_status=2

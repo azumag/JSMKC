@@ -29,6 +29,7 @@ import {
   handleValidationError,
 } from '@/lib/error-handling';
 import { isValidPublicModes } from '@/lib/public-modes';
+import { hasJsmkcIdentity } from '@/lib/cdm-archive-reconciliation-policy';
 import {
   getArchivedTournamentSummary,
   persistTournamentArchive,
@@ -366,6 +367,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       ...(debugMode !== undefined && { debugMode: debugMode === true }),
       ...(taBattleRoyaleMode !== undefined && { taBattleRoyaleMode }),
       ...(qualificationScheduleMethod !== undefined && { qualificationScheduleMethod }),
+      ...(hasJsmkcIdentity({ name: typeof name === 'string' ? name : '', slug }) && {
+        cdmArchiveReconciliationExcluded: true,
+      }),
     };
 
     let tournament;

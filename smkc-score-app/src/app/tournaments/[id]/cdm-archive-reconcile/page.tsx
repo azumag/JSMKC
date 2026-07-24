@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { isCdmArchiveReconciliationExcluded } from '@/lib/cdm-archive-reconciliation-policy';
 import { CdmArchiveReconcileButton } from '@/components/tournament/cdm-archive-reconcile-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -20,11 +21,19 @@ export default async function CdmArchiveReconciliationPage({ params }: { params:
   }
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, name: true, slug: true, status: true, qualificationScheduleMethod: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      status: true,
+      qualificationScheduleMethod: true,
+      cdmArchiveReconciliationExcluded: true,
+      cdmArchiveReconciliationPending: true,
+    },
   });
   if (!tournament) notFound();
 
-  const excluded = /(^|[^a-z0-9])jsmkc([^a-z0-9]|$)/i.test(`${tournament.name} ${tournament.slug ?? ''}`);
+  const excluded = isCdmArchiveReconciliationExcluded(tournament);
 
   return (
     <Card className="max-w-3xl">
@@ -53,11 +62,20 @@ export default async function CdmArchiveReconciliationPage({ params }: { params:
             Complete and confirm the tournament before generating its archival correction.
           </p>
         ) : (
-          <CdmArchiveReconcileButton
-            tournamentId={tournament.id}
-            tournamentName={tournament.name}
-            status={tournament.status}
-          />
+          <>
+            {tournament.cdmArchiveReconciliationPending ? (
+              <p className="text-sm font-medium text-amber-700">
+                The schedule was saved, but archive regeneration is still pending. Retry to finalize the archive.
+              </p>
+            ) : null}
+            <CdmArchiveReconcileButton
+              tournamentId={tournament.id}
+              tournamentName={tournament.name}
+              status={tournament.status}
+              excluded={excluded}
+              archivePending={tournament.cdmArchiveReconciliationPending}
+            />
+          </>
         )}
       </CardContent>
     </Card>

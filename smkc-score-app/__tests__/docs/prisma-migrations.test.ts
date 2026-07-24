@@ -208,6 +208,42 @@ describe('Prisma migration compatibility', () => {
     expect(wranglerMigration).toBe(prismaMigration);
   });
 
+  it('keeps CDM archive reconciliation safety fields and JSMKC backfill aligned', () => {
+    const schema = fs.readFileSync(path.join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+    const prismaMigration = readMigration('0030_add_cdm_archive_reconciliation_state', 'migration.sql').trim();
+    const wranglerMigration = readWranglerMigration('0049_add_cdm_archive_reconciliation_state.sql').trim();
+
+    expect(schema).toContain('cdmArchiveReconciliationExcluded');
+    expect(schema).toContain('cdmArchiveReconciliationPending');
+    expect(wranglerMigration).toBe(prismaMigration);
+    expect(prismaMigration).toContain("instr(lower("name"), 'jsmkc') > 0");
+
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(`
+        CREATE TABLE Tournament (id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT);
+        INSERT INTO Tournament (id, name, slug) VALUES
+          ('compact', 'JSMKC2025', 'jsmkc2025'),
+          ('spaced', 'JSMKC 2025', 'jsmkc-2025'),
+          ('cdm', 'CDM 2025 replica', 'cdm-2025-replica');
+      `);
+      db.exec(prismaMigration);
+      expect(
+        db
+          .prepare(
+            'SELECT id, cdmArchiveReconciliationExcluded, cdmArchiveReconciliationPending FROM Tournament ORDER BY id',
+          )
+          .all(),
+      ).toEqual([
+        { id: 'cdm', cdmArchiveReconciliationExcluded: 0, cdmArchiveReconciliationPending: 0 },
+        { id: 'compact', cdmArchiveReconciliationExcluded: 1, cdmArchiveReconciliationPending: 0 },
+        { id: 'spaced', cdmArchiveReconciliationExcluded: 1, cdmArchiveReconciliationPending: 0 },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
   it('never attempts to DROP COLUMN "taHandicapSeconds" from Player (D1 does not reliably support it here)', () => {
     const prismaMigrationsDir = path.join(__dirname, '../../prisma/migrations');
     const wranglerMigrationsDir = path.join(__dirname, '../../migrations');

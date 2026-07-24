@@ -12,6 +12,7 @@ type ModeSummary = {
   sourceMatchCount: number;
   targetMatchCount: number;
   realMatchCount: number;
+  rowUpdates: number;
   movedMatches: number;
   sideSwaps: number;
   courseUpdates: number;
@@ -24,6 +25,7 @@ type Preview = {
   digest: string;
   totalChanges: number;
   requiresScheduleMethodUpdate: boolean;
+  archivePending: boolean;
   modes: Record<'bm' | 'mr' | 'gp', ModeSummary>;
 };
 
@@ -44,26 +46,28 @@ function errorMessage(value: unknown, fallback: string): string {
 function modeLine(mode: string, summary: ModeSummary, japanese: boolean): string {
   if (summary.skipped) return `${mode.toUpperCase()}: ${japanese ? '対象データなし' : 'no qualification data'}`;
   return japanese
-    ? `${mode.toUpperCase()}: 実試合 ${summary.realMatchCount}、移動 ${summary.movedMatches}、左右反転 ${summary.sideSwaps}、BREAK追加 ${summary.createdBreaks}、削除 ${summary.deletedBreaks}`
-    : `${mode.toUpperCase()}: ${summary.realMatchCount} real matches, ${summary.movedMatches} moved, ${summary.sideSwaps} side swaps, ${summary.createdBreaks} BREAK rows added, ${summary.deletedBreaks} removed`;
+    ? `${mode.toUpperCase()}: 実試合 ${summary.realMatchCount}、更新 ${summary.rowUpdates}、移動 ${summary.movedMatches}、左右反転 ${summary.sideSwaps}、BREAK追加 ${summary.createdBreaks}、削除 ${summary.deletedBreaks}`
+    : `${mode.toUpperCase()}: ${summary.realMatchCount} real matches, ${summary.rowUpdates} rows updated, ${summary.movedMatches} moved, ${summary.sideSwaps} side swaps, ${summary.createdBreaks} BREAK rows added, ${summary.deletedBreaks} removed`;
 }
 
 export function CdmArchiveReconcileButton({
   tournamentId,
   tournamentName,
   status,
+  excluded,
+  archivePending,
 }: {
   tournamentId: string;
   tournamentName: string;
   status: string;
+  excluded: boolean;
+  archivePending: boolean;
 }) {
   const locale = useLocale();
   const japanese = locale.startsWith('ja');
   const [busy, setBusy] = useState(false);
 
-  if (status !== 'completed' || /(^|[^a-z0-9])jsmkc([^a-z0-9]|$)/i.test(tournamentName)) {
-    return null;
-  }
+  if (status !== 'completed' || excluded) return null;
 
   const run = async () => {
     if (busy) return;
@@ -82,10 +86,30 @@ export function CdmArchiveReconcileButton({
       const preview = unwrap<Preview>(previewJson);
       const details = (['bm', 'mr', 'gp'] as const)
         .map((mode) => modeLine(mode, preview.modes[mode], japanese))
-        .join('\n');
+        .join('
+');
+      const pending = archivePending || preview.archivePending;
       const confirmation = japanese
-        ? `CDMアーカイブ用の日程補正を確認します。\n\n変更件数: ${preview.totalChanges}\n${details}\n\n実試合ID・得点・自己申告は保持されます。JSMKC大会には適用されません。\n確定するには大会名を正確に入力してください。`
-        : `Review the CDM archive schedule reconciliation.\n\nChanges: ${preview.totalChanges}\n${details}\n\nCompetitive match IDs, results, and reports are preserved. JSMKC tournaments are excluded.\nType the exact tournament name to continue.`;
+        ? `CDMアーカイブ用の日程補正を確認します。
+
+変更件数: ${preview.totalChanges}
+${details}
+${pending ? '
+前回の補正後、アーカイブ再生成が未完了です。今回は再生成を再試行します。
+' : '
+'}
+実試合ID・得点・自己申告は保持されます。JSMKC大会には適用されません。
+確定するには大会名を正確に入力してください。`
+        : `Review the CDM archive schedule reconciliation.
+
+Changes: ${preview.totalChanges}
+${details}
+${pending ? '
+A previous correction is waiting for archive regeneration. This will retry it.
+' : '
+'}
+Competitive match IDs, results, and reports are preserved. JSMKC tournaments are excluded.
+Type the exact tournament name to continue.`;
       const typedName = window.prompt(confirmation);
       if (typedName !== tournamentName) return;
 
@@ -103,11 +127,15 @@ export function CdmArchiveReconcileButton({
       alert(
         japanese
           ? result.applied
-            ? `CDM日程へ補正し、アーカイブを再生成しました。\n${result.archiveGeneratedAt}`
-            : `日程は既に一致していました。アーカイブのみ再生成しました。\n${result.archiveGeneratedAt}`
+            ? `CDM日程へ補正し、アーカイブを再生成しました。
+${result.archiveGeneratedAt}`
+            : `日程は既に一致していました。アーカイブを再生成しました。
+${result.archiveGeneratedAt}`
           : result.applied
-            ? `CDM schedule reconciled and archive regenerated.\n${result.archiveGeneratedAt}`
-            : `Schedule already matched. The archive was regenerated.\n${result.archiveGeneratedAt}`,
+            ? `CDM schedule reconciled and archive regenerated.
+${result.archiveGeneratedAt}`
+            : `Schedule already matched. The archive was regenerated.
+${result.archiveGeneratedAt}`,
       );
       window.location.reload();
     } catch (error) {
@@ -124,9 +152,13 @@ export function CdmArchiveReconcileButton({
         ? japanese
           ? 'CDM日程を確認中…'
           : 'Checking CDM schedule…'
-        : japanese
-          ? 'CDM日程を補正／再アーカイブ'
-          : 'Reconcile CDM schedule / re-archive'}
+        : archivePending
+          ? japanese
+            ? 'アーカイブ再生成を再試行'
+            : 'Retry archive regeneration'
+          : japanese
+            ? 'CDM日程を補正／再アーカイブ'
+            : 'Reconcile CDM schedule / re-archive'}
     </Button>
   );
 }
