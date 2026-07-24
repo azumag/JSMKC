@@ -595,12 +595,39 @@ export function buildCdmQualificationReconciliationPlan(
   return { modes, totalChanges, digestPayload };
 }
 
+const FNV_64_OFFSET = 0xcbf29ce484222325n;
+const FNV_64_PRIME = 0x100000001b3n;
+const FNV_64_MASK = 0xffffffffffffffffn;
+const FALLBACK_HASH_SEEDS = [0n, 0x9e3779b97f4a7c15n, 0xd6e8feb86659fd93n, 0xa5a3564e27f8862fn] as const;
+
+function fallbackDigest(serialized: string): string {
+  return FALLBACK_HASH_SEEDS.map((seed) => {
+    let hash = (FNV_64_OFFSET ^ seed) & FNV_64_MASK;
+    for (let index = 0; index < serialized.length; index++) {
+      const codeUnit = serialized.charCodeAt(index);
+      hash ^= BigInt(codeUnit & 0xff);
+      hash = (hash * FNV_64_PRIME) & FNV_64_MASK;
+      hash ^= BigInt(codeUnit >>> 8);
+      hash = (hash * FNV_64_PRIME) & FNV_64_MASK;
+    }
+    return hash.toString(16).padStart(16, '0');
+  }).join('');
+}
+
+export async function digestCdmPayload(value: unknown): Promise<string> {
+  const serialized = JSON.stringify(value);
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return fallbackDigest(serialized);
+
+  const encoded = new TextEncoder().encode(serialized);
+  const digest = await subtle.digest('SHA-256', encoded);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export async function digestCdmQualificationReconciliationPlan(
   plan: CdmQualificationReconciliationPlan,
 ): Promise<string> {
-  const encoded = new TextEncoder().encode(JSON.stringify(plan.digestPayload));
-  const digest = await crypto.subtle.digest('SHA-256', encoded);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return digestCdmPayload(plan.digestPayload);
 }
 
 export function isJsmkcTournamentIdentity(tournament: { name: string; slug?: string | null }): boolean {

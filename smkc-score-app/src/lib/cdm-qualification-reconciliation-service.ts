@@ -4,8 +4,10 @@ import { executeD1Batch } from '@/lib/d1-batch';
 import { persistTournamentArchive } from '@/lib/tournament-archive';
 import { invalidate } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
+import { createLogger } from '@/lib/logger';
 import {
   buildCdmQualificationReconciliationPlan,
+  digestCdmPayload,
   digestCdmQualificationReconciliationPlan,
   isJsmkcTournamentIdentity,
   CdmQualificationReconciliationError,
@@ -18,6 +20,7 @@ import {
 } from '@/lib/cdm-qualification-reconciliation';
 
 const MODES: readonly CdmReconciliationMode[] = ['bm', 'mr', 'gp'];
+const logger = createLogger('cdm-qualification-reconciliation');
 
 const TABLES: Record<CdmReconciliationMode, string> = {
   bm: 'BMMatch',
@@ -190,14 +193,9 @@ function assertEligibleTournament(
   }
 }
 
-async function sha256(value: unknown): Promise<string> {
-  const encoded = new TextEncoder().encode(JSON.stringify(value));
-  const digest = await crypto.subtle.digest('SHA-256', encoded);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 function createId(): string {
-  return crypto.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  return `reconcile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 type QualificationDelegate = {
@@ -278,7 +276,7 @@ export async function previewCdmQualificationReconciliation(tournamentId: string
   const plan = buildCdmQualificationReconciliationPlan(input);
   assertEligibleTournament(tournament, plan);
   const planDigest = await digestCdmQualificationReconciliationPlan(plan);
-  const digest = await sha256({
+  const digest = await digestCdmPayload({
     tournament: {
       id: tournament.id,
       status: tournament.status,
@@ -513,7 +511,14 @@ export async function applyCdmQualificationReconciliation(params: {
   }
 
   invalidateOverallRankingsCache(params.tournamentId);
-  await invalidate(params.tournamentId);
+  try {
+    await invalidate(params.tournamentId);
+  } catch (error) {
+    logger.warn('Failed to invalidate standings cache after CDM reconciliation', {
+      error,
+      tournamentId: params.tournamentId,
+    });
+  }
   const archive = await persistTournamentArchive(params.tournamentId);
 
   return {
