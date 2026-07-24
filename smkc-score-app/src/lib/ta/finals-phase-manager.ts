@@ -2065,12 +2065,6 @@ async function restorePhaseStateBeforeRound(
   // Phase 3: replay all previous rounds from initial state to reconstruct lives
   const rules = getTaPhase3Rules(taBattleRoyaleMode);
 
-  // Reset ALL phase3 entries to initial state
-  await prisma.tTEntry.updateMany({
-    where: { tournamentId, stage: 'phase3' },
-    data: { lives: rules.initialLives, eliminated: false },
-  });
-
   const allEntries = await prisma.tTEntry.findMany({
     where: { tournamentId, stage: 'phase3' },
     select: { playerId: true },
@@ -2128,8 +2122,8 @@ async function restorePhaseStateBeforeRound(
  *
  * For Phase 3 (life-based):
  * - Clears the round's results and eliminatedIds
- * - Resets ALL phase3 entries to initial state
- * - Replays all previous rounds in memory to reconstruct lives/eliminated state
+ * - Replays all previous rounds and adjustments from initial state in memory
+ * - Writes the reconstructed lives/eliminated state for every Phase 3 entry
  * - This "replay-from-scratch" approach handles life resets correctly
  *
  * The round record itself (course assignment) is preserved so the admin
@@ -2251,6 +2245,18 @@ export async function cancelLastSubmittedPhaseRound(
   await assertNoLaterPhaseEntries(prisma, tournamentId, phase, 'cancel the last round of');
 
   const { lastRound, previousRounds } = await findLastSubmittedRound(prisma, tournamentId, phase);
+
+  if (phase === 'phase3') {
+    // Fence set_lives before reading adjustment events. Its atomic UPDATE
+    // predicate rejects any open Phase 3 round, so a concurrent adjustment
+    // either commits before this fence and is included in replay, or commits
+    // afterward and is rejected. Keeping results intact makes a failed cancel
+    // retryable: findLastSubmittedRound still selects this round.
+    await prisma.tTPhaseRound.update({
+      where: { id: lastRound.id },
+      data: { submittedAt: null },
+    });
+  }
 
   await restorePhaseStateBeforeRound(
     prisma,

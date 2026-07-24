@@ -176,4 +176,67 @@ describe('D1 atomic finals/audit batches', () => {
       version: 8,
     });
   });
+
+  it('rejects a concurrent life adjustment after cancel fences the submitted round', async () => {
+    await db
+      .prepare(
+        `INSERT INTO TTPhaseRound (id, tournamentId, phase, roundNumber, submittedAt)
+         VALUES (?, ?, 'phase3', ?, ?)`,
+      )
+      .bind('cancelled-round', 't1', 1, '2026-07-24T02:00:00.000Z')
+      .run();
+
+    // cancel_last_round fences the round before reading adjustment events.
+    await db.prepare('UPDATE TTPhaseRound SET submittedAt = NULL WHERE id = ?').bind('cancelled-round').run();
+
+    const results = await db.batch([
+      db
+        .prepare(
+          `UPDATE TTEntry
+           SET lives = ?, version = version + 1, updatedAt = ?
+           WHERE id = ? AND tournamentId = ? AND stage = 'phase3'
+             AND eliminated = false AND version = ? AND lives = ?
+             AND NOT EXISTS (
+               SELECT 1 FROM TTPhaseRound round
+               LEFT JOIN TTPhaseSuddenDeathRound sudden
+                 ON sudden.phaseRoundId = round.id AND sudden.resolved = false
+               WHERE round.tournamentId = ? AND round.phase = 'phase3'
+                 AND (round.submittedAt IS NULL OR sudden.id IS NOT NULL)
+             )`,
+        )
+        .bind(6, '2026-07-24T02:00:01.000Z', 'entry-1', 't1', 8, 5, 't1'),
+      db
+        .prepare(
+          `INSERT INTO TTPhaseLifeAdjustment (
+             id, tournamentId, entryId, playerId, oldLives, newLives, entryVersion,
+             adjustedById, adjustedByName, afterRoundId, afterRoundNumber, createdAt
+           )
+           SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+           WHERE changes() = 1`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          't1',
+          'entry-1',
+          'p1',
+          5,
+          6,
+          9,
+          'admin-2',
+          'Concurrent Admin',
+          'cancelled-round',
+          1,
+          '2026-07-24T02:00:01.000Z',
+        ),
+    ]);
+
+    expect(results.map((result) => result.meta.changes)).toEqual([0, 0]);
+    expect(await db.prepare('SELECT lives, version FROM TTEntry WHERE id = ?').bind('entry-1').first()).toEqual({
+      lives: 5,
+      version: 8,
+    });
+    expect(await db.prepare('SELECT COUNT(*) AS count FROM TTPhaseLifeAdjustment').first<{ count: number }>()).toEqual({
+      count: 1,
+    });
+  });
 });

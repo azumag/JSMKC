@@ -772,15 +772,9 @@ describe('TA Finals Phase Manager', () => {
           data: expect.objectContaining({ results: [] }),
         }),
       );
-      // Should reset all phase3 entries first
-      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { tournamentId: 't1', stage: 'phase3' },
-          data: { lives: 3, eliminated: false },
-        }),
-      );
       // After replaying round1: p1,p2 have 3 lives; p3,p4 have 2 lives
-      // Should batch updateMany by state group
+      // Should write each state group directly, without a destructive
+      // pre-replay reset that could leave partial state on a read failure.
       expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ playerId: { in: expect.arrayContaining(['p1', 'p2']) } }),
@@ -793,6 +787,7 @@ describe('TA Finals Phase Manager', () => {
           data: { lives: 2, eliminated: false },
         }),
       );
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledTimes(2);
     });
 
     it('replays manual life settings before and after the undone round without double-applying them', async () => {
@@ -1222,6 +1217,13 @@ describe('TA Finals Phase Manager', () => {
 
       await cancelLastSubmittedPhaseRound(mockPrismaClient as any, context, 'phase3');
 
+      expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith({
+        where: { id: 'round1' },
+        data: { submittedAt: null },
+      });
+      expect(mockPrismaClient.tTPhaseRound.update.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPrismaClient.tTPhaseLifeAdjustment.findMany.mock.invocationCallOrder[0],
+      );
       expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ playerId: { in: ['p1'] } }),
