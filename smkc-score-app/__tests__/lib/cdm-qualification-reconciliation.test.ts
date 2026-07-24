@@ -265,6 +265,13 @@ describe('CDM qualification reconciliation', () => {
     expect(plan.modes.bm.rowsToUpdate.map((row) => row.id)).toEqual([brokenBreak.id]);
   });
 
+  it('rejects a group above the RR workbook ceiling instead of silently using circle', () => {
+    const input = emptyInput();
+    input.bm = legacyMode('bm', 21);
+
+    expect(() => buildCdmQualificationReconciliationPlan(input)).toThrow('received 21');
+  });
+
   it('rejects duplicate competitive player pairs before producing a mutation plan', () => {
     const input = emptyInput();
     input.bm = legacyMode('bm', 8);

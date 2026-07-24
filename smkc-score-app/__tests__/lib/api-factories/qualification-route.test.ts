@@ -531,7 +531,7 @@ describe('Qualification Route Factory', () => {
       }
     });
 
-    it('uses the shared CDM fixture for MR courses and GP cups for 14+ player groups', async () => {
+    it('uses the shared CDM fixture for MR courses and GP cups for 14-20 player groups', async () => {
       const players = Array.from({ length: 16 }, (_, i) => ({
         playerId: `player-${i + 1}`,
         group: 'A',
@@ -588,7 +588,32 @@ describe('Qualification Route Factory', () => {
       expect(resolveQualificationScheduleMethodForGroup('cdm', 13)).toBe('circle');
       expect(resolveQualificationScheduleMethodForGroup('cdm', 14)).toBe('cdm');
       expect(resolveQualificationScheduleMethodForGroup('cdm', 20)).toBe('cdm');
-      expect(resolveQualificationScheduleMethodForGroup('cdm', 21)).toBe('circle');
+      expect(resolveQualificationScheduleMethodForGroup('cdm', 21)).toBe('cdm');
+    });
+
+    it('rejects a 21-player CDM group instead of silently falling back to circle', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        qualificationScheduleMethod: 'cdm',
+      });
+      const players = Array.from({ length: 21 }, (_, index) => ({
+        playerId: `player-${index + 1}`,
+        group: 'A',
+        seeding: index + 1,
+      }));
+      const { POST } = createQualificationHandlers(createMockConfig());
+
+      const response = await POST(
+        new NextRequest('http://localhost:3000', { method: 'POST', body: JSON.stringify({ players }) }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(
+        expect.objectContaining({ success: false, code: 'UNSUPPORTED_CDM_GROUP_SIZE' }),
+      );
+      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
+      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
     });
 
     it('should fail explicitly instead of falling back to createMany for unsupported large raw insert modes', async () => {
