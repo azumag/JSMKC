@@ -1,0 +1,93 @@
+FAIL __tests__/lib/api-factories/qualification-route.test.ts
+  ● Qualification Route Factory › POST Handler › rejects an unsupported CDM group before deleting an existing qualification
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 201
+
+    [0m [90m 678 |[39m       )[33m;[39m
+     [90m 679 |[39m
+    [31m[1m>[22m[39m[90m 680 |[39m       expect(response[33m.[39mstatus)[33m.[39mtoBe([35m400[39m)[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 681 |[39m       expect([36mawait[39m response[33m.[39mjson())[33m.[39mtoEqual(
+     [90m 682 |[39m         expect[33m.[39mobjectContaining({ success[33m:[39m [36mfalse[39m[33m,[39m code[33m:[39m [32m'UNSUPPORTED_CDM_GROUP_SIZE'[39m })[33m,[39m
+     [90m 683 |[39m       )[33m;[39m[0m
+
+      at Object.<anonymous> (__tests__/lib/api-factories/qualification-route.test.ts:680:31)
+
+  ● Qualification Route Factory › POST Handler › rejects a one-player CDM group before deleting an existing qualification
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 201
+
+    [0m [90m 702 |[39m       )[33m;[39m
+     [90m 703 |[39m
+    [31m[1m>[22m[39m[90m 704 |[39m       expect(response[33m.[39mstatus)[33m.[39mtoBe([35m400[39m)[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 705 |[39m       expect([36mawait[39m response[33m.[39mjson())[33m.[39mtoEqual(
+     [90m 706 |[39m         expect[33m.[39mobjectContaining({ success[33m:[39m [36mfalse[39m[33m,[39m code[33m:[39m [32m'UNSUPPORTED_CDM_GROUP_SIZE'[39m })[33m,[39m
+     [90m 707 |[39m       )[33m;[39m[0m
+
+      at Object.<anonymous> (__tests__/lib/api-factories/qualification-route.test.ts:704:31)
+
+  ● Qualification Route Factory › POST Handler › requires unique positive CDM seeds before deleting an existing qualification
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 201
+
+    [0m [90m 727 |[39m       )[33m;[39m
+     [90m 728 |[39m
+    [31m[1m>[22m[39m[90m 729 |[39m       expect(response[33m.[39mstatus)[33m.[39mtoBe([35m400[39m)[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 730 |[39m       expect([36mawait[39m response[33m.[39mjson())[33m.[39mtoEqual(
+     [90m 731 |[39m         expect[33m.[39mobjectContaining({ success[33m:[39m [36mfalse[39m[33m,[39m code[33m:[39m [32m'INVALID_CDM_SEED_ORDER'[39m })[33m,[39m
+     [90m 732 |[39m       )[33m;[39m[0m
+
+      at Object.<anonymous> (__tests__/lib/api-factories/qualification-route.test.ts:729:31)
+
+  ● Qualification Route Factory › POST Handler › should create audit log when auditAction is configured
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    - Expected
+    + Received
+
+    @@ -1,10 +1,14 @@
+      Object {
+        "action": "SETUP_QUALIFICATION",
+        "details": Object {
+          "mode": "qualification",
+          "playerCount": 4,
+    +     "scheduleMethodsByGroup": Object {
+    +       "A": "circle",
+    +       "B": "circle",
+    +     },
+        },
+        "ipAddress": "192.168.1.1",
+        "targetId": "tournament-123",
+        "targetType": "Tournament",
+        "userAgent": "Mozilla/5.0",,
+
+    Number of calls: 1
+
+    [0m [90m 761 |[39m
+     [90m 762 |[39m       expect(response[33m.[39mstatus)[33m.[39mtoBe([35m201[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 763 |[39m       expect(mockCreateAuditLog)[33m.[39mtoHaveBeenCalledWith({
+     [90m     |[39m                                  [31m[1m^[22m[39m
+     [90m 764 |[39m         userId[33m:[39m [32m'user-1'[39m[33m,[39m
+     [90m 765 |[39m         ipAddress[33m:[39m [32m'192.168.1.1'[39m[33m,[39m
+     [90m 766 |[39m         userAgent[33m:[39m [32m'Mozilla/5.0'[39m[33m,[39m[0m
+
+      at Object.<anonymous> (__tests__/lib/api-factories/qualification-route.test.ts:763:34)
+
+PASS __tests__/app/api/tournaments/route.test.ts
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       4 failed, 79 passed, 83 total
+Snapshots:   0 total
+Time:        0.956 s

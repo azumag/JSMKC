@@ -156,7 +156,7 @@ model Tournament {
   bmFinalsSeedSnapshot             Json? // BM決勝生成時の選手別オリジナルシード。不変の表示・export正本
   mrFinalsSeedSnapshot             Json? // MR決勝生成時の選手別オリジナルシード。不変の表示・export正本
   gpFinalsSeedSnapshot             Json? // GP決勝生成時の選手別オリジナルシード。不変の表示・export正本
-  qualificationScheduleMethod      String    @default("circle") // circle (legacy) or cdm (RR 2025 Start fixture)
+  qualificationScheduleMethod      String    @default("circle") // Legacy DB fallback/restores; new tournament API always writes cdm
   cdmArchiveReconciliationExcluded Boolean   @default(false) // Sticky protection for JSMKC and explicit exclusions
   cdmArchiveReconciliationPending  Boolean   @default(false) // Blocks stale archive use until R2 regeneration succeeds
   debugMode                        Boolean   @default(false) // デバッグ用トーナメント。trueの場合、admin に予選スコア自動入力ボタンを表示
