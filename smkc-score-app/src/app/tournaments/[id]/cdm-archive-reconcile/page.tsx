@@ -5,11 +5,7 @@ import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { CdmArchiveReconcileButton } from '@/components/tournament/cdm-archive-reconcile-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export default async function CdmArchiveReconciliationPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function CdmArchiveReconciliationPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const { id } = await params;
   if (!session?.user || session.user.role !== 'admin') {

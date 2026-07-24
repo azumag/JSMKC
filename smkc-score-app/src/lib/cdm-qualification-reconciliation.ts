@@ -194,16 +194,7 @@ function orientRealMatch(
     );
   }
 
-  let row = baseTargetRow(
-    mode,
-    source,
-    group,
-    matchNumber,
-    roundNumber,
-    targetPlayer1Id,
-    targetPlayer2Id,
-    false,
-  );
+  let row = baseTargetRow(mode, source, group, matchNumber, roundNumber, targetPlayer1Id, targetPlayer2Id, false);
 
   if (reversedOrientation) {
     if (mode === 'bm') {
@@ -356,10 +347,7 @@ function countMoved(source: CdmReconciliationMatch, target: CdmReconciliationRow
   );
 }
 
-function buildModePlan(
-  mode: CdmReconciliationMode,
-  input: CdmReconciliationModeInput,
-): CdmReconciliationModePlan {
+function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationModeInput): CdmReconciliationModePlan {
   const qualificationMatches = input.matches.filter((match) => match.stage === 'qualification');
   if (input.qualifications.length === 0 && qualificationMatches.length === 0) {
     return {
@@ -416,10 +404,7 @@ function buildModePlan(
   for (const group of orderedGroups) {
     const bucket = groups.get(group)!;
     const seeds = bucket.map((entry) => entry.seeding);
-    if (
-      seeds.some((seed) => !Number.isInteger(seed) || (seed as number) < 1) ||
-      new Set(seeds).size !== seeds.length
-    ) {
+    if (seeds.some((seed) => !Number.isInteger(seed) || (seed as number) < 1) || new Set(seeds).size !== seeds.length) {
       throw new CdmQualificationReconciliationError(
         'CDM reconciliation requires unique positive integer seeds in every group',
         'INVALID_CDM_SEED_ORDER',
@@ -529,15 +514,7 @@ function buildModePlan(
         if (oriented.cupChanged) cupUpdates++;
       } else {
         const source = existingByes[byeCursor++] ?? null;
-        const row = buildBreakRow(
-          mode,
-          source,
-          group,
-          nextMatchNumber,
-          target.day,
-          target.player1Id,
-          target.player2Id,
-        );
+        const row = buildBreakRow(mode, source, group, nextMatchNumber, target.day, target.player1Id, target.player2Id);
         if ('id' in row) {
           retainedRows.push(row);
           if (source && countMoved(source, row)) movedMatches++;
@@ -585,14 +562,7 @@ export function buildCdmQualificationReconciliationPlan(
   >;
   const totalChanges = MODE_ORDER.reduce((sum, mode) => {
     const plan = modes[mode];
-    return (
-      sum +
-      plan.movedMatches +
-      plan.courseUpdates +
-      plan.cupUpdates +
-      plan.createdBreaks +
-      plan.deletedBreaks
-    );
+    return sum + plan.movedMatches + plan.courseUpdates + plan.cupUpdates + plan.createdBreaks + plan.deletedBreaks;
   }, 0);
 
   const digestPayload = {

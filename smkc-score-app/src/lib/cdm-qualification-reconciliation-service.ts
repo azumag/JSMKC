@@ -162,7 +162,10 @@ function qualificationConfirmed(tournament: ReconciliationTournament, mode: CdmR
   return tournament.gpQualificationConfirmed;
 }
 
-function assertEligibleTournament(tournament: ReconciliationTournament, plan: CdmQualificationReconciliationPlan): void {
+function assertEligibleTournament(
+  tournament: ReconciliationTournament,
+  plan: CdmQualificationReconciliationPlan,
+): void {
   if (isJsmkcTournamentIdentity(tournament)) {
     throw new CdmQualificationReconciliationError(
       'JSMKC tournaments are explicitly excluded from CDM archive schedule reconciliation',
@@ -198,9 +201,9 @@ function createId(): string {
 }
 
 type QualificationDelegate = {
-  findMany: (args: Record<string, unknown>) => Promise<
-    Array<{ playerId: string; group: string; seeding: number | null }>
-  >;
+  findMany: (
+    args: Record<string, unknown>,
+  ) => Promise<Array<{ playerId: string; group: string; seeding: number | null }>>;
 };
 type MatchDelegate = {
   findMany: (args: Record<string, unknown>) => Promise<CdmReconciliationMatch[]>;
@@ -350,9 +353,7 @@ function updateRowsStatement(mode: CdmReconciliationMode, tournamentId: string, 
     ...columns.map((column) => `json_extract(value, '$.${column}') AS "${column}"`),
   ].join(',\n        ');
   const assignments = [
-    ...columns.map(
-      (column) => `"${column}" = (SELECT "${column}" FROM plan WHERE plan.id = "${TABLES[mode]}"."id")`,
-    ),
+    ...columns.map((column) => `"${column}" = (SELECT "${column}" FROM plan WHERE plan.id = "${TABLES[mode]}"."id")`),
     `"version" = "version" + 1`,
     `"updatedAt" = CURRENT_TIMESTAMP`,
   ].join(',\n      ');
@@ -365,11 +366,7 @@ function updateRowsStatement(mode: CdmReconciliationMode, tournamentId: string, 
   };
 }
 
-function insertBreaksStatement(
-  mode: CdmReconciliationMode,
-  tournamentId: string,
-  rows: CdmReconciliationBreakRow[],
-) {
+function insertBreaksStatement(mode: CdmReconciliationMode, tournamentId: string, rows: CdmReconciliationBreakRow[]) {
   const columns = INSERT_COLUMNS[mode];
   const payload = createdBreakPayload(mode, rows);
   const quotedColumns = ['id', 'tournamentId', 'stage', ...columns.filter((column) => column !== 'id')]

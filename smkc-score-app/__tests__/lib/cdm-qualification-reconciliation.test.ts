@@ -67,14 +67,10 @@ function legacyMode(
             races: [{ course: 'MC1', position1: 1, position2: 2, points1: 9, points2: 6 }],
             player1ReportedPoints1: 30,
             player1ReportedPoints2: 15,
-            player1ReportedRaces: [
-              { course: 'MC1', position1: 1, position2: 2, points1: 9, points2: 6 },
-            ],
+            player1ReportedRaces: [{ course: 'MC1', position1: 1, position2: 2, points1: 9, points2: 6 }],
             player2ReportedPoints1: 30,
             player2ReportedPoints2: 15,
-            player2ReportedRaces: [
-              { course: 'MC1', position1: 1, position2: 2, points1: 9, points2: 6 },
-            ],
+            player2ReportedRaces: [{ course: 'MC1', position1: 1, position2: 2, points1: 9, points2: 6 }],
           }),
   }));
   return { qualifications, matches };
@@ -87,14 +83,15 @@ describe('CDM qualification reconciliation', () => {
 
     const plan = buildCdmQualificationReconciliationPlan(input);
     expect(plan.modes.bm.realMatchCount).toBe(28);
-    expect(plan.modes.bm.retainedRows.filter((row) => !row.isBye).map((row) => row.id).sort()).toEqual(
-      input.bm.matches.map((match) => match.id).sort(),
-    );
+    expect(
+      plan.modes.bm.retainedRows
+        .filter((row) => !row.isBye)
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(input.bm.matches.map((match) => match.id).sort());
     expect(plan.modes.bm.sideSwaps).toBeGreaterThan(0);
 
-    const swapped = plan.modes.bm.retainedRows.find(
-      (row) => row.player1Id === 'A6' && row.player2Id === 'A3',
-    );
+    const swapped = plan.modes.bm.retainedRows.find((row) => row.player1Id === 'A6' && row.player2Id === 'A3');
     expect(swapped).toMatchObject({ score1: 1, score2: 3 });
     expect(swapped?.rounds).toEqual([{ arena: 'BC1', winner: 2 }]);
     expect(swapped).toMatchObject({
