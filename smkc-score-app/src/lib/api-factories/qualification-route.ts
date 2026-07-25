@@ -45,6 +45,9 @@ import {
 } from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 import { getCdmQualificationRoundFixture } from '@/lib/cdm-qualification-round-fixtures';
+import { resolveQualificationScheduleMethodForGroup } from '@/lib/qualification-schedule-policy';
+
+export { resolveQualificationScheduleMethodForGroup };
 
 export const MR_QUALIFICATION_COURSE_DECK_REPEATS = 4;
 const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
@@ -459,16 +462,16 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       /* Read and validate every generated schedule before destructive writes.
-       * Existing tournaments default to circle; CDM is an explicit, persisted
-       * opt-in so a legacy re-setup can never silently change its draw. */
+       * Existing historical tournaments keep their persisted setting. New
+       * tournaments are configured as CDM, with a per-group circle fallback
+       * for 13 or fewer players (and for groups above the workbook ceiling). */
       const tournament = await resolveTournament(id, { id: true, qualificationScheduleMethod: true });
       if (!tournament) return createErrorResponse('Tournament not found', 404);
-      const scheduleMethod: QualificationScheduleMethod =
+      const configuredScheduleMethod: QualificationScheduleMethod =
         tournament.qualificationScheduleMethod === 'cdm' ? 'cdm' : 'circle';
-      // Preserve the submitted group order for legacy circle tournaments.
-      // CDM fixtures are deterministic inside each group from its seed order.
       const groups = [...new Set(players.map((p: { group: string }) => p.group))];
       const schedules = new Map<string, ReturnType<typeof generateRoundRobinSchedule>>();
+      const scheduleMethodsByGroup = new Map<string, QualificationScheduleMethod>();
 
       for (const group of groups) {
         const groupPlayers = players
@@ -476,8 +479,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           .sort(
             (a: { seeding?: number }, b: { seeding?: number }) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity),
           );
+        const groupScheduleMethod = resolveQualificationScheduleMethodForGroup(
+          configuredScheduleMethod,
+          groupPlayers.length,
+        );
+        scheduleMethodsByGroup.set(group, groupScheduleMethod);
 
-        if (scheduleMethod === 'cdm') {
+        if (groupScheduleMethod === 'cdm') {
           const seeds = groupPlayers.map((player: { seeding?: number }) => player.seeding);
           if (
             seeds.some((seed) => !Number.isInteger(seed) || (seed as number) < 1) ||
@@ -495,16 +503,17 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           group,
           generateRoundRobinSchedule(
             groupPlayers.map((p: { playerId: string }) => p.playerId),
-            { method: scheduleMethod },
+            { method: groupScheduleMethod },
           ),
         );
       }
 
-      /* CDM MR/GP cards are a finite 1–20 fixture. Validate every future
-       * round before deleting the current setup so a malformed fixture cannot
-       * leave the tournament without qualification rows. */
-      if (scheduleMethod === 'cdm' && (config.assignCoursesRandomly || config.assignCupRandomly)) {
-        for (const schedule of schedules.values()) {
+      /* Validate fixed MR/GP cards only for groups that actually use the CDM
+       * workbook. Circle-fallback groups continue to use their generated deck. */
+      if (config.assignCoursesRandomly || config.assignCupRandomly) {
+        for (const group of groups) {
+          if (scheduleMethodsByGroup.get(group) !== 'cdm') continue;
+          const schedule = schedules.get(group)!;
           for (const match of schedule.matches) {
             if (!match.isBye) getCdmQualificationRoundFixture(match.day);
           }
@@ -578,8 +587,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * real match in the same round shares the same pre-determined course card.
        * Only applies when config.assignCoursesRandomly is true (MR only).
        */
-      const shuffledCourses =
-        config.assignCoursesRandomly && scheduleMethod === 'circle' ? generateShuffledCourseList() : null;
+      const hasCircleSchedule = [...scheduleMethodsByGroup.values()].includes('circle');
+      const shuffledCourses = config.assignCoursesRandomly && hasCircleSchedule ? generateShuffledCourseList() : null;
       /*
        * §5.4 fixed course assignment: BM always uses the same 4 battle courses
        * in order for every qualification match. `fixedCourseList` stores these
@@ -596,7 +605,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * Only applies when config.assignCupRandomly is true (GP only).
        */
       const shuffledCups =
-        config.assignCupRandomly && config.cupList && scheduleMethod === 'circle'
+        config.assignCupRandomly && config.cupList && hasCircleSchedule
           ? generateShuffledCupList(config.cupList, logger)
           : null;
       // matchSequenceIndex tracks the overall real-match number across all groups
@@ -617,6 +626,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
          * per requirements §10.4. Players without seeding are placed last.
          */
         const schedule = schedules.get(group)!;
+        const groupScheduleMethod = scheduleMethodsByGroup.get(group) ?? 'circle';
 
         for (const m of schedule.matches) {
           /*
@@ -633,7 +643,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           // MR: random per-round course draw shared by every match in that round
           // BM: fixed battle-course list (same for every real match)
           const cdmRoundFixture =
-            scheduleMethod === 'cdm' &&
+            groupScheduleMethod === 'cdm' &&
             shouldAssignPlayableCourse &&
             (config.assignCoursesRandomly || config.assignCupRandomly)
               ? getCdmQualificationRoundFixture(m.day)
@@ -714,7 +724,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             action: config.auditAction,
             targetId: tournamentId,
             targetType: 'Tournament',
-            details: { mode: 'qualification', playerCount: players.length },
+            details: {
+              mode: 'qualification',
+              playerCount: players.length,
+              scheduleMethodsByGroup: Object.fromEntries(scheduleMethodsByGroup),
+            },
           }).catch((err) =>
             logger.warn('Failed to create audit log', {
               error: err,

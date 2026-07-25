@@ -38,6 +38,7 @@ import {
   getAssignedCoursesForRound,
   getAssignedCupForRound,
   MR_QUALIFICATION_COURSE_DECK_REPEATS,
+  resolveQualificationScheduleMethodForGroup,
 } from '@/lib/api-factories/qualification-route';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
@@ -471,8 +472,67 @@ describe('Qualification Route Factory', () => {
       );
     });
 
-    it('uses the shared CDM fixture for MR courses and GP cups immediately after setup', async () => {
-      const players = Array.from({ length: 8 }, (_, i) => ({
+    it('uses circle fallback for 13-player groups and CDM for 14-player groups in the same tournament', async () => {
+      const groupA = Array.from({ length: 14 }, (_, index) => ({
+        playerId: `a-${index + 1}`,
+        group: 'A',
+        seeding: index + 1,
+      }));
+      const groupB = Array.from({ length: 13 }, (_, index) => ({
+        playerId: `b-${index + 1}`,
+        group: 'B',
+        seeding: index + 1,
+      }));
+      const players = [...groupA, ...groupB];
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        qualificationScheduleMethod: 'cdm',
+      });
+      (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 24 });
+      (prisma.mRQualification as any).findMany.mockResolvedValue([]);
+      (prisma.mRMatch as any).findMany.mockResolvedValue([]);
+      (prisma as any).$executeRawUnsafe.mockResolvedValue(211);
+
+      const random = jest.spyOn(Math, 'random').mockReturnValue(0);
+      try {
+        const mr = createQualificationHandlers(
+          createMockConfig({
+            eventTypeCode: 'mr',
+            matchModel: 'mRMatch',
+            qualificationModel: 'mRQualification',
+            assignCoursesRandomly: true,
+          }),
+        );
+        const response = await mr.POST(
+          new NextRequest('http://localhost:3000', { method: 'POST', body: JSON.stringify({ players }) }),
+          { params: Promise.resolve({ id: 'tournament-123' }) },
+        );
+
+        expect(response.status).toBe(201);
+        const rows = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
+        const cdmRows = rows.slice(0, 120);
+        const circleRows = rows.slice(120);
+        expect(cdmRows).toHaveLength(120);
+        expect(circleRows).toHaveLength(91);
+        expect(cdmRows.filter((row: any) => row.isBye)).toHaveLength(29);
+        expect(circleRows.filter((row: any) => row.isBye)).toHaveLength(13);
+
+        const circleDeck = generateShuffledCourseList();
+        for (const roundNumber of [1, 2, 3]) {
+          const cdmExpected = [...CDM_QUALIFICATION_ROUND_FIXTURES[roundNumber - 1].courses];
+          const circleExpected = getAssignedCoursesForRound(circleDeck, roundNumber);
+          const cdmRoundRows = cdmRows.filter((row: any) => !row.isBye && row.roundNumber === roundNumber);
+          const circleRoundRows = circleRows.filter((row: any) => !row.isBye && row.roundNumber === roundNumber);
+          cdmRoundRows.forEach((row: any) => expect(row.assignedCourses).toEqual(cdmExpected));
+          circleRoundRows.forEach((row: any) => expect(row.assignedCourses).toEqual(circleExpected));
+        }
+      } finally {
+        random.mockRestore();
+      }
+    });
+
+    it('uses the shared CDM fixture for MR courses and GP cups for 14-20 player groups', async () => {
+      const players = Array.from({ length: 16 }, (_, i) => ({
         playerId: `player-${i + 1}`,
         group: 'A',
         seeding: i + 1,
@@ -481,13 +541,13 @@ describe('Qualification Route Factory', () => {
         id: 'tournament-123',
         qualificationScheduleMethod: 'cdm',
       });
-      (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 16 });
       (prisma.mRQualification as any).findMany.mockResolvedValue([]);
       (prisma.mRMatch as any).findMany.mockResolvedValue([]);
-      (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 16 });
       (prisma.gPQualification as any).findMany.mockResolvedValue([]);
       (prisma.gPMatch as any).findMany.mockResolvedValue([]);
-      (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
+      (prisma as any).$executeRawUnsafe.mockResolvedValue(120);
 
       const mr = createQualificationHandlers(
         createMockConfig({
@@ -512,14 +572,48 @@ describe('Qualification Route Factory', () => {
       expect((await mr.POST(request(), { params: Promise.resolve({ id: 'tournament-123' }) })).status).toBe(201);
       const mrRows = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
       expect(mrRows.filter((row: any) => row.roundNumber === 1).map((row: any) => row.assignedCourses)).toEqual(
-        Array(4).fill([...CDM_QUALIFICATION_ROUND_FIXTURES[0].courses]),
+        Array(8).fill([...CDM_QUALIFICATION_ROUND_FIXTURES[0].courses]),
       );
 
       expect((await gp.POST(request(), { params: Promise.resolve({ id: 'tournament-123' }) })).status).toBe(201);
       const gpRows = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[1][1]);
       expect(gpRows.filter((row: any) => row.roundNumber === 1).map((row: any) => row.cup)).toEqual(
-        Array(4).fill(CDM_QUALIFICATION_ROUND_FIXTURES[0].cup),
+        Array(8).fill(CDM_QUALIFICATION_ROUND_FIXTURES[0].cup),
       );
+    });
+
+    it('resolves the automatic group-size boundary without exposing a UI choice', () => {
+      expect(resolveQualificationScheduleMethodForGroup('circle', 20)).toBe('circle');
+      expect(resolveQualificationScheduleMethodForGroup('cdm', 2)).toBe('circle');
+      expect(resolveQualificationScheduleMethodForGroup('cdm', 13)).toBe('circle');
+      expect(resolveQualificationScheduleMethodForGroup('cdm', 14)).toBe('cdm');
+      expect(resolveQualificationScheduleMethodForGroup('cdm', 20)).toBe('cdm');
+      expect(resolveQualificationScheduleMethodForGroup('cdm', 21)).toBe('cdm');
+    });
+
+    it('rejects a 21-player CDM group instead of silently falling back to circle', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        id: 'tournament-123',
+        qualificationScheduleMethod: 'cdm',
+      });
+      const players = Array.from({ length: 21 }, (_, index) => ({
+        playerId: `player-${index + 1}`,
+        group: 'A',
+        seeding: index + 1,
+      }));
+      const { POST } = createQualificationHandlers(createMockConfig());
+
+      const response = await POST(
+        new NextRequest('http://localhost:3000', { method: 'POST', body: JSON.stringify({ players }) }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(
+        expect.objectContaining({ success: false, code: 'UNSUPPORTED_CDM_GROUP_SIZE' }),
+      );
+      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
+      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
     });
 
     it('should fail explicitly instead of falling back to createMany for unsupported large raw insert modes', async () => {
@@ -591,7 +685,7 @@ describe('Qualification Route Factory', () => {
       expect((prisma.bMQualification as any).createMany).toHaveBeenCalledTimes(2);
     });
 
-    it('rejects an unsupported CDM group before deleting an existing qualification', async () => {
+    it('falls back to the circle schedule for a 13-player group', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
         id: 'tournament-123',
         qualificationScheduleMethod: 'cdm',
@@ -601,6 +695,9 @@ describe('Qualification Route Factory', () => {
         group: 'A',
         seeding: index + 1,
       }));
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 13 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma as any).$executeRawUnsafe.mockResolvedValue(91);
       const { POST } = createQualificationHandlers(createMockConfig());
 
       const response = await POST(
@@ -608,20 +705,22 @@ describe('Qualification Route Factory', () => {
         { params: Promise.resolve({ id: 'tournament-123' }) },
       );
 
-      expect(response.status).toBe(400);
-      expect(await response.json()).toEqual(
-        expect.objectContaining({ success: false, code: 'UNSUPPORTED_CDM_GROUP_SIZE' }),
-      );
-      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
-      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
+      expect(response.status).toBe(201);
+      expect((prisma.bMMatch as any).deleteMany).toHaveBeenCalled();
+      expect((prisma.bMQualification as any).deleteMany).toHaveBeenCalled();
+      const rows = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
+      expect(rows).toHaveLength(91);
+      expect(rows.filter((row: any) => row.isBye)).toHaveLength(13);
     });
 
-    it('rejects a one-player CDM group before deleting an existing qualification', async () => {
+    it('falls back to the circle schedule for a one-player group', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
         id: 'tournament-123',
         qualificationScheduleMethod: 'cdm',
         version: 0,
       });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 1 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
       const { POST } = createQualificationHandlers(createMockConfig());
 
       const response = await POST(
@@ -632,23 +731,24 @@ describe('Qualification Route Factory', () => {
         { params: Promise.resolve({ id: 'tournament-123' }) },
       );
 
-      expect(response.status).toBe(400);
-      expect(await response.json()).toEqual(
-        expect.objectContaining({ success: false, code: 'UNSUPPORTED_CDM_GROUP_SIZE' }),
-      );
-      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
-      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
+      expect(response.status).toBe(201);
+      expect((prisma.bMMatch as any).deleteMany).toHaveBeenCalled();
+      expect((prisma.bMQualification as any).deleteMany).toHaveBeenCalled();
+      expect((prisma.bMQualification as any).createMany).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ playerId: 'player-1', group: 'A' })],
+      });
+      expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
     });
 
-    it('requires unique positive CDM seeds before deleting an existing qualification', async () => {
+    it('requires unique positive CDM seeds for a 14-player workbook group before deleting existing data', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
         id: 'tournament-123',
         qualificationScheduleMethod: 'cdm',
       });
-      const players = Array.from({ length: 8 }, (_, index) => ({
+      const players = Array.from({ length: 14 }, (_, index) => ({
         playerId: `player-${index + 1}`,
         group: 'A',
-        seeding: index === 7 ? 1 : index + 1,
+        seeding: index === 13 ? 1 : index + 1,
       }));
       const { POST } = createQualificationHandlers(createMockConfig());
 
@@ -698,7 +798,11 @@ describe('Qualification Route Factory', () => {
         action: 'SETUP_QUALIFICATION',
         targetId: 'tournament-123',
         targetType: 'Tournament',
-        details: { mode: 'qualification', playerCount: 4 },
+        details: {
+          mode: 'qualification',
+          playerCount: 4,
+          scheduleMethodsByGroup: { A: 'circle', B: 'circle' },
+        },
       });
     });
 

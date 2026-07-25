@@ -2,6 +2,7 @@ import { COURSE_INFO } from '@/lib/constants';
 import { isCdmArchiveReconciliationExcluded } from '@/lib/cdm-archive-reconciliation-policy';
 import { getCdmQualificationRoundFixture } from '@/lib/cdm-qualification-round-fixtures';
 import { GROUPS } from '@/lib/group-utils';
+import { resolveQualificationScheduleMethodForGroup } from '@/lib/qualification-schedule-policy';
 import {
   BREAK_PLAYER_ID,
   generateRoundRobinSchedule,
@@ -187,6 +188,7 @@ function orientRealMatch(
   roundNumber: number,
   targetPlayer1Id: string,
   targetPlayer2Id: string,
+  useCdmRoundCard: boolean,
 ): { row: CdmReconciliationRow; swapped: boolean; courseChanged: boolean; cupChanged: boolean } {
   const sameOrientation = source.player1Id === targetPlayer1Id && source.player2Id === targetPlayer2Id;
   const reversedOrientation = source.player1Id === targetPlayer2Id && source.player2Id === targetPlayer1Id;
@@ -232,7 +234,7 @@ function orientRealMatch(
 
   let courseChanged = false;
   let cupChanged = false;
-  if (mode === 'mr') {
+  if (useCdmRoundCard && mode === 'mr') {
     const fixture = getCdmQualificationRoundFixture(roundNumber);
     courseChanged = !jsonEqual(source.assignedCourses, fixture.courses);
     row = {
@@ -242,7 +244,7 @@ function orientRealMatch(
       player1ReportedRaces: alignCourseNames(row.player1ReportedRaces, fixture.courses),
       player2ReportedRaces: alignCourseNames(row.player2ReportedRaces, fixture.courses),
     };
-  } else if (mode === 'gp') {
+  } else if (useCdmRoundCard && mode === 'gp') {
     const fixture = getCdmQualificationRoundFixture(roundNumber);
     const courses = gpCoursesForCup(fixture.cup);
     cupChanged = source.cup !== fixture.cup;
@@ -546,9 +548,10 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
 
   for (const group of orderedGroups) {
     const players = groups.get(group)!.map((entry) => entry.playerId);
+    const groupScheduleMethod = resolveQualificationScheduleMethodForGroup('cdm', players.length);
     let schedule;
     try {
-      schedule = generateRoundRobinSchedule(players, { method: 'cdm' });
+      schedule = generateRoundRobinSchedule(players, { method: groupScheduleMethod });
     } catch (error) {
       if (error instanceof UnsupportedRoundRobinPlayerCountError) {
         const unsupported = error as Error & { code: string };
@@ -566,7 +569,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
         const source = realMatchByPair.get(key);
         if (!source) {
           throw new CdmQualificationReconciliationError(
-            'A CDM fixture pair has no existing competitive match',
+            'A target schedule pair has no existing competitive match',
             'MISSING_PAIR',
             { mode, group, player1Id: target.player1Id, player2Id: target.player2Id },
           );
@@ -580,6 +583,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
           target.day,
           target.player1Id,
           target.player2Id,
+          groupScheduleMethod === 'cdm',
         );
         retainedRows.push(oriented.row);
         if (rowNeedsUpdate(mode, source, oriented.row)) rowsToUpdate.push(oriented.row);
@@ -604,7 +608,7 @@ function buildModePlan(mode: CdmReconciliationMode, input: CdmReconciliationMode
 
   if (realMatchByPair.size > 0) {
     throw new CdmQualificationReconciliationError(
-      'Existing competitive matches are not present in the CDM fixture',
+      'Existing competitive matches are not present in the target schedule',
       'EXTRA_PAIR',
       { mode, matchIds: [...realMatchByPair.values()].map((match) => match.id) },
     );

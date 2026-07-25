@@ -43,7 +43,7 @@ function completedTournament(overrides = {}) {
   };
 }
 
-function bmLegacyFixture(count = 8) {
+function bmLegacyFixture(count = 14) {
   const players = Array.from({ length: count }, (_, index) => `p${index + 1}`);
   const qualifications = players.map((playerId, index) => ({
     playerId,
@@ -76,7 +76,7 @@ function bmLegacyFixture(count = 8) {
   return { qualifications, matches };
 }
 
-function mockModeData({ tournament = completedTournament(), count = 8 } = {}) {
+function mockModeData({ tournament = completedTournament(), count = 14 } = {}) {
   const bm = bmLegacyFixture(count);
   (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(tournament);
   (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(bm.qualifications);
@@ -206,7 +206,7 @@ describe('CDM qualification reconciliation service', () => {
   });
 
   it('retries archive generation without rewriting matches when the CDM schedule already matches', async () => {
-    const players = Array.from({ length: 8 }, (_, index) => `p${index + 1}`);
+    const players = Array.from({ length: 16 }, (_, index) => `p${index + 1}`);
     const qualifications = players.map((playerId, index) => ({ playerId, group: 'A', seeding: index + 1 }));
     const schedule = generateRoundRobinSchedule(players, { method: 'cdm' });
     const matches = schedule.matches.map((match, index) => ({

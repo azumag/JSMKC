@@ -54,7 +54,7 @@ function tournamentRow() {
 }
 
 function bmLegacyFixture() {
-  const players = Array.from({ length: 8 }, (_, index) => `p${index + 1}`);
+  const players = Array.from({ length: 14 }, (_, index) => `p${index + 1}`);
   const qualifications = players.map((playerId, index) => ({
     playerId,
     group: 'A',
