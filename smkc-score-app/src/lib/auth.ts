@@ -15,6 +15,19 @@ import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { createLogger } from '@/lib/logger';
 import { REFRESH_TOKEN_EXPIRY } from '@/lib/constants';
+import { hashQrLoginToken } from '@/lib/qr-login-token';
+
+/**
+ * Provider IDs that authenticate directly as a player (as opposed to
+ * Discord admin OAuth). Both grant an identical player session shape —
+ * QR login (issue #3055) is an additional sign-in method, not a
+ * replacement for nickname+password, so it must be treated the same way
+ * everywhere a "player-credentials" check exists today.
+ */
+const PLAYER_PROVIDER_IDS = ['player-credentials', 'player-qr-login'] as const;
+function isPlayerProvider(providerId: string | undefined): boolean {
+  return !!providerId && (PLAYER_PROVIDER_IDS as readonly string[]).includes(providerId);
+}
 
 /**
  * Lazily import Prisma to avoid pulling the database client into the
@@ -67,9 +80,7 @@ async function handleDiscordAdminSignIn(user: any, account: any, profile: any): 
     },
   });
 
-  let dbUser = existingAccount
-    ? await prisma.user.findUnique({ where: { id: existingAccount.userId } })
-    : null;
+  let dbUser = existingAccount ? await prisma.user.findUnique({ where: { id: existingAccount.userId } }) : null;
 
   if (!dbUser) {
     dbUser = await prisma.user.findUnique({
@@ -204,6 +215,54 @@ export const authConfig = {
         }
       },
     }),
+    Credentials({
+      id: 'player-qr-login',
+      name: 'QR Login',
+      credentials: {
+        token: { label: 'Token', type: 'text' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.token || typeof credentials.token !== 'string') {
+          logger.warn('QR login attempt with missing token');
+          return null;
+        }
+
+        const prisma = await getPrisma();
+        const token = credentials.token;
+
+        try {
+          const tokenHash = await hashQrLoginToken(token);
+          const player = await prisma.player.findUnique({
+            where: { qrLoginTokenHash: tokenHash },
+          });
+
+          if (!player) {
+            logger.warn('QR login failed: token not recognized or revoked');
+            return null;
+          }
+
+          logger.info('QR login successful', {
+            playerId: player.id,
+          });
+
+          return {
+            id: player.id,
+            name: player.name,
+            email: `${player.nickname}@player.local`,
+            image: null,
+            role: 'player',
+            userType: 'player',
+            playerId: player.id,
+            nickname: player.nickname,
+          };
+        } catch (error) {
+          logger.error('QR login error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        }
+      },
+    }),
   ],
 
   session: {
@@ -213,7 +272,7 @@ export const authConfig = {
   callbacks: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async signIn({ user, account, profile }: any) {
-      if (account?.provider === 'player-credentials') {
+      if (isPlayerProvider(account?.provider)) {
         return true;
       }
 
@@ -256,10 +315,8 @@ export const authConfig = {
         session.user.playerId = token.playerId as string | undefined;
         session.user.nickname = token.nickname as string | undefined;
 
-        (session as Record<string, unknown>).accessTokenExpires =
-          token.accessTokenExpires;
-        (session as Record<string, unknown>).refreshTokenExpires =
-          token.refreshTokenExpires;
+        (session as Record<string, unknown>).accessTokenExpires = token.accessTokenExpires;
+        (session as Record<string, unknown>).refreshTokenExpires = token.refreshTokenExpires;
       }
 
       return session;
@@ -270,7 +327,7 @@ export const authConfig = {
       if (user && account) {
         const now = Date.now();
 
-        if (account.provider === 'player-credentials') {
+        if (isPlayerProvider(account.provider)) {
           token.role = 'player';
           token.userType = 'player';
           token.playerId = (user as { playerId?: string }).playerId;
@@ -292,10 +349,7 @@ export const authConfig = {
         });
       }
 
-      if (
-        token.accessTokenExpires &&
-        typeof token.accessTokenExpires === 'number'
-      ) {
+      if (token.accessTokenExpires && typeof token.accessTokenExpires === 'number') {
         const now = Date.now();
         if (now > token.accessTokenExpires) {
           if (

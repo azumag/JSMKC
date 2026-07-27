@@ -46,6 +46,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { TableSkeleton } from '@/components/ui/loading-skeleton';
+import { QrLoginDialog } from '@/components/players/qr-login-dialog';
 import { extractArrayData, extractPaginationMeta, type PaginationMeta } from '@/lib/api-response';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { createPlayerWithRetry } from '@/lib/create-player-retry';
@@ -615,6 +616,7 @@ export default function PlayersPage() {
                             >
                               {t('resetPassword')}
                             </Button>
+                            <QrLoginDialog playerId={player.id} playerNickname={player.nickname} />
                             <Button
                               variant="destructive"
                               size="sm"

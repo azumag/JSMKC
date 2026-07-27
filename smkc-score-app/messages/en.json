@@ -215,7 +215,11 @@
     "accessDeniedHelp": "A communication error with the server may have occurred. Please try logging in again after some time.",
     "notWhitelistedHelp": "If you need admin access, please contact a tournament administrator.",
     "serverErrorHelp": "A database or server communication error occurred. Please try again later.",
-    "accountNotLinkedHelp": "Please verify you are a member of jsmdc-org."
+    "accountNotLinkedHelp": "Please verify you are a member of jsmdc-org.",
+    "qrLoginInProgress": "Signing you in...",
+    "qrLoginErrorTitle": "QR Login Failed",
+    "qrLoginInvalid": "This QR code is invalid, expired, or has been revoked.",
+    "qrLoginMissingToken": "This link is missing its login code. Please rescan the QR code."
   },
   "players": {
     "title": "Players",
@@ -259,7 +263,25 @@
     "taHandicap0": "0 sec — Offline Top 8 / NTSC rank 30 or better",
     "taHandicapMinus1": "-1 sec — Offline Top 16 / NTSC rank 60 or better",
     "taHandicapMinus3": "-3 sec — Group stage qualifier",
-    "taHandicapMinus5": "-5 sec — Group stage elimination / no offline attendance"
+    "taHandicapMinus5": "-5 sec — Group stage elimination / no offline attendance",
+    "qrLogin": "QR Login",
+    "qrLoginTitle": "QR One-Scan Login",
+    "qrLoginDescription": "Scan this code to sign in as this player instantly, without a password.",
+    "failedToLoadQrStatus": "Failed to load QR login status",
+    "confirmReissueQrCode": "Reissue the QR code? The previous QR code will stop working immediately.",
+    "failedToIssueQrCode": "Failed to issue QR code",
+    "confirmRevokeQrCode": "Revoke the QR code? It will stop working immediately.",
+    "failedToRevokeQrCode": "Failed to revoke QR code",
+    "qrCodeAlt": "{nickname} QR login code",
+    "qrLoginUrl": "Login Link",
+    "qrCodeNote": "This code works like a password — keep it private and reissue it if it may have been seen by someone else.",
+    "printQrCode": "Print",
+    "qrCodeActiveNote": "A QR code is active for this player. Reissue to view it again (this invalidates the old one), or revoke it.",
+    "qrCodeNotIssued": "No QR code has been issued yet.",
+    "issueQrCode": "Issue QR Code",
+    "reissueQrCode": "Reissue QR Code",
+    "revokeQrCode": "Revoke QR Code",
+    "printPopupBlocked": "Could not open the print window. Please allow pop-ups for this site."
   },
   "profile": {
     "title": "Profile",
@@ -273,7 +295,9 @@
     "nicknameLabel": "Nickname:",
     "countryLabel": "Country:",
     "canSubmitScores": "You can now submit scores for this player.",
-    "noPlayerSession": "No player information is attached to this session."
+    "noPlayerSession": "No player information is attached to this session.",
+    "qrLoginCardTitle": "QR One-Scan Login",
+    "qrLoginCardDescription": "Manage the QR code for signing in as yourself without a password."
   },
   "tournaments": {
     "title": "Tournaments",
