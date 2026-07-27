@@ -76,7 +76,7 @@ describe('authConfig', () => {
       });
 
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
-        where: { nickname: 'test-player' },
+        where: { nickname: 'test-player', deletedAt: null },
         omit: { password: false },
       });
       expect(result).toEqual({
@@ -113,6 +113,17 @@ describe('authConfig', () => {
 
       expect(result).toBeNull();
     });
+
+    it('excludes soft-deleted players from the lookup (issue #3061)', async () => {
+      (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await provider.authorize({ nickname: 'deleted-player', password: 'secret' });
+
+      expect(prisma.player.findUnique).toHaveBeenCalledWith({
+        where: { nickname: 'deleted-player', deletedAt: null },
+        omit: { password: false },
+      });
+    });
   });
 
   describe('QR login authorize', () => {
@@ -128,7 +139,7 @@ describe('authConfig', () => {
       const result = await provider.authorize({ token: 'raw-qr-token' });
 
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
-        where: { qrLoginTokenHash: expect.any(String) },
+        where: { qrLoginTokenHash: expect.any(String), deletedAt: null },
       });
       expect(result).toEqual({
         id: 'player-1',
@@ -162,6 +173,16 @@ describe('authConfig', () => {
       const result = await provider.authorize({ token: 'raw-qr-token' });
 
       expect(result).toBeNull();
+    });
+
+    it('excludes soft-deleted players from the token lookup (issue #3061)', async () => {
+      (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await provider.authorize({ token: 'raw-qr-token' });
+
+      expect(prisma.player.findUnique).toHaveBeenCalledWith({
+        where: { qrLoginTokenHash: expect.any(String), deletedAt: null },
+      });
     });
   });
 
