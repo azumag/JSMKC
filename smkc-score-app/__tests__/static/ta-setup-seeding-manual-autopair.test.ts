@@ -19,7 +19,7 @@ describe('TA setup dialog: seeding edits do not auto-trigger pairing', () => {
     expect(occurrences).toBe(2);
   });
 
-  it('updates only the edited entry\'s seeding field from the seeding input onChange', () => {
+  it("updates only the edited entry's seeding field from the seeding input onChange", () => {
     const seedingOnChange = source.slice(
       source.indexOf('aria-label={`${player?.nickname ?? s.playerId} seeding`}') - 800,
       source.indexOf('aria-label={`${player?.nickname ?? s.playerId} seeding`}'),
@@ -32,7 +32,9 @@ describe('TA setup dialog: seeding edits do not auto-trigger pairing', () => {
 
   it('keeps the explicit Auto Pair button wired to handleAutoPair', () => {
     expect(source).toContain('onClick={handleAutoPair}');
-    expect(source).toContain('const handleAutoPair = () => {\n    setSetupEntries((prev) => applyAutoPairsToSetup(prev));\n  };');
+    expect(source).toContain(
+      'const handleAutoPair = () => {\n    setSetupEntries((prev) => applyAutoPairsToSetup(prev));\n  };',
+    );
   });
 
   /**
@@ -46,7 +48,10 @@ describe('TA setup dialog: seeding edits do not auto-trigger pairing', () => {
     expect(source).toMatch(/unpairedSeededCount/);
     expect(source).toContain("t('unpairedSeedingWarning'");
     // The hint must not gate handleSaveSetup / the Save button.
-    const saveButtonBlock = source.slice(source.indexOf('const handleSaveSetup ='), source.indexOf('const handleSaveSetup =') + 200);
+    const saveButtonBlock = source.slice(
+      source.indexOf('const handleSaveSetup ='),
+      source.indexOf('const handleSaveSetup =') + 200,
+    );
     expect(saveButtonBlock).not.toContain('unpairedSeededCount');
   });
 });
