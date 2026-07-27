@@ -1,6 +1,7 @@
 # CLAUDE.md
 
 # BASE
+- ユーザーとのやり取り（チャットでの返答）は必ず日本語で行うこと
 - research the industry-standard approach to this problem use it to guide yours"
 - Detailed comments must be included in the source code to justify the implementation of such logic
 - use T-wada TDD
