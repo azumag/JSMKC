@@ -14,6 +14,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  migration-parity:
+    name: Prisma / D1 migration parity
+    # PR-only: a merge to main is too late to block, and d1-migrate.yml only
+    # triggers when smkc-score-app/migrations/** changes — a PR that adds a
+    # Prisma migration but forgets the D1 file never touches that path, so
+    # nothing else catches it. This job exists because that exact gap shipped
+    # broken player loading to prod and preview (PR #3055): the Prisma
+    # migration for qrLoginTokenHash landed, the D1 migration file did not,
+    # and every Player query 500'd until a manual hotfix.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: smkc-score-app
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail if a new Prisma migration has no matching D1 migration file
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          added_prisma=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- prisma/migrations | grep '/migration\.sql$' || true)
+          added_d1=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- migrations | grep '\.sql$' || true)
+
+          if [ -n "$added_prisma" ] && [ -z "$added_d1" ]; then
+            echo "::error::This PR adds a Prisma migration but no D1 migration file under smkc-score-app/migrations/."
+            echo "D1 (Cloudflare Workers) does not read prisma/migrations — it needs a hand-written"
+            echo "equivalent .sql file under migrations/, applied via 'wrangler d1 migrations apply'."
+            echo "Without it, the deployed Worker's Prisma Client expects columns/tables that don't"
+            echo "exist in D1, and every query touching them fails at runtime. See CLAUDE.md."
+            echo ""
+            echo "New Prisma migration(s) with no matching D1 file:"
+            echo "$added_prisma"
+            exit 1
+          fi
+
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
