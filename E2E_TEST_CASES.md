@@ -11076,6 +11076,34 @@ CDM（大会ライブ運営）中に予期せぬ事態（シード表の取り�
 - **期待結果**: パスワードは既定で非表示、トグルで表示/非表示を切り替えられ、表示中は判読しやすい monospace フォントになる。トグルはフォーム送信を発生させない。
 - **スクリプト**: n/a (unit coverage) — `smkc-score-app/__tests__/app/auth/signin-password-toggle.test.tsx`
 
+## TC-3055: プレイヤーQRコードによるワンスキャンログイン
+
+- **URL**: /profile, /players, /auth/qr-login
+- **authRequired**: true（発行・失効操作）／false（`/auth/qr-login` 自体はトークンさえあれば未認証でアクセス可能）
+- **背景**: issue #3055。プレイヤーからの提案（Sjors / the_drunk_strawberry 氏）を受け、プレイヤーごとに固有のQRコードを発行し、1回スキャンするだけでパスワードなしにそのプレイヤーとしてログインできる機能を追加した。設計方針（要件確定時にユーザー判断で決定）:
+  - トークンは無期限。有効期限による自動失効はなく、本人または管理者が明示的に失効・再発行した場合のみ切り替わる（再発行は旧QRコードを即時無効化する＝1プレイヤーにつき有効なトークンは常に1つ）
+  - QRログインで得られるセッションは、ニックネーム＋パスワードログインと完全に同一の権限（スコア入力等も含む通常のプレイヤーセッション）
+  - 発行・表示・再発行・失効は、プレイヤー本人（`/profile`）と管理者（`/players` 一覧の各行）の両方が行える
+  - トークンは平文をDBに保存せず、SHA-256ハッシュのみを保存（`Player.qrLoginTokenHash`）。生トークンは発行直後のAPIレスポンスで一度だけ返却され、以後は再取得不可（一時パスワードと同じ「一度だけ表示」パターン）
+- **手順**:
+  1. `/profile` にプレイヤーセッションでログインし、「QR One-Scan Login」カードから QR コードを発行する（`issueQrCode` ボタン）
+  2. QR画像とログインURL（`/auth/qr-login?token=...`）が表示されることを確認し、URLをコピーする
+  3. 発行済みのURLを **別のブラウザコンテキスト（シークレットウィンドウ等。既存Playwright永続プロファイルのセッションは絶対に使わない・ログアウトさせない）** で開き、パスワード入力なしで同じプレイヤーとしてログインされ `/tournaments` へ遷移することを確認する
+  4. 元のセッションに戻り「Reissue QR Code」を実行 → 確認ダイアログが出ること、実行後に旧URLでの再ログインが失敗し `/auth/qr-login` がエラー表示（サインインページへの導線あり）になることを確認する
+  5. 「Revoke QR Code」を実行 → 確認ダイアログが出ること、以後そのプレイヤーの新しいQRコードが「未発行」状態に戻ることを確認する
+  6. 管理者セッションで `/players` の対象プレイヤー行から同じ操作（発行・再発行・失効）が行えることを確認する
+  7. `/auth/qr-login` にトークンなしでアクセスした場合、および無効なトークンでアクセスした場合に、それぞれ異なる分かりやすいエラーメッセージとサインインページへの導線が表示されることを確認する
+- **期待結果**: QRコードスキャン（＝発行済みURLへのアクセス）だけでパスワードなしにプレイヤーとしてログインでき、通常ログインと同じ権限のセッションが張られる。トークンの発行・再発行・失効はプレイヤー本人・管理者のどちらからも行え、再発行は旧コードを即時無効化する。無効・未指定トークンでは安全にエラー表示される。
+- **セキュリティ確認**: `/api/players/:id/qr-login-token` の GET/POST/DELETE いずれも、本人（`session.user.playerId === id`）または管理者以外は403になること。API/DBレスポンスに生トークンやハッシュが不必要に露出しないこと（GETは`active`/`issuedAt`のみを返す）。
+- **スクリプト**: 未実装（本番運用のQRスキャン導線はPlaywright永続プロファイルの共有セッションと衝突するため、`e2e/tc-all.js` には組み込まない。上記手順は別ブラウザコンテキストでの手動確認、または将来的に専用の使い捨てセッションを用意した上でスクリプト化を検討）
+- **補助検証（自動テスト）**:
+  - `smkc-score-app/__tests__/lib/qr-login-token.test.ts` — トークン生成・SHA-256ハッシュのユニットテスト
+  - `smkc-score-app/__tests__/lib/auth.test.ts` — `player-qr-login` NextAuthプロバイダーの authorize/signIn/jwt コールバック
+  - `smkc-score-app/__tests__/app/api/players/[id]/qr-login-token/route.test.ts` — 発行/再発行/失効/認可/監査ログのAPIテスト
+  - `smkc-score-app/__tests__/app/auth/qr-login-page.test.tsx` — `/auth/qr-login` の成功・失敗・トークン欠落時の表示とURL即時消去
+  - `smkc-score-app/__tests__/components/players/qr-login-dialog.test.tsx` — 発行/再発行/失効ダイアログのUI・確認ダイアログ
+  - `smkc-score-app/__tests__/app/profile/page.test.tsx` — プロフィール画面でのQRカード表示条件
+
 ---
 
 ## E2Eテスト実行ガイド

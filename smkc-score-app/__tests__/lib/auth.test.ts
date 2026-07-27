@@ -18,10 +18,7 @@ jest.mock('bcryptjs', () => ({
 
 import { compare as mockBcryptCompare } from 'bcryptjs';
 import prisma from '@/lib/prisma';
-import {
-  authConfig,
-  getAdminDiscordIds,
-} from '@/lib/auth';
+import { authConfig, getAdminDiscordIds } from '@/lib/auth';
 
 const bcryptCompare = mockBcryptCompare as jest.Mock;
 
@@ -35,30 +32,28 @@ describe('authConfig', () => {
 
   describe('admin Discord allowlist', () => {
     it('parses admin Discord IDs from the environment', () => {
-      expect(getAdminDiscordIds()).toEqual([
-        '123456789012345678',
-        '987654321098765432',
-      ]);
+      expect(getAdminDiscordIds()).toEqual(['123456789012345678', '987654321098765432']);
     });
 
     it('filters blank values from ADMIN_DISCORD_IDS', () => {
       process.env.ADMIN_DISCORD_IDS = ' 123456789012345678, , 987654321098765432 ,,';
-      expect(getAdminDiscordIds()).toEqual([
-        '123456789012345678',
-        '987654321098765432',
-      ]);
+      expect(getAdminDiscordIds()).toEqual(['123456789012345678', '987654321098765432']);
     });
   });
 
   describe('provider configuration', () => {
-    it('registers Discord and player credentials providers', () => {
-      expect(authConfig.providers).toHaveLength(2);
+    it('registers Discord, player credentials, and QR login providers', () => {
+      expect(authConfig.providers).toHaveLength(3);
       expect(authConfig.providers[0]).toMatchObject({
         id: 'discord',
       });
       expect(authConfig.providers[1]).toMatchObject({
         id: 'player-credentials',
         name: 'Player Login',
+      });
+      expect(authConfig.providers[2]).toMatchObject({
+        id: 'player-qr-login',
+        name: 'QR Login',
       });
     });
   });
@@ -120,11 +115,70 @@ describe('authConfig', () => {
     });
   });
 
+  describe('QR login authorize', () => {
+    const provider = authConfig.providers[2] as any;
+
+    it('returns a player session for a valid QR token', async () => {
+      (prisma.player.findUnique as jest.Mock).mockResolvedValue({
+        id: 'player-1',
+        name: 'Test Player',
+        nickname: 'test-player',
+      });
+
+      const result = await provider.authorize({ token: 'raw-qr-token' });
+
+      expect(prisma.player.findUnique).toHaveBeenCalledWith({
+        where: { qrLoginTokenHash: expect.any(String) },
+      });
+      expect(result).toEqual({
+        id: 'player-1',
+        name: 'Test Player',
+        email: 'test-player@player.local',
+        image: null,
+        role: 'player',
+        userType: 'player',
+        playerId: 'player-1',
+        nickname: 'test-player',
+      });
+    });
+
+    it('returns null when the token is missing', async () => {
+      const result = await provider.authorize({});
+      expect(result).toBeNull();
+      expect(prisma.player.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('returns null when no player matches the token hash (revoked/invalid)', async () => {
+      (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const result = await provider.authorize({ token: 'revoked-or-bogus-token' });
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null and logs when the database lookup throws', async () => {
+      (prisma.player.findUnique as jest.Mock).mockRejectedValue(new Error('DB down'));
+
+      const result = await provider.authorize({ token: 'raw-qr-token' });
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('signIn callback', () => {
     it('allows credential-based sign-in', async () => {
       const result = await authConfig.callbacks.signIn({
         user: { id: 'player-1' },
         account: { provider: 'player-credentials' },
+      });
+
+      expect(result).toBe(true);
+    });
+
+    it('allows QR login sign-in', async () => {
+      const result = await authConfig.callbacks.signIn({
+        user: { id: 'player-1' },
+        account: { provider: 'player-qr-login' },
       });
 
       expect(result).toBe(true);
@@ -141,9 +195,7 @@ describe('authConfig', () => {
     });
 
     it('redirects to ServerError when DB operation fails during Discord sign-in', async () => {
-      (prisma.account.findUnique as jest.Mock).mockRejectedValue(
-        new Error('DB connection failed')
-      );
+      (prisma.account.findUnique as jest.Mock).mockRejectedValue(new Error('DB connection failed'));
 
       const result = await authConfig.callbacks.signIn({
         user: { email: 'admin@example.com' },
@@ -245,6 +297,23 @@ describe('authConfig', () => {
       expect(result.nickname).toBe('test-player');
       expect(result.accessTokenExpires).toBeGreaterThan(Date.now() - 1000);
       expect(result.refreshTokenExpires).toBeGreaterThan(Date.now() - 1000);
+    });
+
+    it('creates a token for QR logins', async () => {
+      const result = await authConfig.callbacks.jwt({
+        token: {},
+        user: {
+          id: 'player-1',
+          playerId: 'player-1',
+          nickname: 'test-player',
+        },
+        account: { provider: 'player-qr-login' },
+      });
+
+      expect(result.role).toBe('player');
+      expect(result.userType).toBe('player');
+      expect(result.playerId).toBe('player-1');
+      expect(result.nickname).toBe('test-player');
     });
 
     it('creates an admin token for Discord logins', async () => {

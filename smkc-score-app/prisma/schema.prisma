@@ -91,6 +91,15 @@ model Player {
   country   String?
   noCamera  Boolean   @default(false) // カメラなしフラグ（配信時のオーバーレイ制御用）
   password  String? // bcrypt hashed password for player authentication
+  // QR one-scan login (issue #3055). SHA-256 hash of the bearer token embedded
+  // in the player's QR code — never the raw token. Unlike `password`, this is
+  // looked up by value on every QR sign-in, so it uses a fast, indexable hash
+  // rather than bcrypt (see src/lib/qr-login-token.ts for the rationale).
+  // Decision (#3055): tokens are long-lived (no expiry) and revoked/rotated
+  // manually only; a single active token per player, so reissuing invalidates
+  // the previous QR code. Both the player and admins may issue/revoke.
+  qrLoginTokenHash     String?   @unique
+  qrLoginTokenIssuedAt DateTime?
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int       @default(0) // 楽観的ロック用
   createdAt DateTime  @default(now())

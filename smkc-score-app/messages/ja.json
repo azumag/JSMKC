@@ -215,7 +215,11 @@
     "accessDeniedHelp": "サーバーとの通信に問題が発生した可能性があります。時間をおいて再度ログインをお試しください。",
     "notWhitelistedHelp": "管理者権限が必要な場合は、大会管理者にお問い合わせください。",
     "serverErrorHelp": "データベースまたはサーバーとの通信に問題が発生しました。時間をおいて再度お試しください。",
-    "accountNotLinkedHelp": "jsmdc-orgのメンバーであることを確認してください。"
+    "accountNotLinkedHelp": "jsmdc-orgのメンバーであることを確認してください。",
+    "qrLoginInProgress": "ログイン処理中...",
+    "qrLoginErrorTitle": "QRログインに失敗しました",
+    "qrLoginInvalid": "このQRコードは無効か、期限切れ、または失効しています。",
+    "qrLoginMissingToken": "このリンクにはログインコードが含まれていません。QRコードを再度スキャンしてください。"
   },
   "players": {
     "title": "プレイヤー",
@@ -259,7 +263,25 @@
     "taHandicap0": "0秒 — オフラインTop 8／NTSCランク30位以内",
     "taHandicapMinus1": "-1秒 — オフラインTop 16／NTSCランク60位以内",
     "taHandicapMinus3": "-3秒 — グループステージ通過",
-    "taHandicapMinus5": "-5秒 — グループステージ敗退／オフライン参加なし"
+    "taHandicapMinus5": "-5秒 — グループステージ敗退／オフライン参加なし",
+    "qrLogin": "QRログイン",
+    "qrLoginTitle": "QRワンスキャンログイン",
+    "qrLoginDescription": "このコードをスキャンすると、パスワードなしでこのプレイヤーとして即座にログインできます。",
+    "failedToLoadQrStatus": "QRログインの状態取得に失敗しました",
+    "confirmReissueQrCode": "QRコードを再発行しますか？以前のQRコードは即座に使用できなくなります。",
+    "failedToIssueQrCode": "QRコードの発行に失敗しました",
+    "confirmRevokeQrCode": "QRコードを失効させますか？即座に使用できなくなります。",
+    "failedToRevokeQrCode": "QRコードの失効に失敗しました",
+    "qrCodeAlt": "{nickname} のQRログインコード",
+    "qrLoginUrl": "ログインリンク",
+    "qrCodeNote": "このコードはパスワードと同様に扱ってください。他人に見られた可能性がある場合は再発行してください。",
+    "printQrCode": "印刷",
+    "qrCodeActiveNote": "このプレイヤーのQRコードは有効です。再確認するには再発行してください（以前のコードは無効になります）。または失効させることもできます。",
+    "qrCodeNotIssued": "まだQRコードが発行されていません。",
+    "issueQrCode": "QRコードを発行",
+    "reissueQrCode": "QRコードを再発行",
+    "revokeQrCode": "QRコードを失効",
+    "printPopupBlocked": "印刷用ウィンドウを開けませんでした。このサイトのポップアップを許可してください。"
   },
   "profile": {
     "title": "プロフィール",
@@ -273,7 +295,9 @@
     "nicknameLabel": "ニックネーム:",
     "countryLabel": "国:",
     "canSubmitScores": "このプレイヤーとしてスコアを送信できます。",
-    "noPlayerSession": "このセッションにはプレイヤー情報がありません。"
+    "noPlayerSession": "このセッションにはプレイヤー情報がありません。",
+    "qrLoginCardTitle": "QRワンスキャンログイン",
+    "qrLoginCardDescription": "パスワードなしで自分自身としてログインするためのQRコードを管理します。"
   },
   "tournaments": {
     "title": "トーナメント",

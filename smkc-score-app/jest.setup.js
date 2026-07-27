@@ -49,7 +49,12 @@ if (typeof window !== 'undefined' && !window.Response) {
   window.Response = ResponsePolyfill;
 }
 
-// Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
+// Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment.
+// `subtle` delegates to Node's built-in webcrypto implementation (real
+// SHA-256 etc.) so modules relying on crypto.subtle.digest (e.g.
+// qr-login-token.ts) behave identically to production instead of throwing.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { webcrypto } = require('crypto');
 Object.defineProperty(global, 'crypto', {
   value: {
     randomUUID: () => {
@@ -65,6 +70,7 @@ Object.defineProperty(global, 'crypto', {
       }
       return arr;
     },
+    subtle: webcrypto.subtle,
   },
   writable: true,
 });

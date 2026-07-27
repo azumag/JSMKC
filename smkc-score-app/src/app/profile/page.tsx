@@ -4,60 +4,61 @@
  * Displays the current session and, when available, the player record
  * associated with the credential-based login.
  */
-"use client"
+'use client';
 
-import { useSession } from "next-auth/react"
-import { useState, useEffect } from "react"
-import { useTranslations } from "next-intl"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CardSkeleton } from "@/components/ui/loading-skeleton"
+import { useSession } from 'next-auth/react';
+import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardSkeleton } from '@/components/ui/loading-skeleton';
+import { QrLoginDialog } from '@/components/players/qr-login-dialog';
 
 interface Player {
-  id: string
-  name: string
-  nickname: string
-  country?: string | null
+  id: string;
+  name: string;
+  nickname: string;
+  country?: string | null;
 }
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession()
-  const t = useTranslations('profile')
+  const { data: session, status } = useSession();
+  const t = useTranslations('profile');
 
-  const [loading, setLoading] = useState(true)
-  const [player, setPlayer] = useState<Player | null>(null)
-  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true);
+  const [player, setPlayer] = useState<Player | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchPlayer(playerId: string) {
       try {
-        const res = await fetch(`/api/players/${playerId}`)
+        const res = await fetch(`/api/players/${playerId}`);
         if (!res.ok) {
           /* Show specific error instead of silently failing to "No player session" */
-          setFetchError(`Failed to load profile (HTTP ${res.status})`)
-          return
+          setFetchError(`Failed to load profile (HTTP ${res.status})`);
+          return;
         }
 
-        const json = await res.json()
-        setPlayer(json.data ?? json)
+        const json = await res.json();
+        setPlayer(json.data ?? json);
       } catch {
-        setFetchError('Network error — please check your connection')
+        setFetchError('Network error — please check your connection');
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
     if (status === 'loading') {
-      return
+      return;
     }
 
-    const playerId = session?.user?.playerId
+    const playerId = session?.user?.playerId;
     if (playerId) {
-      fetchPlayer(playerId)
-      return
+      fetchPlayer(playerId);
+      return;
     }
 
-    setLoading(false)
-  }, [session?.user?.playerId, status])
+    setLoading(false);
+  }, [session?.user?.playerId, status]);
 
   if (loading) {
     return (
@@ -68,7 +69,7 @@ export default function ProfilePage() {
         <CardSkeleton />
         <CardSkeleton />
       </div>
-    )
+    );
   }
 
   return (
@@ -87,7 +88,7 @@ export default function ProfilePage() {
             <div className="font-medium">{t('email')}</div>
             <div>{session?.user?.email}</div>
             <div className="font-medium">{t('role')}</div>
-            <div className="capitalize">{session?.user?.role || "player"}</div>
+            <div className="capitalize">{session?.user?.role || 'player'}</div>
           </div>
         </CardContent>
       </Card>
@@ -117,6 +118,18 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {player && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('qrLoginCardTitle')}</CardTitle>
+            <CardDescription>{t('qrLoginCardDescription')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <QrLoginDialog playerId={player.id} playerNickname={player.nickname} />
+          </CardContent>
+        </Card>
+      )}
     </div>
-  )
+  );
 }
