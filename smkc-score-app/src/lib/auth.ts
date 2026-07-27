@@ -174,8 +174,11 @@ export const authConfig = {
         const password = credentials.password as string;
 
         try {
+          // deletedAt: null excludes soft-deleted players (issue #3061) — without
+          // it, a player removed by an admin could still sign in with their old
+          // password indefinitely.
           const player = await prisma.player.findUnique({
-            where: { nickname },
+            where: { nickname, deletedAt: null },
             omit: { password: false },
           });
 
@@ -232,8 +235,10 @@ export const authConfig = {
 
         try {
           const tokenHash = await hashQrLoginToken(token);
+          // deletedAt: null excludes soft-deleted players (issue #3061) — see
+          // the matching comment on the player-credentials provider above.
           const player = await prisma.player.findUnique({
-            where: { qrLoginTokenHash: tokenHash },
+            where: { qrLoginTokenHash: tokenHash, deletedAt: null },
           });
 
           if (!player) {
