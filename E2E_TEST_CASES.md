@@ -11050,4 +11050,32 @@ CDM（大会ライブ運営）中に予期せぬ事態（シード表の取り�
 
 ---
 
+## TC-3056: TA セットアップダイアログ — シード編集は自動ペアを起動しない
+
+- **URL**: n/a (static/doc coverage)
+- **authRequired**: true (admin)
+- **背景**: 主催者フィードバック（2026-07-27）。従来はセットアップダイアログでシード番号を1つ編集するだけで `applyAutoPairsToSetup` が全シード済みエントリーに対して即時再実行され、管理者がパートナー欄の `<select>` で既に手動設定していたペアを無断で上書きしていた。主催者は「自動ペア」ボタンを明示的にクリックするまでペアの自動計算が走らないことを要望した。
+- **手順**:
+  1. `src/app/tournaments/[id]/ta/page-client.tsx` のシード `<Input>` の `onChange` が `setSetupEntries` を `applyAutoPairsToSetup` でラップせず、編集対象エントリーの `seeding` フィールドのみを更新することを確認する
+  2. `applyAutoPairsToSetup` の呼び出しが import 文と `handleAutoPair`（「自動ペア」ボタンの `onClick`）の2箇所だけであることを確認する
+  3. シード済みでパートナー未設定のエントリーが存在する場合、Save をブロックしない非ブロッキングの注意文（`unpairedSeedingWarning`）が表示されることを確認する（奇数人数時の意図的な1名未ペアを誤って弾かないため）
+- **期待結果**: シード入力はそのエントリーの `seeding` だけを更新し、ペアの再計算は「自動ペア」ボタンのクリック時のみ発生する。パートナー未設定のシード済みエントリーがあっても保存は妨げられず、注意文で気づける。
+- **スクリプト**: n/a (unit/static coverage) — `smkc-score-app/__tests__/static/ta-setup-seeding-manual-autopair.test.ts`
+
+---
+
+## TC-3057: ログインページ — パスワード表示/非表示トグル
+
+- **URL**: /auth/signin
+- **authRequired**: false
+- **背景**: プレイヤーフィードバック（2026-07-27）。ログイン時にパスワード入力欄の内容を確認できず、表示時も判読しにくいという指摘のため、目のアイコンによる表示/非表示トグルを追加した。表示中は l/I/1、O/0 のような見分けにくい文字を判読しやすくするため monospace フォント（`font-mono tracking-wide`）を適用する。
+- **手順**:
+  1. `/auth/signin` のプレイヤータブでパスワード欄が `type="password"` で始まり、`aria-label="Show password"`（`showPassword`キー）のトグルボタンが `type="button"`（フォーム誤送信を防ぐ）で存在することを確認する
+  2. トグルをクリックし、`type="text"` に変わり `font-mono tracking-wide` クラスが付与され、ボタンの `aria-label` が `hidePassword` に変わることを確認する
+  3. 再度クリックし、`type="password"` に戻り `font-mono` クラスが外れることを確認する
+- **期待結果**: パスワードは既定で非表示、トグルで表示/非表示を切り替えられ、表示中は判読しやすい monospace フォントになる。トグルはフォーム送信を発生させない。
+- **スクリプト**: n/a (unit coverage) — `smkc-score-app/__tests__/app/auth/signin-password-toggle.test.tsx`
+
+---
+
 ## E2Eテスト実行ガイド

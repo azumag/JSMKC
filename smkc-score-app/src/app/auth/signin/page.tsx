@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -17,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/client-logger'
+import { cn } from '@/lib/utils'
 
 const logger = createLogger({ serviceName: 'auth-signin' })
 
@@ -27,6 +29,7 @@ export default function SignInPage() {
   const [playerForm, setPlayerForm] = useState({ nickname: '', password: '' })
   const [playerError, setPlayerError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handlePlayerLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,14 +86,30 @@ export default function SignInPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">{t('password')}</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={playerForm.password}
-                    onChange={(e) => setPlayerForm({ ...playerForm, password: e.target.value })}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={playerForm.password}
+                      onChange={(e) => setPlayerForm({ ...playerForm, password: e.target.value })}
+                      required
+                      className={cn(
+                        'pr-10',
+                        // Shown password text uses a monospace font so lookalike
+                        // characters (l/I/1, O/0) stay visually distinct.
+                        showPassword && 'font-mono tracking-wide',
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 {playerError && (
                   <p className="text-sm text-red-600">{playerError}</p>

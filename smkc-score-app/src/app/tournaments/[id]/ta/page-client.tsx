@@ -349,9 +349,10 @@ export default function TimeAttackPageClient({
    * and apply them in-place. Operates on the in-flight dialog state rather
    * than the server so the admin can preview/adjust before saving.
    *
-   * Also invoked automatically whenever a seeding input changes so the UI
-   * mirrors §3.1 without requiring an extra button click (previously users
-   * could save seeded entries with no partners assigned).
+   * Only triggered explicitly by the "Auto Pair" button below — seeding
+   * edits no longer recompute pairs automatically, so admins can enter all
+   * seedings first without the partner column reshuffling on every
+   * keystroke (and potentially clobbering manual partner overrides).
    */
   const handleAutoPair = () => {
     setSetupEntries((prev) => applyAutoPairsToSetup(prev));
@@ -744,6 +745,14 @@ export default function TimeAttackPageClient({
   /** Whether all currently visible (filtered) players are already in the setup */
   const allFilteredSelected = filteredPlayers.length > 0 && filteredPlayers.every((p) => setupPlayerIdSet.has(p.id));
 
+  /**
+   * Seeded entries with no partner assigned yet. Since seeding edits no
+   * longer auto-pair (see handleAutoPair), this is a non-blocking hint
+   * only -- it does not gate handleSaveSetup, because a single unpaired
+   * entry is expected and correct when the seeded count is odd.
+   */
+  const unpairedSeededCount = setupEntries.filter((s) => typeof s.seeding === 'number' && !s.partnerId).length;
+
   /** Has the qualification roster been initialized (controls Setup vs Edit label)? */
   const hasQualificationRoster = entries.some((e) => e.stage === 'qualification');
 
@@ -972,6 +981,11 @@ export default function TimeAttackPageClient({
                           {t('autoPair')}
                         </Button>
                       </div>
+                      {unpairedSeededCount > 0 && (
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {t('unpairedSeedingWarning', { count: unpairedSeededCount })}
+                        </p>
+                      )}
                       {taBattleRoyaleMode && (
                         <div className="mb-3 rounded-md border bg-muted/30 p-3">
                           <TaHandicapLegend compact />
@@ -996,12 +1010,14 @@ export default function TimeAttackPageClient({
                                        * would silently truncate before `>= 1` passes. */
                                       const parsed = parseManualScore(e.target.value);
                                       const seeding = parsed !== null && parsed >= 1 ? parsed : undefined;
-                                      /* Recompute snake pairs immediately so the partner
-                                       * column reflects §3.1 as soon as seedings change. */
+                                      /* Only update this entry's seeding. Pairing is
+                                       * recomputed solely via the explicit "Auto Pair"
+                                       * button (handleAutoPair) so admins can enter all
+                                       * seedings first without the partner column
+                                       * reshuffling (and clobbering manual overrides)
+                                       * on every keystroke. */
                                       setSetupEntries((prev) =>
-                                        applyAutoPairsToSetup(
-                                          prev.map((p) => (p.playerId === s.playerId ? { ...p, seeding } : p)),
-                                        ),
+                                        prev.map((p) => (p.playerId === s.playerId ? { ...p, seeding } : p)),
                                       );
                                     }}
                                     className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
