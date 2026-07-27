@@ -5,54 +5,57 @@
  * - Players log in with nickname + password
  * - Administrators log in with Discord
  */
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { signIn } from 'next-auth/react'
-import { useTranslations } from 'next-intl'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useRouter } from 'next/navigation'
-import { createLogger } from '@/lib/client-logger'
+import { useState } from 'react';
+import { signIn } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
+import { Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useRouter } from 'next/navigation';
+import { createLogger } from '@/lib/client-logger';
+import { cn } from '@/lib/utils';
 
-const logger = createLogger({ serviceName: 'auth-signin' })
+const logger = createLogger({ serviceName: 'auth-signin' });
 
 export default function SignInPage() {
-  const router = useRouter()
-  const t = useTranslations('auth')
+  const router = useRouter();
+  const t = useTranslations('auth');
 
-  const [playerForm, setPlayerForm] = useState({ nickname: '', password: '' })
-  const [playerError, setPlayerError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [playerForm, setPlayerForm] = useState({ nickname: '', password: '' });
+  const [playerError, setPlayerError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handlePlayerLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setPlayerError('')
-    setIsLoading(true)
+    e.preventDefault();
+    setPlayerError('');
+    setIsLoading(true);
 
     try {
       const result = await signIn('player-credentials', {
         nickname: playerForm.nickname,
         password: playerForm.password,
         redirect: false,
-      })
+      });
 
       if (result?.error) {
-        setPlayerError(t('invalidCredentials'))
+        setPlayerError(t('invalidCredentials'));
       } else if (result?.ok) {
-        router.push('/tournaments')
+        router.push('/tournaments');
       }
     } catch (error) {
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
-      logger.error('Player login error', metadata)
-      setPlayerError(t('loginError'))
+      logger.error('Player login error', metadata);
+      setPlayerError(t('loginError'));
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-[calc(100vh-12rem)] flex items-center justify-center">
@@ -83,25 +86,37 @@ export default function SignInPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">{t('password')}</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={playerForm.password}
-                    onChange={(e) => setPlayerForm({ ...playerForm, password: e.target.value })}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={playerForm.password}
+                      onChange={(e) => setPlayerForm({ ...playerForm, password: e.target.value })}
+                      required
+                      className={cn(
+                        'pr-10',
+                        // Shown password text uses a monospace font so lookalike
+                        // characters (l/I/1, O/0) stay visually distinct.
+                        showPassword && 'font-mono tracking-wide',
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
-                {playerError && (
-                  <p className="text-sm text-red-600">{playerError}</p>
-                )}
+                {playerError && <p className="text-sm text-red-600">{playerError}</p>}
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
                   {isLoading ? t('loggingIn') : t('loginButton')}
                 </Button>
               </form>
-              <p className="text-sm text-center text-muted-foreground">
-                {t('playerLoginHelp')}
-              </p>
+              <p className="text-sm text-center text-muted-foreground">{t('playerLoginHelp')}</p>
             </TabsContent>
 
             <TabsContent value="admin" className="space-y-4">
@@ -111,19 +126,22 @@ export default function SignInPage() {
                 size="lg"
               >
                 <div className="flex items-center">
-                  <svg className="mr-2 h-5 w-5" viewBox="0 0 127 96" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                  <svg
+                    className="mr-2 h-5 w-5"
+                    viewBox="0 0 127 96"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="currentColor"
+                  >
                     <path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a.05.05 0 0 0-.03.02C79.6 4.39 77.4 8.78 75.87 12.5a96.51 96.51 0 0 0-24.8 0C49.53 8.78 47.33 4.39 45.47.02a.05.05 0 0 0-.03-.02A105.01 105.01 0 0 0 19.3 8.07.05.05 0 0 0 19.24 8.1c-26.9 40.5-34.33 80-30.8 119.2a.05.05 0 0 0 .02.04C7.66 128.5 35.8 135 63.8 135a.05.05 0 0 0 .04-.02l3.4-4.2a92.2 92.2 0 0 1-13.8-6.1.05.05 0 0 1 .01-.09 63.63 63.63 0 0 0 2.4-1.2.05.05 0 0 1 .05 0c26.9 12.3 56 12.3 82.9 0a.05.05 0 0 1 .05 0 62.4 62.4 0 0 0 2.4 1.2.05.05 0 0 1 0 .09 91.54 91.54 0 0 1-13.8 6.1l3.4 4.2a.05.05 0 0 0 .04.02c28-135 56.1-135 55.44-7.66a.05.05 0 0 0 .02-.04c3.54-39.2-3.9-78.7-30.8-119.2a.05.05 0 0 0-.06-.03ZM42.45 92.6c-5.8 0-10.6-5.3-10.6-11.8s4.7-11.8 10.6-11.8c5.8.1 10.6 5.3 10.6 11.8s-4.8 11.8-10.6 11.8Zm42.1 0c-5.8 0-10.6-5.3-10.6-11.8s4.7-11.8 10.6-11.8c5.8.1 10.6 5.3 10.6 11.8s-4.8 11.8-10.6 11.8Z" />
                   </svg>
                   {t('discordLogin')}
                 </div>
               </Button>
-              <p className="text-sm text-center text-muted-foreground">
-                {t('adminLoginHelp')}
-              </p>
+              <p className="text-sm text-center text-muted-foreground">{t('adminLoginHelp')}</p>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
