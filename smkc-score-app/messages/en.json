@@ -546,6 +546,7 @@
     "driverPoints": "Driver's Points: 1st = 9pts, 2nd = 6pts, 3rd = 3pts, 4th = 1pt, 5th-8th = 0pts",
     "driverPointsEntry": "Driver's Points Entry",
     "driverPointsValidation": "Driver's points must be integers from 0 to 45.",
+    "driverPointsBlankZeroHint": "If a player scored 0 points, you can leave that field blank — it will be submitted as 0. Both fields can't stay blank.",
     "enterMatchResult": "Enter Match Result",
     "manualTotalScore": "Manual Total Score",
     "manualTotalScoreDesc": "Use this when you only need to correct the cup total after play ends.",

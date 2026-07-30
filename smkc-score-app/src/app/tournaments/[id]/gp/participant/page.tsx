@@ -14,8 +14,7 @@ import { Star } from "lucide-react";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
 import { getMatchReportSuccessMessage } from "@/lib/participant-report-message";
-import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
-import { MAX_GP_DRIVER_POINTS } from "@/lib/constants";
+import { GP_DRIVER_POINTS_INPUT_PROPS, canSubmitGpParticipantPoints } from "@/lib/gp-driver-points-input";
 
 /** GP Match extends BaseMatch with GP-specific fields */
 interface GPMatch extends BaseMatch {
@@ -32,12 +31,6 @@ interface GPMatch extends BaseMatch {
 interface DriverPointInput {
   points1: string;
   points2: string;
-}
-
-function isValidDriverPointInput(value: string): boolean {
-  if (!/^\d+$/.test(value)) return false;
-  const points = Number(value);
-  return Number.isInteger(points) && points >= 0 && points <= MAX_GP_DRIVER_POINTS;
 }
 
 export default function GrandPrixParticipantPage({
@@ -66,7 +59,7 @@ export default function GrandPrixParticipantPage({
   };
 
   const canSubmitPoints = ({ points1, points2 }: DriverPointInput) =>
-    isValidDriverPointInput(points1) && isValidDriverPointInput(points2);
+    canSubmitGpParticipantPoints(points1, points2);
 
   const handleSubmitMatch = async (match: GPMatch) => {
     const points = getPointsInput(match.id);
@@ -149,6 +142,7 @@ export default function GrandPrixParticipantPage({
                 />
               </div>
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">{tGp("driverPointsBlankZeroHint")}</p>
             <div className="mt-4 rounded-lg bg-gray-50 p-3">
               <div className="text-center font-medium">{tMatch("totalPoints", { points1, points2 })}</div>
             </div>
