@@ -107,6 +107,17 @@ function importsMaxGpDriverPointsFromConstants(source) {
     );
 }
 
+function importsGpParticipantPointsGateFromSharedHelper(source) {
+  return source
+    .split(';')
+    .some(
+      (statement) =>
+        /^\s*import\s/.test(statement) &&
+        statement.includes('canSubmitGpParticipantPoints') &&
+        /from\s+["']@\/lib\/gp-driver-points-input["']/.test(statement),
+    );
+}
+
 function sharedGpPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
   return sharedFixture.players.slice(0, count);
@@ -117,10 +128,20 @@ async function loginSharedPlayer(adminPage, player) {
   return loginPlayerBrowser(player.nickname, player.password);
 }
 
-/* ───────── TC-1098: GP driver-points max uses shared constant ───────── */
+/* ───────── TC-1098: GP driver-points max uses shared constant ─────────
+ * The participant page has no page-local bound check anymore — it gates
+ * submission through canSubmitGpParticipantPoints (gp-driver-points-input.ts),
+ * which enforces MAX_GP_DRIVER_POINTS itself. Importing the raw constant
+ * directly into the page would just reintroduce the duplicate-definition
+ * drift risk this test guards against, so the page is expected to import
+ * the shared gate function instead of the constant. */
 async function runTc1098() {
   try {
     const constantsSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'constants.ts'), 'utf8');
+    const inputHelperSource = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'lib', 'gp-driver-points-input.ts'),
+      'utf8',
+    );
     const participantSource = fs.readFileSync(
       path.join(__dirname, '..', 'src', 'app', 'tournaments', '[id]', 'gp', 'participant', 'page.tsx'),
       'utf8',
@@ -144,25 +165,37 @@ async function runTc1098() {
     );
 
     const constantExported = /export const MAX_GP_DRIVER_POINTS\b/.test(constantsSource);
-    const participantImportsConstant = importsMaxGpDriverPointsFromConstants(participantSource);
+    const helperImportsConstant = importsMaxGpDriverPointsFromConstants(inputHelperSource);
+    const participantUsesSharedGate = importsGpParticipantPointsGateFromSharedHelper(participantSource);
+    const participantDoesNotImportConstantDirectly = !importsMaxGpDriverPointsFromConstants(participantSource);
     const routeImportsConstant = importsMaxGpDriverPointsFromConstants(routeSource);
     const localDefinitionsRemoved =
       !/const MAX_GP_DRIVER_POINTS\s*=/.test(participantSource) && !/const MAX_GP_DRIVER_POINTS\s*=/.test(routeSource);
 
+    const ok =
+      constantExported &&
+      helperImportsConstant &&
+      participantUsesSharedGate &&
+      participantDoesNotImportConstantDirectly &&
+      routeImportsConstant &&
+      localDefinitionsRemoved;
+
     log(
       'TC-1098',
-      constantExported && participantImportsConstant && routeImportsConstant && localDefinitionsRemoved
-        ? 'PASS'
-        : 'FAIL',
+      ok ? 'PASS' : 'FAIL',
       !constantExported
         ? 'MAX_GP_DRIVER_POINTS export missing from constants.ts'
-        : !participantImportsConstant
-          ? 'participant page does not import MAX_GP_DRIVER_POINTS from constants'
-          : !routeImportsConstant
-            ? 'report route does not import MAX_GP_DRIVER_POINTS from constants'
-            : !localDefinitionsRemoved
-              ? 'page-local or route-local MAX_GP_DRIVER_POINTS definition remains'
-              : '',
+        : !helperImportsConstant
+          ? 'gp-driver-points-input.ts does not import MAX_GP_DRIVER_POINTS from constants'
+          : !participantUsesSharedGate
+            ? 'participant page does not import canSubmitGpParticipantPoints from gp-driver-points-input'
+            : !participantDoesNotImportConstantDirectly
+              ? 'participant page imports MAX_GP_DRIVER_POINTS from constants directly instead of going through the shared gate'
+              : !routeImportsConstant
+                ? 'report route does not import MAX_GP_DRIVER_POINTS from constants'
+                : !localDefinitionsRemoved
+                  ? 'page-local or route-local MAX_GP_DRIVER_POINTS definition remains'
+                  : '',
     );
   } catch (err) {
     log('TC-1098', 'FAIL', err instanceof Error ? err.message : 'GP 1098 failed');

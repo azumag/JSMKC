@@ -4,18 +4,17 @@
  * Player-facing page for reporting GP match results with driver-point totals.
  * Uses shared useParticipantMatches hook and ParticipantPageLayout.
  */
-"use client";
+'use client';
 
-import { useState, use } from "react";
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Star } from "lucide-react";
-import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
-import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
-import { getMatchReportSuccessMessage } from "@/lib/participant-report-message";
-import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
-import { MAX_GP_DRIVER_POINTS } from "@/lib/constants";
+import { useState, use } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Star } from 'lucide-react';
+import { useParticipantMatches, type BaseMatch } from '@/lib/hooks/useParticipantMatches';
+import { ParticipantPageLayout } from '@/components/tournament/participant-page-layout';
+import { getMatchReportSuccessMessage } from '@/lib/participant-report-message';
+import { GP_DRIVER_POINTS_INPUT_PROPS, canSubmitGpParticipantPoints } from '@/lib/gp-driver-points-input';
 
 /** GP Match extends BaseMatch with GP-specific fields */
 interface GPMatch extends BaseMatch {
@@ -34,44 +33,32 @@ interface DriverPointInput {
   points2: string;
 }
 
-function isValidDriverPointInput(value: string): boolean {
-  if (!/^\d+$/.test(value)) return false;
-  const points = Number(value);
-  return Number.isInteger(points) && points >= 0 && points <= MAX_GP_DRIVER_POINTS;
-}
-
-export default function GrandPrixParticipantPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function GrandPrixParticipantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
-  const tPart = useTranslations("participant");
-  const tMatch = useTranslations("match");
-  const tGp = useTranslations("gp");
+  const tPart = useTranslations('participant');
+  const tMatch = useTranslations('match');
+  const tGp = useTranslations('gp');
 
-  const ctx = useParticipantMatches<GPMatch>({ tournamentId, mode: "gp" });
+  const ctx = useParticipantMatches<GPMatch>({ tournamentId, mode: 'gp' });
 
   const [driverPoints, setDriverPoints] = useState<Record<string, DriverPointInput>>({});
 
-  const getPointsInput = (matchId: string): DriverPointInput =>
-    driverPoints[matchId] ?? { points1: "", points2: "" };
+  const getPointsInput = (matchId: string): DriverPointInput => driverPoints[matchId] ?? { points1: '', points2: '' };
 
   const updatePointsInput = (matchId: string, field: keyof DriverPointInput, value: string) => {
-    if (value !== "" && !/^\d+$/.test(value)) return;
+    if (value !== '' && !/^\d+$/.test(value)) return;
     setDriverPoints((prev) => ({
       ...prev,
       [matchId]: { ...getPointsInput(matchId), [field]: value },
     }));
   };
 
-  const canSubmitPoints = ({ points1, points2 }: DriverPointInput) =>
-    isValidDriverPointInput(points1) && isValidDriverPointInput(points2);
+  const canSubmitPoints = ({ points1, points2 }: DriverPointInput) => canSubmitGpParticipantPoints(points1, points2);
 
   const handleSubmitMatch = async (match: GPMatch) => {
     const points = getPointsInput(match.id);
     if (!canSubmitPoints(points)) {
-      ctx.setError(tGp("driverPointsValidation"));
+      ctx.setError(tGp('driverPointsValidation'));
       return;
     }
     const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
@@ -83,12 +70,14 @@ export default function GrandPrixParticipantPage({
     });
 
     if (data) {
-      setDriverPoints((prev) => ({ ...prev, [match.id]: { points1: "", points2: "" } }));
-      alert(getMatchReportSuccessMessage(data, {
-        matchReportedSuccess: tPart("matchReportedSuccess"),
-        matchConfirmedSuccess: tPart("matchConfirmedSuccess"),
-        matchMismatchSubmitted: tPart("matchMismatchSubmitted"),
-      }));
+      setDriverPoints((prev) => ({ ...prev, [match.id]: { points1: '', points2: '' } }));
+      alert(
+        getMatchReportSuccessMessage(data, {
+          matchReportedSuccess: tPart('matchReportedSuccess'),
+          matchConfirmedSuccess: tPart('matchConfirmedSuccess'),
+          matchMismatchSubmitted: tPart('matchMismatchSubmitted'),
+        }),
+      );
     }
   };
 
@@ -110,22 +99,18 @@ export default function GrandPrixParticipantPage({
       playerId={ctx.playerId}
       submitting={ctx.submitting}
       qualificationConfirmed={ctx.qualificationConfirmed}
-      renderCardHeaderExtra={(match) => (
-        <>
-          {match.cup && ` • ${tGp("cupLabel", { cup: match.cup })}`}
-        </>
-      )}
+      renderCardHeaderExtra={(match) => <>{match.cup && ` • ${tGp('cupLabel', { cup: match.cup })}`}</>}
       renderMatchForm={(match) => {
         const points = getPointsInput(match.id);
-        const points1 = points.points1 === "" ? 0 : Number(points.points1);
-        const points2 = points.points2 === "" ? 0 : Number(points.points2);
+        const points1 = points.points1 === '' ? 0 : Number(points.points1);
+        const points2 = points.points2 === '' ? 0 : Number(points.points2);
 
         return (
           <div className="border-t pt-4">
             <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <h4 className="font-medium">{tGp("driverPointsEntry")}</h4>
+              <h4 className="font-medium">{tGp('driverPointsEntry')}</h4>
               <div className="text-sm font-medium text-muted-foreground">
-                {tMatch("totalPoints", { points1, points2 })}
+                {tMatch('totalPoints', { points1, points2 })}
               </div>
             </div>
 
@@ -135,7 +120,7 @@ export default function GrandPrixParticipantPage({
                 <Input
                   {...GP_DRIVER_POINTS_INPUT_PROPS}
                   value={points.points1}
-                  onChange={(event) => updatePointsInput(match.id, "points1", event.target.value)}
+                  onChange={(event) => updatePointsInput(match.id, 'points1', event.target.value)}
                   placeholder="0"
                 />
               </div>
@@ -144,13 +129,14 @@ export default function GrandPrixParticipantPage({
                 <Input
                   {...GP_DRIVER_POINTS_INPUT_PROPS}
                   value={points.points2}
-                  onChange={(event) => updatePointsInput(match.id, "points2", event.target.value)}
+                  onChange={(event) => updatePointsInput(match.id, 'points2', event.target.value)}
                   placeholder="0"
                 />
               </div>
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">{tGp('driverPointsBlankZeroHint')}</p>
             <div className="mt-4 rounded-lg bg-gray-50 p-3">
-              <div className="text-center font-medium">{tMatch("totalPoints", { points1, points2 })}</div>
+              <div className="text-center font-medium">{tMatch('totalPoints', { points1, points2 })}</div>
             </div>
 
             <Button
@@ -158,7 +144,7 @@ export default function GrandPrixParticipantPage({
               disabled={ctx.submitting === match.id || !canSubmitPoints(points)}
               className="mt-4 h-12 w-full text-base"
             >
-              {ctx.submitting === match.id ? tMatch("submitting") : tPart("submitMatchResult")}
+              {ctx.submitting === match.id ? tMatch('submitting') : tPart('submitMatchResult')}
             </Button>
           </div>
         );
@@ -166,18 +152,22 @@ export default function GrandPrixParticipantPage({
       renderPreviousReports={(match) =>
         match.player1ReportedPoints1 !== undefined || match.player2ReportedPoints1 !== undefined ? (
           <div className="border-t pt-4">
-            <h4 className="font-medium mb-2">{tPart("previousReports")}</h4>
+            <h4 className="font-medium mb-2">{tPart('previousReports')}</h4>
             <div className="space-y-2 text-sm">
               {match.player1ReportedPoints1 !== undefined && (
                 <div className="flex justify-between p-2 bg-gray-50 rounded">
-                  <span>{tPart("playerReported", { player: match.player1.nickname })}</span>
-                  <span className="font-mono">{match.player1ReportedPoints1} - {match.player1ReportedPoints2} {tPart("points")}</span>
+                  <span>{tPart('playerReported', { player: match.player1.nickname })}</span>
+                  <span className="font-mono">
+                    {match.player1ReportedPoints1} - {match.player1ReportedPoints2} {tPart('points')}
+                  </span>
                 </div>
               )}
               {match.player2ReportedPoints1 !== undefined && (
                 <div className="flex justify-between p-2 bg-gray-50 rounded">
-                  <span>{tPart("playerReported", { player: match.player2.nickname })}</span>
-                  <span className="font-mono">{match.player2ReportedPoints1} - {match.player2ReportedPoints2} {tPart("points")}</span>
+                  <span>{tPart('playerReported', { player: match.player2.nickname })}</span>
+                  <span className="font-mono">
+                    {match.player2ReportedPoints1} - {match.player2ReportedPoints2} {tPart('points')}
+                  </span>
                 </div>
               )}
             </div>

@@ -2211,15 +2211,24 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('MAX_GP_DRIVER_POINTS');
     expect(section).toContain('src/lib/constants.ts');
+    expect(section).toContain('gp-driver-points-input.ts');
     expect(section).toContain('gp/participant/page.tsx');
+    expect(section).toContain('canSubmitGpParticipantPoints');
     expect(section).toContain('gp/match/[matchId]/report/route.ts');
     expect(section).toContain('page-local / route-local');
     expect(tcGp).toContain("log('TC-1098'");
     expect(tcGp).toContain('importsMaxGpDriverPointsFromConstants');
+    expect(tcGp).toContain('importsGpParticipantPointsGateFromSharedHelper');
     expect(tcGp).toContain(".split(';')");
     expect(tcGp).toContain('^\\s*import\\s');
     expect(tcGp).toContain("statement.includes('MAX_GP_DRIVER_POINTS')");
-    expect(tcGp).toContain('participant page does not import MAX_GP_DRIVER_POINTS from constants');
+    expect(tcGp).toContain("statement.includes('canSubmitGpParticipantPoints')");
+    expect(tcGp).toContain('participantDoesNotImportConstantDirectly');
+    expect(tcGp).toContain('gp-driver-points-input.ts does not import MAX_GP_DRIVER_POINTS from constants');
+    expect(tcGp).toContain('participant page does not import canSubmitGpParticipantPoints from gp-driver-points-input');
+    expect(tcGp).toContain(
+      'participant page imports MAX_GP_DRIVER_POINTS from constants directly instead of going through the shared gate',
+    );
     expect(tcGp).toContain('report route does not import MAX_GP_DRIVER_POINTS from constants');
     expect(tcGp).toContain('page-local or route-local MAX_GP_DRIVER_POINTS definition remains');
   });

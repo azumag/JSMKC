@@ -2776,14 +2776,30 @@
 
 - **URL**: n/a (source guard)
 - **authRequired**: false
-- **背景**: GP participant 入力と report API がそれぞれ `MAX_GP_DRIVER_POINTS = 45` を定義すると、GPレース数やポイント配点の変更時に片方だけ更新されるリスクがある。
+- **背景**: GP participant 入力と report API がそれぞれ `MAX_GP_DRIVER_POINTS = 45` を定義すると、GPレース数やポイント配点の変更時に片方だけ更新されるリスクがある。participant page は自前の上限チェックを持たず、`src/lib/gp-driver-points-input.ts` の `canSubmitGpParticipantPoints` を介して共有定数に委譲する（TC-1099 の空欄=0許容ロジックと重複させないため）。
 - **手順**:
   1. `src/lib/constants.ts` が `MAX_GP_DRIVER_POINTS` をエクスポートしていることを確認する
-  2. `gp/participant/page.tsx` が `@/lib/constants` から `MAX_GP_DRIVER_POINTS` を import していることを確認する
-  3. `gp/match/[matchId]/report/route.ts` が `@/lib/constants` から `MAX_GP_DRIVER_POINTS` を import していることを確認する
-  4. participant page と API route に `const MAX_GP_DRIVER_POINTS = 45` のような page-local / route-local 定義が残っていないことを確認する
+  2. `src/lib/gp-driver-points-input.ts` が `@/lib/constants` から `MAX_GP_DRIVER_POINTS` を import していることを確認する
+  3. `gp/participant/page.tsx` が `@/lib/gp-driver-points-input` から `canSubmitGpParticipantPoints` を import していること（`MAX_GP_DRIVER_POINTS` を直接 import しないこと）を確認する
+  4. `gp/match/[matchId]/report/route.ts` が `@/lib/constants` から `MAX_GP_DRIVER_POINTS` を import していることを確認する
+  5. participant page と API route に `const MAX_GP_DRIVER_POINTS = 45` のような page-local / route-local 定義が残っていないことを確認する
 - **期待結果**: GPドライバーズポイント上限は UI/API とも共有定数を参照し、上限変更時の drift を起こさない
 - **スクリプト**: tc-gp.js TC-1098
+
+## TC-1099: GP participant — 実際のスコアが0点の場合も入力欄を空欄のまま送信できる
+
+- **URL**: n/a (unit) + /tournaments/[temp-id]/gp/participant
+- **authRequired**: true (player)
+- **背景**: issue「GPグループステージのスコアを送信できない」。`gp/participant/page.tsx` の送信ボタンはドライバーズポイント入力欄が両方とも数字で埋まっていないと有効化されなかった。placeholder="0" は見た目上「0」に見えるが実際の入力値ではないため、片方のプレイヤーの実際の点数が0点のケース（5〜8位のみで1カップを終えた等、珍しくない）で、プレイヤーが「0」を手入力しないと送信ボタンが永久にグレーのまま・クリックしても反応しないという状態になっていた。
+- **手順**:
+  1. `canSubmitGpParticipantPoints("32", "")` と `canSubmitGpParticipantPoints("", "9")` が `true` を返すこと（片側が空欄でも、もう片側に実値があれば送信可能）を確認する（`__tests__/lib/gp-driver-points-input.test.ts`）
+  2. `canSubmitGpParticipantPoints("", "")` が `false` を返すこと（両方未入力のまま誤って0-0を送信してしまう事故を防ぐ）を確認する
+  3. 一時トーナメントで GP 予選をセットアップし、対象プレイヤーに pending match を作る
+  4. 対象プレイヤーとしてログインし `/gp/participant` を開く
+  5. 自分側のドライバーズポイント欄のみ入力し、相手側は空欄のまま送信する
+  6. match が `completed` になり、空欄だった側の `points` が `0` として保存されていることを確認する
+- **期待結果**: 実際のスコアが0点の場合、入力欄を空欄のままにしても（「0」と手入力しなくても）送信でき、0として正しく保存される。ただし両方空欄のままでは送信できない
+- **スクリプト**: `__tests__/lib/gp-driver-points-input.test.ts`（ユニット部分）。ブラウザ部分は tc-gp.js TC-702 の実ブラウザ導線に含めて手動確認予定（未スクリプト化）
 
 ## TC-1106: GP手入力ドライバーズポイントは整数かつ上限内だけ受け付ける
 
