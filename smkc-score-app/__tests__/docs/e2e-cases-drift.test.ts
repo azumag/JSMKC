@@ -2225,9 +2225,7 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain("statement.includes('canSubmitGpParticipantPoints')");
     expect(tcGp).toContain('participantDoesNotImportConstantDirectly');
     expect(tcGp).toContain('gp-driver-points-input.ts does not import MAX_GP_DRIVER_POINTS from constants');
-    expect(tcGp).toContain(
-      'participant page does not import canSubmitGpParticipantPoints from gp-driver-points-input',
-    );
+    expect(tcGp).toContain('participant page does not import canSubmitGpParticipantPoints from gp-driver-points-input');
     expect(tcGp).toContain(
       'participant page imports MAX_GP_DRIVER_POINTS from constants directly instead of going through the shared gate',
     );

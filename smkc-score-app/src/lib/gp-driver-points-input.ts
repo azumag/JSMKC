@@ -1,11 +1,11 @@
-import { MAX_GP_DRIVER_POINTS } from "@/lib/constants";
-import { parseManualScore } from "@/lib/parse-manual-score";
+import { MAX_GP_DRIVER_POINTS } from '@/lib/constants';
+import { parseManualScore } from '@/lib/parse-manual-score';
 
 export const GP_DRIVER_POINTS_INPUT_PROPS = {
-  type: "text",
-  inputMode: "numeric",
-  pattern: "[0-9]*",
-  autoComplete: "off",
+  type: 'text',
+  inputMode: 'numeric',
+  pattern: '[0-9]*',
+  autoComplete: 'off',
 } as const;
 
 export function parseGpDriverPointsInput(input: string): number | null {
@@ -26,7 +26,7 @@ export function parseGpDriverPointsInput(input: string): number | null {
  * to type "0" by hand.
  */
 function isValidGpParticipantPointsValue(value: string): boolean {
-  if (value === "") return true;
+  if (value === '') return true;
   return parseGpDriverPointsInput(value) !== null;
 }
 
@@ -38,7 +38,7 @@ function isValidGpParticipantPointsValue(value: string): boolean {
  */
 export function canSubmitGpParticipantPoints(points1: string, points2: string): boolean {
   return (
-    (points1 !== "" || points2 !== "") &&
+    (points1 !== '' || points2 !== '') &&
     isValidGpParticipantPointsValue(points1) &&
     isValidGpParticipantPointsValue(points2)
   );
