@@ -849,6 +849,11 @@ describe('Finals Route Factory', () => {
       expect(Object.keys(json.data.upperReconciliation.expectedVersions).filter((id) => id.startsWith('r1-'))).toEqual(
         [],
       );
+      /* Issue #3016: the GET regeneration path must detect the two-group
+       * qualification layout and regenerate bracket structures with
+       * groupCount=2, not silently fall back to the three-group default. */
+      expect(mockGeneratePlayoffStructure).toHaveBeenCalledWith(12, 2);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16, 2);
     });
 
     it('should infer 16-player bracket when matches > 20 (grouped)', async () => {
@@ -1008,6 +1013,75 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(409);
       expect(await response.json()).toEqual(expect.objectContaining({ code: 'FINALS_SEED_REPAIR_REQUIRED' }));
+    });
+
+    /* Issue #3045: an in-progress (draft/active) tournament may legitimately
+     * hold a structurally incomplete bracket or a manual slot override.
+     * resolveFinalsSeedSnapshot reports those as `absent` instead of `unsafe`
+     * for in-progress tournaments, so the public GET must return 200 rather
+     * than a 409 FINALS_SEED_REPAIR_REQUIRED. */
+    it('returns 200 for an active tournament with a manual slot override', async () => {
+      (prisma.tournament as any).findFirst.mockResolvedValue({
+        id: 'tournament-123',
+        name: 'Test Tournament',
+        status: 'active',
+      });
+      (prisma.tournament as any).findUnique.mockResolvedValue({
+        id: 'tournament-123',
+        name: 'Test Tournament',
+        status: 'active',
+      });
+      const swappedMatch = createMockMatch({
+        matchNumber: 1,
+        round: 'winners_qf',
+        player1Id: 'p8',
+        player2Id: 'p1',
+        player1: { id: 'p8', name: 'Player 8' },
+        player2: { id: 'p1', name: 'Player 1' },
+        slotOverrideAt: '2026-07-22T00:00:00.000Z',
+      });
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve([swappedMatch]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(17);
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.code).toBeUndefined();
+    });
+
+    it('returns 200 for an active tournament with an incomplete Top-24 bracket', async () => {
+      (prisma.tournament as any).findFirst.mockResolvedValue({
+        id: 'tournament-123',
+        name: 'Test Tournament',
+        status: 'active',
+      });
+      (prisma.tournament as any).findUnique.mockResolvedValue({
+        id: 'tournament-123',
+        name: 'Test Tournament',
+        status: 'active',
+      });
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') {
+          return Promise.resolve([createMockMatch({ matchNumber: 1, stage: 'playoff', round: 'playoff_r1' })]);
+        }
+        return Promise.resolve([createMockMatch({ matchNumber: 1, round: 'winners_qf' })]);
+      });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).count.mockResolvedValue(17);
+
+      const { GET } = createFinalsHandlers(createMockConfig({ getStyle: 'simple' }));
+      const response = await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
     });
 
     it('re-resolves an old partial snapshot instead of treating its 12 rows as authoritative', async () => {

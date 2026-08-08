@@ -31,28 +31,12 @@ jest.mock('@/lib/request-utils', () => ({
 jest.mock('@/lib/logger', () => ({
   createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })),
 }));
-jest.mock('next/server', () => {
-  const json = jest.fn((body, init) => ({ body, init }));
-  class MockNextRequest {
-    url: string;
-    method: string;
-    private readonly body: unknown;
-    headers: { get: jest.Mock; forEach: jest.Mock };
+jest.mock('next/server', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('../../../../../../helpers/mock-next-server').createNextServerMock(),
+);
 
-    constructor(url: string, init: { method?: string; body?: unknown } = {}) {
-      this.url = url;
-      this.method = init.method ?? 'GET';
-      this.body = init.body;
-      this.headers = { get: jest.fn(() => null), forEach: jest.fn() };
-    }
-
-    async json() {
-      return typeof this.body === 'string' ? JSON.parse(this.body) : this.body;
-    }
-  }
-  return { __esModule: true, NextRequest: MockNextRequest, NextResponse: { json } };
-});
-
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/api-auth';
@@ -98,6 +82,13 @@ function mockPlayersForSuccessfulStart(players: ReturnType<typeof chunkedPlayers
       player: { nickname: `Player ${index + 1}` },
     })),
   );
+}
+
+function createP2002Error() {
+  return new PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'test',
+  });
 }
 
 describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
@@ -280,9 +271,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
           .map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
       ),
     });
-    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(
-      TA_BATTLE_ROYALE_ENTRY_CHUNK,
-    );
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(TA_BATTLE_ROYALE_ENTRY_CHUNK);
     expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(2, {
       data: [
         expect.objectContaining({
@@ -315,9 +304,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
       const start = chunkIndex * TA_BATTLE_ROYALE_ENTRY_CHUNK;
       const end = Math.min(start + TA_BATTLE_ROYALE_ENTRY_CHUNK, players.length);
       expect(prisma.tTEntry.createMany).toHaveBeenNthCalledWith(chunkIndex + 1, {
-        data: players
-          .slice(start, end)
-          .map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
+        data: players.slice(start, end).map(({ playerId }) => expect.objectContaining({ playerId, stage: 'phase3' })),
       });
     }
 
@@ -336,9 +323,7 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     await POST(createRequest(players), params);
 
     expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(2);
-    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(
-      TA_BATTLE_ROYALE_ENTRY_CHUNK,
-    );
+    expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[0][0].data).toHaveLength(TA_BATTLE_ROYALE_ENTRY_CHUNK);
     expect(jest.mocked(prisma.tTEntry.createMany).mock.calls[1][0].data).toHaveLength(1);
     expect(prisma.tTEntry.deleteMany).toHaveBeenCalledWith({
       where: {
@@ -403,6 +388,70 @@ describe('POST /api/tournaments/[id]/ta/battle-royale', () => {
     expect(prisma.tTEntry.createMany).toHaveBeenCalledTimes(1);
     expect(prisma.tTEntry.deleteMany).not.toHaveBeenCalled();
     expect(createErrorResponse).toHaveBeenCalledWith('Failed to start TA battle royale', 500, 'INTERNAL_ERROR');
+    expect(createAuditLogs).not.toHaveBeenCalled();
+    expect(NextResponse.json).not.toHaveBeenCalled();
+  });
+
+  /* Issue #2989 (merged from the former route-conflict.test.ts): a unique
+   * constraint violation (P2002) means the other concurrent request already
+   * created the entries, so the response is 409 BATTLE_ROYALE_ALREADY_STARTED
+   * (with a compensation rollback when later chunks had been written). */
+  it('2チャンク目でP2002になった場合は作成済み分をロールバックして409を返す', async () => {
+    const players = chunkedPlayers();
+    const createdPlayerIds = players.slice(0, TA_BATTLE_ROYALE_ENTRY_CHUNK).map(({ playerId }) => playerId);
+
+    mockPlayersForSuccessfulStart(players);
+    jest
+      .mocked(prisma.tTEntry.createMany)
+      .mockResolvedValueOnce({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK })
+      .mockRejectedValueOnce(createP2002Error());
+    jest.mocked(prisma.tTEntry.deleteMany).mockResolvedValue({ count: TA_BATTLE_ROYALE_ENTRY_CHUNK });
+
+    const response = await POST(createRequest(players), params);
+
+    expect(prisma.tTEntry.deleteMany).toHaveBeenCalledWith({
+      where: {
+        tournamentId: 'tournament-1',
+        stage: 'phase3',
+        playerId: { in: createdPlayerIds },
+      },
+    });
+    expect(createErrorResponse).toHaveBeenCalledWith(
+      'TA battle royale has already started',
+      409,
+      'BATTLE_ROYALE_ALREADY_STARTED',
+    );
+    expect(response).toEqual({
+      message: 'TA battle royale has already started',
+      status: 409,
+      code: 'BATTLE_ROYALE_ALREADY_STARTED',
+    });
+    expect(createAuditLogs).not.toHaveBeenCalled();
+    expect(NextResponse.json).not.toHaveBeenCalled();
+  });
+
+  it('1チャンク目でP2002になった場合はロールバックせず409を返す', async () => {
+    const players = [
+      { playerId: 'cl00000000000000000000001', taHandicapSeconds: 0 as const },
+      { playerId: 'cl00000000000000000000002', taHandicapSeconds: 0 as const },
+    ];
+
+    mockPlayersForSuccessfulStart(players);
+    jest.mocked(prisma.tTEntry.createMany).mockRejectedValueOnce(createP2002Error());
+
+    const response = await POST(createRequest(players), params);
+
+    expect(prisma.tTEntry.deleteMany).not.toHaveBeenCalled();
+    expect(createErrorResponse).toHaveBeenCalledWith(
+      'TA battle royale has already started',
+      409,
+      'BATTLE_ROYALE_ALREADY_STARTED',
+    );
+    expect(response).toEqual({
+      message: 'TA battle royale has already started',
+      status: 409,
+      code: 'BATTLE_ROYALE_ALREADY_STARTED',
+    });
     expect(createAuditLogs).not.toHaveBeenCalled();
     expect(NextResponse.json).not.toHaveBeenCalled();
   });

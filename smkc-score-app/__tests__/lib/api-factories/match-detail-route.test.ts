@@ -258,6 +258,63 @@ describe('Match Detail Route Factory', () => {
       );
     });
 
+    /* Issue #3045: in-progress (draft/active) tournaments report structurally
+     * incomplete seeds / manual slot overrides as `absent`, so the match
+     * detail GET must not raise FINALS_SEED_REPAIR_REQUIRED for them. */
+    it('does not reject an active tournament with a manual slot override', async () => {
+      const mockMatch = createMockMatch({
+        tournamentId: 'tournament-1',
+        stage: 'finals',
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+        slotOverrideAt: '2026-07-22T00:00:00.000Z',
+      });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).findMany.mockResolvedValue([mockMatch]);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        bmFinalsSeedSnapshot: null,
+        status: 'active',
+      });
+
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
+      await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockCreateErrorResponse).not.toHaveBeenCalledWith(
+        expect.stringContaining('cannot be safely reconstructed'),
+        409,
+        'FINALS_SEED_REPAIR_REQUIRED',
+      );
+    });
+
+    it('does not reject a draft tournament with an incomplete opening round', async () => {
+      const mockMatch = createMockMatch({
+        tournamentId: 'tournament-1',
+        stage: 'finals',
+        round: 'winners_qf',
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).findMany.mockResolvedValue([mockMatch]);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        bmFinalsSeedSnapshot: null,
+        status: 'draft',
+      });
+
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
+      await GET(new NextRequest('http://localhost:3000'), {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockCreateErrorResponse).not.toHaveBeenCalledWith(
+        expect.stringContaining('cannot be safely reconstructed'),
+        409,
+        'FINALS_SEED_REPAIR_REQUIRED',
+      );
+    });
+
     it('should allow unauthenticated GET by default', async () => {
       const mockMatch = createMockMatch();
       mockAuth.mockResolvedValue(null);
