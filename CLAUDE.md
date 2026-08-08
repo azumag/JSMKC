@@ -137,6 +137,7 @@ Agent(subagent_type="tdd-test-reviewer", prompt="変更内容をレビューし�
 ### 既知の問題
 
 - **マイグレーションは二重管理（要注意・最重要）**: `prisma/migrations/`（Prismaのスキーマ履歴）と `migrations/`（`wrangler d1 migrations apply` が読むD1実DB用SQL）は別物で自動同期されない。**Prismaマイグレーションを追加したら、必ず対応するSQLファイルを `migrations/` にも手動で追加すること**（連番は `migrations/` 側の最新+1、内容はPrisma版のSQLと同等でよい）。片方だけ追加してマージすると、デプロイされたWorkerのPrisma Clientは新カラム/テーブルを前提にする一方でD1実体には存在せず、該当テーブルへの全クエリが `no such column` で500になる（2026-07-27、PR #3055のQRログイン機能でこれが発生し本番・プレビュー両方の `/api/players` が全滅、手動復旧した）。CIの `migration-parity` ジョブ（`.github/workflows/ci.yml`）がPR時にこの片方漏れを検知して落とすので、赤くなったら確認すること。`npm run db:migrations:apply` / `:preview` はローカルからも実行可能。
+- **デプロイとD1マイグレーションの順序は保証されない（issue #3025）**: アプリのデプロイは GitHub Actions ではなく Cloudflare Workers Builds（ダッシュボード設定、push で独立起動）が行い、`d1-migrate.yml`（push トリガー）との実行順序は保証されない。そのため**マイグレーションは常に後方互換な追加のみ**（カラム追加・NULL許容化等）とする運用ルールを厳守すること。破壊的変更（リネーム・型変更・デフォルト変更）を伴う場合は、先にマイグレーションだけを別PRでマージし、アプリコードの変更をその後のPRに分けること。`d1-migrate.yml` の適用後ステップは `wrangler d1 migrations list --json` をパースして未適用残存を失敗として検出する（issue #3024）。
 - **D1 インタラクティブトランザクション非対応**: `prisma.$transaction(async (tx) => {...})` は使用不可。直接クエリで代替（optimistic-locking.ts参照）
 - **D1 の意図的な残置カラム**: Prismaから削除済みでも物理D1に残すカラムは `smkc-score-app/docs/d1-orphaned-columns.md` に必ず記録する。残置カラムを再利用せず、物理削除はテーブル再構築・データ検証・復旧手順を含む専用マイグレーションとして扱う
 - **API レスポンス形式**: `createSuccessResponse()` は `{ success: true, data: {...} }` でラップする。フロントエンドで `.data ?? json` でアンラップが必要

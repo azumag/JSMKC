@@ -43,15 +43,23 @@ jobs:
           added_prisma=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- prisma/migrations | grep '/migration\.sql$' || true)
           added_d1=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- migrations | grep '\.sql$' || true)
 
-          if [ -n "$added_prisma" ] && [ -z "$added_d1" ]; then
-            echo "::error::This PR adds a Prisma migration but no D1 migration file under smkc-score-app/migrations/."
+          # Issue #3064: compare counts (1:1 parity), not mere existence, so a
+          # PR adding two Prisma migrations but only one D1 file still fails.
+          prisma_count=$(printf '%s\n' "$added_prisma" | grep -c . || true)
+          d1_count=$(printf '%s\n' "$added_d1" | grep -c . || true)
+
+          if [ "$prisma_count" -ne "$d1_count" ]; then
+            echo "::error::This PR adds ${prisma_count} Prisma migration(s) but ${d1_count} D1 migration file(s) under smkc-score-app/migrations/ — they must match 1:1."
             echo "D1 (Cloudflare Workers) does not read prisma/migrations — it needs a hand-written"
             echo "equivalent .sql file under migrations/, applied via 'wrangler d1 migrations apply'."
             echo "Without it, the deployed Worker's Prisma Client expects columns/tables that don't"
             echo "exist in D1, and every query touching them fails at runtime. See CLAUDE.md."
             echo ""
-            echo "New Prisma migration(s) with no matching D1 file:"
+            echo "New Prisma migration(s):"
             echo "$added_prisma"
+            echo ""
+            echo "New D1 migration file(s):"
+            echo "$added_d1"
             exit 1
           fi
 
