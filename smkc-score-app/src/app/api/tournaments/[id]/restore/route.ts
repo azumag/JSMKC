@@ -4,6 +4,7 @@ import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/
 import { createLogger } from '@/lib/logger';
 import { readTournamentArchive } from '@/lib/tournament-archive';
 import { restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
 function restoreStageFromError(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('restoreStage' in error)) return null;
@@ -70,7 +71,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       error,
       identifier: id,
     });
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+    if (isPrismaErrorCode(error, 'P2002')) {
       return createErrorResponse('Tournament or player data conflicts with an existing record', 409, 'CONFLICT');
     }
 

@@ -88,6 +88,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
 import { createAuditLog } from '@/lib/audit-log';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const loggerMock = jest.requireMock('@/lib/logger');
 
@@ -163,9 +164,7 @@ describe('POST /api/players/[id]/reset-password', () => {
       const route = (await import('@/app/api/players/[id]/reset-password/route')).POST;
       await route(makeRequest(), playerParams);
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true }),
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       expect(mockLoggerInstance.warn).toHaveBeenCalled();
     });
   });
@@ -177,10 +176,7 @@ describe('POST /api/players/[id]/reset-password', () => {
       const route = (await import('@/app/api/players/[id]/reset-password/route')).POST;
       await route(makeRequest(), playerParams);
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({ status: 403 }),
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ status: 403 }));
       expect(prisma.player.findUnique).not.toHaveBeenCalled();
     });
 
@@ -190,10 +186,7 @@ describe('POST /api/players/[id]/reset-password', () => {
       const route = (await import('@/app/api/players/[id]/reset-password/route')).POST;
       await route(makeRequest(), playerParams);
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({ status: 403 }),
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ status: 403 }));
     });
   });
 
@@ -214,7 +207,7 @@ describe('POST /api/players/[id]/reset-password', () => {
     it('should return 404 when Prisma throws P2025 (record not found)', async () => {
       auth.mockResolvedValue(adminSession);
       prisma.player.findUnique.mockResolvedValue(mockPlayer);
-      const prismaNotFound = Object.assign(new Error('Not found'), { code: 'P2025' });
+      const prismaNotFound = new PrismaClientKnownRequestError('Not found', { code: 'P2025', clientVersion: 'test' });
       prisma.player.update.mockRejectedValue(prismaNotFound);
 
       const route = (await import('@/app/api/players/[id]/reset-password/route')).POST;

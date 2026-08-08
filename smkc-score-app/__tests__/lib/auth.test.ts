@@ -301,6 +301,15 @@ describe('authConfig', () => {
   });
 
   describe('jwt callback', () => {
+    beforeEach(() => {
+      // Issue #3065: the jwt callback revalidates the player row on a timer,
+      // so every player-token test needs a live (non-deleted) player lookup.
+      (prisma.player.findUnique as jest.Mock).mockResolvedValue({
+        id: 'player-1',
+        deletedAt: null,
+      });
+    });
+
     it('creates a token for credential logins', async () => {
       const result = await authConfig.callbacks.jwt({
         token: {},
@@ -361,6 +370,84 @@ describe('authConfig', () => {
       });
 
       expect(result.accessTokenExpires).toBeGreaterThan(now);
+    });
+
+    /* Issue #3065: a deleted player's existing JWT session must not keep
+     * working. The jwt callback strips the player identity when the row is
+     * gone or soft-deleted, on a 15-minute revalidation timer. */
+    it('invalidates the session when the player row is soft-deleted', async () => {
+      (prisma.player.findUnique as jest.Mock).mockResolvedValue({
+        id: 'player-1',
+        deletedAt: '2026-07-27T00:00:00.000Z',
+      });
+
+      const result = await authConfig.callbacks.jwt({
+        token: {
+          sub: 'player-1',
+          role: 'player',
+          userType: 'player',
+          playerId: 'player-1',
+          nickname: 'deleted-player',
+          playerStatusCheckedAt: 0,
+        },
+      });
+
+      expect(result.role).toBeUndefined();
+      expect(result.userType).toBeUndefined();
+      expect(result.playerId).toBeUndefined();
+      expect(result.nickname).toBeUndefined();
+    });
+
+    it('invalidates the session when the player row no longer exists', async () => {
+      (prisma.player.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const result = await authConfig.callbacks.jwt({
+        token: {
+          sub: 'player-1',
+          role: 'player',
+          userType: 'player',
+          playerId: 'player-1',
+          nickname: 'gone-player',
+          playerStatusCheckedAt: 0,
+        },
+      });
+
+      expect(result.playerId).toBeUndefined();
+      expect(result.userType).toBeUndefined();
+    });
+
+    it('keeps the session when the player row is still active', async () => {
+      const now = Date.now();
+      const result = await authConfig.callbacks.jwt({
+        token: {
+          sub: 'player-1',
+          role: 'player',
+          userType: 'player',
+          playerId: 'player-1',
+          nickname: 'live-player',
+          playerStatusCheckedAt: 0,
+        },
+      });
+
+      expect(result.playerId).toBe('player-1');
+      expect(result.userType).toBe('player');
+      expect(result.playerStatusCheckedAt).toBeGreaterThan(now - 1000);
+    });
+
+    it('skips the DB revalidation while the timer has not elapsed', async () => {
+      const now = Date.now();
+      await authConfig.callbacks.jwt({
+        token: {
+          sub: 'player-1',
+          role: 'player',
+          userType: 'player',
+          playerId: 'player-1',
+          nickname: 'cached-player',
+          playerStatusCheckedAt: now,
+        },
+      });
+
+      expect(prisma.player.findUnique).not.toHaveBeenCalled();
     });
   });
 

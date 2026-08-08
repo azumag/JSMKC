@@ -31,8 +31,10 @@ export interface SlotStatusResult {
 
 /** API/archive representation for a bracket row. TBD slots deliberately expose
  * no participant, including for legacy rows that still persist a seed-1
- * placeholder. */
-export type SerializedFinalsSlot<T extends SlotStatusMatch> = T & {
+ * placeholder. `slotOverrideBy` (the admin user id) is an internal audit
+ * detail and is stripped from the public response (issue #3022); the
+ * frontend badge only reads `slotOverrideAt`. */
+export type SerializedFinalsSlot<T extends SlotStatusMatch> = Omit<T, 'slotOverrideBy'> & {
   player1Tbd: boolean;
   player2Tbd: boolean;
   player1Id: string | null;
@@ -108,8 +110,9 @@ export function serializeFinalsSlots<T extends SlotStatusMatch>(
 ): SerializedFinalsSlot<T>[] {
   return matches.map((match) => {
     const status = getFinalsSlotStatus(match.matchNumber, statusMatches, bracketStructure);
+    const { slotOverrideBy: _slotOverrideBy, ...matchWithoutOverrideBy } = match;
     return {
-      ...match,
+      ...matchWithoutOverrideBy,
       player1Tbd: status.player1,
       player2Tbd: status.player2,
       ...(status.player1 ? { player1Id: null, player1: null } : {}),

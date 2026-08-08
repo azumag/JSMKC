@@ -103,6 +103,7 @@ jest.mock('next/server', () => {
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import * as tournamentRoute from '@/app/api/tournaments/[id]/route';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const auditLogMock = jest.requireMock('@/lib/audit-log') as {
   createAuditLog: jest.Mock;
@@ -886,8 +887,10 @@ describe('PUT /api/tournaments/[id]', () => {
     });
 
     it('should return 404 when tournament not found (P2025)', async () => {
-      const prismaError = new Error('Record not found') as Error & { code?: string };
-      prismaError.code = 'P2025';
+      const prismaError = new PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      });
 
       jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },

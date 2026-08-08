@@ -22,11 +22,9 @@ import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-l
 import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const logger = createLogger('players-reset-password-api');
   const { id } = await params;
 
@@ -62,11 +60,13 @@ export async function POST(
         targetId: id,
         targetType: 'Player',
         details: { playerNickname: player.nickname, passwordRegenerated: true },
-      }).catch((err) => logger.warn('Failed to create audit log', {
-        error: err,
-        playerId: id,
-        action: 'reset_player_password',
-      }));
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          playerId: id,
+          action: 'reset_player_password',
+        }),
+      );
     } catch (logError) {
       // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
@@ -80,12 +80,7 @@ export async function POST(
   } catch (error: unknown) {
     logger.error('Failed to reset player password', { error, playerId: id });
 
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === 'P2025'
-    ) {
+    if (isPrismaErrorCode(error, 'P2025')) {
       return createErrorResponse('Player not found', 404);
     }
 

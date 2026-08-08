@@ -1030,6 +1030,8 @@ function logAutoAdvanceOverrideIfNeeded(
 
 interface SwapSlotsWriteParams {
   tournamentId: string;
+  /** Must match for both rows; guards against cross-stage collisions (issue #3021). */
+  stage: string;
   round: string;
   idA: string;
   versionA: number;
@@ -1078,7 +1080,7 @@ async function applySwapSlotsWrite(tableName: string, params: SwapSlotsWritePara
       "slotOverrideAt" = ${params.slotOverride.at},
       "updatedAt" = CURRENT_TIMESTAMP
     WHERE "tournamentId" = ${params.tournamentId}
-      AND "stage" IN ('finals', 'playoff')
+      AND "stage" = ${params.stage}
       AND "round" = ${params.round}
       AND "completed" = 0 AND "isBye" = 0
       AND (
@@ -1088,7 +1090,7 @@ async function applySwapSlotsWrite(tableName: string, params: SwapSlotsWritePara
       AND (
         SELECT COUNT(*) FROM ${table} g
         WHERE g."tournamentId" = ${params.tournamentId}
-          AND g."stage" IN ('finals', 'playoff')
+          AND g."stage" = ${params.stage}
           AND g."round" = ${params.round}
           AND g."completed" = 0 AND g."isBye" = 0
           AND (
@@ -4258,6 +4260,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
     if (targetExisting.stage !== 'finals' && targetExisting.stage !== 'playoff') {
       return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
     }
+    if (existing.stage !== targetExisting.stage) {
+      return createErrorResponse('swapSlots is only allowed between matches in the same stage', 400, 'STAGE_MISMATCH');
+    }
     if (existing.round !== targetExisting.round) {
       return createErrorResponse('swapSlots is only allowed between matches in the same round', 400, 'ROUND_MISMATCH');
     }
@@ -4301,6 +4306,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     const affected = await applySwapSlotsWrite(tableName, {
       tournamentId,
+      stage: existing.stage,
       round: existing.round,
       idA: existing.id,
       versionA: expectedVersion,
