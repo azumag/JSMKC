@@ -10,19 +10,14 @@
 const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const {
-  launchPersistentChromiumContext,
-  resolveE2EProfileDir,
-} = require('./lib/common');
-const {
-  buildPreviewRuntimeEnv,
-  assertBaseUrlResolvable,
-} = require('./run-preview');
+const { launchPersistentChromiumContext, resolveE2EProfileDir } = require('./lib/common');
+const { buildPreviewRuntimeEnv, assertBaseUrlResolvable } = require('./run-preview');
 
 function hasNextAuthSessionCookie(profileDir) {
   const db = path.join(profileDir, 'Default', 'Cookies');
   if (!fs.existsSync(db)) return false;
-  const sql = "SELECT 1 FROM cookies WHERE name IN ('next-auth.session-token','__Secure-next-auth.session-token') LIMIT 1;";
+  const sql =
+    "SELECT 1 FROM cookies WHERE name IN ('next-auth.session-token','__Secure-next-auth.session-token') LIMIT 1;";
   const result = spawnSync('sqlite3', [db, sql], { encoding: 'utf8' });
   if (result.status !== 0) return false;
   return result.stdout.trim().length > 0;
