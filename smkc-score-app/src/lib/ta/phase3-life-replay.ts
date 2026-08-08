@@ -32,7 +32,7 @@
 import type { Phase3Rules } from './battle-royale';
 import { orderResultsWithSuddenDeathChain } from './sudden-death-order';
 
-export type Phase3LifeRules = Pick<Phase3Rules, 'initialLives' | 'lifeResetThresholds'>;
+export type Phase3LifeRules = Pick<Phase3Rules, 'initialLives'>;
 
 export interface Phase3RoundResultLike {
   playerId: string;

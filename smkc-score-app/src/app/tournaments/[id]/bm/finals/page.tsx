@@ -26,6 +26,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, use } from 'react';
+import { useSlotEditWiring } from '@/lib/hooks/use-slot-edit-wiring';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -211,9 +212,8 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
   /* Manual bracket slot placement adjustment (issue #3017): admins toggle
    * "adjustment mode" to expose per-slot edit affordances on the bracket
    * cards; clicking one opens BracketSlotEditDialog. */
-  const [slotEditMode, setSlotEditMode] = useState(false);
-  const [slotEditTarget, setSlotEditTarget] = useState<{ match: BMMatch; slot: 1 | 2 } | null>(null);
-  const handleSlotClick = (match: BMMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
+  const { slotEditMode, setSlotEditMode, slotEditTarget, setSlotEditTarget, handleSlotClick } =
+    useSlotEditWiring<BMMatch>();
   const selectedMatchTargetWins =
     selectedMatch?.targetWins ?? (selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins());
 

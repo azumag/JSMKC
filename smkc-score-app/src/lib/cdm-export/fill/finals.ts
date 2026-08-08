@@ -42,14 +42,12 @@
 
 import { createLogger } from '@/lib/logger';
 import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
-import { TWO_GROUP_DIRECT_UPPER_SEEDS } from '@/lib/finals-group-selection';
 import type { BracketMatch } from '@/types/bracket';
 import {
   FINALS_BRACKET_SLOTS,
   FINALS_BLOCK_SEED_OFFSET,
   FINALS_BLOCK_NAME_OFFSET,
   FINALS_BLOCK_SCORE_OFFSET,
-  FINALS_DIRECT_UPPER_SEEDS,
   FINALS_SEED_LIST_COLUMN,
   FINALS_SEED_LIST_FIRST_ROW,
   FINALS_SEED_LIST_MAX_ROWS,
@@ -295,8 +293,6 @@ function reconstruct24(byRound: Map<string, CdmMatch[]>, data: CdmTournamentData
   const bPositionPlayers = new Map<number, CdmPlayer>();
   const seedBPositionBySlot = new Map<string, number>();
   const groupCount = qualificationGroupCount(data, mode);
-  const directUpperSeeds =
-    groupCount === 2 ? TWO_GROUP_DIRECT_UPPER_SEEDS.map(({ seed }) => seed) : [...FINALS_DIRECT_UPPER_SEEDS];
 
   const structure16 = generateBracketStructure(SIXTEEN, groupCount);
   const r1Structure = structure16.filter((m) => m.round === 'winners_r1');
@@ -313,7 +309,6 @@ function reconstruct24(byRound: Map<string, CdmMatch[]>, data: CdmTournamentData
       struct.player1Seed,
       appMatch.player1,
       true,
-      directUpperSeeds,
       bPositionPlayers,
       seedBPositionBySlot,
     );
@@ -324,7 +319,6 @@ function reconstruct24(byRound: Map<string, CdmMatch[]>, data: CdmTournamentData
       struct.player2Seed,
       appMatch.player2,
       true,
-      directUpperSeeds,
       bPositionPlayers,
       seedBPositionBySlot,
     );
@@ -367,10 +361,9 @@ function applyOriginalSeedSnapshot(
 
 /**
  * Assign one direct-qualifier typed slot. `upperSeed` is the structural upper
- * seed (1..16). Only direct seeds (those in FINALS_DIRECT_UPPER_SEEDS, i.e.
- * 1..12) are typed; playoff-winner seeds (13..16) are formula slots and are
- * skipped — which is consistent with the slot-semantics table marking them
- * winnerOf.
+ * seed (1..16). Only direct seeds 1..12 are typed; playoff-winner seeds
+ * (13..16) are formula slots and are skipped — which is consistent with the
+ * slot-semantics table marking them winnerOf.
  */
 function assignTypedSeed(
   round: string,
@@ -379,15 +372,13 @@ function assignTypedSeed(
   upperSeed: number | undefined,
   player: CdmPlayer,
   asDirect: boolean,
-  directUpperSeeds: readonly number[],
   bPositionPlayers: Map<number, CdmPlayer>,
   seedBPositionBySlot: Map<string, number>,
 ): void {
   if (upperSeed == null) return;
   if (asDirect) {
-    const directIndex = directUpperSeeds.indexOf(upperSeed);
-    if (directIndex < 0) return; // playoff-winner slot -> formula, not typed.
-    const bPos = directIndex + 1; // B-positions 1..12.
+    if (upperSeed < 1 || upperSeed > 12) return; // playoff-winner slot -> formula, not typed.
+    const bPos = upperSeed; // B-positions 1..12, identity mapping since seeds are contiguous.
     bPositionPlayers.set(bPos, player);
     seedBPositionBySlot.set(slotKey(round, matchIndex, slotIndex), bPos);
   }
@@ -994,7 +985,7 @@ function reconstructPlayoffOnly(
   // is already a playoff entrant (they hold B 13..24).
   const playoffPlayerIds = new Set([...bPositionPlayers.values()].map((p) => p.id));
   const ranked = rankQualifiers(qualsForMode(data, mode)).filter((q) => !playoffPlayerIds.has(q.player.id));
-  ranked.slice(0, FINALS_DIRECT_UPPER_SEEDS.length).forEach((q, i) => {
+  ranked.slice(0, 12).forEach((q, i) => {
     bPositionPlayers.set(i + 1, q.player); // B 1..12
   });
   applyOriginalSeedSnapshot(data, mode, bPositionPlayers, seedBPositionBySlot);

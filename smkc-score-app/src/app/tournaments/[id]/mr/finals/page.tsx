@@ -20,6 +20,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, use } from 'react';
+import { useSlotEditWiring } from '@/lib/hooks/use-slot-edit-wiring';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -239,9 +240,8 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
    * bracket cards; clicking one opens BracketSlotEditDialog. Mirrors the BM
    * finals page wiring — the underlying API/components are already generic
    * across BM/MR/GP, only this page's wiring was missing. */
-  const [slotEditMode, setSlotEditMode] = useState(false);
-  const [slotEditTarget, setSlotEditTarget] = useState<{ match: MRMatch; slot: 1 | 2 } | null>(null);
-  const handleSlotClick = (match: MRMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
+  const { slotEditMode, setSlotEditMode, slotEditTarget, setSlotEditTarget, handleSlotClick } =
+    useSlotEditWiring<MRMatch>();
 
   /**
    * Fetch finals bracket data including matches,
