@@ -2509,9 +2509,12 @@ export async function resetPhase(
  * validation (toggle, open round, eliminated player, ownership) happens in
  * the API route; this function only writes.
  *
- * D1 has no interactive transactions, so the read-modify-write is done as a
- * single UPDATE; concurrent reports from the same player are last-write-wins,
- * which is acceptable since only the stale report would be lost.
+ * D1 has no interactive transactions, so the upsert is executed as a single
+ * atomic UPDATE using SQLite's JSON1 functions (issue #3092): the existing
+ * array is filtered with json_each/json_group_array and the new row appended
+ * with json_insert — concurrent reports from different players cannot
+ * overwrite each other. Throws if the round row is gone (0 rows updated),
+ * e.g. a concurrent phase reset (issue #3097).
  */
 export async function reportPhase3Time(
   prisma: PrismaClient,
@@ -2519,18 +2522,34 @@ export async function reportPhase3Time(
   playerId: string,
   timeMs: number,
 ): Promise<{ playerId: string; timeMs: number; reportedAt: string }> {
-  const round = await prisma.tTPhaseRound.findUnique({ where: { id: roundId } });
-  if (!round) {
+  const reportedAt = new Date().toISOString();
+  /* Issue #3092: a read-modify-write of the reportedResults JSON would lose a
+   * concurrent player's report (last write wins with the stale array). D1 has
+   * no interactive transactions, so do the upsert atomically with SQLite's
+   * JSON1 functions: drop any existing entry for this player and append the
+   * new one in a single UPDATE. No separate existence check is needed: a
+   * missing round matches 0 rows and is reported below (issue #3100). */
+  const reportedRow = JSON.stringify({ playerId, timeMs, reportedAt });
+  const affected = await prisma.$executeRaw(Prisma.sql`
+    UPDATE "TTPhaseRound"
+    SET "reportedResults" = (
+      SELECT json_insert(
+        COALESCE(
+          (SELECT json_group_array(value) FROM json_each(COALESCE("reportedResults", '[]'))
+           WHERE json_extract(value, '$.playerId') != ${playerId}),
+          '[]'
+        ),
+        '$[#]',
+        json(${reportedRow})
+      )
+    )
+    WHERE "id" = ${roundId}
+  `);
+  // Issue #3097: a missing round (never existed, or deleted by a concurrent
+  // phase reset) matches 0 rows. Surface that instead of silently returning
+  // success without persisting the report.
+  if (Number(affected) === 0) {
     throw new Error('Phase 3 round not found');
   }
-  const existing = Array.isArray(round.reportedResults)
-    ? (round.reportedResults as Array<{ playerId: string; timeMs: number; reportedAt?: string }>)
-    : [];
-  const reportedAt = new Date().toISOString();
-  const next = [...existing.filter((row) => row.playerId !== playerId), { playerId, timeMs, reportedAt }];
-  await prisma.tTPhaseRound.update({
-    where: { id: roundId },
-    data: { reportedResults: next as unknown as Prisma.InputJsonValue },
-  });
   return { playerId, timeMs, reportedAt };
 }

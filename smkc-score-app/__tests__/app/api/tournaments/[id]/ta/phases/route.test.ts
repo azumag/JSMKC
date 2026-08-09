@@ -1465,6 +1465,19 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       );
     });
 
+    /* Issue #3093: a stale roundNumber in the request must be rejected. */
+    it('rejects when the requested round number does not match the open round', async () => {
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 2, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'ROUND_MISMATCH' }),
+        { status: 409 },
+      );
+    });
+
     it('rejects when the player has no phase3 entry', async () => {
       (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
 
