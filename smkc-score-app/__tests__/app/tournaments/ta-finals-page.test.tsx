@@ -455,6 +455,53 @@ describe('TimeAttackFinals — round history remaining-life display', () => {
     expect(text).toMatch(/Luigi.*3 left/);
   });
 
+  /* Issue #3074: a player eliminated in a round shows the "(Eliminated)" tag
+   * but must NOT also show the "0 left" remaining-life badge (redundant). */
+  it('hides the remaining-life badge for players eliminated in the round', async () => {
+    mockUseSession.mockReturnValue({ data: null } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          entries: [
+            makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: 0, eliminated: true }),
+            makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi', lives: 2 }),
+          ],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase3',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [
+                { playerId: 'p-1', timeMs: 60000, isRetry: false, livesAfter: 0, lifeLost: true },
+                { playerId: 'p-2', timeMs: 70000, isRetry: false, livesAfter: 2, lifeLost: false },
+              ],
+              eliminatedIds: ['p-1'],
+              livesReset: false,
+              manualOverride: false,
+            },
+          ],
+          availableCourses: ['GV2'],
+          playedCourses: ['GV1'],
+        },
+      }),
+    });
+
+    const { container } = render(<TimeAttackFinals params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Round History')).toBeInTheDocument();
+    });
+    const fullText = container.textContent ?? '';
+    const text = fullText.slice(fullText.indexOf('Round History'));
+    // Eliminated player: eliminated tag present, but no "0 left" badge.
+    expect(text).toMatch(/Mario.*\(Eliminated\)/);
+    expect(text).not.toMatch(/Mario.*0 left/);
+    // Non-eliminated player keeps their remaining-life badge.
+    expect(text).toMatch(/Luigi.*2 left/);
+  });
+
   it('interleaves a manual life adjustment with round history and shows before/after, timestamp, and actor', async () => {
     mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
     global.fetch = jest.fn().mockResolvedValue({

@@ -482,4 +482,21 @@ describe('restoreTournamentArchiveForReopen', () => {
     );
     expect(prisma.player.deleteMany).toHaveBeenCalledWith({ where: { id: 'player-created' } });
   });
+
+  /* Issue #3077: if restorePlayers() itself fails partway through its loop,
+   * the players created before the failure must still be rolled back. */
+  it('rolls back players created before a failure inside restorePlayers', async () => {
+    const archive = makeArchive();
+    archive.allPlayers = [
+      player,
+      { id: 'player-2', name: 'Player Two', nickname: 'p2', country: null, noCamera: false },
+    ];
+    (prisma.player.create as jest.Mock)
+      .mockResolvedValueOnce({ id: 'player-1' })
+      .mockRejectedValueOnce(new Error('D1 write failed'));
+    (prisma.player.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+    await expect(restoreTournamentArchiveForReopen(archive)).rejects.toThrow('Archive restore failed at players');
+    expect(prisma.player.deleteMany).toHaveBeenCalledWith({ where: { id: 'player-1' } });
+  });
 });
