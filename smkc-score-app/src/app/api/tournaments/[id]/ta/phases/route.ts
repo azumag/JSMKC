@@ -947,6 +947,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const isBusinessError =
       err instanceof Error &&
       (internalMessage.startsWith('Round ') ||
+        internalMessage.startsWith('Phase ') ||
         internalMessage.startsWith('No active') ||
         internalMessage.startsWith('Invalid player') ||
         internalMessage.startsWith('Missing results') ||

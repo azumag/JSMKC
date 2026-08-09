@@ -1522,6 +1522,23 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
         { status: 403 },
       );
     });
+
+    /* Issue #3104: when reportPhase3Time reports the round is gone (0-row
+     * UPDATE), the message must be treated as a business error (400), not a
+     * generic 500. */
+    it('maps a missing round from reportPhase3Time to a 400 business error', async () => {
+      (reportPhase3Time as jest.Mock).mockRejectedValue(new Error('Phase 3 round not found'));
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 1, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, error: 'Phase 3 round not found' }),
+        { status: 400 },
+      );
+    });
   });
 
   it('should return 404 when tournament not found', async () => {

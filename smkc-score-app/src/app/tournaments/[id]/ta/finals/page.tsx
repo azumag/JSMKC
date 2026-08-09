@@ -379,7 +379,6 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   // (issue #3102) to avoid needless D1 polling.
   useEffect(() => {
     if (!isEditing || !currentRound || !taMode) return;
-    let reportEnabled = true;
     const interval = setInterval(async () => {
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
@@ -387,7 +386,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         const json = await response.json();
         const data = json.data ?? json;
         if (data.taPlayerReportEnabled === false) {
-          reportEnabled = false;
+          // Issue #3102: participant reporting is off — stop the poller.
           clearInterval(interval);
           return;
         }
