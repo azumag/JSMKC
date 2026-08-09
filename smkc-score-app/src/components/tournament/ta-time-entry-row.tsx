@@ -1,9 +1,9 @@
-import { memo } from "react";
-import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { TV_NUMBER_OPTIONS } from "@/lib/constants";
+import { memo } from 'react';
+import type { ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { TV_NUMBER_OPTIONS } from '@/lib/constants';
 import {
   TA_TIME_ENTRY_CONTROLS_CLASS,
   TA_TIME_ENTRY_INPUT_CLASS,
@@ -12,13 +12,15 @@ import {
   TA_TIME_ENTRY_ROW_CLASS,
   type TaTimeInputProps,
   parseTvNumberInput,
-} from "@/lib/ta/time-entry-layout";
+} from '@/lib/ta/time-entry-layout';
 
 type TaTimeEntryRowProps = {
   playerId: string;
   playerName: string;
   /** Optional lives indicator: finals phase renders heart icons, elimination phases omit it. */
   livesLabel?: ReactNode;
+  /** Optional report-status badge (issue #2994): shown next to the player name. */
+  reportBadge?: ReactNode;
   tvNumber: number | null;
   tvLabel: string;
   timeValue: string;
@@ -38,6 +40,7 @@ export const TaTimeEntryRow = memo(function TaTimeEntryRow({
   playerId,
   playerName,
   livesLabel,
+  reportBadge,
   tvNumber,
   tvLabel,
   timeValue,
@@ -53,53 +56,41 @@ export const TaTimeEntryRow = memo(function TaTimeEntryRow({
   onRetryToggle,
 }: TaTimeEntryRowProps) {
   return (
-    <div
-      className={TA_TIME_ENTRY_ROW_CLASS}
-      data-testid="ta-time-entry-row"
-    >
+    <div className={TA_TIME_ENTRY_ROW_CLASS} data-testid="ta-time-entry-row">
       <div className={TA_TIME_ENTRY_PLAYER_LABEL_CLASS}>
-        <Label
-          className={TA_TIME_ENTRY_PLAYER_NAME_CLASS}
-          data-testid="ta-time-entry-player-name"
-        >
+        <Label className={TA_TIME_ENTRY_PLAYER_NAME_CLASS} data-testid="ta-time-entry-player-name">
           {playerName}
         </Label>
-        {livesLabel != null && (
-          <div className="text-xs text-muted-foreground">
-            {livesLabel}
-          </div>
-        )}
+        {reportBadge != null && <div className="mt-0.5">{reportBadge}</div>}
+        {livesLabel != null && <div className="text-xs text-muted-foreground">{livesLabel}</div>}
       </div>
-      <div
-        className={TA_TIME_ENTRY_CONTROLS_CLASS}
-        data-testid="ta-time-entry-controls"
-      >
+      <div className={TA_TIME_ENTRY_CONTROLS_CLASS} data-testid="ta-time-entry-controls">
         <select
           className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
-          value={tvNumber ?? ""}
-          onChange={(e) =>
-            onTvChange(playerId, parseTvNumberInput(e.target.value))
-          }
+          value={tvNumber ?? ''}
+          onChange={(e) => onTvChange(playerId, parseTvNumberInput(e.target.value))}
           aria-label={tvLabel}
         >
           <option value="">-</option>
-          {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>TV{n}</option>)}
+          {TV_NUMBER_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              TV{n}
+            </option>
+          ))}
         </select>
         <Input
           type="text"
           {...timeInputProps}
           placeholder={timePlaceholder}
           value={timeValue}
-          onChange={(e) =>
-            onTimeChange(playerId, e.target.value)
-          }
+          onChange={(e) => onTimeChange(playerId, e.target.value)}
           onBlur={() => onTimeBlur(playerId)}
           disabled={isRetry}
           className={TA_TIME_ENTRY_INPUT_CLASS}
         />
         {/* Retry penalty button: sets time to 9:59.990 */}
         <Button
-          variant={isRetry ? "destructive" : "outline"}
+          variant={isRetry ? 'destructive' : 'outline'}
           size="sm"
           onClick={() => onRetryToggle(playerId)}
           title={retryTitle}

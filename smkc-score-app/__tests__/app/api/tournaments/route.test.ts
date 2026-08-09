@@ -432,6 +432,7 @@ describe('POST /api/tournaments', () => {
             dualReportEnabled: false,
             taPlayerSelfEdit: true,
             taBattleRoyaleMode: true,
+            taPlayerReportEnabled: false,
             qualificationScheduleMethod: 'cdm',
             debugMode: false,
             publicModes: [],

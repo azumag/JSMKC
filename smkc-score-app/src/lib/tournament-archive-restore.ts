@@ -308,8 +308,11 @@ function ttEntryRows(bundle: TournamentArchiveBundle, tournamentId: string, play
 function ttPhaseRoundRows(bundle: TournamentArchiveBundle, tournamentId: string, playerIds: Map<string, string>) {
   return (bundle.modes.ta.phaseRounds ?? []).map((value) => {
     const row = cleanArchivedRow(value, tournamentId);
+    // Participant reports (issue #2994) are transient input aid, not durable
+    // history; drop them defensively even if an old archive carries the field.
+    delete row.reportedResults;
     const remappedResults = remapPlayerIdsDeep(row.results, playerIds);
-    row.results = remappedResults === null || remappedResults === undefined ? [] : remappedResults;
+    row.results = normalizeRequiredJson(remappedResults, []);
     row.eliminatedIds = remapPlayerIdsDeep(row.eliminatedIds, playerIds);
     return normalizeNullableJsonFields(row, NULLABLE_JSON_FIELDS.ttPhaseRound);
   });

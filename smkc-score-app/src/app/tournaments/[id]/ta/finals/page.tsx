@@ -129,6 +129,8 @@ interface PhaseRound {
     lifeLost?: boolean;
   }>;
   eliminatedIds: string[] | null;
+  /** Phase 3 participant-reported times (issue #2994), separate from results. */
+  reportedResults?: Array<{ playerId: string; timeMs: number; reportedAt?: string }> | null;
   livesReset: boolean;
   manualOverride: boolean;
   /** Lives phase3's bottom half loses this round. Defaults to 1; only TA battle royale admins may configure otherwise. */
@@ -270,6 +272,24 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setAvailableCourses(data.availableCourses || []);
       setPlayedCourses(data.playedCourses || []);
 
+      // Issue #2994: while an open round is on screen, fill empty time inputs
+      // from participant reports as they arrive (never overwrite a typed
+      // value). The polling loop is paused while the admin is editing, so this
+      // cannot clobber in-progress input.
+      const openRound = fetchedRounds.filter((r) => Array.isArray(r.results) && r.results.length === 0).pop();
+      if (openRound && currentRound && !isEditing) {
+        const reported = Array.isArray(openRound.reportedResults) ? openRound.reportedResults : [];
+        setCourseTimes((prev) => {
+          let next = prev;
+          for (const r of reported as Array<{ playerId: string; timeMs: number }>) {
+            if (!next[r.playerId]) {
+              next = { ...next, [r.playerId]: msToDisplayTime(r.timeMs) };
+            }
+          }
+          return next;
+        });
+      }
+
       // Build player name map from entries
       const nameMap: Record<string, string> = {};
       fetchedEntries.forEach((e: TTEntry) => {
@@ -280,17 +300,23 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       // Auto-recover open (unsubmitted) rounds: if there's a round with empty
       // results in the DB and the client doesn't have a currentRound set,
       // automatically enter the time entry UI. Prevents orphaned rounds from
-      // being invisible after page reloads.
+      // being invisible after page reloads. Participant reports (issue #2994)
+      // prefill the time inputs so the admin only has to verify and confirm.
       if (fetchedRounds.length > 0) {
         const lastRound = fetchedRounds[fetchedRounds.length - 1];
         const lastRoundResults = lastRound.results as unknown[];
         if (lastRoundResults.length === 0 && !currentRound) {
           const activeEntries = fetchedEntries.filter((e) => !e.eliminated);
+          const reported = Array.isArray(lastRound.reportedResults) ? lastRound.reportedResults : [];
+          const reportedByPlayer = new Map(
+            (reported as Array<{ playerId: string; timeMs: number }>).map((r) => [r.playerId, r.timeMs]),
+          );
           const initialTimes: Record<string, string> = {};
           const initialRetry: Record<string, boolean> = {};
           const initialTv: Record<string, number | null> = {};
           activeEntries.forEach((entry) => {
-            initialTimes[entry.playerId] = '';
+            const reportedMs = reportedByPlayer.get(entry.playerId);
+            initialTimes[entry.playerId] = reportedMs != null ? msToDisplayTime(reportedMs) : '';
             initialRetry[entry.playerId] = false;
             initialTv[entry.playerId] = null;
           });
@@ -1006,11 +1032,47 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
               )}
               <div className="space-y-3">
                 <p className={TA_TIME_INPUT_HELP_CLASS}>{tTaFinals('timeInputHelp')}</p>
+                {(() => {
+                  const openRoundRow = currentRound
+                    ? rounds.find((r) => r.roundNumber === currentRound.roundNumber)
+                    : undefined;
+                  const openReported = Array.isArray(openRoundRow?.reportedResults)
+                    ? (openRoundRow.reportedResults as Array<{ playerId: string }>)
+                    : [];
+                  const reportedIds = new Set(openReported.map((r) => r.playerId));
+                  const reportCount = activeEntries.filter((e) => reportedIds.has(e.playerId)).length;
+                  return (
+                    <div className="flex items-center justify-between">
+                      <p className={TA_TIME_INPUT_HELP_CLASS}>{tTaFinals('timeInputHelp')}</p>
+                      <Badge variant="outline" className="text-xs">
+                        {tTaFinals('reportedCount', { count: reportCount, total: activeEntries.length })}
+                      </Badge>
+                    </div>
+                  );
+                })()}
                 {activeEntries.map((entry) => (
                   <TaTimeEntryRow
                     key={entry.id}
                     playerId={entry.playerId}
                     playerName={entry.player.nickname}
+                    reportBadge={(() => {
+                      const openRoundRow = currentRound
+                        ? rounds.find((r) => r.roundNumber === currentRound.roundNumber)
+                        : undefined;
+                      const reported = Array.isArray(openRoundRow?.reportedResults)
+                        ? (openRoundRow.reportedResults as Array<{ playerId: string }>)
+                        : [];
+                      const hasReport = reported.some((r) => r.playerId === entry.playerId);
+                      return hasReport ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-[10px]">
+                          {tTaFinals('reportedBadge')}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                          {tTaFinals('notReportedBadge')}
+                        </Badge>
+                      );
+                    })()}
                     livesLabel={
                       <TaLivesIndicator
                         lives={entry.lives}

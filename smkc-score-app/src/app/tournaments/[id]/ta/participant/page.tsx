@@ -37,11 +37,21 @@ import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib/ta/time-utils';
-import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, type TaTimeInputProps, getTaTimeInputProps } from '@/lib/ta/time-entry-layout';
+import {
+  TA_TIME_ENTRY_CUP_GRID_CLASS,
+  TA_TIME_INPUT_HELP_CLASS,
+  type TaTimeInputProps,
+  getTaTimeInputProps,
+} from '@/lib/ta/time-entry-layout';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
-import type { Player } from "@/lib/types";
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { msToDisplayTime as msToDisplay } from '@/lib/ta/time-utils';
+import type { Player } from '@/lib/types';
+import type { ReportedPhase3Result, TaPhaseResponse } from '@/lib/ta/phase-api-types';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { TaLivesIndicator } from '@/components/tournament/ta-lives-indicator';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-ta-participant' });
@@ -75,8 +85,8 @@ interface TAApiData {
   qualificationRegistrationLocked?: boolean;
   qualificationEditingLockedForPlayers?: boolean;
   taPlayerSelfEdit?: boolean;
+  taPlayerReportEnabled?: boolean;
 }
-
 
 /**
  * Convert display time string to milliseconds for preview calculation.
@@ -95,17 +105,15 @@ function displayTimeToMs(timeStr: string): number {
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
-export default function TimeAttackParticipantPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function TimeAttackParticipantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
 
   /** i18n: Translation hooks placed before any state/effect hooks per Rules of Hooks */
   const tPart = useTranslations('participant');
   const tTa = useTranslations('ta');
   const tCommon = useTranslations('common');
+  const tTaFinals = useTranslations('taFinals');
+  const tTaFinalsEliminated = tTaFinals('eliminated');
   // Input is a native element, so this does not skip rendering by reference equality.
   // The memo keeps TA pages consistent and avoids rebuilding identical spread props during polling refreshes.
   const taTimeInputProps = useMemo(() => getTaTimeInputProps(tTa('timeInputTitle')), [tTa]);
@@ -130,7 +138,14 @@ export default function TimeAttackParticipantPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [partnerTimeInputs, setPartnerTimeInputs] = useState<Record<string, string>>({});
   const [taPlayerSelfEdit, setTaPlayerSelfEdit] = useState(true);
+  const [taPlayerReportEnabled, setTaPlayerReportEnabled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  /** Phase 3 report state (issue #2994) */
+  const [phase3Data, setPhase3Data] = useState<TaPhaseResponse | null>(null);
+  const [reportTimeInput, setReportTimeInput] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   /**
    * Admin-only: Fill all course times with random values for testing.
@@ -139,16 +154,16 @@ export default function TimeAttackParticipantPage({
    */
   const handleFillRandomTimes = () => {
     const randomTimes: Record<string, string> = {};
-    
+
     COURSE_INFO.forEach((course) => {
       // Generate random time between 45 seconds and 3 minutes 30 seconds
       const minMs = 45000; // 45 seconds
       const maxMs = 210000; // 3:30
       const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-      
+
       randomTimes[course.abbr] = generateRandomTimeString(randomMs, randomMs);
     });
-    
+
     setTimeInputs(randomTimes);
     toast.success('Random times filled for all courses');
   };
@@ -156,7 +171,10 @@ export default function TimeAttackParticipantPage({
   /** Fetch initial data on mount */
   useEffect(() => {
     if (sessionStatus === 'loading') return;
-    if (!hasAccess) { setLoading(false); return; }
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
 
     const fetchData = async () => {
       try {
@@ -178,6 +196,7 @@ export default function TimeAttackParticipantPage({
           setQualificationRegistrationLocked(Boolean(data.qualificationRegistrationLocked));
           setQualificationEditingLockedForPlayers(Boolean(data.qualificationEditingLockedForPlayers));
           setTaPlayerSelfEdit(data.taPlayerSelfEdit !== false);
+          setTaPlayerReportEnabled(data.taPlayerReportEnabled === true);
         }
       } catch (err) {
         logger.error('Data fetch error:', { error: err, tournamentId });
@@ -197,16 +216,41 @@ export default function TimeAttackParticipantPage({
     return response.json();
   }, [tournamentId, hasAccess]);
 
-  const { data: pollingData, error: pollingError } = usePolling(
-    fetchEntriesPoll, { interval: POLLING_INTERVAL, enabled: hasAccess && !loading }
-  );
+  /** Poll Phase 3 state so a new open round and confirmations appear promptly */
+  const fetchPhase3Poll = useCallback(async () => {
+    const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }, [tournamentId]);
+
+  const { data: pollingData, error: pollingError } = usePolling(fetchEntriesPoll, {
+    interval: POLLING_INTERVAL,
+    enabled: hasAccess && !loading,
+  });
+  const { data: phase3PollingData } = usePolling(fetchPhase3Poll, {
+    interval: POLLING_INTERVAL,
+    enabled: hasAccess && !loading && taPlayerReportEnabled,
+  });
+
+  useEffect(() => {
+    if (phase3PollingData && typeof phase3PollingData === 'object') {
+      const unwrapped = (
+        'data' in phase3PollingData && phase3PollingData.data && typeof phase3PollingData.data === 'object'
+          ? phase3PollingData.data
+          : phase3PollingData
+      ) as TaPhaseResponse;
+      setPhase3Data(unwrapped);
+    }
+  }, [phase3PollingData]);
 
   useEffect(() => {
     if (pollingData && typeof pollingData === 'object') {
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
-      const unwrapped = (('data' in pollingData && pollingData.data && typeof pollingData.data === 'object')
-        ? pollingData.data
-        : pollingData) as TAApiData;
+      const unwrapped = (
+        'data' in pollingData && pollingData.data && typeof pollingData.data === 'object'
+          ? pollingData.data
+          : pollingData
+      ) as TAApiData;
       if ('entries' in unwrapped) {
         setEntries(unwrapped.entries as TTEntry[]);
       }
@@ -229,7 +273,7 @@ export default function TimeAttackParticipantPage({
   /** Sync own entry and partner entry from the entries list */
   useEffect(() => {
     if (playerId && entries.length > 0) {
-      const entry = entries.find(e => e.playerId === playerId && e.stage === 'qualification');
+      const entry = entries.find((e) => e.playerId === playerId && e.stage === 'qualification');
       setMyEntry(entry || null);
       /* Pre-fill time inputs from existing entry data */
       if (entry && entry.times) {
@@ -237,7 +281,7 @@ export default function TimeAttackParticipantPage({
       }
       /* Find partner's entry: if my entry has a partnerId, find that player's entry */
       if (entry?.partnerId) {
-        const pEntry = entries.find(e => e.playerId === entry.partnerId && e.stage === 'qualification');
+        const pEntry = entries.find((e) => e.playerId === entry.partnerId && e.stage === 'qualification');
         setPartnerEntry(pEntry || null);
         if (pEntry?.times) {
           setPartnerTimeInputs(pEntry.times);
@@ -250,14 +294,14 @@ export default function TimeAttackParticipantPage({
 
   /** Handle individual course time input change */
   const handleTimeChange = useCallback((course: string, value: string) => {
-    setTimeInputs(prev => ({ ...prev, [course]: value }));
+    setTimeInputs((prev) => ({ ...prev, [course]: value }));
   }, []);
 
   /** Auto-format time on blur — normalizes input to M:SS.mm */
   const handleTimeBlur = useCallback((course: string) => {
     setTimeInputs((prev) => {
       const raw = prev[course];
-      if (!raw || raw.trim() === "") return prev;
+      if (!raw || raw.trim() === '') return prev;
       const formatted = autoFormatTime(raw);
       if (formatted !== null && formatted !== raw) {
         return { ...prev, [course]: formatted };
@@ -268,14 +312,14 @@ export default function TimeAttackParticipantPage({
 
   /** Handle partner course time input change */
   const handlePartnerTimeChange = useCallback((course: string, value: string) => {
-    setPartnerTimeInputs(prev => ({ ...prev, [course]: value }));
+    setPartnerTimeInputs((prev) => ({ ...prev, [course]: value }));
   }, []);
 
   /** Auto-format partner time on blur */
   const handlePartnerTimeBlur = useCallback((course: string) => {
     setPartnerTimeInputs((prev) => {
       const raw = prev[course];
-      if (!raw || raw.trim() === "") return prev;
+      if (!raw || raw.trim() === '') return prev;
       const formatted = autoFormatTime(raw);
       if (formatted !== null && formatted !== raw) {
         return { ...prev, [course]: formatted };
@@ -332,7 +376,7 @@ export default function TimeAttackParticipantPage({
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper: { success, data: { entry } }
       const data = json.data ?? json;
-      setEntries(prev => prev.map(e => e.id === myEntry.id ? { ...e, ...data.entry } : e));
+      setEntries((prev) => prev.map((e) => (e.id === myEntry.id ? { ...e, ...data.entry } : e)));
       setMyEntry({ ...myEntry, ...data.entry });
       /** i18n: Success alert after times are submitted */
       alert(tPart('timesSubmittedSuccess'));
@@ -382,13 +426,58 @@ export default function TimeAttackParticipantPage({
       }
       const json = await response.json();
       const data = json.data ?? json;
-      setEntries(prev => prev.map(e => e.id === partnerEntry.id ? { ...e, ...data.entry } : e));
+      setEntries((prev) => prev.map((e) => (e.id === partnerEntry.id ? { ...e, ...data.entry } : e)));
       setPartnerEntry({ ...partnerEntry, ...data.entry });
       alert(tPart('partnerTimesSubmittedSuccess'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit partner times');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  /** Submit a Phase 3 time report (issue #2994) */
+  const handleReportTime = async () => {
+    if (!playerId || !phase3Data) return;
+    const round = openPhase3Round(phase3Data);
+    if (!round) return;
+
+    const timeStr = reportTimeInput.trim();
+    const timeRegex = /^\d+:[0-5]\d\.\d{1,3}$/;
+    if (!timeRegex.test(timeStr)) {
+      setReportError(tTa('reportInvalidTime'));
+      return;
+    }
+    const timeMs = displayTimeToMs(timeStr);
+    if (timeMs <= 0) {
+      setReportError(tTa('reportInvalidTime'));
+      return;
+    }
+
+    const hadPrevious = Boolean(myPhase3Report(phase3Data)?.timeMs != null);
+    setReporting(true);
+    setReportError(null);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'report_time', phase: 'phase3', roundNumber: round.roundNumber, timeMs }),
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        const code = json.code as string | undefined;
+        if (code === 'NO_OPEN_ROUND') setReportError(tTa('noOpenRound'));
+        else if (code === 'ROUND_ALREADY_SUBMITTED') setReportError(tTa('roundAlreadySubmitted'));
+        else if (code === 'PLAYER_REPORT_DISABLED') setReportError(tTa('reportDisabled'));
+        else setReportError(json.error || 'Failed to report time');
+        return;
+      }
+      setReportTimeInput('');
+      alert(hadPrevious ? tTa('reportUpdateSuccess') : tTa('reportSuccess'));
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Failed to report time');
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -412,7 +501,7 @@ export default function TimeAttackParticipantPage({
       const json = await response.json();
       /* Unwrap createSuccessResponse wrapper: { success, data: { entries } } */
       const data = json.data ?? json;
-      setEntries(prev => [...prev, ...data.entries]);
+      setEntries((prev) => [...prev, ...data.entries]);
       /** i18n: Success alert after adding self to time attack */
       alert(tPart('addedToTASuccess'));
     } catch (err) {
@@ -424,13 +513,13 @@ export default function TimeAttackParticipantPage({
 
   /** Count the number of course times entered in the input fields */
   const getEnteredTimesCount = (): number => {
-    return Object.values(timeInputs).filter((t) => t && t !== "").length;
+    return Object.values(timeInputs).filter((t) => t && t !== '').length;
   };
 
   /** Calculate preview total time from current input values */
   const getTotalTime = (): number => {
     return Object.entries(timeInputs)
-      .filter(([, timeStr]) => timeStr && timeStr !== "")
+      .filter(([, timeStr]) => timeStr && timeStr !== '')
       .reduce((total, [, timeStr]) => total + displayTimeToMs(timeStr), 0);
   };
 
@@ -457,10 +546,10 @@ export default function TimeAttackParticipantPage({
             <CardDescription>{tPart('loginToEnterTimes')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button asChild className="w-full"><Link href="/auth/signin">{tPart('logIn')}</Link></Button>
-            <p className="text-sm text-muted-foreground text-center">
-              {tPart('loginHelp')}
-            </p>
+            <Button asChild className="w-full">
+              <Link href="/auth/signin">{tPart('logIn')}</Link>
+            </Button>
+            <p className="text-sm text-muted-foreground text-center">{tPart('loginHelp')}</p>
           </CardContent>
         </Card>
       </div>
@@ -485,6 +574,27 @@ export default function TimeAttackParticipantPage({
   const showQualificationRegistrationLockedToast = () => {
     toast.info(tTa('qualificationRegistrationLocked'));
   };
+
+  /** The most recent phase3 round that is still open (no confirmed results). */
+  const openPhase3Round = (data: TaPhaseResponse | null) => {
+    const rounds = data?.rounds ?? [];
+    const open = rounds.filter((r) => Array.isArray(r.results) && r.results.length === 0).pop();
+    return open ?? null;
+  };
+
+  /** My own report for the current open round, if any. */
+  const myPhase3Report = (data: TaPhaseResponse | null): ReportedPhase3Result | null => {
+    const round = openPhase3Round(data);
+    if (!round || !playerId) return null;
+    const reports = Array.isArray(round.reportedResults) ? round.reportedResults : [];
+    return reports.find((r) => r.playerId === playerId) ?? null;
+  };
+
+  const phase3Entry = phase3Data?.entries?.find((e) => e.playerId === playerId && e.stage === 'phase3') ?? null;
+  const showPhase3Report = Boolean(taPlayerReportEnabled && phase3Entry && phase3Data);
+  const openRound = openPhase3Round(phase3Data);
+  const myReport = myPhase3Report(phase3Data);
+  const phase3Standings = phase3Data?.entries ?? [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -518,13 +628,110 @@ export default function TimeAttackParticipantPage({
             </Alert>
           )}
 
+          {/* Phase 3 time report card (issue #2994) */}
+          {showPhase3Report && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Timer className="h-5 w-5" />
+                  {tTa('phase3ReportTitle')}
+                </CardTitle>
+                <CardDescription>{tTa('phase3ReportDesc')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {phase3Entry && (
+                  <div className="flex flex-wrap items-center gap-4">
+                    <TaLivesIndicator
+                      lives={phase3Entry.lives}
+                      maxLives={phase3Data?.phase3Rules?.initialLives ?? 10}
+                      eliminated={phase3Entry.eliminated}
+                      eliminatedLabel={tTaFinalsEliminated}
+                    />
+                    {openRound ? (
+                      <Badge variant="outline" className="font-mono">
+                        {tTa('currentCourse')}:{' '}
+                        {COURSE_INFO.find((c) => c.abbr === openRound.course)?.name || openRound.course}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">{tTa('noOpenRound')}</Badge>
+                    )}
+                    {myReport ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                        {tTa('reportedBadge')}: {msToDisplay(myReport.timeMs)}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">{tTa('notReportedBadge')}</Badge>
+                    )}
+                  </div>
+                )}
+
+                {phase3Entry?.eliminated ? (
+                  <Alert className="border-destructive/50 bg-destructive/5">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <AlertDescription className="text-destructive">{tTaFinalsEliminated}</AlertDescription>
+                  </Alert>
+                ) : openRound ? (
+                  <>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Input
+                          value={reportTimeInput}
+                          onChange={(e) => setReportTimeInput(e.target.value)}
+                          placeholder="M:SS.mm"
+                          className="font-mono"
+                          disabled={reporting}
+                          aria-label={tTa('reportTime')}
+                        />
+                      </div>
+                      <Button onClick={handleReportTime} disabled={reporting || !reportTimeInput.trim()}>
+                        {reporting ? tCommon('saving') : myReport ? tTa('reportUpdateTime') : tTa('reportTime')}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{tTa('reportOverwriteHint')}</p>
+                    {reportError && <p className="text-sm text-destructive">{reportError}</p>}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{tTa('roundAlreadySubmitted')}</p>
+                )}
+
+                {/* Compact Phase 3 standings */}
+                {phase3Standings.length > 0 && (
+                  <div>
+                    <h4 className="font-medium mb-2">{tTa('phase3StandingsTitle')}</h4>
+                    <div className="space-y-1">
+                      {phase3Standings.map((entry, index) => (
+                        <div
+                          key={entry.playerId}
+                          className="flex items-center justify-between text-sm py-1 border-b last:border-0"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="font-mono w-6 text-muted-foreground">{index + 1}</span>
+                            <span>{entry.player?.nickname || entry.playerId}</span>
+                          </span>
+                          <span className="flex items-center gap-2">
+                            {entry.eliminated && <Badge variant="destructive">{tTaFinalsEliminated}</Badge>}
+                            <TaLivesIndicator
+                              lives={entry.lives}
+                              maxLives={phase3Data?.phase3Rules?.initialLives ?? 10}
+                              eliminated={entry.eliminated}
+                              eliminatedLabel={tTaFinalsEliminated}
+                              showMax={false}
+                            />
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Frozen stage warning: shown when qualification is locked by admin */}
-          {frozenStages.includes("qualification") && (
+          {frozenStages.includes('qualification') && (
             <Alert className="mb-6 border-destructive/50 bg-destructive/5">
               <Lock className="h-4 w-4 text-destructive" />
-              <AlertDescription className="text-destructive">
-                {tTa('stageFrozen')}
-              </AlertDescription>
+              <AlertDescription className="text-destructive">{tTa('stageFrozen')}</AlertDescription>
             </Alert>
           )}
 
@@ -553,10 +760,12 @@ export default function TimeAttackParticipantPage({
                         <CardDescription>{tPart('partnerTimesDesc')}</CardDescription>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono">{tPart('taProgress', {
-                          count: Object.values(partnerTimeInputs).filter(t => t && t !== "").length,
-                          total: TOTAL_COURSES,
-                        })}</div>
+                        <div className="font-mono">
+                          {tPart('taProgress', {
+                            count: Object.values(partnerTimeInputs).filter((t) => t && t !== '').length,
+                            total: TOTAL_COURSES,
+                          })}
+                        </div>
                       </div>
                     </div>
                   </CardHeader>
@@ -565,7 +774,9 @@ export default function TimeAttackParticipantPage({
                       {/* Partner Stats */}
                       <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                         <div className="text-center">
-                          <div className="text-2xl font-bold font-mono">{partnerEntry.rank ? `#${partnerEntry.rank}` : '-'}</div>
+                          <div className="text-2xl font-bold font-mono">
+                            {partnerEntry.rank ? `#${partnerEntry.rank}` : '-'}
+                          </div>
                           <div className="text-sm text-muted-foreground">{tPart('currentRank')}</div>
                         </div>
                         <div className="text-center">
@@ -575,11 +786,9 @@ export default function TimeAttackParticipantPage({
                       </div>
 
                       {/* Partner Time Input Grid */}
-                      <p className={TA_TIME_INPUT_HELP_CLASS}>
-                        {tTa('timeInputHelp')}
-                      </p>
+                      <p className={TA_TIME_INPUT_HELP_CLASS}>{tTa('timeInputHelp')}</p>
                       <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
-                        {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
+                        {['Mushroom', 'Flower', 'Star', 'Special'].map((cup) => (
                           <Card key={cup}>
                             <CardHeader className="py-3">
                               <CardTitle className="text-sm">{tTa('cup', { cup })}</CardTitle>
@@ -593,7 +802,7 @@ export default function TimeAttackParticipantPage({
                                   placeholder={tTa('timePlaceholder')}
                                   onChange={handlePartnerTimeChange}
                                   onBlur={handlePartnerTimeBlur}
-                                  disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
+                                  disabled={frozenStages.includes('qualification') || qualificationEditingLocked}
                                   inputClassName="font-mono text-sm"
                                   timeInputProps={taTimeInputProps}
                                 />
@@ -606,17 +815,23 @@ export default function TimeAttackParticipantPage({
                       {/* Partner Preview Total Time */}
                       <div className="p-4 bg-blue-50 rounded-lg">
                         <div className="font-medium text-center mb-2">{tPart('previewTotalTime')}</div>
-                        <div className="text-2xl font-bold font-mono text-center">{msToDisplayTime(
-                          Object.entries(partnerTimeInputs)
-                            .filter(([, t]) => t && t !== "")
-                            .reduce((sum, [, t]) => sum + displayTimeToMs(t), 0)
-                        )}</div>
+                        <div className="text-2xl font-bold font-mono text-center">
+                          {msToDisplayTime(
+                            Object.entries(partnerTimeInputs)
+                              .filter(([, t]) => t && t !== '')
+                              .reduce((sum, [, t]) => sum + displayTimeToMs(t), 0),
+                          )}
+                        </div>
                       </div>
 
                       <Button
                         onClick={handleSubmitPartnerTimes}
-                        disabled={submitting || Object.values(partnerTimeInputs).filter(t => t && t !== "").length === 0
-                          || frozenStages.includes("qualification") || qualificationEditingLocked}
+                        disabled={
+                          submitting ||
+                          Object.values(partnerTimeInputs).filter((t) => t && t !== '').length === 0 ||
+                          frozenStages.includes('qualification') ||
+                          qualificationEditingLocked
+                        }
                         className="w-full"
                       >
                         {submitting ? tCommon('saving') : tPart('submitTimes')}
@@ -630,9 +845,7 @@ export default function TimeAttackParticipantPage({
               {!taPlayerSelfEdit && partnerEntry && (
                 <Alert className="border-amber-500/50 bg-amber-50">
                   <Lock className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-700">
-                    {tPart('selfEditDisabled')}
-                  </AlertDescription>
+                  <AlertDescription className="text-amber-700">{tPart('selfEditDisabled')}</AlertDescription>
                 </Alert>
               )}
 
@@ -646,12 +859,12 @@ export default function TimeAttackParticipantPage({
                           <Timer className="h-5 w-5" />
                           {partnerEntry ? tPart('myTimesTitle') : tTa('title')}
                         </CardTitle>
-                        <CardDescription>
-                          {tTa('enterTimeCourseDesc')}
-                        </CardDescription>
+                        <CardDescription>{tTa('enterTimeCourseDesc')}</CardDescription>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono">{tPart('taProgress', { count: getEnteredTimesCount(), total: TOTAL_COURSES })}</div>
+                        <div className="font-mono">
+                          {tPart('taProgress', { count: getEnteredTimesCount(), total: TOTAL_COURSES })}
+                        </div>
                       </div>
                     </div>
                   </CardHeader>
@@ -670,11 +883,9 @@ export default function TimeAttackParticipantPage({
                       </div>
 
                       {/* Time Input Grid */}
-                      <p className={TA_TIME_INPUT_HELP_CLASS}>
-                        {tTa('timeInputHelp')}
-                      </p>
+                      <p className={TA_TIME_INPUT_HELP_CLASS}>{tTa('timeInputHelp')}</p>
                       <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
-                        {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
+                        {['Mushroom', 'Flower', 'Star', 'Special'].map((cup) => (
                           <Card key={cup}>
                             <CardHeader className="py-3">
                               <CardTitle className="text-sm">{tTa('cup', { cup })}</CardTitle>
@@ -688,7 +899,7 @@ export default function TimeAttackParticipantPage({
                                   placeholder={tTa('timePlaceholder')}
                                   onChange={handleTimeChange}
                                   onBlur={handleTimeBlur}
-                                  disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
+                                  disabled={frozenStages.includes('qualification') || qualificationEditingLocked}
                                   inputClassName="font-mono text-sm"
                                   timeInputProps={taTimeInputProps}
                                 />
@@ -701,7 +912,9 @@ export default function TimeAttackParticipantPage({
                       {/* Preview Total Time */}
                       <div className="p-4 bg-blue-50 rounded-lg">
                         <div className="font-medium text-center mb-2">{tPart('previewTotalTime')}</div>
-                        <div className="text-2xl font-bold font-mono text-center">{msToDisplayTime(getTotalTime())}</div>
+                        <div className="text-2xl font-bold font-mono text-center">
+                          {msToDisplayTime(getTotalTime())}
+                        </div>
                       </div>
 
                       {/* Admin-only: Fill random times button */}
@@ -719,7 +932,12 @@ export default function TimeAttackParticipantPage({
 
                       <Button
                         onClick={handleSubmitTimes}
-                        disabled={submitting || getEnteredTimesCount() === 0 || frozenStages.includes("qualification") || qualificationEditingLocked}
+                        disabled={
+                          submitting ||
+                          getEnteredTimesCount() === 0 ||
+                          frozenStages.includes('qualification') ||
+                          qualificationEditingLocked
+                        }
                         className="w-full"
                       >
                         {submitting ? tCommon('saving') : tPart('submitTimes')}
@@ -768,9 +986,7 @@ export default function TimeAttackParticipantPage({
                 <Timer className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 {/** i18n: Not registered title and description */}
                 <h3 className="text-lg font-semibold mb-2">{tPart('notRegisteredTA')}</h3>
-                <p className="text-muted-foreground mb-4">
-                  {tPart('notRegisteredTADesc')}
-                </p>
+                <p className="text-muted-foreground mb-4">{tPart('notRegisteredTADesc')}</p>
                 {/** i18n: Add to TA button toggles between "Adding..." and "Add to Time Attack" */}
                 <Button
                   onClick={() => {

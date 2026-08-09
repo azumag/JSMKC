@@ -147,6 +147,7 @@ model Tournament {
   dualReportEnabled                Boolean   @default(false) // When true, both players must report matching scores for auto-confirmation
   taPlayerSelfEdit                 Boolean   @default(true) // §3.1: When false, players cannot edit their own TA times (only partner's)
   taBattleRoyaleMode               Boolean   @default(false) // Phase 1/2を省略する少人数TAバトロワ
+  taPlayerReportEnabled            Boolean   @default(false) // Phase 3参加者タイム報告のON/OFF（デフォルトOFF、運営確定方式 #2994）
   frozenStages                     Json      @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
   overlayPlayer1Name               String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
   overlayPlayer2Name               String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
@@ -553,6 +554,7 @@ model TTPhaseRound {
   course            String // Course abbreviation (e.g., "MC1")
   tvNumber          Int? // Broadcast TV screen number (1-4), optional
   results           Json // Array: [{playerId, timeMs, isRetry}]
+  reportedResults   Json? // Phase 3参加者報告用: [{playerId, timeMs, reportedAt}]。確定済みresultsとは分離（#2994）
   eliminatedIds     Json? // Array of player IDs eliminated this round
   livesReset        Boolean                   @default(false) // Whether lives were reset after this round
   manualOverride    Boolean                   @default(false) // True when admin manually specified the course

@@ -259,6 +259,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       status,
       frozenStages,
       taPlayerSelfEdit,
+      taPlayerReportEnabled,
       publicModes,
       // Per-mode qualification confirmed flags (issue #696).
       // Legacy qualificationConfirmed is no longer accepted; use the mode-specific fields.
@@ -348,6 +349,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       ...(status && { status }),
       ...(frozenStages !== undefined && { frozenStages }),
       ...(taPlayerSelfEdit !== undefined && { taPlayerSelfEdit: taPlayerSelfEdit === true }),
+      ...(taPlayerReportEnabled !== undefined && { taPlayerReportEnabled: taPlayerReportEnabled === true }),
       // Per-mode qualification confirmed flags (issue #696).
       // qualificationConfirmedAt is updated whenever any mode is confirmed so the
       // overlay event system (overlay-events/route.ts) continues to fire correctly.

@@ -147,7 +147,8 @@ export async function POST(request: NextRequest) {
   try {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, dualReportEnabled, taPlayerSelfEdit, taBattleRoyaleMode, debugMode } = body;
+    const { name, date, dualReportEnabled, taPlayerSelfEdit, taBattleRoyaleMode, taPlayerReportEnabled, debugMode } =
+      body;
     const slug = normalizeTournamentSlug(body.slug);
 
     // Validate required fields
@@ -174,6 +175,7 @@ export async function POST(request: NextRequest) {
         dualReportEnabled: dualReportEnabled === true,
         taPlayerSelfEdit: taPlayerSelfEdit !== false,
         taBattleRoyaleMode: taBattleRoyaleMode === true,
+        taPlayerReportEnabled: taPlayerReportEnabled === true,
         qualificationScheduleMethod: 'cdm',
         ...(hasJsmkcIdentity({ name, slug }) && { cdmArchiveReconciliationExcluded: true }),
         debugMode: debugMode === true,

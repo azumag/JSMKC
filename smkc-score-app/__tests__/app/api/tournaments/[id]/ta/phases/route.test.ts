@@ -43,6 +43,7 @@ jest.mock('@/lib/prisma', () => {
     tTPhaseRound: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -68,6 +69,11 @@ jest.mock('@/lib/prisma', () => {
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
+}));
+
+jest.mock('@/lib/api-auth', () => ({
+  requireAdminSession: jest.fn(),
+  requireAdminOrPlayerSession: jest.fn(),
 }));
 
 jest.mock('@/lib/logger', () => {
@@ -106,9 +112,14 @@ jest.mock('@/lib/ta/finals-phase-manager', () => {
     undoLastPhaseRound: jest.fn(),
     cancelLastSubmittedPhaseRound: jest.fn(),
     resetPhase: jest.fn(),
+    reportPhase3Time: jest.fn(),
     PhaseResetConflictError,
   };
 });
+
+jest.mock('@/lib/api-factories/score-report-helpers', () => ({
+  createScoreEntryLog: jest.fn(() => Promise.resolve()),
+}));
 
 // Mock freeze-check: checkStageFrozen returns null (not frozen) by default
 jest.mock('@/lib/ta/freeze-check', () => ({
@@ -186,11 +197,13 @@ import {
   undoLastPhaseRound,
   cancelLastSubmittedPhaseRound,
   resetPhase,
+  reportPhase3Time,
   PhaseResetConflictError,
 } from '@/lib/ta/finals-phase-manager';
 import { getPlayedCoursesWithSuddenDeath, getAvailableCourses } from '@/lib/ta/course-selection';
 import { checkStageFrozen } from '@/lib/ta/freeze-check';
 import { auth } from '@/lib/auth';
+import { requireAdminOrPlayerSession } from '@/lib/api-auth';
 import { readTournamentArchive } from '@/lib/tournament-archive';
 import * as phasesRoute from '@/app/api/tournaments/[id]/ta/phases/route';
 
@@ -592,6 +605,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
           phaseStatus: defaultPhaseStatus,
           taMode: 'standard',
           taBattleRoyaleMode: false,
+          taPlayerReportEnabled: false,
           frozenStages: [],
           phase3Rules: {
             initialLives: 3,
@@ -627,6 +641,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
           phaseStatus: defaultPhaseStatus,
           taMode: 'standard',
           taBattleRoyaleMode: false,
+          taPlayerReportEnabled: false,
           frozenStages: [],
           phase3Rules: {
             initialLives: 3,
@@ -1337,6 +1352,9 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     loggerMock.createLogger.mockReturnValue(loggerInstance);
     // Default: authenticated as admin
     jest.mocked(auth).mockResolvedValue(adminSession);
+    jest
+      .mocked(requireAdminOrPlayerSession)
+      .mockResolvedValue({ session: adminSession as { user: { id?: string; role?: string; playerId?: string } } });
     // Default: tournament exists
     (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 'tournament-1' });
     // Default: phase not frozen
@@ -1344,17 +1362,21 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   });
 
   it('should return 403 when not authenticated', async () => {
+    const forbidden = { status: 403 };
+    jest.mocked(requireAdminOrPlayerSession).mockResolvedValue({ error: forbidden as never });
     jest.mocked(auth).mockResolvedValue(null);
 
-    await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
+    const result = await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), {
+      params: mockParams,
+    });
 
-    expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
-      { status: 403 },
-    );
+    expect(result).toBe(forbidden);
   });
 
   it('should return 403 when authenticated but not admin', async () => {
+    jest.mocked(requireAdminOrPlayerSession).mockResolvedValue({
+      session: { user: { id: 'user-1', role: 'user' } },
+    });
     jest.mocked(auth).mockResolvedValue({ user: { id: 'user-1', role: 'user' } });
 
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
@@ -1373,6 +1395,152 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       expect.objectContaining({ success: false, error: 'Invalid request', code: 'VALIDATION_ERROR' }),
       { status: 400 },
     );
+  });
+
+  /* Issue #2994: Phase 3 participant time reporting (report -> admin confirm). */
+  describe('report_time', () => {
+    const playerSession = {
+      user: { id: 'player-user-1', role: 'player', userType: 'player', playerId: 'player-1' },
+    };
+    const openRound = {
+      id: 'round-1',
+      tournamentId: 'tournament-1',
+      phase: 'phase3',
+      roundNumber: 1,
+      course: 'GV1',
+      results: [],
+      reportedResults: null,
+    };
+
+    beforeEach(() => {
+      jest.mocked(requireAdminOrPlayerSession).mockResolvedValue({ session: playerSession });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        id: 'tournament-1',
+        taPlayerReportEnabled: true,
+      });
+      (prisma.tTPhaseRound.findFirst as jest.Mock).mockResolvedValue(openRound);
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue({
+        id: 'entry-1',
+        playerId: 'player-1',
+        eliminated: false,
+      });
+    });
+
+    it('records a player report for the open round', async () => {
+      (reportPhase3Time as jest.Mock).mockResolvedValue({
+        playerId: 'player-1',
+        timeMs: 60000,
+        reportedAt: '2026-08-09T00:00:00.000Z',
+      });
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 1, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(reportPhase3Time).toHaveBeenCalledWith(prisma, 'round-1', 'player-1', 60000);
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            reportedTime: expect.objectContaining({ playerId: 'player-1', timeMs: 60000 }),
+          }),
+        }),
+      );
+    });
+
+    it('rejects when player reporting is disabled for the tournament', async () => {
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        id: 'tournament-1',
+        taPlayerReportEnabled: false,
+      });
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 1, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'PLAYER_REPORT_DISABLED' }),
+        { status: 403 },
+      );
+    });
+
+    it('rejects when there is no open round', async () => {
+      (prisma.tTPhaseRound.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 1, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'NO_OPEN_ROUND' }),
+        { status: 409 },
+      );
+    });
+
+    it('rejects when the round has already been submitted', async () => {
+      (prisma.tTPhaseRound.findFirst as jest.Mock).mockResolvedValue({
+        ...openRound,
+        results: [{ playerId: 'player-1', timeMs: 60000, isRetry: false }],
+      });
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 1, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'ROUND_ALREADY_SUBMITTED' }),
+        { status: 409 },
+      );
+    });
+
+    it('rejects when the player has no phase3 entry', async () => {
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 1, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'ENTRY_NOT_FOUND' }),
+        { status: 404 },
+      );
+    });
+
+    it('rejects when the player is eliminated', async () => {
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue({
+        id: 'entry-1',
+        playerId: 'player-1',
+        eliminated: true,
+      });
+
+      await phasesRoute.POST(
+        createPostRequest({ action: 'report_time', phase: 'phase3', roundNumber: 1, timeMs: 60000 }),
+        { params: mockParams },
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'PLAYER_ELIMINATED' }),
+        { status: 403 },
+      );
+    });
+
+    it('rejects a non-player session (admin-only actions still blocked for players)', async () => {
+      jest.mocked(requireAdminOrPlayerSession).mockResolvedValue({ session: playerSession });
+
+      await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase3' }), {
+        params: mockParams,
+      });
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
+        { status: 403 },
+      );
+    });
   });
 
   it('should return 404 when tournament not found', async () => {
