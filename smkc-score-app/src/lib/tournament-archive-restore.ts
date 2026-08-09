@@ -230,37 +230,47 @@ async function restorePlayers(bundle: TournamentArchiveBundle): Promise<{
   let reusedPlayerCount = 0;
   const createdPlayerIds: string[] = [];
 
-  for (const archived of collectArchivedPlayers(bundle)) {
-    const existingById = await prisma.player.findUnique({ where: { id: archived.id }, select: { id: true } });
-    if (existingById) {
-      playerIds.set(archived.id, existingById.id);
-      reusedPlayerCount += 1;
-      continue;
-    }
+  try {
+    for (const archived of collectArchivedPlayers(bundle)) {
+      const existingById = await prisma.player.findUnique({ where: { id: archived.id }, select: { id: true } });
+      if (existingById) {
+        playerIds.set(archived.id, existingById.id);
+        reusedPlayerCount += 1;
+        continue;
+      }
 
-    const existingByNickname = await prisma.player.findUnique({
-      where: { nickname: archived.nickname },
-      select: { id: true },
-    });
-    if (existingByNickname) {
-      playerIds.set(archived.id, existingByNickname.id);
-      reusedPlayerCount += 1;
-      continue;
-    }
+      const existingByNickname = await prisma.player.findUnique({
+        where: { nickname: archived.nickname },
+        select: { id: true },
+      });
+      if (existingByNickname) {
+        playerIds.set(archived.id, existingByNickname.id);
+        reusedPlayerCount += 1;
+        continue;
+      }
 
-    const created = await prisma.player.create({
-      data: {
-        id: archived.id,
-        name: archived.name,
-        nickname: archived.nickname,
-        country: archived.country ?? null,
-        noCamera: archived.noCamera === true,
-      },
-      select: { id: true },
-    });
-    playerIds.set(archived.id, created.id);
-    restoredPlayerCount += 1;
-    createdPlayerIds.push(created.id);
+      const created = await prisma.player.create({
+        data: {
+          id: archived.id,
+          name: archived.name,
+          nickname: archived.nickname,
+          country: archived.country ?? null,
+          noCamera: archived.noCamera === true,
+        },
+        select: { id: true },
+      });
+      playerIds.set(archived.id, created.id);
+      restoredPlayerCount += 1;
+      createdPlayerIds.push(created.id);
+    }
+  } catch (error) {
+    // Issue #3077: if the loop itself fails partway, roll back the players we
+    // already created here so the caller's catch does not need to know about
+    // a partial run (restorePlayers never returns on failure).
+    for (const playerId of createdPlayerIds) {
+      await prisma.player.deleteMany({ where: { id: playerId } }).catch(() => undefined);
+    }
+    throw error;
   }
 
   return { playerIds, restoredPlayerCount, reusedPlayerCount, createdPlayerIds };
