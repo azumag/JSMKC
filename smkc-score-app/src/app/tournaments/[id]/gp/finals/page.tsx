@@ -19,6 +19,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, use } from 'react';
+import { useSlotEditWiring } from '@/lib/hooks/use-slot-edit-wiring';
 import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
 import { XIcon } from 'lucide-react';
@@ -267,9 +268,8 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
    * across BM/MR/GP, only this page's wiring was missing. The clicked match
    * is the derived GPBracketMatch (score1/score2 aliased from
    * points1/points2 for the shared bracket components), not the raw GPMatch. */
-  const [slotEditMode, setSlotEditMode] = useState(false);
-  const [slotEditTarget, setSlotEditTarget] = useState<{ match: GPBracketMatch; slot: 1 | 2 } | null>(null);
-  const handleSlotClick = (match: GPBracketMatch, slot: 1 | 2) => setSlotEditTarget({ match, slot });
+  const { slotEditMode, setSlotEditMode, slotEditTarget, setSlotEditTarget, handleSlotClick } =
+    useSlotEditWiring<GPBracketMatch>();
 
   /** Fetch finals data including matches, bracket structure, and round names */
   const fetchFinalsData = useCallback(async () => {

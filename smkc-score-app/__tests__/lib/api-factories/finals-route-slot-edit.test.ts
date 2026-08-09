@@ -470,6 +470,38 @@ describe('Finals Route Factory — PATCH slotEdit (issue #3017)', () => {
       expect(prisma.$executeRaw).not.toHaveBeenCalled();
     });
 
+    /* Issue #3021: finals and playoff rounds share distinct name spaces today,
+     * but a future naming change could collide. The swap must reject matches
+     * in different stages even when the round names match. */
+    it('rejects matches in different stages (finals vs playoff) with 400 STAGE_MISMATCH', async () => {
+      const existing = makeRow({ matchNumber: 1, stage: 'finals', round: 'playoff_r1', id: 'm1' });
+      const target = makeRow({ matchNumber: 17, stage: 'playoff', round: 'playoff_r1', id: 'm17' });
+      (prisma.bMMatch.findFirst as jest.Mock).mockImplementation(({ where }) =>
+        Promise.resolve(where.id === 'm1' ? existing : where.id === 'm17' ? target : null),
+      );
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      const response = await PATCH(
+        patchRequest({
+          matchId: 'm1',
+          slotEdit: {
+            op: 'swapSlots',
+            slot: 1,
+            targetMatchId: 'm17',
+            targetSlot: 1,
+            expectedVersion: 2,
+            targetExpectedVersion: 2,
+          },
+        }),
+        { params: Promise.resolve({ id: 'tournament-123' }) },
+      );
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.code).toBe('STAGE_MISMATCH');
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
     it('rejects targetMatchId equal to matchId with 400', async () => {
       const existing = makeRow({ matchNumber: 1, id: 'm1' });
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(existing);

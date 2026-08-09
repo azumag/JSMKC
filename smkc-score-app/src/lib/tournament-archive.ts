@@ -70,6 +70,7 @@ type TTEntryArchiveRow = {
   [k: string]: unknown;
 };
 type TTPhaseRoundArchiveRow = { [k: string]: unknown };
+type TTPhaseSuddenDeathRoundArchiveRow = { [k: string]: unknown };
 
 export type TournamentArchiveModePayload<TQualification = unknown, TMatch = unknown> = {
   qualifications?: TQualification[];
@@ -90,6 +91,7 @@ export type ArchivedTaRules = {
 export type TournamentArchiveTaPayload = {
   entries?: TTEntryArchiveRow[];
   phaseRounds?: TTPhaseRoundArchiveRow[];
+  suddenDeathRounds?: TTPhaseSuddenDeathRoundArchiveRow[];
   rules: ArchivedTaRules;
 };
 
@@ -269,6 +271,12 @@ export function normalizeTournamentArchiveBundle(value: unknown): TournamentArch
         };
       })
     : [];
+  const suddenDeathRounds = Array.isArray(rawTa.suddenDeathRounds)
+    ? rawTa.suddenDeathRounds.map((value) => ({
+        ...asRecord(value),
+        results: Array.isArray(asRecord(value).results) ? asRecord(value).results : null,
+      }))
+    : [];
 
   const normalized = {
     ...raw,
@@ -307,6 +315,7 @@ export function normalizeTournamentArchiveBundle(value: unknown): TournamentArch
         ...rawTa,
         entries,
         phaseRounds,
+        suddenDeathRounds,
         rules,
       },
     },
@@ -595,6 +604,10 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
       where: { tournamentId },
       orderBy: [{ phase: 'asc' }, { roundNumber: 'asc' }],
     }),
+    prisma.tTPhaseSuddenDeathRound.findMany({
+      where: { tournamentId },
+      orderBy: [{ phaseRoundId: 'asc' }, { sequence: 'asc' }],
+    }),
     prisma.bMQualification.findMany({
       where: { tournamentId },
       include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -632,6 +645,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
   const [
     ttEntries,
     ttPhaseRounds,
+    ttSuddenDeathRounds,
     bmQualifications,
     mrQualifications,
     gpQualifications,
@@ -642,6 +656,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
   ] = rawResults as [
     TTEntryArchiveRow[],
     TTPhaseRoundArchiveRow[],
+    TTPhaseSuddenDeathRoundArchiveRow[],
     QualWithPlayer[],
     QualWithPlayer[],
     QualWithPlayer[],
@@ -655,6 +670,7 @@ export async function buildTournamentArchiveBundle(tournamentId: string): Promis
     ta: {
       entries: ttEntries,
       phaseRounds: ttPhaseRounds,
+      suddenDeathRounds: ttSuddenDeathRounds,
       courses: COURSES,
       qualificationRegistrationLocked: true,
       qualificationEditingLockedForPlayers: true,

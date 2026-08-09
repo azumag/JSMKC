@@ -766,18 +766,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (action === 'promote_phase3') {
-      if (tournament.taBattleRoyaleMode) {
-        const participantCount = await prisma.tTEntry.count({
-          where: { tournamentId, stage: 'qualification' },
-        });
-        if (participantCount < 2) {
-          return createErrorResponse(
-            'At least two players are required for TA battle royale',
-            400,
-            'MINIMUM_PARTICIPANTS',
-          );
-        }
-      }
+      // TA battle royale bypasses the qualification/phase1/phase2 pipeline and
+      // creates Phase 3 entries directly via POST .../ta/battle-royale (issue
+      // #2933), so no battle-royale-specific guard belongs here.
       const result = await promoteToPhase3(prisma, context);
       return createSuccessResponse(result);
     }

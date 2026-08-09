@@ -118,6 +118,7 @@ jest.mock('next/server', () => {
   };
 });
 
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -611,8 +612,10 @@ describe('POST /api/players', () => {
         name: 'Test Player',
         nickname: 'test',
       });
-      const prismaError = new Error('Unique constraint failed');
-      prismaError.code = 'P2002';
+      const prismaError = new PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      });
       prisma.player.create.mockRejectedValue(prismaError);
 
       const request = new NextRequest('http://localhost:3000/api/players', {

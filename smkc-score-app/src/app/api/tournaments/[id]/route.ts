@@ -35,6 +35,7 @@ import {
   persistTournamentArchive,
   readTournamentArchive,
 } from '@/lib/tournament-archive';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
 /**
  * GET /api/tournaments/:id
@@ -588,11 +589,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.error('Failed to update tournament', { error, id: resolvedId });
 
     // P2025: Record not found - tournament ID doesn't exist
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+    if (isPrismaErrorCode(error, 'P2025')) {
       return createErrorResponse('Tournament not found', 404);
     }
 
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+    if (isPrismaErrorCode(error, 'P2002')) {
       return createErrorResponse('Tournament slug already exists', 409, 'CONFLICT');
     }
 
@@ -680,7 +681,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     logger.error('Failed to delete tournament', { error, id: resolvedId });
 
     // P2025: Record not found - retained for defensive compatibility.
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+    if (isPrismaErrorCode(error, 'P2025')) {
       return createErrorResponse('Tournament not found', 404);
     }
 

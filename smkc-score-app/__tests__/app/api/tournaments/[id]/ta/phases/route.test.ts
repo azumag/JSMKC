@@ -146,42 +146,10 @@ jest.mock('@/lib/sanitize', () => ({
   sanitizeInput: jest.fn((v) => v),
 }));
 
-jest.mock('next/server', () => {
-  const mockJson = jest.fn();
-  class MockNextRequest {
-    constructor(url, init = {}) {
-      this.url = url;
-      this.method = init.method || 'GET';
-      this._body = init.body;
-      const h = init.headers || {};
-      this.headers = {
-        get: (key) => {
-          if (h instanceof Headers) return h.get(key);
-          if (h instanceof Map) return h.get(key);
-          return h[key] || null;
-        },
-        forEach: (cb) => {
-          if (h instanceof Headers) {
-            h.forEach(cb);
-            return;
-          }
-          Object.entries(h).forEach(([k, v]) => cb(v, k));
-        },
-      };
-    }
-    async json() {
-      if (typeof this._body === 'string') return JSON.parse(this._body);
-      return this._body;
-    }
-  }
-  return {
-    NextRequest: MockNextRequest,
-    NextResponse: {
-      json: mockJson,
-    },
-    __esModule: true,
-  };
-});
+jest.mock('next/server', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('../../../../../../helpers/mock-next-server').createNextServerMock(),
+);
 
 import { NextRequest } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';

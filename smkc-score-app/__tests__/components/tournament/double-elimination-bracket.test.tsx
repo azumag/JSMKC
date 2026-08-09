@@ -361,6 +361,12 @@ describe('DoubleEliminationBracket manual slot placement adjustment (issue #3017
 
     expect(screen.getByTestId('slot-edit-button-1')).toBeInTheDocument();
     expect(screen.getByTestId('slot-edit-button-2')).toBeInTheDocument();
+    /* Issue #3073: the aria-labels must distinguish the 1P and 2P slots. */
+    expect(screen.getByTestId('slot-edit-button-1')).toHaveAttribute('aria-label', expect.stringContaining('1'));
+    expect(screen.getByTestId('slot-edit-button-2')).toHaveAttribute('aria-label', expect.stringContaining('2'));
+    expect(screen.getByTestId('slot-edit-button-1').getAttribute('aria-label')).not.toBe(
+      screen.getByTestId('slot-edit-button-2').getAttribute('aria-label'),
+    );
   });
 
   it('hides edit buttons when slotEditMode is off', () => {

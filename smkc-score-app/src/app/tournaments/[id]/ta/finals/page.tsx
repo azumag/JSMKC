@@ -76,6 +76,7 @@ import { RoundCorrectionControls } from '@/components/tournament/round-correctio
 import { TASuddenDeathSection, useTaSuddenDeath } from '@/components/tournament/ta-sudden-death-panel';
 import { TaHandicapBadge } from '@/components/tournament/ta-handicap-badge';
 import { TaLivesIndicator } from '@/components/tournament/ta-lives-indicator';
+import { TaLifeLossBadge } from '@/components/tournament/ta-life-loss-badge';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
 import { buildTaRoundPreview, type TaRoundPreviewRow } from '@/lib/ta/round-preview';
 import type { Phase3RulesDto, TaMode, TaPhaseLifeAdjustment } from '@/lib/ta/phase-api-types';
@@ -1016,11 +1017,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                   number: currentRound.roundNumber,
                   course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course,
                 })}
-                {currentRound.lifeLoss !== 1 && (
-                  <Badge variant="outline" className="text-orange-600 border-orange-400 text-xs font-normal">
-                    {tTaFinals('lifeLossTag', { count: currentRound.lifeLoss })}
-                  </Badge>
-                )}
+                {currentRound.lifeLoss !== 1 && <TaLifeLossBadge count={currentRound.lifeLoss} />}
               </CardTitle>
               <CardDescription>{tTaFinals('enterTimesDesc')}</CardDescription>
             </CardHeader>
@@ -1487,11 +1484,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                               TV{round.tvNumber}
                             </Badge>
                           )}
-                          {roundLifeLossCount !== 1 && (
-                            <Badge variant="outline" className="text-orange-600 border-orange-400 text-xs">
-                              {tTaFinals('lifeLossTag', { count: roundLifeLossCount })}
-                            </Badge>
-                          )}
+                          {roundLifeLossCount !== 1 && <TaLifeLossBadge count={roundLifeLossCount} />}
                           {round.livesReset && (
                             <Badge className="bg-yellow-500 text-black">{tTaFinals('livesReset')}</Badge>
                           )}
@@ -1532,7 +1525,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                                   !isEliminated &&
                                   ` ${tTaFinals('lifeLossTag', { count: roundLifeLossCount })}`}
                                 {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
-                                {typeof result.livesAfter === 'number' && (
+                                {!isEliminated && typeof result.livesAfter === 'number' && (
                                   <span className="ml-1 font-mono text-xs text-muted-foreground">
                                     {tTaFinals('roundLivesRemaining', { lives: result.livesAfter })}
                                   </span>

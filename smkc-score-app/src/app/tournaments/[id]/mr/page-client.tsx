@@ -17,6 +17,7 @@
  * @route /tournaments/[id]/mr
  */
 'use client';
+import { toast } from 'sonner';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
@@ -292,7 +293,7 @@ export default function MatchRacePageClient({
         refetch();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || 'Failed to update qualification status');
+        toast.error(errorData.error || 'Failed to update qualification status');
       }
     } catch (err) {
       logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
@@ -360,7 +361,7 @@ export default function MatchRacePageClient({
     const isNormalMatch = scoreForm.score1 + scoreForm.score2 === TOTAL_MR_RACES;
     const isClearedMatch = scoreForm.score1 === 0 && scoreForm.score2 === 0;
     if (!isNormalMatch && !isClearedMatch) {
-      alert(tc('totalRoundsMustBe4Or0'));
+      toast.error(tc('totalRoundsMustBe4Or0'));
       return;
     }
 
@@ -475,7 +476,7 @@ export default function MatchRacePageClient({
                   });
                   if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedResetBracket'));
+                    toast.error(err.error || tc('failedResetBracket'));
                     return;
                   }
                   setFinalsExists(false);
@@ -511,7 +512,7 @@ export default function MatchRacePageClient({
                   });
                   if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedGenerateBracket'));
+                    toast.error(err.error || tc('failedGenerateBracket'));
                     return;
                   }
                   setFinalsExists(true);

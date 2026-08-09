@@ -27,6 +27,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PlayerName } from '@/components/ui/player-name';
+import { SlotEditButton } from '@/components/tournament/slot-edit-button';
 import { cn } from '@/lib/utils';
 import { TV_NUMBER_OPTIONS } from '@/lib/constants';
 import { resolveBracketWinnerFlags, type BracketWinnerResolver } from '@/lib/bracket-winner-flags';
@@ -250,18 +251,7 @@ function MatchCard<TMatch extends BMMatch>({
             className="gap-1"
           />
           {slotEditMode && match && !match.completed && !isTBD.player1 && (
-            <button
-              type="button"
-              className="opacity-60 hover:opacity-100 text-xs leading-none"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSlotClick?.(match, 1);
-              }}
-              aria-label={tf('slotEditButtonLabel')}
-              data-testid="slot-edit-button-1"
-            >
-              ✎
-            </button>
+            <SlotEditButton slot={1} testId="slot-edit-button-1" onClick={() => onSlotClick?.(match, 1)} />
           )}
         </span>
         <span className="font-mono">{match?.completed ? match.score1 : '-'}</span>
@@ -286,18 +276,7 @@ function MatchCard<TMatch extends BMMatch>({
             className="gap-1"
           />
           {slotEditMode && match && !match.completed && !isTBD.player2 && (
-            <button
-              type="button"
-              className="opacity-60 hover:opacity-100 text-xs leading-none"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSlotClick?.(match, 2);
-              }}
-              aria-label={tf('slotEditButtonLabel')}
-              data-testid="slot-edit-button-2"
-            >
-              ✎
-            </button>
+            <SlotEditButton slot={2} testId="slot-edit-button-2" onClick={() => onSlotClick?.(match, 2)} />
           )}
         </span>
         <span className="font-mono">{match?.completed ? match.score2 : '-'}</span>

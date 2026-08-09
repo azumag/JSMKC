@@ -109,6 +109,7 @@ jest.mock('next/server', () => {
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const auditLogMock = jest.requireMock('@/lib/audit-log');
 const sanitizeMock = jest.requireMock('@/lib/sanitize');
@@ -432,7 +433,9 @@ describe('PUT /api/players/[id]', () => {
         name: 'Updated Name',
         nickname: 'updated',
       });
-      prisma.player.update.mockRejectedValue({ code: 'P2025' });
+      prisma.player.update.mockRejectedValue(
+        new PrismaClientKnownRequestError('Not found', { code: 'P2025', clientVersion: 'test' }),
+      );
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'PUT',
@@ -455,7 +458,9 @@ describe('PUT /api/players/[id]', () => {
         name: 'Updated Name',
         nickname: 'existing-test',
       });
-      prisma.player.update.mockRejectedValue({ code: 'P2002' });
+      prisma.player.update.mockRejectedValue(
+        new PrismaClientKnownRequestError('Unique constraint failed', { code: 'P2002', clientVersion: 'test' }),
+      );
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'PUT',
@@ -642,7 +647,9 @@ describe('DELETE /api/players/[id]', () => {
 
   describe('Error Cases', () => {
     it('should return 404 when player not found (P2025)', async () => {
-      prisma.player.delete.mockRejectedValue({ code: 'P2025' });
+      prisma.player.delete.mockRejectedValue(
+        new PrismaClientKnownRequestError('Not found', { code: 'P2025', clientVersion: 'test' }),
+      );
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'DELETE',

@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
+import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { readTournamentArchive } from '@/lib/tournament-archive';
 import { restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
 function restoreStageFromError(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('restoreStage' in error)) return null;
@@ -64,13 +67,45 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       restoredPlayerCount: restored.restoredPlayerCount,
       reusedPlayerCount: restored.reusedPlayerCount,
     });
+
+    // Issue #2901: restoring a tournament recreates Tournament + possibly
+    // Player rows, so record it like the other admin lifecycle operations.
+    try {
+      const ip = await getServerSideIdentifier();
+      const userAgent = _request.headers.get('user-agent') || 'unknown';
+      createAuditLog({
+        userId: resolveAuditUserId(session),
+        ipAddress: ip,
+        userAgent,
+        action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
+        targetId: restored.tournament.id,
+        targetType: 'Tournament',
+        details: {
+          tournamentId: restored.tournament.id,
+          restoredPlayerCount: restored.restoredPlayerCount,
+          reusedPlayerCount: restored.reusedPlayerCount,
+          source: 'archive_reopen',
+        },
+      }).catch((err) =>
+        logger.warn('Failed to create audit log', {
+          error: err,
+          tournamentId: restored.tournament.id,
+        }),
+      );
+    } catch (auditError) {
+      logger.warn('Failed to create audit log', {
+        error: auditError,
+        tournamentId: restored.tournament.id,
+      });
+    }
+
     return createSuccessResponse(restored.tournament);
   } catch (error) {
     logger.error('Failed to restore archived tournament', {
       error,
       identifier: id,
     });
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+    if (isPrismaErrorCode(error, 'P2002')) {
       return createErrorResponse('Tournament or player data conflicts with an existing record', 409, 'CONFLICT');
     }
 

@@ -23,6 +23,7 @@ import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-l
 import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
 /**
  * Verifies the caller is either the player themself or an admin.
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error: unknown) {
     logger.error('Failed to issue QR login token', { error, playerId: id });
 
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+    if (isPrismaErrorCode(error, 'P2025')) {
       return createErrorResponse('Player not found', 404);
     }
 
@@ -172,7 +173,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   } catch (error: unknown) {
     logger.error('Failed to revoke QR login token', { error, playerId: id });
 
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+    if (isPrismaErrorCode(error, 'P2025')) {
       return createErrorResponse('Player not found', 404);
     }
 

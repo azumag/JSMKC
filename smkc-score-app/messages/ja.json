@@ -678,7 +678,7 @@
     "slotEditModeToggle": "配置調整モード",
     "slotEditModeActive": "配置調整モード中",
     "slotEditOverriddenBadge": "手動調整",
-    "slotEditButtonLabel": "スロットを編集",
+    "slotEditButtonLabel": "スロット{slot}を編集",
     "slotEditDialogTitle": "M{matchNumber} の配置を調整",
     "slotEditCurrentPlayer": "現在の配置: {name}",
     "slotEditTabSwap": "1P/2Pを入れ替え",

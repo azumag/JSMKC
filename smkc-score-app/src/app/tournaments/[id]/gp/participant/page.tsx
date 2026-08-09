@@ -65,8 +65,8 @@ export default function GrandPrixParticipantPage({ params }: { params: Promise<{
 
     const data = await ctx.submitReport(match.id, {
       reportingPlayer,
-      points1: Number(points.points1),
-      points2: Number(points.points2),
+      points1: points.points1 === '' ? 0 : Number(points.points1),
+      points2: points.points2 === '' ? 0 : Number(points.points2),
     });
 
     if (data) {

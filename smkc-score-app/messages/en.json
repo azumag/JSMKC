@@ -678,7 +678,7 @@
     "slotEditModeToggle": "Adjust Placement",
     "slotEditModeActive": "Placement Adjustment Mode",
     "slotEditOverriddenBadge": "Manually adjusted",
-    "slotEditButtonLabel": "Edit slot",
+    "slotEditButtonLabel": "Edit slot {slot}",
     "slotEditDialogTitle": "Adjust placement for M{matchNumber}",
     "slotEditCurrentPlayer": "Current: {name}",
     "slotEditTabSwap": "Swap 1P/2P",

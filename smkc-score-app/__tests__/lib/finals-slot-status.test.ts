@@ -10,7 +10,12 @@
  */
 import { describe, it, expect } from '@jest/globals';
 import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
-import { getFinalsSlotStatus, isFinalsSlotConfirmed, type SlotStatusMatch } from '@/lib/finals-slot-status';
+import {
+  getFinalsSlotStatus,
+  isFinalsSlotConfirmed,
+  serializeFinalsSlots,
+  type SlotStatusMatch,
+} from '@/lib/finals-slot-status';
 
 function makeMatch(overrides: Partial<SlotStatusMatch> & { matchNumber: number }): SlotStatusMatch {
   return {
@@ -213,5 +218,50 @@ describe('finals-slot-status', () => {
         player2: false,
       });
     });
+  });
+});
+
+describe('serializeFinalsSlots (issue #3022)', () => {
+  it('strips slotOverrideBy (admin user id) from serialized match rows', () => {
+    const matches = [
+      makeMatch({
+        matchNumber: 1,
+        round: 'winners_qf',
+        player1Id: 'p1-1',
+        player2Id: 'p2-1',
+      }),
+    ];
+    const withOverride = {
+      ...matches[0],
+      slotOverrideBy: 'admin-user-123',
+      slotOverrideAt: '2026-08-09T00:00:00.000Z',
+    };
+    const bracketStructure = generateBracketStructure(8);
+
+    const serialized = serializeFinalsSlots([withOverride], bracketStructure);
+
+    expect(serialized).toHaveLength(1);
+    expect(serialized[0]).not.toHaveProperty('slotOverrideBy');
+    // slotOverrideAt is needed by the frontend manual-adjustment badge, so it stays.
+    expect(serialized[0]).toHaveProperty('slotOverrideAt');
+    expect(serialized[0]).toMatchObject({
+      matchNumber: 1,
+      player1Tbd: false,
+      player2Tbd: false,
+    });
+  });
+
+  it('keeps the slot override fields when present in the source row', () => {
+    const withOverride = {
+      ...makeMatch({ matchNumber: 2, round: 'winners_qf', player1Id: 'p1-2', player2Id: 'p2-2' }),
+      slotOverrideBy: 'admin-user-456',
+      slotOverrideAt: '2026-08-09T01:00:00.000Z',
+    };
+    const bracketStructure = generateBracketStructure(8);
+
+    const serialized = serializeFinalsSlots([withOverride], bracketStructure);
+
+    expect(serialized[0]).not.toHaveProperty('slotOverrideBy');
+    expect(serialized[0].slotOverrideAt).toBe('2026-08-09T01:00:00.000Z');
   });
 });

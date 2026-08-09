@@ -249,6 +249,69 @@ describe('TimeAttackFinals — per-round life loss control (TA battle royale)', 
     expect(screen.queryByText('Life loss for this round')).not.toBeInTheDocument();
   });
 
+  /* Issue #3008: selecting a non-default life-loss value must be reflected in
+   * the start-round POST body as `lifeLoss`, not silently defaulted to 1. */
+  it('sends the selected life loss value in the start-round request body', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('battle_royale'));
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getByText('Life loss for this round')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Start Round/ }));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/tournaments/tournament-1/ta/phases',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+    const [, request] = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]: [string]) => url === '/api/tournaments/tournament-1/ta/phases',
+    );
+    expect(JSON.parse(request.body)).toEqual(
+      expect.objectContaining({
+        action: 'start_round',
+        phase: 'phase3',
+        lifeLoss: 1,
+      }),
+    );
+  });
+
+  it('sends a custom selected life loss value in the start-round request body', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('battle_royale'));
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getByText('Life loss for this round')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('(-1 lives)'));
+    fireEvent.click(await screen.findByText('(-2 lives)'));
+
+    fireEvent.click(screen.getByRole('button', { name: /Start Round/ }));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/tournaments/tournament-1/ta/phases',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+    const [, request] = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]: string) => url === '/api/tournaments/tournament-1/ta/phases',
+    );
+    expect(JSON.parse(request.body)).toEqual(
+      expect.objectContaining({
+        action: 'start_round',
+        phase: 'phase3',
+        lifeLoss: 2,
+      }),
+    );
+  });
+
   it('keeps manual elimination available but hides exact-life inputs in TA battle royale', async () => {
     mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
     global.fetch = jest.fn().mockResolvedValue(makeInProgressPayload('battle_royale'));
@@ -390,6 +453,53 @@ describe('TimeAttackFinals — round history remaining-life display', () => {
     // who lost a life this round.
     expect(text).not.toMatch(/Luigi.*\(-1 lives\)/);
     expect(text).toMatch(/Luigi.*3 left/);
+  });
+
+  /* Issue #3074: a player eliminated in a round shows the "(Eliminated)" tag
+   * but must NOT also show the "0 left" remaining-life badge (redundant). */
+  it('hides the remaining-life badge for players eliminated in the round', async () => {
+    mockUseSession.mockReturnValue({ data: null } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          entries: [
+            makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: 0, eliminated: true }),
+            makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi', lives: 2 }),
+          ],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase3',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [
+                { playerId: 'p-1', timeMs: 60000, isRetry: false, livesAfter: 0, lifeLost: true },
+                { playerId: 'p-2', timeMs: 70000, isRetry: false, livesAfter: 2, lifeLost: false },
+              ],
+              eliminatedIds: ['p-1'],
+              livesReset: false,
+              manualOverride: false,
+            },
+          ],
+          availableCourses: ['GV2'],
+          playedCourses: ['GV1'],
+        },
+      }),
+    });
+
+    const { container } = render(<TimeAttackFinals params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Round History')).toBeInTheDocument();
+    });
+    const fullText = container.textContent ?? '';
+    const text = fullText.slice(fullText.indexOf('Round History'));
+    // Eliminated player: eliminated tag present, but no "0 left" badge.
+    expect(text).toMatch(/Mario.*\(Eliminated\)/);
+    expect(text).not.toMatch(/Mario.*0 left/);
+    // Non-eliminated player keeps their remaining-life badge.
+    expect(text).toMatch(/Luigi.*2 left/);
   });
 
   it('interleaves a manual life adjustment with round history and shows before/after, timestamp, and actor', async () => {

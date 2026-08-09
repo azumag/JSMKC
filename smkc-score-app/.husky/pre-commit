@@ -1,0 +1,6 @@
+#!/bin/sh
+# Skip when lint-staged is not installed (e.g. main before #3071 merged).
+if [ ! -x "$(dirname "$0")/../node_modules/.bin/lint-staged" ]; then
+  exit 0
+fi
+cd "$(dirname "$0")/.." && npx --no-install lint-staged --relative

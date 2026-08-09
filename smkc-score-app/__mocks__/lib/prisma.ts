@@ -69,6 +69,7 @@ const mockPrisma = {
   },
   tTPhaseSuddenDeathRound: {
     create: jest.fn(),
+    createMany: jest.fn(),
     update: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),

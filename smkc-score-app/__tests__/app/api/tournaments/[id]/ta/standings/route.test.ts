@@ -31,7 +31,6 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 
 // Mock dependencies
 
-
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
@@ -57,55 +56,10 @@ jest.mock('@/lib/logger', () => {
   };
 });
 
-jest.mock('next/server', () => {
-  const mockJson = jest.fn();
-
-  // Type for mock request init options
-  type MockInit = {
-    method?: string;
-    body?: unknown;
-    headers?: Record<string, string> | Headers | Map<string, string>;
-  };
-
-  class MockNextRequest {
-    url: string;
-    method: string;
-    _body: unknown;
-    headers: {
-      get: (key: string) => string | null;
-      forEach: (cb: (value: string, key: string) => void) => void;
-    };
-
-    constructor(url: string, init: MockInit = {}) {
-      this.url = url;
-      this.method = init.method || 'GET';
-      this._body = init.body;
-      const h = init.headers || {};
-      this.headers = {
-        get: (key: string): string | null => {
-          if (h instanceof Headers) return h.get(key);
-          if (h instanceof Map) return h.get(key) ?? null;
-          return (h as Record<string, string>)[key] ?? null;
-        },
-        forEach: (cb: (value: string, key: string) => void) => {
-          if (h instanceof Headers) { h.forEach(cb); return; }
-          Object.entries(h).forEach(([k, v]) => cb(v as string, k));
-        },
-      };
-    }
-    async json() {
-      if (typeof this._body === 'string') return JSON.parse(this._body);
-      return this._body;
-    }
-  }
-  return {
-    NextRequest: MockNextRequest,
-    NextResponse: {
-      json: mockJson,
-    },
-    __esModule: true,
-  };
-});
+jest.mock('next/server', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('../../../../../../helpers/mock-next-server').createNextServerMock(),
+);
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -146,15 +100,14 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
     it('should return 403 when not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       // handleAuthzError includes code: 'FORBIDDEN'
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -163,14 +116,13 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         user: { id: 'user-1', role: 'user' },
       });
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
-        { status: 403 }
+        { status: 403 },
       );
     });
   });
@@ -185,9 +137,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         data: {
           tournamentId: 't1',
           stage: 'qualification',
-          entries: [
-            { rank: 1, playerName: 'Player 1', totalTime: 100000 },
-          ],
+          entries: [{ rank: 1, playerName: 'Player 1', totalTime: 100000 }],
         },
         etag: 'cached-etag',
         expiresAt: new Date(Date.now() + 60000),
@@ -195,10 +145,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
       (get as jest.Mock).mockResolvedValue(cachedData);
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -207,10 +156,10 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         }),
         expect.objectContaining({
           headers: expect.objectContaining({
-            'ETag': 'cached-etag',
+            ETag: 'cached-etag',
             'Cache-Control': 'private, max-age=0, must-revalidate',
           }),
-        })
+        }),
       );
     });
 
@@ -248,10 +197,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       (set as jest.Mock).mockResolvedValue(undefined);
       (generateETag as jest.Mock).mockReturnValue('new-etag');
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       expect(prisma.tTEntry.findMany).toHaveBeenCalled();
       expect(set).toHaveBeenCalledWith('t1', 'qualification', mockEntries, 'new-etag');
@@ -297,10 +245,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
       (set as jest.Mock).mockResolvedValue(undefined);
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -334,7 +281,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
               }),
             ]),
           }),
-        })
+        }),
       );
     });
 
@@ -363,10 +310,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
       (set as jest.Mock).mockResolvedValue(undefined);
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       // Source uses msToDisplayTime which returns "-" for null, and "M:SS.mm" for numbers.
       // So totalTime = 0 produces formattedTime = '0:00.00', not '-'.
@@ -381,7 +327,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
               }),
             ]),
           }),
-        })
+        }),
       );
     });
   });
@@ -395,22 +341,18 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.tTEntry.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       // Verify the shared logger instance (returned by mocked createLogger) logged the error.
       // loggerInstance is pre-captured from the mock and re-set in beforeEach.
-      expect(loggerInstance.error).toHaveBeenCalledWith(
-        'Failed to fetch TA standings',
-        expect.any(Object)
-      );
+      expect(loggerInstance.error).toHaveBeenCalledWith('Failed to fetch TA standings', expect.any(Object));
 
       // createErrorResponse includes success: false and error message
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Failed to fetch TA standings' }),
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -438,10 +380,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       (set as jest.Mock).mockRejectedValue(new Error('Cache error'));
       (generateETag as jest.Mock).mockReturnValue('new-etag');
 
-      await standingsRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
-        { params: Promise.resolve({ id: 't1' }) }
-      );
+      await standingsRoute.GET(new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'), {
+        params: Promise.resolve({ id: 't1' }),
+      });
 
       expect(NextResponse.json).toHaveBeenCalled();
     });

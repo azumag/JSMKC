@@ -42,6 +42,10 @@ async function getPrisma() {
 
 const logger = createLogger('auth');
 
+/** How often a player JWT session re-checks that the player row still exists
+ * and is not soft-deleted (issue #3065). */
+const PLAYER_SESSION_REVALIDATE_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
 export function getAdminDiscordIds(): string[] {
   const ids = process.env.ADMIN_DISCORD_IDS || '';
   return ids
@@ -352,6 +356,44 @@ export const authConfig = {
           role: token.role,
           userType: token.userType,
         });
+      }
+
+      /* Issue #3065: a JWT session is stateless, so a player who is
+       * soft-deleted (or hard-deleted) after signing in would otherwise keep
+       * operating until the token expires. Re-check the player row at most
+       * once per PLAYER_SESSION_REVALIDATE_INTERVAL_MS (a cheap indexed read)
+       * and strip the player identity from the token when the row is gone or
+       * soft-deleted. Falls back to keeping the session on a transient DB
+       * error rather than logging the player out mid-tournament. */
+      if (token.userType === 'player' && typeof token.playerId === 'string') {
+        const lastChecked = typeof token.playerStatusCheckedAt === 'number' ? token.playerStatusCheckedAt : 0;
+        const now = Date.now();
+        if (now - lastChecked > PLAYER_SESSION_REVALIDATE_INTERVAL_MS) {
+          try {
+            const prisma = await getPrisma();
+            const player = await prisma.player.findUnique({
+              where: { id: token.playerId },
+              select: { id: true, deletedAt: true },
+            });
+            if (!player || player.deletedAt) {
+              const invalidatedPlayerId = token.playerId;
+              delete token.role;
+              delete token.userType;
+              delete token.playerId;
+              delete token.nickname;
+              logger.info('Player session invalidated because the player was deleted', {
+                playerId: invalidatedPlayerId,
+              });
+              return token;
+            }
+          } catch (error) {
+            logger.warn('Failed to revalidate player session status; keeping session', {
+              error: error instanceof Error ? error.message : String(error),
+              playerId: token.playerId,
+            });
+          }
+          token.playerStatusCheckedAt = now;
+        }
       }
 
       if (token.accessTokenExpires && typeof token.accessTokenExpires === 'number') {

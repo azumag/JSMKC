@@ -203,6 +203,8 @@ jest.mock('@/lib/prisma', () => {
     finalsRoundSetting: createMockModelWithMethods(),
     tTEntry: createMockModelWithMethods(),
     tTPhaseRound: createMockModelWithMethods(),
+    tTPhaseSuddenDeathRound: createMockModelWithMethods(),
+    tTPhaseLifeAdjustment: createMockModelWithMethods(),
     tournamentPlayerScore: createMockModelWithMethods(),
     scoreEntryLog: {
       aggregate: jest.fn(),
