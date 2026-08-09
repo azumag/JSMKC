@@ -381,16 +381,26 @@ export const authConfig = {
               delete token.userType;
               delete token.playerId;
               delete token.nickname;
+              // Issue #3078: NextAuth auto-populates token.sub with the sign-in
+              // user id; the session callback falls back to it for
+              // session.user.id, so a deleted player would otherwise keep a
+              // live user id in the session. Drop it together with the rest.
+              delete token.sub;
               logger.info('Player session invalidated because the player was deleted', {
                 playerId: invalidatedPlayerId,
               });
               return token;
             }
           } catch (error) {
+            // Issue #3079: on a transient DB error, do NOT advance the timer —
+            // otherwise a deleted player's session stays valid for another
+            // full interval. Only a successful check (player alive) updates
+            // playerStatusCheckedAt below.
             logger.warn('Failed to revalidate player session status; keeping session', {
               error: error instanceof Error ? error.message : String(error),
               playerId: token.playerId,
             });
+            return token;
           }
           token.playerStatusCheckedAt = now;
         }
