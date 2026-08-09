@@ -145,8 +145,10 @@ export const FINALS_SEED_LIST_MAX_ROWS = 24; // rows 3..26
  * B-positions 1..12 (verified against the CDM 2025 official results
  * workbook, whose B3:B26 seed list is contiguous seeds 1-24). Two-group
  * export uses TWO_GROUP_DIRECT_UPPER_SEEDS from finals-group-selection.ts.
+ * No FINALS_DIRECT_UPPER_SEEDS constant is needed: seeds 1..12 are
+ * contiguous, so the range check `1 <= upperSeed <= 12` is the identity
+ * mapping (see fill/finals.ts assignTypedSeed).
  */
-export const FINALS_DIRECT_UPPER_SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 export interface FinalsSlotGeometry {
   /** 1-based column of the block's label column (+0 offset). */

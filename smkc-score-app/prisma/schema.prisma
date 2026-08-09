@@ -227,7 +227,7 @@ model BMQualification {
   score                  Int        @default(0) // Ranking score
   rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
   rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt         DateTime? // 上書き日時（監査用）
+  rankOverrideAt         DateTime? // 上書き日時 (監査用)
   combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
   combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
   combinedRankOverrideAt DateTime? // 横断順位の記録日時
@@ -310,7 +310,7 @@ model MRQualification {
   score                  Int        @default(0)
   rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
   rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt         DateTime? // 上書き日時（監査用）
+  rankOverrideAt         DateTime? // 上書き日時 (監査用)
   combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
   combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
   combinedRankOverrideAt DateTime? // 横断順位の記録日時
@@ -393,7 +393,7 @@ model GPQualification {
   score                  Int        @default(0)
   rankOverride           Int? // 管理者による手動順位上書き (null = 自動計算)
   rankOverrideBy         String? // 上書きした管理者ユーザーID (監査用)
-  rankOverrideAt         DateTime? // 上書き日時（監査用）
+  rankOverrideAt         DateTime? // 上書き日時 (監査用)
   combinedRankOverride   Int? // 完全同点時のグループ横断プレーオフ順位
   combinedRankOverrideBy String? // 横断順位を記録した管理者ユーザーID
   combinedRankOverrideAt DateTime? // 横断順位の記録日時
