@@ -94,6 +94,11 @@ jest.mock('@prisma/client', () => {
       PrismaClientKnownRequestError: lib.PrismaClientKnownRequestError,
       // DbNull sentinel for nullable Json? fields in update operations
       DbNull: null,
+      // Minimal sql tag for $executeRaw(Prisma.sql`...`) calls: return the
+      // joined string so tests can assert on the generated SQL.
+      sql: jest.fn((strings: TemplateStringsArray, ...values: unknown[]) =>
+        strings.reduce((acc, str, index) => `${acc}${str}${index < values.length ? String(values[index]) : ''}`, ''),
+      ),
     },
   };
 });
@@ -2975,50 +2980,39 @@ describe('reportPhase3Time (issue #2994)', () => {
   const mockPrismaClient = {
     tTPhaseRound: {
       findUnique: jest.fn(),
-      update: jest.fn(),
     },
+    $executeRaw: jest.fn(),
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('stores the first report for a player', async () => {
-    mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
-      id: 'round-1',
-      reportedResults: null,
-    });
-    mockPrismaClient.tTPhaseRound.update.mockResolvedValue({ id: 'round-1' });
+  it('stores the first report for a player via an atomic JSON1 UPDATE', async () => {
+    mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({ id: 'round-1' });
+    mockPrismaClient.$executeRaw.mockResolvedValue(1);
 
     const result = await reportPhase3Time(mockPrismaClient as never, 'round-1', 'player-1', 60000);
 
-    expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith({
-      where: { id: 'round-1' },
-      data: {
-        reportedResults: [expect.objectContaining({ playerId: 'player-1', timeMs: 60000 })],
-      },
-    });
+    expect(mockPrismaClient.$executeRaw).toHaveBeenCalledTimes(1);
+    const sql = mockPrismaClient.$executeRaw.mock.calls[0][0];
+    expect(String(sql)).toContain('json_insert');
+    expect(String(sql)).toContain('json_each');
+    expect(String(sql)).toContain('player-1');
     expect(result.playerId).toBe('player-1');
     expect(result.timeMs).toBe(60000);
   });
 
-  it('overwrites the same player report on re-report', async () => {
-    mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
-      id: 'round-1',
-      reportedResults: [
-        { playerId: 'player-1', timeMs: 60000, reportedAt: '2026-08-09T00:00:00.000Z' },
-        { playerId: 'player-2', timeMs: 65000, reportedAt: '2026-08-09T00:00:01.000Z' },
-      ],
-    });
-    mockPrismaClient.tTPhaseRound.update.mockResolvedValue({ id: 'round-1' });
+  it('binds the reported row and player id into the SQL', async () => {
+    mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({ id: 'round-1' });
+    mockPrismaClient.$executeRaw.mockResolvedValue(1);
 
     await reportPhase3Time(mockPrismaClient as never, 'round-1', 'player-1', 59000);
 
-    const updateCall = mockPrismaClient.tTPhaseRound.update.mock.calls[0][0];
-    const stored = updateCall.data.reportedResults as Array<{ playerId: string; timeMs: number }>;
-    expect(stored).toHaveLength(2);
-    expect(stored.find((r) => r.playerId === 'player-1')?.timeMs).toBe(59000);
-    expect(stored.find((r) => r.playerId === 'player-2')?.timeMs).toBe(65000);
+    const sql = mockPrismaClient.$executeRaw.mock.calls[0][0];
+    const strings = Array.isArray(sql) ? sql : [String(sql)];
+    expect(strings.join(' ')).toContain('player-1');
+    expect(strings.join(' ')).toContain('59000');
   });
 
   it('throws when the round does not exist', async () => {
@@ -3027,6 +3021,6 @@ describe('reportPhase3Time (issue #2994)', () => {
     await expect(reportPhase3Time(mockPrismaClient as never, 'missing', 'player-1', 60000)).rejects.toThrow(
       'Phase 3 round not found',
     );
-    expect(mockPrismaClient.tTPhaseRound.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.$executeRaw).not.toHaveBeenCalled();
   });
 });
