@@ -73,7 +73,7 @@ jobs:
             pending_count=$(jq '[.[] | select((.applied_at // .applied // .AppliedAt) == null)] | length' pending.json)
             echo "Pending migration count: ${pending_count}"
             total_count=$(jq 'length' pending.json)
-            recognized=$(jq '[.[] | has("applied_at") or has("applied") or has("AppliedAt")] | any' pending.json)
+            recognized=$(jq '[.[] | has("applied_at") or has("applied") or has("AppliedAt")] | all' pending.json)
             if [ "${recognized}" != "true" ] && [ "${total_count}" -gt 0 ]; then
               echo "::error::wrangler d1 migrations list --json output schema is unrecognized. Inspect the output above and update this step."
               exit 1
