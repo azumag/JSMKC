@@ -499,7 +499,9 @@
     "reportDisabled": "この大会では参加者報告は無効です",
     "reportInvalidTime": "タイムが無効です。M:SS.mm形式で入力してください",
     "phase3StandingsTitle": "フェーズ3 順位表",
-    "reportRoundNumber": "ラウンド {number}"
+    "reportRoundNumber": "ラウンド {number}",
+    "roundMismatch": "ラウンド番号が現在のラウンドと一致しません",
+    "eliminatedCannotReport": "失格したためタイムを報告できません"
   },
   "bm": {
     "title": "バトルモード",

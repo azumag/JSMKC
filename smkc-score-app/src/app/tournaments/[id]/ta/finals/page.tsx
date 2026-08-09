@@ -1047,53 +1047,55 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                     </div>
                   );
                 })()}
-                {activeEntries.map((entry) => (
-                  <TaTimeEntryRow
-                    key={entry.id}
-                    playerId={entry.playerId}
-                    playerName={entry.player.nickname}
-                    reportBadge={(() => {
-                      const openRoundRow = currentRound
-                        ? rounds.find((r) => r.roundNumber === currentRound.roundNumber)
-                        : undefined;
-                      const reported = Array.isArray(openRoundRow?.reportedResults)
-                        ? (openRoundRow.reportedResults as Array<{ playerId: string }>)
-                        : [];
-                      const hasReport = reported.some((r) => r.playerId === entry.playerId);
-                      return hasReport ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-[10px]">
-                          {tTaFinals('reportedBadge')}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground text-[10px]">
-                          {tTaFinals('notReportedBadge')}
-                        </Badge>
-                      );
-                    })()}
-                    livesLabel={
-                      <TaLivesIndicator
-                        lives={entry.lives}
-                        maxLives={phase3Rules.initialLives}
-                        eliminated={entry.eliminated}
-                        eliminatedLabel={tTaFinals('eliminated')}
-                        showMax={taMode === 'battle_royale'}
-                      />
-                    }
-                    tvNumber={tvAssignments[entry.playerId] ?? null}
-                    tvLabel={`${tCommon('tvNumber')} ${entry.player.nickname}`}
-                    timeValue={courseTimes[entry.playerId] || ''}
-                    timePlaceholder={tTaFinals('timePlaceholder')}
-                    isRetry={retryFlags[entry.playerId]}
-                    isEditingDisabled={submitting}
-                    retryLabel={tCommon('retry')}
-                    retryTitle={tTaFinals('retryPenalty')}
-                    timeInputProps={taTimeInputProps}
-                    onTvChange={handleTvChange}
-                    onTimeChange={handleTimeChange}
-                    onTimeBlur={handleTimeBlur}
-                    onRetryToggle={handleRetryToggle}
-                  />
-                ))}
+                {activeEntries.map((entry) => {
+                  const openRoundRow = currentRound
+                    ? rounds.find((r) => r.roundNumber === currentRound.roundNumber)
+                    : undefined;
+                  const reported = Array.isArray(openRoundRow?.reportedResults)
+                    ? (openRoundRow.reportedResults as Array<{ playerId: string }>)
+                    : [];
+                  const hasReport = reported.some((r) => r.playerId === entry.playerId);
+                  return (
+                    <TaTimeEntryRow
+                      key={entry.id}
+                      playerId={entry.playerId}
+                      playerName={entry.player.nickname}
+                      reportBadge={
+                        hasReport ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-[10px]">
+                            {tTaFinals('reportedBadge')}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                            {tTaFinals('notReportedBadge')}
+                          </Badge>
+                        )
+                      }
+                      livesLabel={
+                        <TaLivesIndicator
+                          lives={entry.lives}
+                          maxLives={phase3Rules.initialLives}
+                          eliminated={entry.eliminated}
+                          eliminatedLabel={tTaFinals('eliminated')}
+                          showMax={taMode === 'battle_royale'}
+                        />
+                      }
+                      tvNumber={tvAssignments[entry.playerId] ?? null}
+                      tvLabel={`${tCommon('tvNumber')} ${entry.player.nickname}`}
+                      timeValue={courseTimes[entry.playerId] || ''}
+                      timePlaceholder={tTaFinals('timePlaceholder')}
+                      isRetry={retryFlags[entry.playerId]}
+                      isEditingDisabled={submitting}
+                      retryLabel={tCommon('retry')}
+                      retryTitle={tTaFinals('retryPenalty')}
+                      timeInputProps={taTimeInputProps}
+                      onTvChange={handleTvChange}
+                      onTimeChange={handleTimeChange}
+                      onTimeBlur={handleTimeBlur}
+                      onRetryToggle={handleRetryToggle}
+                    />
+                  );
+                })}
               </div>
               {/* 配信に反映: push TV1→player1Name, TV2→player2Name to broadcast overlay */}
               <div className="mt-3 flex flex-col gap-1">

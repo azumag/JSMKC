@@ -499,7 +499,9 @@
     "reportDisabled": "Player time reporting is disabled for this tournament",
     "reportInvalidTime": "Invalid time. Use M:SS.mm format",
     "phase3StandingsTitle": "Phase 3 Standings",
-    "reportRoundNumber": "Round {number}"
+    "reportRoundNumber": "Round {number}",
+    "roundMismatch": "Round number does not match the current round",
+    "eliminatedCannotReport": "Eliminated players cannot report a time"
   },
   "bm": {
     "title": "Battle Mode",

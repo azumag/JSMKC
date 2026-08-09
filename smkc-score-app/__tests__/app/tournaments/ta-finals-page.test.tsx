@@ -323,6 +323,84 @@ describe('TimeAttackFinals — per-round life loss control (TA battle royale)', 
   });
 });
 
+/* Issue #2994: participant-reported times prefill the admin's finals screen
+ * (empty inputs only) and report badges/count render. */
+describe('TimeAttackFinals — participant time report prefill', () => {
+  function openRoundPayload() {
+    return {
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          taMode: 'battle_royale',
+          entries: [
+            { ...makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: 10 }) },
+            { ...makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi', lives: 10 }) },
+          ],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase3',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [],
+              reportedResults: [{ playerId: 'p-1', timeMs: 60000, reportedAt: '2026-08-09T00:00:00.000Z' }],
+              eliminatedIds: [],
+              livesReset: false,
+              manualOverride: false,
+              lifeLoss: 1,
+            },
+          ],
+          availableCourses: ['GV2'],
+          playedCourses: ['GV1'],
+          phase3Rules: {
+            initialLives: 10,
+            lifeResetThresholds: [],
+            survivorsNeeded: 1,
+            handicapEnabled: true,
+            retryAppliesHandicap: false,
+          },
+        },
+      }),
+    };
+  }
+
+  it('prefills an empty time input from the participant report on auto-recover', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(openRoundPayload());
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('ta-time-entry-row').length).toBe(2);
+    });
+    // Mario's row carries the participant report (1:00.00); find his input by
+    // locating the row that contains his player-name label.
+    const rows = screen.getAllByTestId('ta-time-entry-row');
+    const marioRow = rows.find((row) => row.textContent?.includes('Mario'));
+    expect(marioRow).toBeDefined();
+    const input = marioRow!.querySelector('input[type="text"]') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    expect(input!.value).toBe('1:00.00');
+    // Luigi has no report, so his input stays empty.
+    const luigiRow = rows.find((row) => row.textContent?.includes('Luigi'));
+    const luigiInput = luigiRow!.querySelector('input[type="text"]') as HTMLInputElement | null;
+    expect(luigiInput!.value).toBe('');
+  });
+
+  it('renders reported and not-reported badges plus the count', async () => {
+    mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    global.fetch = jest.fn().mockResolvedValue(openRoundPayload());
+
+    await renderFinals();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Reported 1\/2/)).toBeInTheDocument();
+    });
+    expect(screen.getByText('Reported')).toBeInTheDocument();
+    expect(screen.getByText('Not reported')).toBeInTheDocument();
+  });
+});
+
 describe('TimeAttackFinals — manual life adjustment', () => {
   it('lets an admin set an active player to five lives through the versioned exact-life API', async () => {
     mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);

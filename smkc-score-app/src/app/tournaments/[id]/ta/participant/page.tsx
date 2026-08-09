@@ -46,7 +46,7 @@ import {
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
-import { msToDisplayTime as msToDisplay } from '@/lib/ta/time-utils';
+
 import type { Player } from '@/lib/types';
 import type { ReportedPhase3Result, TaPhaseResponse } from '@/lib/ta/phase-api-types';
 import { Badge } from '@/components/ui/badge';
@@ -468,7 +468,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
         const code = json.code as string | undefined;
         if (code === 'NO_OPEN_ROUND') setReportError(tTa('noOpenRound'));
         else if (code === 'ROUND_ALREADY_SUBMITTED') setReportError(tTa('roundAlreadySubmitted'));
+        else if (code === 'ROUND_MISMATCH') setReportError(tTa('roundMismatch'));
         else if (code === 'PLAYER_REPORT_DISABLED') setReportError(tTa('reportDisabled'));
+        else if (code === 'PLAYER_ELIMINATED') setReportError(tTa('eliminatedCannotReport'));
         else setReportError(json.error || 'Failed to report time');
         return;
       }
@@ -657,7 +659,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
                     )}
                     {myReport ? (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                        {tTa('reportedBadge')}: {msToDisplay(myReport.timeMs)}
+                        {tTa('reportedBadge')}: {msToDisplayTime(myReport.timeMs)}
                       </Badge>
                     ) : (
                       <Badge variant="outline">{tTa('notReportedBadge')}</Badge>
