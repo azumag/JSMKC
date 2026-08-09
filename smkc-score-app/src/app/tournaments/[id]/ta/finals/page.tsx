@@ -105,6 +105,13 @@ interface LifeInputSnapshot {
   expectedLives: number;
 }
 
+/** Participant-reported time rows (issue #2994), safely read from any round shape. */
+type ReportedRoundRow = { playerId: string; timeMs: number; reportedAt?: string };
+
+function getReportedResults(round: { reportedResults?: unknown } | null | undefined): ReportedRoundRow[] {
+  return Array.isArray(round?.reportedResults) ? (round.reportedResults as ReportedRoundRow[]) : [];
+}
+
 /** Round record from the phases API */
 interface PhaseRound {
   id: string;
@@ -279,10 +286,10 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       // cannot clobber in-progress input.
       const openRound = fetchedRounds.filter((r) => Array.isArray(r.results) && r.results.length === 0).pop();
       if (openRound && currentRound && !isEditing) {
-        const reported = Array.isArray(openRound.reportedResults) ? openRound.reportedResults : [];
+        const reported = getReportedResults(openRound);
         setCourseTimes((prev) => {
           let next = prev;
-          for (const r of reported as Array<{ playerId: string; timeMs: number }>) {
+          for (const r of reported) {
             if (!next[r.playerId]) {
               next = { ...next, [r.playerId]: msToDisplayTime(r.timeMs) };
             }
@@ -308,10 +315,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         const lastRoundResults = lastRound.results as unknown[];
         if (lastRoundResults.length === 0 && !currentRound) {
           const activeEntries = fetchedEntries.filter((e) => !e.eliminated);
-          const reported = Array.isArray(lastRound.reportedResults) ? lastRound.reportedResults : [];
-          const reportedByPlayer = new Map(
-            (reported as Array<{ playerId: string; timeMs: number }>).map((r) => [r.playerId, r.timeMs]),
-          );
+          const reported = getReportedResults(lastRound);
+          const reportedByPlayer = new Map(reported.map((r) => [r.playerId, r.timeMs]));
           const initialTimes: Record<string, string> = {};
           const initialRetry: Record<string, boolean> = {};
           const initialTv: Record<string, number | null> = {};
@@ -375,10 +380,10 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
           (r: { roundNumber?: number; results?: unknown[] }) =>
             r.roundNumber === currentRound.roundNumber && Array.isArray(r.results) && r.results.length === 0,
         );
-        const reported = Array.isArray(openRoundRow?.reportedResults) ? openRoundRow.reportedResults : [];
+        const reported = getReportedResults(openRoundRow);
         setCourseTimes((prev) => {
           let next = prev;
-          for (const r of reported as Array<{ playerId: string; timeMs: number }>) {
+          for (const r of reported) {
             if (!next[r.playerId]) {
               next = { ...next, [r.playerId]: msToDisplayTime(r.timeMs) };
             }
@@ -1065,9 +1070,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                   const openRoundRow = currentRound
                     ? rounds.find((r) => r.roundNumber === currentRound.roundNumber)
                     : undefined;
-                  const openReported = Array.isArray(openRoundRow?.reportedResults)
-                    ? (openRoundRow.reportedResults as Array<{ playerId: string }>)
-                    : [];
+                  const openReported = getReportedResults(openRoundRow);
                   const reportedIds = new Set(openReported.map((r) => r.playerId));
                   const reportCount = activeEntries.filter((e) => reportedIds.has(e.playerId)).length;
                   return (
@@ -1083,9 +1086,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
                   const openRoundRow = currentRound
                     ? rounds.find((r) => r.roundNumber === currentRound.roundNumber)
                     : undefined;
-                  const reported = Array.isArray(openRoundRow?.reportedResults)
-                    ? (openRoundRow.reportedResults as Array<{ playerId: string }>)
-                    : [];
+                  const reported = getReportedResults(openRoundRow);
                   const hasReport = reported.some((r) => r.playerId === entry.playerId);
                   return (
                     <TaTimeEntryRow

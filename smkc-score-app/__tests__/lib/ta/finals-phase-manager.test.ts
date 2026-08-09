@@ -3023,4 +3023,15 @@ describe('reportPhase3Time (issue #2994)', () => {
     );
     expect(mockPrismaClient.$executeRaw).not.toHaveBeenCalled();
   });
+
+  /* Issue #3097: a concurrent phase reset can delete the round between the
+   * existence check and the UPDATE; a 0-row UPDATE must not silently succeed. */
+  it('throws when the UPDATE matches no rows (concurrent round deletion)', async () => {
+    mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({ id: 'round-1' });
+    mockPrismaClient.$executeRaw.mockResolvedValue(0);
+
+    await expect(reportPhase3Time(mockPrismaClient as never, 'round-1', 'player-1', 60000)).rejects.toThrow(
+      'Phase 3 round no longer exists',
+    );
+  });
 });

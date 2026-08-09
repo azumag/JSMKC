@@ -2530,7 +2530,7 @@ export async function reportPhase3Time(
    * JSON1 functions: drop any existing entry for this player and append the
    * new one in a single UPDATE. */
   const reportedRow = JSON.stringify({ playerId, timeMs, reportedAt });
-  await prisma.$executeRaw(Prisma.sql`
+  const affected = await prisma.$executeRaw(Prisma.sql`
     UPDATE "TTPhaseRound"
     SET "reportedResults" = (
       SELECT json_insert(
@@ -2545,5 +2545,11 @@ export async function reportPhase3Time(
     )
     WHERE "id" = ${roundId}
   `);
+  // Issue #3097: a concurrent phase reset may delete the round between the
+  // existence check and this UPDATE (0 rows matched). Surface that instead of
+  // silently returning success without persisting the report.
+  if (Number(affected) === 0) {
+    throw new Error('Phase 3 round no longer exists');
+  }
   return { playerId, timeMs, reportedAt };
 }

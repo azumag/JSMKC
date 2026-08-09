@@ -8,11 +8,7 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 
-function runUpsert(
-  db: DatabaseSync,
-  playerId: string,
-  timeMs: number,
-): void {
+function runUpsert(db: DatabaseSync, playerId: string, timeMs: number): void {
   const reportedRow = JSON.stringify({ playerId, timeMs, reportedAt: new Date().toISOString() });
   db.prepare(
     `UPDATE t
