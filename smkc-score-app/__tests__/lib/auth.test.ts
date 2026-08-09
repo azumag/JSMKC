@@ -298,6 +298,23 @@ describe('authConfig', () => {
       expect(result.accessTokenExpires).toBe(111);
       expect(result.refreshTokenExpires).toBe(222);
     });
+
+    /* Issue #3087: after a deleted player's session is invalidated the token
+     * has no role/userType; the session must NOT fall back to 'player'. */
+    it('does not fall back to player role for an invalidated token', async () => {
+      const session = { user: {} };
+      const token = {};
+
+      const result = await authConfig.callbacks.session({ session, token });
+
+      expect(result.user).toEqual({
+        id: '',
+        role: undefined,
+        userType: undefined,
+        playerId: undefined,
+        nickname: undefined,
+      });
+    });
   });
 
   describe('jwt callback', () => {
@@ -471,6 +488,28 @@ describe('authConfig', () => {
 
       expect(result.playerStatusCheckedAt).toBe(0);
       expect(result.playerId).toBe('player-1');
+    });
+
+    /* Issue #3086: the DB-error path must not skip the access-token refresh
+     * block further down in the callback. */
+    it('still refreshes the access token when the revalidation DB check throws', async () => {
+      (prisma.player.findUnique as jest.Mock).mockRejectedValue(new Error('D1 unavailable'));
+      const now = Date.now();
+
+      const result = await authConfig.callbacks.jwt({
+        token: {
+          sub: 'player-1',
+          role: 'player',
+          userType: 'player',
+          playerId: 'player-1',
+          nickname: 'live-player',
+          playerStatusCheckedAt: 0,
+          accessTokenExpires: now - 1,
+          refreshTokenExpires: now + 60_000,
+        },
+      });
+
+      expect(result.accessTokenExpires).toBeGreaterThan(now);
     });
   });
 

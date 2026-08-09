@@ -319,8 +319,11 @@ export const authConfig = {
     async session({ session, token }: any) {
       if (token && session.user) {
         session.user.id = token.sub || token.playerId || '';
-        session.user.role = token.role || 'player';
-        session.user.userType = token.userType || 'player';
+        // Issue #3087: when a deleted player's session was invalidated,
+        // token.role/token.userType are absent — do NOT fall back to 'player',
+        // which would resurrect a half-valid identity.
+        session.user.role = token.role;
+        session.user.userType = token.userType;
         session.user.playerId = token.playerId as string | undefined;
         session.user.nickname = token.nickname as string | undefined;
 
@@ -369,6 +372,7 @@ export const authConfig = {
         const lastChecked = typeof token.playerStatusCheckedAt === 'number' ? token.playerStatusCheckedAt : 0;
         const now = Date.now();
         if (now - lastChecked > PLAYER_SESSION_REVALIDATE_INTERVAL_MS) {
+          let revalidateSucceeded = false;
           try {
             const prisma = await getPrisma();
             const player = await prisma.player.findUnique({
@@ -391,18 +395,20 @@ export const authConfig = {
               });
               return token;
             }
+            revalidateSucceeded = true;
           } catch (error) {
             // Issue #3079: on a transient DB error, do NOT advance the timer —
             // otherwise a deleted player's session stays valid for another
-            // full interval. Only a successful check (player alive) updates
-            // playerStatusCheckedAt below.
+            // full interval. We also must NOT return early here so the
+            // access-token refresh block below still runs (issue #3086).
             logger.warn('Failed to revalidate player session status; keeping session', {
               error: error instanceof Error ? error.message : String(error),
               playerId: token.playerId,
             });
-            return token;
           }
-          token.playerStatusCheckedAt = now;
+          if (revalidateSucceeded) {
+            token.playerStatusCheckedAt = now;
+          }
         }
       }
 
