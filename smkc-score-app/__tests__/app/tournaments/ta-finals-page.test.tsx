@@ -399,6 +399,89 @@ describe('TimeAttackFinals — participant time report prefill', () => {
     expect(screen.getByText('Reported')).toBeInTheDocument();
     expect(screen.getByText('Not reported')).toBeInTheDocument();
   });
+
+  /* Issue #3094: while the admin is editing (the main polling loop is
+   * paused), the background poller must fill ONLY empty inputs from new
+   * participant reports — typed values are never overwritten. */
+  it('fills only empty inputs from reports while editing, keeping typed values', async () => {
+    jest.useFakeTimers();
+    try {
+      mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+      // Initial load: open round with Mario reported (1:00.00), Luigi empty.
+      global.fetch = jest.fn().mockResolvedValue(openRoundPayload());
+
+      await renderFinals();
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('ta-time-entry-row').length).toBe(2);
+      });
+      const rows = screen.getAllByTestId('ta-time-entry-row');
+      const marioInput = rows
+        .find((r) => r.textContent?.includes('Mario'))!
+        .querySelector('input[type="text"]') as HTMLInputElement;
+      const luigiInput = rows
+        .find((r) => r.textContent?.includes('Luigi'))!
+        .querySelector('input[type="text"]') as HTMLInputElement;
+      // Admin starts editing: type a value into Luigi's (previously empty) row.
+      fireEvent.change(luigiInput, { target: { value: '1:30.00' } });
+
+      // Background poller returns a new report for Luigi (1:20.00).
+      const updatedPayload = openRoundPayload();
+      updatedPayload.json = jest.fn().mockResolvedValue({
+        data: {
+          taMode: 'battle_royale',
+          entries: [
+            { ...makeEntry({ id: 'e-1', playerId: 'p-1', nickname: 'Mario', lives: 10 }) },
+            { ...makeEntry({ id: 'e-2', playerId: 'p-2', nickname: 'Luigi', lives: 10 }) },
+          ],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase3',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [],
+              reportedResults: [
+                { playerId: 'p-1', timeMs: 60000, reportedAt: '2026-08-09T00:00:00.000Z' },
+                { playerId: 'p-2', timeMs: 80000, reportedAt: '2026-08-09T00:00:01.000Z' },
+              ],
+              eliminatedIds: [],
+              livesReset: false,
+              manualOverride: false,
+              lifeLoss: 1,
+            },
+          ],
+          availableCourses: ['GV2'],
+          playedCourses: ['GV1'],
+          phase3Rules: {
+            initialLives: 10,
+            lifeResetThresholds: [],
+            survivorsNeeded: 1,
+            handicapEnabled: true,
+            retryAppliesHandicap: false,
+          },
+        },
+      });
+      (global.fetch as jest.Mock).mockResolvedValue(updatedPayload);
+
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+      });
+
+      // Luigi's typed value survives; Mario's prefill stays; nothing clobbers.
+      const rowsAfter = screen.getAllByTestId('ta-time-entry-row');
+      const marioAfter = rowsAfter
+        .find((r) => r.textContent?.includes('Mario'))!
+        .querySelector('input[type="text"]') as HTMLInputElement;
+      const luigiAfter = rowsAfter
+        .find((r) => r.textContent?.includes('Luigi'))!
+        .querySelector('input[type="text"]') as HTMLInputElement;
+      expect(luigiAfter.value).toBe('1:30.00');
+      expect(marioAfter.value).toBe('1:00.00');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe('TimeAttackFinals — manual life adjustment', () => {

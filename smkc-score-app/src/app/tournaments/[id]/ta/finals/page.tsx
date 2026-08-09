@@ -112,6 +112,22 @@ function getReportedResults(round: { reportedResults?: unknown } | null | undefi
   return Array.isArray(round?.reportedResults) ? (round.reportedResults as ReportedRoundRow[]) : [];
 }
 
+/** Fill only still-empty courseTimes from participant reports (issue #3099). */
+function mergeReportedTimes(
+  setCourseTimes: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+  reported: ReportedRoundRow[],
+): void {
+  setCourseTimes((prev) => {
+    let next = prev;
+    for (const r of reported) {
+      if (!next[r.playerId]) {
+        next = { ...next, [r.playerId]: msToDisplayTime(r.timeMs) };
+      }
+    }
+    return next;
+  });
+}
+
 /** Round record from the phases API */
 interface PhaseRound {
   id: string;
@@ -286,16 +302,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       // cannot clobber in-progress input.
       const openRound = fetchedRounds.filter((r) => Array.isArray(r.results) && r.results.length === 0).pop();
       if (openRound && currentRound && !isEditing) {
-        const reported = getReportedResults(openRound);
-        setCourseTimes((prev) => {
-          let next = prev;
-          for (const r of reported) {
-            if (!next[r.playerId]) {
-              next = { ...next, [r.playerId]: msToDisplayTime(r.timeMs) };
-            }
-          }
-          return next;
-        });
+        mergeReportedTimes(setCourseTimes, getReportedResults(openRound));
       }
 
       // Build player name map from entries
@@ -368,28 +375,27 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
   // Issue #3094: while the admin is editing (polling paused), keep fetching
   // the open round's participant reports in the background and fill ONLY the
   // still-empty time inputs. The admin's typed values are never overwritten.
+  // Runs only when participant reporting is enabled for the tournament
+  // (issue #3102) to avoid needless D1 polling.
   useEffect(() => {
     if (!isEditing || !currentRound || !taMode) return;
+    let reportEnabled = true;
     const interval = setInterval(async () => {
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
         if (!response.ok) return;
         const json = await response.json();
         const data = json.data ?? json;
+        if (data.taPlayerReportEnabled === false) {
+          reportEnabled = false;
+          clearInterval(interval);
+          return;
+        }
         const openRoundRow = (data.rounds ?? []).find(
           (r: { roundNumber?: number; results?: unknown[] }) =>
             r.roundNumber === currentRound.roundNumber && Array.isArray(r.results) && r.results.length === 0,
         );
-        const reported = getReportedResults(openRoundRow);
-        setCourseTimes((prev) => {
-          let next = prev;
-          for (const r of reported) {
-            if (!next[r.playerId]) {
-              next = { ...next, [r.playerId]: msToDisplayTime(r.timeMs) };
-            }
-          }
-          return next;
-        });
+        mergeReportedTimes(setCourseTimes, getReportedResults(openRoundRow));
       } catch {
         // background refresh is best-effort; ignore transient failures
       }
