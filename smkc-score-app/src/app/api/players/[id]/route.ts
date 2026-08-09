@@ -23,6 +23,7 @@ import {
 } from '@/lib/error-handling';
 import { resolveCountryCode } from '@/lib/countries';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
 /**
  * GET /api/players/:id
@@ -160,12 +161,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.error('Failed to update player', { error, playerId: id });
 
     // P2025: Record not found - the player ID doesn't exist
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+    if (isPrismaErrorCode(error, 'P2025')) {
       return createErrorResponse('Player not found', 404);
     }
 
     // P2002: Unique constraint violation - nickname already taken by another player
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+    if (isPrismaErrorCode(error, 'P2002')) {
       return createErrorResponse(
         'A player with this nickname already exists',
         409,
@@ -285,7 +286,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     logger.error('Failed to delete player', { error, playerId: id });
 
     // P2025: Record not found - cannot delete a non-existent player
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+    if (isPrismaErrorCode(error, 'P2025')) {
       return createErrorResponse('Player not found', 404);
     }
 

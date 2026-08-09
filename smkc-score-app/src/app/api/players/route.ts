@@ -25,6 +25,7 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, handleValidationError, handleAuthzError } from '@/lib/error-handling';
 import { resolveCountryCode } from '@/lib/countries';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
 /**
  * GET /api/players
@@ -303,7 +304,7 @@ export async function POST(request: NextRequest) {
 
     // Prisma error P2002 indicates a unique constraint violation.
     // For players, this means the nickname is already taken.
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+    if (isPrismaErrorCode(error, 'P2002')) {
       return createErrorResponse(
         'A player with this nickname already exists',
         409,

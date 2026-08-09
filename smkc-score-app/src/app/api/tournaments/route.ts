@@ -29,6 +29,7 @@ import {
   handleAuthzError,
   handleValidationError,
 } from '@/lib/error-handling';
+import { isPrismaErrorCode } from '@/lib/prisma-error';
 
 /**
  * GET /api/tournaments
@@ -219,7 +220,7 @@ export async function POST(request: NextRequest) {
     /* Use standard { success, data } wrapper. 201 status set explicitly. */
     return NextResponse.json({ success: true, data: tournament }, { status: 201 });
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+    if (isPrismaErrorCode(error, 'P2002')) {
       return createErrorResponse('Tournament slug already exists', 409, 'CONFLICT');
     }
 
