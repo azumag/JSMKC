@@ -373,7 +373,8 @@
     "standardTaRuleHandicap": "No handicap adjustment",
     "battleRoyaleModeTitle": "TA Battle Royale",
     "battleRoyaleModeShort": "TA BR",
-    "battleRoyaleModeDescription": "A direct-finals format for smaller tournaments"
+    "battleRoyaleModeDescription": "A direct-finals format for smaller tournaments",
+    "taPlayerReportEnabled": "Allow players to report their own times (Finals Phase 3, admin confirms)"
   },
   "ta": {
     "title": "Time Trial",
@@ -481,7 +482,26 @@
     "battleRoyaleStartRuleLives": "Everyone starts with 10 lives and there are no threshold resets.",
     "battleRoyaleStartRuleHandicap": "Tournament handicaps adjust ranked times; retries receive no handicap.",
     "battleRoyaleStartRuleLock": "Entrants and tournament handicaps cannot be changed after starting.",
-    "startBattleRoyaleFinals": "Confirm and start"
+    "startBattleRoyaleFinals": "Confirm and start",
+    "phase3ReportTitle": "Phase 3 Time Report",
+    "phase3ReportDesc": "Report your time. You can overwrite it until the admin confirms",
+    "currentCourse": "Current Course",
+    "myLives": "Lives remaining: {lives}",
+    "reportTime": "Report Time",
+    "reportUpdateTime": "Update Time",
+    "reportedBadge": "Reported",
+    "notReportedBadge": "Not reported",
+    "reportSuccess": "Your time was reported",
+    "reportUpdateSuccess": "Your time was updated",
+    "reportOverwriteHint": "You can re-report anytime before confirmation",
+    "noOpenRound": "Waiting for the next round to start",
+    "roundAlreadySubmitted": "This round is already confirmed",
+    "reportDisabled": "Player time reporting is disabled for this tournament",
+    "reportInvalidTime": "Invalid time. Use M:SS.mm format",
+    "phase3StandingsTitle": "Phase 3 Standings",
+    "reportRoundNumber": "Round {number}",
+    "roundMismatch": "Round number does not match the current round",
+    "eliminatedCannotReport": "Eliminated players cannot report a time"
   },
   "bm": {
     "title": "Battle Mode",
@@ -971,7 +991,10 @@
     "projectedLifeLossCount": "Projected lives -{count}",
     "projectedSafe": "Projected safe",
     "backToEdit": "Back to editing",
-    "confirmResults": "Confirm results"
+    "confirmResults": "Confirm results",
+    "reportedBadge": "Reported",
+    "notReportedBadge": "Not reported",
+    "reportedCount": "Reported {count}/{total}"
   },
   "taSuddenDeath": {
     "suddenDeathTiebreak": "Sudden-death tiebreak",

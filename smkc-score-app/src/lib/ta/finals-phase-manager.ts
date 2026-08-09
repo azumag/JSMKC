@@ -2501,3 +2501,36 @@ export async function resetPhase(
 
   return { stage, deletedEntryCount: entries.length, deletedRoundCount: roundIds.length };
 }
+
+/**
+ * Records a Phase 3 participant's reported time for an open round (issue
+ * #2994). The report is stored separately from the confirmed `results` and is
+ * upserted per player (a re-report overwrites the previous one). All business
+ * validation (toggle, open round, eliminated player, ownership) happens in
+ * the API route; this function only writes.
+ *
+ * D1 has no interactive transactions, so the read-modify-write is done as a
+ * single UPDATE; concurrent reports from the same player are last-write-wins,
+ * which is acceptable since only the stale report would be lost.
+ */
+export async function reportPhase3Time(
+  prisma: PrismaClient,
+  roundId: string,
+  playerId: string,
+  timeMs: number,
+): Promise<{ playerId: string; timeMs: number; reportedAt: string }> {
+  const round = await prisma.tTPhaseRound.findUnique({ where: { id: roundId } });
+  if (!round) {
+    throw new Error('Phase 3 round not found');
+  }
+  const existing = Array.isArray(round.reportedResults)
+    ? (round.reportedResults as Array<{ playerId: string; timeMs: number; reportedAt?: string }>)
+    : [];
+  const reportedAt = new Date().toISOString();
+  const next = [...existing.filter((row) => row.playerId !== playerId), { playerId, timeMs, reportedAt }];
+  await prisma.tTPhaseRound.update({
+    where: { id: roundId },
+    data: { reportedResults: next as unknown as Prisma.InputJsonValue },
+  });
+  return { playerId, timeMs, reportedAt };
+}

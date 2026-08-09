@@ -106,6 +106,7 @@ export default function TournamentsPage() {
     dualReportEnabled: false,
     taPlayerSelfEdit: true,
     taBattleRoyaleMode: false,
+    taPlayerReportEnabled: false,
     debugMode: false,
   });
   const [error, setError] = useState('');
@@ -180,6 +181,7 @@ export default function TournamentsPage() {
           dualReportEnabled: false,
           taPlayerSelfEdit: true,
           taBattleRoyaleMode: false,
+          taPlayerReportEnabled: false,
           debugMode: false,
         });
         setIsBattleRoyaleConfirmOpen(false);
@@ -317,6 +319,7 @@ export default function TournamentsPage() {
                     dualReportEnabled: false,
                     taPlayerSelfEdit: true,
                     taBattleRoyaleMode: false,
+                    taPlayerReportEnabled: false,
                     debugMode: false,
                   })
                 }
@@ -384,6 +387,18 @@ export default function TournamentsPage() {
                     />
                     <Label htmlFor="taPlayerSelfEdit" className="text-sm font-normal cursor-pointer">
                       {t('taPlayerSelfEdit')}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <input
+                      id="taPlayerReportEnabled"
+                      type="checkbox"
+                      checked={formData.taPlayerReportEnabled}
+                      onChange={(e) => setFormData({ ...formData, taPlayerReportEnabled: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="taPlayerReportEnabled" className="text-sm font-normal cursor-pointer">
+                      {t('taPlayerReportEnabled')}
                     </Label>
                   </div>
                   <div className="space-y-2 pt-2">

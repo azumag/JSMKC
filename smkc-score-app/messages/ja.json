@@ -373,7 +373,8 @@
     "standardTaRuleHandicap": "ハンデなし",
     "battleRoyaleModeTitle": "TAバトルロワイヤル",
     "battleRoyaleModeShort": "TA BR",
-    "battleRoyaleModeDescription": "少人数大会向けの直接決勝形式"
+    "battleRoyaleModeDescription": "少人数大会向けの直接決勝形式",
+    "taPlayerReportEnabled": "参加者が自分のタイムを報告できる（決勝フェーズ3・運営確定方式）"
   },
   "ta": {
     "title": "タイムアタック",
@@ -481,7 +482,26 @@
     "battleRoyaleStartRuleLives": "全員10ライフで開始し、人数閾値による回復はありません。",
     "battleRoyaleStartRuleHandicap": "大会内ハンデを補正後タイムに適用します。リトライには適用しません。",
     "battleRoyaleStartRuleLock": "開始後は大会内ハンデと参加者の追加・削除を変更できません。",
-    "startBattleRoyaleFinals": "確認して開始"
+    "startBattleRoyaleFinals": "確認して開始",
+    "phase3ReportTitle": "フェーズ3 タイム報告",
+    "phase3ReportDesc": "自分のタイムを報告してください。確定前なら再報告で上書きできます",
+    "currentCourse": "現在のコース",
+    "myLives": "残りライフ: {lives}",
+    "reportTime": "タイムを報告",
+    "reportUpdateTime": "タイムを更新",
+    "reportedBadge": "報告済み",
+    "notReportedBadge": "未報告",
+    "reportSuccess": "タイムを報告しました",
+    "reportUpdateSuccess": "タイムを更新しました",
+    "reportOverwriteHint": "確定前ならいつでも再報告できます",
+    "noOpenRound": "次のラウンドの開始をお待ちください",
+    "roundAlreadySubmitted": "このラウンドは確定済みのため報告できません",
+    "reportDisabled": "この大会では参加者報告は無効です",
+    "reportInvalidTime": "タイムが無効です。M:SS.mm形式で入力してください",
+    "phase3StandingsTitle": "フェーズ3 順位表",
+    "reportRoundNumber": "ラウンド {number}",
+    "roundMismatch": "ラウンド番号が現在のラウンドと一致しません",
+    "eliminatedCannotReport": "失格したためタイムを報告できません"
   },
   "bm": {
     "title": "バトルモード",
@@ -971,7 +991,10 @@
     "projectedLifeLossCount": "ライフ -{count} 見込み",
     "projectedSafe": "ライフ維持見込み",
     "backToEdit": "入力へ戻る",
-    "confirmResults": "結果を確定"
+    "confirmResults": "結果を確定",
+    "reportedBadge": "報告済み",
+    "notReportedBadge": "未報告",
+    "reportedCount": "報告 {count}/{total}"
   },
   "taSuddenDeath": {
     "suddenDeathTiebreak": "サドンデスタイブレーク",

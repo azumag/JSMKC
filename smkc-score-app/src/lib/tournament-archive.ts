@@ -263,7 +263,7 @@ export function normalizeTournamentArchiveBundle(value: unknown): TournamentArch
     : [];
   const phaseRounds = Array.isArray(rawTa.phaseRounds)
     ? rawTa.phaseRounds.map((roundValue) => {
-        const round = asRecord(roundValue);
+        const { reportedResults: _ignored, ...round } = asRecord(roundValue);
         return {
           ...round,
           results: normalizeTaRoundResults(round.results),

@@ -5089,6 +5089,41 @@
 
 ---
 
+### TC-2994A: 参加者タイム報告の設定トグル有効/無効
+
+- **背景**: issue #2994。TAバトルロワイヤルPhase 3で参加者が自分のタイムを「報告」し、運営が「確定」する2段階モデル。大会設定のトグル（デフォルトOFF）で有効化する。
+- **手順**:
+  1. トーナメント作成ダイアログで「参加者が自分のタイムを報告できる」をONにして作成する。
+  2. バトルロワイヤルをPhase 3へ昇格させ、ラウンドを開始する。
+  3. 参加者セッションで `/tournaments/[id]/ta/participant` を開き、「フェーズ3 タイム報告」カードが表示されることを確認する。
+  4. OFFの大会ではカードが表示されず、報告API直接POSTが403 `PLAYER_REPORT_DISABLED` を返すことを確認する。
+- **期待結果**: トグルONの大会のみ参加者報告が可能。OFFではUI非表示・API拒否。
+- **スクリプト**: n/a — 単体では `smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts` の `report_time` ブロック + `smkc-score-app/__tests__/app/tournaments/ta-participant-page.test.tsx`
+
+### TC-2994B: 参加者報告 → 管理者画面へのプレフィルとバッジ
+
+- **手順**:
+  1. TC-2994AのトグルON大会でラウンドを開始する。
+  2. 参加者セッションでM:SS.mm形式のタイムを報告する。
+  3. 管理者の決勝画面 `/tournaments/[id]/ta/finals` で、3秒ポーリングにより当該行のタイム入力が報告値でプレフィルされることを確認する。
+  4. 該当行に「報告済み」バッジ、ヘッダーに「報告 n/total」集計が表示されることを確認する。
+- **期待結果**: 報告済みタイムが自動プレフィルされ、報告状況が一目で分かる。運営は確認して既存の送信ボタンで確定する（自動確定はしない）。
+- **スクリプト**: n/a — 単体では `smkc-score-app/__tests__/app/tournaments/ta-finals-page.test.tsx`
+
+### TC-2994C: 参加者による再報告（上書き）
+
+- **手順**: TC-2994Bの続き。同じ参加者が別タイムを再報告する。
+- **期待結果**: 管理者画面のプレフィル値が新しいタイムに置き換わり、ScoreEntryLogに報告行が記録される。確定前のみ上書き可能。
+- **スクリプト**: n/a — 単体では `smkc-score-app/__tests__/lib/ta/finals-phase-manager.test.ts` の `reportPhase3Time` ブロック
+
+### TC-2994D: 失格者・確定後の報告拒否
+
+- **手順**:
+  1. 失格済み参加者のセッションで報告APIを直接POSTする → 403 `PLAYER_ELIMINATED`。
+  2. 運営が `submit_results` で確定したラウンドへ報告 → 409 `ROUND_ALREADY_SUBMITTED`。
+- **期待結果**: 失格者と確定後ラウンドへの報告がサーバー側で拒否される。参加者UIにエラーが表示され入力欄が無効化される。
+- **スクリプト**: n/a — 単体では `smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts` の `report_time` ブロック
+
 ### TC-3011F: トーナメント一覧のTA競技形式バッジ表示
 
 - **背景**: PR #2934 でトーナメント一覧は通常TAのコンパクトタグを非表示にし、TAバトルロワイヤルのみ `TA BR` バッジを表示するようになった（issue #2936）。

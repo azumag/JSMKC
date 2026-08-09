@@ -29,12 +29,21 @@ export interface TaPhaseRound {
   roundNumber: number;
   course?: string;
   results: TaRoundResult[];
+  /** Phase 3 participant-reported times (issue #2994): raw times submitted by
+   * players before the admin confirms the round. Separate from `results`. */
+  reportedResults?: ReportedPhase3Result[] | null;
   eliminatedIds: string[];
   livesReset?: boolean;
   /** Lives phase3's bottom half loses this round. Defaults to 1; only TA battle royale admins may set a different value. */
   lifeLoss?: number;
   submittedAt?: string | Date | null;
   [key: string]: unknown;
+}
+
+export interface ReportedPhase3Result {
+  playerId: string;
+  timeMs: number;
+  reportedAt: string;
 }
 
 export interface TaPhaseLifeAdjustment {
@@ -75,6 +84,8 @@ export interface TaPhaseResponse {
   taMode: TaMode;
   taBattleRoyaleMode: boolean;
   phase3Rules: Phase3RulesDto;
+  /** Whether player time reporting (issue #2994) is enabled for this tournament. */
+  taPlayerReportEnabled?: boolean;
   entries?: TaPhaseEntry[];
   rounds?: TaPhaseRound[];
   lifeAdjustments?: TaPhaseLifeAdjustment[];

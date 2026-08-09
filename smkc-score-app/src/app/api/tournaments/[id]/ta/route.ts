@@ -208,6 +208,7 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
       frozenStages: true,
       taPlayerSelfEdit: true,
       taBattleRoyaleMode: true,
+      taPlayerReportEnabled: true,
     });
     if (!tournament) {
       const archived = await readTournamentArchive(id);
@@ -244,6 +245,7 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
       frozenStages: (tournament?.frozenStages as string[]) || [],
       taPlayerSelfEdit: tournament?.taPlayerSelfEdit ?? true,
       taBattleRoyaleMode: tournament?.taBattleRoyaleMode ?? false,
+      taPlayerReportEnabled: tournament?.taPlayerReportEnabled ?? false,
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging

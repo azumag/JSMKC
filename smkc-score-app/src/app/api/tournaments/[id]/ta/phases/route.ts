@@ -21,11 +21,16 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
-import { requireAdminSession } from '@/lib/api-auth';
+import { requireAdminSession, requireAdminOrPlayerSession } from '@/lib/api-auth';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { retryDbRead } from '@/lib/db-read-retry';
-import { createSuccessResponse, createErrorResponse, handleValidationError } from '@/lib/error-handling';
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleValidationError,
+  handleAuthzError,
+} from '@/lib/error-handling';
 import {
   promoteToPhase1,
   promoteToPhase2,
@@ -39,12 +44,14 @@ import {
   undoLastPhaseRound,
   cancelLastSubmittedPhaseRound,
   resetPhase,
+  reportPhase3Time,
   PhaseResetConflictError,
   type PhaseContext,
   type RoundResultInput,
 } from '@/lib/ta/finals-phase-manager';
 import { getAvailableCourses, getPlayedCoursesWithSuddenDeath } from '@/lib/ta/course-selection';
 import { checkStageFrozen } from '@/lib/ta/freeze-check';
+import { createScoreEntryLog } from '@/lib/api-factories/score-report-helpers';
 import { RETRY_PENALTY_MS } from '@/lib/constants';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { resolveAuditUserId } from '@/lib/audit-log';
@@ -58,9 +65,27 @@ import type { ArchivedTaRules } from '@/lib/tournament-archive';
 import type { TaPhaseResponse } from '@/lib/ta/phase-api-types';
 
 function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
+  const reported = (round as { reportedResults?: unknown }).reportedResults;
   return {
     ...round,
     results: normalizeTaRoundResults(round.results),
+    reportedResults: Array.isArray(reported)
+      ? reported
+          .filter(
+            (value): value is { playerId: string; timeMs: number; reportedAt?: string } =>
+              !!value &&
+              typeof value === 'object' &&
+              typeof (value as { playerId?: unknown }).playerId === 'string' &&
+              typeof (value as { timeMs?: unknown }).timeMs === 'number' &&
+              Number.isFinite((value as { timeMs: number }).timeMs) &&
+              (value as { timeMs: number }).timeMs >= 0,
+          )
+          .map((value) => ({
+            playerId: value.playerId,
+            timeMs: value.timeMs,
+            reportedAt: typeof value.reportedAt === 'string' ? value.reportedAt : new Date().toISOString(),
+          }))
+      : null,
     eliminatedIds: Array.isArray(round.eliminatedIds)
       ? round.eliminatedIds.filter((value): value is string => typeof value === 'string')
       : [],
@@ -450,6 +475,15 @@ const PostRequestSchema = z.discriminatedUnion('action', [
     suddenDeathRoundId: z.string().cuid(),
     course: z.string(),
   }),
+
+  // Phase 3 participant time report (issue #2994): a player reports their own
+  // raw time for the open round; the admin confirms it later via submit_results.
+  z.object({
+    action: z.literal('report_time'),
+    phase: z.literal('phase3'),
+    roundNumber: z.number().int().positive(),
+    timeMs: z.number().min(0).max(RETRY_PENALTY_MS),
+  }),
 ]);
 
 /**
@@ -517,6 +551,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const response: TaPhaseResponse = {
       phaseStatus,
       ...buildPhase3RulesDto(tournament.taBattleRoyaleMode === true),
+      taPlayerReportEnabled: tournament.taPlayerReportEnabled === true,
       frozenStages: Array.isArray(tournament.frozenStages)
         ? (tournament.frozenStages as unknown[]).filter((stage): stage is string => typeof stage === 'string')
         : [],
@@ -666,8 +701,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const tournamentId = await resolveTournamentId(id);
 
-  // Require admin authentication
-  const { error: authError, session } = await requireAdminSession();
+  // Require admin authentication; the report_time action additionally accepts
+  // a player session (issue #2994) and is gated per-action below.
+  const { error: authError, session } = await requireAdminOrPlayerSession();
   if (authError) return authError;
 
   try {
@@ -697,7 +733,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       taBattleRoyaleMode: tournament.taBattleRoyaleMode,
     };
 
+    if (!session?.user) {
+      return handleAuthzError();
+    }
+    const authedSession = session as { user: { id?: string; role?: string; playerId?: string } };
+
     const action = parsed.data.action;
+
+    // All actions except report_time remain admin-only (issue #2994).
+    if (action !== 'report_time' && authedSession.user.role !== 'admin') {
+      return handleAuthzError();
+    }
 
     if (
       tournament.taBattleRoyaleMode &&
@@ -810,6 +856,71 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (freezeError) return freezeError;
       const result = await changeSuddenDeathCourse(prisma, context, phase, suddenDeathRoundId, course);
       return createSuccessResponse(result);
+    }
+
+    if (action === 'report_time') {
+      const { roundNumber, timeMs } = parsed.data;
+      // Issue #2994: participant time reporting must be enabled for this tournament.
+      if (tournament.taPlayerReportEnabled !== true) {
+        return createErrorResponse(
+          'Player time reporting is disabled for this tournament',
+          403,
+          'PLAYER_REPORT_DISABLED',
+        );
+      }
+      const freezeError = await checkStageFrozen(prisma, tournamentId, 'phase3');
+      if (freezeError) return freezeError;
+
+      // The report targets the most recent phase3 round (the open one).
+      const round = await prisma.tTPhaseRound.findFirst({
+        where: { tournamentId, phase: 'phase3' },
+        orderBy: { roundNumber: 'desc' },
+      });
+      if (!round) {
+        return createErrorResponse('No open round to report a time for', 409, 'NO_OPEN_ROUND');
+      }
+      if ((round.results as unknown[]).length > 0) {
+        return createErrorResponse('This round has already been submitted', 409, 'ROUND_ALREADY_SUBMITTED');
+      }
+      if (round.roundNumber !== roundNumber) {
+        return createErrorResponse('Round number does not match the open round', 409, 'ROUND_MISMATCH');
+      }
+
+      const playerId = authedSession.user.playerId;
+      if (!playerId) {
+        return createErrorResponse('Player ID not found in session', 401, 'PLAYER_ID_NOT_FOUND');
+      }
+      const entry = await prisma.tTEntry.findUnique({
+        where: { tournamentId_playerId_stage: { tournamentId, playerId, stage: 'phase3' } },
+        select: { id: true, eliminated: true },
+      });
+      if (!entry) {
+        return createErrorResponse('Phase 3 entry not found', 404, 'ENTRY_NOT_FOUND');
+      }
+      if (entry.eliminated) {
+        return createErrorResponse('Eliminated players cannot report a time', 403, 'PLAYER_ELIMINATED');
+      }
+
+      const reportedTime = await reportPhase3Time(prisma, round.id, playerId, timeMs);
+
+      // Audit trail in ScoreEntryLog (same model as BM/MR/GP self-reporting).
+      await createScoreEntryLog(logger, {
+        tournamentId,
+        matchId: round.id,
+        matchType: 'TA',
+        playerId,
+        reportedData: {
+          action: 'report_time',
+          phase: 'phase3',
+          roundNumber: round.roundNumber,
+          course: round.course,
+          timeMs,
+        },
+        clientIp: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+      });
+
+      return createSuccessResponse({ reportedTime });
     }
 
     // Should not reach here due to discriminated union validation
