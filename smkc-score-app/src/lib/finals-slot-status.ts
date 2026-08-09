@@ -20,6 +20,8 @@ export interface SlotStatusMatch {
   completed: boolean;
   player1Id: string | null;
   player2Id: string | null;
+  /** Internal audit detail, stripped from public responses (issue #3022). */
+  slotOverrideBy?: string | null;
 }
 
 export interface SlotStatusResult {
