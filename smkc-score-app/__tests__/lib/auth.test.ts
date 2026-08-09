@@ -396,6 +396,9 @@ describe('authConfig', () => {
       expect(result.userType).toBeUndefined();
       expect(result.playerId).toBeUndefined();
       expect(result.nickname).toBeUndefined();
+      /* Issue #3078: token.sub must be dropped too, otherwise the session
+       * callback falls back to it for session.user.id. */
+      expect(result.sub).toBeUndefined();
     });
 
     it('invalidates the session when the player row no longer exists', async () => {
@@ -448,6 +451,26 @@ describe('authConfig', () => {
       });
 
       expect(prisma.player.findUnique).not.toHaveBeenCalled();
+    });
+
+    /* Issue #3079: on a transient DB error the timer must NOT advance, so the
+     * next request re-checks immediately instead of waiting another 15 min. */
+    it('does not advance the revalidation timer when the DB check throws', async () => {
+      (prisma.player.findUnique as jest.Mock).mockRejectedValue(new Error('D1 unavailable'));
+
+      const result = await authConfig.callbacks.jwt({
+        token: {
+          sub: 'player-1',
+          role: 'player',
+          userType: 'player',
+          playerId: 'player-1',
+          nickname: 'live-player',
+          playerStatusCheckedAt: 0,
+        },
+      });
+
+      expect(result.playerStatusCheckedAt).toBe(0);
+      expect(result.playerId).toBe('player-1');
     });
   });
 
