@@ -2519,18 +2519,31 @@ export async function reportPhase3Time(
   playerId: string,
   timeMs: number,
 ): Promise<{ playerId: string; timeMs: number; reportedAt: string }> {
-  const round = await prisma.tTPhaseRound.findUnique({ where: { id: roundId } });
+  const round = await prisma.tTPhaseRound.findUnique({ where: { id: roundId }, select: { id: true } });
   if (!round) {
     throw new Error('Phase 3 round not found');
   }
-  const existing = Array.isArray(round.reportedResults)
-    ? (round.reportedResults as Array<{ playerId: string; timeMs: number; reportedAt?: string }>)
-    : [];
   const reportedAt = new Date().toISOString();
-  const next = [...existing.filter((row) => row.playerId !== playerId), { playerId, timeMs, reportedAt }];
-  await prisma.tTPhaseRound.update({
-    where: { id: roundId },
-    data: { reportedResults: next as unknown as Prisma.InputJsonValue },
-  });
+  /* Issue #3092: a read-modify-write of the reportedResults JSON would lose a
+   * concurrent player's report (last write wins with the stale array). D1 has
+   * no interactive transactions, so do the upsert atomically with SQLite's
+   * JSON1 functions: drop any existing entry for this player and append the
+   * new one in a single UPDATE. */
+  const reportedRow = JSON.stringify({ playerId, timeMs, reportedAt });
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE "TTPhaseRound"
+    SET "reportedResults" = (
+      SELECT json_insert(
+        COALESCE(
+          (SELECT json_group_array(value) FROM json_each(COALESCE("reportedResults", '[]'))
+           WHERE json_extract(value, '$.playerId') != ${playerId}),
+          '[]'
+        ),
+        '$[#]',
+        ${reportedRow}
+      )
+    )
+    WHERE "id" = ${roundId}
+  `);
   return { playerId, timeMs, reportedAt };
 }

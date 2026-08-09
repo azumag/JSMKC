@@ -360,6 +360,38 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
     return () => clearInterval(interval);
   }, [fetchData, isEditing]);
 
+  // Issue #3094: while the admin is editing (polling paused), keep fetching
+  // the open round's participant reports in the background and fill ONLY the
+  // still-empty time inputs. The admin's typed values are never overwritten.
+  useEffect(() => {
+    if (!isEditing || !currentRound || !taMode) return;
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
+        if (!response.ok) return;
+        const json = await response.json();
+        const data = json.data ?? json;
+        const openRoundRow = (data.rounds ?? []).find(
+          (r: { roundNumber?: number; results?: unknown[] }) =>
+            r.roundNumber === currentRound.roundNumber && Array.isArray(r.results) && r.results.length === 0,
+        );
+        const reported = Array.isArray(openRoundRow?.reportedResults) ? openRoundRow.reportedResults : [];
+        setCourseTimes((prev) => {
+          let next = prev;
+          for (const r of reported as Array<{ playerId: string; timeMs: number }>) {
+            if (!next[r.playerId]) {
+              next = { ...next, [r.playerId]: msToDisplayTime(r.timeMs) };
+            }
+          }
+          return next;
+        });
+      } catch {
+        // background refresh is best-effort; ignore transient failures
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isEditing, currentRound, taMode, tournamentId]);
+
   // === Event Handlers ===
 
   /**
