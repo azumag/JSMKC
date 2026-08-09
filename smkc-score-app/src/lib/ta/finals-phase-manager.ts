@@ -2540,7 +2540,7 @@ export async function reportPhase3Time(
           '[]'
         ),
         '$[#]',
-        ${reportedRow}
+        json(${reportedRow})
       )
     )
     WHERE "id" = ${roundId}
