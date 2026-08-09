@@ -181,12 +181,14 @@ describe('restoreTournamentArchiveForReopen', () => {
   beforeEach(() => {
     const playerFindUnique = prisma.player.findUnique as jest.Mock;
     const playerCreate = prisma.player.create as jest.Mock;
+    const playerDeleteMany = prisma.player.deleteMany as jest.Mock;
     const tournamentCreate = prisma.tournament.create as jest.Mock;
     const tournamentFindUnique = prisma.tournament.findUnique as jest.Mock;
     const tournamentDeleteMany = prisma.tournament.deleteMany as jest.Mock;
 
     playerFindUnique.mockReset().mockResolvedValue(null);
     playerCreate.mockReset().mockResolvedValue({ id: 'player-1' });
+    playerDeleteMany.mockReset().mockResolvedValue({ count: 0 });
     tournamentCreate.mockReset().mockResolvedValue({ id: 'archived-1' });
     tournamentFindUnique
       .mockReset()
@@ -204,6 +206,7 @@ describe('restoreTournamentArchiveForReopen', () => {
       prisma.finalsRoundSetting,
       prisma.tTEntry,
       prisma.tTPhaseRound,
+      prisma.tTPhaseSuddenDeathRound,
       prisma.tournamentPlayerScore,
     ]) {
       (model.createMany as jest.Mock).mockReset().mockResolvedValue({ count: 1 });
@@ -213,17 +216,19 @@ describe('restoreTournamentArchiveForReopen', () => {
   it('recreates the tournament as active and restores archived competition rows', async () => {
     const restored = await restoreTournamentArchiveForReopen(makeArchive());
 
-    expect(prisma.tournament.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        id: 'archived-1',
-        bmFinalsSeedSnapshot: [expect.objectContaining({ seed: 16, originalSeed: 17, playerId: 'player-1' })],
-        slug: 'archived-one',
-        status: 'active',
-        publicModes: [],
-        bmQualificationConfirmed: true,
-        qualificationScheduleMethod: 'circle',
+    expect(prisma.tournament.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          id: 'archived-1',
+          bmFinalsSeedSnapshot: [expect.objectContaining({ seed: 16, originalSeed: 17, playerId: 'player-1' })],
+          slug: 'archived-one',
+          status: 'active',
+          publicModes: [],
+          bmQualificationConfirmed: true,
+          qualificationScheduleMethod: 'circle',
+        }),
       }),
-    });
+    );
     // The archive fixture's player still carries a legacy taHandicapSeconds
     // field (old archives captured Player.taHandicapSeconds before it was
     // removed as a misleading, non-functional Player Management control).
@@ -250,7 +255,7 @@ describe('restoreTournamentArchiveForReopen', () => {
     expect(prisma.tournamentPlayerScore.createMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({ tournamentId: 'archived-1', totalPoints: 2000 })],
     });
-    expect(restored.tournament).toEqual({ id: 'archived-1', status: 'active', publicModes: [] });
+    expect(restored.tournament).toEqual(expect.objectContaining({ id: 'archived-1' }));
   });
 
   it('restores the CDM schedule method from a current archive', async () => {
@@ -259,9 +264,9 @@ describe('restoreTournamentArchiveForReopen', () => {
 
     await restoreTournamentArchiveForReopen(archive);
 
-    expect(prisma.tournament.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ qualificationScheduleMethod: 'cdm' }),
-    });
+    expect(prisma.tournament.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ qualificationScheduleMethod: 'cdm' }) }),
+    );
   });
 
   it('restores finals round settings so a reopened all-complete bracket exports its configured FT', async () => {
@@ -289,6 +294,159 @@ describe('restoreTournamentArchiveForReopen', () => {
     });
   });
 
+  it('normalizes nullable MR match JSON columns to database NULL (issue #2910)', async () => {
+    const archive = makeArchive();
+    archive.modes.mr = {
+      qualifications: [],
+      matches: [
+        {
+          id: 'mrm-1',
+          tournamentId: 'archived-1',
+          matchNumber: 1,
+          stage: 'qualification',
+          round: null,
+          tvNumber: null,
+          roundNumber: 1,
+          isBye: false,
+          player1Id: 'player-1',
+          player1Side: 1,
+          player2Id: 'player-1',
+          player2Side: 2,
+          score1: 4,
+          score2: 0,
+          completed: true,
+          assignedCourses: null,
+          rounds: null,
+          player1ReportedRaces: null,
+          player2ReportedRaces: null,
+          startingCourseNumber: 1,
+          bracket: null,
+          bracketPosition: null,
+          losses: 0,
+          isGrandFinal: false,
+          deletedAt: null,
+          version: 0,
+          player1: player,
+          player2: player,
+        },
+      ],
+      qualificationConfirmed: false,
+    };
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.mRMatch.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          assignedCourses: Prisma.DbNull,
+          rounds: Prisma.DbNull,
+          player1ReportedRaces: Prisma.DbNull,
+          player2ReportedRaces: Prisma.DbNull,
+        }),
+      ],
+    });
+  });
+
+  it('normalizes nullable GP match JSON columns to database NULL (issue #2910)', async () => {
+    const archive = makeArchive();
+    archive.modes.gp = {
+      qualifications: [],
+      matches: [
+        {
+          id: 'gpm-1',
+          tournamentId: 'archived-1',
+          matchNumber: 1,
+          stage: 'qualification',
+          round: null,
+          tvNumber: null,
+          roundNumber: 1,
+          isBye: false,
+          player1Id: 'player-1',
+          player1Side: 1,
+          player2Id: 'player-1',
+          player2Side: 2,
+          points1: 25,
+          points2: 0,
+          score1: 25,
+          score2: 0,
+          completed: true,
+          races: null,
+          assignedCups: null,
+          cupResults: null,
+          player1ReportedRaces: null,
+          player2ReportedRaces: null,
+          startingCourseNumber: 1,
+          bracket: null,
+          bracketPosition: null,
+          losses: 0,
+          isGrandFinal: false,
+          deletedAt: null,
+          version: 0,
+          player1: player,
+          player2: player,
+        },
+      ],
+      qualificationConfirmed: false,
+    };
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.gPMatch.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          races: Prisma.DbNull,
+          assignedCups: Prisma.DbNull,
+          cupResults: Prisma.DbNull,
+          player1ReportedRaces: Prisma.DbNull,
+          player2ReportedRaces: Prisma.DbNull,
+        }),
+      ],
+    });
+  });
+
+  it('normalizes nullable TTPhaseRound/TTPhaseSuddenDeathRound JSON to database NULL (issue #2910)', async () => {
+    const archive = makeArchive();
+    const ta = archive.modes.ta as TournamentArchiveBundle['modes']['ta'] & {
+      phaseRounds?: Array<Record<string, unknown>>;
+      suddenDeathRounds?: Array<Record<string, unknown>>;
+    };
+    ta.phaseRounds = [
+      {
+        id: 'ttpr-1',
+        tournamentId: 'archived-1',
+        roundNumber: 1,
+        phase: 'phase3',
+        course: 'MC1',
+        results: [{ playerId: 'player-1', timeMs: 60000, isRetry: false }],
+        eliminatedIds: null,
+        livesReset: false,
+        manualOverride: false,
+        version: 0,
+      },
+    ];
+    ta.suddenDeathRounds = [
+      {
+        id: 'ttsd-1',
+        tournamentId: 'archived-1',
+        phaseRoundId: 'ttpr-1',
+        sequence: 1,
+        kind: 'life_loss',
+        results: null,
+        resolved: false,
+        version: 0,
+      },
+    ];
+
+    await restoreTournamentArchiveForReopen(archive);
+
+    expect(prisma.tTPhaseRound.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ eliminatedIds: Prisma.DbNull })],
+    });
+    expect(prisma.tTPhaseSuddenDeathRound.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ results: Prisma.DbNull })],
+    });
+  });
+
   it('labels tournament creation failures before child rows are restored', async () => {
     (prisma.tournament.create as jest.Mock).mockRejectedValueOnce(
       Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
@@ -309,5 +467,19 @@ describe('restoreTournamentArchiveForReopen', () => {
       'Archive restore failed at BM qualifications',
     );
     expect(prisma.tournament.deleteMany).toHaveBeenCalledWith({ where: { id: 'archived-1' } });
+  });
+
+  /* Issue #2900: players created by restorePlayers() must not be left behind
+   * as orphans when a later child-row restore fails. */
+  it('rolls back newly created players when a child-row restore fails', async () => {
+    (prisma.player.create as jest.Mock).mockResolvedValue({ id: 'player-created' });
+    (prisma.bMQualification.createMany as jest.Mock).mockRejectedValueOnce(new Error('D1 write failed'));
+    (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (prisma.player.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+    await expect(restoreTournamentArchiveForReopen(makeArchive())).rejects.toThrow(
+      'Archive restore failed at BM qualifications',
+    );
+    expect(prisma.player.deleteMany).toHaveBeenCalledWith({ where: { id: 'player-created' } });
   });
 });

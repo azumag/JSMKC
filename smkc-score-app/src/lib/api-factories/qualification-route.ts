@@ -35,6 +35,7 @@ import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks, type RankableMatch, type RankableQualification } from '@/lib/server-ranking';
 import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
+import { chunkRowsForD1 } from '@/lib/tournament-archive-restore';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -552,13 +553,14 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         group: p.group,
         seeding: p.seeding,
       }));
-      // D1 bound-parameter limit is ~100 per SQL statement (#736).
-      // qualData rows have 4 columns each → chunk at 24 rows (96 params) to stay safely under the limit.
+      // D1 bound-parameter limit is ~100 per SQL statement (#736). Reuse the
+      // shared row-aware chunker (4 columns per row → 80/4 = 20 rows per
+      // chunk) instead of a hardcoded row count so schema changes cannot
+      // silently exceed the limit (issue #2907).
       // Sequential insertion: if a chunk is retried due to D1 "Network connection lost", only that
       // chunk pays the retry penalty (~2s) instead of the full batch.
-      const QUAL_CHUNK = 24;
-      for (let i = 0; i < qualData.length; i += QUAL_CHUNK) {
-        await qualModel(prisma).createMany({ data: qualData.slice(i, i + QUAL_CHUNK) });
+      for (const chunk of chunkRowsForD1(qualData)) {
+        await qualModel(prisma).createMany({ data: chunk });
       }
       /*
        * Unqualified findMany is safe only because the deleteMany at the

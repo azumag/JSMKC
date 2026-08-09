@@ -1,28 +1,6 @@
 import prisma from '@/lib/prisma';
-import { restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
+import { restoreTournamentArchiveForReopen, RESTORED_TOURNAMENT_SELECT } from '@/lib/tournament-archive-restore';
 import type { TournamentArchiveBundle } from '@/lib/tournament-archive';
-
-const RESTORED_TOURNAMENT_SELECT = {
-  id: true,
-  slug: true,
-  name: true,
-  date: true,
-  status: true,
-  taPlayerSelfEdit: true,
-  taBattleRoyaleMode: true,
-  frozenStages: true,
-  qualificationConfirmed: true,
-  bmQualificationConfirmed: true,
-  mrQualificationConfirmed: true,
-  gpQualificationConfirmed: true,
-  bmFinalsSeedSnapshot: true,
-  mrFinalsSeedSnapshot: true,
-  gpFinalsSeedSnapshot: true,
-  qualificationScheduleMethod: true,
-  publicModes: true,
-  createdAt: true,
-  updatedAt: true,
-};
 
 function makeMinimalArchive(): TournamentArchiveBundle {
   return {
@@ -86,7 +64,7 @@ describe('restoreTournamentArchiveForReopen query behavior', () => {
     }
   });
 
-  it('retries a transient existing-tournament read and uses the restored select contract for both lookups', async () => {
+  it('retries a transient existing-tournament read and returns the projected create result', async () => {
     const restoredTournament = {
       id: 'archived-query-behavior',
       slug: 'archived-query-behavior',
@@ -107,19 +85,24 @@ describe('restoreTournamentArchiveForReopen query behavior', () => {
 
     (prisma.tournament.findUnique as jest.Mock)
       .mockRejectedValueOnce(new Error('D1 temporarily unavailable'))
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(restoredTournament);
+      .mockResolvedValueOnce(null);
+    (prisma.tournament.create as jest.Mock).mockResolvedValue(restoredTournament);
 
     const result = await restoreTournamentArchiveForReopen(makeMinimalArchive());
 
-    expect(prisma.tournament.findUnique).toHaveBeenCalledTimes(3);
+    /* Issue #2913: the existing-tournament read retries once (reject ->
+     * null); the restored row is returned directly from tournament.create's
+     * select projection, so no trailing findUnique lookup is issued. */
+    expect(prisma.tournament.findUnique).toHaveBeenCalledTimes(2);
     for (const call of (prisma.tournament.findUnique as jest.Mock).mock.calls) {
       expect(call[0]).toEqual({
         where: { id: 'archived-query-behavior' },
         select: RESTORED_TOURNAMENT_SELECT,
       });
     }
-    expect(prisma.tournament.create).toHaveBeenCalledTimes(1);
+    expect(prisma.tournament.create).toHaveBeenCalledWith(
+      expect.objectContaining({ select: RESTORED_TOURNAMENT_SELECT }),
+    );
     expect(result.tournament).toEqual(restoredTournament);
   });
 });

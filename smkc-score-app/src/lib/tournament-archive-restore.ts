@@ -27,7 +27,7 @@ const NULLABLE_JSON_FIELDS = {
   ttSuddenDeathRound: ['results'],
 } as const;
 
-const RESTORED_TOURNAMENT_SELECT = {
+export const RESTORED_TOURNAMENT_SELECT = {
   id: true,
   slug: true,
   name: true,
@@ -222,10 +222,13 @@ async function restorePlayers(bundle: TournamentArchiveBundle): Promise<{
   playerIds: Map<string, string>;
   restoredPlayerCount: number;
   reusedPlayerCount: number;
+  /** IDs of Player rows this call created (rolled back if a later stage fails). */
+  createdPlayerIds: string[];
 }> {
   const playerIds = new Map<string, string>();
   let restoredPlayerCount = 0;
   let reusedPlayerCount = 0;
+  const createdPlayerIds: string[] = [];
 
   for (const archived of collectArchivedPlayers(bundle)) {
     const existingById = await prisma.player.findUnique({ where: { id: archived.id }, select: { id: true } });
@@ -257,9 +260,10 @@ async function restorePlayers(bundle: TournamentArchiveBundle): Promise<{
     });
     playerIds.set(archived.id, created.id);
     restoredPlayerCount += 1;
+    createdPlayerIds.push(created.id);
   }
 
-  return { playerIds, restoredPlayerCount, reusedPlayerCount };
+  return { playerIds, restoredPlayerCount, reusedPlayerCount, createdPlayerIds };
 }
 
 function qualificationRows(
@@ -309,19 +313,17 @@ function ttPhaseRoundRows(bundle: TournamentArchiveBundle, tournamentId: string,
   return (bundle.modes.ta.phaseRounds ?? []).map((value) => {
     const row = cleanArchivedRow(value, tournamentId);
     const remappedResults = remapPlayerIdsDeep(row.results, playerIds);
-    row.results = remappedResults === null || remappedResults === undefined ? [] : remappedResults;
+    row.results = normalizeRequiredJson(remappedResults, []);
     row.eliminatedIds = remapPlayerIdsDeep(row.eliminatedIds, playerIds);
     return normalizeNullableJsonFields(row, NULLABLE_JSON_FIELDS.ttPhaseRound);
   });
 }
 
 function ttSuddenDeathRows(bundle: TournamentArchiveBundle, tournamentId: string, playerIds: Map<string, string>) {
-  const ta = bundle.modes.ta as TournamentArchiveBundle['modes']['ta'] & { suddenDeathRounds?: unknown[] };
-  return (ta.suddenDeathRounds ?? []).map((value) => {
+  return (bundle.modes.ta.suddenDeathRounds ?? []).map((value) => {
     const row = cleanArchivedRow(value, tournamentId);
     const remappedTargetPlayerIds = remapPlayerIdsDeep(row.targetPlayerIds, playerIds);
-    row.targetPlayerIds =
-      remappedTargetPlayerIds === null || remappedTargetPlayerIds === undefined ? [] : remappedTargetPlayerIds;
+    row.targetPlayerIds = normalizeRequiredJson(remappedTargetPlayerIds, []);
     row.results = remapPlayerIdsDeep(row.results, playerIds);
     return normalizeNullableJsonFields(row, NULLABLE_JSON_FIELDS.ttSuddenDeathRound);
   });
@@ -363,13 +365,13 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
     return { tournament: existing, restoredPlayerCount: 0, reusedPlayerCount: 0 };
   }
 
-  const { playerIds, restoredPlayerCount, reusedPlayerCount } = await runRestoreStage('players', () =>
+  const { playerIds, restoredPlayerCount, reusedPlayerCount, createdPlayerIds } = await runRestoreStage('players', () =>
     restorePlayers(bundle),
   );
   let tournamentCreated = false;
 
   try {
-    await runRestoreStage('tournament', () =>
+    const created = await runRestoreStage('tournament', () =>
       prisma.tournament.create({
         data: {
           id: tournamentId,
@@ -395,6 +397,10 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
           createdAt: asDate(bundle.tournament.createdAt),
           updatedAt: new Date(),
         },
+        // The projected result is returned directly; the child-row inserts
+        // below never modify the Tournament row, so a follow-up lookup would
+        // be an extra D1 round trip for identical data (issue #2913).
+        select: RESTORED_TOURNAMENT_SELECT,
       }),
     );
     tournamentCreated = true;
@@ -461,19 +467,16 @@ export async function restoreTournamentArchiveForReopen(bundle: TournamentArchiv
       prisma.tournamentPlayerScore.createMany({ data: chunk }),
     );
 
-    const tournament = await runRestoreStage('restored tournament lookup', () =>
-      retryDbRead(() =>
-        prisma.tournament.findUnique({
-          where: { id: tournamentId },
-          select: RESTORED_TOURNAMENT_SELECT,
-        }),
-      ),
-    );
-    if (!tournament) throw createRestoreStageError('restored tournament lookup', new Error('Tournament missing'));
-    return { tournament, restoredPlayerCount, reusedPlayerCount };
+    return { tournament: created, restoredPlayerCount, reusedPlayerCount };
   } catch (error) {
     if (tournamentCreated) {
       await prisma.tournament.deleteMany({ where: { id: tournamentId } }).catch(() => undefined);
+    }
+    // Issue #2900: players created by restorePlayers() are not owned by the
+    // tournament row, so they would otherwise be left as orphans on a failed
+    // restore. Roll them back too (best-effort; a retry reuses them anyway).
+    for (const playerId of createdPlayerIds) {
+      await prisma.player.deleteMany({ where: { id: playerId } }).catch(() => undefined);
     }
     throw error;
   }

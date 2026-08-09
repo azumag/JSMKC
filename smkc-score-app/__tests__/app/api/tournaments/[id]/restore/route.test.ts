@@ -15,8 +15,17 @@ jest.mock('@/lib/logger', () => ({
     debug: jest.fn(),
   })),
 }));
+jest.mock('@/lib/audit-log', () => ({
+  createAuditLog: jest.fn(() => Promise.resolve()),
+  AUDIT_ACTIONS: { CREATE_TOURNAMENT: 'CREATE_TOURNAMENT' },
+  resolveAuditUserId: (session: { user: { id: string } }) => session?.user?.id ?? null,
+}));
+jest.mock('@/lib/rate-limit', () => ({
+  getServerSideIdentifier: jest.fn(() => Promise.resolve('127.0.0.1')),
+}));
 
 import { auth } from '@/lib/auth';
+import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { readTournamentArchive } from '@/lib/tournament-archive';
 import { restoreTournamentArchiveForReopen } from '@/lib/tournament-archive-restore';
 import { POST } from '@/app/api/tournaments/[id]/restore/route';
@@ -55,6 +64,35 @@ describe('POST /api/tournaments/[id]/restore', () => {
       success: true,
       data: { id: 'archived-1', status: 'active', publicModes: [] },
     });
+  });
+
+  /* Issue #2901: the restore endpoint is an admin lifecycle operation that
+   * recreates Tournament (and possibly Player) rows, so it must be recorded
+   * in the audit log like CREATE_TOURNAMENT / DELETE_TOURNAMENT. */
+  it('records an audit log entry on successful restore', async () => {
+    await POST(
+      new NextRequest('http://localhost/api/tournaments/archived-1/restore', {
+        method: 'POST',
+      }),
+      {
+        params: Promise.resolve({ id: 'archived-1' }),
+      },
+    );
+
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'admin-1',
+        action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
+        targetId: 'archived-1',
+        targetType: 'Tournament',
+        details: expect.objectContaining({
+          tournamentId: 'archived-1',
+          restoredPlayerCount: 1,
+          reusedPlayerCount: 2,
+          source: 'archive_reopen',
+        }),
+      }),
+    );
   });
 
   it('returns 404 when no archive exists', async () => {
