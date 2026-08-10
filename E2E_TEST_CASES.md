@@ -5183,6 +5183,13 @@
 - **前提**:
   - Cloudflare preview デプロイが `E2E_BASE_URL`（既定 `https://preview.smkc.bluemoon.works`）で稼働していること（デプロイは Workers Builds が実施）
   - 管理者セッション入り Playwright 永続プロファイル（`E2E_PROFILE_ARCHIVE` シークレットに base64 で登録）
+- **プロファイルの作成と登録**（issue #3109）:
+  1. ローカルで `npm run e2e:preview:login` を実行し、`/tmp/playwright-smkc-preview-profile` に管理者セッションを作成する
+  2. 相対パスでアーカイブを作成する（展開先が決定的になる）:
+     ```bash
+     cd /tmp && tar -czf profile.tar.gz playwright-smkc-preview-profile && base64 -w0 profile.tar.gz
+     ```
+  3. 出力された base64 文字列を GitHub Secrets の `E2E_PROFILE_ARCHIVE` に登録する
 - **結果**: コンソールログが `e2e-log-<run_id>` アーティファクトとして保存される
 - **失敗時**: ジョブが赤になる（silent skip しない）。ログを確認して復旧
 
