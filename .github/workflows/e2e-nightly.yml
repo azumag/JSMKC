@@ -29,6 +29,8 @@ jobs:
     name: TA Battle Royale E2E (preview)
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
 
     env:
       E2E_BASE_URL: ${{ vars.E2E_BASE_URL || 'https://preview.smkc.bluemoon.works' }}
@@ -50,17 +52,30 @@ jobs:
         working-directory: smkc-score-app
         run: npm ci
 
+      # Issue #3108: Playwright downloads a full Chromium build on every run
+      # unless cached. Key the cache by the resolved playwright version so a
+      # dependency bump invalidates it automatically.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('smkc-score-app/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Restore admin browser profile
         # The profile holds the authenticated admin session needed by
         # run-preview.js's session preflight. Build it locally with
         # `npm run e2e:preview:login` and upload as a secret-less artifact.
+        # Create the secret value with (relative paths so extraction is
+        # deterministic):  cd /tmp && tar -czf profile.tar.gz playwright-smkc-preview-profile && base64 -w0 profile.tar.gz
         env:
           PROFILE_ARCHIVE: ${{ secrets.E2E_PROFILE_ARCHIVE }}
         run: |
           if [ -n "${PROFILE_ARCHIVE}" ]; then
             echo "${PROFILE_ARCHIVE}" | base64 -d > /tmp/profile.tar.gz
             mkdir -p "${E2E_PROFILE_DIR}"
-            tar -xzf /tmp/profile.tar.gz -C "${E2E_PROFILE_DIR}"
+            tar -xzf /tmp/profile.tar.gz -C /tmp
             echo "Admin profile restored ($(du -sh ${E2E_PROFILE_DIR} | cut -f1))"
           else
             echo "::warning::E2E_PROFILE_ARCHIVE is not set; the admin session preflight will fail unless the suite is run manually with a local profile."
