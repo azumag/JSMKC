@@ -53,8 +53,9 @@ jobs:
         run: npm ci
 
       # Issue #3108: Playwright downloads a full Chromium build on every run
-      # unless cached. Key the cache by the resolved playwright version so a
-      # dependency bump invalidates it automatically.
+      # unless cached. The key covers the whole package-lock.json, so any
+      # dependency bump (not only Playwright's) invalidates the cache — a
+      # conservative trade-off that guarantees the browser matches the lockfile.
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
