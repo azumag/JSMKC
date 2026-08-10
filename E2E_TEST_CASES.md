@@ -5175,6 +5175,17 @@
 
 ## E2Eテスト実行ガイド
 
+### 定期CI（nightly E2E、issue #2871 / #2889）
+
+- **ワークフロー**: `.github/workflows/e2e-nightly.yml`
+- **スケジュール**: 毎日 05:30 JST（`cron: 30 20 * * *` UTC）
+- **手動実行**: GitHub Actions の `E2E Nightly (TA Battle Royale)` → Run workflow（`tc-ta-battle-royale` または `tc-all` を選択）
+- **前提**:
+  - Cloudflare preview デプロイが `E2E_BASE_URL`（既定 `https://preview.smkc.bluemoon.works`）で稼働していること（デプロイは Workers Builds が実施）
+  - 管理者セッション入り Playwright 永続プロファイル（`E2E_PROFILE_ARCHIVE` シークレットに base64 で登録）
+- **結果**: コンソールログが `e2e-log-<run_id>` アーティファクトとして保存される
+- **失敗時**: ジョブが赤になる（silent skip しない）。ログを確認して復旧
+
 ### セッション管理（重要）
 
 - Playwright永続プロファイル（`/tmp/playwright-smkc-preview-profile`）にプレビュー環境用のDiscord OAuthセッションが保存されている
