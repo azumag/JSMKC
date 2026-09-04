@@ -8,11 +8,7 @@ function parseTargetScripts(argv = process.argv.slice(2)) {
   return targetScripts;
 }
 
-async function runTargetScripts(
-  targetScripts,
-  env = buildPreviewRuntimeEnv(process.env),
-  runTarget = runTargetScript,
-) {
+async function runTargetScripts(targetScripts, env = buildPreviewRuntimeEnv(process.env), runTarget = runTargetScript) {
   for (const targetScript of targetScripts) {
     console.log(`[preview-batch] running ${targetScript}`);
     const exitCode = await runTarget(targetScript, env);
