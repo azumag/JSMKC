@@ -33,6 +33,7 @@
     "e2e:preview:debug-fill": "node e2e/run-preview.js tc-debug-fill.js",
     "e2e:preview:mr": "node e2e/run-preview.js tc-mr.js",
     "e2e:preview:gp": "node e2e/run-preview.js tc-gp.js",
+    "e2e:preview:cdm-reconciliation": "E2E_TESTS=TC-3040 node e2e/run-preview-batch.js tc-bm.js tc-mr.js tc-gp.js",
     "e2e:preview:ta": "node e2e/run-preview.js tc-ta.js",
     "e2e:preview:ta-flow": "node e2e/run-preview.js tc-ta-flow.js",
     "e2e:preview:overlay": "node e2e/run-preview.js tc-overlay.js",
