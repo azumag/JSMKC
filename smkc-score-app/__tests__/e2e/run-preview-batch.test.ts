@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it } from '@jest/globals';
 import packageJson from '../../package.json';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -11,14 +11,17 @@ describe('preview E2E batch runner', () => {
 
   it('runs target scripts sequentially with the same preview environment', async () => {
     const env = { E2E_BASE_URL: 'https://preview.example.com' };
-    const runTarget = jest.fn<(targetScript: string, runtimeEnv: typeof env) => Promise<number>>()
-      .mockResolvedValue(0);
+    const calls: Array<[string, typeof env]> = [];
+    const runTarget = async (targetScript: string, runtimeEnv: typeof env) => {
+      calls.push([targetScript, runtimeEnv]);
+      return 0;
+    };
 
     await expect(
       batchRunner.runTargetScripts(['tc-bm.js', 'tc-mr.js', 'tc-gp.js'], env, runTarget),
     ).resolves.toBe(0);
 
-    expect(runTarget.mock.calls).toEqual([
+    expect(calls).toEqual([
       ['tc-bm.js', env],
       ['tc-mr.js', env],
       ['tc-gp.js', env],
@@ -27,16 +30,18 @@ describe('preview E2E batch runner', () => {
 
   it('stops after the first failed target', async () => {
     const env = { E2E_BASE_URL: 'https://preview.example.com' };
-    const runTarget = jest.fn<(targetScript: string, runtimeEnv: typeof env) => Promise<number>>()
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(0);
+    const calls: Array<[string, typeof env]> = [];
+    const exitCodes = [0, 2, 0];
+    const runTarget = async (targetScript: string, runtimeEnv: typeof env) => {
+      calls.push([targetScript, runtimeEnv]);
+      return exitCodes.shift() ?? 0;
+    };
 
     await expect(
       batchRunner.runTargetScripts(['tc-bm.js', 'tc-mr.js', 'tc-gp.js'], env, runTarget),
     ).resolves.toBe(2);
 
-    expect(runTarget.mock.calls).toEqual([
+    expect(calls).toEqual([
       ['tc-bm.js', env],
       ['tc-mr.js', env],
     ]);
