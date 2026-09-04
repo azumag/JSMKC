@@ -4,13 +4,13 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
 
-# Cancel any in-progress review for the same PR so only the latest commit is reviewed.
+# Keep the existing workflow/check names so branch protection and existing PRs
+# continue to see the same gates. Claude review itself is intentionally disabled.
 concurrency:
   group: claude-review-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  # CI must pass before Claude reviews — prevents approvals on broken builds.
   lint-and-test:
     name: Lint & Test
     if: github.event.pull_request.draft == false
@@ -43,9 +43,6 @@ jobs:
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-  # Wait for the Cloudflare Workers build (external "Workers Builds: smkc" check).
-  # If the deploy build fails we should not spend tokens on a review or attempt
-  # auto-merge — block the downstream jobs by failing this gate.
   wait-cloudflare-build:
     name: Wait for Cloudflare Workers Build
     if: github.event.pull_request.draft == false
@@ -63,94 +60,20 @@ jobs:
           intervalSeconds: 20
 
   claude-review:
-    # Only run after CI passes — satisfies issue #596.
-    # Also gate on the Cloudflare Workers build so we don't review/merge a
-    # PR whose deploy build is broken.
+    # Intentionally retained as a successful compatibility gate, but it no
+    # longer invokes anthropics/claude-code-action or requires a Claude review.
     needs: [lint-and-test, wait-cloudflare-build]
     if: github.event.pull_request.draft == false
-
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-      issues: write
-      id-token: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        # Keep the first parent of GitHub's synthetic PR merge commit so the
-        # reviewer can inspect a local diff when the PR diff API is too large.
-        with:
-          fetch-depth: 2
+      - name: Claude automatic review disabled
+        run: echo "Claude automatic PR review is disabled for this repository."
 
-      - name: Run Claude Code Review
-        id: claude-review
-        # Auth failures (expired CLAUDE_CODE_OAUTH_TOKEN) must not block merges.
-        # The post-condition below still fails whenever no formal review is
-        # submitted for the current commit, except while this workflow itself
-        # is being upgraded.
-        continue-on-error: true
-        uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(git diff HEAD^1 HEAD),Bash(git show --stat HEAD)"'
-          prompt: |
-            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
-
-            Steps:
-            1. Run `gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get PR metadata.
-            2. Run `gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get the diff. If GitHub rejects it because the diff is too large, inspect the checked-out merge commit with `git diff HEAD^1 HEAD` and `git show --stat HEAD` instead.
-            3. Assess the change against CLAUDE.md review aspects: code quality, bugs/edge cases, performance, security, simplicity (no over-abstraction), test coverage, YAGNI.
-            4. Classify each finding:
-               - BLOCKING: bugs, security risks, missing critical tests, broken behavior.
-               - MINOR: style, naming, refactor suggestion, doc/typo, follow-up improvement, low-impact perf nit.
-            5. For each MINOR finding, file a follow-up issue (do NOT block the PR for these):
-               - Run `gh issue list --repo ${{ github.repository }} --state open --label "review-followup" --search "<keywords>" --limit 5` to check for duplicates.
-               - If no duplicate, run `gh issue create --repo ${{ github.repository }} --title "<concise title>" --body "<finding + suggested fix>\n\nFound during review of #${{ github.event.pull_request.number }} (${{ github.event.pull_request.head.sha }})." --label "review-followup"`.
-               - Collect the created issue numbers for the review summary.
-            6. Decide verdict and submit review:
-               - No BLOCKING findings: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --approve --body "<summary + 関連 issue 番号>"`
-               - BLOCKING findings exist: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --request-changes --body "<summary>"`
-
-            Write the review body in Japanese. Keep it focused on actionable findings. Issue titles/bodies may also be in Japanese.
-
-      - name: Verify formal Claude review
-        # Claude Code Action intentionally rejects a workflow that differs from
-        # the default branch. That one-time workflow-upgrade PR needs a human
-        # approval; every other PR still requires a formal Claude review.
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          default_workflow="$(mktemp)"
-          gh api "repos/$REPOSITORY/contents/.github/workflows/claude-code-review.yml?ref=$DEFAULT_BRANCH" \
-            --jq .content | base64 --decode > "$default_workflow"
-          if ! cmp -s .github/workflows/claude-code-review.yml "$default_workflow"; then
-            echo "::notice::Claude review is intentionally skipped while this workflow differs from $DEFAULT_BRANCH; a human approval is required for this upgrade PR."
-            exit 0
-          fi
-
-          reviews="$(gh api --paginate --slurp "repos/$REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100")"
-          printf '%s' "$reviews" | jq -e --arg sha "$HEAD_SHA" '
-            any(
-              .[][];
-              .user.login == "claude[bot]"
-              and .commit_id == $sha
-              and (.state == "APPROVED" or .state == "CHANGES_REQUESTED")
-            )
-          ' >/dev/null
-
-      # Auto-merge every non-draft PR. `--auto` waits for required status checks
-      # and approving reviews defined in branch protection before merging.
       - name: Enable auto-merge
-        # Non-fatal: fails if auto-merge is disabled in repo settings or the PR
-        # already has a failing required check at the time this step runs.
         continue-on-error: true
         if: github.event.pull_request.draft == false
         env:
