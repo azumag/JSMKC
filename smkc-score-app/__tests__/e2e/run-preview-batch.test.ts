@@ -4,6 +4,8 @@ import packageJson from '../../package.json';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const batchRunner = require('../../e2e/run-preview-batch') as typeof import('../../e2e/run-preview-batch');
 
+const targetScripts = ['tc-bm.js', 'tc-mr.js', 'tc-gp.js'];
+
 describe('preview E2E batch runner', () => {
   it('requires at least one target script', () => {
     expect(() => batchRunner.parseTargetScripts([])).toThrow('Missing preview E2E target script names.');
@@ -17,10 +19,9 @@ describe('preview E2E batch runner', () => {
       return 0;
     };
 
-    await expect(
-      batchRunner.runTargetScripts(['tc-bm.js', 'tc-mr.js', 'tc-gp.js'], env, runTarget),
-    ).resolves.toBe(0);
+    const exitCode = await batchRunner.runTargetScripts(targetScripts, env, runTarget);
 
+    expect(exitCode).toBe(0);
     expect(calls).toEqual([
       ['tc-bm.js', env],
       ['tc-mr.js', env],
@@ -37,10 +38,9 @@ describe('preview E2E batch runner', () => {
       return exitCodes.shift() ?? 0;
     };
 
-    await expect(
-      batchRunner.runTargetScripts(['tc-bm.js', 'tc-mr.js', 'tc-gp.js'], env, runTarget),
-    ).resolves.toBe(2);
+    const exitCode = await batchRunner.runTargetScripts(targetScripts, env, runTarget);
 
+    expect(exitCode).toBe(2);
     expect(calls).toEqual([
       ['tc-bm.js', env],
       ['tc-mr.js', env],
