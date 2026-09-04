@@ -1,8 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import packageJson from '../../package.json';
 
+type PreviewBatchRunner = typeof import('../../e2e/run-preview-batch');
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const batchRunner = require('../../e2e/run-preview-batch') as typeof import('../../e2e/run-preview-batch');
+const batchRunner = require('../../e2e/run-preview-batch') as PreviewBatchRunner;
 
 const targetScripts = ['tc-bm.js', 'tc-mr.js', 'tc-gp.js'];
 
