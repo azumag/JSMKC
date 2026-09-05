@@ -6,6 +6,8 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 `scripts/security-audit.js` は `npm audit --json` を読み取り、high / critical finding が無い場合だけ通常成功する。期限付きの既知例外を helper 内に持つ場合も、例外条件は依存バージョン・lockfile 上の属性・dev-only 条件・package source / integrity・advisory ID と canonical URL・affected range・severity・direct advisory の package metadata・dependency graph まで狭く固定する。
 
+`npm audit` プロセス自体も監査対象の一部として扱う。終了コード `0`（finding なし）または `1`（finding あり）の場合だけ JSON を監査結果として解釈し、起動失敗・signal 終了・`0` / `1` 以外の終了コードは、JSON が出力されていても operational failure として fail-closed にする。
+
 direct advisory の package metadata では、`npm audit` が返す `name` / `dependency` / `severity` が許可対象パッケージと一致することも要求する。同じ advisory URL と affected range が残っていても、対象パッケージ名や dependency の帰属、advisory 自体の severity metadata が変わった場合は既知例外として扱わない。
 
 lockfile では、許可対象パッケージの version や dev-only 属性だけでなく、`resolved` が canonical npm registry tarball を指し、`integrity` が現在の既知 artifact と一致することも要求する。同じ version 文字列でも別 registry・fork・差し替え tarball に変化した場合は例外を適用しない。
@@ -23,7 +25,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - 許可対象パッケージまたは許可対象の利用文脈を構成する Prisma chain の `resolved` source / `integrity` が現在の既知 npm artifact から変化する
 - `metadata.vulnerabilities` の high / critical summary 件数と vulnerability graph の severity 件数が矛盾する
 - 許可対象を成立させている root の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する。特にインストール済み Prisma chain の version・dev-only 属性、または lockfile 上の依存エッジの変化は再評価を要求する
-- `npm audit` の JSON を取得または解析できない
+- `npm audit` が起動失敗・signal 終了・`0` / `1` 以外の終了コードになる、または JSON を取得・解析できない
 
 個別の一時例外の内容や解消状況は helper と追跡 issue に集約し、この文書では CI が維持すべき振る舞いだけを定義する。
 
@@ -39,6 +41,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 
 - `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
 - `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `severity` metadata・`via` / `effects` topology、audit summary severity 件数、root devDependency 宣言、インストール済み Prisma chain の version / `resolved` / `integrity` / dev-only 属性 / lockfile 依存エッジ、許可対象 artifact の `resolved` / `integrity` を含む前提が変化した場合の blocking 動作を検証する。
+- `smkc-score-app/__tests__/scripts/security-audit-exit-status.test.ts`: `npm audit` の終了コード `0` / `1` だけを監査結果として許容し、それ以外の process status を fail-closed にする契約を検証する。
 - `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の TC-2460 が上記の安定契約と同期していることを検証する。
 
 関連: #3114, #3118
