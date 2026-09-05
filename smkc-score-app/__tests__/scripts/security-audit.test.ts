@@ -109,8 +109,17 @@ describe('security audit exception', () => {
   });
 
   it('fails closed when Prisma becomes a production dependency', () => {
-    const lockfile = structuredClone(allowedLockfile);
-    lockfile.packages[''].dependencies = { prisma: '^6.19.3' };
+    const baseLockfile = structuredClone(allowedLockfile);
+    const lockfile = {
+      ...baseLockfile,
+      packages: {
+        ...baseLockfile.packages,
+        '': {
+          ...baseLockfile.packages[''],
+          dependencies: { prisma: '^6.19.3' },
+        },
+      },
+    };
 
     const result = evaluateAuditReport(allowedChainReport, lockfile);
 
