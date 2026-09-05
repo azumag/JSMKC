@@ -8,6 +8,8 @@ const ALLOWED_ADVISORY_RANGE = '<8.0.0';
 const ALLOWED_ROOT = 'deepmerge-ts';
 const ALLOWED_NODE = 'node_modules/deepmerge-ts';
 const ALLOWED_VERSION = '7.1.5';
+const ALLOWED_RESOLVED = 'https://registry.npmjs.org/deepmerge-ts/-/deepmerge-ts-7.1.5.tgz';
+const ALLOWED_INTEGRITY = 'sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==';
 const ALLOWED_PRISMA_DEV_RANGE = '^6.19.3';
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const ALLOWED_GRAPH = {
@@ -138,7 +140,11 @@ function evaluateAuditReport(report, lockfile) {
   const prismaIsExpectedDevOnly =
     prismaDevRange === ALLOWED_PRISMA_DEV_RANGE && !Boolean(rootPackage?.dependencies?.prisma);
   const expectedLockState =
-    deepmergeLock?.version === ALLOWED_VERSION && deepmergeLock?.devOptional === true && prismaIsExpectedDevOnly;
+    deepmergeLock?.version === ALLOWED_VERSION &&
+    deepmergeLock?.resolved === ALLOWED_RESOLVED &&
+    deepmergeLock?.integrity === ALLOWED_INTEGRITY &&
+    deepmergeLock?.devOptional === true &&
+    prismaIsExpectedDevOnly;
 
   if (!expectedLockState || !matchesExpectedGraph(vulnerabilities)) {
     return {
@@ -206,7 +212,7 @@ function main() {
       `Allowed temporary dev-only Prisma audit chain (${ALLOWED_ADVISORY}, ${ALLOWED_ADVISORY_RANGE}): ${result.allowed.join(', ')}\n`,
     );
     process.stdout.write(
-      `The exception is pinned to deepmerge-ts ${ALLOWED_VERSION} as devOptional and Prisma ${ALLOWED_PRISMA_DEV_RANGE} as a devDependency; it will fail closed if the dependency graph, severity, advisory metadata or lock state changes.\n`,
+      `The exception is pinned to the canonical deepmerge-ts ${ALLOWED_VERSION} npm artifact as devOptional and Prisma ${ALLOWED_PRISMA_DEV_RANGE} as a devDependency; it will fail closed if the package source, integrity, dependency graph, severity, advisory metadata or lock state changes.\n`,
     );
   } else {
     process.stdout.write('npm audit: no high/critical vulnerabilities found.\n');
