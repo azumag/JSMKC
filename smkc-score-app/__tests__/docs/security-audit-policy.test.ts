@@ -28,6 +28,12 @@ describe('security audit policy documentation', () => {
     expect(helperTest).toContain('Prisma devDependency range changes');
   });
 
+  it('documents audit summary severity drift as a fail-closed condition', () => {
+    expect(policy).toContain('`metadata.vulnerabilities`');
+    expect(policy).toContain('summary と vulnerability graph の severity が矛盾する');
+    expect(helperTest).toContain('summary reports a critical severity absent from the graph');
+  });
+
   it('documents that unit tests run before the blocking audit', () => {
     expect(policy).toContain('unit test');
     expect(policy).toContain('security audit より前');

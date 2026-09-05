@@ -49,6 +49,44 @@ describe('security audit exception', () => {
     expect(result.allowed).toEqual(['deepmerge-ts', '@prisma/config', 'prisma']);
   });
 
+  it('accepts matching npm audit summary severity metadata', () => {
+    const report = {
+      ...structuredClone(allowedChainReport),
+      metadata: { vulnerabilities: { high: 3, critical: 0 } },
+    };
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(true);
+    expect(result.unexpected).toEqual([]);
+  });
+
+  it('fails closed when npm audit summary omits blocking severities present in the graph', () => {
+    const report = {
+      ...structuredClone(allowedChainReport),
+      metadata: { vulnerabilities: { high: 0, critical: 0 } },
+    };
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
+  it('fails closed when npm audit summary reports a critical severity absent from the graph', () => {
+    const report = {
+      ...structuredClone(allowedChainReport),
+      metadata: { vulnerabilities: { high: 3, critical: 1 } },
+    };
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
   it('fails closed when another high vulnerability appears', () => {
     const report = {
       vulnerabilities: {
