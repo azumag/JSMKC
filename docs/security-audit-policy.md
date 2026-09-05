@@ -22,7 +22,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph が変化する
 - 許可対象パッケージまたは許可対象の利用文脈を構成する Prisma chain の `resolved` source / `integrity` が現在の既知 npm artifact から変化する
 - `metadata.vulnerabilities` の high / critical summary 件数と vulnerability graph の severity 件数が矛盾する
-- root の Prisma devDependency 宣言、インストール済み `prisma` / `@prisma/config` の version・dev-only 属性、または lockfile 上の Prisma 依存エッジが変化する
+- 許可対象を成立させている root の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する。特にインストール済み `prisma` / `@prisma/config` の version・dev-only 属性、または lockfile 上の Prisma 依存エッジの変化は再評価を要求する
 - `npm audit` の JSON を取得または解析できない
 
 個別の一時例外の内容や解消状況は helper と追跡 issue に集約し、この文書では CI が維持すべき振る舞いだけを定義する。
