@@ -200,14 +200,23 @@ function evaluateAuditReport(report, lockfile) {
   return { ok: unexpected.length === 0, allowed, unexpected };
 }
 
+function isExpectedAuditExitStatus(status) {
+  return status === 0 || status === 1;
+}
+
 function main() {
   const audit = spawnSync('npm', ['audit', '--json'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  if (audit.error || audit.signal || !audit.stdout) {
-    process.stderr.write(audit.error?.message || audit.stderr || 'npm audit produced no JSON output\n');
+  if (audit.error || audit.signal || !audit.stdout || !isExpectedAuditExitStatus(audit.status)) {
+    const reason =
+      audit.error?.message ||
+      (audit.signal ? `npm audit terminated by signal ${audit.signal}` : '') ||
+      (!audit.stdout ? 'npm audit produced no JSON output' : `npm audit exited with unexpected status ${audit.status}`);
+    process.stderr.write(`${reason}\n`);
+    process.stderr.write(audit.stderr || '');
     process.exit(1);
   }
 
@@ -248,4 +257,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { evaluateAuditReport };
+module.exports = { evaluateAuditReport, isExpectedAuditExitStatus };
