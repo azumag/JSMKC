@@ -61,6 +61,19 @@ describe('security audit exception', () => {
     expect(result.unexpected).toEqual([]);
   });
 
+  it.each([1, 4])('fails closed when npm audit summary high count is %i but the graph contains 3', (high) => {
+    const report = {
+      ...structuredClone(allowedChainReport),
+      metadata: { vulnerabilities: { high, critical: 0 } },
+    };
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
   it('fails closed when npm audit summary omits blocking severities present in the graph', () => {
     const report = {
       ...structuredClone(allowedChainReport),
