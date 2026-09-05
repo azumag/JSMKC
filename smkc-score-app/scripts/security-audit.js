@@ -29,7 +29,11 @@ function isExpectedDirectAdvisory(entry) {
 }
 
 function sameStringMembers(actual, expected) {
-  if (!Array.isArray(actual) || actual.length !== expected.length || actual.some((entry) => typeof entry !== 'string')) {
+  if (
+    !Array.isArray(actual) ||
+    actual.length !== expected.length ||
+    actual.some((entry) => typeof entry !== 'string')
+  ) {
     return false;
   }
 
@@ -50,7 +54,10 @@ function matchesExpectedGraph(vulnerabilities) {
       return false;
     }
 
-    if (!sameStringMembers(viaDependencies, expected.via) || !sameStringMembers(vulnerability.effects || [], expected.effects)) {
+    if (
+      !sameStringMembers(viaDependencies, expected.via) ||
+      !sameStringMembers(vulnerability.effects || [], expected.effects)
+    ) {
       return false;
     }
 
