@@ -13,10 +13,10 @@ describe('security audit policy documentation', () => {
   });
 
   it('keeps temporary exception details in the helper instead of the stable policy', () => {
-    expect(policy).not.toContain('GHSA-ggr8-5vv4-36mx');
-    expect(policy).not.toContain('deepmerge-ts 7.1.5');
-    expect(helper).toContain("const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx'");
-    expect(helper).toContain("const ALLOWED_VERSION = '7.1.5'");
+    expect(policy).not.toMatch(/GHSA-[a-z0-9-]+/i);
+    expect(policy).not.toContain('deepmerge-ts');
+    expect(helper).toContain('const ALLOWED_ADVISORY =');
+    expect(helper).toContain('const ALLOWED_VERSION =');
   });
 
   it('documents that unit tests run before the blocking audit', () => {
