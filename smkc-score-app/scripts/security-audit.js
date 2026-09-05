@@ -13,6 +13,10 @@ function objectViaEntries(vulnerability) {
   return (vulnerability.via || []).filter((entry) => entry && typeof entry === 'object');
 }
 
+function stringViaEntries(vulnerability) {
+  return (vulnerability.via || []).filter((entry) => typeof entry === 'string');
+}
+
 function buildEffectClosure(vulnerabilities, rootName) {
   const closure = new Set([rootName]);
   const queue = [rootName];
@@ -75,8 +79,17 @@ function evaluateAuditReport(report, lockfile) {
     const hasDifferentDirectAdvisory = objectViaEntries(vulnerability).some(
       (entry) => !String(entry.url || '').includes(ALLOWED_ADVISORY),
     );
+    const hasUnexpectedViaDependency = stringViaEntries(vulnerability).some(
+      (dependency) => !closure.has(dependency),
+    );
+    const matchesKnownSeverity = vulnerability.severity === 'high';
 
-    if (closure.has(name) && !hasDifferentDirectAdvisory) {
+    if (
+      closure.has(name) &&
+      matchesKnownSeverity &&
+      !hasDifferentDirectAdvisory &&
+      !hasUnexpectedViaDependency
+    ) {
       allowed.push(name);
     } else {
       unexpected.push(name);
@@ -123,7 +136,7 @@ function main() {
       `Allowed temporary dev-only Prisma audit chain (${ALLOWED_ADVISORY}): ${result.allowed.join(', ')}\n`,
     );
     process.stdout.write(
-      'The exception is pinned to deepmerge-ts 7.1.5 as devOptional and will fail closed if the dependency graph or advisory changes.\n',
+      'The exception is pinned to deepmerge-ts 7.1.5 as devOptional and will fail closed if the dependency graph, severity or advisory changes.\n',
     );
   } else {
     process.stdout.write('npm audit: no high/critical vulnerabilities found.\n');

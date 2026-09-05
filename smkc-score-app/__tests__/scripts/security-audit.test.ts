@@ -89,4 +89,24 @@ describe('security audit exception', () => {
     expect(result.ok).toBe(false);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
+
+  it('fails closed when an allowed-chain package gains another via dependency', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities.prisma.via = ['@prisma/config', 'other-vulnerability'];
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.unexpected).toContain('prisma');
+  });
+
+  it('fails closed if the known advisory severity escalates to critical', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].severity = 'critical';
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
 });
