@@ -6,12 +6,7 @@ describe('security audit policy documentation', () => {
   const helper = readRepoFile('smkc-score-app', 'scripts', 'security-audit.js');
   const ciConfigTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'ci-config.test.ts');
   const helperTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit.test.ts');
-  const reportShapeTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'scripts',
-    'security-audit-report-shape.test.ts',
-  );
+  const reportShapeTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-report-shape.test.ts');
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
