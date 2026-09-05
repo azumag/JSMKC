@@ -86,6 +86,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Diagnose non-breaking audit fixes
+        run: |
+          npm audit fix --package-lock-only || true
+          git diff -- package-lock.json
+
       - name: Lint
         run: npm run lint
 
