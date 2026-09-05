@@ -6,6 +6,7 @@ describe('security audit policy documentation', () => {
   const helper = readRepoFile('smkc-score-app', 'scripts', 'security-audit.js');
   const ciConfigTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'ci-config.test.ts');
   const helperTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit.test.ts');
+  const reportShapeTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-report-shape.test.ts');
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
@@ -35,6 +36,14 @@ describe('security audit policy documentation', () => {
     expect(helperTest).toContain('summary reports a critical severity absent from the graph');
   });
 
+  it('documents audit report schema drift as a fail-closed condition', () => {
+    expect(policy).toContain('`vulnerabilities` graph 自体');
+    expect(policy).toContain('未知の severity');
+    expect(helper).toContain("const KNOWN_SEVERITIES = new Set(['info', 'low', 'moderate', 'high', 'critical'])");
+    expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
+    expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
+  });
+
   it('documents that unit tests run before the blocking audit', () => {
     expect(policy).toContain('unit test');
     expect(policy).toContain('security audit より前');
@@ -52,8 +61,10 @@ describe('security audit policy documentation', () => {
   it('references the regression tests at their real repository paths', () => {
     expect(policy).toContain('`smkc-score-app/__tests__/docs/ci-config.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit.test.ts`');
+    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`');
     expect(ciConfigTest).toContain('TC-2460');
     expect(helperTest).toContain('evaluateAuditReport');
+    expect(reportShapeTest).toContain('evaluateAuditReport');
   });
 });

@@ -22,6 +22,7 @@ const ALLOWED_PRISMA_INTEGRITY =
   'sha512-++ZJ0ijLrDJF6hNB4t4uxg2br3fC4H9Yc9tcbjr2fcNFP3rh/SBNrAgjhsqBU4Ght8JPrVofG/ZkXfnSfnYsFg==';
 const ALLOWED_PRISMA_CONFIG_INTEGRITY =
   'sha512-CBPT44BjlQxEt8kiMEauji2WHTDoVBOKl7UlewXmUgBPnr/oPRZC3psci5chJnYmH0ivEIog2OU9PGWoki3DLQ==';
+const KNOWN_SEVERITIES = new Set(['info', 'low', 'moderate', 'high', 'critical']);
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const ALLOWED_GRAPH = {
   'deepmerge-ts': { via: [], effects: ['@prisma/config'] },
@@ -59,6 +60,20 @@ function sameStringMembers(actual, expected) {
 
   const actualSet = new Set(actual);
   return actualSet.size === expected.length && expected.every((entry) => actualSet.has(entry));
+}
+
+function hasValidVulnerabilityEntries(vulnerabilities) {
+  if (!vulnerabilities || typeof vulnerabilities !== 'object' || Array.isArray(vulnerabilities)) {
+    return false;
+  }
+
+  return Object.values(vulnerabilities).every(
+    (vulnerability) =>
+      vulnerability &&
+      typeof vulnerability === 'object' &&
+      !Array.isArray(vulnerability) &&
+      KNOWN_SEVERITIES.has(vulnerability.severity),
+  );
 }
 
 function matchesExpectedGraph(vulnerabilities) {
@@ -128,7 +143,7 @@ function buildEffectClosure(vulnerabilities, rootName) {
 }
 
 function evaluateAuditReport(report, lockfile) {
-  if (!report || report.error || typeof report.vulnerabilities !== 'object' || report.vulnerabilities === null) {
+  if (!report || report.error || !hasValidVulnerabilityEntries(report.vulnerabilities)) {
     return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
   }
 
