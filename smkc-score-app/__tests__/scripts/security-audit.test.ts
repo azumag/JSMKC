@@ -167,6 +167,31 @@ describe('security audit exception', () => {
     expect(result.unexpected).toContain('prisma');
   });
 
+  it('fails closed when the allowed graph gains another dependent branch', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].effects.push('unexpected-wrapper');
+    report.vulnerabilities['unexpected-wrapper'] = {
+      severity: 'high',
+      via: ['deepmerge-ts'],
+      effects: [],
+    };
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when an allowed dependency edge is rewired inside the known package set', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['@prisma/config'].via = ['prisma'];
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
   it('fails closed if the known advisory severity escalates to critical', () => {
     const report = structuredClone(allowedChainReport);
     report.vulnerabilities['deepmerge-ts'].severity = 'critical';
@@ -175,5 +200,15 @@ describe('security audit exception', () => {
 
     expect(result.ok).toBe(false);
     expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
+  it('fails closed if the root advisory severity changes below high while downstream entries stay high', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].severity = 'moderate';
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
   });
 });
