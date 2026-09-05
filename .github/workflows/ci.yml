@@ -86,11 +86,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Diagnose non-breaking audit fixes
-        run: |
-          npm audit fix --package-lock-only || true
-          git diff -- package-lock.json
-
       - name: Lint
         run: npm run lint
 
@@ -100,13 +95,16 @@ jobs:
           FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Security audit
-        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
-        run: npm audit --audit-level=high
-
       - name: Unit tests
+        # Keep functional validation independent from the dependency audit so a
+        # pre-existing advisory does not hide regressions in the PR under test.
         run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Security audit
+        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
+        # This remains blocking; it is intentionally last so test results are still available.
+        run: npm audit --audit-level=high
