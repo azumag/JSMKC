@@ -4,9 +4,11 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 ## Fail-closed の原則
 
-`scripts/security-audit.js` は `npm audit --json` を読み取り、high / critical finding が無い場合だけ通常成功する。期限付きの既知例外を helper 内に持つ場合も、例外条件は依存バージョン・lockfile 上の属性・dev-only 条件・advisory ID と canonical URL・affected range・severity・direct advisory の package metadata・dependency graph まで狭く固定する。
+`scripts/security-audit.js` は `npm audit --json` を読み取り、high / critical finding が無い場合だけ通常成功する。期限付きの既知例外を helper 内に持つ場合も、例外条件は依存バージョン・lockfile 上の属性・dev-only 条件・package source / integrity・advisory ID と canonical URL・affected range・severity・direct advisory の package metadata・dependency graph まで狭く固定する。
 
 direct advisory の package metadata では、`npm audit` が返す `name` / `dependency` / `severity` が許可対象パッケージと一致することも要求する。同じ advisory URL と affected range が残っていても、対象パッケージ名や dependency の帰属、advisory 自体の severity metadata が変わった場合は既知例外として扱わない。
+
+lockfile では、許可対象パッケージの version や dev-only 属性だけでなく、`resolved` が canonical npm registry tarball を指し、`integrity` が現在の既知 artifact と一致することも要求する。同じ version 文字列でも別 registry・fork・差し替え tarball に変化した場合は例外を適用しない。
 
 `npm audit` の JSON に `metadata.vulnerabilities` が存在する場合は、summary が示す high / critical severity の件数と `vulnerabilities` graph の実データが一致することも要求する。summary と graph が矛盾する audit 出力は、既知例外に似た graph が残っていても有効な監査結果として扱わない。
 
@@ -16,6 +18,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 
 - 新しい high / critical advisory が現れる
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph が変化する
+- 許可対象パッケージの `resolved` source または `integrity` が現在の既知 npm artifact から変化する
 - `metadata.vulnerabilities` の high / critical summary 件数と vulnerability graph の severity 件数が矛盾する
 - 許可対象を成立させている root の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する
 - `npm audit` の JSON を取得または解析できない
@@ -33,7 +36,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 ## 回帰テスト
 
 - `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
-- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `severity` metadata・`via` / `effects` topology、audit summary severity 件数、root devDependency 宣言を含む前提が変化した場合の blocking 動作を検証する。
+- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `severity` metadata・`via` / `effects` topology、audit summary severity 件数、root devDependency 宣言、許可対象 artifact の `resolved` / `integrity` を含む前提が変化した場合の blocking 動作を検証する。
 - `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の TC-2460 が上記の安定契約と同期していることを検証する。
 
 関連: #3114, #3118
