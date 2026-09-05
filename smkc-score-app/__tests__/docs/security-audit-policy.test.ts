@@ -43,7 +43,7 @@ describe('security audit policy documentation', () => {
   it('documents audit report schema drift as a fail-closed condition', () => {
     expect(policy).toContain('`vulnerabilities` graph 自体');
     expect(policy).toContain('未知の severity');
-    expect(helper).toContain("const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)");
+    expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
   });
