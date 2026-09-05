@@ -39,6 +39,20 @@ const allowedLockfile = {
       integrity: 'sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==',
       devOptional: true,
     },
+    'node_modules/@prisma/config': {
+      version: '6.19.3',
+      resolved: 'https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz',
+      integrity: 'sha512-CBPT44BjlQxEt8kiMEauji2WHTDoVBOKl7UlewXmUgBPnr/oPRZC3psci5chJnYmH0ivEIog2OU9PGWoki3DLQ==',
+      devOptional: true,
+      dependencies: { 'deepmerge-ts': '7.1.5' },
+    },
+    'node_modules/prisma': {
+      version: '6.19.3',
+      resolved: 'https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz',
+      integrity: 'sha512-++ZJ0ijLrDJF6hNB4t4uxg2br3fC4H9Yc9tcbjr2fcNFP3rh/SBNrAgjhsqBU4Ght8JPrVofG/ZkXfnSfnYsFg==',
+      devOptional: true,
+      dependencies: { '@prisma/config': '6.19.3' },
+    },
   },
 };
 
@@ -243,6 +257,96 @@ describe('security audit exception', () => {
   it('fails closed when the Prisma devDependency range changes', () => {
     const lockfile = structuredClone(allowedLockfile);
     lockfile.packages[''].devDependencies.prisma = '^6.20.0';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when the installed Prisma version changes inside the allowed manifest range', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/prisma'].version = '6.20.0';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when the installed Prisma tarball source changes', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/prisma'].resolved = 'https://example.invalid/prisma-6.19.3.tgz';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when the installed Prisma integrity changes', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/prisma'].integrity = 'sha512-different';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when the installed @prisma/config version changes', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/@prisma/config'].version = '6.20.0';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when the installed @prisma/config tarball source changes', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/@prisma/config'].resolved = 'https://example.invalid/config-6.19.3.tgz';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when the installed @prisma/config integrity changes', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/@prisma/config'].integrity = 'sha512-different';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when Prisma no longer pins the expected @prisma/config version', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/prisma'].dependencies['@prisma/config'] = '6.20.0';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when @prisma/config no longer pins the vulnerable deepmerge-ts version', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.1';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when the installed Prisma chain is no longer devOptional', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/@prisma/config'].devOptional = false;
 
     const result = evaluateAuditReport(allowedChainReport, lockfile);
 
