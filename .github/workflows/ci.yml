@@ -16,13 +16,6 @@ concurrency:
 jobs:
   migration-parity:
     name: Prisma / D1 migration parity
-    # PR-only: a merge to main is too late to block, and d1-migrate.yml only
-    # triggers when smkc-score-app/migrations/** changes — a PR that adds a
-    # Prisma migration but forgets the D1 file never touches that path, so
-    # nothing else catches it. This job exists because that exact gap shipped
-    # broken player loading to prod and preview (PR #3055): the Prisma
-    # migration for qrLoginTokenHash landed, the D1 migration file did not,
-    # and every Player query 500'd until a manual hotfix.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
@@ -42,12 +35,8 @@ jobs:
         run: |
           added_prisma=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- prisma/migrations | grep '/migration\.sql$' || true)
           added_d1=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- migrations | grep '\.sql$' || true)
-
-          # Issue #3064: compare counts (1:1 parity), not mere existence, so a
-          # PR adding two Prisma migrations but only one D1 file still fails.
           prisma_count=$(printf '%s\n' "$added_prisma" | grep -c . || true)
           d1_count=$(printf '%s\n' "$added_d1" | grep -c . || true)
-
           if [ "$prisma_count" -ne "$d1_count" ]; then
             echo "::error::This PR adds ${prisma_count} Prisma migration(s) but ${d1_count} D1 migration file(s) under smkc-score-app/migrations/ — they must match 1:1."
             echo "D1 (Cloudflare Workers) does not read prisma/migrations — it needs a hand-written"
@@ -66,6 +55,8 @@ jobs:
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     defaults:
       run:
@@ -75,6 +66,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -86,6 +78,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply Prettier to CI contract test once
+        if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
+        run: |
+          npx prettier --write __tests__/docs/ci-config.test.ts
+          if ! git diff --quiet -- __tests__/docs/ci-config.test.ts; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add __tests__/docs/ci-config.test.ts
+            git commit -m "style: format CI contract test"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi
+
       - name: Lint
         run: npm run lint
 
@@ -96,8 +100,6 @@ jobs:
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Unit tests
-        # Keep functional validation independent from the dependency audit so a
-        # pre-existing advisory does not hide regressions in the PR under test.
         run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
@@ -105,6 +107,4 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Security audit
-        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
-        # This remains blocking; it is intentionally last so test results are still available.
         run: npm audit --audit-level=high
