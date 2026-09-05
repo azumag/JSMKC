@@ -119,6 +119,11 @@ function hasConsistentVulnerabilitySummary(report, vulnerabilities) {
     return false;
   }
 
+  const allowedSummaryKeys = new Set([...SUMMARY_SEVERITIES, 'total']);
+  if (Object.keys(summary).some((key) => !allowedSummaryKeys.has(key))) {
+    return false;
+  }
+
   const graphCounts = Object.fromEntries(SUMMARY_SEVERITIES.map((severity) => [severity, 0]));
   for (const vulnerability of Object.values(vulnerabilities)) {
     graphCounts[vulnerability.severity] += 1;

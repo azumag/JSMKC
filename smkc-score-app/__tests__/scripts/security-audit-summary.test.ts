@@ -114,4 +114,15 @@ describe('npm audit vulnerability summary consistency', () => {
     expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
+
+  it('fails closed when the summary contains an unknown key', () => {
+    const report = mixedSeverityReport();
+    Object.assign(report.metadata.vulnerabilities, { futureSeverity: 0 });
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
 });
