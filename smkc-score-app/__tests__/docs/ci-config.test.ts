@@ -57,9 +57,9 @@ describe('CI workflow configuration', () => {
     expect(workingDir).toBe('smkc-score-app');
   });
 
-  it('runs unit tests after the audit step in the same job steps array', () => {
-    // YAML 構造として steps 配列を検証することで、パターンの複数出現や
-    // 異なる job への誤参照を防ぐ (indexOf による文字列比較は使用しない)
+  it('runs unit tests before the blocking audit step in the same job steps array', () => {
+    // Security audit は blocking のまま維持しつつ、既存 advisory がある場合でも
+    // PR の機能テスト結果を失わないよう Unit tests を先に実行する。
     const steps = lintAndTestJob.steps;
 
     // 各ステップが steps 配列に 1 件だけ存在することを filter で確認してから
@@ -75,12 +75,12 @@ describe('CI workflow configuration', () => {
     // (同じ predicate で findIndex を再実行する二重走査を回避)
     const auditIdx = steps.indexOf(auditSteps[0]);
     const testIdx = steps.indexOf(testSteps[0]);
-    expect(testIdx).toBeGreaterThan(auditIdx);
+    expect(auditIdx).toBeGreaterThan(testIdx);
   });
 
   it('runs lint before the security audit step', () => {
-    // Lint → Security audit → Unit tests の順序を保証する。
-    // lint エラーが早期に検出されるよう audit より前に配置する必要がある。
+    // Lint → Unit tests → Security audit の順序を保証する。
+    // lint エラーは早期検出しつつ、audit 前に機能テスト結果を残す。
     const steps = lintAndTestJob.steps;
     const lintSteps = steps.filter((s) => s.run?.match(/\bnpm run lint\b/));
     const auditSteps = steps.filter((s) => s.run?.includes('npm audit --audit-level=high'));
