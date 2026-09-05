@@ -108,10 +108,7 @@ describe('security audit exception', () => {
   });
 
   it('fails closed when npm audit returns an error alongside an empty vulnerability map', () => {
-    const result = evaluateAuditReport(
-      { error: { code: 'ENETWORK' }, vulnerabilities: {} },
-      allowedLockfile,
-    );
+    const result = evaluateAuditReport({ error: { code: 'ENETWORK' }, vulnerabilities: {} }, allowedLockfile);
 
     expect(result.ok).toBe(false);
     expect(result.unexpected).toEqual(['invalid-audit-report']);

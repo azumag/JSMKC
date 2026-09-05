@@ -36,12 +36,7 @@ function buildEffectClosure(vulnerabilities, rootName) {
 }
 
 function evaluateAuditReport(report, lockfile) {
-  if (
-    !report ||
-    report.error ||
-    typeof report.vulnerabilities !== 'object' ||
-    report.vulnerabilities === null
-  ) {
+  if (!report || report.error || typeof report.vulnerabilities !== 'object' || report.vulnerabilities === null) {
     return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
   }
 
