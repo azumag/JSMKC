@@ -124,6 +124,16 @@ describe('security audit exception', () => {
     expect(result.allowed).toEqual([]);
   });
 
+  it('fails closed when the Prisma devDependency range changes', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages[''].devDependencies.prisma = '^6.20.0';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
   it('fails closed when Prisma becomes a production dependency', () => {
     const baseLockfile = structuredClone(allowedLockfile);
     const lockfile = {

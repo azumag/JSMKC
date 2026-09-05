@@ -19,6 +19,13 @@ describe('security audit policy documentation', () => {
     expect(policy).not.toContain('deepmerge-ts');
     expect(helper).toContain('const ALLOWED_ADVISORY =');
     expect(helper).toContain('const ALLOWED_VERSION =');
+    expect(helper).toContain('const ALLOWED_PRISMA_DEV_RANGE =');
+  });
+
+  it('documents manifest drift as a fail-closed condition', () => {
+    expect(policy).toContain('root の devDependency 宣言');
+    expect(policy).toContain('manifest / lockfile の前提が変化する');
+    expect(helperTest).toContain('Prisma devDependency range changes');
   });
 
   it('documents that unit tests run before the blocking audit', () => {
