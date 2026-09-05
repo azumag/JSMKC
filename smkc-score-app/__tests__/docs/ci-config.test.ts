@@ -33,57 +33,50 @@ describe('CI workflow configuration', () => {
     // steps が undefined/空の場合も同様に早期エラーとする (#2464)
     if (!workflow?.jobs?.['lint-and-test']?.steps?.length) {
       throw new Error(
-        `ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`
+        `ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`,
       );
     }
     lintAndTestJob = workflow.jobs['lint-and-test'];
   });
 
-  // TC-2460: CI には npm audit --audit-level=high ステップが必要
-  // high/critical 脆弱性を自動検出するため、smkc-score-app/ のワーキングディレクトリ内で実行する
-  // --audit-level=high を選択した理由: moderate/low は devDependency の transitive 問題が多く
-  // 自動修正には breaking change が必要なため、high 以上のみをブロッキング対象とする
-  it('has npm audit step with --audit-level=high in lint-and-test job (TC-2460)', () => {
-    const auditStep = lintAndTestJob.steps.find((s) =>
-      s.run?.includes('npm audit --audit-level=high')
-    );
+  // TC-2460: CI には high/critical を blocking にする dependency audit が必要。
+  // #3114 の既知 Prisma transitive advisory だけは scripts/security-audit.js が
+  // fail-closed 条件付きで扱い、それ以外の high/critical は引き続き失敗させる。
+  it('has the fail-closed security audit helper in lint-and-test job (TC-2460)', () => {
+    const auditStep = lintAndTestJob.steps.find((s) => s.run?.includes('node scripts/security-audit.js'));
     expect(auditStep).toBeDefined();
   });
 
-  it('runs npm audit inside the smkc-score-app working-directory job', () => {
-    // defaults.run.working-directory で全ステップが smkc-score-app/ 配下で実行される
-    // これにより package-lock.json が正しく参照され ENOLOCK エラーを防ぐ
+  it('runs the security audit inside the smkc-score-app working-directory job', () => {
+    // defaults.run.working-directory で全ステップが smkc-score-app/ 配下で実行される。
+    // helper が package-lock.json を直接検証するため、この working-directory は必須。
     const workingDir = lintAndTestJob.defaults?.run?.['working-directory'];
     expect(workingDir).toBe('smkc-score-app');
   });
 
-  it('runs unit tests after the audit step in the same job steps array', () => {
-    // YAML 構造として steps 配列を検証することで、パターンの複数出現や
-    // 異なる job への誤参照を防ぐ (indexOf による文字列比較は使用しない)
+  it('runs unit tests before the blocking audit step in the same job steps array', () => {
+    // Security audit は blocking のまま維持しつつ、既存 advisory がある場合でも
+    // PR の機能テスト結果を失わないよう Unit tests を先に実行する。
     const steps = lintAndTestJob.steps;
 
-    // 各ステップが steps 配列に 1 件だけ存在することを filter で確認してから
-    // indexOf でインデックスを取得する (#2465: findIndex の二重走査を解消)
-    const auditSteps = steps.filter((s) => s.run?.includes('npm audit --audit-level=high'));
+    const auditSteps = steps.filter((s) => s.run?.includes('node scripts/security-audit.js'));
     // \bnpm test\b の語境界で絞り込み、npm run test:coverage 等の部分一致を排除する
     const testSteps = steps.filter((s) => s.run?.match(/\bnpm test\b/));
 
     expect(auditSteps).toHaveLength(1);
     expect(testSteps).toHaveLength(1);
 
-    // filter 結果から steps.indexOf で参照比較によりインデックスを得る
-    // (同じ predicate で findIndex を再実行する二重走査を回避)
     const auditIdx = steps.indexOf(auditSteps[0]);
     const testIdx = steps.indexOf(testSteps[0]);
-    expect(testIdx).toBeGreaterThan(auditIdx);
+    expect(auditIdx).toBeGreaterThan(testIdx);
   });
 
   it('runs lint before the security audit step', () => {
-    // Lint → Security audit → Unit tests の順序を保証する。
-    // lint エラーが早期に検出されるよう audit より前に配置する必要がある。
+    // Lint → Unit tests → Security audit の順序を保証する。
+    // lint エラーは早期検出しつつ、audit 前に機能テスト結果を残す。
     const steps = lintAndTestJob.steps;
     const lintSteps = steps.filter((s) => s.run?.match(/\bnpm run lint\b/));
-    const auditSteps = steps.filter((s) => s.run?.includes('npm audit --audit-level=high'));
+    const auditSteps = steps.filter((s) => s.run?.includes('node scripts/security-audit.js'));
 
     expect(lintSteps).toHaveLength(1);
     expect(auditSteps).toHaveLength(1);
@@ -98,9 +91,7 @@ describe('CI workflow configuration', () => {
     // Node.js バージョンのドリフトを検出する。
     // package.json engines や Cloudflare Workers ランタイムとの互換性を維持するため
     // バージョンを 22 に固定している。
-    const setupNodeStep = lintAndTestJob.steps.find((s) =>
-      s.uses?.startsWith('actions/setup-node')
-    );
+    const setupNodeStep = lintAndTestJob.steps.find((s) => s.uses?.startsWith('actions/setup-node'));
     expect(setupNodeStep).toBeDefined();
     // String() で YAML 数値/文字列表記差異を吸収 (#2467)
     expect(String(setupNodeStep?.with?.['node-version'])).toBe('22');

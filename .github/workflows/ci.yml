@@ -95,13 +95,18 @@ jobs:
           FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Security audit
-        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
-        run: npm audit --audit-level=high
-
       - name: Unit tests
+        # Keep functional validation independent from the dependency audit so a
+        # pre-existing advisory does not hide regressions in the PR under test.
         run: npm test -- --ci --forceExit
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Security audit
+        # Fail closed for all high/critical findings except the exact, dev-only
+        # Prisma -> deepmerge-ts advisory tracked in #3114. The helper validates
+        # the advisory id, dependency graph, package version and devOptional bit;
+        # any drift or any additional high/critical finding remains blocking.
+        run: node scripts/security-audit.js
