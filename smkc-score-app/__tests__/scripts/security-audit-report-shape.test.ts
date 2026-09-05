@@ -38,6 +38,31 @@ describe('security audit report shape', () => {
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
+  it('accepts a vulnerability name that matches its top-level package key', () => {
+    const result = evaluateAuditReport(
+      { vulnerabilities: { package: { name: 'package', severity: 'moderate', via: [], effects: [] } } },
+      emptyLockfile,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual([]);
+  });
+
+  it.each(['different-package', '', 42])(
+    'fails closed when vulnerability name %p contradicts its top-level package key',
+    (name) => {
+      const result = evaluateAuditReport(
+        { vulnerabilities: { package: { name, severity: 'moderate', via: [], effects: [] } } },
+        emptyLockfile,
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+      expect(result.unexpected).toEqual(['invalid-audit-report']);
+    },
+  );
+
   it.each(['info', 'low', 'moderate'])('accepts supported non-blocking severity %s', (severity) => {
     const result = evaluateAuditReport(
       { vulnerabilities: { package: { severity, via: [], effects: [] } } },

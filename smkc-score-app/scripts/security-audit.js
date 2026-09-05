@@ -67,13 +67,18 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
     return false;
   }
 
-  return Object.values(vulnerabilities).every(
-    (vulnerability) =>
-      vulnerability &&
-      typeof vulnerability === 'object' &&
-      !Array.isArray(vulnerability) &&
-      KNOWN_SEVERITIES.has(vulnerability.severity),
-  );
+  return Object.entries(vulnerabilities).every(([packageName, vulnerability]) => {
+    if (
+      !vulnerability ||
+      typeof vulnerability !== 'object' ||
+      Array.isArray(vulnerability) ||
+      !KNOWN_SEVERITIES.has(vulnerability.severity)
+    ) {
+      return false;
+    }
+
+    return vulnerability.name === undefined || vulnerability.name === packageName;
+  });
 }
 
 function matchesExpectedGraph(vulnerabilities) {
