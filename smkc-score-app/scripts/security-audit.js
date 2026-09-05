@@ -132,7 +132,11 @@ function hasConsistentVulnerabilitySummary(report, vulnerabilities) {
   }
 
   if (summary.total !== undefined) {
-    if (!Number.isInteger(summary.total) || summary.total < 0 || summary.total !== Object.keys(vulnerabilities).length) {
+    if (
+      !Number.isInteger(summary.total) ||
+      summary.total < 0 ||
+      summary.total !== Object.keys(vulnerabilities).length
+    ) {
       return false;
     }
   }
