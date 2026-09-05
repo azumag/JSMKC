@@ -10,11 +10,11 @@ const ALLOWED_VERSION = '7.1.5';
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 
 function objectViaEntries(vulnerability) {
-  return (vulnerability.via || []).filter((entry) => entry && typeof entry === 'object');
+  return (vulnerability?.via || []).filter((entry) => entry && typeof entry === 'object');
 }
 
 function stringViaEntries(vulnerability) {
-  return (vulnerability.via || []).filter((entry) => typeof entry === 'string');
+  return (vulnerability?.via || []).filter((entry) => typeof entry === 'string');
 }
 
 function buildEffectClosure(vulnerabilities, rootName) {
@@ -36,7 +36,12 @@ function buildEffectClosure(vulnerabilities, rootName) {
 }
 
 function evaluateAuditReport(report, lockfile) {
-  if (!report || typeof report.vulnerabilities !== 'object' || report.vulnerabilities === null) {
+  if (
+    !report ||
+    report.error ||
+    typeof report.vulnerabilities !== 'object' ||
+    report.vulnerabilities === null
+  ) {
     return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
   }
 
@@ -105,9 +110,9 @@ function main() {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  if (!audit.stdout) {
-    process.stderr.write(audit.stderr || 'npm audit produced no JSON output\n');
-    process.exit(audit.status || 1);
+  if (audit.error || audit.signal || !audit.stdout) {
+    process.stderr.write(audit.error?.message || audit.stderr || 'npm audit produced no JSON output\n');
+    process.exit(1);
   }
 
   let report;

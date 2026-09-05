@@ -63,6 +63,23 @@ describe('security audit exception', () => {
     expect(result.unexpected).toContain('unexpected-package');
   });
 
+  it('fails closed cleanly when deepmerge is not the blocking vulnerability', () => {
+    const report = {
+      vulnerabilities: {
+        'unexpected-package': {
+          severity: 'high',
+          via: [{ url: 'https://github.com/advisories/GHSA-other' }],
+          effects: [],
+        },
+      },
+    };
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.unexpected).toEqual(['unexpected-package']);
+  });
+
   it('fails closed when the advisory id changes', () => {
     const report = structuredClone(allowedChainReport);
     report.vulnerabilities['deepmerge-ts'].via = [
@@ -85,6 +102,16 @@ describe('security audit exception', () => {
 
   it('fails closed when npm audit does not return the expected report shape', () => {
     const result = evaluateAuditReport({ error: { code: 'EAUDIT' } }, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
+  it('fails closed when npm audit returns an error alongside an empty vulnerability map', () => {
+    const result = evaluateAuditReport(
+      { error: { code: 'ENETWORK' }, vulnerabilities: {} },
+      allowedLockfile,
+    );
 
     expect(result.ok).toBe(false);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
