@@ -4,18 +4,8 @@ describe('security audit policy documentation', () => {
   const policy = readRepoFile('docs', 'security-audit-policy.md');
   const ci = readRepoFile('.github', 'workflows', 'ci.yml');
   const helper = readRepoFile('smkc-score-app', 'scripts', 'security-audit.js');
-  const ciConfigTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'docs',
-    'ci-config.test.ts',
-  );
-  const helperTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'scripts',
-    'security-audit.test.ts',
-  );
+  const ciConfigTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'ci-config.test.ts');
+  const helperTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit.test.ts');
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
@@ -47,12 +37,8 @@ describe('security audit policy documentation', () => {
 
   it('references the regression tests at their real repository paths', () => {
     expect(policy).toContain('`smkc-score-app/__tests__/docs/ci-config.test.ts`');
-    expect(policy).toContain(
-      '`smkc-score-app/__tests__/scripts/security-audit.test.ts`',
-    );
-    expect(policy).toContain(
-      '`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`',
-    );
+    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit.test.ts`');
+    expect(policy).toContain('`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`');
     expect(ciConfigTest).toContain('TC-2460');
     expect(helperTest).toContain('evaluateAuditReport');
   });
