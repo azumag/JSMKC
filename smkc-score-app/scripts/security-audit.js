@@ -77,7 +77,9 @@ function evaluateAuditReport(report, lockfile) {
   const unexpected = [];
 
   for (const [name, vulnerability] of blockingEntries) {
-    const hasDifferentDirectAdvisory = objectViaEntries(vulnerability).some((entry) => !isExpectedDirectAdvisory(entry));
+    const hasDifferentDirectAdvisory = objectViaEntries(vulnerability).some(
+      (entry) => !isExpectedDirectAdvisory(entry),
+    );
     const hasUnexpectedViaDependency = stringViaEntries(vulnerability).some((dependency) => !closure.has(dependency));
     const matchesKnownSeverity = vulnerability.severity === 'high';
 
