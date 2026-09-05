@@ -105,6 +105,8 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Security audit
-        # Fail CI on high/critical vulnerabilities; moderate/low are informational only.
-        # This remains blocking; it is intentionally last so test results are still available.
-        run: npm audit --audit-level=high
+        # Fail closed for all high/critical findings except the exact, dev-only
+        # Prisma -> deepmerge-ts advisory tracked in #3114. The helper validates
+        # the advisory id, dependency graph, package version and devOptional bit;
+        # any drift or any additional high/critical finding remains blocking.
+        run: node scripts/security-audit.js
