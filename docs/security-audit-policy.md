@@ -19,10 +19,14 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 通常の lint / formatting / unit test を先に実行し、その後に security audit を実行する。既知の audit finding が存在する期間でも、機能回帰テストの結果を audit より先に観測できるようにするためである。ただし security audit 自体は blocking のままとし、予期しない high / critical finding を許容しない。
 
+## TC-2460 の安定契約
+
+`E2E_TEST_CASES.md` の TC-2460 は、特定の `npm audit` コマンド文字列ではなく、「CI が `node scripts/security-audit.js` を入口として high / critical finding を blocking に扱う」という振る舞いを記述する。drift guard も同じ安定契約を検証し、一時例外の advisory ID や依存バージョンなどの可変な詳細は helper と #3114 に寄せる。
+
 ## 回帰テスト
 
-- `smkc-score-app/__tests__/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
-- `smkc-score-app/__tests__/ci-security-audit.test.ts`: fail-closed helper の許可条件と、条件が変化した場合の blocking 動作を検証する。
-- `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の security audit 記述が CI と同期していることを検証する。
+- `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
+- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、条件が変化した場合の blocking 動作を検証する。
+- `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の TC-2460 が上記の安定契約と同期していることを検証する。
 
 関連: #3114, #3118
