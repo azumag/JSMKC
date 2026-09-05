@@ -82,9 +82,7 @@ describe('security audit exception', () => {
 
   it('fails closed when the advisory id changes', () => {
     const report = structuredClone(allowedChainReport);
-    report.vulnerabilities['deepmerge-ts'].via = [
-      { url: 'https://github.com/advisories/GHSA-different' },
-    ];
+    report.vulnerabilities['deepmerge-ts'].via = [{ url: 'https://github.com/advisories/GHSA-different' }];
 
     const result = evaluateAuditReport(report, allowedLockfile);
 

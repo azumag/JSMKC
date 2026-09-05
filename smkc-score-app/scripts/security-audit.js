@@ -51,12 +51,9 @@ function evaluateAuditReport(report, lockfile) {
 
   const deepmergeLock = lockfile?.packages?.[ALLOWED_NODE];
   const rootPackage = lockfile?.packages?.[''];
-  const prismaIsDevOnly =
-    Boolean(rootPackage?.devDependencies?.prisma) && !Boolean(rootPackage?.dependencies?.prisma);
+  const prismaIsDevOnly = Boolean(rootPackage?.devDependencies?.prisma) && !Boolean(rootPackage?.dependencies?.prisma);
   const expectedLockState =
-    deepmergeLock?.version === ALLOWED_VERSION &&
-    deepmergeLock?.devOptional === true &&
-    prismaIsDevOnly;
+    deepmergeLock?.version === ALLOWED_VERSION && deepmergeLock?.devOptional === true && prismaIsDevOnly;
 
   const rootVulnerability = vulnerabilities[ALLOWED_ROOT];
   const rootHasExpectedAdvisory = objectViaEntries(rootVulnerability).some((entry) =>
@@ -79,17 +76,10 @@ function evaluateAuditReport(report, lockfile) {
     const hasDifferentDirectAdvisory = objectViaEntries(vulnerability).some(
       (entry) => !String(entry.url || '').includes(ALLOWED_ADVISORY),
     );
-    const hasUnexpectedViaDependency = stringViaEntries(vulnerability).some(
-      (dependency) => !closure.has(dependency),
-    );
+    const hasUnexpectedViaDependency = stringViaEntries(vulnerability).some((dependency) => !closure.has(dependency));
     const matchesKnownSeverity = vulnerability.severity === 'high';
 
-    if (
-      closure.has(name) &&
-      matchesKnownSeverity &&
-      !hasDifferentDirectAdvisory &&
-      !hasUnexpectedViaDependency
-    ) {
+    if (closure.has(name) && matchesKnownSeverity && !hasDifferentDirectAdvisory && !hasUnexpectedViaDependency) {
       allowed.push(name);
     } else {
       unexpected.push(name);
