@@ -76,6 +76,26 @@ function matchesExpectedGraph(vulnerabilities) {
   });
 }
 
+function hasConsistentBlockingSummary(report, blockingEntries) {
+  const summary = report?.metadata?.vulnerabilities;
+  if (summary === undefined) {
+    return true;
+  }
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+    return false;
+  }
+
+  const high = summary.high ?? 0;
+  const critical = summary.critical ?? 0;
+  if (![high, critical].every((count) => Number.isInteger(count) && count >= 0)) {
+    return false;
+  }
+
+  const graphHasHigh = blockingEntries.some(([, vulnerability]) => vulnerability?.severity === 'high');
+  const graphHasCritical = blockingEntries.some(([, vulnerability]) => vulnerability?.severity === 'critical');
+  return (high > 0) === graphHasHigh && (critical > 0) === graphHasCritical;
+}
+
 function buildEffectClosure(vulnerabilities, rootName) {
   const closure = new Set([rootName]);
   const queue = [rootName];
@@ -103,6 +123,10 @@ function evaluateAuditReport(report, lockfile) {
   const blockingEntries = Object.entries(vulnerabilities).filter(([, vulnerability]) =>
     BLOCKING_SEVERITIES.has(vulnerability?.severity),
   );
+
+  if (!hasConsistentBlockingSummary(report, blockingEntries)) {
+    return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
+  }
 
   if (blockingEntries.length === 0) {
     return { ok: true, allowed: [], unexpected: [] };
