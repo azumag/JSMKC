@@ -89,11 +89,15 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Check formatting of changed files
-        run: npm run format:check
-        env:
-          FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Print canonical security audit formatting
+        run: |
+          echo '=== BEGIN security-audit.test.ts ==='
+          npx prettier __tests__/scripts/security-audit.test.ts
+          echo '=== END security-audit.test.ts ==='
+          echo '=== BEGIN security-audit.js ==='
+          npx prettier scripts/security-audit.js
+          echo '=== END security-audit.js ==='
+          exit 1
 
       - name: Unit tests
         # Keep functional validation independent from the dependency audit so a
