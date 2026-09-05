@@ -98,6 +98,26 @@ describe('security audit exception', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('fails closed when the pinned deepmerge-ts version changes', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages['node_modules/deepmerge-ts'].version = '7.1.6';
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when Prisma becomes a production dependency', () => {
+    const lockfile = structuredClone(allowedLockfile);
+    lockfile.packages[''].dependencies = { prisma: '^6.19.3' };
+
+    const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
   it('fails closed when npm audit does not return the expected report shape', () => {
     const result = evaluateAuditReport({ error: { code: 'EAUDIT' } }, allowedLockfile);
 
