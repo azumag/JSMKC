@@ -6,6 +6,9 @@ const allowedChainReport = {
       severity: 'high',
       via: [
         {
+          name: 'deepmerge-ts',
+          dependency: 'deepmerge-ts',
+          severity: 'high',
           url: 'https://github.com/advisories/GHSA-ggr8-5vv4-36mx',
           range: '<8.0.0',
         },
@@ -83,9 +86,7 @@ describe('security audit exception', () => {
 
   it('fails closed when the advisory id changes', () => {
     const report = structuredClone(allowedChainReport);
-    report.vulnerabilities['deepmerge-ts'].via = [
-      { url: 'https://github.com/advisories/GHSA-different', range: '<8.0.0' },
-    ];
+    report.vulnerabilities['deepmerge-ts'].via[0].url = 'https://github.com/advisories/GHSA-different';
 
     const result = evaluateAuditReport(report, allowedLockfile);
 
@@ -94,9 +95,7 @@ describe('security audit exception', () => {
 
   it('fails closed when the advisory URL host changes but the advisory id path stays the same', () => {
     const report = structuredClone(allowedChainReport);
-    report.vulnerabilities['deepmerge-ts'].via = [
-      { url: 'https://example.invalid/GHSA-ggr8-5vv4-36mx', range: '<8.0.0' },
-    ];
+    report.vulnerabilities['deepmerge-ts'].via[0].url = 'https://example.invalid/GHSA-ggr8-5vv4-36mx';
 
     const result = evaluateAuditReport(report, allowedLockfile);
 
@@ -107,9 +106,40 @@ describe('security audit exception', () => {
 
   it('fails closed when the known advisory affected range changes', () => {
     const report = structuredClone(allowedChainReport);
-    report.vulnerabilities['deepmerge-ts'].via = [
-      { url: 'https://github.com/advisories/GHSA-ggr8-5vv4-36mx', range: '<=8.0.0' },
-    ];
+    report.vulnerabilities['deepmerge-ts'].via[0].range = '<=8.0.0';
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
+  it('fails closed when the direct advisory package name changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via[0].name = 'unexpected-package';
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
+  it('fails closed when the direct advisory dependency changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via[0].dependency = 'unexpected-package';
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
+  it('fails closed when the direct advisory severity metadata changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via[0].severity = 'critical';
 
     const result = evaluateAuditReport(report, allowedLockfile);
 
