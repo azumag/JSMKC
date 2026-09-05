@@ -22,7 +22,8 @@ const ALLOWED_PRISMA_INTEGRITY =
   'sha512-++ZJ0ijLrDJF6hNB4t4uxg2br3fC4H9Yc9tcbjr2fcNFP3rh/SBNrAgjhsqBU4Ght8JPrVofG/ZkXfnSfnYsFg==';
 const ALLOWED_PRISMA_CONFIG_INTEGRITY =
   'sha512-CBPT44BjlQxEt8kiMEauji2WHTDoVBOKl7UlewXmUgBPnr/oPRZC3psci5chJnYmH0ivEIog2OU9PGWoki3DLQ==';
-const KNOWN_SEVERITIES = new Set(['info', 'low', 'moderate', 'high', 'critical']);
+const SUMMARY_SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
+const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES);
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const ALLOWED_GRAPH = {
   'deepmerge-ts': { via: [], effects: ['@prisma/config'] },
@@ -109,7 +110,7 @@ function matchesExpectedGraph(vulnerabilities) {
   });
 }
 
-function hasConsistentBlockingSummary(report, blockingEntries) {
+function hasConsistentVulnerabilitySummary(report, vulnerabilities) {
   const summary = report?.metadata?.vulnerabilities;
   if (summary === undefined) {
     return true;
@@ -118,15 +119,29 @@ function hasConsistentBlockingSummary(report, blockingEntries) {
     return false;
   }
 
-  const high = summary.high ?? 0;
-  const critical = summary.critical ?? 0;
-  if (![high, critical].every((count) => Number.isInteger(count) && count >= 0)) {
-    return false;
+  const graphCounts = Object.fromEntries(SUMMARY_SEVERITIES.map((severity) => [severity, 0]));
+  for (const vulnerability of Object.values(vulnerabilities)) {
+    graphCounts[vulnerability.severity] += 1;
   }
 
-  const graphHigh = blockingEntries.filter(([, vulnerability]) => vulnerability?.severity === 'high').length;
-  const graphCritical = blockingEntries.filter(([, vulnerability]) => vulnerability?.severity === 'critical').length;
-  return high === graphHigh && critical === graphCritical;
+  for (const severity of SUMMARY_SEVERITIES) {
+    const count = summary[severity] ?? 0;
+    if (!Number.isInteger(count) || count < 0 || count !== graphCounts[severity]) {
+      return false;
+    }
+  }
+
+  if (summary.total !== undefined) {
+    if (
+      !Number.isInteger(summary.total) ||
+      summary.total < 0 ||
+      summary.total !== Object.keys(vulnerabilities).length
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function buildEffectClosure(vulnerabilities, rootName) {
@@ -157,7 +172,7 @@ function evaluateAuditReport(report, lockfile) {
     BLOCKING_SEVERITIES.has(vulnerability?.severity),
   );
 
-  if (!hasConsistentBlockingSummary(report, blockingEntries)) {
+  if (!hasConsistentVulnerabilitySummary(report, vulnerabilities)) {
     return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
   }
 

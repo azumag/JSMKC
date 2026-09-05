@@ -6,6 +6,7 @@ describe('security audit policy documentation', () => {
   const helper = readRepoFile('smkc-score-app', 'scripts', 'security-audit.js');
   const ciConfigTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'ci-config.test.ts');
   const helperTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit.test.ts');
+  const summaryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-summary.test.ts');
   const reportShapeTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-report-shape.test.ts');
 
   it('documents the fail-closed helper used by CI', () => {
@@ -29,17 +30,20 @@ describe('security audit policy documentation', () => {
     expect(helperTest).toContain('Prisma devDependency range changes');
   });
 
-  it('documents audit summary severity count drift as a fail-closed condition', () => {
+  it('documents audit summary count drift as a fail-closed condition', () => {
     expect(policy).toContain('`metadata.vulnerabilities`');
     expect(policy).toContain('summary 件数と vulnerability graph の severity 件数が矛盾する');
+    expect(policy).toContain('`total` と graph entry 総数が一致しない');
     expect(helperTest).toContain('summary high count is %i but the graph contains 3');
     expect(helperTest).toContain('summary reports a critical severity absent from the graph');
+    expect(summaryTest).toContain('non-blocking severity count disagrees with the graph');
+    expect(summaryTest).toContain('summary total disagrees with the graph entry count');
   });
 
   it('documents audit report schema drift as a fail-closed condition', () => {
     expect(policy).toContain('`vulnerabilities` graph 自体');
     expect(policy).toContain('未知の severity');
-    expect(helper).toContain("const KNOWN_SEVERITIES = new Set(['info', 'low', 'moderate', 'high', 'critical'])");
+    expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
   });
@@ -61,10 +65,12 @@ describe('security audit policy documentation', () => {
   it('references the regression tests at their real repository paths', () => {
     expect(policy).toContain('`smkc-score-app/__tests__/docs/ci-config.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit.test.ts`');
+    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`');
     expect(ciConfigTest).toContain('TC-2460');
     expect(helperTest).toContain('evaluateAuditReport');
+    expect(summaryTest).toContain('evaluateAuditReport');
     expect(reportShapeTest).toContain('evaluateAuditReport');
   });
 });
