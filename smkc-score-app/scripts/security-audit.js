@@ -93,7 +93,7 @@ function hasConsistentBlockingSummary(report, blockingEntries) {
 
   const graphHasHigh = blockingEntries.some(([, vulnerability]) => vulnerability?.severity === 'high');
   const graphHasCritical = blockingEntries.some(([, vulnerability]) => vulnerability?.severity === 'critical');
-  return (high > 0) === graphHasHigh && (critical > 0) === graphHasCritical;
+  return high > 0 === graphHasHigh && critical > 0 === graphHasCritical;
 }
 
 function buildEffectClosure(vulnerabilities, rootName) {
