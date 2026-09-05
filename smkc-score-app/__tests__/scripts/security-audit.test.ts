@@ -7,6 +7,7 @@ const allowedChainReport = {
       via: [
         {
           url: 'https://github.com/advisories/GHSA-ggr8-5vv4-36mx',
+          range: '<8.0.0',
         },
       ],
       effects: ['@prisma/config'],
@@ -82,11 +83,26 @@ describe('security audit exception', () => {
 
   it('fails closed when the advisory id changes', () => {
     const report = structuredClone(allowedChainReport);
-    report.vulnerabilities['deepmerge-ts'].via = [{ url: 'https://github.com/advisories/GHSA-different' }];
+    report.vulnerabilities['deepmerge-ts'].via = [
+      { url: 'https://github.com/advisories/GHSA-different', range: '<8.0.0' },
+    ];
 
     const result = evaluateAuditReport(report, allowedLockfile);
 
     expect(result.ok).toBe(false);
+  });
+
+  it('fails closed when the known advisory affected range changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via = [
+      { url: 'https://github.com/advisories/GHSA-ggr8-5vv4-36mx', range: '<=8.0.0' },
+    ];
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
   });
 
   it('fails closed when the pinned dependency is no longer devOptional 7.1.5', () => {
