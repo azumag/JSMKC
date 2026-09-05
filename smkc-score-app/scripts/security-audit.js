@@ -16,6 +16,12 @@ const ALLOWED_PRISMA_NODE = 'node_modules/prisma';
 const ALLOWED_PRISMA_CONFIG_NODE = 'node_modules/@prisma/config';
 const ALLOWED_PRISMA_VERSION = '6.19.3';
 const ALLOWED_PRISMA_CONFIG_VERSION = '6.19.3';
+const ALLOWED_PRISMA_RESOLVED = 'https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz';
+const ALLOWED_PRISMA_CONFIG_RESOLVED = 'https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz';
+const ALLOWED_PRISMA_INTEGRITY =
+  'sha512-++ZJ0ijLrDJF6hNB4t4uxg2br3fC4H9Yc9tcbjr2fcNFP3rh/SBNrAgjhsqBU4Ght8JPrVofG/ZkXfnSfnYsFg==';
+const ALLOWED_PRISMA_CONFIG_INTEGRITY =
+  'sha512-CBPT44BjlQxEt8kiMEauji2WHTDoVBOKl7UlewXmUgBPnr/oPRZC3psci5chJnYmH0ivEIog2OU9PGWoki3DLQ==';
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const ALLOWED_GRAPH = {
   'deepmerge-ts': { via: [], effects: ['@prisma/config'] },
@@ -148,9 +154,13 @@ function evaluateAuditReport(report, lockfile) {
     prismaDevRange === ALLOWED_PRISMA_DEV_RANGE && !Boolean(rootPackage?.dependencies?.prisma);
   const prismaContextIsExpected =
     prismaLock?.version === ALLOWED_PRISMA_VERSION &&
+    prismaLock?.resolved === ALLOWED_PRISMA_RESOLVED &&
+    prismaLock?.integrity === ALLOWED_PRISMA_INTEGRITY &&
     prismaLock?.devOptional === true &&
     prismaLock?.dependencies?.['@prisma/config'] === ALLOWED_PRISMA_CONFIG_VERSION &&
     prismaConfigLock?.version === ALLOWED_PRISMA_CONFIG_VERSION &&
+    prismaConfigLock?.resolved === ALLOWED_PRISMA_CONFIG_RESOLVED &&
+    prismaConfigLock?.integrity === ALLOWED_PRISMA_CONFIG_INTEGRITY &&
     prismaConfigLock?.devOptional === true &&
     prismaConfigLock?.dependencies?.['deepmerge-ts'] === ALLOWED_VERSION;
   const expectedLockState =
@@ -227,7 +237,7 @@ function main() {
       `Allowed temporary dev-only Prisma audit chain (${ALLOWED_ADVISORY}, ${ALLOWED_ADVISORY_RANGE}): ${result.allowed.join(', ')}\n`,
     );
     process.stdout.write(
-      `The exception is pinned to the canonical deepmerge-ts ${ALLOWED_VERSION} npm artifact and the installed Prisma ${ALLOWED_PRISMA_VERSION} -> @prisma/config ${ALLOWED_PRISMA_CONFIG_VERSION} -> deepmerge-ts ${ALLOWED_VERSION} lockfile context as dev-only; it will fail closed if the package source, integrity, dependency graph, severity, advisory metadata or lock state changes.\n`,
+      `The exception is pinned to the canonical deepmerge-ts ${ALLOWED_VERSION} npm artifact and the canonical installed Prisma ${ALLOWED_PRISMA_VERSION} -> @prisma/config ${ALLOWED_PRISMA_CONFIG_VERSION} -> deepmerge-ts ${ALLOWED_VERSION} lockfile context as dev-only; it will fail closed if the package source, integrity, dependency graph, severity, advisory metadata or lock state changes.\n`,
     );
   } else {
     process.stdout.write('npm audit: no high/critical vulnerabilities found.\n');
