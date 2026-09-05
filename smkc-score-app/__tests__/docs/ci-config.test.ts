@@ -33,7 +33,7 @@ describe('CI workflow configuration', () => {
     // steps が undefined/空の場合も同様に早期エラーとする (#2464)
     if (!workflow?.jobs?.['lint-and-test']?.steps?.length) {
       throw new Error(
-        `ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`
+        `ci.yml の jobs['lint-and-test'].steps が見つかりません。YAML 構造が変更された可能性があります。`,
       );
     }
     lintAndTestJob = workflow.jobs['lint-and-test'];
@@ -44,9 +44,7 @@ describe('CI workflow configuration', () => {
   // --audit-level=high を選択した理由: moderate/low は devDependency の transitive 問題が多く
   // 自動修正には breaking change が必要なため、high 以上のみをブロッキング対象とする
   it('has npm audit step with --audit-level=high in lint-and-test job (TC-2460)', () => {
-    const auditStep = lintAndTestJob.steps.find((s) =>
-      s.run?.includes('npm audit --audit-level=high')
-    );
+    const auditStep = lintAndTestJob.steps.find((s) => s.run?.includes('npm audit --audit-level=high'));
     expect(auditStep).toBeDefined();
   });
 
@@ -98,9 +96,7 @@ describe('CI workflow configuration', () => {
     // Node.js バージョンのドリフトを検出する。
     // package.json engines や Cloudflare Workers ランタイムとの互換性を維持するため
     // バージョンを 22 に固定している。
-    const setupNodeStep = lintAndTestJob.steps.find((s) =>
-      s.uses?.startsWith('actions/setup-node')
-    );
+    const setupNodeStep = lintAndTestJob.steps.find((s) => s.uses?.startsWith('actions/setup-node'));
     expect(setupNodeStep).toBeDefined();
     // String() で YAML 数値/文字列表記差異を吸収 (#2467)
     expect(String(setupNodeStep?.with?.['node-version'])).toBe('22');
