@@ -9,7 +9,8 @@ const ALLOWED_ROOT = 'deepmerge-ts';
 const ALLOWED_NODE = 'node_modules/deepmerge-ts';
 const ALLOWED_VERSION = '7.1.5';
 const ALLOWED_RESOLVED = 'https://registry.npmjs.org/deepmerge-ts/-/deepmerge-ts-7.1.5.tgz';
-const ALLOWED_INTEGRITY = 'sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==';
+const ALLOWED_INTEGRITY =
+  'sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==';
 const ALLOWED_PRISMA_DEV_RANGE = '^6.19.3';
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const ALLOWED_GRAPH = {
