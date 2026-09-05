@@ -21,10 +21,47 @@ jobs:
         working-directory: smkc-score-app
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Validate Node 24 action pins
+        working-directory: .
+        run: |
+          set -euo pipefail
+          failed=0
+
+          while IFS= read -r action; do
+            case "$action" in
+              actions/checkout@v*|actions/setup-node@v*|actions/cache@v*)
+                major="${action##*@v}"
+                major="${major%%.*}"
+                if [ "$major" -lt 5 ]; then
+                  echo "::error::Node 20 action is not allowed: $action"
+                  failed=1
+                fi
+                ;;
+              actions/upload-artifact@v*)
+                major="${action##*@v}"
+                major="${major%%.*}"
+                if [ "$major" -lt 6 ]; then
+                  echo "::error::Node 20 upload-artifact is not allowed: $action"
+                  failed=1
+                fi
+                ;;
+              fountainhead/action-wait-for-check@*)
+                echo "::error::fountainhead/action-wait-for-check currently targets Node 20: $action"
+                failed=1
+                ;;
+            esac
+          done < <(
+            grep -RhE '^[[:space:]-]*uses:[[:space:]]*[^[:space:]]+' .github/workflows \
+              | sed -E 's/^[[:space:]-]*uses:[[:space:]]*//' \
+              | sed -E 's/[[:space:]]+#.*$//'
+          )
+
+          exit "$failed"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "npm"
@@ -51,13 +88,44 @@ jobs:
       checks: read
     steps:
       - name: 'Wait for Workers Builds: smkc check'
-        uses: fountainhead/action-wait-for-check@v1.2.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          checkName: "Workers Builds: smkc"
-          ref: ${{ github.event.pull_request.head.sha }}
-          timeoutSeconds: 1800
-          intervalSeconds: 20
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 1800))
+
+          while (( SECONDS < deadline )); do
+            check_json="$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.name == "Workers Builds: smkc")] | sort_by(.started_at // "") | last // {}')"
+
+            status="$(printf '%s' "$check_json" | jq -r '.status // "missing"')"
+            conclusion="$(printf '%s' "$check_json" | jq -r '.conclusion // ""')"
+
+            case "$status" in
+              completed)
+                if [ "$conclusion" = "success" ]; then
+                  echo "Workers Builds: smkc completed successfully."
+                  exit 0
+                fi
+                echo "::error::Workers Builds: smkc completed with conclusion '${conclusion:-unknown}'."
+                exit 1
+                ;;
+              missing)
+                echo "Workers Builds: smkc has not appeared yet; retrying in 20s."
+                ;;
+              *)
+                echo "Workers Builds: smkc status=${status}; retrying in 20s."
+                ;;
+            esac
+
+            sleep 20
+          done
+
+          echo "::error::Timed out waiting 1800s for Workers Builds: smkc."
+          exit 1
 
   claude-review:
     # Intentionally retained as a successful compatibility gate, but it no
