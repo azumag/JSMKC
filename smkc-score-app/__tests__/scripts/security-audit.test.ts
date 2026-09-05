@@ -46,11 +46,15 @@ describe('security audit exception', () => {
   });
 
   it('fails closed when another high vulnerability appears', () => {
-    const report = structuredClone(allowedChainReport);
-    report.vulnerabilities['unexpected-package'] = {
-      severity: 'high',
-      via: [{ url: 'https://github.com/advisories/GHSA-other' }],
-      effects: [],
+    const report = {
+      vulnerabilities: {
+        ...structuredClone(allowedChainReport).vulnerabilities,
+        'unexpected-package': {
+          severity: 'high',
+          via: [{ url: 'https://github.com/advisories/GHSA-other' }],
+          effects: [],
+        },
+      },
     };
 
     const result = evaluateAuditReport(report, allowedLockfile);
@@ -77,5 +81,12 @@ describe('security audit exception', () => {
     const result = evaluateAuditReport(allowedChainReport, lockfile);
 
     expect(result.ok).toBe(false);
+  });
+
+  it('fails closed when npm audit does not return the expected report shape', () => {
+    const result = evaluateAuditReport({ error: { code: 'EAUDIT' } }, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 });

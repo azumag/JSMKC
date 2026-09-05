@@ -32,7 +32,11 @@ function buildEffectClosure(vulnerabilities, rootName) {
 }
 
 function evaluateAuditReport(report, lockfile) {
-  const vulnerabilities = report?.vulnerabilities || {};
+  if (!report || typeof report.vulnerabilities !== 'object' || report.vulnerabilities === null) {
+    return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
+  }
+
+  const vulnerabilities = report.vulnerabilities;
   const blockingEntries = Object.entries(vulnerabilities).filter(([, vulnerability]) =>
     BLOCKING_SEVERITIES.has(vulnerability?.severity),
   );
@@ -110,6 +114,7 @@ function main() {
       `Blocking npm audit finding(s): ${result.unexpected.join(', ') || 'allowlist precondition failed'}\n`,
     );
     process.stderr.write(audit.stdout);
+    process.stderr.write(audit.stderr || '');
     process.exit(1);
   }
 
