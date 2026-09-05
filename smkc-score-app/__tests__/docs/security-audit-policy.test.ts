@@ -28,9 +28,10 @@ describe('security audit policy documentation', () => {
     expect(helperTest).toContain('Prisma devDependency range changes');
   });
 
-  it('documents audit summary severity drift as a fail-closed condition', () => {
+  it('documents audit summary severity count drift as a fail-closed condition', () => {
     expect(policy).toContain('`metadata.vulnerabilities`');
-    expect(policy).toContain('summary と vulnerability graph の severity が矛盾する');
+    expect(policy).toContain('summary 件数と vulnerability graph の severity 件数が矛盾する');
+    expect(helperTest).toContain('summary high count is %i but the graph contains 3');
     expect(helperTest).toContain('summary reports a critical severity absent from the graph');
   });
 
