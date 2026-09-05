@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 
 const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
+const ALLOWED_ADVISORY_RANGE = '<8.0.0';
 const ALLOWED_ROOT = 'deepmerge-ts';
 const ALLOWED_NODE = 'node_modules/deepmerge-ts';
 const ALLOWED_VERSION = '7.1.5';
@@ -15,6 +16,11 @@ function objectViaEntries(vulnerability) {
 
 function stringViaEntries(vulnerability) {
   return (vulnerability?.via || []).filter((entry) => typeof entry === 'string');
+}
+
+function isExpectedDirectAdvisory(entry) {
+  const url = String(entry?.url || '');
+  return url.endsWith(`/${ALLOWED_ADVISORY}`) && entry?.range === ALLOWED_ADVISORY_RANGE;
 }
 
 function buildEffectClosure(vulnerabilities, rootName) {
@@ -56,9 +62,7 @@ function evaluateAuditReport(report, lockfile) {
     deepmergeLock?.version === ALLOWED_VERSION && deepmergeLock?.devOptional === true && prismaIsDevOnly;
 
   const rootVulnerability = vulnerabilities[ALLOWED_ROOT];
-  const rootHasExpectedAdvisory = objectViaEntries(rootVulnerability).some((entry) =>
-    String(entry.url || '').includes(ALLOWED_ADVISORY),
-  );
+  const rootHasExpectedAdvisory = objectViaEntries(rootVulnerability).some(isExpectedDirectAdvisory);
 
   if (!expectedLockState || !rootHasExpectedAdvisory) {
     return {
@@ -74,7 +78,7 @@ function evaluateAuditReport(report, lockfile) {
 
   for (const [name, vulnerability] of blockingEntries) {
     const hasDifferentDirectAdvisory = objectViaEntries(vulnerability).some(
-      (entry) => !String(entry.url || '').includes(ALLOWED_ADVISORY),
+      (entry) => !isExpectedDirectAdvisory(entry),
     );
     const hasUnexpectedViaDependency = stringViaEntries(vulnerability).some((dependency) => !closure.has(dependency));
     const matchesKnownSeverity = vulnerability.severity === 'high';
@@ -123,10 +127,10 @@ function main() {
 
   if (result.allowed.length > 0) {
     process.stdout.write(
-      `Allowed temporary dev-only Prisma audit chain (${ALLOWED_ADVISORY}): ${result.allowed.join(', ')}\n`,
+      `Allowed temporary dev-only Prisma audit chain (${ALLOWED_ADVISORY}, ${ALLOWED_ADVISORY_RANGE}): ${result.allowed.join(', ')}\n`,
     );
     process.stdout.write(
-      'The exception is pinned to deepmerge-ts 7.1.5 as devOptional and will fail closed if the dependency graph, severity or advisory changes.\n',
+      'The exception is pinned to deepmerge-ts 7.1.5 as devOptional and will fail closed if the dependency graph, severity, advisory metadata or lock state changes.\n',
     );
   } else {
     process.stdout.write('npm audit: no high/critical vulnerabilities found.\n');
