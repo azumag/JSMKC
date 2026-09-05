@@ -10,7 +10,7 @@ direct advisory の package metadata では、`npm audit` が返す `name` / `de
 
 lockfile では、許可対象パッケージの version や dev-only 属性だけでなく、`resolved` が canonical npm registry tarball を指し、`integrity` が現在の既知 artifact と一致することも要求する。同じ version 文字列でも別 registry・fork・差し替え tarball に変化した場合は例外を適用しない。
 
-また、一時例外が成立する利用文脈も lockfile 上で固定する。root の Prisma devDependency 宣言だけでなく、実際にインストールされた `prisma` / `@prisma/config` の version・`resolved`・`integrity`・`devOptional` 属性、`prisma -> @prisma/config -> deepmerge-ts` の依存 version を現在確認済みの組み合わせに一致させる。manifest の `^6.19.3` 範囲内で Prisma が更新された場合や、同じ version 名でも Prisma 側 artifact の供給元または内容が変化した場合は、実装や設定読み込み経路が変化していないかを再評価するまで既知例外を自動継続しない。
+また、一時例外が成立する利用文脈も lockfile 上で固定する。root の Prisma devDependency 宣言だけでなく、実際にインストールされた Prisma とその設定パッケージの version・`resolved`・`integrity`・`devOptional` 属性、およびそこから許可対象の推移的依存へ至る dependency edge を現在確認済みの組み合わせに一致させる。manifest の許容範囲内で Prisma が更新された場合や、同じ version 名でも Prisma 側 artifact の供給元または内容が変化した場合は、実装や設定読み込み経路が変化していないかを再評価するまで既知例外を自動継続しない。
 
 `npm audit` の JSON に `metadata.vulnerabilities` が存在する場合は、summary が示す high / critical severity の件数と `vulnerabilities` graph の実データが一致することも要求する。summary と graph が矛盾する audit 出力は、既知例外に似た graph が残っていても有効な監査結果として扱わない。
 
@@ -22,7 +22,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph が変化する
 - 許可対象パッケージまたは許可対象の利用文脈を構成する Prisma chain の `resolved` source / `integrity` が現在の既知 npm artifact から変化する
 - `metadata.vulnerabilities` の high / critical summary 件数と vulnerability graph の severity 件数が矛盾する
-- 許可対象を成立させている root の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する。特にインストール済み `prisma` / `@prisma/config` の version・dev-only 属性、または lockfile 上の Prisma 依存エッジの変化は再評価を要求する
+- 許可対象を成立させている root の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する。特にインストール済み Prisma chain の version・dev-only 属性、または lockfile 上の依存エッジの変化は再評価を要求する
 - `npm audit` の JSON を取得または解析できない
 
 個別の一時例外の内容や解消状況は helper と追跡 issue に集約し、この文書では CI が維持すべき振る舞いだけを定義する。
