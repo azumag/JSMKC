@@ -6,6 +6,8 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 `scripts/security-audit.js` は `npm audit --json` を読み取り、high / critical finding が無い場合だけ通常成功する。期限付きの既知例外を helper 内に持つ場合も、例外条件は依存バージョン・lockfile 上の属性・dev-only 条件・advisory ID と affected range・severity・dependency graph まで狭く固定する。
 
+dependency graph の固定は、許可チェーンに含まれるパッケージ名だけではなく、`npm audit` が返す `via` / `effects` の接続関係まで対象とする。既知パッケージ間で依存エッジが付け替わる、許可ルートから新しい枝が増える、direct advisory entry の構造が増減する、といった変化も既知例外としては扱わない。
+
 次のいずれかが起きた場合は、既知例外に似ていても CI を失敗させる。
 
 - 新しい high / critical advisory が現れる
@@ -26,7 +28,7 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 ## 回帰テスト
 
 - `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
-- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の affected range を含む条件が変化した場合の blocking 動作を検証する。
+- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の affected range・severity・`via` / `effects` topology を含む条件が変化した場合の blocking 動作を検証する。
 - `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の TC-2460 が上記の安定契約と同期していることを検証する。
 
 関連: #3114, #3118
