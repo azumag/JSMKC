@@ -34,10 +34,12 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`metadata.vulnerabilities`');
     expect(policy).toContain('summary 件数と vulnerability graph の severity 件数が矛盾する');
     expect(policy).toContain('`total` と graph entry 総数が一致しない');
+    expect(policy).toContain('未知の summary key');
     expect(helperTest).toContain('summary high count is %i but the graph contains 3');
     expect(helperTest).toContain('summary reports a critical severity absent from the graph');
     expect(summaryTest).toContain('non-blocking severity count disagrees with the graph');
     expect(summaryTest).toContain('summary total disagrees with the graph entry count');
+    expect(summaryTest).toContain('summary contains an unknown key');
   });
 
   it('documents audit report schema drift as a fail-closed condition', () => {
