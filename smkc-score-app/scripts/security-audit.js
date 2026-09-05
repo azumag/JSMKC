@@ -9,6 +9,11 @@ const ALLOWED_ROOT = 'deepmerge-ts';
 const ALLOWED_NODE = 'node_modules/deepmerge-ts';
 const ALLOWED_VERSION = '7.1.5';
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
+const ALLOWED_GRAPH = {
+  'deepmerge-ts': { via: [], effects: ['@prisma/config'] },
+  '@prisma/config': { via: ['deepmerge-ts'], effects: ['prisma'] },
+  prisma: { via: ['@prisma/config'], effects: [] },
+};
 
 function objectViaEntries(vulnerability) {
   return (vulnerability?.via || []).filter((entry) => entry && typeof entry === 'object');
@@ -21,6 +26,47 @@ function stringViaEntries(vulnerability) {
 function isExpectedDirectAdvisory(entry) {
   const url = String(entry?.url || '');
   return url.endsWith(`/${ALLOWED_ADVISORY}`) && entry?.range === ALLOWED_ADVISORY_RANGE;
+}
+
+function sameStringMembers(actual, expected) {
+  if (
+    !Array.isArray(actual) ||
+    actual.length !== expected.length ||
+    actual.some((entry) => typeof entry !== 'string')
+  ) {
+    return false;
+  }
+
+  const actualSet = new Set(actual);
+  return actualSet.size === expected.length && expected.every((entry) => actualSet.has(entry));
+}
+
+function matchesExpectedGraph(vulnerabilities) {
+  return Object.entries(ALLOWED_GRAPH).every(([name, expected]) => {
+    const vulnerability = vulnerabilities[name];
+    if (!vulnerability || vulnerability.severity !== 'high' || !Array.isArray(vulnerability.via)) {
+      return false;
+    }
+
+    const viaDependencies = stringViaEntries(vulnerability);
+    const advisoryEntries = objectViaEntries(vulnerability);
+    if (vulnerability.via.length !== viaDependencies.length + advisoryEntries.length) {
+      return false;
+    }
+
+    if (
+      !sameStringMembers(viaDependencies, expected.via) ||
+      !sameStringMembers(vulnerability.effects || [], expected.effects)
+    ) {
+      return false;
+    }
+
+    if (name === ALLOWED_ROOT) {
+      return advisoryEntries.length === 1 && isExpectedDirectAdvisory(advisoryEntries[0]);
+    }
+
+    return advisoryEntries.length === 0;
+  });
 }
 
 function buildEffectClosure(vulnerabilities, rootName) {
@@ -61,10 +107,7 @@ function evaluateAuditReport(report, lockfile) {
   const expectedLockState =
     deepmergeLock?.version === ALLOWED_VERSION && deepmergeLock?.devOptional === true && prismaIsDevOnly;
 
-  const rootVulnerability = vulnerabilities[ALLOWED_ROOT];
-  const rootHasExpectedAdvisory = objectViaEntries(rootVulnerability).some(isExpectedDirectAdvisory);
-
-  if (!expectedLockState || !rootHasExpectedAdvisory) {
+  if (!expectedLockState || !matchesExpectedGraph(vulnerabilities)) {
     return {
       ok: false,
       allowed: [],
