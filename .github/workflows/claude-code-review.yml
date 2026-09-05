@@ -23,6 +23,43 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Validate Node 24 action pins
+        working-directory: .
+        run: |
+          set -euo pipefail
+          failed=0
+
+          while IFS= read -r action; do
+            case "$action" in
+              actions/checkout@v*|actions/setup-node@v*|actions/cache@v*)
+                major="${action##*@v}"
+                major="${major%%.*}"
+                if [ "$major" -lt 5 ]; then
+                  echo "::error::Node 20 action is not allowed: $action"
+                  failed=1
+                fi
+                ;;
+              actions/upload-artifact@v*)
+                major="${action##*@v}"
+                major="${major%%.*}"
+                if [ "$major" -lt 6 ]; then
+                  echo "::error::Node 20 upload-artifact is not allowed: $action"
+                  failed=1
+                fi
+                ;;
+              fountainhead/action-wait-for-check@*)
+                echo "::error::fountainhead/action-wait-for-check currently targets Node 20: $action"
+                failed=1
+                ;;
+            esac
+          done < <(
+            grep -RhE '^[[:space:]-]*uses:[[:space:]]*[^[:space:]]+' .github/workflows \
+              | sed -E 's/^[[:space:]-]*uses:[[:space:]]*//' \
+              | sed -E 's/[[:space:]]+#.*$//'
+          )
+
+          exit "$failed"
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
