@@ -350,7 +350,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
     } finally {
       setLoading(false);
     }
-  }, [tournamentId, currentRound]);
+  }, [tournamentId, currentRound, isEditing]);
 
   // Initial fetch
   useEffect(() => {
