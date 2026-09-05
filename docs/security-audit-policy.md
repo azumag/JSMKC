@@ -12,7 +12,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 
 - 新しい high / critical advisory が現れる
 - 許可対象の advisory ID / affected range、severity、依存バージョン、dependency graph が変化する
-- 許可対象の依存が production dependency に入るなど、lockfile の前提が変化する
+- 許可対象を成立させている root の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する
 - `npm audit` の JSON を取得または解析できない
 
 個別の一時例外の内容や解消状況は helper と追跡 issue に集約し、この文書では CI が維持すべき振る舞いだけを定義する。
@@ -28,7 +28,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 ## 回帰テスト
 
 - `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
-- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の affected range・severity・`via` / `effects` topology を含む条件が変化した場合の blocking 動作を検証する。
+- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の affected range・severity・`via` / `effects` topology、root devDependency 宣言を含む前提が変化した場合の blocking 動作を検証する。
 - `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の TC-2460 が上記の安定契約と同期していることを検証する。
 
 関連: #3114, #3118
