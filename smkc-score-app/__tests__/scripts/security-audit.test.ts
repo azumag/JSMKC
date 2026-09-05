@@ -92,6 +92,19 @@ describe('security audit exception', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('fails closed when the advisory URL host changes but the advisory id path stays the same', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via = [
+      { url: 'https://example.invalid/GHSA-ggr8-5vv4-36mx', range: '<8.0.0' },
+    ];
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
   it('fails closed when the known advisory affected range changes', () => {
     const report = structuredClone(allowedChainReport);
     report.vulnerabilities['deepmerge-ts'].via = [

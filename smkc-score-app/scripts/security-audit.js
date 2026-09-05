@@ -26,7 +26,7 @@ function stringViaEntries(vulnerability) {
 
 function isExpectedDirectAdvisory(entry) {
   const url = String(entry?.url || '');
-  return url.endsWith(`/${ALLOWED_ADVISORY}`) && entry?.range === ALLOWED_ADVISORY_RANGE;
+  return url === `https://github.com/advisories/${ALLOWED_ADVISORY}` && entry?.range === ALLOWED_ADVISORY_RANGE;
 }
 
 function sameStringMembers(actual, expected) {
