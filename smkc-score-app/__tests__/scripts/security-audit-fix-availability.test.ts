@@ -42,7 +42,9 @@ const allowedChainReport = {
 
 const allowedLockfile = {
   packages: {
-    '': { devDependencies: { prisma: '^6.19.3' } },
+    '': {
+      devDependencies: { prisma: '^6.19.3' },
+    },
     'node_modules/deepmerge-ts': {
       version: '7.1.5',
       resolved: 'https://registry.npmjs.org/deepmerge-ts/-/deepmerge-ts-7.1.5.tgz',
@@ -68,11 +70,7 @@ const allowedLockfile = {
 
 function reportWithFixAvailability(fixAvailable: unknown) {
   const report = structuredClone(allowedChainReport);
-  (
-    report.vulnerabilities['deepmerge-ts'] as typeof report.vulnerabilities['deepmerge-ts'] & {
-      fixAvailable?: unknown;
-    }
-  ).fixAvailable = fixAvailable;
+  Object.assign(report.vulnerabilities['deepmerge-ts'], { fixAvailable });
   return report;
 }
 
