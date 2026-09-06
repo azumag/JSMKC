@@ -130,9 +130,7 @@ function isOptionalString(value) {
 }
 
 function hasExpectedAuditReportVersion(report) {
-  return (
-    report.auditReportVersion === undefined || report.auditReportVersion === EXPECTED_AUDIT_REPORT_VERSION
-  );
+  return report.auditReportVersion === undefined || report.auditReportVersion === EXPECTED_AUDIT_REPORT_VERSION;
 }
 
 function hasValidAuditMetadata(metadata) {
