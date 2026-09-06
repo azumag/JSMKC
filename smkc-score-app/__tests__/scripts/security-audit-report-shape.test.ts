@@ -1,5 +1,6 @@
 import {
   evaluateAuditReport,
+  hasExpectedAuditDependencySummary,
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,
 } from '../../scripts/security-audit.js';
@@ -61,6 +62,44 @@ describe('security audit report shape', () => {
     ]) {
       expect(hasExpectedAuditSummary(report, { required: true })).toBe(false);
     }
+  });
+
+  it('requires the complete dependency summary on the real CI entrypoint', () => {
+    const dependencies = { prod: 528, dev: 606, optional: 177, peer: 0, peerOptional: 0, total: 1257 };
+    expect(hasExpectedAuditDependencySummary({ metadata: { dependencies } }, { required: true })).toBe(true);
+
+    for (const report of [
+      {},
+      { metadata: {} },
+      { metadata: { dependencies: { prod: 528, dev: 606, optional: 177, peer: 0, peerOptional: 0 } } },
+      { metadata: { dependencies: null } },
+      { metadata: { dependencies: { ...dependencies, total: '1257' } } },
+      { metadata: { dependencies: { ...dependencies, workspace: 1 } } },
+    ]) {
+      expect(hasExpectedAuditDependencySummary(report, { required: true })).toBe(false);
+    }
+  });
+
+  it('fails closed when audit metadata gains an unknown field', () => {
+    const result = evaluateAuditReport({ vulnerabilities: {}, metadata: { futureMetadata: true } }, emptyLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
+  it.each([
+    null,
+    [],
+    'dependencies',
+    { prod: 1, dev: 2, optional: 0, peer: 0, peerOptional: 0, total: -1 },
+    { prod: 1, dev: 2, optional: 0, peer: 0, peerOptional: 0, total: 3, workspace: 0 },
+  ])('fails closed when audit dependency summary is invalid: %p', (dependencies) => {
+    const result = evaluateAuditReport({ vulnerabilities: {}, metadata: { dependencies } }, emptyLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
   it('accepts object metadata when the vulnerability summary is omitted', () => {
