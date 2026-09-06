@@ -33,9 +33,11 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('再レビュー期限');
     expect(policy).toContain('例外を自動延長しない');
     expect(helper).toContain("const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z'");
-    expect(helper).toContain('function isTemporaryExceptionExpired(now = new Date())');
+    expect(helper).toContain('function isTemporaryExceptionExpired(now = new Date(), deadlineMs =');
     expect(helper).toContain('result.allowed.length > 0 && isTemporaryExceptionExpired()');
     expect(expiryTest).toContain('fails closed at the review deadline');
+    expect(policy).toContain('期限文字列の解析結果が `NaN` / 非有限値');
+    expect(expiryTest).toContain('fails closed when the parsed review deadline is invalid');
   });
 
   it('documents the lockfile root package snapshot precondition', () => {

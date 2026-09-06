@@ -6,7 +6,7 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 `scripts/security-audit.js` は `npm audit --json` を読み取り、high / critical finding が無い場合だけ通常成功する。期限付きの既知例外を helper 内に持つ場合も、例外条件は依存バージョン・lockfile 上の属性・dev-only 条件・package source / integrity・advisory ID と canonical URL・affected range・severity・direct advisory の package metadata・dependency graph・remediation availability まで狭く固定する。
 
-現在の #3114 一時例外には **2026-10-06T00:00:00.000Z** の再レビュー期限を設定する。期限に達した時点で advisory・依存グラフ・artifact・remediation metadata が完全一致したままでも CI は fail-closed にし、upstream の修正状況と `npm audit` の最新結果を人手で再確認するまで例外を自動延長しない。継続が必要な場合は #3114 に再評価根拠を記録したうえで期限を明示的に更新し、解消済みなら例外自体を削除する。
+現在の #3114 一時例外には **2026-10-06T00:00:00.000Z** の再レビュー期限を設定する。期限に達した時点で advisory・依存グラフ・artifact・remediation metadata が完全一致したままでも CI は fail-closed にし、upstream の修正状況と `npm audit` の最新結果を人手で再確認するまで例外を自動延長しない。期限文字列の解析結果が `NaN` / 非有限値になる場合も「期限なし」と解釈せず fail-closed にする。継続が必要な場合は #3114 に再評価根拠を記録したうえで期限を明示的に更新し、解消済みなら例外自体を削除する。
 
 `npm audit` プロセス自体も監査対象の一部として扱う。終了コード `0`（finding なし）または `1`（finding あり）の場合だけ JSON を監査結果として解釈し、起動失敗・signal 終了・`0` / `1` 以外の終了コードは、JSON が出力されていても operational failure として fail-closed にする。
 
@@ -36,7 +36,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 
 次のいずれかが起きた場合は、既知例外に似ていても CI を失敗させる。
 
-- #3114 一時例外の再レビュー期限 `2026-10-06T00:00:00.000Z` に到達する
+- #3114 一時例外の再レビュー期限 `2026-10-06T00:00:00.000Z` に到達する、または期限文字列を有限な時刻へ解析できない
 - 新しい high / critical advisory が現れる
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph、または許可チェーンの `name` / `isDirect` / `range` / `nodes` が変化する
 - 許可対象 blocking chain に non-breaking な `fixAvailable` remediation が現れる、semver-major remediation の target identity / version が現在確認済みの値から変化する、または `fixAvailable` metadata に未知 field・型・必須 field の drift が現れる
