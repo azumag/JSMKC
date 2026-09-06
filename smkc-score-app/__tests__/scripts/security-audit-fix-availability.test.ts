@@ -22,6 +22,7 @@ const allowedChainReport = {
       effects: ['@prisma/config'],
       range: '<8.0.0',
       nodes: ['node_modules/deepmerge-ts'],
+      fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
     },
     '@prisma/config': {
       name: '@prisma/config',
@@ -31,6 +32,7 @@ const allowedChainReport = {
       effects: ['prisma'],
       range: '6.13.0-dev.1 - 8.1.0-dev.4',
       nodes: ['node_modules/@prisma/config'],
+      fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
     },
     prisma: {
       name: 'prisma',
@@ -40,6 +42,7 @@ const allowedChainReport = {
       effects: [],
       range: '6.13.0-dev.1 - 8.1.0-dev.4',
       nodes: ['node_modules/prisma'],
+      fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
     },
   },
 };
@@ -79,9 +82,33 @@ function reportWithFixAvailability(fixAvailable: unknown) {
 }
 
 describe('security audit remediation availability', () => {
-  it('keeps the temporary exception when npm reports no automatic fix', () => {
-    expect(evaluateAuditReport(reportWithFixAvailability(false), allowedLockfile).ok).toBe(true);
-  });
+  it.each(['deepmerge-ts', '@prisma/config', 'prisma'])(
+    'fails closed when allowed-chain %s no longer reports the pinned remediation target',
+    (name) => {
+      const report = structuredClone(allowedChainReport);
+      report.vulnerabilities[name].fixAvailable = false;
+
+      const result = evaluateAuditReport(report, allowedLockfile);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+      expect(result.unexpected).toEqual(['deepmerge-ts', '@prisma/config', 'prisma']);
+    },
+  );
+
+  it.each(['deepmerge-ts', '@prisma/config', 'prisma'])(
+    'fails closed when allowed-chain %s omits fixAvailable metadata',
+    (name) => {
+      const report = structuredClone(allowedChainReport);
+      delete report.vulnerabilities[name].fixAvailable;
+
+      const result = evaluateAuditReport(report, allowedLockfile);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+      expect(result.unexpected).toEqual(['deepmerge-ts', '@prisma/config', 'prisma']);
+    },
+  );
 
   it('keeps the temporary exception when the only remediation is semver-major', () => {
     const report = reportWithFixAvailability({ name: 'prisma', version: '6.12.0', isSemVerMajor: true });

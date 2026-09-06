@@ -12,6 +12,12 @@ describe('security audit policy documentation', () => {
   const errorReportTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-error-report.test.ts');
   const expiryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-expiry.test.ts');
   const lockfileTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-lockfile.test.ts');
+  const fixAvailabilityTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'scripts',
+    'security-audit-fix-availability.test.ts',
+  );
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
@@ -126,6 +132,11 @@ describe('security audit policy documentation', () => {
     expect(helperTest).toContain('reported at a different install node');
     expect(helperTest).toContain('directness changes');
     expect(helperTest).toContain('propagated audit range changes');
+    expect(policy).toContain('3 entryすべてで返している semver-major remediation target');
+    expect(policy).toContain('`fixAvailable` が省略される、`false` / `true` に変わる');
+    expect(helper).toContain('function hasExpectedTemporaryFixState(value)');
+    expect(fixAvailabilityTest).toContain('no longer reports the pinned remediation target');
+    expect(fixAvailabilityTest).toContain('omits fixAvailable metadata');
   });
 
   it('documents that unit tests run before the blocking audit', () => {

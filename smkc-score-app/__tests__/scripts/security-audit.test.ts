@@ -22,6 +22,7 @@ const allowedChainReport = {
       effects: ['@prisma/config'],
       range: '<8.0.0',
       nodes: ['node_modules/deepmerge-ts'],
+      fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
     },
     '@prisma/config': {
       name: '@prisma/config',
@@ -31,6 +32,7 @@ const allowedChainReport = {
       effects: ['prisma'],
       range: '6.13.0-dev.1 - 8.1.0-dev.4',
       nodes: ['node_modules/@prisma/config'],
+      fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
     },
     prisma: {
       name: 'prisma',
@@ -40,6 +42,7 @@ const allowedChainReport = {
       effects: [],
       range: '6.13.0-dev.1 - 8.1.0-dev.4',
       nodes: ['node_modules/prisma'],
+      fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
     },
   },
 };

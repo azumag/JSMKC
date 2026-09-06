@@ -51,6 +51,7 @@ function mixedSeverityReport() {
         effects: ['@prisma/config'],
         range: '<8.0.0',
         nodes: ['node_modules/deepmerge-ts'],
+        fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
       },
       '@prisma/config': {
         name: '@prisma/config',
@@ -60,6 +61,7 @@ function mixedSeverityReport() {
         effects: ['prisma'],
         range: '6.13.0-dev.1 - 8.1.0-dev.4',
         nodes: ['node_modules/@prisma/config'],
+        fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
       },
       prisma: {
         name: 'prisma',
@@ -69,6 +71,7 @@ function mixedSeverityReport() {
         effects: [],
         range: '6.13.0-dev.1 - 8.1.0-dev.4',
         nodes: ['node_modules/prisma'],
+        fixAvailable: { name: 'prisma', version: '6.12.0', isSemVerMajor: true },
       },
       'moderate-only-package': {
         severity: 'moderate',
