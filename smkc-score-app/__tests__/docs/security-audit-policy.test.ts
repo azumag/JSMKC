@@ -49,10 +49,15 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('実際の `package.json` を独立に読み');
     expect(policy).toContain('`package-lock.json` root snapshot');
     expect(policy).toContain('manifest / lockfile の前提が変化する');
+    expect(policy).toContain('`dependencies` / `devDependencies`');
+    expect(policy).toContain('container drift');
     expect(helper).toContain("fs.readFileSync('package.json', 'utf8')");
+    expect(helper).toContain('function isOptionalObjectMap(value)');
     expect(helperTest).toContain('Prisma devDependency range changes');
     expect(helperTest).toContain('package.json Prisma devDependency drifts');
     expect(helperTest).toContain('package.json also declares Prisma as a production dependency');
+    expect(helperTest).toContain('package.json dependencies is not an object map');
+    expect(helperTest).toContain('lockfile root dependencies snapshot is not an object map');
   });
 
   it('documents audit summary count drift as a fail-closed condition', () => {

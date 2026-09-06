@@ -134,6 +134,14 @@ function isOptionalString(value) {
   return value === undefined || typeof value === 'string';
 }
 
+function isObjectMap(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isOptionalObjectMap(value) {
+  return value === undefined || isObjectMap(value);
+}
+
 function isValidFixAvailable(value) {
   if (value === undefined || typeof value === 'boolean') {
     return true;
@@ -325,13 +333,20 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
   const prismaLock = lockfile?.packages?.[ALLOWED_PRISMA_NODE];
   const prismaConfigLock = lockfile?.packages?.[ALLOWED_PRISMA_CONFIG_NODE];
   const rootPackage = lockfile?.packages?.[''];
-  const prismaDevRange = rootPackage?.devDependencies?.prisma;
+  const rootDevDependencies = rootPackage?.devDependencies;
+  const rootDependencies = rootPackage?.dependencies;
+  const manifestDevDependencies = manifest?.devDependencies;
+  const manifestDependencies = manifest?.dependencies;
   const prismaIsExpectedDevOnly =
-    prismaDevRange === ALLOWED_PRISMA_DEV_RANGE &&
-    !Object.prototype.hasOwnProperty.call(rootPackage?.dependencies || {}, 'prisma');
+    isObjectMap(rootDevDependencies) &&
+    isOptionalObjectMap(rootDependencies) &&
+    rootDevDependencies.prisma === ALLOWED_PRISMA_DEV_RANGE &&
+    !Object.prototype.hasOwnProperty.call(rootDependencies || {}, 'prisma');
   const manifestPrismaIsExpectedDevOnly =
-    manifest?.devDependencies?.prisma === ALLOWED_PRISMA_DEV_RANGE &&
-    !Object.prototype.hasOwnProperty.call(manifest?.dependencies || {}, 'prisma');
+    isObjectMap(manifestDevDependencies) &&
+    isOptionalObjectMap(manifestDependencies) &&
+    manifestDevDependencies.prisma === ALLOWED_PRISMA_DEV_RANGE &&
+    !Object.prototype.hasOwnProperty.call(manifestDependencies || {}, 'prisma');
   const prismaContextIsExpected =
     prismaLock?.version === ALLOWED_PRISMA_VERSION &&
     prismaLock?.resolved === ALLOWED_PRISMA_RESOLVED &&
