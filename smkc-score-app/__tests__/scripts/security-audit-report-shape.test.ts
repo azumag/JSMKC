@@ -1,4 +1,4 @@
-import { evaluateAuditReport } from '../../scripts/security-audit.js';
+import { evaluateAuditReport, hasExpectedAuditReportVersion } from '../../scripts/security-audit.js';
 
 describe('security audit report shape', () => {
   const emptyLockfile = { packages: {} };
@@ -17,6 +17,13 @@ describe('security audit report shape', () => {
       allowed: [],
       unexpected: [],
     });
+  });
+
+  it('requires auditReportVersion 2 on the real CI entrypoint', () => {
+    expect(hasExpectedAuditReportVersion({ auditReportVersion: 2 }, { required: true })).toBe(true);
+    for (const auditReportVersion of [undefined, 1, 3, '2', null]) {
+      expect(hasExpectedAuditReportVersion({ auditReportVersion }, { required: true })).toBe(false);
+    }
   });
 
   it.each([1, 3, '2', null])('fails closed when npm audit report version drifts: %p', (auditReportVersion) => {

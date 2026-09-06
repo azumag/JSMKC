@@ -175,8 +175,11 @@ function hasExpectedTemporaryFixState(value) {
   );
 }
 
-function hasExpectedAuditReportVersion(report) {
-  return report.auditReportVersion === undefined || report.auditReportVersion === EXPECTED_AUDIT_REPORT_VERSION;
+function hasExpectedAuditReportVersion(report, { required = false } = {}) {
+  if (report?.auditReportVersion === undefined) {
+    return !required;
+  }
+  return report.auditReportVersion === EXPECTED_AUDIT_REPORT_VERSION;
 }
 
 function hasValidAuditMetadata(metadata) {
@@ -430,6 +433,13 @@ function main() {
     process.exit(1);
   }
 
+  if (!hasExpectedAuditReportVersion(report, { required: true })) {
+    process.stderr.write(
+      `npm audit report version must be ${EXPECTED_AUDIT_REPORT_VERSION}; received ${String(report?.auditReportVersion)}\n`,
+    );
+    process.exit(1);
+  }
+
   const lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const result = evaluateAuditReport(report, lockfile, manifest);
@@ -466,4 +476,9 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { evaluateAuditReport, isExpectedAuditExitStatus, isTemporaryExceptionExpired };
+module.exports = {
+  evaluateAuditReport,
+  hasExpectedAuditReportVersion,
+  isExpectedAuditExitStatus,
+  isTemporaryExceptionExpired,
+};

@@ -76,7 +76,7 @@ describe('security audit policy documentation', () => {
 
   it('documents audit report schema drift as a fail-closed condition', () => {
     expect(policy).toContain('top-level に `error` field');
-    expect(policy).toContain('`auditReportVersion` が存在する場合');
+    expect(policy).toContain('CI entrypoint では `auditReportVersion` を必須');
     expect(policy).toContain('現在検証済みの npm audit report schema version `2`');
     expect(policy).toContain('`metadata` が存在する場合');
     expect(policy).toContain('metadata container');
@@ -90,11 +90,13 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('各 entry の `name` / `isDirect` / `range` / `nodes`');
     expect(helper).toContain("Object.prototype.hasOwnProperty.call(report, 'error')");
     expect(helper).toContain('const EXPECTED_AUDIT_REPORT_VERSION = 2');
-    expect(helper).toContain('function hasExpectedAuditReportVersion(report)');
+    expect(helper).toContain('function hasExpectedAuditReportVersion(report, { required = false } = {})');
+    expect(helper).toContain('hasExpectedAuditReportVersion(report, { required: true })');
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(helper).toContain('function hasValidAuditMetadata(metadata)');
     expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
     expect(errorReportTest).toContain('fails closed whenever npm audit includes an explicit error field');
+    expect(reportShapeTest).toContain('requires auditReportVersion 2 on the real CI entrypoint');
     expect(reportShapeTest).toContain('fails closed when npm audit report version drifts');
     expect(reportShapeTest).toContain('fails closed when audit metadata is not an object');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
