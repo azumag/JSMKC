@@ -98,12 +98,22 @@ function isValidDirectAdvisoryEntry(entry) {
   );
 }
 
-function isValidViaEntries(via) {
+function isValidViaEntries(via, requireAdvisoryMetadata) {
   if (via === undefined) {
     return true;
   }
 
-  return Array.isArray(via) && via.every((entry) => typeof entry === 'string' || isValidDirectAdvisoryEntry(entry));
+  return (
+    Array.isArray(via) &&
+    via.every(
+      (entry) =>
+        typeof entry === 'string' ||
+        (entry &&
+          typeof entry === 'object' &&
+          !Array.isArray(entry) &&
+          (!requireAdvisoryMetadata || isValidDirectAdvisoryEntry(entry))),
+    )
+  );
 }
 
 function isOptionalStringArray(value) {
@@ -133,11 +143,12 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
       return false;
     }
 
+    const requireAdvisoryMetadata = !BLOCKING_SEVERITIES.has(vulnerability.severity);
     return (
       (vulnerability.name === undefined || vulnerability.name === packageName) &&
       isOptionalBoolean(vulnerability.isDirect) &&
       isOptionalString(vulnerability.range) &&
-      isValidViaEntries(vulnerability.via) &&
+      isValidViaEntries(vulnerability.via, requireAdvisoryMetadata) &&
       isOptionalStringArray(vulnerability.effects) &&
       isOptionalStringArray(vulnerability.nodes)
     );
