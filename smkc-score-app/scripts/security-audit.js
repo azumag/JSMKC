@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
+const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z';
+const TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS = Date.parse(TEMPORARY_EXCEPTION_REVIEW_DEADLINE);
 const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
 const ALLOWED_ADVISORY_RANGE = '<8.0.0';
 const ALLOWED_ROOT = 'deepmerge-ts';
@@ -383,6 +385,11 @@ function isExpectedAuditExitStatus(status) {
   return status === 0 || status === 1;
 }
 
+function isTemporaryExceptionExpired(now = new Date()) {
+  const nowMs = now instanceof Date ? now.getTime() : Number.NaN;
+  return !Number.isFinite(nowMs) || nowMs >= TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS;
+}
+
 function main() {
   const audit = spawnSync('npm', ['audit', '--json'], {
     encoding: 'utf8',
@@ -421,12 +428,19 @@ function main() {
     process.exit(1);
   }
 
+  if (result.allowed.length > 0 && isTemporaryExceptionExpired()) {
+    process.stderr.write(
+      `Temporary npm audit exception review deadline reached (${TEMPORARY_EXCEPTION_REVIEW_DEADLINE}); re-check #3114 and upstream before extending or removing the exception.\n`,
+    );
+    process.exit(1);
+  }
+
   if (result.allowed.length > 0) {
     process.stdout.write(
       `Allowed temporary dev-only Prisma audit chain (${ALLOWED_ADVISORY}, ${ALLOWED_ADVISORY_RANGE}): ${result.allowed.join(', ')}\n`,
     );
     process.stdout.write(
-      `The exception is pinned to the canonical deepmerge-ts ${ALLOWED_VERSION} npm artifact and the canonical installed Prisma ${ALLOWED_PRISMA_VERSION} -> @prisma/config ${ALLOWED_PRISMA_CONFIG_VERSION} -> deepmerge-ts ${ALLOWED_VERSION} package/lockfile context as dev-only; it will fail closed if the manifest declaration, package source, integrity, dependency graph, severity, advisory metadata, remediation availability or lock state changes.\n`,
+      `The exception is pinned to the canonical deepmerge-ts ${ALLOWED_VERSION} npm artifact and the canonical installed Prisma ${ALLOWED_PRISMA_VERSION} -> @prisma/config ${ALLOWED_PRISMA_CONFIG_VERSION} -> deepmerge-ts ${ALLOWED_VERSION} package/lockfile context as dev-only; it will fail closed if the manifest declaration, package source, integrity, dependency graph, severity, advisory metadata, remediation availability or lock state changes, and must be reviewed again by ${TEMPORARY_EXCEPTION_REVIEW_DEADLINE}.\n`,
     );
   } else {
     process.stdout.write('npm audit: no high/critical vulnerabilities found.\n');
@@ -437,4 +451,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { evaluateAuditReport, isExpectedAuditExitStatus };
+module.exports = { evaluateAuditReport, isExpectedAuditExitStatus, isTemporaryExceptionExpired };
