@@ -223,6 +223,17 @@ describe('security audit exception', () => {
     expect(result.unexpected).toContain('deepmerge-ts');
   });
 
+  it('fails closed when the direct advisory title changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via[0].title = 'Different advisory title';
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
   it('fails closed when the direct advisory severity metadata changes', () => {
     const report = structuredClone(allowedChainReport);
     report.vulnerabilities['deepmerge-ts'].via[0].severity = 'critical';
