@@ -82,19 +82,40 @@ function sameStringMembers(actual, expected) {
   return actualSet.size === expected.length && expected.every((entry) => actualSet.has(entry));
 }
 
+function isValidDirectAdvisoryEntry(entry) {
+  return (
+    entry &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    typeof entry.name === 'string' &&
+    entry.name.length > 0 &&
+    typeof entry.dependency === 'string' &&
+    entry.dependency.length > 0 &&
+    KNOWN_SEVERITIES.has(entry.severity) &&
+    typeof entry.range === 'string' &&
+    typeof entry.url === 'string' &&
+    entry.url.length > 0
+  );
+}
+
 function isValidViaEntries(via) {
   if (via === undefined) {
     return true;
   }
 
-  return (
-    Array.isArray(via) &&
-    via.every((entry) => typeof entry === 'string' || (entry && typeof entry === 'object' && !Array.isArray(entry)))
-  );
+  return Array.isArray(via) && via.every((entry) => typeof entry === 'string' || isValidDirectAdvisoryEntry(entry));
 }
 
 function isOptionalStringArray(value) {
   return value === undefined || (Array.isArray(value) && value.every((entry) => typeof entry === 'string'));
+}
+
+function isOptionalBoolean(value) {
+  return value === undefined || typeof value === 'boolean';
+}
+
+function isOptionalString(value) {
+  return value === undefined || typeof value === 'string';
 }
 
 function hasValidVulnerabilityEntries(vulnerabilities) {
@@ -114,6 +135,8 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
 
     return (
       (vulnerability.name === undefined || vulnerability.name === packageName) &&
+      isOptionalBoolean(vulnerability.isDirect) &&
+      isOptionalString(vulnerability.range) &&
       isValidViaEntries(vulnerability.via) &&
       isOptionalStringArray(vulnerability.effects) &&
       isOptionalStringArray(vulnerability.nodes)
