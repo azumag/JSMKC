@@ -15,6 +15,17 @@ describe('security audit report shape', () => {
     });
   });
 
+  it('fails closed when a successful npm audit report gains an unknown top-level field', () => {
+    const result = evaluateAuditReport(
+      { auditReportVersion: 2, vulnerabilities: {}, metadata: {}, futureField: true },
+      emptyLockfile,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
   it('accepts the current npm audit report version', () => {
     expect(evaluateAuditReport({ auditReportVersion: 2, vulnerabilities: {} }, emptyLockfile)).toEqual({
       ok: true,

@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
+const AUDIT_REPORT_OBJECT_KEYS = new Set(['auditReportVersion', 'vulnerabilities', 'metadata']);
 const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z';
 const TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS = Date.parse(TEMPORARY_EXCEPTION_REVIEW_DEADLINE);
 const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
@@ -236,6 +237,15 @@ function hasExpectedTemporaryFixState(value) {
   );
 }
 
+function hasKnownAuditReportFields(report) {
+  return (
+    report &&
+    typeof report === 'object' &&
+    !Array.isArray(report) &&
+    Object.keys(report).every((key) => AUDIT_REPORT_OBJECT_KEYS.has(key))
+  );
+}
+
 function hasExpectedAuditReportVersion(report, { required = false } = {}) {
   if (report?.auditReportVersion === undefined) {
     return !required;
@@ -392,6 +402,7 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
   if (
     !report ||
     Object.prototype.hasOwnProperty.call(report, 'error') ||
+    !hasKnownAuditReportFields(report) ||
     !hasExpectedAuditReportVersion(report) ||
     !hasValidAuditMetadata(report.metadata) ||
     !hasValidVulnerabilityEntries(report.vulnerabilities)
