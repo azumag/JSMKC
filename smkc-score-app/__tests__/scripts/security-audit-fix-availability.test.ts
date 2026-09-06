@@ -68,9 +68,11 @@ const allowedLockfile = {
 
 function reportWithFixAvailability(fixAvailable: unknown) {
   const report = structuredClone(allowedChainReport);
-  (report.vulnerabilities['deepmerge-ts'] as typeof report.vulnerabilities['deepmerge-ts'] & {
-    fixAvailable?: unknown;
-  }).fixAvailable = fixAvailable;
+  (
+    report.vulnerabilities['deepmerge-ts'] as typeof report.vulnerabilities['deepmerge-ts'] & {
+      fixAvailable?: unknown;
+    }
+  ).fixAvailable = fixAvailable;
   return report;
 }
 
