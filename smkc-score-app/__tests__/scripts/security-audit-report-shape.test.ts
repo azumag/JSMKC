@@ -11,6 +11,22 @@ describe('security audit report shape', () => {
     });
   });
 
+  it('accepts the current npm audit report version', () => {
+    expect(evaluateAuditReport({ auditReportVersion: 2, vulnerabilities: {} }, emptyLockfile)).toEqual({
+      ok: true,
+      allowed: [],
+      unexpected: [],
+    });
+  });
+
+  it.each([1, 3, '2', null])('fails closed when npm audit report version drifts: %p', (auditReportVersion) => {
+    const result = evaluateAuditReport({ auditReportVersion, vulnerabilities: {} }, emptyLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
   it('accepts object metadata when the vulnerability summary is omitted', () => {
     const result = evaluateAuditReport(
       {
