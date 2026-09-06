@@ -215,13 +215,11 @@ function isValidFixAvailable(value) {
 }
 
 function hasExpectedTemporaryFixState(value) {
-  if (value === undefined || value === false) {
-    return true;
-  }
-
   return (
+    isValidFixAvailable(value) &&
     value &&
     typeof value === 'object' &&
+    !Array.isArray(value) &&
     value.name === ALLOWED_FIX_NAME &&
     value.version === ALLOWED_FIX_VERSION &&
     value.isSemVerMajor === true
