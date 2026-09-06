@@ -41,9 +41,6 @@ function main() {
 
   let comparisonBase;
   try {
-    // A PR's base branch may advance after the feature branch was created. Diff
-    // from the common ancestor so newly merged base-branch files are not mistaken
-    // for changes made by this PR.
     comparisonBase = resolveComparisonBase(baseRevision, headRevision, (base, head) => git(['merge-base', base, head]));
   } catch (error) {
     const context =
@@ -61,8 +58,6 @@ function main() {
     throw new Error(buildGitErrorMessage(`Unable to list changed files for ${range}.`, error), { cause: error });
   }
 
-  // CI checks committed revisions. Locally, include untracked files as well so a
-  // newly created source file cannot bypass the same check before its first commit.
   let untrackedOutput = '';
   if (!headRevision) {
     try {
@@ -94,6 +89,14 @@ function main() {
   });
 
   if (result.error) throw result.error;
+  if (result.status !== 0) {
+    spawnSync(prettierExecutable, ['--write', ...changedFiles], { cwd: appRoot, stdio: 'inherit' });
+    const diff = execFileSync('git', ['diff', '--', ...changedFiles], {
+      cwd: appRoot,
+      encoding: 'utf8',
+    });
+    console.error('--- Prettier diff ---\n' + diff);
+  }
   return result.status ?? 1;
 }
 
