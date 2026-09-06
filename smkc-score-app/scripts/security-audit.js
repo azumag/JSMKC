@@ -8,6 +8,10 @@ const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z';
 const TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS = Date.parse(TEMPORARY_EXCEPTION_REVIEW_DEADLINE);
 const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
 const ALLOWED_ADVISORY_RANGE = '<8.0.0';
+const ALLOWED_ADVISORY_SOURCE = 1145093;
+const ALLOWED_ADVISORY_CWE = ['CWE-674'];
+const ALLOWED_ADVISORY_CVSS_SCORE = 0;
+const ALLOWED_ADVISORY_CVSS_VECTOR = null;
 const ALLOWED_ROOT = 'deepmerge-ts';
 const ALLOWED_NODE = 'node_modules/deepmerge-ts';
 const ALLOWED_VERSION = '7.1.5';
@@ -22,6 +26,7 @@ const ALLOWED_PRISMA_CONFIG_VERSION = '6.19.3';
 const ALLOWED_FIX_NAME = 'prisma';
 const ALLOWED_FIX_VERSION = '6.12.0';
 const FIX_AVAILABLE_OBJECT_KEYS = new Set(['name', 'version', 'isSemVerMajor']);
+const CVSS_OBJECT_KEYS = new Set(['score', 'vectorString']);
 const ALLOWED_PRISMA_AUDIT_RANGE = '6.13.0-dev.1 - 8.1.0-dev.4';
 const ALLOWED_PRISMA_RESOLVED = 'https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz';
 const ALLOWED_PRISMA_CONFIG_RESOLVED = 'https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz';
@@ -67,11 +72,15 @@ function stringViaEntries(vulnerability) {
 function isExpectedDirectAdvisory(entry) {
   const url = String(entry?.url || '');
   return (
+    entry?.source === ALLOWED_ADVISORY_SOURCE &&
     entry?.name === ALLOWED_ROOT &&
     entry?.dependency === ALLOWED_ROOT &&
     entry?.severity === 'high' &&
     url === `https://github.com/advisories/${ALLOWED_ADVISORY}` &&
-    entry?.range === ALLOWED_ADVISORY_RANGE
+    entry?.range === ALLOWED_ADVISORY_RANGE &&
+    sameStringMembers(entry?.cwe, ALLOWED_ADVISORY_CWE) &&
+    entry?.cvss?.score === ALLOWED_ADVISORY_CVSS_SCORE &&
+    entry?.cvss?.vectorString === ALLOWED_ADVISORY_CVSS_VECTOR
   );
 }
 
@@ -93,14 +102,37 @@ function isValidDirectAdvisoryEntry(entry) {
     entry &&
     typeof entry === 'object' &&
     !Array.isArray(entry) &&
+    (entry.source === undefined || (Number.isInteger(entry.source) && entry.source > 0)) &&
     typeof entry.name === 'string' &&
     entry.name.length > 0 &&
     typeof entry.dependency === 'string' &&
     entry.dependency.length > 0 &&
+    (entry.title === undefined || (typeof entry.title === 'string' && entry.title.length > 0)) &&
     KNOWN_SEVERITIES.has(entry.severity) &&
+    (entry.cwe === undefined ||
+      (Array.isArray(entry.cwe) && entry.cwe.every((cwe) => typeof cwe === 'string' && cwe.length > 0))) &&
+    isValidCvss(entry.cvss) &&
     typeof entry.range === 'string' &&
     typeof entry.url === 'string' &&
     entry.url.length > 0
+  );
+}
+
+function isValidCvss(value) {
+  if (value === undefined) {
+    return true;
+  }
+
+  return (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === CVSS_OBJECT_KEYS.size &&
+    Object.keys(value).every((key) => CVSS_OBJECT_KEYS.has(key)) &&
+    Number.isFinite(value.score) &&
+    value.score >= 0 &&
+    value.score <= 10 &&
+    (value.vectorString === null || (typeof value.vectorString === 'string' && value.vectorString.length > 0))
   );
 }
 

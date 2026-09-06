@@ -85,6 +85,8 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`isDirect` が存在する場合は boolean');
     expect(policy).toContain('`range` が存在する場合は string');
     expect(policy).toContain('direct advisory object には non-empty string');
+    expect(policy).toContain('`source` ID、CWE 分類、CVSS score / vector');
+    expect(policy).toContain('optional な `source` は正の integer');
     expect(policy).toContain('`via` が存在する場合');
     expect(policy).toContain('`effects` / `nodes`');
     expect(policy).toContain('各 entry の `name` / `isDirect` / `range` / `nodes`');
@@ -95,6 +97,10 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(helper).toContain('function hasValidAuditMetadata(metadata)');
     expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
+    expect(helper).toContain('const ALLOWED_ADVISORY_SOURCE =');
+    expect(helper).toContain('const ALLOWED_ADVISORY_CWE =');
+    expect(helper).toContain('const ALLOWED_ADVISORY_CVSS_SCORE =');
+    expect(helper).toContain('function isValidCvss(value)');
     expect(errorReportTest).toContain('fails closed whenever npm audit includes an explicit error field');
     expect(reportShapeTest).toContain('requires auditReportVersion 2 on the real CI entrypoint');
     expect(reportShapeTest).toContain('fails closed when npm audit report version drifts');
@@ -104,6 +110,10 @@ describe('security audit policy documentation', () => {
     expect(reportShapeTest).toContain('fails closed when vulnerability via is not an array');
     expect(reportShapeTest).toContain('fails closed when vulnerability via contains an unsupported entry');
     expect(reportShapeTest).toContain('fails closed when direct advisory %s has an invalid value');
+    expect(reportShapeTest).toContain('fails closed when direct advisory risk metadata %s is invalid');
+    expect(helperTest).toContain('direct advisory source id changes');
+    expect(helperTest).toContain('direct advisory CWE metadata changes');
+    expect(helperTest).toContain('direct advisory CVSS metadata changes');
     expect(reportShapeTest).toContain('fails closed when vulnerability %s has an invalid type');
     expect(reportShapeTest).toContain('fails closed when vulnerability %s is not an array');
     expect(reportShapeTest).toContain('fails closed when vulnerability %s contains a non-string member');
