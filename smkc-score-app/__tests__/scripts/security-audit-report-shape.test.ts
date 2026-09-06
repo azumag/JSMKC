@@ -95,9 +95,13 @@ describe('security audit report shape', () => {
             via: [
               'dependency',
               {
+                source: 1234567,
                 name: 'package',
                 dependency: 'package',
+                title: 'Example advisory',
                 severity: 'moderate',
+                cwe: ['CWE-400'],
+                cvss: { score: 5.3, vectorString: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L' },
                 range: '<1.0.0',
                 url: 'https://github.com/advisories/GHSA-example-example-example',
               },
@@ -144,6 +148,35 @@ describe('security audit report shape', () => {
     ['range', 42],
     ['url', 42],
   ])('fails closed when direct advisory %s has an invalid value', (field, value) => {
+    const advisory = {
+      name: 'package',
+      dependency: 'package',
+      severity: 'moderate',
+      range: '<1.0.0',
+      url: 'https://github.com/advisories/GHSA-example-example-example',
+      [field]: value,
+    };
+    const result = evaluateAuditReport(
+      { vulnerabilities: { package: { severity: 'moderate', via: [advisory], effects: [] } } },
+      emptyLockfile,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
+  it.each([
+    ['source', 0],
+    ['source', '1234567'],
+    ['title', ''],
+    ['cwe', 'CWE-400'],
+    ['cwe', ['']],
+    ['cvss', { score: Number.NaN, vectorString: null }],
+    ['cvss', { score: 11, vectorString: null }],
+    ['cvss', { score: 5, vectorString: 42 }],
+    ['cvss', { score: 5, vectorString: null, extra: true }],
+  ])('fails closed when direct advisory risk metadata %s is invalid: %p', (field, value) => {
     const advisory = {
       name: 'package',
       dependency: 'package',

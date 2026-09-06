@@ -8,9 +8,13 @@ const allowedChainReport = {
       isDirect: false,
       via: [
         {
+          source: 1145093,
           name: 'deepmerge-ts',
           dependency: 'deepmerge-ts',
+          title: 'DeepmergeTS has stack exhaustion when merging recursive object graphs',
           severity: 'high',
+          cwe: ['CWE-674'],
+          cvss: { score: 0, vectorString: null },
           url: 'https://github.com/advisories/GHSA-ggr8-5vv4-36mx',
           range: '<8.0.0',
         },
@@ -222,6 +226,42 @@ describe('security audit exception', () => {
   it('fails closed when the direct advisory severity metadata changes', () => {
     const report = structuredClone(allowedChainReport);
     report.vulnerabilities['deepmerge-ts'].via[0].severity = 'critical';
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
+  it('fails closed when the direct advisory source id changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via[0].source = 1145094;
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
+  it('fails closed when the direct advisory CWE metadata changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via[0].cwe = ['CWE-400'];
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
+  it('fails closed when the direct advisory CVSS metadata changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].via[0].cvss = {
+      score: 8.2,
+      vectorString: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H',
+    };
 
     const result = evaluateAuditReport(report, allowedLockfile);
 

@@ -37,9 +37,13 @@ function mixedSeverityReport() {
         isDirect: false,
         via: [
           {
+            source: 1145093,
             name: 'deepmerge-ts',
             dependency: 'deepmerge-ts',
+            title: 'DeepmergeTS has stack exhaustion when merging recursive object graphs',
             severity: 'high',
+            cwe: ['CWE-674'],
+            cvss: { score: 0, vectorString: null },
             url: 'https://github.com/advisories/GHSA-ggr8-5vv4-36mx',
             range: '<8.0.0',
           },
