@@ -9,6 +9,7 @@ const TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS = Date.parse(TEMPORARY_EXCEPTION_RE
 const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
 const ALLOWED_ADVISORY_RANGE = '<8.0.0';
 const ALLOWED_ADVISORY_SOURCE = 1145093;
+const ALLOWED_ADVISORY_TITLE = 'DeepmergeTS has stack exhaustion when merging recursive object graphs';
 const ALLOWED_ADVISORY_CWE = ['CWE-674'];
 const ALLOWED_ADVISORY_CVSS_SCORE = 0;
 const ALLOWED_ADVISORY_CVSS_VECTOR = null;
@@ -27,6 +28,17 @@ const ALLOWED_FIX_NAME = 'prisma';
 const ALLOWED_FIX_VERSION = '6.12.0';
 const FIX_AVAILABLE_OBJECT_KEYS = new Set(['name', 'version', 'isSemVerMajor']);
 const CVSS_OBJECT_KEYS = new Set(['score', 'vectorString']);
+const DIRECT_ADVISORY_OBJECT_KEYS = new Set([
+  'source',
+  'name',
+  'dependency',
+  'title',
+  'url',
+  'severity',
+  'cwe',
+  'cvss',
+  'range',
+]);
 const ALLOWED_PRISMA_AUDIT_RANGE = '6.13.0-dev.1 - 8.1.0-dev.4';
 const ALLOWED_PRISMA_RESOLVED = 'https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz';
 const ALLOWED_PRISMA_CONFIG_RESOLVED = 'https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz';
@@ -69,12 +81,23 @@ function stringViaEntries(vulnerability) {
   return (vulnerability?.via || []).filter((entry) => typeof entry === 'string');
 }
 
+function hasKnownDirectAdvisoryFields(entry) {
+  return (
+    entry &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    Object.keys(entry).every((key) => DIRECT_ADVISORY_OBJECT_KEYS.has(key))
+  );
+}
+
 function isExpectedDirectAdvisory(entry) {
   const url = String(entry?.url || '');
   return (
+    hasKnownDirectAdvisoryFields(entry) &&
     entry?.source === ALLOWED_ADVISORY_SOURCE &&
     entry?.name === ALLOWED_ROOT &&
     entry?.dependency === ALLOWED_ROOT &&
+    entry?.title === ALLOWED_ADVISORY_TITLE &&
     entry?.severity === 'high' &&
     url === `https://github.com/advisories/${ALLOWED_ADVISORY}` &&
     entry?.range === ALLOWED_ADVISORY_RANGE &&
@@ -99,9 +122,7 @@ function sameStringMembers(actual, expected) {
 
 function isValidDirectAdvisoryEntry(entry) {
   return (
-    entry &&
-    typeof entry === 'object' &&
-    !Array.isArray(entry) &&
+    hasKnownDirectAdvisoryFields(entry) &&
     (entry.source === undefined || (Number.isInteger(entry.source) && entry.source > 0)) &&
     typeof entry.name === 'string' &&
     entry.name.length > 0 &&

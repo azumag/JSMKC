@@ -85,7 +85,9 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`isDirect` が存在する場合は boolean');
     expect(policy).toContain('`range` が存在する場合は string');
     expect(policy).toContain('direct advisory object には non-empty string');
+    expect(policy).toContain('`name` / `dependency` / `title` / `severity`');
     expect(policy).toContain('`source` ID、CWE 分類、CVSS score / vector');
+    expect(policy).toContain('未知 field を許可しない');
     expect(policy).toContain('optional な `source` は正の integer');
     expect(policy).toContain('`via` が存在する場合');
     expect(policy).toContain('`effects` / `nodes`');
@@ -98,6 +100,8 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('function hasValidAuditMetadata(metadata)');
     expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
     expect(helper).toContain('const ALLOWED_ADVISORY_SOURCE =');
+    expect(helper).toContain('const ALLOWED_ADVISORY_TITLE =');
+    expect(helper).toContain('const DIRECT_ADVISORY_OBJECT_KEYS = new Set([');
     expect(helper).toContain('const ALLOWED_ADVISORY_CWE =');
     expect(helper).toContain('const ALLOWED_ADVISORY_CVSS_SCORE =');
     expect(helper).toContain('function isValidCvss(value)');
@@ -111,6 +115,8 @@ describe('security audit policy documentation', () => {
     expect(reportShapeTest).toContain('fails closed when vulnerability via contains an unsupported entry');
     expect(reportShapeTest).toContain('fails closed when direct advisory %s has an invalid value');
     expect(reportShapeTest).toContain('fails closed when direct advisory risk metadata %s is invalid');
+    expect(helperTest).toContain('direct advisory title changes');
+    expect(helperTest).toContain('allowed direct advisory gains an unknown field');
     expect(helperTest).toContain('direct advisory source id changes');
     expect(helperTest).toContain('direct advisory CWE metadata changes');
     expect(helperTest).toContain('direct advisory CVSS metadata changes');

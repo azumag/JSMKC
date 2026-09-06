@@ -176,6 +176,7 @@ describe('security audit report shape', () => {
     ['cvss', { score: 11, vectorString: null }],
     ['cvss', { score: 5, vectorString: 42 }],
     ['cvss', { score: 5, vectorString: null, extra: true }],
+    ['unknownField', true],
   ])('fails closed when direct advisory risk metadata %s is invalid: %p', (field, value) => {
     const advisory = {
       name: 'package',
