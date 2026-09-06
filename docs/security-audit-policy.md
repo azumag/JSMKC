@@ -20,12 +20,12 @@ lockfile では、許可対象パッケージの version や dev-only 属性だ�
 
 各 vulnerability entry に `name` が含まれる場合は、その値が top-level map の package key と一致することも要求する。key と entry 自身が異なる package identity を主張する audit 出力は、severity が non-blocking でも schema/identity drift として fail-closed にする。
 
-dependency graph の固定は、許可チェーンに含まれるパッケージ名だけではなく、`npm audit` が返す `via` / `effects` の接続関係まで対象とする。既知パッケージ間で依存エッジが付け替わる、許可ルートから新しい枝が増える、direct advisory entry の構造が増減する、といった変化も既知例外としては扱わない。
+dependency graph の固定は、許可チェーンに含まれるパッケージ名だけではなく、`npm audit` が返す `via` / `effects` の接続関係まで対象とする。さらに一時例外を適用する blocking chain では、各 entry の `name` / `isDirect` / `range` / `nodes` も現在確認済みの値へ固定し、脆弱な package が別の install path に現れる、direct/transitive の帰属が変わる、affected range が変化するといった利用文脈の drift を再評価なしに許可しない。既知パッケージ間で依存エッジが付け替わる、許可ルートから新しい枝が増える、direct advisory entry の構造が増減する、といった変化も既知例外としては扱わない。
 
 次のいずれかが起きた場合は、既知例外に似ていても CI を失敗させる。
 
 - 新しい high / critical advisory が現れる
-- 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph が変化する
+- 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph、または許可チェーンの `name` / `isDirect` / `range` / `nodes` が変化する
 - 許可対象パッケージまたは許可対象の利用文脈を構成する Prisma chain の `resolved` source / `integrity` が現在の既知 npm artifact から変化する
 - `metadata.vulnerabilities` の summary 件数と vulnerability graph の severity 件数が矛盾する、`total` と graph entry 総数が一致しない、または未知の summary key が現れる
 - `vulnerabilities` が object map でない、entry が object でない、未知の severity が現れる、entry の `name` が top-level package key と矛盾する、または `via` / `effects` / `nodes` の container・member 型が既知 schema と異なるなど audit report schema / package identity が変化する
@@ -45,7 +45,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 ## 回帰テスト
 
 - `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
-- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `severity` metadata・`via` / `effects` topology、blocking audit summary severity 件数、root devDependency 宣言、インストール済み Prisma chain の version / `resolved` / `integrity` / dev-only 属性 / lockfile 依存エッジ、許可対象 artifact の `resolved` / `integrity` を含む前提が変化した場合の blocking 動作を検証する。
+- `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `severity` metadata・`via` / `effects` topology、許可チェーンの `name` / `isDirect` / `range` / `nodes`、blocking audit summary severity 件数、root devDependency 宣言、インストール済み Prisma chain の version / `resolved` / `integrity` / dev-only 属性 / lockfile 依存エッジ、許可対象 artifact の `resolved` / `integrity` を含む前提が変化した場合の blocking 動作を検証する。
 - `smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`: `metadata.vulnerabilities` の全 severity 件数と optional `total` が vulnerability graph と一致し、summary key が既知 severity と `total` に限定されることを検証し、non-blocking severity の件数差・total 差・未知 key を fail-closed にする契約を固定する。
 - `smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`: `vulnerabilities` object map、各 entry の severity schema、entry の `name` と top-level package key の identity consistency、および `via` / `effects` / `nodes` の container・member 型を検証し、array・非 object entry・未知 severity・矛盾した package identity・graph field の型 drift を fail-closed にする契約を固定する。
 - `smkc-score-app/__tests__/scripts/security-audit-exit-status.test.ts`: `npm audit` の終了コード `0` / `1` だけを監査結果として許容し、それ以外の process status を fail-closed にする契約を検証する。

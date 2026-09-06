@@ -32,7 +32,9 @@ function mixedSeverityReport() {
   return {
     vulnerabilities: {
       'deepmerge-ts': {
+        name: 'deepmerge-ts',
         severity: 'high',
+        isDirect: false,
         via: [
           {
             name: 'deepmerge-ts',
@@ -43,16 +45,26 @@ function mixedSeverityReport() {
           },
         ],
         effects: ['@prisma/config'],
+        range: '<8.0.0',
+        nodes: ['node_modules/deepmerge-ts'],
       },
       '@prisma/config': {
+        name: '@prisma/config',
         severity: 'high',
+        isDirect: false,
         via: ['deepmerge-ts'],
         effects: ['prisma'],
+        range: '6.13.0-dev.1 - 8.1.0-dev.4',
+        nodes: ['node_modules/@prisma/config'],
       },
       prisma: {
+        name: 'prisma',
         severity: 'high',
+        isDirect: true,
         via: ['@prisma/config'],
         effects: [],
+        range: '6.13.0-dev.1 - 8.1.0-dev.4',
+        nodes: ['node_modules/prisma'],
       },
       'moderate-only-package': {
         severity: 'moderate',
