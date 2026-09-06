@@ -7,12 +7,12 @@ const EXPECTED_LOCKFILE_VERSION = 3;
 function hasExpectedSecurityAuditLockfileShape(lockfile) {
   return Boolean(
     lockfile &&
-      typeof lockfile === 'object' &&
-      !Array.isArray(lockfile) &&
-      lockfile.lockfileVersion === EXPECTED_LOCKFILE_VERSION &&
-      lockfile.packages &&
-      typeof lockfile.packages === 'object' &&
-      !Array.isArray(lockfile.packages),
+    typeof lockfile === 'object' &&
+    !Array.isArray(lockfile) &&
+    lockfile.lockfileVersion === EXPECTED_LOCKFILE_VERSION &&
+    lockfile.packages &&
+    typeof lockfile.packages === 'object' &&
+    !Array.isArray(lockfile.packages),
   );
 }
 
