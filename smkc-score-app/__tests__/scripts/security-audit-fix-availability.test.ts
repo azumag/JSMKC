@@ -85,6 +85,17 @@ describe('security audit remediation availability', () => {
     expect(evaluateAuditReport(report, allowedLockfile).ok).toBe(true);
   });
 
+  it.each([
+    { name: 'prisma', version: '7.10.0', isSemVerMajor: true },
+    { name: '@prisma/config', version: '6.12.0', isSemVerMajor: true },
+  ])('fails closed when the semver-major remediation target drifts: %p', (fixAvailable) => {
+    const result = evaluateAuditReport(reportWithFixAvailability(fixAvailable), allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toContain('deepmerge-ts');
+  });
+
   it.each([true, { name: 'prisma', version: '6.20.0', isSemVerMajor: false }])(
     'fails closed when npm exposes a non-breaking remediation: %p',
     (fixAvailable) => {
@@ -102,6 +113,7 @@ describe('security audit remediation availability', () => {
     'prisma@6.20.0',
     { name: 'prisma', version: '6.20.0' },
     { name: '', version: '6.20.0', isSemVerMajor: true },
+    { name: 'prisma', version: '6.12.0', isSemVerMajor: true, requiresForce: true },
   ])('rejects malformed fixAvailable metadata as an invalid audit report: %p', (fixAvailable) => {
     const result = evaluateAuditReport(reportWithFixAvailability(fixAvailable), allowedLockfile);
 

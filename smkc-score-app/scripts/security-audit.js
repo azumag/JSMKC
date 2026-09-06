@@ -17,6 +17,9 @@ const ALLOWED_PRISMA_NODE = 'node_modules/prisma';
 const ALLOWED_PRISMA_CONFIG_NODE = 'node_modules/@prisma/config';
 const ALLOWED_PRISMA_VERSION = '6.19.3';
 const ALLOWED_PRISMA_CONFIG_VERSION = '6.19.3';
+const ALLOWED_FIX_NAME = 'prisma';
+const ALLOWED_FIX_VERSION = '6.12.0';
+const FIX_AVAILABLE_OBJECT_KEYS = new Set(['name', 'version', 'isSemVerMajor']);
 const ALLOWED_PRISMA_AUDIT_RANGE = '6.13.0-dev.1 - 8.1.0-dev.4';
 const ALLOWED_PRISMA_RESOLVED = 'https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz';
 const ALLOWED_PRISMA_CONFIG_RESOLVED = 'https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz';
@@ -138,6 +141,8 @@ function isValidFixAvailable(value) {
     value &&
     typeof value === 'object' &&
     !Array.isArray(value) &&
+    Object.keys(value).length === FIX_AVAILABLE_OBJECT_KEYS.size &&
+    Object.keys(value).every((key) => FIX_AVAILABLE_OBJECT_KEYS.has(key)) &&
     typeof value.name === 'string' &&
     value.name.length > 0 &&
     typeof value.version === 'string' &&
@@ -146,8 +151,18 @@ function isValidFixAvailable(value) {
   );
 }
 
-function hasNonBreakingFixAvailable(value) {
-  return value === true || (value && typeof value === 'object' && value.isSemVerMajor === false);
+function hasExpectedTemporaryFixState(value) {
+  if (value === undefined || value === false) {
+    return true;
+  }
+
+  return (
+    value &&
+    typeof value === 'object' &&
+    value.name === ALLOWED_FIX_NAME &&
+    value.version === ALLOWED_FIX_VERSION &&
+    value.isSemVerMajor === true
+  );
 }
 
 function hasExpectedAuditReportVersion(report) {
@@ -193,7 +208,7 @@ function matchesExpectedGraph(vulnerabilities) {
       !vulnerability ||
       vulnerability.severity !== 'high' ||
       !Array.isArray(vulnerability.via) ||
-      hasNonBreakingFixAvailable(vulnerability.fixAvailable)
+      !hasExpectedTemporaryFixState(vulnerability.fixAvailable)
     ) {
       return false;
     }
