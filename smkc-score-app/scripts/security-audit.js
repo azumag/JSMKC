@@ -292,6 +292,24 @@ function hasExpectedAuditDependencySummary(report, { required = false } = {}) {
   return Object.values(dependencies).every((count) => Number.isInteger(count) && count >= 0);
 }
 
+function hasConsistentAuditDependencyTotal(report, lockfile, { required = false } = {}) {
+  const dependencies = report?.metadata?.dependencies;
+  if (dependencies === undefined) {
+    return !required;
+  }
+  if (!hasExpectedAuditDependencySummary(report, { required })) {
+    return false;
+  }
+
+  const packages = lockfile?.packages;
+  if (!isObjectMap(packages)) {
+    return false;
+  }
+
+  const installedPackageCount = Object.keys(packages).filter((packagePath) => packagePath !== '').length;
+  return dependencies.total === installedPackageCount;
+}
+
 function hasValidAuditMetadata(metadata) {
   return (
     metadata === undefined ||
@@ -572,6 +590,13 @@ function main() {
   }
 
   const lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+  if (!hasConsistentAuditDependencyTotal(report, lockfile, { required: true })) {
+    process.stderr.write(
+      'npm audit metadata.dependencies.total must match the installed package count in package-lock.json\n',
+    );
+    process.exit(1);
+  }
+
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const result = evaluateAuditReport(report, lockfile, manifest);
 
@@ -609,6 +634,7 @@ if (require.main === module) {
 
 module.exports = {
   evaluateAuditReport,
+  hasConsistentAuditDependencyTotal,
   hasExpectedAuditDependencySummary,
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,

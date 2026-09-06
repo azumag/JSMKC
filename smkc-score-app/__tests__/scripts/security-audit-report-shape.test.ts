@@ -1,5 +1,6 @@
 import {
   evaluateAuditReport,
+  hasConsistentAuditDependencyTotal,
   hasExpectedAuditDependencySummary,
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,
@@ -78,6 +79,28 @@ describe('security audit report shape', () => {
     ]) {
       expect(hasExpectedAuditDependencySummary(report, { required: true })).toBe(false);
     }
+  });
+
+  it('requires audit dependency total to match the installed lockfile package count', () => {
+    const dependencies = { prod: 2, dev: 0, optional: 0, peer: 0, peerOptional: 0, total: 2 };
+    const report = { metadata: { dependencies } };
+    const lockfile = { packages: { '': {}, 'node_modules/a': {}, 'node_modules/b': {} } };
+
+    expect(hasConsistentAuditDependencyTotal(report, lockfile, { required: true })).toBe(true);
+    expect(
+      hasConsistentAuditDependencyTotal({ metadata: { dependencies: { ...dependencies, total: 1 } } }, lockfile, {
+        required: true,
+      }),
+    ).toBe(false);
+    expect(hasConsistentAuditDependencyTotal({}, lockfile, { required: true })).toBe(false);
+    expect(hasConsistentAuditDependencyTotal(report, { packages: [] }, { required: true })).toBe(false);
+  });
+
+  it('keeps dependency-total consistency optional for synthetic evaluator inputs', () => {
+    const report = { metadata: { dependencies: { prod: 0, dev: 0, optional: 0, peer: 0, peerOptional: 0, total: 0 } } };
+
+    expect(hasConsistentAuditDependencyTotal(report, { packages: { '': {} } })).toBe(true);
+    expect(hasConsistentAuditDependencyTotal({}, emptyLockfile)).toBe(true);
   });
 
   it('fails closed when audit metadata gains an unknown field', () => {
