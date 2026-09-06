@@ -111,6 +111,7 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('const ALLOWED_ADVISORY_SOURCE =');
     expect(helper).toContain('const ALLOWED_ADVISORY_TITLE =');
     expect(helper).toContain('const DIRECT_ADVISORY_OBJECT_KEYS = new Set([');
+    expect(helper).toContain('const VULNERABILITY_OBJECT_KEYS = new Set([');
     expect(helper).toContain('const ALLOWED_ADVISORY_CWE =');
     expect(helper).toContain('const ALLOWED_ADVISORY_CVSS_SCORE =');
     expect(helper).toContain('function isValidCvss(value)');
@@ -121,6 +122,7 @@ describe('security audit policy documentation', () => {
     expect(reportShapeTest).toContain('fails closed when audit metadata is not an object');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
+    expect(reportShapeTest).toContain('fails closed when a vulnerability entry gains an unknown field');
     expect(reportShapeTest).toContain('fails closed when vulnerability via is not an array');
     expect(reportShapeTest).toContain('fails closed when vulnerability via contains an unsupported entry');
     expect(reportShapeTest).toContain('fails closed when direct advisory %s has an invalid value');

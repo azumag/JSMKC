@@ -39,6 +39,16 @@ const DIRECT_ADVISORY_OBJECT_KEYS = new Set([
   'cvss',
   'range',
 ]);
+const VULNERABILITY_OBJECT_KEYS = new Set([
+  'name',
+  'severity',
+  'isDirect',
+  'via',
+  'effects',
+  'range',
+  'nodes',
+  'fixAvailable',
+]);
 const ALLOWED_PRISMA_AUDIT_RANGE = '6.13.0-dev.1 - 8.1.0-dev.4';
 const ALLOWED_PRISMA_RESOLVED = 'https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz';
 const ALLOWED_PRISMA_CONFIG_RESOLVED = 'https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz';
@@ -265,6 +275,7 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
       !vulnerability ||
       typeof vulnerability !== 'object' ||
       Array.isArray(vulnerability) ||
+      Object.keys(vulnerability).some((key) => !VULNERABILITY_OBJECT_KEYS.has(key)) ||
       !KNOWN_SEVERITIES.has(vulnerability.severity)
     ) {
       return false;
