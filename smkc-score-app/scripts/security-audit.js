@@ -251,7 +251,7 @@ function buildEffectClosure(vulnerabilities, rootName) {
 function evaluateAuditReport(report, lockfile) {
   if (
     !report ||
-    report.error ||
+    Object.prototype.hasOwnProperty.call(report, 'error') ||
     !hasValidAuditMetadata(report.metadata) ||
     !hasValidVulnerabilityEntries(report.vulnerabilities)
   ) {
