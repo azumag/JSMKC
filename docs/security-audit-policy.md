@@ -16,7 +16,7 @@ lockfile では、許可対象パッケージの version や dev-only 属性だ�
 
 `npm audit` の JSON に `metadata.vulnerabilities` が存在する場合は、summary が示す info / low / moderate / high / critical の各 severity 件数と `vulnerabilities` graph の実データが一致することを要求する。`total` が存在する場合は graph の entry 総数とも一致させる。また、summary の key はこれら5 severity と optional `total` だけを許可し、未知の summary key が現れた場合は npm audit schema drift として fail-closed にする。blocking severity だけが一致していても、non-blocking severity・total・summary schema が矛盾する audit 出力は有効な監査結果として扱わない。
 
-`vulnerabilities` graph 自体も npm audit report の信頼境界として検証する。top-level は package 名をキーにした object map であり、各 entry は object かつ既知の npm severity（info / low / moderate / high / critical）を持つことを要求する。array・null・未知 severity など schema drift を示す形は「finding なし」と解釈せず、`invalid-audit-report` として fail-closed にする。
+`vulnerabilities` graph 自体も npm audit report の信頼境界として検証する。top-level は package 名をキーにした object map であり、各 entry は object かつ既知の npm severity（info / low / moderate / high / critical）を持つことを要求する。array・null・未知 severity など schema drift を示す形は「finding なし」と解釈せず、`invalid-audit-report` として fail-closed にする。さらに、`via` が存在する場合は dependency name の string または direct advisory object だけからなる array、`effects` / `nodes` が存在する場合は string array であることを要求する。これらの graph field が scalar/object になったり、想定外型の member を含む場合も schema drift として拒否する。
 
 各 vulnerability entry に `name` が含まれる場合は、その値が top-level map の package key と一致することも要求する。key と entry 自身が異なる package identity を主張する audit 出力は、severity が non-blocking でも schema/identity drift として fail-closed にする。
 
@@ -28,7 +28,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph が変化する
 - 許可対象パッケージまたは許可対象の利用文脈を構成する Prisma chain の `resolved` source / `integrity` が現在の既知 npm artifact から変化する
 - `metadata.vulnerabilities` の summary 件数と vulnerability graph の severity 件数が矛盾する、`total` と graph entry 総数が一致しない、または未知の summary key が現れる
-- `vulnerabilities` が object map でない、entry が object でない、未知の severity が現れる、または entry の `name` が top-level package key と矛盾するなど audit report schema / package identity が変化する
+- `vulnerabilities` が object map でない、entry が object でない、未知の severity が現れる、entry の `name` が top-level package key と矛盾する、または `via` / `effects` / `nodes` の container・member 型が既知 schema と異なるなど audit report schema / package identity が変化する
 - 許可対象を成立させている root の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する。特にインストール済み Prisma chain の version・dev-only 属性、または lockfile 上の依存エッジの変化は再評価を要求する
 - `npm audit` が起動失敗・signal 終了・`0` / `1` 以外の終了コードになる、または JSON を取得・解析できない
 
@@ -47,7 +47,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
 - `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `severity` metadata・`via` / `effects` topology、blocking audit summary severity 件数、root devDependency 宣言、インストール済み Prisma chain の version / `resolved` / `integrity` / dev-only 属性 / lockfile 依存エッジ、許可対象 artifact の `resolved` / `integrity` を含む前提が変化した場合の blocking 動作を検証する。
 - `smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`: `metadata.vulnerabilities` の全 severity 件数と optional `total` が vulnerability graph と一致し、summary key が既知 severity と `total` に限定されることを検証し、non-blocking severity の件数差・total 差・未知 key を fail-closed にする契約を固定する。
-- `smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`: `vulnerabilities` object map、各 entry の severity schema、および entry の `name` と top-level package key の identity consistency を検証し、array・非 object entry・未知 severity・矛盾した package identity を fail-closed にする契約を固定する。
+- `smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`: `vulnerabilities` object map、各 entry の severity schema、entry の `name` と top-level package key の identity consistency、および `via` / `effects` / `nodes` の container・member 型を検証し、array・非 object entry・未知 severity・矛盾した package identity・graph field の型 drift を fail-closed にする契約を固定する。
 - `smkc-score-app/__tests__/scripts/security-audit-exit-status.test.ts`: `npm audit` の終了コード `0` / `1` だけを監査結果として許容し、それ以外の process status を fail-closed にする契約を検証する。
 - `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の TC-2460 が上記の安定契約と同期していることを検証する。
 
