@@ -16,6 +16,7 @@ const ALLOWED_PRISMA_NODE = 'node_modules/prisma';
 const ALLOWED_PRISMA_CONFIG_NODE = 'node_modules/@prisma/config';
 const ALLOWED_PRISMA_VERSION = '6.19.3';
 const ALLOWED_PRISMA_CONFIG_VERSION = '6.19.3';
+const ALLOWED_PRISMA_AUDIT_RANGE = '6.13.0-dev.1 - 8.1.0-dev.4';
 const ALLOWED_PRISMA_RESOLVED = 'https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz';
 const ALLOWED_PRISMA_CONFIG_RESOLVED = 'https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz';
 const ALLOWED_PRISMA_INTEGRITY =
@@ -26,9 +27,27 @@ const SUMMARY_SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
 const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES);
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const ALLOWED_GRAPH = {
-  'deepmerge-ts': { via: [], effects: ['@prisma/config'] },
-  '@prisma/config': { via: ['deepmerge-ts'], effects: ['prisma'] },
-  prisma: { via: ['@prisma/config'], effects: [] },
+  'deepmerge-ts': {
+    via: [],
+    effects: ['@prisma/config'],
+    nodes: [ALLOWED_NODE],
+    isDirect: false,
+    range: ALLOWED_ADVISORY_RANGE,
+  },
+  '@prisma/config': {
+    via: ['deepmerge-ts'],
+    effects: ['prisma'],
+    nodes: [ALLOWED_PRISMA_CONFIG_NODE],
+    isDirect: false,
+    range: ALLOWED_PRISMA_AUDIT_RANGE,
+  },
+  prisma: {
+    via: ['@prisma/config'],
+    effects: [],
+    nodes: [ALLOWED_PRISMA_NODE],
+    isDirect: true,
+    range: ALLOWED_PRISMA_AUDIT_RANGE,
+  },
 };
 
 function objectViaEntries(vulnerability) {
@@ -116,8 +135,12 @@ function matchesExpectedGraph(vulnerabilities) {
     }
 
     if (
+      vulnerability.name !== name ||
+      vulnerability.isDirect !== expected.isDirect ||
+      vulnerability.range !== expected.range ||
       !sameStringMembers(viaDependencies, expected.via) ||
-      !sameStringMembers(vulnerability.effects || [], expected.effects)
+      !sameStringMembers(vulnerability.effects || [], expected.effects) ||
+      !sameStringMembers(vulnerability.nodes, expected.nodes)
     ) {
       return false;
     }

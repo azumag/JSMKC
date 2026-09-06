@@ -47,6 +47,7 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('未知の severity');
     expect(policy).toContain('`via` が存在する場合');
     expect(policy).toContain('`effects` / `nodes`');
+    expect(policy).toContain('各 entry の `name` / `isDirect` / `range` / `nodes`');
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
@@ -54,6 +55,9 @@ describe('security audit policy documentation', () => {
     expect(reportShapeTest).toContain('fails closed when vulnerability via contains an unsupported entry');
     expect(reportShapeTest).toContain('fails closed when vulnerability %s is not an array');
     expect(reportShapeTest).toContain('fails closed when vulnerability %s contains a non-string member');
+    expect(helperTest).toContain('reported at a different install node');
+    expect(helperTest).toContain('directness changes');
+    expect(helperTest).toContain('propagated audit range changes');
   });
 
   it('documents that unit tests run before the blocking audit', () => {

@@ -3,7 +3,9 @@ import { evaluateAuditReport } from '../../scripts/security-audit.js';
 const allowedChainReport = {
   vulnerabilities: {
     'deepmerge-ts': {
+      name: 'deepmerge-ts',
       severity: 'high',
+      isDirect: false,
       via: [
         {
           name: 'deepmerge-ts',
@@ -14,16 +16,26 @@ const allowedChainReport = {
         },
       ],
       effects: ['@prisma/config'],
+      range: '<8.0.0',
+      nodes: ['node_modules/deepmerge-ts'],
     },
     '@prisma/config': {
+      name: '@prisma/config',
       severity: 'high',
+      isDirect: false,
       via: ['deepmerge-ts'],
       effects: ['prisma'],
+      range: '6.13.0-dev.1 - 8.1.0-dev.4',
+      nodes: ['node_modules/@prisma/config'],
     },
     prisma: {
+      name: 'prisma',
       severity: 'high',
+      isDirect: true,
       via: ['@prisma/config'],
       effects: [],
+      range: '6.13.0-dev.1 - 8.1.0-dev.4',
+      nodes: ['node_modules/prisma'],
     },
   },
 };
@@ -415,6 +427,64 @@ describe('security audit exception', () => {
   it('fails closed when an allowed dependency edge is rewired inside the known package set', () => {
     const report = structuredClone(allowedChainReport);
     report.vulnerabilities['@prisma/config'].via = ['prisma'];
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it.each([
+    ['deepmerge-ts', 'node_modules/other/deepmerge-ts'],
+    ['@prisma/config', 'node_modules/other/@prisma/config'],
+    ['prisma', 'node_modules/other/prisma'],
+  ])('fails closed when allowed-chain %s is reported at a different install node', (name, node) => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities[name].nodes = [node];
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when an allowed-chain package gains another affected install node', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['deepmerge-ts'].nodes.push('node_modules/runtime/node_modules/deepmerge-ts');
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it.each([
+    ['deepmerge-ts', true],
+    ['@prisma/config', true],
+    ['prisma', false],
+  ])('fails closed when allowed-chain %s directness changes', (name, isDirect) => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities[name].isDirect = isDirect;
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when an allowed-chain package omits its npm audit identity', () => {
+    const report = structuredClone(allowedChainReport);
+    delete report.vulnerabilities['@prisma/config'].name;
+
+    const result = evaluateAuditReport(report, allowedLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when an allowed-chain propagated audit range changes', () => {
+    const report = structuredClone(allowedChainReport);
+    report.vulnerabilities['@prisma/config'].range = '>=6.13.0';
 
     const result = evaluateAuditReport(report, allowedLockfile);
 
