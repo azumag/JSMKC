@@ -26,9 +26,13 @@ describe('security audit policy documentation', () => {
   });
 
   it('documents manifest drift as a fail-closed condition', () => {
-    expect(policy).toContain('root の devDependency 宣言');
+    expect(policy).toContain('実際の `package.json` を独立に読み');
+    expect(policy).toContain('`package-lock.json` root snapshot');
     expect(policy).toContain('manifest / lockfile の前提が変化する');
+    expect(helper).toContain("fs.readFileSync('package.json', 'utf8')");
     expect(helperTest).toContain('Prisma devDependency range changes');
+    expect(helperTest).toContain('package.json Prisma devDependency drifts');
+    expect(helperTest).toContain('package.json also declares Prisma as a production dependency');
   });
 
   it('documents audit summary count drift as a fail-closed condition', () => {

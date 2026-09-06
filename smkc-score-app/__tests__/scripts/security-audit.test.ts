@@ -67,10 +67,13 @@ const allowedLockfile = {
     },
   },
 };
+const allowedManifest = {
+  devDependencies: { prisma: '^6.19.3' },
+};
 
 describe('security audit exception', () => {
   it('allows only the known dev-only Prisma deepmerge advisory chain', () => {
-    const result = evaluateAuditReport(allowedChainReport, allowedLockfile);
+    const result = evaluateAuditReport(allowedChainReport, allowedLockfile, allowedManifest);
 
     expect(result.ok).toBe(true);
     expect(result.unexpected).toEqual([]);
@@ -271,6 +274,28 @@ describe('security audit exception', () => {
     lockfile.packages[''].devDependencies.prisma = '^6.20.0';
 
     const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when package.json Prisma devDependency drifts while lockfile stays pinned', () => {
+    const manifest = structuredClone(allowedManifest);
+    manifest.devDependencies.prisma = '^6.20.0';
+
+    const result = evaluateAuditReport(allowedChainReport, allowedLockfile, manifest);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
+  it('fails closed when package.json also declares Prisma as a production dependency', () => {
+    const manifest = {
+      ...structuredClone(allowedManifest),
+      dependencies: { prisma: '^6.19.3' },
+    };
+
+    const result = evaluateAuditReport(allowedChainReport, allowedLockfile, manifest);
 
     expect(result.ok).toBe(false);
     expect(result.allowed).toEqual([]);
