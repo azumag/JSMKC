@@ -9,6 +9,7 @@ describe('security audit policy documentation', () => {
   const summaryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-summary.test.ts');
   const reportShapeTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-report-shape.test.ts');
   const errorReportTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-error-report.test.ts');
+  const expiryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-expiry.test.ts');
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
@@ -23,6 +24,16 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('const ALLOWED_ADVISORY =');
     expect(helper).toContain('const ALLOWED_VERSION =');
     expect(helper).toContain('const ALLOWED_PRISMA_DEV_RANGE =');
+  });
+
+  it('enforces a review deadline for the temporary exception', () => {
+    expect(policy).toContain('2026-10-06T00:00:00.000Z');
+    expect(policy).toContain('再レビュー期限');
+    expect(policy).toContain('例外を自動延長しない');
+    expect(helper).toContain("const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z'");
+    expect(helper).toContain('function isTemporaryExceptionExpired(now = new Date())');
+    expect(helper).toContain('result.allowed.length > 0 && isTemporaryExceptionExpired()');
+    expect(expiryTest).toContain('fails closed at the review deadline');
   });
 
   it('documents manifest drift as a fail-closed condition', () => {
@@ -103,6 +114,7 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-error-report.test.ts`');
+    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-expiry.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`');
     expect(ciConfigTest).toContain('TC-2460');
     expect(helperTest).toContain('evaluateAuditReport');

@@ -6,6 +6,8 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 `scripts/security-audit.js` は `npm audit --json` を読み取り、high / critical finding が無い場合だけ通常成功する。期限付きの既知例外を helper 内に持つ場合も、例外条件は依存バージョン・lockfile 上の属性・dev-only 条件・package source / integrity・advisory ID と canonical URL・affected range・severity・direct advisory の package metadata・dependency graph・remediation availability まで狭く固定する。
 
+現在の #3114 一時例外には **2026-10-06T00:00:00.000Z** の再レビュー期限を設定する。期限に達した時点で advisory・依存グラフ・artifact・remediation metadata が完全一致したままでも CI は fail-closed にし、upstream の修正状況と `npm audit` の最新結果を人手で再確認するまで例外を自動延長しない。継続が必要な場合は #3114 に再評価根拠を記録したうえで期限を明示的に更新し、解消済みなら例外自体を削除する。
+
 `npm audit` プロセス自体も監査対象の一部として扱う。終了コード `0`（finding なし）または `1`（finding あり）の場合だけ JSON を監査結果として解釈し、起動失敗・signal 終了・`0` / `1` 以外の終了コードは、JSON が出力されていても operational failure として fail-closed にする。
 
 `npm audit --json` の top-level に `error` field が存在する場合は、その値が `null` / `false` / 空文字など truthy でなくても成功レポートとして扱わない。npm が error envelope を返したという schema signal 自体を operational failure とみなし、`invalid-audit-report` として fail-closed にする。
@@ -34,6 +36,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 
 次のいずれかが起きた場合は、既知例外に似ていても CI を失敗させる。
 
+- #3114 一時例外の再レビュー期限 `2026-10-06T00:00:00.000Z` に到達する
 - 新しい high / critical advisory が現れる
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph、または許可チェーンの `name` / `isDirect` / `range` / `nodes` が変化する
 - 許可対象 blocking chain に non-breaking な `fixAvailable` remediation が現れる、semver-major remediation の target identity / version が現在確認済みの値から変化する、または `fixAvailable` metadata に未知 field・型・必須 field の drift が現れる
@@ -65,6 +68,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - `smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`: `metadata.vulnerabilities` の全 severity 件数と optional `total` が vulnerability graph と一致し、summary key が既知 severity と `total` に限定されることを検証し、non-blocking severity の件数差・total 差・未知 key を fail-closed にする契約を固定する。
 - `smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`: optional `auditReportVersion` が現在検証済みの `2` と一致すること、optional `metadata` container が non-array object であること、`vulnerabilities` object map、各 entry の severity schema、entry の `name` と top-level package key の identity consistency、optional `isDirect` / `range` の型、direct advisory object の `name` / `dependency` / `severity` / `range` / `url` metadata、および `via` / `effects` / `nodes` の container・member 型を検証し、report version drift・metadata container drift・array・非 object entry・未知 severity・矛盾した package identity・graph/advisory field の型 drift を fail-closed にする契約を固定する。
 - `smkc-score-app/__tests__/scripts/security-audit-error-report.test.ts`: top-level `error` field が存在する audit JSON を値の truthiness に関係なく `invalid-audit-report` として拒否する契約を固定する。
+- `smkc-score-app/__tests__/scripts/security-audit-expiry.test.ts`: #3114 一時例外の再レビュー期限について、期限直前は有効、期限到達時・期限経過後・不正な時刻値では fail-closed になる契約を固定する。
 - `smkc-score-app/__tests__/scripts/security-audit-exit-status.test.ts`: `npm audit` の終了コード `0` / `1` だけを監査結果として許容し、それ以外の process status を fail-closed にする契約を検証する。
 - `smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`: E2E 台帳の TC-2460 が上記の安定契約と同期していることを検証する。
 
