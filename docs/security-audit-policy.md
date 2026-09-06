@@ -20,7 +20,7 @@ lockfile では、許可対象パッケージの version や dev-only 属性だ�
 
 また、一時例外が成立する利用文脈は manifest と lockfile の両方で固定する。helper は実際の `package.json` を独立に読み、Prisma が現在確認済みの devDependency range で宣言され、production dependency には存在しないことを要求する。そのうえで `package-lock.json` root snapshot の Prisma devDependency 宣言も同じ条件へ固定し、実際にインストールされた Prisma とその設定パッケージの version・`resolved`・`integrity`・`devOptional` 属性、およびそこから許可対象の推移的依存へ至る dependency edge を現在確認済みの組み合わせに一致させる。`package.json` だけが編集され lockfile snapshot が古いまま残る場合や、manifest の許容範囲内で Prisma が更新された場合、同じ version 名でも Prisma 側 artifact の供給元または内容が変化した場合は、実装や設定読み込み経路が変化していないかを再評価するまで既知例外を自動継続しない。
 
-この例外判定は npm package-lock v3 の `packages` map とその属性意味論に依存するため、CI は audit helper の前に `scripts/security-audit-lockfile.js` を実行する。`package-lock.json` の top-level が object であり、`lockfileVersion` が現在の `3`、`packages` が non-array object である場合だけ監査へ進む。lockfile schema が更新・欠落・破損した場合は、同じフィールド名が残っていても意味論が変化している可能性があるため、例外を再評価するまで fail-closed にする。
+この例外判定は npm package-lock v3 の `packages` map とその属性意味論に依存するため、CI は audit helper の前に `scripts/security-audit-lockfile.js` を実行する。`package-lock.json` の top-level が object であり、`lockfileVersion` が現在の `3`、`packages` が non-array object、かつ `packages[""]` の root package snapshot が non-array object である場合だけ監査へ進む。lockfile schema が更新・欠落・破損した場合は、同じフィールド名が残っていても意味論が変化している可能性があるため、例外を再評価するまで fail-closed にする。
 
 `metadata` が存在する場合は npm audit report の metadata container 自体が non-array object であることを要求する。`null`、array、string、number などへ変化した場合は、`metadata.vulnerabilities` を読めないまま「summary なし」とみなさず schema drift として fail-closed にする。`metadata.vulnerabilities` 自体は引き続き optional とし、metadata object 内の他の npm 既知フィールドを固定しすぎない。
 
@@ -41,7 +41,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、依存バージョン、dependency graph、または許可チェーンの `name` / `isDirect` / `range` / `nodes` が変化する
 - 許可対象 blocking chain に non-breaking な `fixAvailable` remediation が現れる、semver-major remediation の target identity / version が現在確認済みの値から変化する、または `fixAvailable` metadata に未知 field・型・必須 field の drift が現れる
 - 許可対象パッケージまたは許可対象の利用文脈を構成する Prisma chain の `resolved` source / `integrity` が現在の既知 npm artifact から変化する
-- `package-lock.json` が v3 object schema でなくなる、`lockfileVersion` が `3` 以外になる、または `packages` map が欠落・非 object / array になる
+- `package-lock.json` が v3 object schema でなくなる、`lockfileVersion` が `3` 以外になる、`packages` map が欠落・非 object / array になる、または `packages[""]` の root package snapshot が欠落・非 object / array になる
 - `npm audit --json` の top-level に `error` field が現れる（値の truthiness は問わない）
 - 明示された `auditReportVersion` が現在検証済みの `2` と一致しない
 - `metadata` が存在するのに non-array object ではない、`metadata.vulnerabilities` の summary 件数と vulnerability graph の severity 件数が矛盾する、`total` と graph entry 総数が一致しない、または未知の summary key が現れる
@@ -62,7 +62,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 ## 回帰テスト
 
 - `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
-- `smkc-score-app/__tests__/scripts/security-audit-lockfile.test.ts`: 実リポジトリの package-lock が v3 object schema を満たすこと、schema version・top-level / `packages` container の drift を拒否すること、CI が schema preflight を audit helper より先に実行することを検証する。
+- `smkc-score-app/__tests__/scripts/security-audit-lockfile.test.ts`: 実リポジトリの package-lock が v3 object schema と object 型の root package snapshot を満たすこと、schema version・top-level / `packages` container・root snapshot の drift を拒否すること、CI が schema preflight を audit helper より先に実行することを検証する。
 - `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `severity` metadata・`via` / `effects` topology、許可チェーンの `name` / `isDirect` / `range` / `nodes`、blocking audit summary severity 件数、実 `package.json` と `package-lock.json` root snapshot の devDependency / production 境界、インストール済み Prisma chain の version / `resolved` / `integrity` / dev-only 属性 / lockfile 依存エッジ、許可対象 artifact の `resolved` / `integrity` を含む前提が変化した場合の blocking 動作を検証する。
 - `smkc-score-app/__tests__/scripts/security-audit-fix-availability.test.ts`: optional `fixAvailable` の schema と既知 field set を検証し、現在確認済みの semver-major remediation または remediation なしでは一時例外を維持する一方、non-breaking remediation、major remediation target の identity / version drift、未知 field が現れた場合は fail-closed にする契約を固定する。
 - `smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`: `metadata.vulnerabilities` の全 severity 件数と optional `total` が vulnerability graph と一致し、summary key が既知 severity と `total` に限定されることを検証し、non-blocking severity の件数差・total 差・未知 key を fail-closed にする契約を固定する。

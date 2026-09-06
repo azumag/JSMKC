@@ -10,6 +10,10 @@ describe('security audit lockfile preflight', () => {
     expect(hasExpectedSecurityAuditLockfileShape(lockfile)).toBe(true);
   });
 
+  it('accepts a minimal v3 lockfile with an object root package snapshot', () => {
+    expect(hasExpectedSecurityAuditLockfileShape({ lockfileVersion: 3, packages: { '': {} } })).toBe(true);
+  });
+
   it.each([
     null,
     [],
@@ -20,6 +24,10 @@ describe('security audit lockfile preflight', () => {
     { lockfileVersion: 3 },
     { lockfileVersion: 3, packages: null },
     { lockfileVersion: 3, packages: [] },
+    { lockfileVersion: 3, packages: {} },
+    { lockfileVersion: 3, packages: { '': null } },
+    { lockfileVersion: 3, packages: { '': [] } },
+    { lockfileVersion: 3, packages: { '': 'smkc-score-app' } },
   ])('fails closed for unsupported package-lock schema: %p', (lockfile) => {
     expect(hasExpectedSecurityAuditLockfileShape(lockfile)).toBe(false);
   });
