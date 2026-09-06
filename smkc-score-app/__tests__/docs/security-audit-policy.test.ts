@@ -4,12 +4,14 @@ describe('security audit policy documentation', () => {
   const policy = readRepoFile('docs', 'security-audit-policy.md');
   const ci = readRepoFile('.github', 'workflows', 'ci.yml');
   const helper = readRepoFile('smkc-score-app', 'scripts', 'security-audit.js');
+  const lockfileHelper = readRepoFile('smkc-score-app', 'scripts', 'security-audit-lockfile.js');
   const ciConfigTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'ci-config.test.ts');
   const helperTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit.test.ts');
   const summaryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-summary.test.ts');
   const reportShapeTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-report-shape.test.ts');
   const errorReportTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-error-report.test.ts');
   const expiryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-expiry.test.ts');
+  const lockfileTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-lockfile.test.ts');
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
@@ -34,6 +36,13 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('function isTemporaryExceptionExpired(now = new Date())');
     expect(helper).toContain('result.allowed.length > 0 && isTemporaryExceptionExpired()');
     expect(expiryTest).toContain('fails closed at the review deadline');
+  });
+
+  it('documents the lockfile root package snapshot precondition', () => {
+    expect(policy).toContain('`packages[\"\"]` の root package snapshot');
+    expect(policy).toContain('root snapshot の drift');
+    expect(lockfileHelper).toContain("const rootPackage = lockfile.packages['']");
+    expect(lockfileTest).toContain('accepts a minimal v3 lockfile with an object root package snapshot');
   });
 
   it('documents manifest drift as a fail-closed condition', () => {
