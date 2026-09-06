@@ -6732,11 +6732,11 @@ HTTPステータスコード200だけでは不十分。ページの`innerText`�
 - **期待結果**: active/completed の NULL publicModes は `["overall"]` になり、既存配列には重複なしで `overall` が追加され、draft/deleted は変更されない
 - **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/docs/prisma-migrations.test.ts / smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts
 
-### TC-2460: CI — npm audit --audit-level=high で高脆弱性を自動検出する
+### TC-2460: CI — fail-closed security audit で high / critical を blocking にする
 
-- **背景**: issue #2016。`npm audit` を正しいディレクトリ（`smkc-score-app/`）で実行しないと ENOLOCK エラーになり、実際の脆弱性スキャンとして機能しない。CI ワークフローに `npm audit --audit-level=high` ステップを追加して high/critical 脆弱性を自動検出する。
-- **手順**: `ci.yml` が `npm audit --audit-level=high` ステップを `defaults.run.working-directory: smkc-score-app` のジョブ内に持つことを確認する
-- **期待結果**: high 以上の npm 脆弱性が CI で検出され自動的にビルドが失敗する。moderate/low は通過する
+- **背景**: issue #2016 / #3118。CI の dependency audit は実装コマンドそのものではなく、「`smkc-score-app/` を作業ディレクトリとして `node scripts/security-audit.js` を入口にし、high / critical finding を blocking に扱う」という振る舞いを安定契約とする。個別 advisory や依存バージョンなど一時的な例外条件は helper と #3114 で管理する。
+- **手順**: `ci.yml` の `lint-and-test` job が `defaults.run.working-directory: smkc-score-app` の下で `node scripts/security-audit.js` を実行することを確認する
+- **期待結果**: security audit は fail-closed のまま CI を blocking し、予期しない high / critical finding を通過させない。通常の moderate / low finding は blocking 対象にしない
 - **スクリプト**: n/a (unit/static coverage) — smkc-score-app/__tests__/docs/ci-config.test.ts
 
 ### TC-2461: CI設定テスト — YAMLパースによるステップ順序の構造的検証
