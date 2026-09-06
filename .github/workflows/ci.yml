@@ -106,7 +106,8 @@ jobs:
 
       - name: Security audit
         # Fail closed for all high/critical findings except the exact, dev-only
-        # Prisma -> deepmerge-ts advisory tracked in #3114. The helper validates
-        # the advisory id, dependency graph, package version and devOptional bit;
-        # any drift or any additional high/critical finding remains blocking.
-        run: node scripts/security-audit.js
+        # Prisma -> deepmerge-ts advisory tracked in #3114. Validate the
+        # package-lock schema first because the exception depends on npm v3
+        # lockfile semantics; the helper then pins the advisory, graph, package
+        # identity, artifact integrity and installed dev-only dependency context.
+        run: node scripts/security-audit-lockfile.js && node scripts/security-audit.js
