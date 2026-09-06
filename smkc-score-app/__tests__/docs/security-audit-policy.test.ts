@@ -43,6 +43,8 @@ describe('security audit policy documentation', () => {
   });
 
   it('documents audit report schema drift as a fail-closed condition', () => {
+    expect(policy).toContain('`metadata` が存在する場合');
+    expect(policy).toContain('metadata container');
     expect(policy).toContain('`vulnerabilities` graph 自体');
     expect(policy).toContain('未知の severity');
     expect(policy).toContain('`isDirect` が存在する場合は boolean');
@@ -52,7 +54,9 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`effects` / `nodes`');
     expect(policy).toContain('各 entry の `name` / `isDirect` / `range` / `nodes`');
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
+    expect(helper).toContain('function hasValidAuditMetadata(metadata)');
     expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
+    expect(reportShapeTest).toContain('fails closed when audit metadata is not an object');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
     expect(reportShapeTest).toContain('fails closed when vulnerability via is not an array');

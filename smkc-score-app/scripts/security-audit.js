@@ -128,6 +128,10 @@ function isOptionalString(value) {
   return value === undefined || typeof value === 'string';
 }
 
+function hasValidAuditMetadata(metadata) {
+  return metadata === undefined || (metadata && typeof metadata === 'object' && !Array.isArray(metadata));
+}
+
 function hasValidVulnerabilityEntries(vulnerabilities) {
   if (!vulnerabilities || typeof vulnerabilities !== 'object' || Array.isArray(vulnerabilities)) {
     return false;
@@ -245,7 +249,12 @@ function buildEffectClosure(vulnerabilities, rootName) {
 }
 
 function evaluateAuditReport(report, lockfile) {
-  if (!report || report.error || !hasValidVulnerabilityEntries(report.vulnerabilities)) {
+  if (
+    !report ||
+    report.error ||
+    !hasValidAuditMetadata(report.metadata) ||
+    !hasValidVulnerabilityEntries(report.vulnerabilities)
+  ) {
     return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
   }
 
