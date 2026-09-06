@@ -1,4 +1,8 @@
-import { evaluateAuditReport, hasExpectedAuditReportVersion } from '../../scripts/security-audit.js';
+import {
+  evaluateAuditReport,
+  hasExpectedAuditReportVersion,
+  hasExpectedAuditSummary,
+} from '../../scripts/security-audit.js';
 
 describe('security audit report shape', () => {
   const emptyLockfile = { packages: {} };
@@ -32,6 +36,20 @@ describe('security audit report shape', () => {
     expect(result.ok).toBe(false);
     expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
+  it('requires the complete vulnerability summary on the real CI entrypoint', () => {
+    const summary = { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 };
+    expect(hasExpectedAuditSummary({ metadata: { vulnerabilities: summary } }, { required: true })).toBe(true);
+
+    for (const report of [
+      {},
+      { metadata: {} },
+      { metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0 } } },
+      { metadata: { vulnerabilities: null } },
+    ]) {
+      expect(hasExpectedAuditSummary(report, { required: true })).toBe(false);
+    }
   });
 
   it('accepts object metadata when the vulnerability summary is omitted', () => {

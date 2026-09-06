@@ -233,6 +233,24 @@ function hasExpectedAuditReportVersion(report, { required = false } = {}) {
   return report.auditReportVersion === EXPECTED_AUDIT_REPORT_VERSION;
 }
 
+function hasExpectedAuditSummary(report, { required = false } = {}) {
+  const summary = report?.metadata?.vulnerabilities;
+  if (summary === undefined) {
+    return !required;
+  }
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+    return false;
+  }
+  if (!required) {
+    return true;
+  }
+
+  return (
+    SUMMARY_SEVERITIES.every((severity) => Object.prototype.hasOwnProperty.call(summary, severity)) &&
+    Object.prototype.hasOwnProperty.call(summary, 'total')
+  );
+}
+
 function hasValidAuditMetadata(metadata) {
   return metadata === undefined || (metadata && typeof metadata === 'object' && !Array.isArray(metadata));
 }
@@ -491,6 +509,11 @@ function main() {
     process.exit(1);
   }
 
+  if (!hasExpectedAuditSummary(report, { required: true })) {
+    process.stderr.write('npm audit metadata.vulnerabilities must include all severity counts and total\n');
+    process.exit(1);
+  }
+
   const lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const result = evaluateAuditReport(report, lockfile, manifest);
@@ -530,6 +553,7 @@ if (require.main === module) {
 module.exports = {
   evaluateAuditReport,
   hasExpectedAuditReportVersion,
+  hasExpectedAuditSummary,
   isExpectedAuditExitStatus,
   isTemporaryExceptionExpired,
 };
