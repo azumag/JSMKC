@@ -101,6 +101,21 @@ describe('security audit report shape', () => {
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
+  it('fails closed when a vulnerability entry gains an unknown field', () => {
+    const result = evaluateAuditReport(
+      {
+        vulnerabilities: {
+          package: { severity: 'moderate', via: [], effects: [], unknownField: true },
+        },
+      },
+      emptyLockfile,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
   it('accepts supported graph field shapes for a non-blocking vulnerability', () => {
     const result = evaluateAuditReport(
       {
