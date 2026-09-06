@@ -400,9 +400,9 @@ function isExpectedAuditExitStatus(status) {
   return status === 0 || status === 1;
 }
 
-function isTemporaryExceptionExpired(now = new Date()) {
+function isTemporaryExceptionExpired(now = new Date(), deadlineMs = TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS) {
   const nowMs = now instanceof Date ? now.getTime() : Number.NaN;
-  return !Number.isFinite(nowMs) || nowMs >= TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS;
+  return !Number.isFinite(nowMs) || !Number.isFinite(deadlineMs) || nowMs >= deadlineMs;
 }
 
 function main() {

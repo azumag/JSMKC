@@ -16,4 +16,11 @@ describe('temporary security audit exception review deadline', () => {
   it('fails closed for an invalid clock value', () => {
     expect(isTemporaryExceptionExpired(new Date(Number.NaN))).toBe(true);
   });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'fails closed when the parsed review deadline is invalid: %p',
+    (deadlineMs) => {
+      expect(isTemporaryExceptionExpired(new Date('2026-09-06T00:00:00.000Z'), deadlineMs)).toBe(true);
+    },
+  );
 });
