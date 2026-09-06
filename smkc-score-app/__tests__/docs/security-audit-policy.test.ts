@@ -8,6 +8,7 @@ describe('security audit policy documentation', () => {
   const helperTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit.test.ts');
   const summaryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-summary.test.ts');
   const reportShapeTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-report-shape.test.ts');
+  const errorReportTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-error-report.test.ts');
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
@@ -43,6 +44,7 @@ describe('security audit policy documentation', () => {
   });
 
   it('documents audit report schema drift as a fail-closed condition', () => {
+    expect(policy).toContain('top-level に `error` field');
     expect(policy).toContain('`metadata` が存在する場合');
     expect(policy).toContain('metadata container');
     expect(policy).toContain('`vulnerabilities` graph 自体');
@@ -53,9 +55,11 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`via` が存在する場合');
     expect(policy).toContain('`effects` / `nodes`');
     expect(policy).toContain('各 entry の `name` / `isDirect` / `range` / `nodes`');
+    expect(helper).toContain("Object.prototype.hasOwnProperty.call(report, 'error')");
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(helper).toContain('function hasValidAuditMetadata(metadata)');
     expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
+    expect(errorReportTest).toContain('fails closed whenever npm audit includes an explicit error field');
     expect(reportShapeTest).toContain('fails closed when audit metadata is not an object');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
@@ -89,10 +93,12 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`');
+    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-error-report.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`');
     expect(ciConfigTest).toContain('TC-2460');
     expect(helperTest).toContain('evaluateAuditReport');
     expect(summaryTest).toContain('evaluateAuditReport');
     expect(reportShapeTest).toContain('evaluateAuditReport');
+    expect(errorReportTest).toContain('evaluateAuditReport');
   });
 });
