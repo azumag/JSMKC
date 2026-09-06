@@ -70,10 +70,7 @@ function isValidViaEntries(via) {
 
   return (
     Array.isArray(via) &&
-    via.every(
-      (entry) =>
-        typeof entry === 'string' || (entry && typeof entry === 'object' && !Array.isArray(entry)),
-    )
+    via.every((entry) => typeof entry === 'string' || (entry && typeof entry === 'object' && !Array.isArray(entry)))
   );
 }
 
