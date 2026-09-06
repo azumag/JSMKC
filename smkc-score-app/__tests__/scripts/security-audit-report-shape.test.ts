@@ -11,6 +11,28 @@ describe('security audit report shape', () => {
     });
   });
 
+  it('accepts object metadata when the vulnerability summary is omitted', () => {
+    const result = evaluateAuditReport(
+      {
+        vulnerabilities: {},
+        metadata: { dependencies: { prod: 1, dev: 2, optional: 0, peer: 0, peerOptional: 0, total: 3 } },
+      },
+      emptyLockfile,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual([]);
+  });
+
+  it.each([null, [], 'metadata', 42])('fails closed when audit metadata is not an object: %p', (metadata) => {
+    const result = evaluateAuditReport({ vulnerabilities: {}, metadata }, emptyLockfile);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
   it('fails closed when vulnerabilities is an array', () => {
     const result = evaluateAuditReport({ vulnerabilities: [] }, emptyLockfile);
 
