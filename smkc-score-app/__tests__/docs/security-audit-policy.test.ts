@@ -45,14 +45,20 @@ describe('security audit policy documentation', () => {
   it('documents audit report schema drift as a fail-closed condition', () => {
     expect(policy).toContain('`vulnerabilities` graph 自体');
     expect(policy).toContain('未知の severity');
+    expect(policy).toContain('`isDirect` が存在する場合は boolean');
+    expect(policy).toContain('`range` が存在する場合は string');
+    expect(policy).toContain('direct advisory object には non-empty string');
     expect(policy).toContain('`via` が存在する場合');
     expect(policy).toContain('`effects` / `nodes`');
     expect(policy).toContain('各 entry の `name` / `isDirect` / `range` / `nodes`');
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
+    expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
     expect(reportShapeTest).toContain('fails closed when vulnerability via is not an array');
     expect(reportShapeTest).toContain('fails closed when vulnerability via contains an unsupported entry');
+    expect(reportShapeTest).toContain('fails closed when direct advisory %s has an invalid value');
+    expect(reportShapeTest).toContain('fails closed when vulnerability %s has an invalid type');
     expect(reportShapeTest).toContain('fails closed when vulnerability %s is not an array');
     expect(reportShapeTest).toContain('fails closed when vulnerability %s contains a non-string member');
     expect(helperTest).toContain('reported at a different install node');

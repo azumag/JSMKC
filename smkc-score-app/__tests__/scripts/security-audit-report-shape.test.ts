@@ -45,7 +45,18 @@ describe('security audit report shape', () => {
           package: {
             name: 'package',
             severity: 'moderate',
-            via: ['dependency', { name: 'package' }],
+            isDirect: false,
+            range: '<1.0.0',
+            via: [
+              'dependency',
+              {
+                name: 'package',
+                dependency: 'package',
+                severity: 'moderate',
+                range: '<1.0.0',
+                url: 'https://github.com/advisories/GHSA-example-example-example',
+              },
+            ],
             effects: ['consumer'],
             nodes: ['node_modules/package'],
           },
@@ -73,6 +84,54 @@ describe('security audit report shape', () => {
   it.each([null, 42, [], true])('fails closed when vulnerability via contains an unsupported entry: %p', (entry) => {
     const result = evaluateAuditReport(
       { vulnerabilities: { package: { severity: 'moderate', via: [entry], effects: [] } } },
+      emptyLockfile,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
+  it.each([
+    ['name', 42],
+    ['dependency', 42],
+    ['severity', 'UNKNOWN'],
+    ['range', 42],
+    ['url', 42],
+  ])('fails closed when direct advisory %s has an invalid value', (field, value) => {
+    const advisory = {
+      name: 'package',
+      dependency: 'package',
+      severity: 'moderate',
+      range: '<1.0.0',
+      url: 'https://github.com/advisories/GHSA-example-example-example',
+      [field]: value,
+    };
+    const result = evaluateAuditReport(
+      { vulnerabilities: { package: { severity: 'moderate', via: [advisory], effects: [] } } },
+      emptyLockfile,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+    expect(result.unexpected).toEqual(['invalid-audit-report']);
+  });
+
+  it.each([
+    ['isDirect', 'false'],
+    ['range', 42],
+  ])('fails closed when vulnerability %s has an invalid type', (field, value) => {
+    const result = evaluateAuditReport(
+      {
+        vulnerabilities: {
+          package: {
+            severity: 'moderate',
+            via: [],
+            effects: [],
+            [field]: value,
+          },
+        },
+      },
       emptyLockfile,
     );
 

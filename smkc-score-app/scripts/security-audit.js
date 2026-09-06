@@ -82,19 +82,50 @@ function sameStringMembers(actual, expected) {
   return actualSet.size === expected.length && expected.every((entry) => actualSet.has(entry));
 }
 
-function isValidViaEntries(via) {
+function isValidDirectAdvisoryEntry(entry) {
+  return (
+    entry &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    typeof entry.name === 'string' &&
+    entry.name.length > 0 &&
+    typeof entry.dependency === 'string' &&
+    entry.dependency.length > 0 &&
+    KNOWN_SEVERITIES.has(entry.severity) &&
+    typeof entry.range === 'string' &&
+    typeof entry.url === 'string' &&
+    entry.url.length > 0
+  );
+}
+
+function isValidViaEntries(via, requireAdvisoryMetadata) {
   if (via === undefined) {
     return true;
   }
 
   return (
     Array.isArray(via) &&
-    via.every((entry) => typeof entry === 'string' || (entry && typeof entry === 'object' && !Array.isArray(entry)))
+    via.every(
+      (entry) =>
+        typeof entry === 'string' ||
+        (entry &&
+          typeof entry === 'object' &&
+          !Array.isArray(entry) &&
+          (!requireAdvisoryMetadata || isValidDirectAdvisoryEntry(entry))),
+    )
   );
 }
 
 function isOptionalStringArray(value) {
   return value === undefined || (Array.isArray(value) && value.every((entry) => typeof entry === 'string'));
+}
+
+function isOptionalBoolean(value) {
+  return value === undefined || typeof value === 'boolean';
+}
+
+function isOptionalString(value) {
+  return value === undefined || typeof value === 'string';
 }
 
 function hasValidVulnerabilityEntries(vulnerabilities) {
@@ -112,9 +143,12 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
       return false;
     }
 
+    const requireAdvisoryMetadata = !BLOCKING_SEVERITIES.has(vulnerability.severity);
     return (
       (vulnerability.name === undefined || vulnerability.name === packageName) &&
-      isValidViaEntries(vulnerability.via) &&
+      isOptionalBoolean(vulnerability.isDirect) &&
+      isOptionalString(vulnerability.range) &&
+      isValidViaEntries(vulnerability.via, requireAdvisoryMetadata) &&
       isOptionalStringArray(vulnerability.effects) &&
       isOptionalStringArray(vulnerability.nodes)
     );
