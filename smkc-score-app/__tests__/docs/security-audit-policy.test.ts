@@ -70,6 +70,7 @@ describe('security audit policy documentation', () => {
 
   it('documents audit summary count drift as a fail-closed condition', () => {
     expect(policy).toContain('`metadata.vulnerabilities`');
+    expect(policy).toContain('5 severity key と `total` がすべて存在する');
     expect(policy).toContain('summary 件数と vulnerability graph の severity 件数が矛盾する');
     expect(policy).toContain('`total` と graph entry 総数が一致しない');
     expect(policy).toContain('未知の summary key');
@@ -102,6 +103,8 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('const EXPECTED_AUDIT_REPORT_VERSION = 2');
     expect(helper).toContain('function hasExpectedAuditReportVersion(report, { required = false } = {})');
     expect(helper).toContain('hasExpectedAuditReportVersion(report, { required: true })');
+    expect(helper).toContain('function hasExpectedAuditSummary(report, { required = false } = {})');
+    expect(helper).toContain('hasExpectedAuditSummary(report, { required: true })');
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(helper).toContain('function hasValidAuditMetadata(metadata)');
     expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
@@ -113,6 +116,7 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('function isValidCvss(value)');
     expect(errorReportTest).toContain('fails closed whenever npm audit includes an explicit error field');
     expect(reportShapeTest).toContain('requires auditReportVersion 2 on the real CI entrypoint');
+    expect(reportShapeTest).toContain('requires the complete vulnerability summary on the real CI entrypoint');
     expect(reportShapeTest).toContain('fails closed when npm audit report version drifts');
     expect(reportShapeTest).toContain('fails closed when audit metadata is not an object');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
