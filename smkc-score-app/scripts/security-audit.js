@@ -129,6 +129,27 @@ function isOptionalString(value) {
   return value === undefined || typeof value === 'string';
 }
 
+function isValidFixAvailable(value) {
+  if (value === undefined || typeof value === 'boolean') {
+    return true;
+  }
+
+  return (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    typeof value.name === 'string' &&
+    value.name.length > 0 &&
+    typeof value.version === 'string' &&
+    value.version.length > 0 &&
+    typeof value.isSemVerMajor === 'boolean'
+  );
+}
+
+function hasNonBreakingFixAvailable(value) {
+  return value === true || (value && typeof value === 'object' && value.isSemVerMajor === false);
+}
+
 function hasExpectedAuditReportVersion(report) {
   return report.auditReportVersion === undefined || report.auditReportVersion === EXPECTED_AUDIT_REPORT_VERSION;
 }
@@ -159,7 +180,8 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
       isOptionalString(vulnerability.range) &&
       isValidViaEntries(vulnerability.via, requireAdvisoryMetadata) &&
       isOptionalStringArray(vulnerability.effects) &&
-      isOptionalStringArray(vulnerability.nodes)
+      isOptionalStringArray(vulnerability.nodes) &&
+      isValidFixAvailable(vulnerability.fixAvailable)
     );
   });
 }
@@ -167,7 +189,12 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
 function matchesExpectedGraph(vulnerabilities) {
   return Object.entries(ALLOWED_GRAPH).every(([name, expected]) => {
     const vulnerability = vulnerabilities[name];
-    if (!vulnerability || vulnerability.severity !== 'high' || !Array.isArray(vulnerability.via)) {
+    if (
+      !vulnerability ||
+      vulnerability.severity !== 'high' ||
+      !Array.isArray(vulnerability.via) ||
+      hasNonBreakingFixAvailable(vulnerability.fixAvailable)
+    ) {
       return false;
     }
 
@@ -378,7 +405,7 @@ function main() {
       `Allowed temporary dev-only Prisma audit chain (${ALLOWED_ADVISORY}, ${ALLOWED_ADVISORY_RANGE}): ${result.allowed.join(', ')}\n`,
     );
     process.stdout.write(
-      `The exception is pinned to the canonical deepmerge-ts ${ALLOWED_VERSION} npm artifact and the canonical installed Prisma ${ALLOWED_PRISMA_VERSION} -> @prisma/config ${ALLOWED_PRISMA_CONFIG_VERSION} -> deepmerge-ts ${ALLOWED_VERSION} lockfile context as dev-only; it will fail closed if the package source, integrity, dependency graph, severity, advisory metadata or lock state changes.\n`,
+      `The exception is pinned to the canonical deepmerge-ts ${ALLOWED_VERSION} npm artifact and the canonical installed Prisma ${ALLOWED_PRISMA_VERSION} -> @prisma/config ${ALLOWED_PRISMA_CONFIG_VERSION} -> deepmerge-ts ${ALLOWED_VERSION} lockfile context as dev-only; it will fail closed if the package source, integrity, dependency graph, severity, advisory metadata, remediation availability or lock state changes.\n`,
     );
   } else {
     process.stdout.write('npm audit: no high/critical vulnerabilities found.\n');
