@@ -63,6 +63,21 @@ function sameStringMembers(actual, expected) {
   return actualSet.size === expected.length && expected.every((entry) => actualSet.has(entry));
 }
 
+function isValidViaEntries(via) {
+  if (via === undefined) {
+    return true;
+  }
+
+  return (
+    Array.isArray(via) &&
+    via.every((entry) => typeof entry === 'string' || (entry && typeof entry === 'object' && !Array.isArray(entry)))
+  );
+}
+
+function isOptionalStringArray(value) {
+  return value === undefined || (Array.isArray(value) && value.every((entry) => typeof entry === 'string'));
+}
+
 function hasValidVulnerabilityEntries(vulnerabilities) {
   if (!vulnerabilities || typeof vulnerabilities !== 'object' || Array.isArray(vulnerabilities)) {
     return false;
@@ -78,7 +93,12 @@ function hasValidVulnerabilityEntries(vulnerabilities) {
       return false;
     }
 
-    return vulnerability.name === undefined || vulnerability.name === packageName;
+    return (
+      (vulnerability.name === undefined || vulnerability.name === packageName) &&
+      isValidViaEntries(vulnerability.via) &&
+      isOptionalStringArray(vulnerability.effects) &&
+      isOptionalStringArray(vulnerability.nodes)
+    );
   });
 }
 

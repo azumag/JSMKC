@@ -45,9 +45,15 @@ describe('security audit policy documentation', () => {
   it('documents audit report schema drift as a fail-closed condition', () => {
     expect(policy).toContain('`vulnerabilities` graph 自体');
     expect(policy).toContain('未知の severity');
+    expect(policy).toContain('`via` が存在する場合');
+    expect(policy).toContain('`effects` / `nodes`');
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
+    expect(reportShapeTest).toContain('fails closed when vulnerability via is not an array');
+    expect(reportShapeTest).toContain('fails closed when vulnerability via contains an unsupported entry');
+    expect(reportShapeTest).toContain('fails closed when vulnerability %s is not an array');
+    expect(reportShapeTest).toContain('fails closed when vulnerability %s contains a non-string member');
   });
 
   it('documents that unit tests run before the blocking audit', () => {
