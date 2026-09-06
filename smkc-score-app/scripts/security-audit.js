@@ -5,6 +5,9 @@ const { spawnSync } = require('node:child_process');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
 const AUDIT_REPORT_OBJECT_KEYS = new Set(['auditReportVersion', 'vulnerabilities', 'metadata']);
+const AUDIT_METADATA_OBJECT_KEYS = new Set(['vulnerabilities', 'dependencies']);
+const DEPENDENCY_SUMMARY_KEYS = ['prod', 'dev', 'optional', 'peer', 'peerOptional', 'total'];
+const DEPENDENCY_SUMMARY_KEY_SET = new Set(DEPENDENCY_SUMMARY_KEYS);
 const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z';
 const TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS = Date.parse(TEMPORARY_EXCEPTION_REVIEW_DEADLINE);
 const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
@@ -271,8 +274,32 @@ function hasExpectedAuditSummary(report, { required = false } = {}) {
   );
 }
 
+function hasExpectedAuditDependencySummary(report, { required = false } = {}) {
+  const dependencies = report?.metadata?.dependencies;
+  if (dependencies === undefined) {
+    return !required;
+  }
+  if (!dependencies || typeof dependencies !== 'object' || Array.isArray(dependencies)) {
+    return false;
+  }
+  if (Object.keys(dependencies).some((key) => !DEPENDENCY_SUMMARY_KEY_SET.has(key))) {
+    return false;
+  }
+  if (required && DEPENDENCY_SUMMARY_KEYS.some((key) => !Object.prototype.hasOwnProperty.call(dependencies, key))) {
+    return false;
+  }
+
+  return Object.values(dependencies).every((count) => Number.isInteger(count) && count >= 0);
+}
+
 function hasValidAuditMetadata(metadata) {
-  return metadata === undefined || (metadata && typeof metadata === 'object' && !Array.isArray(metadata));
+  return (
+    metadata === undefined ||
+    (metadata &&
+      typeof metadata === 'object' &&
+      !Array.isArray(metadata) &&
+      Object.keys(metadata).every((key) => AUDIT_METADATA_OBJECT_KEYS.has(key)))
+  );
 }
 
 function hasValidVulnerabilityEntries(vulnerabilities) {
@@ -405,6 +432,7 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
     !hasKnownAuditReportFields(report) ||
     !hasExpectedAuditReportVersion(report) ||
     !hasValidAuditMetadata(report.metadata) ||
+    !hasExpectedAuditDependencySummary(report) ||
     !hasValidVulnerabilityEntries(report.vulnerabilities)
   ) {
     return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
@@ -536,6 +564,13 @@ function main() {
     process.exit(1);
   }
 
+  if (!hasExpectedAuditDependencySummary(report, { required: true })) {
+    process.stderr.write(
+      'npm audit metadata.dependencies must include prod, dev, optional, peer, peerOptional and total as non-negative integers\n',
+    );
+    process.exit(1);
+  }
+
   const lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const result = evaluateAuditReport(report, lockfile, manifest);
@@ -574,6 +609,7 @@ if (require.main === module) {
 
 module.exports = {
   evaluateAuditReport,
+  hasExpectedAuditDependencySummary,
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,
   isExpectedAuditExitStatus,

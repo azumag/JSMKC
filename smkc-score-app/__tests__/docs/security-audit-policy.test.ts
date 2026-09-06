@@ -87,6 +87,9 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('現在検証済みの npm audit report schema version `2`');
     expect(policy).toContain('`metadata` が存在する場合');
     expect(policy).toContain('metadata container');
+    expect(policy).toContain('`metadata.dependencies`');
+    expect(policy).toContain('prod / dev / optional / peer / peerOptional / total');
+    expect(policy).toContain('未知の metadata field');
     expect(policy).toContain('`vulnerabilities` graph 自体');
     expect(policy).toContain('未知の severity');
     expect(policy).toContain('`isDirect` が存在する場合は boolean');
@@ -105,6 +108,8 @@ describe('security audit policy documentation', () => {
     expect(helper).toContain('hasExpectedAuditReportVersion(report, { required: true })');
     expect(helper).toContain('function hasExpectedAuditSummary(report, { required = false } = {})');
     expect(helper).toContain('hasExpectedAuditSummary(report, { required: true })');
+    expect(helper).toContain('function hasExpectedAuditDependencySummary(report, { required = false } = {})');
+    expect(helper).toContain('hasExpectedAuditDependencySummary(report, { required: true })');
     expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
     expect(helper).toContain('function hasValidAuditMetadata(metadata)');
     expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
@@ -118,8 +123,11 @@ describe('security audit policy documentation', () => {
     expect(errorReportTest).toContain('fails closed whenever npm audit includes an explicit error field');
     expect(reportShapeTest).toContain('requires auditReportVersion 2 on the real CI entrypoint');
     expect(reportShapeTest).toContain('requires the complete vulnerability summary on the real CI entrypoint');
+    expect(reportShapeTest).toContain('requires the complete dependency summary on the real CI entrypoint');
     expect(reportShapeTest).toContain('fails closed when npm audit report version drifts');
+    expect(reportShapeTest).toContain('fails closed when audit metadata gains an unknown field');
     expect(reportShapeTest).toContain('fails closed when audit metadata is not an object');
+    expect(reportShapeTest).toContain('fails closed when audit dependency summary is invalid');
     expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
     expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
     expect(reportShapeTest).toContain('fails closed when a vulnerability entry gains an unknown field');
