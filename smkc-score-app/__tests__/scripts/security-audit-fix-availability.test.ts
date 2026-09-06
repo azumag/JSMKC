@@ -85,16 +85,16 @@ describe('security audit remediation availability', () => {
     expect(evaluateAuditReport(report, allowedLockfile).ok).toBe(true);
   });
 
-  it.each([
-    true,
-    { name: 'prisma', version: '6.20.0', isSemVerMajor: false },
-  ])('fails closed when npm exposes a non-breaking remediation: %p', (fixAvailable) => {
-    const result = evaluateAuditReport(reportWithFixAvailability(fixAvailable), allowedLockfile);
+  it.each([true, { name: 'prisma', version: '6.20.0', isSemVerMajor: false }])(
+    'fails closed when npm exposes a non-breaking remediation: %p',
+    (fixAvailable) => {
+      const result = evaluateAuditReport(reportWithFixAvailability(fixAvailable), allowedLockfile);
 
-    expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
-    expect(result.unexpected).toContain('deepmerge-ts');
-  });
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+      expect(result.unexpected).toContain('deepmerge-ts');
+    },
+  );
 
   it.each([
     null,
