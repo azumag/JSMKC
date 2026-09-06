@@ -18,7 +18,7 @@ direct advisory の package metadata では、`npm audit` が返す `name` / `de
 
 lockfile では、許可対象パッケージの version や dev-only 属性だけでなく、`resolved` が canonical npm registry tarball を指し、`integrity` が現在の既知 artifact と一致することも要求する。同じ version 文字列でも別 registry・fork・差し替え tarball に変化した場合は例外を適用しない。
 
-また、一時例外が成立する利用文脈は manifest と lockfile の両方で固定する。helper は実際の `package.json` を独立に読み、Prisma が現在確認済みの devDependency range で宣言され、production dependency には存在しないことを要求する。そのうえで `package-lock.json` root snapshot の Prisma devDependency 宣言も同じ条件へ固定し、実際にインストールされた Prisma とその設定パッケージの version・`resolved`・`integrity`・`devOptional` 属性、およびそこから許可対象の推移的依存へ至る dependency edge を現在確認済みの組み合わせに一致させる。`package.json` だけが編集され lockfile snapshot が古いまま残る場合や、manifest の許容範囲内で Prisma が更新された場合、同じ version 名でも Prisma 側 artifact の供給元または内容が変化した場合は、実装や設定読み込み経路が変化していないかを再評価するまで既知例外を自動継続しない。
+また、一時例外が成立する利用文脈は manifest と lockfile の両方で固定する。helper は実際の `package.json` を独立に読み、Prisma が現在確認済みの devDependency range で宣言され、production dependency には存在しないことを要求する。`dependencies` / `devDependencies` は、存在する場合に npm manifest / lockfile の dependency map として non-array object であることも検証し、array・scalar などの container drift を「Prisma が存在しない」と解釈して例外を継続しない。そのうえで `package-lock.json` root snapshot の Prisma devDependency 宣言も同じ条件へ固定し、実際にインストールされた Prisma とその設定パッケージの version・`resolved`・`integrity`・`devOptional` 属性、およびそこから許可対象の推移的依存へ至る dependency edge を現在確認済みの組み合わせに一致させる。`package.json` だけが編集され lockfile snapshot が古いまま残る場合や、manifest の許容範囲内で Prisma が更新された場合、同じ version 名でも Prisma 側 artifact の供給元または内容が変化した場合は、実装や設定読み込み経路が変化していないかを再評価するまで既知例外を自動継続しない。
 
 この例外判定は npm package-lock v3 の `packages` map とその属性意味論に依存するため、CI は audit helper の前に `scripts/security-audit-lockfile.js` を実行する。`package-lock.json` の top-level が object であり、`lockfileVersion` が現在の `3`、`packages` が non-array object、かつ `packages[""]` の root package snapshot が non-array object である場合だけ監査へ進む。lockfile schema が更新・欠落・破損した場合は、同じフィールド名が残っていても意味論が変化している可能性があるため、例外を再評価するまで fail-closed にする。
 
@@ -46,7 +46,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 - 明示された `auditReportVersion` が現在検証済みの `2` と一致しない
 - `metadata` が存在するのに non-array object ではない、`metadata.vulnerabilities` の summary 件数と vulnerability graph の severity 件数が矛盾する、`total` と graph entry 総数が一致しない、または未知の summary key が現れる
 - `vulnerabilities` が object map でない、entry が object でない、未知の severity が現れる、entry の `name` が top-level package key と矛盾する、`isDirect` / `range` の型が既知 schema と異なる、direct advisory object の `name` / `dependency` / `severity` / `range` / `url` metadata が欠落・型変化する、または `via` / `effects` / `nodes` の container・member 型が既知 schema と異なるなど audit report schema / package identity が変化する
-- 許可対象を成立させている実 `package.json` と `package-lock.json` root snapshot の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する。特に両者の Prisma 宣言が一致しない、インストール済み Prisma chain の version・dev-only 属性、または lockfile 上の依存エッジが変化した場合は再評価を要求する
+- 許可対象を成立させている実 `package.json` と `package-lock.json` root snapshot の devDependency 宣言や production/dev-only 境界など、manifest / lockfile の前提が変化する。`dependencies` / `devDependencies` が object map 以外へ drift した場合も含め、特に両者の Prisma 宣言が一致しない、インストール済み Prisma chain の version・dev-only 属性、または lockfile 上の依存エッジが変化した場合は再評価を要求する
 - `npm audit` が起動失敗・signal 終了・`0` / `1` 以外の終了コードになる、または JSON を取得・解析できない
 
 個別の一時例外の内容や解消状況は helper と追跡 issue に集約し、この文書では CI が維持すべき振る舞いだけを定義する。

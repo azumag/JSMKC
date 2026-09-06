@@ -301,6 +301,74 @@ describe('security audit exception', () => {
     expect(result.allowed).toEqual([]);
   });
 
+  it.each([null, [], 'invalid'])(
+    'fails closed when package.json dependencies is not an object map: %p',
+    (dependencies) => {
+      const manifest = {
+        ...structuredClone(allowedManifest),
+        dependencies,
+      };
+
+      const result = evaluateAuditReport(allowedChainReport, allowedLockfile, manifest);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+    },
+  );
+
+  it.each([null, [], 'invalid'])(
+    'fails closed when package.json devDependencies is not an object map: %p',
+    (devDependencies) => {
+      const manifest = {
+        ...structuredClone(allowedManifest),
+        devDependencies,
+      };
+
+      const result = evaluateAuditReport(allowedChainReport, allowedLockfile, manifest);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+    },
+  );
+
+  it.each([null, [], 'invalid'])(
+    'fails closed when the lockfile root dependencies snapshot is not an object map: %p',
+    (dependencies) => {
+      const baseLockfile = structuredClone(allowedLockfile);
+      const lockfile = {
+        ...baseLockfile,
+        packages: {
+          ...baseLockfile.packages,
+          '': { ...baseLockfile.packages[''], dependencies },
+        },
+      };
+
+      const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+    },
+  );
+
+  it.each([null, [], 'invalid'])(
+    'fails closed when the lockfile root devDependencies snapshot is not an object map: %p',
+    (devDependencies) => {
+      const baseLockfile = structuredClone(allowedLockfile);
+      const lockfile = {
+        ...baseLockfile,
+        packages: {
+          ...baseLockfile.packages,
+          '': { ...baseLockfile.packages[''], devDependencies },
+        },
+      };
+
+      const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+    },
+  );
+
   it('fails closed when the installed Prisma version changes inside the allowed manifest range', () => {
     const lockfile = structuredClone(allowedLockfile);
     lockfile.packages['node_modules/prisma'].version = '6.20.0';
