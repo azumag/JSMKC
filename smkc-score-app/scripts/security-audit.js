@@ -81,9 +81,19 @@ function stringViaEntries(vulnerability) {
   return (vulnerability?.via || []).filter((entry) => typeof entry === 'string');
 }
 
+function hasKnownDirectAdvisoryFields(entry) {
+  return (
+    entry &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    Object.keys(entry).every((key) => DIRECT_ADVISORY_OBJECT_KEYS.has(key))
+  );
+}
+
 function isExpectedDirectAdvisory(entry) {
   const url = String(entry?.url || '');
   return (
+    hasKnownDirectAdvisoryFields(entry) &&
     entry?.source === ALLOWED_ADVISORY_SOURCE &&
     entry?.name === ALLOWED_ROOT &&
     entry?.dependency === ALLOWED_ROOT &&
@@ -112,10 +122,7 @@ function sameStringMembers(actual, expected) {
 
 function isValidDirectAdvisoryEntry(entry) {
   return (
-    entry &&
-    typeof entry === 'object' &&
-    !Array.isArray(entry) &&
-    Object.keys(entry).every((key) => DIRECT_ADVISORY_OBJECT_KEYS.has(key)) &&
+    hasKnownDirectAdvisoryFields(entry) &&
     (entry.source === undefined || (Number.isInteger(entry.source) && entry.source > 0)) &&
     typeof entry.name === 'string' &&
     entry.name.length > 0 &&

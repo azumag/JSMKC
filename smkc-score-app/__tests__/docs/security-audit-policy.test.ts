@@ -116,6 +116,7 @@ describe('security audit policy documentation', () => {
     expect(reportShapeTest).toContain('fails closed when direct advisory %s has an invalid value');
     expect(reportShapeTest).toContain('fails closed when direct advisory risk metadata %s is invalid');
     expect(helperTest).toContain('direct advisory title changes');
+    expect(helperTest).toContain('allowed direct advisory gains an unknown field');
     expect(helperTest).toContain('direct advisory source id changes');
     expect(helperTest).toContain('direct advisory CWE metadata changes');
     expect(helperTest).toContain('direct advisory CVSS metadata changes');
