@@ -5,9 +5,7 @@ import { hasExpectedSecurityAuditLockfileShape } from '../../scripts/security-au
 
 describe('security audit lockfile preflight', () => {
   it('accepts the repository package-lock schema used by the temporary audit exception', () => {
-    const lockfile = JSON.parse(
-      fs.readFileSync(path.resolve(__dirname, '..', '..', 'package-lock.json'), 'utf8'),
-    );
+    const lockfile = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'package-lock.json'), 'utf8'));
 
     expect(hasExpectedSecurityAuditLockfileShape(lockfile)).toBe(true);
   });
@@ -27,10 +25,7 @@ describe('security audit lockfile preflight', () => {
   });
 
   it('runs the lockfile schema preflight before the npm audit helper in CI', () => {
-    const ci = fs.readFileSync(
-      path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'ci.yml'),
-      'utf8',
-    );
+    const ci = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
     const preflight = 'node scripts/security-audit-lockfile.js';
     const audit = 'node scripts/security-audit.js';
 
