@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 
+const EXPECTED_AUDIT_REPORT_VERSION = 2;
 const ALLOWED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
 const ALLOWED_ADVISORY_RANGE = '<8.0.0';
 const ALLOWED_ROOT = 'deepmerge-ts';
@@ -126,6 +127,12 @@ function isOptionalBoolean(value) {
 
 function isOptionalString(value) {
   return value === undefined || typeof value === 'string';
+}
+
+function hasExpectedAuditReportVersion(report) {
+  return (
+    report.auditReportVersion === undefined || report.auditReportVersion === EXPECTED_AUDIT_REPORT_VERSION
+  );
 }
 
 function hasValidAuditMetadata(metadata) {
@@ -252,6 +259,7 @@ function evaluateAuditReport(report, lockfile) {
   if (
     !report ||
     Object.prototype.hasOwnProperty.call(report, 'error') ||
+    !hasExpectedAuditReportVersion(report) ||
     !hasValidAuditMetadata(report.metadata) ||
     !hasValidVulnerabilityEntries(report.vulnerabilities)
   ) {
