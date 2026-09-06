@@ -3149,12 +3149,13 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/lib/ta/finals-phase-manager.test.ts');
   });
 
-  // TC-2460: CI npm audit ステップのドリフトガード (issue #2016)
-  it('documents TC-2460 as CI npm audit configuration coverage', () => {
+  // TC-2460: fail-closed security audit の安定契約ドリフトガード (issue #3118)
+  it('documents TC-2460 as fail-closed security audit behavior coverage', () => {
     const section = e2eCaseSection('TC-2460');
-    expect(section).toContain('issue #2016');
-    expect(section).toContain('npm audit --audit-level=high');
-    expect(section).toContain('ENOLOCK');
+    expect(section).toContain('issue #2016 / #3118');
+    expect(section).toContain('node scripts/security-audit.js');
+    expect(section).toContain('high / critical finding');
+    expect(section).toContain('blocking');
     expect(section).toContain('__tests__/docs/ci-config.test.ts');
   });
 
