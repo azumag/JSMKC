@@ -17,7 +17,16 @@ function isExpectedNpmVersion(packageManager, runtimeVersion) {
   return expectedVersion !== null && typeof runtimeVersion === 'string' && runtimeVersion.trim() === expectedVersion;
 }
 
+function loadPackageManifest(readPackageJson = () => fs.readFileSync('package.json', 'utf8')) {
+  try {
+    return JSON.parse(readPackageJson());
+  } catch (error) {
+    throw new Error(`Failed to read package.json while verifying npm version: ${error.message}`);
+  }
+}
+
 function verifyNpmRuntime({
+  manifest,
   readPackageJson = () => fs.readFileSync('package.json', 'utf8'),
   runNpmVersion = () =>
     spawnSync('npm', ['--version'], {
@@ -25,14 +34,8 @@ function verifyNpmRuntime({
       stdio: ['ignore', 'pipe', 'pipe'],
     }),
 } = {}) {
-  let manifest;
-  try {
-    manifest = JSON.parse(readPackageJson());
-  } catch (error) {
-    throw new Error(`Failed to read package.json while verifying npm version: ${error.message}`);
-  }
-
-  const expectedVersion = parsePinnedNpmVersion(manifest.packageManager);
+  const resolvedManifest = manifest === undefined ? loadPackageManifest(readPackageJson) : manifest;
+  const expectedVersion = parsePinnedNpmVersion(resolvedManifest?.packageManager);
   if (!expectedVersion) {
     throw new Error('package.json packageManager must pin an exact npm x.y.z version');
   }
@@ -50,7 +53,7 @@ function verifyNpmRuntime({
   }
 
   const runtimeVersion = npmVersion.stdout.trim();
-  if (!isExpectedNpmVersion(manifest.packageManager, runtimeVersion)) {
+  if (!isExpectedNpmVersion(resolvedManifest?.packageManager, runtimeVersion)) {
     throw new Error(
       `npm runtime version mismatch: expected ${expectedVersion}, received ${runtimeVersion || '(empty)'}`,
     );
@@ -75,6 +78,7 @@ if (require.main === module) {
 
 module.exports = {
   isExpectedNpmVersion,
+  loadPackageManifest,
   parsePinnedNpmVersion,
   verifyNpmRuntime,
 };
