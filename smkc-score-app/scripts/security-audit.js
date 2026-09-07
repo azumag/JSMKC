@@ -218,6 +218,16 @@ function isOptionalObjectMap(value) {
   return value === undefined || isObjectMap(value);
 }
 
+function isOptionalStringMap(value) {
+  return (
+    value === undefined ||
+    (isObjectMap(value) &&
+      Object.entries(value).every(([name, entry]) =>
+        Boolean(name.length > 0 && typeof entry === 'string' && entry.length > 0),
+      ))
+  );
+}
+
 function overrideKeyTargetsPackage(key, packageName) {
   return typeof key === 'string' && (key === packageName || key.startsWith(`${packageName}@`));
 }
@@ -534,11 +544,13 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
     prismaLock?.resolved === ALLOWED_PRISMA_RESOLVED &&
     prismaLock?.integrity === ALLOWED_PRISMA_INTEGRITY &&
     prismaLock?.devOptional === true &&
+    isOptionalStringMap(prismaLock?.dependencies) &&
     prismaLock?.dependencies?.['@prisma/config'] === ALLOWED_PRISMA_CONFIG_VERSION &&
     prismaConfigLock?.version === ALLOWED_PRISMA_CONFIG_VERSION &&
     prismaConfigLock?.resolved === ALLOWED_PRISMA_CONFIG_RESOLVED &&
     prismaConfigLock?.integrity === ALLOWED_PRISMA_CONFIG_INTEGRITY &&
     prismaConfigLock?.devOptional === true &&
+    isOptionalStringMap(prismaConfigLock?.dependencies) &&
     prismaConfigLock?.dependencies?.['deepmerge-ts'] === ALLOWED_VERSION;
   const expectedLockState =
     deepmergeLock?.version === ALLOWED_VERSION &&
