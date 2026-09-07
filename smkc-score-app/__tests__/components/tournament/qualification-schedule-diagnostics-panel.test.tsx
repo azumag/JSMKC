@@ -36,7 +36,7 @@ const diagnostics: QualificationScheduleDiagnostics = {
 };
 
 describe('QualificationScheduleDiagnosticsPanel', () => {
-  it('renders effective methods and policy reasons for populated groups', () => {
+  it('renders configured and effective methods with policy reasons for populated groups', () => {
     render(<QualificationScheduleDiagnosticsPanel diagnostics={diagnostics} />);
 
     expect(screen.getByRole('heading', { name: 'Effective qualification schedule' })).toBeInTheDocument();
@@ -44,6 +44,9 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(screen.getByText('14 players')).toBeInTheDocument();
     expect(screen.getAllByText('CIRCLE')).toHaveLength(2);
     expect(screen.getByText('CDM')).toBeInTheDocument();
+    expect(screen.getByText('Configured: CDM · Effective: CIRCLE')).toBeInTheDocument();
+    expect(screen.getByText('Configured: CDM · Effective: CDM')).toBeInTheDocument();
+    expect(screen.getByText('Configured: CIRCLE · Effective: CIRCLE')).toBeInTheDocument();
     expect(
       screen.getByText('CDM-first tournament, but groups of 13 or fewer still use circle scheduling.'),
     ).toBeInTheDocument();
