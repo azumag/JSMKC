@@ -1,4 +1,9 @@
-import { isExpectedNpmVersion, parsePinnedNpmVersion, verifyNpmRuntime } from '../../scripts/verify-npm-version.js';
+import {
+  isExpectedNpmVersion,
+  loadPackageManifest,
+  parsePinnedNpmVersion,
+  verifyNpmRuntime,
+} from '../../scripts/verify-npm-version.js';
 
 describe('npm runtime version guard', () => {
   it('parses an exact npm packageManager pin', () => {
@@ -29,6 +34,27 @@ describe('npm runtime version guard', () => {
   it('fails closed when packageManager is not an exact npm pin', () => {
     expect(isExpectedNpmVersion('npm@^10.9.4', '10.9.4')).toBe(false);
     expect(isExpectedNpmVersion('pnpm@10.9.4', '10.9.4')).toBe(false);
+  });
+
+  it('loads a package manifest through an injectable reader', () => {
+    expect(loadPackageManifest(() => JSON.stringify({ packageManager: 'npm@10.9.4' }))).toEqual({
+      packageManager: 'npm@10.9.4',
+    });
+  });
+
+  it('reuses a provided manifest instead of rereading package.json', () => {
+    const readPackageJson = jest.fn(() => {
+      throw new Error('package.json should not be read again');
+    });
+
+    expect(
+      verifyNpmRuntime({
+        manifest: { packageManager: 'npm@10.9.4' },
+        readPackageJson,
+        runNpmVersion: () => ({ status: 0, signal: null, stdout: '10.9.4\n', stderr: '' }),
+      }),
+    ).toBe('10.9.4');
+    expect(readPackageJson).not.toHaveBeenCalled();
   });
 
   it('verifies the runtime through injectable package and process readers', () => {

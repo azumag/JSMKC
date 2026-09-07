@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { hasExpectedSecurityAuditLockfileShape } = require('./security-audit-lockfile.js');
-const { verifyNpmRuntime } = require('./verify-npm-version.js');
+const { loadPackageManifest, verifyNpmRuntime } = require('./verify-npm-version.js');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
 const AUDIT_REPORT_OBJECT_KEYS = new Set(['auditReportVersion', 'vulnerabilities', 'metadata']);
@@ -568,9 +568,17 @@ function isTemporaryExceptionExpired(now = new Date(), deadlineMs = TEMPORARY_EX
 }
 
 function main() {
+  let manifest;
+  try {
+    manifest = loadPackageManifest();
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exit(1);
+  }
+
   let npmRuntimeVersion;
   try {
-    npmRuntimeVersion = verifyNpmRuntime();
+    npmRuntimeVersion = verifyNpmRuntime({ manifest });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exit(1);
@@ -647,7 +655,6 @@ function main() {
     process.exit(1);
   }
 
-  const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const result = evaluateAuditReport(report, lockfile, manifest);
 
   if (!result.ok) {

@@ -64,12 +64,12 @@ describe('security audit policy documentation', () => {
   });
 
   it('documents manifest drift as a fail-closed condition', () => {
-    expect(policy).toContain('実際の `package.json` を独立に読み');
+    expect(policy).toContain('実際の `package.json` を1回だけ読み');
     expect(policy).toContain('`package-lock.json` root snapshot');
     expect(policy).toContain('manifest / lockfile の前提が変化する');
     expect(policy).toContain('`dependencies` / `devDependencies`');
     expect(policy).toContain('container drift');
-    expect(helper).toContain("fs.readFileSync('package.json', 'utf8')");
+    expect(helper).toContain('manifest = loadPackageManifest();');
     expect(helper).toContain('function isOptionalObjectMap(value)');
     expect(helperTest).toContain('Prisma devDependency range changes');
     expect(helperTest).toContain('package.json Prisma devDependency drifts');
@@ -102,7 +102,8 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`npm audit` を起動する前に packageManager の exact pin');
     expect(policy).toContain('直接実行でも runtime guard を迂回できない');
     expect(helper).toContain("require('./verify-npm-version.js')");
-    expect(helper).toContain('verifyNpmRuntime();');
+    expect(helper).toContain('verifyNpmRuntime({ manifest });');
+    expect(policy).toContain('同じ manifest snapshot');
     expect(runtimeGuardTest).toContain('verifies the pinned npm runtime before invoking npm audit');
     expect(ci).not.toContain(
       'node scripts/verify-npm-version.js && node scripts/security-audit-lockfile.js && node scripts/security-audit.js',

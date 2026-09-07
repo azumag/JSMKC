@@ -10,10 +10,12 @@ describe('security audit npm runtime guard', () => {
   it('verifies the pinned npm runtime before invoking npm audit', () => {
     expect(helper).toContain("require('./verify-npm-version.js')");
 
-    const runtimeGuardIndex = helper.indexOf('verifyNpmRuntime();');
+    const manifestLoadIndex = helper.indexOf('manifest = loadPackageManifest();');
+    const runtimeGuardIndex = helper.indexOf('verifyNpmRuntime({ manifest });');
     const auditSpawnIndex = helper.indexOf("spawnSync('npm', ['audit', '--json', '--audit-level=low']");
 
-    expect(runtimeGuardIndex).toBeGreaterThanOrEqual(0);
+    expect(manifestLoadIndex).toBeGreaterThanOrEqual(0);
+    expect(runtimeGuardIndex).toBeGreaterThan(manifestLoadIndex);
     expect(auditSpawnIndex).toBeGreaterThan(runtimeGuardIndex);
   });
 
