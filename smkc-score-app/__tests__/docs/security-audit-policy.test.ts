@@ -12,6 +12,12 @@ describe('security audit policy documentation', () => {
   const errorReportTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-error-report.test.ts');
   const expiryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-expiry.test.ts');
   const lockfileTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-lockfile.test.ts');
+  const runtimeGuardTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'scripts',
+    'security-audit-runtime-guard.test.ts',
+  );
   const fixAvailabilityTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -86,6 +92,17 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('終了コードと summary の不一致');
     expect(helper).toContain("['audit', '--json', '--audit-level=low']");
     expect(helper).toContain('function hasConsistentAuditExitStatus(report, status)');
+  });
+
+  it('keeps the pinned npm runtime guard inside the audit helper', () => {
+    expect(policy).toContain('`npm audit` を起動する前に packageManager の exact pin');
+    expect(policy).toContain('直接実行でも runtime guard を迂回できない');
+    expect(helper).toContain("require('./verify-npm-version.js')");
+    expect(helper).toContain('verifyNpmRuntime();');
+    expect(runtimeGuardTest).toContain('verifies the pinned npm runtime before invoking npm audit');
+    expect(ci).not.toContain(
+      'node scripts/verify-npm-version.js && node scripts/security-audit-lockfile.js && node scripts/security-audit.js',
+    );
   });
 
   it('documents audit report schema drift as a fail-closed condition', () => {
@@ -181,6 +198,7 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-error-report.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-expiry.test.ts`');
+    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-runtime-guard.test.ts`');
     expect(policy).toContain('`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`');
     expect(ciConfigTest).toContain('TC-2460');
     expect(helperTest).toContain('evaluateAuditReport');

@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
+const { verifyNpmRuntime } = require('./verify-npm-version.js');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
 const AUDIT_REPORT_OBJECT_KEYS = new Set(['auditReportVersion', 'vulnerabilities', 'metadata']);
@@ -566,6 +567,15 @@ function isTemporaryExceptionExpired(now = new Date(), deadlineMs = TEMPORARY_EX
 }
 
 function main() {
+  let npmRuntimeVersion;
+  try {
+    npmRuntimeVersion = verifyNpmRuntime();
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`npm runtime version verified: ${npmRuntimeVersion}\n`);
+
   const audit = spawnSync('npm', ['audit', '--json', '--audit-level=low'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],

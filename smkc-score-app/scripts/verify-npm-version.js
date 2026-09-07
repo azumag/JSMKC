@@ -17,26 +17,27 @@ function isExpectedNpmVersion(packageManager, runtimeVersion) {
   return expectedVersion !== null && typeof runtimeVersion === 'string' && runtimeVersion.trim() === expectedVersion;
 }
 
-function main() {
+function verifyNpmRuntime({
+  readPackageJson = () => fs.readFileSync('package.json', 'utf8'),
+  runNpmVersion = () =>
+    spawnSync('npm', ['--version'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }),
+} = {}) {
   let manifest;
   try {
-    manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+    manifest = JSON.parse(readPackageJson());
   } catch (error) {
-    process.stderr.write(`Failed to read package.json while verifying npm version: ${error.message}\n`);
-    process.exit(1);
+    throw new Error(`Failed to read package.json while verifying npm version: ${error.message}`);
   }
 
   const expectedVersion = parsePinnedNpmVersion(manifest.packageManager);
   if (!expectedVersion) {
-    process.stderr.write('package.json packageManager must pin an exact npm x.y.z version\n');
-    process.exit(1);
+    throw new Error('package.json packageManager must pin an exact npm x.y.z version');
   }
 
-  const npmVersion = spawnSync('npm', ['--version'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
+  const npmVersion = runNpmVersion();
   if (npmVersion.error || npmVersion.signal || npmVersion.status !== 0 || !npmVersion.stdout) {
     const reason =
       npmVersion.error?.message ||
@@ -44,20 +45,28 @@ function main() {
       (!npmVersion.stdout
         ? 'npm --version produced no output'
         : `npm --version exited with status ${npmVersion.status}`);
-    process.stderr.write(`${reason}\n`);
-    process.stderr.write(npmVersion.stderr || '');
-    process.exit(1);
+    const stderr = typeof npmVersion.stderr === 'string' ? npmVersion.stderr.trim() : '';
+    throw new Error(stderr ? `${reason}: ${stderr}` : reason);
   }
 
   const runtimeVersion = npmVersion.stdout.trim();
   if (!isExpectedNpmVersion(manifest.packageManager, runtimeVersion)) {
-    process.stderr.write(
-      `npm runtime version mismatch: expected ${expectedVersion}, received ${runtimeVersion || '(empty)'}\n`,
+    throw new Error(
+      `npm runtime version mismatch: expected ${expectedVersion}, received ${runtimeVersion || '(empty)'}`,
     );
-    process.exit(1);
   }
 
-  process.stdout.write(`npm runtime version verified: ${runtimeVersion}\n`);
+  return runtimeVersion;
+}
+
+function main() {
+  try {
+    const runtimeVersion = verifyNpmRuntime();
+    process.stdout.write(`npm runtime version verified: ${runtimeVersion}\n`);
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exit(1);
+  }
 }
 
 if (require.main === module) {
@@ -67,4 +76,5 @@ if (require.main === module) {
 module.exports = {
   isExpectedNpmVersion,
   parsePinnedNpmVersion,
+  verifyNpmRuntime,
 };

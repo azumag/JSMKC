@@ -1,6 +1,6 @@
 # Security audit policy
 
-JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node scripts/security-audit-lockfile.js` で lockfile schema を事前検証した後、`node scripts/security-audit.js` を実行し、npm dependency audit の high / critical finding を blocking として扱う。
+JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node scripts/security-audit-lockfile.js` で lockfile schema を事前検証した後、`node scripts/security-audit.js` を実行し、npm dependency audit の high / critical finding を blocking として扱う。`security-audit.js` は `npm audit` を起動する前に packageManager の exact pin と実 npm runtime version を自分で検証し、直接実行でも runtime guard を迂回できない。
 
 ## Fail-closed の原則
 
@@ -65,7 +65,8 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 
 ## 回帰テスト
 
-- `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、`node scripts/security-audit.js` を呼ぶことを静的に検証する。
+- `smkc-score-app/__tests__/docs/ci-config.test.ts`: CI が `npm test -- --ci --forceExit` を security audit より前に実行し、lockfile preflight の後に `node scripts/security-audit.js` を呼ぶことを静的に検証する。
+- `smkc-score-app/__tests__/scripts/security-audit-runtime-guard.test.ts`: `security-audit.js` が `npm audit` subprocess より前に pinned npm runtime verifier を呼ぶことを検証し、直接実行時の guard bypass を防ぐ。
 - `smkc-score-app/__tests__/scripts/security-audit-lockfile.test.ts`: 実リポジトリの package-lock が v3 object schema と object 型の root package snapshot を満たすこと、schema version・top-level / `packages` container・root snapshot の drift を拒否すること、CI が schema preflight を audit helper より先に実行することを検証する。
 - `smkc-score-app/__tests__/scripts/security-audit.test.ts`: fail-closed helper の許可条件と、advisory の canonical URL・affected range・severity・direct advisory の `name` / `dependency` / `title` / `severity` / `source` / CWE / CVSS metadata・`via` / `effects` topology、許可チェーンの `name` / `isDirect` / `range` / `nodes`、blocking audit summary severity 件数、実 `package.json` と `package-lock.json` root snapshot の devDependency / production 境界、インストール済み Prisma chain の version / `resolved` / `integrity` / dev-only 属性 / lockfile 依存エッジ、許可対象 artifact の `resolved` / `integrity` を含む前提が変化した場合の blocking 動作を検証する。
 - `smkc-score-app/__tests__/scripts/security-audit-fix-availability.test.ts`: optional `fixAvailable` の schema と既知 field set を検証し、現在確認済みの semver-major remediation または remediation なしでは一時例外を維持する一方、non-breaking remediation、major remediation target の identity / version drift、未知 field が現れた場合は fail-closed にする契約を固定する。
