@@ -221,7 +221,10 @@ function isOptionalObjectMap(value) {
 function isOptionalStringMap(value) {
   return (
     value === undefined ||
-    (isObjectMap(value) && Object.values(value).every((entry) => typeof entry === 'string' && entry.length > 0))
+    (isObjectMap(value) &&
+      Object.entries(value).every(([name, entry]) =>
+        Boolean(name.length > 0 && typeof entry === 'string' && entry.length > 0),
+      ))
   );
 }
 
