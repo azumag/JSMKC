@@ -771,3 +771,30 @@ export const CDM_ROUND_ROBIN_FIXTURES: Record<number, readonly (readonly (readon
     ],
   ],
 } as const;
+
+export interface CdmRoundRobinFixturePlan {
+  capacity: number;
+  breakSlotCount: number;
+}
+
+/**
+ * Return the workbook fixture that can host a given group size.
+ *
+ * Some RR 2025 Start fixtures intentionally host fewer real players than
+ * their nominal capacity by filling the remaining positions with BREAK slots.
+ * Keeping this mapping next to the fixtures gives scheduling and diagnostics a
+ * single source of truth while Issue #3054 is still deciding which sizes TT
+ * should opt into CDM scheduling.
+ */
+export function getCdmRoundRobinFixturePlan(playerCount: number): CdmRoundRobinFixturePlan | null {
+  let capacity: number | null = null;
+
+  if ([7, 8].includes(playerCount)) capacity = 8;
+  else if ([9, 10].includes(playerCount)) capacity = 10;
+  else if ([11, 12].includes(playerCount)) capacity = 12;
+  else if ([14, 15, 16].includes(playerCount)) capacity = 16;
+  else if ([17, 18].includes(playerCount)) capacity = 18;
+  else if ([19, 20].includes(playerCount)) capacity = 20;
+
+  return capacity === null ? null : { capacity, breakSlotCount: capacity - playerCount };
+}

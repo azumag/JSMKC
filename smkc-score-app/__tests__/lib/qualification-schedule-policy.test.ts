@@ -34,37 +34,47 @@ describe('resolveQualificationScheduleMethodForGroup', () => {
 });
 
 describe('getQualificationSchedulePolicyDecision', () => {
-  it('explains an explicitly configured circle tournament', () => {
+  it('explains an explicitly configured circle tournament while exposing the available CDM fixture', () => {
     expect(getQualificationSchedulePolicyDecision('circle', 20)).toEqual({
       configuredMethod: 'circle',
       playerCount: 20,
       effectiveMethod: 'circle',
       reason: 'configured-circle',
+      cdmFixtureCapacity: 20,
+      cdmBreakSlotCount: 0,
     });
   });
 
-  it('makes the current 13-player fallback explicit for diagnostics and future UI', () => {
+  it('makes the current 13-player fallback and missing fixture explicit', () => {
     expect(getQualificationSchedulePolicyDecision('cdm', 13)).toEqual({
       configuredMethod: 'cdm',
       playerCount: 13,
       effectiveMethod: 'circle',
       reason: 'cdm-small-group-legacy-circle',
+      cdmFixtureCapacity: null,
+      cdmBreakSlotCount: null,
     });
   });
 
-  it('makes the 14-player CDM request explicit without claiming downstream fixture support', () => {
+  it('reports the 14-player CDM request with the 16-slot fixture and two BREAK slots', () => {
     expect(getQualificationSchedulePolicyDecision('cdm', 14)).toEqual({
       configuredMethod: 'cdm',
       playerCount: 14,
       effectiveMethod: 'cdm',
       reason: 'cdm-requested',
+      cdmFixtureCapacity: 16,
+      cdmBreakSlotCount: 2,
     });
+  });
 
+  it('does not claim downstream fixture support for unsupported CDM requests', () => {
     expect(getQualificationSchedulePolicyDecision('cdm', 21)).toEqual({
       configuredMethod: 'cdm',
       playerCount: 21,
       effectiveMethod: 'cdm',
       reason: 'cdm-requested',
+      cdmFixtureCapacity: null,
+      cdmBreakSlotCount: null,
     });
   });
 });

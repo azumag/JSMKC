@@ -14,6 +14,8 @@ const diagnostics: QualificationScheduleDiagnostics = {
       playerCount: 13,
       effectiveMethod: 'circle',
       reason: 'cdm-small-group-legacy-circle',
+      cdmFixtureCapacity: null,
+      cdmBreakSlotCount: null,
     },
     {
       group: 'B',
@@ -21,6 +23,8 @@ const diagnostics: QualificationScheduleDiagnostics = {
       playerCount: 14,
       effectiveMethod: 'cdm',
       reason: 'cdm-requested',
+      cdmFixtureCapacity: 16,
+      cdmBreakSlotCount: 2,
     },
   ],
   mr: [
@@ -30,6 +34,8 @@ const diagnostics: QualificationScheduleDiagnostics = {
       playerCount: 12,
       effectiveMethod: 'circle',
       reason: 'configured-circle',
+      cdmFixtureCapacity: 12,
+      cdmBreakSlotCount: 0,
     },
   ],
   gp: [],
@@ -47,6 +53,9 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(screen.getByText('Configured: CDM · Effective: CIRCLE')).toBeInTheDocument();
     expect(screen.getByText('Configured: CDM · Effective: CDM')).toBeInTheDocument();
     expect(screen.getByText('Configured: CIRCLE · Effective: CIRCLE')).toBeInTheDocument();
+    expect(screen.getByText('CDM fixture preview: unavailable for 13 players')).toBeInTheDocument();
+    expect(screen.getByText('CDM fixture preview: 16 slots · 2 BREAK slots')).toBeInTheDocument();
+    expect(screen.getByText('CDM fixture preview: 12 slots · 0 BREAK slots')).toBeInTheDocument();
     expect(
       screen.getByText('CDM-first tournament, but groups of 13 or fewer still use circle scheduling.'),
     ).toBeInTheDocument();

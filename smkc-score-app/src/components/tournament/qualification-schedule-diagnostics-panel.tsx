@@ -57,6 +57,11 @@ export function QualificationScheduleDiagnosticsPanel({
                         Configured: {group.configuredMethod.toUpperCase()} · Effective:{' '}
                         {group.effectiveMethod.toUpperCase()}
                       </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {group.cdmFixtureCapacity === null
+                          ? `CDM fixture preview: unavailable for ${group.playerCount} players`
+                          : `CDM fixture preview: ${group.cdmFixtureCapacity} slots · ${group.cdmBreakSlotCount} BREAK slot${group.cdmBreakSlotCount === 1 ? '' : 's'}`}
+                      </div>
                       <div className="mt-1 text-xs text-muted-foreground">{REASON_LABELS[group.reason]}</div>
                     </li>
                   ))}

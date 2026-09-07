@@ -1,7 +1,7 @@
 import { buildQualificationScheduleDiagnostics } from '@/lib/qualification-schedule-diagnostics';
 
 describe('buildQualificationScheduleDiagnostics', () => {
-  it('reports effective policy per populated group and mode', () => {
+  it('reports effective policy and CDM fixture feasibility per populated group and mode', () => {
     const result = buildQualificationScheduleDiagnostics('cdm', {
       bm: [
         ...Array.from({ length: 14 }, () => ({ group: 'A' })),
@@ -19,6 +19,8 @@ describe('buildQualificationScheduleDiagnostics', () => {
           playerCount: 14,
           effectiveMethod: 'cdm',
           reason: 'cdm-requested',
+          cdmFixtureCapacity: 16,
+          cdmBreakSlotCount: 2,
         },
         {
           group: 'B',
@@ -26,6 +28,8 @@ describe('buildQualificationScheduleDiagnostics', () => {
           playerCount: 13,
           effectiveMethod: 'circle',
           reason: 'cdm-small-group-legacy-circle',
+          cdmFixtureCapacity: null,
+          cdmBreakSlotCount: null,
         },
       ],
       mr: [
@@ -35,13 +39,15 @@ describe('buildQualificationScheduleDiagnostics', () => {
           playerCount: 20,
           effectiveMethod: 'cdm',
           reason: 'cdm-requested',
+          cdmFixtureCapacity: 20,
+          cdmBreakSlotCount: 0,
         },
       ],
       gp: [],
     });
   });
 
-  it('keeps explicitly configured circle tournaments on circle for every group', () => {
+  it('keeps explicitly configured circle tournaments on circle while still showing CDM feasibility', () => {
     const result = buildQualificationScheduleDiagnostics('circle', {
       bm: Array.from({ length: 20 }, () => ({ group: 'B' })),
       mr: [],
@@ -55,6 +61,8 @@ describe('buildQualificationScheduleDiagnostics', () => {
         playerCount: 20,
         effectiveMethod: 'circle',
         reason: 'configured-circle',
+        cdmFixtureCapacity: 20,
+        cdmBreakSlotCount: 0,
       },
     ]);
   });

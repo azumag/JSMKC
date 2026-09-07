@@ -15,6 +15,8 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 `getQualificationSchedulePolicyDecision` はこの判定を `configuredMethod` / `playerCount` / `effectiveMethod` / `reason` として返します。現在の13→14境界を診断・テスト・将来の管理UIで再実装せず参照できるようにするための読み取り専用情報で、対戦表の生成結果自体は変更しません。
 
+加えて、同じ判定結果には `cdmFixtureCapacity` / `cdmBreakSlotCount` を含めます。これは「現在そのグループがCDMを実効方式として使うか」とは独立した読み取り専用情報で、仮にCDMへ切り替えた場合に利用可能なfixture容量と必要なBREAK slot数を示します。fixture未対応人数では両方とも `null` です。fixture選択ロジックは `getCdmRoundRobinFixturePlan` に集約され、実際のround-robin生成と診断表示が同じ対応表を参照します。
+
 現在の `reason` は次の3種類です。
 
 - `configured-circle`: 大会設定自体がcircle
@@ -34,10 +36,22 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 - `playerCount`: 現在の予選レコード数
 - `effectiveMethod`: 現行policyで実際に選ばれる方式
 - `reason`: 判定理由
+- `cdmFixtureCapacity`: 現在の人数を収容できるCDM fixture容量。未対応なら `null`
+- `cdmBreakSlotCount`: そのfixtureで必要なBREAK slot数。未対応なら `null`
 
 このAPIは大会設定・予選レコード・対戦表を変更しません。#3054 の仕様確定前でも、実大会が13→14境界のどちら側にいるかを運営・デバッグ時に確認できます。
 
-同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、保存された方式（Configured）、実際に適用される方式（Effective）、判定理由を並べて確認できます。とくに `Configured: CDM · Effective: CIRCLE` のような表示により、13名以下のCDM-first大会が現在の互換policyでcircleへ解決されていることを設定変更と取り違えず確認できます。表示によって大会設定や対戦表が変更されることはありません。
+同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、保存された方式（Configured）、実際に適用される方式（Effective）、判定理由に加え、CDMへ切り替えた場合のfixture容量とBREAK slot数を確認できます。とくに `Configured: CDM · Effective: CIRCLE` のような表示により、13名以下のCDM-first大会が現在の互換policyでcircleへ解決されていることを設定変更と取り違えず確認できます。表示によって大会設定や対戦表が変更されることはありません。
+
+CDM fixture preview の対応は現在次の通りです。
+
+- 7→8（BREAK 1）、8→8（BREAK 0）
+- 9→10（BREAK 1）、10→10（BREAK 0）
+- 11→12（BREAK 1）、12→12（BREAK 0）
+- 14→16（BREAK 2）、15→16（BREAK 1）、16→16（BREAK 0）
+- 17→18（BREAK 1）、18→18（BREAK 0）
+- 19→20（BREAK 1）、20→20（BREAK 0）
+- 13および21以上など: fixture未対応
 
 ## CDM fixture と circle method の違い
 

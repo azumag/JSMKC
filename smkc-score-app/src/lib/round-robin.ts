@@ -19,7 +19,7 @@
  */
 
 import { BYE_SCORE_BM_MR, GP_BYE_SCORE } from '@/lib/constants';
-import { CDM_ROUND_ROBIN_FIXTURES } from '@/lib/cdm-round-robin-fixtures';
+import { CDM_ROUND_ROBIN_FIXTURES, getCdmRoundRobinFixturePlan } from '@/lib/cdm-round-robin-fixtures';
 
 /** Sentinel player ID for BYE matches when player count is odd */
 export const BREAK_PLAYER_ID = '__BREAK__';
@@ -59,16 +59,6 @@ export class UnsupportedRoundRobinPlayerCountError extends Error {
   }
 }
 
-function cdmFixtureCapacity(playerCount: number): number | null {
-  if ([7, 8].includes(playerCount)) return 8;
-  if ([9, 10].includes(playerCount)) return 10;
-  if ([11, 12].includes(playerCount)) return 12;
-  if ([14, 15, 16].includes(playerCount)) return 16;
-  if ([17, 18].includes(playerCount)) return 18;
-  if ([19, 20].includes(playerCount)) return 20;
-  return null;
-}
-
 /** Intermediate pairing before 1P/2P assignment */
 interface RawPairing {
   day: number;
@@ -92,15 +82,16 @@ export function generateRoundRobinSchedule(
   playerIds: string[],
   { method = 'circle' }: { method?: QualificationScheduleMethod } = {},
 ): RoundRobinSchedule {
-  const fixtureCapacity = method === 'cdm' ? cdmFixtureCapacity(playerIds.length) : null;
-  if (method === 'cdm' && !fixtureCapacity) throw new UnsupportedRoundRobinPlayerCountError(playerIds.length);
+  const fixturePlan = method === 'cdm' ? getCdmRoundRobinFixturePlan(playerIds.length) : null;
+  if (method === 'cdm' && !fixturePlan) throw new UnsupportedRoundRobinPlayerCountError(playerIds.length);
 
   if (playerIds.length < 2) {
     return { matches: [], totalDays: 0, hasByes: false };
   }
 
-  if (fixtureCapacity) {
-    const breakSlots = BREAK_SLOT_IDS.slice(0, fixtureCapacity - playerIds.length);
+  if (fixturePlan) {
+    const { capacity: fixtureCapacity, breakSlotCount } = fixturePlan;
+    const breakSlots = BREAK_SLOT_IDS.slice(0, breakSlotCount);
     const participants = [...playerIds, ...breakSlots];
     const fixture = CDM_ROUND_ROBIN_FIXTURES[fixtureCapacity];
     return {
