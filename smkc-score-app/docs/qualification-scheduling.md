@@ -6,12 +6,10 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 大会には `qualificationScheduleMethod` が保存されます。新規大会は `cdm` として作成されますが、実際に各グループへ適用する方式は `resolveQualificationScheduleMethodForGroup` が人数ごとに決定します。
 
-| 保存された方針 | グループ人数 | 実効方式 |
-| --- | ---: | --- |
-| `circle` | 任意 | circle |
-| `cdm` | 13名以下 | circle |
-| `cdm` | 14〜20名 | CDM fixture |
-| `cdm` | 21名以上 | CDMを要求し、round-robin生成時に未対応人数として明示エラー |
+- 保存された方針が `circle`: 人数によらずcircle
+- 保存された方針が `cdm` かつ13名以下: circle
+- 保存された方針が `cdm` かつ14〜20名: CDM fixture
+- 保存された方針が `cdm` かつ21名以上: CDMを要求し、round-robin生成時に未対応人数として明示エラー
 
 このため、新規大会が `cdm` 方針であっても、13名以下のグループは現在も従来のcircle methodです。
 
