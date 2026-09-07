@@ -21,6 +21,16 @@ describe('security audit npm runtime guard', () => {
     expect(auditSpawnIndex).toBeGreaterThan(runtimeGuardIndex);
   });
 
+  it('verifies the canonical npm audit registry before invoking npm audit', () => {
+    const registryGuardIndex = helper.indexOf('verifyNpmAuditRegistry();');
+    const auditSpawnIndex = helper.indexOf(
+      "spawnSync('npm', ['audit', '--json', '--audit-level=low', '--package-lock-only']",
+    );
+
+    expect(registryGuardIndex).toBeGreaterThanOrEqual(0);
+    expect(auditSpawnIndex).toBeGreaterThan(registryGuardIndex);
+  });
+
   it('validates the lockfile schema before invoking npm audit', () => {
     expect(helper).toContain("require('./security-audit-lockfile.js')");
 
@@ -59,6 +69,10 @@ describe('security audit npm runtime guard', () => {
 const fs = require('node:fs');
 if (process.argv[2] === '--version') {
   process.stdout.write('10.9.4\n');
+  process.exit(0);
+}
+if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
+  process.stdout.write('https://registry.npmjs.org/\n');
   process.exit(0);
 }
 fs.writeFileSync(process.env.AUDIT_ARGS_MARKER, JSON.stringify(process.argv.slice(2)));
@@ -125,6 +139,10 @@ if (process.argv[2] === '--version') {
   process.stdout.write('10.9.4\n');
   process.exit(0);
 }
+if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
+  process.stdout.write('https://registry.npmjs.org/\n');
+  process.exit(0);
+}
 fs.writeFileSync(process.env.AUDIT_MARKER, 'invoked');
 process.stdout.write('{}\n');
 `,
@@ -185,6 +203,10 @@ if (process.argv[2] === '--version') {
   process.stdout.write('10.9.4\n');
   process.exit(0);
 }
+if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
+  process.stdout.write('https://registry.npmjs.org/\n');
+  process.exit(0);
+}
 fs.writeFileSync(process.env.AUDIT_MARKER, 'invoked');
 process.stdout.write('{}\n');
 `,
@@ -243,6 +265,10 @@ if (process.argv[2] === '--version') {
   process.stdout.write('10.9.4\n');
   process.exit(0);
 }
+if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
+  process.stdout.write('https://registry.npmjs.org/\n');
+  process.exit(0);
+}
 fs.writeFileSync(process.env.AUDIT_MARKER, 'invoked');
 process.stdout.write('{}\n');
 `,
@@ -268,6 +294,63 @@ process.stdout.write('{}\n');
     }
   });
 
+  it('fails before npm audit when the configured registry is not the canonical npm registry', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-registry-'));
+    const binDir = path.join(tempDir, 'bin');
+    const npmPath = path.join(binDir, 'npm');
+    const auditMarker = path.join(tempDir, 'audit-invoked');
+
+    fs.mkdirSync(binDir);
+    fs.writeFileSync(
+      path.join(tempDir, 'package.json'),
+      JSON.stringify({ name: 'example-app', version: '1.0.0', packageManager: 'npm@10.9.4' }),
+    );
+    fs.writeFileSync(
+      path.join(tempDir, 'package-lock.json'),
+      JSON.stringify({
+        name: 'example-app',
+        version: '1.0.0',
+        lockfileVersion: 3,
+        packages: { '': { name: 'example-app', version: '1.0.0' } },
+      }),
+    );
+    fs.writeFileSync(
+      npmPath,
+      String.raw`#!/usr/bin/env node
+const fs = require('node:fs');
+if (process.argv[2] === '--version') {
+  process.stdout.write('10.9.4\n');
+  process.exit(0);
+}
+if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
+  process.stdout.write('https://registry.example.test/\n');
+  process.exit(0);
+}
+fs.writeFileSync(process.env.AUDIT_MARKER, 'invoked');
+process.stdout.write('{}\n');
+`,
+      { mode: 0o755 },
+    );
+
+    try {
+      const result = spawnSync(process.execPath, [helperPath], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          AUDIT_MARKER: auditMarker,
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        },
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('npm audit registry must be https://registry.npmjs.org/');
+      expect(fs.existsSync(auditMarker)).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['unsupported lockfile version', { lockfileVersion: 2, packages: { '': {} } }],
     ['malformed non-root package entry', { lockfileVersion: 3, packages: { '': {}, 'node_modules/example': null } }],
@@ -286,6 +369,10 @@ process.stdout.write('{}\n');
 const fs = require('node:fs');
 if (process.argv[2] === '--version') {
   process.stdout.write('10.9.4\n');
+  process.exit(0);
+}
+if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
+  process.stdout.write('https://registry.npmjs.org/\n');
   process.exit(0);
 }
 fs.writeFileSync(process.env.AUDIT_MARKER, 'invoked');
