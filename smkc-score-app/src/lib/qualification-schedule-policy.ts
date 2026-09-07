@@ -1,9 +1,6 @@
 import type { QualificationScheduleMethod } from '@/lib/round-robin';
 
-export type QualificationSchedulePolicyReason =
-  | 'configured-circle'
-  | 'cdm-small-group-legacy-circle'
-  | 'cdm-requested';
+export type QualificationSchedulePolicyReason = 'configured-circle' | 'cdm-small-group-legacy-circle' | 'cdm-requested';
 
 export interface QualificationSchedulePolicyDecision {
   configuredMethod: QualificationScheduleMethod;
@@ -62,8 +59,5 @@ export function resolveQualificationScheduleMethodForGroup(
   configuredMethod: QualificationScheduleMethod,
   playerCount: number,
 ): QualificationScheduleMethod {
-  return getQualificationSchedulePolicyDecision(
-    configuredMethod,
-    playerCount,
-  ).effectiveMethod;
+  return getQualificationSchedulePolicyDecision(configuredMethod, playerCount).effectiveMethod;
 }
