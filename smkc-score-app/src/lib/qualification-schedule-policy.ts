@@ -1,3 +1,4 @@
+import { getCdmRoundRobinFixturePlan } from '@/lib/cdm-round-robin-fixtures';
 import type { QualificationScheduleMethod } from '@/lib/round-robin';
 
 export type QualificationSchedulePolicyReason = 'configured-circle' | 'cdm-small-group-legacy-circle' | 'cdm-requested';
@@ -7,6 +8,8 @@ export interface QualificationSchedulePolicyDecision {
   playerCount: number;
   effectiveMethod: QualificationScheduleMethod;
   reason: QualificationSchedulePolicyReason;
+  cdmFixtureCapacity: number | null;
+  cdmBreakSlotCount: number | null;
 }
 
 /**
@@ -21,12 +24,19 @@ export function getQualificationSchedulePolicyDecision(
   configuredMethod: QualificationScheduleMethod,
   playerCount: number,
 ): QualificationSchedulePolicyDecision {
+  const fixturePlan = getCdmRoundRobinFixturePlan(playerCount);
+  const fixtureMetadata = {
+    cdmFixtureCapacity: fixturePlan?.capacity ?? null,
+    cdmBreakSlotCount: fixturePlan?.breakSlotCount ?? null,
+  };
+
   if (configuredMethod !== 'cdm') {
     return {
       configuredMethod,
       playerCount,
       effectiveMethod: 'circle',
       reason: 'configured-circle',
+      ...fixtureMetadata,
     };
   }
 
@@ -36,6 +46,7 @@ export function getQualificationSchedulePolicyDecision(
       playerCount,
       effectiveMethod: 'circle',
       reason: 'cdm-small-group-legacy-circle',
+      ...fixtureMetadata,
     };
   }
 
@@ -44,6 +55,7 @@ export function getQualificationSchedulePolicyDecision(
     playerCount,
     effectiveMethod: 'cdm',
     reason: 'cdm-requested',
+    ...fixtureMetadata,
   };
 }
 
