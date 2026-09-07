@@ -54,6 +54,14 @@ describe('CI workflow configuration', () => {
     expect(auditStep).toBeDefined();
   });
 
+  it('re-verifies the pinned npm runtime at the security audit entrypoint', () => {
+    const auditStep = lintAndTestJob.steps.find((s) => s.run?.includes('node scripts/security-audit.js'));
+    expect(auditStep?.run).toContain('node scripts/verify-npm-version.js');
+    expect(auditStep?.run?.indexOf('node scripts/verify-npm-version.js')).toBeLessThan(
+      auditStep?.run?.indexOf('node scripts/security-audit.js') ?? -1,
+    );
+  });
+
   it('runs the security audit inside the smkc-score-app working-directory job', () => {
     // defaults.run.working-directory で全ステップが smkc-score-app/ 配下で実行される。
     // helper が package-lock.json を直接検証するため、この working-directory は必須。
