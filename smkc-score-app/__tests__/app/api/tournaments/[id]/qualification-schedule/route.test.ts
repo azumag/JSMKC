@@ -35,9 +35,12 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
   });
 
   it('returns configured and effective schedule policy for populated groups', async () => {
-    const response = await GET(new NextRequest('http://localhost/api/tournaments/tournament-1/qualification-schedule'), {
-      params: Promise.resolve({ id: 'tournament-1' }),
-    });
+    const response = await GET(
+      new NextRequest('http://localhost/api/tournaments/tournament-1/qualification-schedule'),
+      {
+        params: Promise.resolve({ id: 'tournament-1' }),
+      },
+    );
 
     expect(response.status).toBe(200);
     const json = await response.json();
@@ -69,9 +72,12 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
   it('rejects non-admin users before reading tournament data', async () => {
     jest.mocked(auth).mockResolvedValue({ user: { id: 'player-1', role: 'player' } } as never);
 
-    const response = await GET(new NextRequest('http://localhost/api/tournaments/tournament-1/qualification-schedule'), {
-      params: Promise.resolve({ id: 'tournament-1' }),
-    });
+    const response = await GET(
+      new NextRequest('http://localhost/api/tournaments/tournament-1/qualification-schedule'),
+      {
+        params: Promise.resolve({ id: 'tournament-1' }),
+      },
+    );
 
     expect(response.status).toBe(403);
     expect(prisma.tournament.findFirst).not.toHaveBeenCalled();
