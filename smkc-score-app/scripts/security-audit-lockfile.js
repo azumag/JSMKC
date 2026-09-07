@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 
 const EXPECTED_LOCKFILE_VERSION = 3;
+const DEPENDENCY_SNAPSHOT_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
 
 function hasExpectedSecurityAuditLockfileShape(lockfile) {
   if (
@@ -21,7 +22,53 @@ function hasExpectedSecurityAuditLockfileShape(lockfile) {
   return Boolean(rootPackage && typeof rootPackage === 'object' && !Array.isArray(rootPackage));
 }
 
+function isOptionalDependencyMap(value) {
+  return value === undefined || Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile) {
+  if (
+    !manifest ||
+    typeof manifest !== 'object' ||
+    Array.isArray(manifest) ||
+    !hasExpectedSecurityAuditLockfileShape(lockfile)
+  ) {
+    return false;
+  }
+
+  const rootPackage = lockfile.packages[''];
+  return DEPENDENCY_SNAPSHOT_FIELDS.every((field) => {
+    const manifestMap = manifest[field];
+    const lockfileMap = rootPackage[field];
+    if (!isOptionalDependencyMap(manifestMap) || !isOptionalDependencyMap(lockfileMap)) {
+      return false;
+    }
+
+    const manifestEntries = Object.entries(manifestMap || {});
+    const lockfileEntries = Object.entries(lockfileMap || {});
+    return (
+      manifestEntries.length === lockfileEntries.length &&
+      manifestEntries.every(
+        ([name, range]) =>
+          typeof range === 'string' &&
+          range.length > 0 &&
+          Object.prototype.hasOwnProperty.call(lockfileMap || {}, name) &&
+          lockfileMap[name] === range,
+      ) &&
+      lockfileEntries.every(([, range]) => typeof range === 'string' && range.length > 0)
+    );
+  });
+}
+
 function main() {
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  } catch (error) {
+    process.stderr.write(`Failed to read package.json for security audit: ${error.message}\n`);
+    process.exit(1);
+  }
+
   let lockfile;
   try {
     lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
@@ -36,10 +83,20 @@ function main() {
     );
     process.exit(1);
   }
+
+  if (!hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)) {
+    process.stderr.write(
+      'Security audit requires package.json dependency declarations to match the package-lock.json root package snapshot; refresh the lockfile before continuing.\n',
+    );
+    process.exit(1);
+  }
 }
 
 if (require.main === module) {
   main();
 }
 
-module.exports = { hasExpectedSecurityAuditLockfileShape };
+module.exports = {
+  hasExpectedSecurityAuditLockfileShape,
+  hasMatchingSecurityAuditManifestSnapshot,
+};

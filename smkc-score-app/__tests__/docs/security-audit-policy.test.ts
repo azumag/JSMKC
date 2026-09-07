@@ -54,22 +54,28 @@ describe('security audit policy documentation', () => {
 
   it('documents the lockfile root package snapshot precondition', () => {
     expect(policy).toContain('`packages[\"\"]` の root package snapshot');
-    expect(policy).toContain('root snapshot の drift');
+    expect(policy).toContain('root dependency snapshot が stale');
     expect(lockfileHelper).toContain("const rootPackage = lockfile.packages['']");
     expect(helper).toContain("require('./security-audit-lockfile.js')");
     expect(helper).toContain('hasExpectedSecurityAuditLockfileShape(lockfile)');
-    expect(policy).toContain('helper を単独実行するローカル・別CI経路でも lockfile guard を迂回できない');
+    expect(policy).toContain(
+      'helper を単独実行するローカル・別CI経路でも lockfile guard や manifest/lockfile parity guard を迂回できない',
+    );
     expect(lockfileTest).toContain('accepts a minimal v3 lockfile with an object root package snapshot');
+    expect(lockfileTest).toContain('requires package.json dependency maps to match the lockfile root snapshot');
     expect(runtimeGuardTest).toContain('validates the lockfile schema before invoking npm audit');
+    expect(runtimeGuardTest).toContain('package.json and lockfile dependency snapshots differ');
   });
 
   it('documents manifest drift as a fail-closed condition', () => {
     expect(policy).toContain('実際の `package.json` を1回だけ読み');
     expect(policy).toContain('`package-lock.json` root snapshot');
-    expect(policy).toContain('manifest / lockfile の前提が変化する');
-    expect(policy).toContain('`dependencies` / `devDependencies`');
-    expect(policy).toContain('container drift');
+    expect(policy).toContain('dependency declaration が一致しない');
+    expect(policy).toContain('`dependencies` / `devDependencies` / `optionalDependencies` / `peerDependencies`');
+    expect(policy).toContain('manifest/lockfile parity guard');
     expect(helper).toContain('manifest = loadPackageManifest();');
+    expect(helper).toContain('hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)');
+    expect(lockfileHelper).toContain('function hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)');
     expect(helper).toContain('function isOptionalObjectMap(value)');
     expect(helperTest).toContain('Prisma devDependency range changes');
     expect(helperTest).toContain('package.json Prisma devDependency drifts');

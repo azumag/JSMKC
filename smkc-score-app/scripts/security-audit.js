@@ -2,7 +2,10 @@
 
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-const { hasExpectedSecurityAuditLockfileShape } = require('./security-audit-lockfile.js');
+const {
+  hasExpectedSecurityAuditLockfileShape,
+  hasMatchingSecurityAuditManifestSnapshot,
+} = require('./security-audit-lockfile.js');
 const { loadPackageManifest, verifyNpmRuntime } = require('./verify-npm-version.js');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
@@ -596,6 +599,13 @@ function main() {
   if (!hasExpectedSecurityAuditLockfileShape(lockfile)) {
     process.stderr.write(
       'Security audit requires package-lock.json lockfileVersion 3 with a packages object and root package snapshot; review lockfile schema drift before continuing.\n',
+    );
+    process.exit(1);
+  }
+
+  if (!hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)) {
+    process.stderr.write(
+      'Security audit requires package.json dependency declarations to match the package-lock.json root package snapshot; refresh the lockfile before continuing.\n',
     );
     process.exit(1);
   }
