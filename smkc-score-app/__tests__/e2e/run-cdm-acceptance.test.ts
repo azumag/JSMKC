@@ -1,11 +1,8 @@
 type CdmAcceptanceRunner = typeof import('../../e2e/run-cdm-acceptance');
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const cdmAcceptanceRunner = require(
-  '../../e2e/run-cdm-acceptance',
-) as CdmAcceptanceRunner;
-const { CDM_TARGETS, parseCliArgs, resolveCommitSha, runCdmAcceptance } =
-  cdmAcceptanceRunner;
+const cdmAcceptanceRunner = require('../../e2e/run-cdm-acceptance') as CdmAcceptanceRunner;
+const { CDM_TARGETS, parseCliArgs, resolveCommitSha, runCdmAcceptance } = cdmAcceptanceRunner;
 
 describe('CDM preview acceptance evidence runner', () => {
   const commitSha = '0123456789abcdef0123456789abcdef01234567';
@@ -49,11 +46,7 @@ describe('CDM preview acceptance evidence runner', () => {
       commitSha,
       resultSummary: 'PASS',
     });
-    expect(result.evidence.tracks.map((track: { status: string }) => track.status)).toEqual([
-      'PASS',
-      'PASS',
-      'PASS',
-    ]);
+    expect(result.evidence.tracks.map((track: { status: string }) => track.status)).toEqual(['PASS', 'PASS', 'PASS']);
     expect(writes).toHaveLength(1);
     expect(writes[0].path).toBe('/tmp/cdm-acceptance.json');
     expect(writes[0].encoding).toBe('utf8');
