@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
+const { hasExpectedSecurityAuditLockfileShape } = require('./security-audit-lockfile.js');
 const { verifyNpmRuntime } = require('./verify-npm-version.js');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
@@ -576,6 +577,21 @@ function main() {
   }
   process.stdout.write(`npm runtime version verified: ${npmRuntimeVersion}\n`);
 
+  let lockfile;
+  try {
+    lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+  } catch (error) {
+    process.stderr.write(`Failed to read package-lock.json for security audit: ${error.message}\n`);
+    process.exit(1);
+  }
+
+  if (!hasExpectedSecurityAuditLockfileShape(lockfile)) {
+    process.stderr.write(
+      'Security audit requires package-lock.json lockfileVersion 3 with a packages object and root package snapshot; review lockfile schema drift before continuing.\n',
+    );
+    process.exit(1);
+  }
+
   const audit = spawnSync('npm', ['audit', '--json', '--audit-level=low'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -624,7 +640,6 @@ function main() {
     process.exit(1);
   }
 
-  const lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   if (!hasConsistentAuditDependencyTotal(report, lockfile, { required: true })) {
     process.stderr.write(
       'npm audit metadata.dependencies.total must match the installed package count in package-lock.json\n',
