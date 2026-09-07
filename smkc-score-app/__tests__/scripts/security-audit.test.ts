@@ -344,6 +344,19 @@ describe('security audit exception', () => {
     expect(result.allowed).toEqual([]);
   });
 
+  it.each([
+    { 'deepmerge-ts': '8.0.0' },
+    { 'prisma@^6.19.3': '6.20.0' },
+    { parent: { '@prisma/config@6.19.3': '7.0.0' } },
+  ])('fails closed when package.json overrides can change the temporary exception chain: %p', (overrides) => {
+    const manifest = { ...structuredClone(allowedManifest), overrides };
+
+    const result = evaluateAuditReport(allowedChainReport, allowedLockfile, manifest);
+
+    expect(result.ok).toBe(false);
+    expect(result.allowed).toEqual([]);
+  });
+
   it('fails closed when package.json Prisma devDependency drifts while lockfile stays pinned', () => {
     const manifest = structuredClone(allowedManifest);
     manifest.devDependencies.prisma = '^6.20.0';

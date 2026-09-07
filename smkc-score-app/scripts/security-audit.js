@@ -30,6 +30,7 @@ const ALLOWED_INTEGRITY =
   'sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==';
 const ALLOWED_PRISMA_DEV_RANGE = '^6.19.3';
 const ALLOWED_PRISMA_NODE = 'node_modules/prisma';
+const ALLOWED_PRISMA_CONFIG_PACKAGE = '@prisma/config';
 const ALLOWED_PRISMA_CONFIG_NODE = 'node_modules/@prisma/config';
 const ALLOWED_PRISMA_VERSION = '6.19.3';
 const ALLOWED_PRISMA_CONFIG_VERSION = '6.19.3';
@@ -69,6 +70,7 @@ const SUMMARY_SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
 const NPM_AUDIT_EXIT_SEVERITIES = ['low', 'moderate', 'high', 'critical'];
 const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES);
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
+const TEMPORARY_EXCEPTION_PACKAGE_NAMES = new Set([ALLOWED_ROOT, ALLOWED_PRISMA_CONFIG_PACKAGE, ALLOWED_FIX_NAME]);
 const ALLOWED_GRAPH = {
   'deepmerge-ts': {
     via: [],
@@ -213,6 +215,39 @@ function isObjectMap(value) {
 
 function isOptionalObjectMap(value) {
   return value === undefined || isObjectMap(value);
+}
+
+function overrideKeyTargetsPackage(key, packageName) {
+  return typeof key === 'string' && (key === packageName || key.startsWith(`${packageName}@`));
+}
+
+function hasNoTemporaryAuditChainOverrides(manifest) {
+  const overrides = manifest?.overrides;
+  if (overrides === undefined) {
+    return true;
+  }
+  if (!isObjectMap(overrides)) {
+    return false;
+  }
+
+  const pending = [overrides];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const [key, value] of Object.entries(current)) {
+      for (const packageName of TEMPORARY_EXCEPTION_PACKAGE_NAMES) {
+        if (overrideKeyTargetsPackage(key, packageName)) {
+          return false;
+        }
+      }
+      if (isObjectMap(value)) {
+        pending.push(value);
+      } else if (typeof value !== 'string') {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 function isValidFixAvailable(value) {
@@ -511,6 +546,7 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
     deepmergeLock?.devOptional === true &&
     prismaIsExpectedDevOnly &&
     manifestPrismaIsExpectedDevOnly &&
+    hasNoTemporaryAuditChainOverrides(manifest) &&
     prismaContextIsExpected;
 
   if (!expectedLockState || !matchesExpectedGraph(vulnerabilities)) {
@@ -606,6 +642,13 @@ function main() {
   if (!hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)) {
     process.stderr.write(
       'Security audit requires package.json dependency declarations to match the package-lock.json root package snapshot; refresh the lockfile before continuing.\n',
+    );
+    process.exit(1);
+  }
+
+  if (!hasNoTemporaryAuditChainOverrides(manifest)) {
+    process.stderr.write(
+      'Security audit temporary exception does not permit package.json overrides targeting its dependency chain; review #3114 before changing the exception context.\n',
     );
     process.exit(1);
   }
@@ -706,6 +749,7 @@ module.exports = {
   hasExpectedAuditDependencySummary,
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,
+  hasNoTemporaryAuditChainOverrides,
   isExpectedAuditExitStatus,
   isTemporaryExceptionExpired,
 };
