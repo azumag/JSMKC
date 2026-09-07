@@ -54,7 +54,8 @@ export function QualificationScheduleDiagnosticsPanel({
                       </div>
                       <div className="mt-1 text-muted-foreground">{group.playerCount} players</div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        Configured: {group.configuredMethod.toUpperCase()} · Effective: {group.effectiveMethod.toUpperCase()}
+                        Configured: {group.configuredMethod.toUpperCase()} · Effective:{' '}
+                        {group.effectiveMethod.toUpperCase()}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">{REASON_LABELS[group.reason]}</div>
                     </li>
