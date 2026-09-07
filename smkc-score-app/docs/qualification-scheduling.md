@@ -13,6 +13,14 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 このため、新規大会が `cdm` 方針であっても、13名以下のグループは現在も従来のcircle methodです。
 
+`getQualificationSchedulePolicyDecision` はこの判定を `configuredMethod` / `playerCount` / `effectiveMethod` / `reason` として返します。現在の13→14境界を診断・テスト・将来の管理UIで再実装せず参照できるようにするための読み取り専用情報で、対戦表の生成結果自体は変更しません。
+
+現在の `reason` は次の3種類です。
+
+- `configured-circle`: 大会設定自体がcircle
+- `cdm-small-group-legacy-circle`: CDM-first大会だが13名以下なので現行policyによりcircle
+- `cdm-requested`: 14名以上なのでCDM生成を要求する。21名以上などfixture未対応人数は後段で明示エラー
+
 一方、低レベルの `generateRoundRobinSchedule(..., { method: 'cdm' })` 自体は RR 2025 Start の fixture に合わせて 7〜12名にも対応しています。つまり「fixtureが存在する人数」と「大会運用上CDMを選択する人数」は同じではありません。この差は意図的なpolicy境界として扱い、Issue #3054 の仕様決定なしに変更しません。
 
 ## CDM fixture と circle method の違い
@@ -44,4 +52,4 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 ## 回帰テスト
 
-`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界を独立して固定しています。Issue #3054 の要件確定後は、まずこのテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
+`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。Issue #3054 の要件確定後は、まずこのテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
