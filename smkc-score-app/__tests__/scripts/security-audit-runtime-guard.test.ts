@@ -10,34 +10,34 @@ describe('security audit npm runtime guard', () => {
   it('verifies the pinned npm runtime before invoking npm audit', () => {
     expect(helper).toContain("require('./verify-npm-version.js')");
 
-    const manifestLoadIndex = helper.indexOf('manifest = loadPackageManifest();');
+    const manifestLoadIndex = helper.indexOf('manifest = loadPackageManifest(() => manifestSource);');
     const runtimeGuardIndex = helper.indexOf('verifyNpmRuntime({ manifest });');
-    const auditSpawnIndex = helper.indexOf("const audit = spawnSync(\n    'npm',");
+    const auditRunIndex = helper.indexOf('audit = runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource);');
 
     expect(manifestLoadIndex).toBeGreaterThanOrEqual(0);
     expect(runtimeGuardIndex).toBeGreaterThan(manifestLoadIndex);
-    expect(auditSpawnIndex).toBeGreaterThan(runtimeGuardIndex);
+    expect(auditRunIndex).toBeGreaterThan(runtimeGuardIndex);
   });
 
   it('verifies the canonical npm audit registry before invoking npm audit', () => {
     const registryGuardIndex = helper.indexOf('verifyNpmAuditRegistry();');
-    const auditSpawnIndex = helper.indexOf("const audit = spawnSync(\n    'npm',");
+    const auditRunIndex = helper.indexOf('audit = runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource);');
 
     expect(registryGuardIndex).toBeGreaterThanOrEqual(0);
-    expect(auditSpawnIndex).toBeGreaterThan(registryGuardIndex);
+    expect(auditRunIndex).toBeGreaterThan(registryGuardIndex);
   });
 
   it('validates the lockfile schema before invoking npm audit', () => {
     expect(helper).toContain("require('./security-audit-lockfile.js')");
 
     const lockfileGuardIndex = helper.indexOf('hasExpectedSecurityAuditLockfileShape(lockfile)');
-    const auditSpawnIndex = helper.indexOf("const audit = spawnSync(\n    'npm',");
+    const auditRunIndex = helper.indexOf('audit = runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource);');
 
     expect(lockfileGuardIndex).toBeGreaterThanOrEqual(0);
-    expect(auditSpawnIndex).toBeGreaterThan(lockfileGuardIndex);
+    expect(auditRunIndex).toBeGreaterThan(lockfileGuardIndex);
   });
 
-  it('passes the validated lockfile snapshot and canonical registry directly to npm audit', () => {
+  it('passes the validated manifest/lockfile snapshot and canonical registry directly to npm audit', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-lockfile-input-'));
     const binDir = path.join(tempDir, 'bin');
     const npmPath = path.join(binDir, 'npm');
@@ -101,6 +101,95 @@ process.stdout.write(JSON.stringify({
         '--package-lock-only',
         '--registry=https://registry.npmjs.org/',
       ]);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('audits immutable copies of inputs captured before the registry preflight', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-snapshot-race-'));
+    const binDir = path.join(tempDir, 'bin');
+    const npmPath = path.join(binDir, 'npm');
+    const auditInputMarker = path.join(tempDir, 'audit-input.json');
+    const manifestSource = JSON.stringify({
+      name: 'example-app',
+      version: '1.0.0',
+      packageManager: 'npm@10.9.4',
+    });
+    const lockfileSource = JSON.stringify({
+      name: 'example-app',
+      version: '1.0.0',
+      lockfileVersion: 3,
+      packages: { '': { name: 'example-app', version: '1.0.0' } },
+    });
+
+    fs.mkdirSync(binDir);
+    fs.writeFileSync(path.join(tempDir, 'package.json'), manifestSource);
+    fs.writeFileSync(path.join(tempDir, 'package-lock.json'), lockfileSource);
+    fs.writeFileSync(
+      npmPath,
+      String.raw`#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+if (process.argv[2] === '--version') {
+  process.stdout.write('10.9.4\n');
+  process.exit(0);
+}
+if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
+  fs.writeFileSync(
+    path.join(process.cwd(), 'package.json'),
+    JSON.stringify({ name: 'mutated-app', version: '9.9.9', packageManager: 'npm@10.9.4' }),
+  );
+  fs.writeFileSync(
+    path.join(process.cwd(), 'package-lock.json'),
+    JSON.stringify({
+      name: 'mutated-app',
+      version: '9.9.9',
+      lockfileVersion: 3,
+      packages: { '': { name: 'mutated-app', version: '9.9.9' } },
+    }),
+  );
+  process.stdout.write('https://registry.npmjs.org/\n');
+  process.exit(0);
+}
+fs.writeFileSync(
+  process.env.AUDIT_INPUT_MARKER,
+  JSON.stringify({
+    cwd: process.cwd(),
+    manifestSource: fs.readFileSync('package.json', 'utf8'),
+    lockfileSource: fs.readFileSync('package-lock.json', 'utf8'),
+  }),
+);
+process.stdout.write(JSON.stringify({
+  auditReportVersion: 2,
+  vulnerabilities: {},
+  metadata: {
+    vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 },
+    dependencies: { prod: 0, dev: 0, optional: 0, peer: 0, peerOptional: 0, total: 0 },
+  },
+}) + '\n');
+`,
+      { mode: 0o755 },
+    );
+
+    try {
+      const result = spawnSync(process.execPath, [helperPath], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          AUDIT_INPUT_MARKER: auditInputMarker,
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        },
+      });
+
+      expect(result.status).toBe(0);
+      expect(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8')).toContain('mutated-app');
+      const observed = JSON.parse(fs.readFileSync(auditInputMarker, 'utf8'));
+      expect(observed.cwd).not.toBe(tempDir);
+      expect(observed.manifestSource).toBe(manifestSource);
+      expect(observed.lockfileSource).toBe(lockfileSource);
+      expect(fs.existsSync(observed.cwd)).toBe(false);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

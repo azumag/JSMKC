@@ -77,7 +77,7 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('dependency declaration が一致しない');
     expect(policy).toContain('`dependencies` / `devDependencies` / `optionalDependencies` / `peerDependencies`');
     expect(policy).toContain('manifest/lockfile parity guard');
-    expect(helper).toContain('manifest = loadPackageManifest();');
+    expect(helper).toContain('manifest = loadPackageManifest(() => manifestSource);');
     expect(helper).toContain('hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)');
     expect(helper).toContain('hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)');
     expect(lockfileHelper).toContain('function hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)');
@@ -121,10 +121,15 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('終了コードと summary の不一致');
     expect(policy).toContain('ローカル `node_modules` の欠落・追加・version drift');
     expect(runtimeGuardTest).toContain(
-      'passes the validated lockfile snapshot and canonical registry directly to npm audit',
+      'passes the validated manifest/lockfile snapshot and canonical registry directly to npm audit',
     );
     expect(helper).toContain("'--package-lock-only'");
     expect(helper).toContain('`--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`');
+    expect(helper).toContain('runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource)');
+    expect(helper).toContain('cwd: snapshotDir');
+    expect(policy).toContain('隔離した一時ディレクトリ');
+    expect(policy).toContain('検証済み source');
+    expect(runtimeGuardTest).toContain('audits immutable copies of inputs captured before the registry preflight');
     expect(helper).toContain('function hasConsistentAuditExitStatus(report, status)');
   });
 
