@@ -729,10 +729,15 @@ function main() {
   }
   process.stdout.write(`npm audit registry verified: ${npmAuditRegistry}\n`);
 
-  const audit = spawnSync('npm', ['audit', '--json', '--audit-level=low', '--package-lock-only'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  // Bind the endpoint again at execution time so config changes after the preflight cannot redirect advisory traffic.
+  const audit = spawnSync(
+    'npm',
+    ['audit', '--json', '--audit-level=low', '--package-lock-only', `--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`],
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
 
   if (audit.error || audit.signal || !audit.stdout || !isExpectedAuditExitStatus(audit.status)) {
     const reason =
