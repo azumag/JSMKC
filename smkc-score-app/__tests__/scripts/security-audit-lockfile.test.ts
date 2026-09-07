@@ -3,6 +3,7 @@ import path from 'path';
 
 import {
   hasExpectedSecurityAuditLockfileShape,
+  hasMatchingSecurityAuditPackageIdentity,
   hasMatchingSecurityAuditManifestSnapshot,
 } from '../../scripts/security-audit-lockfile.js';
 
@@ -15,6 +16,53 @@ describe('security audit lockfile preflight', () => {
 
   it('accepts a minimal v3 lockfile with an object root package snapshot', () => {
     expect(hasExpectedSecurityAuditLockfileShape({ lockfileVersion: 3, packages: { '': {} } })).toBe(true);
+  });
+
+  it('requires package identity to match across package.json and both lockfile identity snapshots', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'package.json'), 'utf8'));
+    const lockfile = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'package-lock.json'), 'utf8'));
+
+    expect(hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)).toBe(true);
+  });
+
+  it.each([
+    [
+      'top-level name',
+      { name: 'other-app', version: '0.1.0', packages: { '': { name: 'smkc-score-app', version: '0.1.0' } } },
+    ],
+    [
+      'top-level version',
+      { name: 'smkc-score-app', version: '9.9.9', packages: { '': { name: 'smkc-score-app', version: '0.1.0' } } },
+    ],
+    [
+      'root package name',
+      { name: 'smkc-score-app', version: '0.1.0', packages: { '': { name: 'other-app', version: '0.1.0' } } },
+    ],
+    [
+      'root package version',
+      { name: 'smkc-score-app', version: '0.1.0', packages: { '': { name: 'smkc-score-app', version: '9.9.9' } } },
+    ],
+  ])('fails closed when %s drifts from package.json', (_case, partialLockfile) => {
+    const manifest = { name: 'smkc-score-app', version: '0.1.0' };
+    const lockfile = { lockfileVersion: 3, ...partialLockfile };
+
+    expect(hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)).toBe(false);
+  });
+
+  it.each([
+    ['missing name', { version: '0.1.0' }],
+    ['empty name', { name: '', version: '0.1.0' }],
+    ['missing version', { name: 'smkc-score-app' }],
+    ['empty version', { name: 'smkc-score-app', version: '' }],
+  ])('fails closed for manifest package identity with %s', (_case, manifest) => {
+    const lockfile = {
+      name: 'smkc-score-app',
+      version: '0.1.0',
+      lockfileVersion: 3,
+      packages: { '': { name: 'smkc-score-app', version: '0.1.0' } },
+    };
+
+    expect(hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)).toBe(false);
   });
 
   it.each([null, [], 'invalid', 1])('fails closed for malformed non-root package entries: %p', (packageEntry) => {
