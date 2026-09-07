@@ -81,6 +81,13 @@ describe('security audit policy documentation', () => {
     expect(summaryTest).toContain('summary contains an unknown key');
   });
 
+  it('pins and validates npm audit exit status semantics', () => {
+    expect(policy).toContain('`npm audit --json --audit-level=low`');
+    expect(policy).toContain('終了コードと summary の不一致');
+    expect(helper).toContain("['audit', '--json', '--audit-level=low']");
+    expect(helper).toContain('function hasConsistentAuditExitStatus(report, status)');
+  });
+
   it('documents audit report schema drift as a fail-closed condition', () => {
     expect(policy).toContain('top-level に `error` field');
     expect(policy).toContain('CI entrypoint では `auditReportVersion` を必須');

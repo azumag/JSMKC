@@ -61,6 +61,7 @@ const ALLOWED_PRISMA_INTEGRITY =
 const ALLOWED_PRISMA_CONFIG_INTEGRITY =
   'sha512-CBPT44BjlQxEt8kiMEauji2WHTDoVBOKl7UlewXmUgBPnr/oPRZC3psci5chJnYmH0ivEIog2OU9PGWoki3DLQ==';
 const SUMMARY_SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
+const NPM_AUDIT_EXIT_SEVERITIES = ['low', 'moderate', 'high', 'critical'];
 const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES);
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const ALLOWED_GRAPH = {
@@ -540,13 +541,32 @@ function isExpectedAuditExitStatus(status) {
   return status === 0 || status === 1;
 }
 
+function hasConsistentAuditExitStatus(report, status) {
+  if (!isExpectedAuditExitStatus(status)) {
+    return false;
+  }
+
+  const summary = report?.metadata?.vulnerabilities;
+  if (
+    !summary ||
+    typeof summary !== 'object' ||
+    Array.isArray(summary) ||
+    !SUMMARY_SEVERITIES.every((severity) => Number.isInteger(summary[severity]) && summary[severity] >= 0)
+  ) {
+    return false;
+  }
+
+  const expectedStatus = NPM_AUDIT_EXIT_SEVERITIES.some((severity) => summary[severity] > 0) ? 1 : 0;
+  return status === expectedStatus;
+}
+
 function isTemporaryExceptionExpired(now = new Date(), deadlineMs = TEMPORARY_EXCEPTION_REVIEW_DEADLINE_MS) {
   const nowMs = now instanceof Date ? now.getTime() : Number.NaN;
   return !Number.isFinite(nowMs) || !Number.isFinite(deadlineMs) || nowMs >= deadlineMs;
 }
 
 function main() {
-  const audit = spawnSync('npm', ['audit', '--json'], {
+  const audit = spawnSync('npm', ['audit', '--json', '--audit-level=low'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -579,6 +599,11 @@ function main() {
 
   if (!hasExpectedAuditSummary(report, { required: true })) {
     process.stderr.write('npm audit metadata.vulnerabilities must include all severity counts and total\n');
+    process.exit(1);
+  }
+
+  if (!hasConsistentAuditExitStatus(report, audit.status)) {
+    process.stderr.write('npm audit exit status must match metadata.vulnerabilities at the pinned low audit level\n');
     process.exit(1);
   }
 
@@ -635,6 +660,7 @@ if (require.main === module) {
 module.exports = {
   evaluateAuditReport,
   hasConsistentAuditDependencyTotal,
+  hasConsistentAuditExitStatus,
   hasExpectedAuditDependencySummary,
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,
