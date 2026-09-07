@@ -498,32 +498,7 @@ function buildEffectClosure(vulnerabilities, rootName) {
   return closure;
 }
 
-function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['']) {
-  if (
-    !report ||
-    Object.prototype.hasOwnProperty.call(report, 'error') ||
-    !hasKnownAuditReportFields(report) ||
-    !hasExpectedAuditReportVersion(report) ||
-    !hasValidAuditMetadata(report.metadata) ||
-    !hasExpectedAuditDependencySummary(report) ||
-    !hasValidVulnerabilityEntries(report.vulnerabilities)
-  ) {
-    return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
-  }
-
-  const vulnerabilities = report.vulnerabilities;
-  const blockingEntries = Object.entries(vulnerabilities).filter(([, vulnerability]) =>
-    BLOCKING_SEVERITIES.has(vulnerability?.severity),
-  );
-
-  if (!hasConsistentVulnerabilitySummary(report, vulnerabilities)) {
-    return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
-  }
-
-  if (blockingEntries.length === 0) {
-    return { ok: true, allowed: [], unexpected: [] };
-  }
-
+function hasExpectedTemporaryExceptionContext(lockfile, manifest = lockfile?.packages?.['']) {
   const deepmergeLock = lockfile?.packages?.[ALLOWED_NODE];
   const prismaLock = lockfile?.packages?.[ALLOWED_PRISMA_NODE];
   const prismaConfigLock = lockfile?.packages?.[ALLOWED_PRISMA_CONFIG_NODE];
@@ -555,7 +530,8 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
     prismaConfigLock?.devOptional === true &&
     isOptionalStringMap(prismaConfigLock?.dependencies) &&
     prismaConfigLock?.dependencies?.['deepmerge-ts'] === ALLOWED_VERSION;
-  const expectedLockState =
+
+  return (
     deepmergeLock?.version === ALLOWED_VERSION &&
     deepmergeLock?.resolved === ALLOWED_RESOLVED &&
     deepmergeLock?.integrity === ALLOWED_INTEGRITY &&
@@ -563,9 +539,42 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
     prismaIsExpectedDevOnly &&
     manifestPrismaIsExpectedDevOnly &&
     hasNoTemporaryAuditChainOverrides(manifest) &&
-    prismaContextIsExpected;
+    prismaContextIsExpected
+  );
+}
 
-  if (!expectedLockState || !matchesExpectedGraph(vulnerabilities)) {
+function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['']) {
+  if (
+    !report ||
+    Object.prototype.hasOwnProperty.call(report, 'error') ||
+    !hasKnownAuditReportFields(report) ||
+    !hasExpectedAuditReportVersion(report) ||
+    !hasValidAuditMetadata(report.metadata) ||
+    !hasExpectedAuditDependencySummary(report) ||
+    !hasValidVulnerabilityEntries(report.vulnerabilities)
+  ) {
+    return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
+  }
+
+  const vulnerabilities = report.vulnerabilities;
+  const blockingEntries = Object.entries(vulnerabilities).filter(([, vulnerability]) =>
+    BLOCKING_SEVERITIES.has(vulnerability?.severity),
+  );
+
+  if (!hasConsistentVulnerabilitySummary(report, vulnerabilities)) {
+    return { ok: false, allowed: [], unexpected: ['invalid-audit-report'] };
+  }
+
+  const temporaryExceptionContextMatches = hasExpectedTemporaryExceptionContext(lockfile, manifest);
+
+  if (blockingEntries.length === 0) {
+    if (temporaryExceptionContextMatches) {
+      return { ok: false, allowed: [], unexpected: ['missing-expected-temporary-advisory'] };
+    }
+    return { ok: true, allowed: [], unexpected: [] };
+  }
+
+  if (!temporaryExceptionContextMatches || !matchesExpectedGraph(vulnerabilities)) {
     return {
       ok: false,
       allowed: [],
@@ -858,6 +867,7 @@ module.exports = {
   hasExpectedAuditDependencySummary,
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,
+  hasExpectedTemporaryExceptionContext,
   hasNoTemporaryAuditChainOverrides,
   isCanonicalNpmAuditRegistry,
   isExpectedAuditExitStatus,

@@ -53,6 +53,16 @@ describe('security audit policy documentation', () => {
     expect(expiryTest).toContain('fails closed when the parsed review deadline is invalid');
   });
 
+  it('fails closed if the known vulnerable exception context remains but the advisory disappears', () => {
+    expect(policy).toContain('`missing-expected-temporary-advisory`');
+    expect(policy).toContain('advisory feed の一時的な欠落・撤回・意味論変更');
+    expect(policy).toContain('既知の脆弱な lock context 自体が安全な forward update 等で解消');
+    expect(helper).toContain('function hasExpectedTemporaryExceptionContext(lockfile, manifest =');
+    expect(helper).toContain("unexpected: ['missing-expected-temporary-advisory']");
+    expect(helperTest).toContain('known vulnerable lock context remains but npm audit omits the advisory');
+    expect(helperTest).toContain('known vulnerable lock context has been remediated');
+  });
+
   it('documents the lockfile root package snapshot precondition', () => {
     expect(policy).toContain('`packages[\"\"]` の root package snapshot');
     expect(policy).toContain('root dependency snapshot が stale');

@@ -87,6 +87,26 @@ describe('security audit exception', () => {
     expect(result.allowed).toEqual(['deepmerge-ts', '@prisma/config', 'prisma']);
   });
 
+  it('fails closed when the known vulnerable lock context remains but npm audit omits the advisory', () => {
+    const result = evaluateAuditReport({ vulnerabilities: {} }, allowedLockfile, allowedManifest);
+
+    expect(result).toEqual({
+      ok: false,
+      allowed: [],
+      unexpected: ['missing-expected-temporary-advisory'],
+    });
+  });
+
+  it('accepts a clean audit after the known vulnerable lock context has been remediated', () => {
+    const remediatedLockfile = structuredClone(allowedLockfile);
+    remediatedLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.1';
+    remediatedLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.1';
+
+    const result = evaluateAuditReport({ vulnerabilities: {} }, remediatedLockfile, allowedManifest);
+
+    expect(result).toEqual({ ok: true, allowed: [], unexpected: [] });
+  });
+
   it('accepts matching npm audit summary severity metadata', () => {
     const report = {
       ...structuredClone(allowedChainReport),
