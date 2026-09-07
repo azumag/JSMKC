@@ -86,12 +86,9 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
   it('returns 404 for unknown tournaments', async () => {
     (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
 
-    const response = await GET(
-      new NextRequest('http://localhost/api/tournaments/missing/qualification-schedule'),
-      {
-        params: Promise.resolve({ id: 'missing' }),
-      },
-    );
+    const response = await GET(new NextRequest('http://localhost/api/tournaments/missing/qualification-schedule'), {
+      params: Promise.resolve({ id: 'missing' }),
+    });
 
     expect(response.status).toBe(404);
     expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
