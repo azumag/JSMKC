@@ -54,10 +54,11 @@ describe('CI workflow configuration', () => {
     expect(auditStep).toBeDefined();
   });
 
-  it('re-verifies the pinned npm runtime at the security audit entrypoint', () => {
+  it('runs lockfile preflight before the self-contained security audit entrypoint', () => {
     const auditStep = lintAndTestJob.steps.find((s) => s.run?.includes('node scripts/security-audit.js'));
-    expect(auditStep?.run).toContain('node scripts/verify-npm-version.js');
-    expect(auditStep?.run?.indexOf('node scripts/verify-npm-version.js')).toBeLessThan(
+    expect(auditStep?.run).toContain('node scripts/security-audit-lockfile.js');
+    expect(auditStep?.run).not.toContain('node scripts/verify-npm-version.js');
+    expect(auditStep?.run?.indexOf('node scripts/security-audit-lockfile.js')).toBeLessThan(
       auditStep?.run?.indexOf('node scripts/security-audit.js') ?? -1,
     );
   });
