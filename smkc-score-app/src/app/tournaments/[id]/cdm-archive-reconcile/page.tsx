@@ -4,7 +4,10 @@ import prisma from '@/lib/prisma';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { isCdmArchiveReconciliationExcluded } from '@/lib/cdm-archive-reconciliation-policy';
 import { CdmArchiveReconcileButton } from '@/components/tournament/cdm-archive-reconcile-button';
+import { QualificationScheduleDiagnosticsPanel } from '@/components/tournament/qualification-schedule-diagnostics-panel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buildQualificationScheduleDiagnostics } from '@/lib/qualification-schedule-diagnostics';
+import type { QualificationScheduleMethod } from '@/lib/round-robin';
 
 export default async function CdmArchiveReconciliationPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -33,6 +36,14 @@ export default async function CdmArchiveReconciliationPage({ params }: { params:
   });
   if (!tournament) notFound();
 
+  const configuredMethod: QualificationScheduleMethod =
+    tournament.qualificationScheduleMethod === 'cdm' ? 'cdm' : 'circle';
+  const [bm, mr, gp] = await Promise.all([
+    prisma.bMQualification.findMany({ where: { tournamentId: tournament.id }, select: { group: true } }),
+    prisma.mRQualification.findMany({ where: { tournamentId: tournament.id }, select: { group: true } }),
+    prisma.gPQualification.findMany({ where: { tournamentId: tournament.id }, select: { group: true } }),
+  ]);
+  const diagnostics = buildQualificationScheduleDiagnostics(configuredMethod, { bm, mr, gp });
   const excluded = isCdmArchiveReconciliationExcluded(tournament);
 
   return (
@@ -55,6 +66,7 @@ export default async function CdmArchiveReconciliationPage({ params }: { params:
             <dd className="font-mono">{tournament.qualificationScheduleMethod}</dd>
           </div>
         </dl>
+        <QualificationScheduleDiagnosticsPanel diagnostics={diagnostics} />
         {excluded ? (
           <p className="text-sm text-muted-foreground">JSMKC tournaments are intentionally excluded from correction.</p>
         ) : tournament.status !== 'completed' ? (

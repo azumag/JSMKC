@@ -23,7 +23,7 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 一方、低レベルの `generateRoundRobinSchedule(..., { method: 'cdm' })` 自体は RR 2025 Start の fixture に合わせて 7〜12名にも対応しています。つまり「fixtureが存在する人数」と「大会運用上CDMを選択する人数」は同じではありません。この差は意図的なpolicy境界として扱い、Issue #3054 の仕様決定なしに変更しません。
 
-## 管理者向け診断API
+## 管理者向け診断API / UI
 
 `GET /api/tournaments/:id/qualification-schedule` は管理者専用の読み取りAPIです。保存された `qualificationScheduleMethod` と、BM / MR / GP の現在の予選グループ人数から、各グループの実効方式を返します。
 
@@ -36,6 +36,8 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 - `reason`: 判定理由
 
 このAPIは大会設定・予選レコード・対戦表を変更しません。#3054 の仕様確定前でも、実大会が13→14境界のどちら側にいるかを運営・デバッグ時に確認できます。
+
+同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、実効方式、判定理由を確認でき、表示によって大会設定や対戦表が変更されることはありません。
 
 ## CDM fixture と circle method の違い
 
@@ -59,11 +61,11 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 1. 13名以下のTTグループも、利用可能な7/8/10/12人fixtureへ切り替えるのか。
 2. 「CDM方式」とは固定の対戦カード順だけを指すのか、それともシード位置・Day順・1P/2P配置まで完全一致させるのか。
-3. 既存の `circle` 大会を変更するのか、新規セットアップだけを対象とするのか。
+3. 既存の `circle` 大会を変更するのか、新規セットアップだけを対象にするのか。
 4. fixture容量と実人数が異なる場合（7→8、9→10、11→12、14/15→16、17→18、19→20）のBREAK配置をTTでもそのまま採用するのか。
 
 これらは大会結果や運営手順に影響するため、推測で変更しません。
 
 ## 回帰テスト
 
-`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果と、明示的なcircle設定の維持を検証します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
+`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果と、明示的なcircle設定の維持を検証します。`__tests__/components/tournament/qualification-schedule-diagnostics-panel.test.tsx` では管理UIがcircle/CDMの実効方式、判定理由、空モードを表示することを確認します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
