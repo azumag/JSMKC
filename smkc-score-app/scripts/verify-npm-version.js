@@ -41,7 +41,9 @@ function main() {
     const reason =
       npmVersion.error?.message ||
       (npmVersion.signal ? `npm --version terminated by signal ${npmVersion.signal}` : '') ||
-      (!npmVersion.stdout ? 'npm --version produced no output' : `npm --version exited with status ${npmVersion.status}`);
+      (!npmVersion.stdout
+        ? 'npm --version produced no output'
+        : `npm --version exited with status ${npmVersion.status}`);
     process.stderr.write(`${reason}\n`);
     process.stderr.write(npmVersion.stderr || '');
     process.exit(1);
@@ -49,7 +51,9 @@ function main() {
 
   const runtimeVersion = npmVersion.stdout.trim();
   if (!isExpectedNpmVersion(manifest.packageManager, runtimeVersion)) {
-    process.stderr.write(`npm runtime version mismatch: expected ${expectedVersion}, received ${runtimeVersion || '(empty)'}\n`);
+    process.stderr.write(
+      `npm runtime version mismatch: expected ${expectedVersion}, received ${runtimeVersion || '(empty)'}\n`,
+    );
     process.exit(1);
   }
 
