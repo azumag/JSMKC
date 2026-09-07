@@ -20,14 +20,21 @@ interface CiWorkflow {
   jobs: Record<string, CiJob>;
 }
 
+interface PackageManifest {
+  packageManager?: string;
+}
+
 describe('CI workflow configuration', () => {
   const ciPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'ci.yml');
+  const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
   // YAML パース結果を格納。beforeAll で設定される。
   let lintAndTestJob: CiJob;
+  let packageManifest: PackageManifest;
 
   beforeAll(() => {
     const raw = fs.readFileSync(ciPath, 'utf8');
     const workflow = parse(raw) as CiWorkflow;
+    packageManifest = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as PackageManifest;
     // jobs キーが存在しない (不正な YAML、コンフリクトマーカー混入等) 場合に
     // 各 it ブロックで TypeError が出るより明確なエラーにするための実行時ガード。
     // steps が undefined/空の場合も同様に早期エラーとする (#2464)
@@ -95,6 +102,23 @@ describe('CI workflow configuration', () => {
     expect(setupNodeStep).toBeDefined();
     // String() で YAML 数値/文字列表記差異を吸収 (#2467)
     expect(String(setupNodeStep?.with?.['node-version'])).toBe('22');
+  });
+
+  it('pins the package.json npm version before npm ci', () => {
+    const packageManager = packageManifest.packageManager;
+    expect(packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);
+
+    const steps = lintAndTestJob.steps;
+    const pinNpmSteps = steps.filter((s) => s.run?.includes('npm install --global npm@'));
+    const installSteps = steps.filter((s) => s.run?.trim() === 'npm ci');
+
+    expect(pinNpmSteps).toHaveLength(1);
+    expect(installSteps).toHaveLength(1);
+    expect(pinNpmSteps[0].run).toContain(`npm install --global ${packageManager}`);
+
+    const expectedVersion = packageManager?.replace(/^npm@/, '');
+    expect(pinNpmSteps[0].run).toContain(`test "$(npm --version)" = "${expectedVersion}"`);
+    expect(steps.indexOf(pinNpmSteps[0])).toBeLessThan(steps.indexOf(installSteps[0]));
   });
 
   it('passes --ci and --forceExit flags to npm test', () => {
