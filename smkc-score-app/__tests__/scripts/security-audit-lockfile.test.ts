@@ -17,6 +17,15 @@ describe('security audit lockfile preflight', () => {
     expect(hasExpectedSecurityAuditLockfileShape({ lockfileVersion: 3, packages: { '': {} } })).toBe(true);
   });
 
+  it.each([null, [], 'invalid', 1])('fails closed for malformed non-root package entries: %p', (packageEntry) => {
+    const lockfile = {
+      lockfileVersion: 3,
+      packages: { '': {}, 'node_modules/example': packageEntry },
+    };
+
+    expect(hasExpectedSecurityAuditLockfileShape(lockfile)).toBe(false);
+  });
+
   it('requires package.json dependency maps to match the lockfile root snapshot', () => {
     const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'package.json'), 'utf8'));
     const lockfile = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'package-lock.json'), 'utf8'));

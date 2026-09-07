@@ -634,7 +634,7 @@ function main() {
 
   if (!hasExpectedSecurityAuditLockfileShape(lockfile)) {
     process.stderr.write(
-      'Security audit requires package-lock.json lockfileVersion 3 with a packages object and root package snapshot; review lockfile schema drift before continuing.\n',
+      'Security audit requires package-lock.json lockfileVersion 3 with a packages object, object-valued package entries and a root package snapshot; review lockfile schema drift before continuing.\n',
     );
     process.exit(1);
   }

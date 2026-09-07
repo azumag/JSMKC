@@ -18,8 +18,15 @@ function hasExpectedSecurityAuditLockfileShape(lockfile) {
     return false;
   }
 
-  const rootPackage = lockfile.packages[''];
-  return Boolean(rootPackage && typeof rootPackage === 'object' && !Array.isArray(rootPackage));
+  if (
+    Object.values(lockfile.packages).some(
+      (packageEntry) => !packageEntry || typeof packageEntry !== 'object' || Array.isArray(packageEntry),
+    )
+  ) {
+    return false;
+  }
+
+  return Object.prototype.hasOwnProperty.call(lockfile.packages, '');
 }
 
 function isOptionalDependencyMap(value) {
@@ -79,7 +86,7 @@ function main() {
 
   if (!hasExpectedSecurityAuditLockfileShape(lockfile)) {
     process.stderr.write(
-      `Security audit requires package-lock.json lockfileVersion ${EXPECTED_LOCKFILE_VERSION} with a packages object and root package snapshot; review lockfile schema drift before continuing.\n`,
+      `Security audit requires package-lock.json lockfileVersion ${EXPECTED_LOCKFILE_VERSION} with a packages object, object-valued package entries and a root package snapshot; review lockfile schema drift before continuing.\n`,
     );
     process.exit(1);
   }

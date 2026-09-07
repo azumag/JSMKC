@@ -185,7 +185,10 @@ process.stdout.write('{}\n');
     }
   });
 
-  it('fails before npm audit when direct execution sees unsupported lockfile schema', () => {
+  it.each([
+    ['unsupported lockfile version', { lockfileVersion: 2, packages: { '': {} } }],
+    ['malformed non-root package entry', { lockfileVersion: 3, packages: { '': {}, 'node_modules/example': null } }],
+  ])('fails before npm audit when direct execution sees %s', (_case, lockfile) => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-lockfile-'));
     const binDir = path.join(tempDir, 'bin');
     const npmPath = path.join(binDir, 'npm');
@@ -193,10 +196,7 @@ process.stdout.write('{}\n');
 
     fs.mkdirSync(binDir);
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ packageManager: 'npm@10.9.4' }));
-    fs.writeFileSync(
-      path.join(tempDir, 'package-lock.json'),
-      JSON.stringify({ lockfileVersion: 2, packages: { '': {} } }),
-    );
+    fs.writeFileSync(path.join(tempDir, 'package-lock.json'), JSON.stringify(lockfile));
     fs.writeFileSync(
       npmPath,
       String.raw`#!/usr/bin/env node
