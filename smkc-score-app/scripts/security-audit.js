@@ -10,6 +10,7 @@ const {
 const { loadPackageManifest, verifyNpmRuntime } = require('./verify-npm-version.js');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
+const CANONICAL_NPM_AUDIT_REGISTRY = 'https://registry.npmjs.org/';
 const AUDIT_REPORT_OBJECT_KEYS = new Set(['auditReportVersion', 'vulnerabilities', 'metadata']);
 const AUDIT_METADATA_OBJECT_KEYS = new Set(['vulnerabilities', 'dependencies']);
 const DEPENDENCY_SUMMARY_KEYS = ['prod', 'dev', 'optional', 'peer', 'peerOptional', 'total'];
@@ -591,6 +592,52 @@ function evaluateAuditReport(report, lockfile, manifest = lockfile?.packages?.['
   return { ok: unexpected.length === 0, allowed, unexpected };
 }
 
+function isCanonicalNpmAuditRegistry(value) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return false;
+  }
+
+  try {
+    const registry = new URL(value.trim());
+    return (
+      registry.protocol === 'https:' &&
+      registry.hostname === 'registry.npmjs.org' &&
+      registry.port === '' &&
+      registry.pathname === '/' &&
+      registry.username === '' &&
+      registry.password === '' &&
+      registry.search === '' &&
+      registry.hash === ''
+    );
+  } catch {
+    return false;
+  }
+}
+
+function verifyNpmAuditRegistry() {
+  const configured = spawnSync('npm', ['config', 'get', 'registry'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  if (configured.error || configured.signal || configured.status !== 0 || !configured.stdout) {
+    const reason =
+      configured.error?.message ||
+      (configured.signal ? `npm config terminated by signal ${configured.signal}` : '') ||
+      (!configured.stdout
+        ? 'npm config get registry produced no output'
+        : `npm config get registry exited with status ${configured.status}`);
+    throw new Error(`Failed to verify npm audit registry: ${reason}`);
+  }
+
+  const registry = configured.stdout.trim();
+  if (!isCanonicalNpmAuditRegistry(registry)) {
+    throw new Error(`npm audit registry must be ${CANONICAL_NPM_AUDIT_REGISTRY}; received ${registry || '<empty>'}`);
+  }
+
+  return registry;
+}
+
 function isExpectedAuditExitStatus(status) {
   return status === 0 || status === 1;
 }
@@ -672,6 +719,15 @@ function main() {
     );
     process.exit(1);
   }
+
+  let npmAuditRegistry;
+  try {
+    npmAuditRegistry = verifyNpmAuditRegistry();
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`npm audit registry verified: ${npmAuditRegistry}\n`);
 
   const audit = spawnSync('npm', ['audit', '--json', '--audit-level=low', '--package-lock-only'], {
     encoding: 'utf8',
@@ -770,6 +826,8 @@ module.exports = {
   hasExpectedAuditReportVersion,
   hasExpectedAuditSummary,
   hasNoTemporaryAuditChainOverrides,
+  isCanonicalNpmAuditRegistry,
   isExpectedAuditExitStatus,
+  verifyNpmAuditRegistry,
   isTemporaryExceptionExpired,
 };
