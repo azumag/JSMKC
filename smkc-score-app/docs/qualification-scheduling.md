@@ -23,6 +23,20 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 一方、低レベルの `generateRoundRobinSchedule(..., { method: 'cdm' })` 自体は RR 2025 Start の fixture に合わせて 7〜12名にも対応しています。つまり「fixtureが存在する人数」と「大会運用上CDMを選択する人数」は同じではありません。この差は意図的なpolicy境界として扱い、Issue #3054 の仕様決定なしに変更しません。
 
+## 管理者向け診断API
+
+`GET /api/tournaments/:id/qualification-schedule` は管理者専用の読み取りAPIです。保存された `qualificationScheduleMethod` と、BM / MR / GP の現在の予選グループ人数から、各グループの実効方式を返します。
+
+レスポンスの各グループには次が含まれます。
+
+- `group`: グループ名
+- `configuredMethod`: 大会に保存されている方式
+- `playerCount`: 現在の予選レコード数
+- `effectiveMethod`: 現行policyで実際に選ばれる方式
+- `reason`: 判定理由
+
+このAPIは大会設定・予選レコード・対戦表を変更しません。#3054 の仕様確定前でも、実大会が13→14境界のどちら側にいるかを運営・デバッグ時に確認できます。
+
 ## CDM fixture と circle method の違い
 
 ### circle method
@@ -52,4 +66,4 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 ## 回帰テスト
 
-`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。Issue #3054 の要件確定後は、まずこのテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
+`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果と、明示的なcircle設定の維持を検証します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
