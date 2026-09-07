@@ -12,9 +12,7 @@ describe('security audit npm runtime guard', () => {
 
     const manifestLoadIndex = helper.indexOf('manifest = loadPackageManifest();');
     const runtimeGuardIndex = helper.indexOf('verifyNpmRuntime({ manifest });');
-    const auditSpawnIndex = helper.indexOf(
-      "spawnSync('npm', ['audit', '--json', '--audit-level=low', '--package-lock-only']",
-    );
+    const auditSpawnIndex = helper.indexOf("const audit = spawnSync(\n    'npm',");
 
     expect(manifestLoadIndex).toBeGreaterThanOrEqual(0);
     expect(runtimeGuardIndex).toBeGreaterThan(manifestLoadIndex);
@@ -23,9 +21,7 @@ describe('security audit npm runtime guard', () => {
 
   it('verifies the canonical npm audit registry before invoking npm audit', () => {
     const registryGuardIndex = helper.indexOf('verifyNpmAuditRegistry();');
-    const auditSpawnIndex = helper.indexOf(
-      "spawnSync('npm', ['audit', '--json', '--audit-level=low', '--package-lock-only']",
-    );
+    const auditSpawnIndex = helper.indexOf("const audit = spawnSync(\n    'npm',");
 
     expect(registryGuardIndex).toBeGreaterThanOrEqual(0);
     expect(auditSpawnIndex).toBeGreaterThan(registryGuardIndex);
@@ -35,15 +31,13 @@ describe('security audit npm runtime guard', () => {
     expect(helper).toContain("require('./security-audit-lockfile.js')");
 
     const lockfileGuardIndex = helper.indexOf('hasExpectedSecurityAuditLockfileShape(lockfile)');
-    const auditSpawnIndex = helper.indexOf(
-      "spawnSync('npm', ['audit', '--json', '--audit-level=low', '--package-lock-only']",
-    );
+    const auditSpawnIndex = helper.indexOf("const audit = spawnSync(\n    'npm',");
 
     expect(lockfileGuardIndex).toBeGreaterThanOrEqual(0);
     expect(auditSpawnIndex).toBeGreaterThan(lockfileGuardIndex);
   });
 
-  it('passes the validated lockfile snapshot to npm audit instead of local node_modules state', () => {
+  it('passes the validated lockfile snapshot and canonical registry directly to npm audit', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-lockfile-input-'));
     const binDir = path.join(tempDir, 'bin');
     const npmPath = path.join(binDir, 'npm');
@@ -105,6 +99,7 @@ process.stdout.write(JSON.stringify({
         '--json',
         '--audit-level=low',
         '--package-lock-only',
+        '--registry=https://registry.npmjs.org/',
       ]);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });

@@ -115,12 +115,27 @@ describe('security audit policy documentation', () => {
   });
 
   it('pins and validates npm audit exit status semantics', () => {
-    expect(policy).toContain('`npm audit --json --audit-level=low --package-lock-only`');
+    expect(policy).toContain(
+      '`npm audit --json --audit-level=low --package-lock-only --registry=https://registry.npmjs.org/`',
+    );
     expect(policy).toContain('終了コードと summary の不一致');
     expect(policy).toContain('ローカル `node_modules` の欠落・追加・version drift');
-    expect(runtimeGuardTest).toContain('passes the validated lockfile snapshot to npm audit');
-    expect(helper).toContain("['audit', '--json', '--audit-level=low', '--package-lock-only']");
+    expect(runtimeGuardTest).toContain(
+      'passes the validated lockfile snapshot and canonical registry directly to npm audit',
+    );
+    expect(helper).toContain("'--package-lock-only'");
+    expect(helper).toContain('`--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`');
     expect(helper).toContain('function hasConsistentAuditExitStatus(report, status)');
+  });
+
+  it('pins the canonical npm registry in both preflight and the audit subprocess', () => {
+    expect(policy).toContain('`npm config get registry`');
+    expect(policy).toContain('`--registry=https://registry.npmjs.org/`');
+    expect(policy).toContain('TOCTOU');
+    expect(helper).toContain('verifyNpmAuditRegistry();');
+    expect(helper).toContain('`--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`');
+    expect(runtimeGuardTest).toContain('canonical npm audit registry before invoking npm audit');
+    expect(runtimeGuardTest).toContain('--registry=https://registry.npmjs.org/');
   });
 
   it('keeps the pinned npm runtime guard inside the audit helper', () => {
