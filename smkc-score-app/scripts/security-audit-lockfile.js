@@ -33,6 +33,29 @@ function isOptionalDependencyMap(value) {
   return value === undefined || Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
+function hasMatchingSecurityAuditPackageIdentity(manifest, lockfile) {
+  if (
+    !manifest ||
+    typeof manifest !== 'object' ||
+    Array.isArray(manifest) ||
+    typeof manifest.name !== 'string' ||
+    manifest.name.length === 0 ||
+    typeof manifest.version !== 'string' ||
+    manifest.version.length === 0 ||
+    !hasExpectedSecurityAuditLockfileShape(lockfile)
+  ) {
+    return false;
+  }
+
+  const rootPackage = lockfile.packages[''];
+  return (
+    lockfile.name === manifest.name &&
+    lockfile.version === manifest.version &&
+    rootPackage.name === manifest.name &&
+    rootPackage.version === manifest.version
+  );
+}
+
 function hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile) {
   if (
     !manifest ||
@@ -91,6 +114,13 @@ function main() {
     process.exit(1);
   }
 
+  if (!hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)) {
+    process.stderr.write(
+      'Security audit requires package.json name/version to match package-lock.json top-level and root package identity; refresh the lockfile before continuing.\n',
+    );
+    process.exit(1);
+  }
+
   if (!hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)) {
     process.stderr.write(
       'Security audit requires package.json dependency declarations to match the package-lock.json root package snapshot; refresh the lockfile before continuing.\n',
@@ -105,5 +135,6 @@ if (require.main === module) {
 
 module.exports = {
   hasExpectedSecurityAuditLockfileShape,
+  hasMatchingSecurityAuditPackageIdentity,
   hasMatchingSecurityAuditManifestSnapshot,
 };
