@@ -12,6 +12,7 @@ describe('security audit policy documentation', () => {
   const errorReportTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-error-report.test.ts');
   const expiryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-expiry.test.ts');
   const lockfileTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-lockfile.test.ts');
+  const overrideTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-overrides.test.ts');
   const runtimeGuardTest = readRepoFile(
     'smkc-score-app',
     '__tests__',
@@ -82,6 +83,17 @@ describe('security audit policy documentation', () => {
     expect(helperTest).toContain('package.json also declares Prisma as a production dependency');
     expect(helperTest).toContain('package.json dependencies is not an object map');
     expect(helperTest).toContain('lockfile root dependencies snapshot is not an object map');
+  });
+
+  it('documents temporary exception override drift as a fail-closed condition', () => {
+    expect(policy).toContain('`package.json` の `overrides`');
+    expect(policy).toContain('直接・version 条件付き・nested override');
+    expect(policy).toContain('無関係な override は許容');
+    expect(helper).toContain('function hasNoTemporaryAuditChainOverrides(manifest)');
+    expect(helper).toContain('hasNoTemporaryAuditChainOverrides(manifest)');
+    expect(overrideTest).toContain('allows unrelated npm overrides');
+    expect(overrideTest).toContain('override can change the temporary exception chain');
+    expect(runtimeGuardTest).toContain('overrides target the temporary exception chain');
   });
 
   it('documents audit summary count drift as a fail-closed condition', () => {
