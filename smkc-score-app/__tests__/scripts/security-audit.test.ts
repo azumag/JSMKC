@@ -527,6 +527,32 @@ describe('security audit exception', () => {
     expect(result.allowed).toEqual([]);
   });
 
+  it.each([null, [], { '@prisma/config': '6.19.3', '@prisma/engines': null }])(
+    'fails closed when the installed Prisma dependency map has invalid lockfile metadata: %p',
+    (dependencies) => {
+      const lockfile = structuredClone(allowedLockfile);
+      lockfile.packages['node_modules/prisma'].dependencies = dependencies;
+
+      const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+    },
+  );
+
+  it.each([null, [], { 'deepmerge-ts': '7.1.5', effect: 321 }])(
+    'fails closed when the installed @prisma/config dependency map has invalid lockfile metadata: %p',
+    (dependencies) => {
+      const lockfile = structuredClone(allowedLockfile);
+      lockfile.packages['node_modules/@prisma/config'].dependencies = dependencies;
+
+      const result = evaluateAuditReport(allowedChainReport, lockfile);
+
+      expect(result.ok).toBe(false);
+      expect(result.allowed).toEqual([]);
+    },
+  );
+
   it('fails closed when the installed Prisma chain is no longer devOptional', () => {
     const lockfile = structuredClone(allowedLockfile);
     lockfile.packages['node_modules/@prisma/config'].devOptional = false;
