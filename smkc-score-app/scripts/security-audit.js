@@ -1,6 +1,8 @@
 'use strict';
 
 const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
   hasExpectedSecurityAuditLockfileShape,
@@ -638,6 +640,30 @@ function verifyNpmAuditRegistry() {
   return registry;
 }
 
+function runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource) {
+  if (typeof manifestSource !== 'string' || typeof lockfileSource !== 'string') {
+    throw new Error('Validated npm audit snapshot sources must be UTF-8 strings');
+  }
+
+  const snapshotDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-input-'));
+  try {
+    fs.writeFileSync(path.join(snapshotDir, 'package.json'), manifestSource, 'utf8');
+    fs.writeFileSync(path.join(snapshotDir, 'package-lock.json'), lockfileSource, 'utf8');
+
+    return spawnSync(
+      'npm',
+      ['audit', '--json', '--audit-level=low', '--package-lock-only', `--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`],
+      {
+        cwd: snapshotDir,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+  } finally {
+    fs.rmSync(snapshotDir, { recursive: true, force: true });
+  }
+}
+
 function isExpectedAuditExitStatus(status) {
   return status === 0 || status === 1;
 }
@@ -667,9 +693,11 @@ function isTemporaryExceptionExpired(now = new Date(), deadlineMs = TEMPORARY_EX
 }
 
 function main() {
+  let manifestSource;
   let manifest;
   try {
-    manifest = loadPackageManifest();
+    manifestSource = fs.readFileSync('package.json', 'utf8');
+    manifest = loadPackageManifest(() => manifestSource);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exit(1);
@@ -684,9 +712,11 @@ function main() {
   }
   process.stdout.write(`npm runtime version verified: ${npmRuntimeVersion}\n`);
 
+  let lockfileSource;
   let lockfile;
   try {
-    lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+    lockfileSource = fs.readFileSync('package-lock.json', 'utf8');
+    lockfile = JSON.parse(lockfileSource);
   } catch (error) {
     process.stderr.write(`Failed to read package-lock.json for security audit: ${error.message}\n`);
     process.exit(1);
@@ -729,15 +759,13 @@ function main() {
   }
   process.stdout.write(`npm audit registry verified: ${npmAuditRegistry}\n`);
 
-  // Bind the endpoint again at execution time so config changes after the preflight cannot redirect advisory traffic.
-  const audit = spawnSync(
-    'npm',
-    ['audit', '--json', '--audit-level=low', '--package-lock-only', `--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`],
-    {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
+  let audit;
+  try {
+    audit = runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource);
+  } catch (error) {
+    process.stderr.write(`Failed to run npm audit from validated snapshot: ${error.message}\n`);
+    process.exit(1);
+  }
 
   if (audit.error || audit.signal || !audit.stdout || !isExpectedAuditExitStatus(audit.status)) {
     const reason =
@@ -833,6 +861,7 @@ module.exports = {
   hasNoTemporaryAuditChainOverrides,
   isCanonicalNpmAuditRegistry,
   isExpectedAuditExitStatus,
+  runNpmAuditFromValidatedSnapshot,
   verifyNpmAuditRegistry,
   isTemporaryExceptionExpired,
 };
