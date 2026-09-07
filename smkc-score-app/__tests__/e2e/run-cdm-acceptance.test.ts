@@ -1,8 +1,11 @@
 type CdmAcceptanceRunner = typeof import('../../e2e/run-cdm-acceptance');
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const cdmAcceptanceRunner = require('../../e2e/run-cdm-acceptance') as CdmAcceptanceRunner;
-const { CDM_TARGETS, parseCliArgs, resolveCommitSha, runCdmAcceptance } = cdmAcceptanceRunner;
+const cdmAcceptanceRunner = require(
+  '../../e2e/run-cdm-acceptance',
+) as CdmAcceptanceRunner;
+const { CDM_TARGETS, parseCliArgs, resolveCommitSha, runCdmAcceptance } =
+  cdmAcceptanceRunner;
 
 describe('CDM preview acceptance evidence runner', () => {
   const commitSha = '0123456789abcdef0123456789abcdef01234567';
