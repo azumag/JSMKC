@@ -98,9 +98,11 @@ describe('security audit policy documentation', () => {
   });
 
   it('pins and validates npm audit exit status semantics', () => {
-    expect(policy).toContain('`npm audit --json --audit-level=low`');
+    expect(policy).toContain('`npm audit --json --audit-level=low --package-lock-only`');
     expect(policy).toContain('終了コードと summary の不一致');
-    expect(helper).toContain("['audit', '--json', '--audit-level=low']");
+    expect(policy).toContain('ローカル `node_modules` の欠落・追加・version drift');
+    expect(runtimeGuardTest).toContain('passes the validated lockfile snapshot to npm audit');
+    expect(helper).toContain("['audit', '--json', '--audit-level=low', '--package-lock-only']");
     expect(helper).toContain('function hasConsistentAuditExitStatus(report, status)');
   });
 

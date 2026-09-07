@@ -35,10 +35,10 @@ describe('security audit process exit status', () => {
     expect(hasConsistentAuditExitStatus({ metadata: { vulnerabilities } }, 0)).toBe(false);
   });
 
-  it('pins npm audit to the low exit threshold and checks status before evaluating findings', () => {
+  it('pins npm audit to the low exit threshold and validated lockfile snapshot before evaluating findings', () => {
     const helperSource = readFileSync('scripts/security-audit.js', 'utf8');
 
-    expect(helperSource).toContain("['audit', '--json', '--audit-level=low']");
+    expect(helperSource).toContain("['audit', '--json', '--audit-level=low', '--package-lock-only']");
     expect(helperSource).toContain('!isExpectedAuditExitStatus(audit.status)');
     expect(helperSource).toContain('!hasConsistentAuditExitStatus(report, audit.status)');
   });

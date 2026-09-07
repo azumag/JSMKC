@@ -610,7 +610,7 @@ function main() {
     process.exit(1);
   }
 
-  const audit = spawnSync('npm', ['audit', '--json', '--audit-level=low'], {
+  const audit = spawnSync('npm', ['audit', '--json', '--audit-level=low', '--package-lock-only'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
