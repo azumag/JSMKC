@@ -62,5 +62,8 @@ export function resolveQualificationScheduleMethodForGroup(
   configuredMethod: QualificationScheduleMethod,
   playerCount: number,
 ): QualificationScheduleMethod {
-  return getQualificationSchedulePolicyDecision(configuredMethod, playerCount).effectiveMethod;
+  return getQualificationSchedulePolicyDecision(
+    configuredMethod,
+    playerCount,
+  ).effectiveMethod;
 }
