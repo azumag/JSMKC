@@ -1,6 +1,6 @@
 # Security audit policy
 
-JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node scripts/security-audit-lockfile.js` で lockfile schema を事前検証した後、`node scripts/security-audit.js` を実行し、npm dependency audit の high / critical finding を blocking として扱う。`security-audit.js` は `npm audit` を起動する前に packageManager の exact pin と実 npm runtime version を自分で検証し、直接実行でも runtime guard を迂回できない。
+JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node scripts/security-audit-lockfile.js` で lockfile schema を事前検証した後、`node scripts/security-audit.js` を実行し、npm dependency audit の high / critical finding を blocking として扱う。`security-audit.js` 自体も `npm audit` を起動する前に packageManager の exact pin と実 npm runtime version を自分で検証し、直接実行でも runtime guard を迂回できない。さらに同じ lockfile schema preflight も再検証するため、lockfile guard も helper 単独実行では迂回できない。
 
 ## Fail-closed の原則
 
@@ -22,7 +22,7 @@ lockfile では、許可対象パッケージの version や dev-only 属性だ�
 
 また、一時例外が成立する利用文脈は manifest と lockfile の両方で固定する。helper は実際の `package.json` を独立に読み、Prisma が現在確認済みの devDependency range で宣言され、production dependency には存在しないことを要求する。`dependencies` / `devDependencies` は、存在する場合に npm manifest / lockfile の dependency map として non-array object であることも検証し、array・scalar などの container drift を「Prisma が存在しない」と解釈して例外を継続しない。そのうえで `package-lock.json` root snapshot の Prisma devDependency 宣言も同じ条件へ固定し、実際にインストールされた Prisma とその設定パッケージの version・`resolved`・`integrity`・`devOptional` 属性、およびそこから許可対象の推移的依存へ至る dependency edge を現在確認済みの組み合わせに一致させる。`package.json` だけが編集され lockfile snapshot が古いまま残る場合や、manifest の許容範囲内で Prisma が更新された場合、同じ version 名でも Prisma 側 artifact の供給元または内容が変化した場合は、実装や設定読み込み経路が変化していないかを再評価するまで既知例外を自動継続しない。
 
-この例外判定は npm package-lock v3 の `packages` map とその属性意味論に依存するため、CI は audit helper の前に `scripts/security-audit-lockfile.js` を実行する。`package-lock.json` の top-level が object であり、`lockfileVersion` が現在の `3`、`packages` が non-array object、かつ `packages[""]` の root package snapshot が non-array object である場合だけ監査へ進む。lockfile schema が更新・欠落・破損した場合は、同じフィールド名が残っていても意味論が変化している可能性があるため、例外を再評価するまで fail-closed にする。
+この例外判定は npm package-lock v3 の `packages` map とその属性意味論に依存するため、CI は audit helper の前に `scripts/security-audit-lockfile.js` を実行し、`security-audit.js` も同じ shared validator を audit subprocess 起動前に再実行する。`package-lock.json` の top-level が object であり、`lockfileVersion` が現在の `3`、`packages` が non-array object、かつ `packages[""]` の root package snapshot が non-array object である場合だけ監査へ進む。これにより helper を単独実行するローカル・別CI経路でも lockfile guard を迂回できない。lockfile schema が更新・欠落・破損した場合は、同じフィールド名が残っていても意味論が変化している可能性があるため、例外を再評価するまで fail-closed にする。
 
 `metadata` が存在する場合は npm audit report の metadata container 自体が non-array object であることを要求し、現在確認済みの `vulnerabilities` / `dependencies` 以外の未知の metadata field を許可しない。`null`、array、string、number などへ変化した場合や未知 field が追加された場合は、既知の summary を読める形が残っていても schema drift として fail-closed にする。内部の `evaluateAuditReport` は既存 synthetic fixture の互換性のため summary 省略入力を引き続き扱えるが、実際の `npm audit --json` 出力を処理する CI entrypoint では `metadata.vulnerabilities` を必須とし、info / low / moderate / high / critical の5 severity key と `total` がすべて存在する現在確認済みの summary shape を要求する。
 

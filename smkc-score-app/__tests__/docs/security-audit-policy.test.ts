@@ -56,7 +56,11 @@ describe('security audit policy documentation', () => {
     expect(policy).toContain('`packages[\"\"]` の root package snapshot');
     expect(policy).toContain('root snapshot の drift');
     expect(lockfileHelper).toContain("const rootPackage = lockfile.packages['']");
+    expect(helper).toContain("require('./security-audit-lockfile.js')");
+    expect(helper).toContain('hasExpectedSecurityAuditLockfileShape(lockfile)');
+    expect(policy).toContain('helper を単独実行するローカル・別CI経路でも lockfile guard を迂回できない');
     expect(lockfileTest).toContain('accepts a minimal v3 lockfile with an object root package snapshot');
+    expect(runtimeGuardTest).toContain('validates the lockfile schema before invoking npm audit');
   });
 
   it('documents manifest drift as a fail-closed condition', () => {
