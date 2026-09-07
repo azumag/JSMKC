@@ -8,7 +8,7 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 現在の #3114 一時例外には **2026-10-06T00:00:00.000Z** の再レビュー期限を設定する。期限に達した時点で advisory・依存グラフ・artifact・remediation metadata が完全一致したままでも CI は fail-closed にし、upstream の修正状況と `npm audit` の最新結果を人手で再確認するまで例外を自動延長しない。期限文字列の解析結果が `NaN` / 非有限値になる場合も「期限なし」と解釈せず fail-closed にする。継続が必要な場合は #3114 に再評価根拠を記録したうえで期限を明示的に更新し、解消済みなら例外自体を削除する。
 
-`npm audit` プロセス自体も監査対象の一部として扱う。終了コード `0`（finding なし）または `1`（finding あり）の場合だけ JSON を監査結果として解釈し、起動失敗・signal 終了・`0` / `1` 以外の終了コードは、JSON が出力されていても operational failure として fail-closed にする。
+`npm audit` プロセス自体も監査対象の一部として扱う。CI entrypoint は終了コードの意味論を環境設定に依存させないため `npm audit --json --audit-level=low` を明示し、終了コード `0` / `1` だけを JSON 候補として受理する。そのうえで `metadata.vulnerabilities` の low / moderate / high / critical がすべて0なら `0`、いずれかが1件以上なら `1` であることまで照合する。info-only finding は npm の low threshold では終了コード `0` のままとする。起動失敗・signal 終了・`0` / `1` 以外の終了コード、または終了コードと summary の不一致は、JSON が読めても operational/schema drift として fail-closed にする。
 
 `npm audit --json` の top-level に `error` field が存在する場合は、その値が `null` / `false` / 空文字など truthy でなくても成功レポートとして扱わない。npm が error envelope を返したという schema signal 自体を operational failure とみなし、`invalid-audit-report` として fail-closed にする。
 
