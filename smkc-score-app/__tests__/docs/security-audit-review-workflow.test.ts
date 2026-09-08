@@ -94,15 +94,19 @@ describe('manual security audit review workflow', () => {
     expect(auditStep?.if).not.toContain('steps.exception_status.outcome');
   });
 
-  it('always publishes read-only review evidence to the job summary', () => {
+  it('always publishes read-only review evidence and exception details to the job summary', () => {
     const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(summaryStep?.if).toBe('always()');
     expect(summaryStep?.env).toEqual({
       LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
       EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
+      EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
+      EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
       CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
     });
+    expect(summaryStep?.run).toContain('Temporary exception state');
+    expect(summaryStep?.run).toContain('Review deadline');
     expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
     expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');
   });
