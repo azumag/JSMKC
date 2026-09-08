@@ -66,6 +66,16 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(screen.getByText('Tournament is explicitly configured for circle scheduling.')).toBeInTheDocument();
   });
 
+  it('summarizes the groups relevant to the pending scheduling decisions', () => {
+    render(<QualificationScheduleDiagnosticsPanel diagnostics={diagnostics} />);
+
+    const summary = screen.getByLabelText('Qualification schedule decision summary');
+    expect(summary).toHaveTextContent('Legacy circle: 1');
+    expect(summary).toHaveTextContent('CDM fixture unavailable: 1');
+    expect(summary).toHaveTextContent('BREAK required: 1');
+    expect(summary).toHaveTextContent('Generation blocked: 0');
+  });
+
   it('warns when the effective CDM request has no fixture and cannot generate a schedule', () => {
     const unsupported: QualificationScheduleDiagnostics = {
       bm: [
@@ -89,6 +99,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Current effective CDM request cannot generate a schedule for 21 players because no matching fixture is available.',
     );
+    expect(screen.getByLabelText('Qualification schedule decision summary')).toHaveTextContent('Generation blocked: 1');
   });
 
   it('shows an empty state for modes without qualification groups', () => {
@@ -96,5 +107,13 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'GP' })).toBeInTheDocument();
     expect(screen.getByText('No qualification groups yet.')).toBeInTheDocument();
+  });
+
+  it('omits the decision summary when no qualification groups exist yet', () => {
+    const empty: QualificationScheduleDiagnostics = { bm: [], mr: [], gp: [] };
+
+    render(<QualificationScheduleDiagnosticsPanel diagnostics={empty} />);
+
+    expect(screen.queryByLabelText('Qualification schedule decision summary')).not.toBeInTheDocument();
   });
 });
