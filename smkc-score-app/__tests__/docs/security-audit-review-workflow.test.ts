@@ -3,6 +3,10 @@ import path from 'path';
 import { parse } from 'yaml';
 
 interface WorkflowStep {
+  id?: string;
+  if?: string;
+  env?: Record<string, string>;
+  name?: string;
   run?: string;
   uses?: string;
   with?: Record<string, unknown>;
@@ -69,18 +73,37 @@ describe('manual security audit review workflow', () => {
     expect(steps.indexOf(pinStep as WorkflowStep)).toBeLessThan(steps.indexOf(installStep as WorkflowStep));
   });
 
-  it('runs the same fail-closed audit sequence as CI', () => {
-    const auditStep = auditJob.steps?.find((step) => step.run?.includes('node scripts/security-audit.js'));
-    const run = auditStep?.run ?? '';
+  it('keeps the fail-closed preflight/status/audit order', () => {
+    const steps = auditJob.steps ?? [];
+    const preflightStep = steps.find((step) => step.id === 'lockfile_preflight');
+    const statusStep = steps.find((step) => step.id === 'exception_status');
+    const auditStep = steps.find((step) => step.id === 'canonical_audit');
 
-    expect(run).toContain('node scripts/security-audit-lockfile.js');
-    expect(run).toContain('node scripts/security-audit-status.js');
-    expect(run).toContain('node scripts/security-audit.js');
-    expect(run.indexOf('node scripts/security-audit-lockfile.js')).toBeLessThan(
-      run.indexOf('node scripts/security-audit-status.js'),
-    );
-    expect(run.indexOf('node scripts/security-audit-status.js')).toBeLessThan(
-      run.indexOf('node scripts/security-audit.js'),
-    );
+    expect(preflightStep?.run?.trim()).toBe('node scripts/security-audit-lockfile.js');
+    expect(statusStep?.run?.trim()).toBe('node scripts/security-audit-status.js');
+    expect(auditStep?.run?.trim()).toBe('node scripts/security-audit.js');
+    expect(steps.indexOf(preflightStep as WorkflowStep)).toBeLessThan(steps.indexOf(statusStep as WorkflowStep));
+    expect(steps.indexOf(statusStep as WorkflowStep)).toBeLessThan(steps.indexOf(auditStep as WorkflowStep));
+  });
+
+  it('still runs the canonical audit when only the temporary exception status changes', () => {
+    const auditStep = auditJob.steps?.find((step) => step.id === 'canonical_audit');
+
+    expect(auditStep?.if).toContain('always()');
+    expect(auditStep?.if).toContain("steps.lockfile_preflight.outcome == 'success'");
+    expect(auditStep?.if).not.toContain('steps.exception_status.outcome');
+  });
+
+  it('always publishes read-only review evidence to the job summary', () => {
+    const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
+
+    expect(summaryStep?.if).toBe('always()');
+    expect(summaryStep?.env).toEqual({
+      LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
+      EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
+      CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
+    });
+    expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
+    expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');
   });
 });

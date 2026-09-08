@@ -37,5 +37,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Review #3114 security audit exception
-        run: node scripts/security-audit-lockfile.js && node scripts/security-audit-status.js && node scripts/security-audit.js
+      - id: lockfile_preflight
+        name: Validate security audit lockfile
+        run: node scripts/security-audit-lockfile.js
+
+      - id: exception_status
+        name: "Review #3114 exception status"
+        run: node scripts/security-audit-status.js
+
+      - id: canonical_audit
+        name: Run canonical security audit
+        if: ${{ always() && steps.lockfile_preflight.outcome == 'success' }}
+        run: node scripts/security-audit.js
+
+      - name: "Summarize #3114 review evidence"
+        if: always()
+        env:
+          LOCKFILE_PREFLIGHT_OUTCOME: ${{ steps.lockfile_preflight.outcome }}
+          EXCEPTION_STATUS_OUTCOME: ${{ steps.exception_status.outcome }}
+          CANONICAL_AUDIT_OUTCOME: ${{ steps.canonical_audit.outcome }}
+        run: |
+          {
+            echo "## #3114 security audit review"
+            echo
+            echo "| Check | Outcome |"
+            echo "| --- | --- |"
+            echo "| Lockfile preflight | \`${LOCKFILE_PREFLIGHT_OUTCOME}\` |"
+            echo "| Temporary exception status | \`${EXCEPTION_STATUS_OUTCOME}\` |"
+            echo "| Canonical npm audit | \`${CANONICAL_AUDIT_OUTCOME}\` |"
+            echo
+            echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
+          } >> "$GITHUB_STEP_SUMMARY"
