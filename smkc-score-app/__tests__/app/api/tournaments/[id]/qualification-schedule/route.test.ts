@@ -71,6 +71,17 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
             }),
           ],
         }),
+        summary: {
+          totalGroupCount: 2,
+          legacyCircleGroupCount: 1,
+          legacyCircleCdmReadyGroupCount: 0,
+          legacyCircleCdmExactFitGroupCount: 0,
+          legacyCircleCdmBreakRequiredGroupCount: 0,
+          legacyCircleCdmUnavailableGroupCount: 1,
+          cdmFixtureUnavailableGroupCount: 1,
+          cdmBreakRequiredGroupCount: 1,
+          generationBlockedGroupCount: 0,
+        },
       }),
     );
   });
@@ -98,6 +109,13 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
         cdmFixtureCapacity: null,
       }),
     ]);
+    expect(json.data.summary).toEqual(
+      expect.objectContaining({
+        totalGroupCount: 1,
+        cdmFixtureUnavailableGroupCount: 1,
+        generationBlockedGroupCount: 1,
+      }),
+    );
   });
 
   it('rejects non-admin users before reading tournament data', async () => {

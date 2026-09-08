@@ -3,7 +3,10 @@ import { auth } from '@/lib/auth';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
-import { buildQualificationScheduleDiagnostics } from '@/lib/qualification-schedule-diagnostics';
+import {
+  buildQualificationScheduleDiagnostics,
+  summarizeQualificationScheduleDiagnostics,
+} from '@/lib/qualification-schedule-diagnostics';
 import type { QualificationScheduleMethod } from '@/lib/round-robin';
 import { resolveTournament } from '@/lib/tournament-identifier';
 
@@ -41,10 +44,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       prisma.gPQualification.findMany({ where: { tournamentId: tournament.id }, select: { group: true } }),
     ]);
 
+    const modes = buildQualificationScheduleDiagnostics(configuredMethod, { bm, mr, gp });
+
     return createSuccessResponse({
       tournamentId: tournament.id,
       configuredMethod,
-      modes: buildQualificationScheduleDiagnostics(configuredMethod, { bm, mr, gp }),
+      modes,
+      summary: summarizeQualificationScheduleDiagnostics(modes),
     });
   } catch (error) {
     logger.error('Failed to fetch qualification schedule diagnostics', {
