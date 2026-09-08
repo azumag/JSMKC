@@ -78,6 +78,14 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
           legacyCircleCdmExactFitGroupCount: 0,
           legacyCircleCdmBreakRequiredGroupCount: 0,
           legacyCircleCdmUnavailableGroupCount: 1,
+          legacyCircleSizeBreakdown: [
+            {
+              playerCount: 13,
+              groupCount: 1,
+              cdmFixtureCapacity: null,
+              cdmBreakSlotCount: null,
+            },
+          ],
           cdmFixtureUnavailableGroupCount: 1,
           cdmBreakRequiredGroupCount: 1,
           generationBlockedGroupCount: 0,
