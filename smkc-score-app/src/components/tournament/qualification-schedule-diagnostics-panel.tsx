@@ -3,6 +3,7 @@ import {
   QUALIFICATION_DIAGNOSTIC_MODES,
   summarizeQualificationScheduleDiagnostics,
   type QualificationScheduleDiagnostics,
+  type QualificationScheduleDiagnosticsModeBucket,
   type QualificationScheduleDiagnosticsSizeBucket,
 } from '@/lib/qualification-schedule-diagnostics';
 import type { QualificationSchedulePolicyReason } from '@/lib/qualification-schedule-policy';
@@ -27,6 +28,12 @@ function formatLegacyCircleSizeBucket(bucket: QualificationScheduleDiagnosticsSi
   const groupLabel = bucket.groupCount === 1 ? 'group' : 'groups';
 
   return `${bucket.playerCount} players × ${bucket.groupCount} ${groupLabel} (${fixture})`;
+}
+
+function formatLegacyCircleModeBucket(bucket: QualificationScheduleDiagnosticsModeBucket) {
+  const groupLabel = bucket.groupCount === 1 ? 'group' : 'groups';
+
+  return `${MODE_LABELS[bucket.mode]} ${bucket.groupCount} ${groupLabel} (${bucket.cdmExactFitGroupCount} exact-fit / ${bucket.cdmBreakRequiredGroupCount} BREAK / ${bucket.cdmUnavailableGroupCount} unavailable)`;
 }
 
 export function QualificationScheduleDiagnosticsPanel({
@@ -63,6 +70,11 @@ export function QualificationScheduleDiagnosticsPanel({
           {summary.legacyCircleSizeBreakdown.length > 0 && (
             <div className="sm:col-span-2 lg:col-span-3">
               Legacy circle sizes: {summary.legacyCircleSizeBreakdown.map(formatLegacyCircleSizeBucket).join(' · ')}
+            </div>
+          )}
+          {summary.legacyCircleModeBreakdown.length > 0 && (
+            <div className="sm:col-span-2 lg:col-span-3">
+              Legacy circle modes: {summary.legacyCircleModeBreakdown.map(formatLegacyCircleModeBucket).join(' · ')}
             </div>
           )}
         </div>
