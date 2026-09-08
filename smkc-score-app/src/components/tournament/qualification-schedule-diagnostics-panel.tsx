@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import {
   QUALIFICATION_DIAGNOSTIC_MODES,
+  summarizeQualificationScheduleDiagnostics,
   type QualificationScheduleDiagnostics,
 } from '@/lib/qualification-schedule-diagnostics';
 import type { QualificationSchedulePolicyReason } from '@/lib/qualification-schedule-policy';
@@ -22,6 +23,8 @@ export function QualificationScheduleDiagnosticsPanel({
 }: {
   diagnostics: QualificationScheduleDiagnostics;
 }) {
+  const summary = summarizeQualificationScheduleDiagnostics(diagnostics);
+
   return (
     <section aria-labelledby="qualification-schedule-diagnostics-title" className="space-y-3 rounded-md border p-4">
       <div className="space-y-1">
@@ -32,6 +35,18 @@ export function QualificationScheduleDiagnosticsPanel({
           Read-only policy diagnostics. This does not change tournament settings or regenerate qualification matches.
         </p>
       </div>
+
+      {summary.totalGroupCount > 0 && (
+        <div
+          aria-label="Qualification schedule decision summary"
+          className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <div>Legacy circle: {summary.legacyCircleGroupCount}</div>
+          <div>CDM fixture unavailable: {summary.cdmFixtureUnavailableGroupCount}</div>
+          <div>BREAK required: {summary.cdmBreakRequiredGroupCount}</div>
+          <div>Generation blocked: {summary.generationBlockedGroupCount}</div>
+        </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-3">
         {QUALIFICATION_DIAGNOSTIC_MODES.map((mode) => {
