@@ -196,9 +196,9 @@ describe('buildQualificationSchedulePolicyMatrix', () => {
   });
 
   it('keeps every matrix entry on circle for explicitly configured circle tournaments', () => {
-    expect(buildQualificationSchedulePolicyMatrix('circle').every((decision) => decision.effectiveMethod === 'circle')).toBe(
-      true,
-    );
+    expect(
+      buildQualificationSchedulePolicyMatrix('circle').every((decision) => decision.effectiveMethod === 'circle'),
+    ).toBe(true);
   });
 });
 
