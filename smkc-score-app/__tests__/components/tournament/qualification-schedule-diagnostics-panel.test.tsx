@@ -79,6 +79,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(summary).toHaveTextContent('BREAK required: 1');
     expect(summary).toHaveTextContent('Generation blocked: 0');
     expect(summary).toHaveTextContent('Legacy circle sizes: 13 players × 1 group (no CDM fixture)');
+    expect(summary).toHaveTextContent('Legacy circle modes: BM 1 group (0 exact-fit / 0 BREAK / 1 unavailable)');
   });
 
   it('warns when the effective CDM request has no fixture and cannot generate a schedule', () => {
