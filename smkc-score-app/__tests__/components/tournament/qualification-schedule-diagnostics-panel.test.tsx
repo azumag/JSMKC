@@ -73,15 +73,18 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(summary).toHaveTextContent('Legacy circle: 1');
     expect(summary).toHaveTextContent('Legacy circle players: 13');
     expect(summary).toHaveTextContent('Legacy circle with CDM fixture: 0');
+    expect(summary).toHaveTextContent('Legacy circle players with CDM fixture: 0');
     expect(summary).toHaveTextContent('Legacy circle exact-fit CDM: 0');
     expect(summary).toHaveTextContent('Legacy circle CDM with BREAK: 0');
+    expect(summary).toHaveTextContent('Legacy circle CDM BREAK slots: 0');
     expect(summary).toHaveTextContent('Legacy circle without CDM fixture: 1');
+    expect(summary).toHaveTextContent('Legacy circle players without CDM fixture: 13');
     expect(summary).toHaveTextContent('CDM fixture unavailable: 1');
     expect(summary).toHaveTextContent('BREAK required: 1');
     expect(summary).toHaveTextContent('Generation blocked: 0');
     expect(summary).toHaveTextContent('Legacy circle sizes: 13 players × 1 group (no CDM fixture)');
     expect(summary).toHaveTextContent(
-      'Legacy circle modes: BM 1 group / 13 players (0 exact-fit / 0 BREAK / 1 unavailable)',
+      'Legacy circle modes: BM 1 group / 13 players (0 exact-fit / 0 BREAK / 1 unavailable; 0 CDM-ready players / 13 unavailable players / 0 BREAK slots)',
     );
   });
 

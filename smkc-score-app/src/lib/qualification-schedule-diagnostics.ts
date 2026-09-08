@@ -28,9 +28,12 @@ export interface QualificationScheduleDiagnosticsModeBucket {
   groupCount: number;
   playerCount: number;
   cdmReadyGroupCount: number;
+  cdmReadyPlayerCount: number;
   cdmExactFitGroupCount: number;
   cdmBreakRequiredGroupCount: number;
+  cdmBreakSlotCount: number;
   cdmUnavailableGroupCount: number;
+  cdmUnavailablePlayerCount: number;
 }
 
 export interface QualificationScheduleDiagnosticsSummary {
@@ -38,9 +41,12 @@ export interface QualificationScheduleDiagnosticsSummary {
   legacyCircleGroupCount: number;
   legacyCirclePlayerCount: number;
   legacyCircleCdmReadyGroupCount: number;
+  legacyCircleCdmReadyPlayerCount: number;
   legacyCircleCdmExactFitGroupCount: number;
   legacyCircleCdmBreakRequiredGroupCount: number;
+  legacyCircleCdmBreakSlotCount: number;
   legacyCircleCdmUnavailableGroupCount: number;
+  legacyCircleCdmUnavailablePlayerCount: number;
   legacyCircleSizeBreakdown: QualificationScheduleDiagnosticsSizeBucket[];
   legacyCircleModeBreakdown: QualificationScheduleDiagnosticsModeBucket[];
   cdmFixtureUnavailableGroupCount: number;
@@ -77,6 +83,14 @@ export function buildQualificationScheduleDiagnostics(
   ) as QualificationScheduleDiagnostics;
 }
 
+function sumPlayerCount(groups: QualificationGroupDiagnostic[]) {
+  return groups.reduce((total, group) => total + group.playerCount, 0);
+}
+
+function sumCdmBreakSlotCount(groups: QualificationGroupDiagnostic[]) {
+  return groups.reduce((total, group) => total + (group.cdmBreakSlotCount ?? 0), 0);
+}
+
 /**
  * Summarize the read-only diagnostics into counts that help operators scope
  * the unresolved Issue #3054 decisions without changing tournament state.
@@ -87,6 +101,7 @@ export function summarizeQualificationScheduleDiagnostics(
   const groups = QUALIFICATION_DIAGNOSTIC_MODES.flatMap((mode) => diagnostics[mode]);
   const legacyCircleGroups = groups.filter((group) => group.reason === 'cdm-small-group-legacy-circle');
   const legacyCircleCdmReadyGroups = legacyCircleGroups.filter((group) => group.cdmFixtureCapacity !== null);
+  const legacyCircleCdmUnavailableGroups = legacyCircleGroups.filter((group) => group.cdmFixtureCapacity === null);
   const legacyCircleSizeBreakdown = [
     ...legacyCircleGroups
       .reduce((buckets, group) => {
@@ -108,30 +123,36 @@ export function summarizeQualificationScheduleDiagnostics(
   const legacyCircleModeBreakdown = QUALIFICATION_DIAGNOSTIC_MODES.map((mode) => {
     const modeGroups = diagnostics[mode].filter((group) => group.reason === 'cdm-small-group-legacy-circle');
     const cdmReadyGroups = modeGroups.filter((group) => group.cdmFixtureCapacity !== null);
+    const cdmUnavailableGroups = modeGroups.filter((group) => group.cdmFixtureCapacity === null);
 
     return {
       mode,
       groupCount: modeGroups.length,
-      playerCount: modeGroups.reduce((total, group) => total + group.playerCount, 0),
+      playerCount: sumPlayerCount(modeGroups),
       cdmReadyGroupCount: cdmReadyGroups.length,
+      cdmReadyPlayerCount: sumPlayerCount(cdmReadyGroups),
       cdmExactFitGroupCount: cdmReadyGroups.filter((group) => group.cdmBreakSlotCount === 0).length,
       cdmBreakRequiredGroupCount: cdmReadyGroups.filter((group) => (group.cdmBreakSlotCount ?? 0) > 0).length,
-      cdmUnavailableGroupCount: modeGroups.filter((group) => group.cdmFixtureCapacity === null).length,
+      cdmBreakSlotCount: sumCdmBreakSlotCount(cdmReadyGroups),
+      cdmUnavailableGroupCount: cdmUnavailableGroups.length,
+      cdmUnavailablePlayerCount: sumPlayerCount(cdmUnavailableGroups),
     };
   }).filter((bucket) => bucket.groupCount > 0);
 
   return {
     totalGroupCount: groups.length,
     legacyCircleGroupCount: legacyCircleGroups.length,
-    legacyCirclePlayerCount: legacyCircleGroups.reduce((total, group) => total + group.playerCount, 0),
+    legacyCirclePlayerCount: sumPlayerCount(legacyCircleGroups),
     legacyCircleCdmReadyGroupCount: legacyCircleCdmReadyGroups.length,
+    legacyCircleCdmReadyPlayerCount: sumPlayerCount(legacyCircleCdmReadyGroups),
     legacyCircleCdmExactFitGroupCount: legacyCircleCdmReadyGroups.filter((group) => group.cdmBreakSlotCount === 0)
       .length,
     legacyCircleCdmBreakRequiredGroupCount: legacyCircleCdmReadyGroups.filter(
       (group) => (group.cdmBreakSlotCount ?? 0) > 0,
     ).length,
-    legacyCircleCdmUnavailableGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity === null)
-      .length,
+    legacyCircleCdmBreakSlotCount: sumCdmBreakSlotCount(legacyCircleCdmReadyGroups),
+    legacyCircleCdmUnavailableGroupCount: legacyCircleCdmUnavailableGroups.length,
+    legacyCircleCdmUnavailablePlayerCount: sumPlayerCount(legacyCircleCdmUnavailableGroups),
     legacyCircleSizeBreakdown,
     legacyCircleModeBreakdown,
     cdmFixtureUnavailableGroupCount: groups.filter((group) => group.cdmFixtureCapacity === null).length,
