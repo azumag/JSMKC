@@ -33,8 +33,11 @@ function formatLegacyCircleSizeBucket(bucket: QualificationScheduleDiagnosticsSi
 function formatLegacyCircleModeBucket(bucket: QualificationScheduleDiagnosticsModeBucket) {
   const groupLabel = bucket.groupCount === 1 ? 'group' : 'groups';
   const playerLabel = bucket.playerCount === 1 ? 'player' : 'players';
+  const readyPlayerLabel = bucket.cdmReadyPlayerCount === 1 ? 'player' : 'players';
+  const unavailablePlayerLabel = bucket.cdmUnavailablePlayerCount === 1 ? 'player' : 'players';
+  const breakSlotLabel = bucket.cdmBreakSlotCount === 1 ? 'slot' : 'slots';
 
-  return `${MODE_LABELS[bucket.mode]} ${bucket.groupCount} ${groupLabel} / ${bucket.playerCount} ${playerLabel} (${bucket.cdmExactFitGroupCount} exact-fit / ${bucket.cdmBreakRequiredGroupCount} BREAK / ${bucket.cdmUnavailableGroupCount} unavailable)`;
+  return `${MODE_LABELS[bucket.mode]} ${bucket.groupCount} ${groupLabel} / ${bucket.playerCount} ${playerLabel} (${bucket.cdmExactFitGroupCount} exact-fit / ${bucket.cdmBreakRequiredGroupCount} BREAK / ${bucket.cdmUnavailableGroupCount} unavailable; ${bucket.cdmReadyPlayerCount} CDM-ready ${readyPlayerLabel} / ${bucket.cdmUnavailablePlayerCount} unavailable ${unavailablePlayerLabel} / ${bucket.cdmBreakSlotCount} BREAK ${breakSlotLabel})`;
 }
 
 export function QualificationScheduleDiagnosticsPanel({
@@ -63,9 +66,12 @@ export function QualificationScheduleDiagnosticsPanel({
           <div>Legacy circle: {summary.legacyCircleGroupCount}</div>
           <div>Legacy circle players: {summary.legacyCirclePlayerCount}</div>
           <div>Legacy circle with CDM fixture: {summary.legacyCircleCdmReadyGroupCount}</div>
+          <div>Legacy circle players with CDM fixture: {summary.legacyCircleCdmReadyPlayerCount}</div>
           <div>Legacy circle exact-fit CDM: {summary.legacyCircleCdmExactFitGroupCount}</div>
           <div>Legacy circle CDM with BREAK: {summary.legacyCircleCdmBreakRequiredGroupCount}</div>
+          <div>Legacy circle CDM BREAK slots: {summary.legacyCircleCdmBreakSlotCount}</div>
           <div>Legacy circle without CDM fixture: {summary.legacyCircleCdmUnavailableGroupCount}</div>
+          <div>Legacy circle players without CDM fixture: {summary.legacyCircleCdmUnavailablePlayerCount}</div>
           <div>CDM fixture unavailable: {summary.cdmFixtureUnavailableGroupCount}</div>
           <div>BREAK required: {summary.cdmBreakRequiredGroupCount}</div>
           <div>Generation blocked: {summary.generationBlockedGroupCount}</div>
