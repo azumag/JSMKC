@@ -701,6 +701,10 @@ function isTemporaryExceptionExpired(now = new Date(), deadlineMs = TEMPORARY_EX
   return !Number.isFinite(nowMs) || !Number.isFinite(deadlineMs) || nowMs >= deadlineMs;
 }
 
+function getTemporaryExceptionReviewDeadline() {
+  return TEMPORARY_EXCEPTION_REVIEW_DEADLINE;
+}
+
 function main() {
   let manifestSource;
   let manifest;
@@ -862,6 +866,7 @@ if (require.main === module) {
 
 module.exports = {
   evaluateAuditReport,
+  getTemporaryExceptionReviewDeadline,
   hasConsistentAuditDependencyTotal,
   hasConsistentAuditExitStatus,
   hasExpectedAuditDependencySummary,
