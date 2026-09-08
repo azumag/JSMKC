@@ -62,6 +62,15 @@ export function QualificationScheduleDiagnosticsPanel({
                           ? `CDM fixture preview: unavailable for ${group.playerCount} players`
                           : `CDM fixture preview: ${group.cdmFixtureCapacity} slots · ${group.cdmBreakSlotCount} BREAK slot${group.cdmBreakSlotCount === 1 ? '' : 's'}`}
                       </div>
+                      {!group.generationSupported && (
+                        <div
+                          role="alert"
+                          className="mt-2 rounded border border-destructive/40 p-2 text-xs text-destructive"
+                        >
+                          Current effective CDM request cannot generate a schedule for {group.playerCount} players
+                          because no matching fixture is available.
+                        </div>
+                      )}
                       <div className="mt-1 text-xs text-muted-foreground">{REASON_LABELS[group.reason]}</div>
                     </li>
                   ))}

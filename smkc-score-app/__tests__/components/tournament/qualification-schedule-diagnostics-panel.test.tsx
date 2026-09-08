@@ -14,6 +14,7 @@ const diagnostics: QualificationScheduleDiagnostics = {
       playerCount: 13,
       effectiveMethod: 'circle',
       reason: 'cdm-small-group-legacy-circle',
+      generationSupported: true,
       cdmFixtureCapacity: null,
       cdmBreakSlotCount: null,
     },
@@ -23,6 +24,7 @@ const diagnostics: QualificationScheduleDiagnostics = {
       playerCount: 14,
       effectiveMethod: 'cdm',
       reason: 'cdm-requested',
+      generationSupported: true,
       cdmFixtureCapacity: 16,
       cdmBreakSlotCount: 2,
     },
@@ -34,6 +36,7 @@ const diagnostics: QualificationScheduleDiagnostics = {
       playerCount: 12,
       effectiveMethod: 'circle',
       reason: 'configured-circle',
+      generationSupported: true,
       cdmFixtureCapacity: 12,
       cdmBreakSlotCount: 0,
     },
@@ -61,6 +64,31 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Current policy requests the CDM fixture for groups of 14 or more.')).toBeInTheDocument();
     expect(screen.getByText('Tournament is explicitly configured for circle scheduling.')).toBeInTheDocument();
+  });
+
+  it('warns when the effective CDM request has no fixture and cannot generate a schedule', () => {
+    const unsupported: QualificationScheduleDiagnostics = {
+      bm: [
+        {
+          group: 'Z',
+          configuredMethod: 'cdm',
+          playerCount: 21,
+          effectiveMethod: 'cdm',
+          reason: 'cdm-requested',
+          generationSupported: false,
+          cdmFixtureCapacity: null,
+          cdmBreakSlotCount: null,
+        },
+      ],
+      mr: [],
+      gp: [],
+    };
+
+    render(<QualificationScheduleDiagnosticsPanel diagnostics={unsupported} />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Current effective CDM request cannot generate a schedule for 21 players because no matching fixture is available.',
+    );
   });
 
   it('shows an empty state for modes without qualification groups', () => {
