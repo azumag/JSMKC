@@ -112,6 +112,7 @@ describe('manual security audit review workflow', () => {
       LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
       EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
       EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
+      EXCEPTION_CHECKED_AT: '${{ steps.exception_status.outputs.checked_at }}',
       EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
       EXCEPTION_DAYS_UNTIL_DEADLINE: '${{ steps.exception_status.outputs.days_until_deadline }}',
       PRISMA_VERSION: '${{ steps.exception_status.outputs.prisma_version }}',
@@ -120,6 +121,7 @@ describe('manual security audit review workflow', () => {
       CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
     });
     expect(summaryStep?.run).toContain('Temporary exception state');
+    expect(summaryStep?.run).toContain('Status checked at');
     expect(summaryStep?.run).toContain('Review deadline');
     expect(summaryStep?.run).toContain('Days until review deadline');
     expect(summaryStep?.run).toContain('Tracked dependency');

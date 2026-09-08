@@ -24,6 +24,7 @@ describe('security audit exception status', () => {
     ).toEqual({
       state: 'active',
       deadline: '2026-10-06T00:00:00.000Z',
+      checkedAt: '2026-09-08T00:00:00.000Z',
       daysUntilDeadline: 28,
       versions: {
         prisma: '6.19.3',
@@ -123,6 +124,7 @@ describe('security audit exception status', () => {
 
       expect(fs.readFileSync(outputPath, 'utf8')).toBe(
         'state=active\n' +
+          'checked_at=2026-09-08T00:00:00.000Z\n' +
           'deadline=2026-10-06T00:00:00.000Z\n' +
           'days_until_deadline=28\n' +
           'prisma_version=6.19.3\n' +

@@ -50,6 +50,7 @@ function getDaysUntilReviewDeadline(deadline, now = new Date()) {
 
 function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() }) {
   const deadline = getTemporaryExceptionReviewDeadline();
+  const checkedAt = Number.isFinite(now.getTime()) ? now.toISOString() : null;
   const daysUntilDeadline = getDaysUntilReviewDeadline(deadline, now);
   const versions = getTrackedDependencyVersions(lockfile);
 
@@ -61,6 +62,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'invalid-input',
       deadline,
+      checkedAt,
       daysUntilDeadline,
       versions,
       message: 'package.json / package-lock.json do not satisfy the security audit preconditions',
@@ -71,6 +73,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'context-changed',
       deadline,
+      checkedAt,
       daysUntilDeadline,
       versions,
       message:
@@ -82,6 +85,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'expired',
       deadline,
+      checkedAt,
       daysUntilDeadline,
       versions,
       message: 'the #3114 temporary exception review deadline has been reached',
@@ -91,6 +95,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   return {
     state: 'active',
     deadline,
+    checkedAt,
     daysUntilDeadline,
     versions,
     message: 'the exact #3114 temporary exception context is still active',
@@ -105,11 +110,12 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
   const prismaVersion = status.versions.prisma ?? 'unavailable';
   const prismaConfigVersion = status.versions.prismaConfig ?? 'unavailable';
   const deepmergeTsVersion = status.versions.deepmergeTs ?? 'unavailable';
+  const checkedAt = status.checkedAt ?? 'unavailable';
   const daysUntilDeadline = status.daysUntilDeadline ?? 'unavailable';
 
   fs.appendFileSync(
     outputPath,
-    `state=${status.state}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
+    `state=${status.state}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
     'utf8',
   );
 }
@@ -128,6 +134,7 @@ function main() {
 
   const status = getSecurityAuditExceptionStatus({ manifest, lockfile });
   process.stdout.write(`security audit exception status: ${status.state}\n`);
+  process.stdout.write(`status checked at: ${status.checkedAt ?? 'unavailable'}\n`);
   process.stdout.write(`review deadline: ${status.deadline}\n`);
   process.stdout.write(`days until review deadline: ${status.daysUntilDeadline ?? 'unavailable'}\n`);
   process.stdout.write(`prisma: ${status.versions.prisma ?? 'unavailable'}\n`);
