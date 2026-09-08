@@ -16,6 +16,14 @@ export type QualificationScheduleDiagnostics = Record<QualificationDiagnosticMod
 
 export type QualificationRowsByMode = Record<QualificationDiagnosticMode, ReadonlyArray<{ group: string }>>;
 
+export interface QualificationScheduleDiagnosticsSummary {
+  totalGroupCount: number;
+  legacyCircleGroupCount: number;
+  cdmFixtureUnavailableGroupCount: number;
+  cdmBreakRequiredGroupCount: number;
+  generationBlockedGroupCount: number;
+}
+
 /**
  * Build a read-only view of the effective qualification scheduling policy for
  * each populated group. This intentionally reports the current policy without
@@ -43,4 +51,22 @@ export function buildQualificationScheduleDiagnostics(
       return [mode, groups];
     }),
   ) as QualificationScheduleDiagnostics;
+}
+
+/**
+ * Summarize the read-only diagnostics into counts that help operators scope
+ * the unresolved Issue #3054 decisions without changing tournament state.
+ */
+export function summarizeQualificationScheduleDiagnostics(
+  diagnostics: QualificationScheduleDiagnostics,
+): QualificationScheduleDiagnosticsSummary {
+  const groups = QUALIFICATION_DIAGNOSTIC_MODES.flatMap((mode) => diagnostics[mode]);
+
+  return {
+    totalGroupCount: groups.length,
+    legacyCircleGroupCount: groups.filter((group) => group.reason === 'cdm-small-group-legacy-circle').length,
+    cdmFixtureUnavailableGroupCount: groups.filter((group) => group.cdmFixtureCapacity === null).length,
+    cdmBreakRequiredGroupCount: groups.filter((group) => (group.cdmBreakSlotCount ?? 0) > 0).length,
+    generationBlockedGroupCount: groups.filter((group) => !group.generationSupported).length,
+  };
 }

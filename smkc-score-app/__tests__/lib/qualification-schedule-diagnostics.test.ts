@@ -1,4 +1,7 @@
-import { buildQualificationScheduleDiagnostics } from '@/lib/qualification-schedule-diagnostics';
+import {
+  buildQualificationScheduleDiagnostics,
+  summarizeQualificationScheduleDiagnostics,
+} from '@/lib/qualification-schedule-diagnostics';
 
 describe('buildQualificationScheduleDiagnostics', () => {
   it('reports effective policy and CDM fixture feasibility per populated group and mode', () => {
@@ -69,5 +72,27 @@ describe('buildQualificationScheduleDiagnostics', () => {
         cdmBreakSlotCount: 0,
       },
     ]);
+  });
+});
+
+describe('summarizeQualificationScheduleDiagnostics', () => {
+  it('counts the groups affected by pending #3054 decisions without changing policy', () => {
+    const diagnostics = buildQualificationScheduleDiagnostics('cdm', {
+      bm: [
+        ...Array.from({ length: 12 }, () => ({ group: 'A' })),
+        ...Array.from({ length: 13 }, () => ({ group: 'B' })),
+        ...Array.from({ length: 14 }, () => ({ group: 'C' })),
+      ],
+      mr: Array.from({ length: 21 }, () => ({ group: 'D' })),
+      gp: [],
+    });
+
+    expect(summarizeQualificationScheduleDiagnostics(diagnostics)).toEqual({
+      totalGroupCount: 4,
+      legacyCircleGroupCount: 2,
+      cdmFixtureUnavailableGroupCount: 2,
+      cdmBreakRequiredGroupCount: 1,
+      generationBlockedGroupCount: 1,
+    });
   });
 });
