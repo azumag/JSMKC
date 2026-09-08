@@ -76,7 +76,7 @@ describe('buildQualificationScheduleDiagnostics', () => {
 });
 
 describe('summarizeQualificationScheduleDiagnostics', () => {
-  it('counts and buckets the groups affected by pending #3054 decisions without changing policy', () => {
+  it('counts and buckets the groups and players affected by pending #3054 decisions without changing policy', () => {
     const diagnostics = buildQualificationScheduleDiagnostics('cdm', {
       bm: [
         ...Array.from({ length: 11 }, () => ({ group: 'A' })),
@@ -91,6 +91,7 @@ describe('summarizeQualificationScheduleDiagnostics', () => {
     expect(summarizeQualificationScheduleDiagnostics(diagnostics)).toEqual({
       totalGroupCount: 6,
       legacyCircleGroupCount: 4,
+      legacyCirclePlayerCount: 48,
       legacyCircleCdmReadyGroupCount: 3,
       legacyCircleCdmExactFitGroupCount: 2,
       legacyCircleCdmBreakRequiredGroupCount: 1,
@@ -119,6 +120,7 @@ describe('summarizeQualificationScheduleDiagnostics', () => {
         {
           mode: 'bm',
           groupCount: 3,
+          playerCount: 36,
           cdmReadyGroupCount: 2,
           cdmExactFitGroupCount: 1,
           cdmBreakRequiredGroupCount: 1,
@@ -127,6 +129,7 @@ describe('summarizeQualificationScheduleDiagnostics', () => {
         {
           mode: 'gp',
           groupCount: 1,
+          playerCount: 12,
           cdmReadyGroupCount: 1,
           cdmExactFitGroupCount: 1,
           cdmBreakRequiredGroupCount: 0,

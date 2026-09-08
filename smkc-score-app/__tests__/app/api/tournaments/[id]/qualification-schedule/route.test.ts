@@ -74,6 +74,7 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
         summary: {
           totalGroupCount: 2,
           legacyCircleGroupCount: 1,
+          legacyCirclePlayerCount: 13,
           legacyCircleCdmReadyGroupCount: 0,
           legacyCircleCdmExactFitGroupCount: 0,
           legacyCircleCdmBreakRequiredGroupCount: 0,
@@ -90,6 +91,7 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
             {
               mode: 'bm',
               groupCount: 1,
+              playerCount: 13,
               cdmReadyGroupCount: 0,
               cdmExactFitGroupCount: 0,
               cdmBreakRequiredGroupCount: 0,
@@ -130,6 +132,7 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
     expect(json.data.summary).toEqual(
       expect.objectContaining({
         totalGroupCount: 1,
+        legacyCirclePlayerCount: 0,
         cdmFixtureUnavailableGroupCount: 1,
         generationBlockedGroupCount: 1,
       }),
