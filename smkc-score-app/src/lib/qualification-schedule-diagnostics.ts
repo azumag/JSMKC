@@ -19,6 +19,8 @@ export type QualificationRowsByMode = Record<QualificationDiagnosticMode, Readon
 export interface QualificationScheduleDiagnosticsSummary {
   totalGroupCount: number;
   legacyCircleGroupCount: number;
+  legacyCircleCdmReadyGroupCount: number;
+  legacyCircleCdmUnavailableGroupCount: number;
   cdmFixtureUnavailableGroupCount: number;
   cdmBreakRequiredGroupCount: number;
   generationBlockedGroupCount: number;
@@ -61,10 +63,13 @@ export function summarizeQualificationScheduleDiagnostics(
   diagnostics: QualificationScheduleDiagnostics,
 ): QualificationScheduleDiagnosticsSummary {
   const groups = QUALIFICATION_DIAGNOSTIC_MODES.flatMap((mode) => diagnostics[mode]);
+  const legacyCircleGroups = groups.filter((group) => group.reason === 'cdm-small-group-legacy-circle');
 
   return {
     totalGroupCount: groups.length,
-    legacyCircleGroupCount: groups.filter((group) => group.reason === 'cdm-small-group-legacy-circle').length,
+    legacyCircleGroupCount: legacyCircleGroups.length,
+    legacyCircleCdmReadyGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity !== null).length,
+    legacyCircleCdmUnavailableGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity === null).length,
     cdmFixtureUnavailableGroupCount: groups.filter((group) => group.cdmFixtureCapacity === null).length,
     cdmBreakRequiredGroupCount: groups.filter((group) => (group.cdmBreakSlotCount ?? 0) > 0).length,
     generationBlockedGroupCount: groups.filter((group) => !group.generationSupported).length,
