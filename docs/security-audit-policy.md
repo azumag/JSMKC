@@ -8,7 +8,7 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 現在の #3114 一時例外には **2026-10-06T00:00:00.000Z** の再レビュー期限を設定する。期限に達した時点で advisory・依存グラフ・artifact・remediation metadata が完全一致したままでも CI は fail-closed にし、upstream の修正状況と `npm audit` の最新結果を人手で再確認するまで例外を自動延長しない。期限文字列の解析結果が `NaN` / 非有限値になる場合も「期限なし」と解釈せず fail-closed にする。継続が必要な場合は #3114 に再評価根拠を記録したうえで期限を明示的に更新し、解消済みなら例外自体を削除する。
 
-ローカルで #3114 の例外文脈だけを素早く確認したい場合は、`smkc-score-app/` で `npm run security:audit:status` を実行する。このコマンドはネットワークへ問い合わせず、実 `package.json` / `package-lock.json` が現在の例外条件に完全一致するか、期限切れか、または forward update 等で文脈が変化したかを表示する。`context-changed` は脆弱性解消を意味するものではないため、その場合も例外を削除する前に通常の `node scripts/security-audit.js` と CI を通す。`active` 以外（`expired` / `context-changed` / `invalid-input`）では注意が必要な状態として非0終了する。
+ローカルで #3114 の例外文脈だけを素早く確認したい場合は、`smkc-score-app/` で `npm run security:audit:status` を実行する。このコマンドはネットワークへ問い合わせず、実 `package.json` / `package-lock.json` が現在の例外条件に完全一致するか、期限切れか、または forward update 等で文脈が変化したかを表示する。`context-changed` は脆弱性解消を意味するものではないため、その場合も例外を削除する前に通常の `node scripts/security-audit.js` と CI を通す。`active` 以外（`expired` / `context-changed` / `invalid-input`）では注意が必要な状態として非0終了する。また、再レビュー期限までの日数も符号付き整数で表示し、期限前は正数、期限当日は `0`、期限超過後は負数として監査証跡に残す。
 
 また、例外が現在固定している既知の脆弱な package / lockfile 文脈が完全に残っている間は、canonical `npm audit` が対応する blocking advisory を返さなくなった場合も「解消」とみなさない。advisory feed の一時的な欠落・撤回・意味論変更を脆弱性解消と誤認しないため、その状態は `missing-expected-temporary-advisory` として fail-closed にする。clean audit を通常成功として受理するのは、既知の脆弱な lock context 自体が安全な forward update 等で解消され、既存例外の適用条件から外れた場合だけとする。
 

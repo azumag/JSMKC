@@ -57,6 +57,7 @@ jobs:
           EXCEPTION_STATUS_OUTCOME: ${{ steps.exception_status.outcome }}
           EXCEPTION_STATUS_STATE: ${{ steps.exception_status.outputs.state }}
           EXCEPTION_REVIEW_DEADLINE: ${{ steps.exception_status.outputs.deadline }}
+          EXCEPTION_DAYS_UNTIL_DEADLINE: ${{ steps.exception_status.outputs.days_until_deadline }}
           PRISMA_VERSION: ${{ steps.exception_status.outputs.prisma_version }}
           PRISMA_CONFIG_VERSION: ${{ steps.exception_status.outputs.prisma_config_version }}
           DEEPMERGE_TS_VERSION: ${{ steps.exception_status.outputs.deepmerge_ts_version }}
@@ -74,6 +75,8 @@ jobs:
             echo "Temporary exception state: \`${EXCEPTION_STATUS_STATE:-unavailable}\`"
             echo
             echo "Review deadline: \`${EXCEPTION_REVIEW_DEADLINE:-unavailable}\`"
+            echo
+            echo "Days until review deadline: \`${EXCEPTION_DAYS_UNTIL_DEADLINE:-unavailable}\`"
             echo
             echo "| Tracked dependency | Installed version |"
             echo "| --- | --- |"
