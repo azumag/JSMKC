@@ -8,18 +8,16 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 
 ## Fields
 
-| field | meaning |
-| --- | --- |
-| `playerCount` | 比較した実選手数 |
-| `cdmFixtureCapacity` | 使用する RR 2025 fixture の容量 |
-| `cdmBreakSlotCount` | fixture 容量との差を埋める BREAK slot 数 |
-| `realMatchCount` | BREAK を除いた実対戦数 |
-| `circleTotalDays` | circle 方式の総 Day 数 |
-| `cdmTotalDays` | CDM fixture の総 Day 数 |
-| `pairSetDifferenceCount` | circle と CDM で片方にしか存在しない実対戦カード数 |
-| `pairDayChangedCount` | 同じ対戦カードだが Day が変わる件数 |
-| `pairSideChangedCount` | 同じ対戦カードだが 1P / 2P が反転する件数 |
-| `byeAssignmentChangedPlayerCount` | BREAK / BYE の Day 配置が変わる選手数 |
+- `playerCount`: 比較した実選手数
+- `cdmFixtureCapacity`: 使用する RR 2025 fixture の容量
+- `cdmBreakSlotCount`: fixture 容量との差を埋める BREAK slot 数
+- `realMatchCount`: BREAK を除いた実対戦数
+- `circleTotalDays`: circle 方式の総 Day 数
+- `cdmTotalDays`: CDM fixture の総 Day 数
+- `pairSetDifferenceCount`: circle と CDM で片方にしか存在しない実対戦カード数
+- `pairDayChangedCount`: 同じ対戦カードだが Day が変わる件数
+- `pairSideChangedCount`: 同じ対戦カードだが 1P / 2P が反転する件数
+- `byeAssignmentChangedPlayerCount`: BREAK / BYE の Day 配置が変わる選手数
 
 `pairSetDifferenceCount = 0` であれば、実選手同士の総当たり集合自体は同一です。そのうえで `pairDayChangedCount` や `pairSideChangedCount` が 0 より大きければ、「対戦相手の集合は同じだが順序や1P/2P配置は変わる」と判断できます。
 
