@@ -70,8 +70,8 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
         }),
       ]),
     );
-    expect(
-      comparisons.every((comparison: { pairDayChangedCount: number }) => comparison.pairDayChangedCount > 0),
-    ).toBe(true);
+    expect(comparisons.every((comparison: { pairDayChangedCount: number }) => comparison.pairDayChangedCount > 0)).toBe(
+      true,
+    );
   });
 });
