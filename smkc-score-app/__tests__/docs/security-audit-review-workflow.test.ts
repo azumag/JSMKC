@@ -30,14 +30,17 @@ interface PackageManifest {
 describe('manual security audit review workflow', () => {
   const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'security-audit-review.yml');
   const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+  const runbookPath = path.resolve(__dirname, '..', '..', '..', 'docs', 'security-audit-review-runbook.md');
 
   let workflow: WorkflowConfig;
   let auditJob: WorkflowJob;
   let packageManifest: PackageManifest;
+  let runbook: string;
 
   beforeAll(() => {
     workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowConfig;
     packageManifest = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as PackageManifest;
+    runbook = fs.readFileSync(runbookPath, 'utf8');
     auditJob = workflow.jobs?.audit ?? {};
 
     if (!auditJob.steps?.length) {
@@ -92,6 +95,13 @@ describe('manual security audit review workflow', () => {
     expect(auditStep?.if).toContain('always()');
     expect(auditStep?.if).toContain("steps.lockfile_preflight.outcome == 'success'");
     expect(auditStep?.if).not.toContain('steps.exception_status.outcome');
+  });
+
+  it('documents the deadline-distance output published by the review workflow', () => {
+    expect(runbook).toContain('`days_until_deadline`');
+    expect(runbook).toContain('期限前を正数');
+    expect(runbook).toContain('期限当日を `0`');
+    expect(runbook).toContain('期限超過後を負数');
   });
 
   it('always publishes read-only review evidence, exception details, and tracked dependency versions', () => {
