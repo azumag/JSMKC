@@ -13,8 +13,27 @@ const {
 } = require('./security-audit-lockfile.js');
 const { loadPackageManifest } = require('./verify-npm-version.js');
 
+const TRACKED_DEPENDENCY_PATHS = {
+  prisma: 'node_modules/prisma',
+  prismaConfig: 'node_modules/@prisma/config',
+  deepmergeTs: 'node_modules/deepmerge-ts',
+};
+const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
+
+function getTrackedDependencyVersions(lockfile) {
+  const packages = lockfile?.packages;
+
+  return Object.fromEntries(
+    Object.entries(TRACKED_DEPENDENCY_PATHS).map(([key, packagePath]) => {
+      const version = packages?.[packagePath]?.version;
+      return [key, typeof version === 'string' && SAFE_VERSION_PATTERN.test(version) ? version : null];
+    }),
+  );
+}
+
 function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() }) {
   const deadline = getTemporaryExceptionReviewDeadline();
+  const versions = getTrackedDependencyVersions(lockfile);
 
   if (
     !hasExpectedSecurityAuditLockfileShape(lockfile) ||
@@ -24,6 +43,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'invalid-input',
       deadline,
+      versions,
       message: 'package.json / package-lock.json do not satisfy the security audit preconditions',
     };
   }
@@ -32,6 +52,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'context-changed',
       deadline,
+      versions,
       message:
         'the exact #3114 temporary exception context is no longer present; run the full security audit before removing the exception',
     };
@@ -41,6 +62,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'expired',
       deadline,
+      versions,
       message: 'the #3114 temporary exception review deadline has been reached',
     };
   }
@@ -48,6 +70,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   return {
     state: 'active',
     deadline,
+    versions,
     message: 'the exact #3114 temporary exception context is still active',
   };
 }
@@ -57,7 +80,15 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
     return;
   }
 
-  fs.appendFileSync(outputPath, `state=${status.state}\ndeadline=${status.deadline}\n`, 'utf8');
+  const prismaVersion = status.versions.prisma ?? 'unavailable';
+  const prismaConfigVersion = status.versions.prismaConfig ?? 'unavailable';
+  const deepmergeTsVersion = status.versions.deepmergeTs ?? 'unavailable';
+
+  fs.appendFileSync(
+    outputPath,
+    `state=${status.state}\ndeadline=${status.deadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
+    'utf8',
+  );
 }
 
 function main() {
@@ -75,6 +106,9 @@ function main() {
   const status = getSecurityAuditExceptionStatus({ manifest, lockfile });
   process.stdout.write(`security audit exception status: ${status.state}\n`);
   process.stdout.write(`review deadline: ${status.deadline}\n`);
+  process.stdout.write(`prisma: ${status.versions.prisma ?? 'unavailable'}\n`);
+  process.stdout.write(`@prisma/config: ${status.versions.prismaConfig ?? 'unavailable'}\n`);
+  process.stdout.write(`deepmerge-ts: ${status.versions.deepmergeTs ?? 'unavailable'}\n`);
   process.stdout.write(`${status.message}\n`);
 
   try {
@@ -93,4 +127,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { getSecurityAuditExceptionStatus, writeGitHubOutputs };
+module.exports = { getSecurityAuditExceptionStatus, getTrackedDependencyVersions, writeGitHubOutputs };

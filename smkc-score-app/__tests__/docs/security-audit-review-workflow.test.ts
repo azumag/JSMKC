@@ -94,7 +94,7 @@ describe('manual security audit review workflow', () => {
     expect(auditStep?.if).not.toContain('steps.exception_status.outcome');
   });
 
-  it('always publishes read-only review evidence and exception details to the job summary', () => {
+  it('always publishes read-only review evidence, exception details, and tracked dependency versions', () => {
     const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(summaryStep?.if).toBe('always()');
@@ -103,10 +103,17 @@ describe('manual security audit review workflow', () => {
       EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
       EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
       EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
+      PRISMA_VERSION: '${{ steps.exception_status.outputs.prisma_version }}',
+      PRISMA_CONFIG_VERSION: '${{ steps.exception_status.outputs.prisma_config_version }}',
+      DEEPMERGE_TS_VERSION: '${{ steps.exception_status.outputs.deepmerge_ts_version }}',
       CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
     });
     expect(summaryStep?.run).toContain('Temporary exception state');
     expect(summaryStep?.run).toContain('Review deadline');
+    expect(summaryStep?.run).toContain('Tracked dependency');
+    expect(summaryStep?.run).toContain('PRISMA_VERSION');
+    expect(summaryStep?.run).toContain('PRISMA_CONFIG_VERSION');
+    expect(summaryStep?.run).toContain('DEEPMERGE_TS_VERSION');
     expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
     expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');
   });

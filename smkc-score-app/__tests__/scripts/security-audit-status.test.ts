@@ -2,14 +2,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { getSecurityAuditExceptionStatus, writeGitHubOutputs } from '../../scripts/security-audit-status.js';
+import {
+  getSecurityAuditExceptionStatus,
+  getTrackedDependencyVersions,
+  writeGitHubOutputs,
+} from '../../scripts/security-audit-status.js';
 
 const appRoot = path.resolve(__dirname, '../..');
 const manifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
 const lockfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'package-lock.json'), 'utf8'));
 
 describe('security audit exception status', () => {
-  it('reports the current #3114 exception context as active before its review deadline', () => {
+  it('reports the current #3114 exception context and tracked dependency versions as active before its review deadline', () => {
     expect(
       getSecurityAuditExceptionStatus({
         manifest,
@@ -19,6 +23,11 @@ describe('security audit exception status', () => {
     ).toEqual({
       state: 'active',
       deadline: '2026-10-06T00:00:00.000Z',
+      versions: {
+        prisma: '6.19.3',
+        prismaConfig: '6.19.3',
+        deepmergeTs: '7.1.5',
+      },
       message: 'the exact #3114 temporary exception context is still active',
     });
   });
@@ -33,18 +42,45 @@ describe('security audit exception status', () => {
     ).toBe('expired');
   });
 
-  it('reports context-changed after a forward remediation changes the vulnerable dependency', () => {
+  it('reports context-changed with forward-remediation version evidence', () => {
     const remediatedLockfile = structuredClone(lockfile);
     remediatedLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.1';
     remediatedLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.1';
 
-    expect(
-      getSecurityAuditExceptionStatus({
-        manifest,
-        lockfile: remediatedLockfile,
-        now: new Date('2026-09-08T00:00:00.000Z'),
-      }).state,
-    ).toBe('context-changed');
+    const status = getSecurityAuditExceptionStatus({
+      manifest,
+      lockfile: remediatedLockfile,
+      now: new Date('2026-09-08T00:00:00.000Z'),
+    });
+
+    expect(status.state).toBe('context-changed');
+    expect(status.versions).toEqual({
+      prisma: '6.19.3',
+      prismaConfig: '6.19.3',
+      deepmergeTs: '8.0.1',
+    });
+  });
+
+  it('uses null when a tracked dependency version cannot be read', () => {
+    const incompleteLockfile = structuredClone(lockfile);
+    delete incompleteLockfile.packages['node_modules/@prisma/config'];
+
+    expect(getTrackedDependencyVersions(incompleteLockfile)).toEqual({
+      prisma: '6.19.3',
+      prismaConfig: null,
+      deepmergeTs: '7.1.5',
+    });
+  });
+
+  it('rejects unsafe version text before publishing GitHub Actions outputs', () => {
+    const unsafeLockfile = structuredClone(lockfile);
+    unsafeLockfile.packages['node_modules/deepmerge-ts'].version = '7.1.5\nforged_output=1';
+
+    expect(getTrackedDependencyVersions(unsafeLockfile)).toEqual({
+      prisma: '6.19.3',
+      prismaConfig: '6.19.3',
+      deepmergeTs: null,
+    });
   });
 
   it('fails status evaluation when manifest and lockfile identity drift', () => {
@@ -59,7 +95,7 @@ describe('security audit exception status', () => {
     ).toBe('invalid-input');
   });
 
-  it('publishes the state and deadline as GitHub Actions step outputs', () => {
+  it('publishes status and dependency versions as GitHub Actions step outputs', () => {
     const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-status-'));
     const outputPath = path.join(outputDirectory, 'github-output');
 
@@ -72,7 +108,13 @@ describe('security audit exception status', () => {
 
       writeGitHubOutputs(status, outputPath);
 
-      expect(fs.readFileSync(outputPath, 'utf8')).toBe('state=active\ndeadline=2026-10-06T00:00:00.000Z\n');
+      expect(fs.readFileSync(outputPath, 'utf8')).toBe(
+        'state=active\n' +
+          'deadline=2026-10-06T00:00:00.000Z\n' +
+          'prisma_version=6.19.3\n' +
+          'prisma_config_version=6.19.3\n' +
+          'deepmerge_ts_version=7.1.5\n',
+      );
     } finally {
       fs.rmSync(outputDirectory, { recursive: true, force: true });
     }
