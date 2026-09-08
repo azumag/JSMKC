@@ -7,10 +7,12 @@
 workflow は `smkc-score-app/` で次の順序を実行します。
 
 1. `security-audit-lockfile.js` — package manifest / lockfile の前提条件を検証する。
-2. `security-audit-status.js` — #3114 の一時例外が `active` / `expired` / `context-changed` / `invalid-input` のどれかを判定する。
+2. `security-audit-status.js` — #3114 の一時例外が `active` / `expired` / `context-changed` / `invalid-input` のどれかを判定し、lockfile 上の `prisma` / `@prisma/config` / `deepmerge-ts` の実インストールバージョンを監査証拠として出力する。
 3. `security-audit.js` — lockfile preflight が成功していれば canonical npm registry に対する audit を実行する。status が非 active でも、再評価用の証拠を残すためこの audit は続行する。
 
-Job summary には各 check の outcome に加えて、一時例外の具体的な `state` と review deadline を表示します。`security-audit-status.js` は GitHub Actions 上では `state` と `deadline` を step output として公開しますが、例外の内容や期限そのものを書き換えることはありません。
+Job summary には各 check の outcome に加えて、一時例外の具体的な `state`、review deadline、追跡対象3依存の実インストールバージョンを表示します。`security-audit-status.js` は GitHub Actions 上では `state`、`deadline`、`prisma_version`、`prisma_config_version`、`deepmerge_ts_version` を step output として公開しますが、例外の内容や期限そのものを書き換えることはありません。
+
+依存バージョンは「forward fix が入ったか」を判断するための証拠であり、それだけで脆弱性解消とは判定しません。たとえば `deepmerge-ts` が 8.x に変わって `context-changed` になった場合でも、canonical audit と通常CIを通してから例外削除を判断します。
 
 ## 判断ルール
 
