@@ -32,8 +32,9 @@ function formatLegacyCircleSizeBucket(bucket: QualificationScheduleDiagnosticsSi
 
 function formatLegacyCircleModeBucket(bucket: QualificationScheduleDiagnosticsModeBucket) {
   const groupLabel = bucket.groupCount === 1 ? 'group' : 'groups';
+  const playerLabel = bucket.playerCount === 1 ? 'player' : 'players';
 
-  return `${MODE_LABELS[bucket.mode]} ${bucket.groupCount} ${groupLabel} (${bucket.cdmExactFitGroupCount} exact-fit / ${bucket.cdmBreakRequiredGroupCount} BREAK / ${bucket.cdmUnavailableGroupCount} unavailable)`;
+  return `${MODE_LABELS[bucket.mode]} ${bucket.groupCount} ${groupLabel} / ${bucket.playerCount} ${playerLabel} (${bucket.cdmExactFitGroupCount} exact-fit / ${bucket.cdmBreakRequiredGroupCount} BREAK / ${bucket.cdmUnavailableGroupCount} unavailable)`;
 }
 
 export function QualificationScheduleDiagnosticsPanel({
@@ -60,6 +61,7 @@ export function QualificationScheduleDiagnosticsPanel({
           className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs sm:grid-cols-2 lg:grid-cols-3"
         >
           <div>Legacy circle: {summary.legacyCircleGroupCount}</div>
+          <div>Legacy circle players: {summary.legacyCirclePlayerCount}</div>
           <div>Legacy circle with CDM fixture: {summary.legacyCircleCdmReadyGroupCount}</div>
           <div>Legacy circle exact-fit CDM: {summary.legacyCircleCdmExactFitGroupCount}</div>
           <div>Legacy circle CDM with BREAK: {summary.legacyCircleCdmBreakRequiredGroupCount}</div>
