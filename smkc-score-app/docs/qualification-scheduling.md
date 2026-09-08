@@ -13,7 +13,7 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 このため、新規大会が `cdm` 方針であっても、13名以下のグループは現在も従来のcircle methodです。
 
-`getQualificationSchedulePolicyDecision` はこの判定を `configuredMethod` / `playerCount` / `effectiveMethod` / `reason` として返します。現在の13→14境界を診断・テスト・将来の管理UIで再実装せず参照できるようにするための読み取り専用情報で、対戦表の生成結果自体は変更しません。
+`getQualificationSchedulePolicyDecision` はこの判定を `configuredMethod` / `playerCount` / `effectiveMethod` / `reason` / `generationSupported` として返します。現在の13→14境界を診断・テスト・将来の管理UIで再実装せず参照できるようにするための読み取り専用情報で、対戦表の生成結果自体は変更しません。
 
 加えて、同じ判定結果には `cdmFixtureCapacity` / `cdmBreakSlotCount` を含めます。これは「現在そのグループがCDMを実効方式として使うか」とは独立した読み取り専用情報で、仮にCDMへ切り替えた場合に利用可能なfixture容量と必要なBREAK slot数を示します。fixture未対応人数では両方とも `null` です。fixture選択ロジックは `getCdmRoundRobinFixturePlan` に集約され、実際のround-robin生成と診断表示が同じ対応表を参照します。
 
@@ -38,10 +38,11 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 - `reason`: 判定理由
 - `cdmFixtureCapacity`: 現在の人数を収容できるCDM fixture容量。未対応なら `null`
 - `cdmBreakSlotCount`: そのfixtureで必要なBREAK slot数。未対応なら `null`
+- `generationSupported`: 現在の `effectiveMethod` で対戦表を生成可能か。circleは `true`、CDMは対応fixtureがある場合のみ `true`
 
 このAPIは大会設定・予選レコード・対戦表を変更しません。#3054 の仕様確定前でも、実大会が13→14境界のどちら側にいるかを運営・デバッグ時に確認できます。
 
-同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、保存された方式（Configured）、実際に適用される方式（Effective）、判定理由に加え、CDMへ切り替えた場合のfixture容量とBREAK slot数を確認できます。とくに `Configured: CDM · Effective: CIRCLE` のような表示により、13名以下のCDM-first大会が現在の互換policyでcircleへ解決されていることを設定変更と取り違えず確認できます。表示によって大会設定や対戦表が変更されることはありません。
+同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、保存された方式（Configured）、実際に適用される方式（Effective）、判定理由に加え、CDMへ切り替えた場合のfixture容量とBREAK slot数を確認できます。現在の実効方式がCDMなのに対応fixtureがない場合は、対戦表生成がサポートされていない状態として警告も表示します。とくに `Configured: CDM · Effective: CIRCLE` のような表示により、13名以下のCDM-first大会が現在の互換policyでcircleへ解決されていることを設定変更と取り違えず確認できます。表示によって大会設定や対戦表が変更されることはありません。
 
 CDM fixture preview の対応は現在次の通りです。
 
@@ -82,4 +83,4 @@ CDM fixture preview の対応は現在次の通りです。
 
 ## 回帰テスト
 
-`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果と、明示的なcircle設定の維持を検証します。`__tests__/components/tournament/qualification-schedule-diagnostics-panel.test.tsx` では管理UIが保存された方式と実効方式の差、circle/CDMの実効方式、判定理由、空モードを表示することを確認します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
+`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果と、明示的なcircle設定の維持を検証します。`__tests__/components/tournament/qualification-schedule-diagnostics-panel.test.tsx` では管理UIが保存された方式と実効方式の差、circle/CDMの実効方式、判定理由、未対応CDM requestの警告、空モードを表示することを確認します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。

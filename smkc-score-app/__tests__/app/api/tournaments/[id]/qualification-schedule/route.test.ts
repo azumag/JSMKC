@@ -56,6 +56,7 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
               playerCount: 14,
               effectiveMethod: 'cdm',
               reason: 'cdm-requested',
+              generationSupported: true,
               cdmFixtureCapacity: 16,
               cdmBreakSlotCount: 2,
             }),
@@ -64,6 +65,7 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
               playerCount: 13,
               effectiveMethod: 'circle',
               reason: 'cdm-small-group-legacy-circle',
+              generationSupported: true,
               cdmFixtureCapacity: null,
               cdmBreakSlotCount: null,
             }),
@@ -71,6 +73,31 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
         }),
       }),
     );
+  });
+
+  it('marks unsupported effective CDM requests as not generation-ready', async () => {
+    (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(
+      Array.from({ length: 21 }, () => ({ group: 'A' })),
+    );
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/tournaments/tournament-1/qualification-schedule'),
+      {
+        params: Promise.resolve({ id: 'tournament-1' }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.data.modes.bm).toEqual([
+      expect.objectContaining({
+        group: 'A',
+        playerCount: 21,
+        effectiveMethod: 'cdm',
+        generationSupported: false,
+        cdmFixtureCapacity: null,
+      }),
+    ]);
   });
 
   it('rejects non-admin users before reading tournament data', async () => {

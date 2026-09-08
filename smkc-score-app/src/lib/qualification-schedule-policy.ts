@@ -10,6 +10,7 @@ export interface QualificationSchedulePolicyDecision {
   reason: QualificationSchedulePolicyReason;
   cdmFixtureCapacity: number | null;
   cdmBreakSlotCount: number | null;
+  generationSupported: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ export function getQualificationSchedulePolicyDecision(
       playerCount,
       effectiveMethod: 'circle',
       reason: 'configured-circle',
+      generationSupported: true,
       ...fixtureMetadata,
     };
   }
@@ -46,6 +48,7 @@ export function getQualificationSchedulePolicyDecision(
       playerCount,
       effectiveMethod: 'circle',
       reason: 'cdm-small-group-legacy-circle',
+      generationSupported: true,
       ...fixtureMetadata,
     };
   }
@@ -55,6 +58,7 @@ export function getQualificationSchedulePolicyDecision(
     playerCount,
     effectiveMethod: 'cdm',
     reason: 'cdm-requested',
+    generationSupported: fixturePlan !== null,
     ...fixtureMetadata,
   };
 }

@@ -40,6 +40,7 @@ describe('getQualificationSchedulePolicyDecision', () => {
       playerCount: 20,
       effectiveMethod: 'circle',
       reason: 'configured-circle',
+      generationSupported: true,
       cdmFixtureCapacity: 20,
       cdmBreakSlotCount: 0,
     });
@@ -51,6 +52,7 @@ describe('getQualificationSchedulePolicyDecision', () => {
       playerCount: 13,
       effectiveMethod: 'circle',
       reason: 'cdm-small-group-legacy-circle',
+      generationSupported: true,
       cdmFixtureCapacity: null,
       cdmBreakSlotCount: null,
     });
@@ -62,6 +64,7 @@ describe('getQualificationSchedulePolicyDecision', () => {
       playerCount: 14,
       effectiveMethod: 'cdm',
       reason: 'cdm-requested',
+      generationSupported: true,
       cdmFixtureCapacity: 16,
       cdmBreakSlotCount: 2,
     });
@@ -73,6 +76,7 @@ describe('getQualificationSchedulePolicyDecision', () => {
       playerCount: 21,
       effectiveMethod: 'cdm',
       reason: 'cdm-requested',
+      generationSupported: false,
       cdmFixtureCapacity: null,
       cdmBreakSlotCount: null,
     });
