@@ -76,9 +76,7 @@ describe('security audit exception status', () => {
 
     expect(formatSecurityAuditExceptionStatus(status)).toContain('security audit exception status: active\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('tracking issue: #3114\n');
-    expect(formatSecurityAuditExceptionStatus(status)).toContain(
-      'tracked advisory: GHSA-ggr8-5vv4-36mx (<8.0.0)\n',
-    );
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('tracked advisory: GHSA-ggr8-5vv4-36mx (<8.0.0)\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('days until review deadline: 28\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('deepmerge-ts: 7.1.5\n');
   });
