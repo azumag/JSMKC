@@ -72,7 +72,9 @@ export function summarizeQualificationScheduleDiagnostics(
     totalGroupCount: groups.length,
     legacyCircleGroupCount: legacyCircleGroups.length,
     legacyCircleCdmReadyGroupCount: legacyCircleCdmReadyGroups.length,
-    legacyCircleCdmExactFitGroupCount: legacyCircleCdmReadyGroups.filter((group) => group.cdmBreakSlotCount === 0).length,
+    legacyCircleCdmExactFitGroupCount: legacyCircleCdmReadyGroups.filter(
+      (group) => group.cdmBreakSlotCount === 0,
+    ).length,
     legacyCircleCdmBreakRequiredGroupCount: legacyCircleCdmReadyGroups.filter(
       (group) => (group.cdmBreakSlotCount ?? 0) > 0,
     ).length,
