@@ -57,6 +57,9 @@ jobs:
           EXCEPTION_STATUS_OUTCOME: ${{ steps.exception_status.outcome }}
           EXCEPTION_STATUS_STATE: ${{ steps.exception_status.outputs.state }}
           EXCEPTION_REVIEW_DEADLINE: ${{ steps.exception_status.outputs.deadline }}
+          PRISMA_VERSION: ${{ steps.exception_status.outputs.prisma_version }}
+          PRISMA_CONFIG_VERSION: ${{ steps.exception_status.outputs.prisma_config_version }}
+          DEEPMERGE_TS_VERSION: ${{ steps.exception_status.outputs.deepmerge_ts_version }}
           CANONICAL_AUDIT_OUTCOME: ${{ steps.canonical_audit.outcome }}
         run: |
           {
@@ -71,6 +74,12 @@ jobs:
             echo "Temporary exception state: \`${EXCEPTION_STATUS_STATE:-unavailable}\`"
             echo
             echo "Review deadline: \`${EXCEPTION_REVIEW_DEADLINE:-unavailable}\`"
+            echo
+            echo "| Tracked dependency | Installed version |"
+            echo "| --- | --- |"
+            echo "| prisma | \`${PRISMA_VERSION:-unavailable}\` |"
+            echo "| @prisma/config | \`${PRISMA_CONFIG_VERSION:-unavailable}\` |"
+            echo "| deepmerge-ts | \`${DEEPMERGE_TS_VERSION:-unavailable}\` |"
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"
