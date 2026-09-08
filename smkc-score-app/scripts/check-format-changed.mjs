@@ -81,27 +81,20 @@ function main() {
     return 0;
   }
 
-  console.log(`Diagnosing formatting for ${changedFiles.length} changed file(s).`);
+  console.log(`Checking formatting for ${changedFiles.length} changed file(s).`);
   const prettierExecutable = path.join(
     appRoot,
     'node_modules',
     '.bin',
     process.platform === 'win32' ? 'prettier.cmd' : 'prettier',
   );
-  const result = spawnSync(prettierExecutable, ['--write', ...changedFiles], {
+  const result = spawnSync(prettierExecutable, ['--check', ...changedFiles], {
     cwd: appRoot,
     stdio: 'inherit',
   });
 
   if (result.error) throw result.error;
-  const diff = spawnSync('git', ['diff', '--', ...changedFiles], {
-    cwd: appRoot,
-    encoding: 'utf8',
-  });
-  console.log('--- Prettier diff ---');
-  console.log(diff.stdout || '(no diff)');
-  console.log('--- End Prettier diff ---');
-  return 1;
+  return result.status ?? 1;
 }
 
 try {
