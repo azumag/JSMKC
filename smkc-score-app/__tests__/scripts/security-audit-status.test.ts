@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
+  formatSecurityAuditExceptionStatus,
   getDaysUntilReviewDeadline,
   getSecurityAuditExceptionStatus,
   getTrackedDependencyVersions,
@@ -33,6 +34,28 @@ describe('security audit exception status', () => {
       },
       message: 'the exact #3114 temporary exception context is still active',
     });
+  });
+
+  it('formats the same evidence as machine-readable JSON for automation', () => {
+    const status = getSecurityAuditExceptionStatus({
+      manifest,
+      lockfile,
+      now: new Date('2026-09-08T00:00:00.000Z'),
+    });
+
+    expect(JSON.parse(formatSecurityAuditExceptionStatus(status, { json: true }))).toEqual(status);
+  });
+
+  it('keeps the existing human-readable output as the default format', () => {
+    const status = getSecurityAuditExceptionStatus({
+      manifest,
+      lockfile,
+      now: new Date('2026-09-08T00:00:00.000Z'),
+    });
+
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('security audit exception status: active\n');
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('days until review deadline: 28\n');
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('deepmerge-ts: 7.1.5\n');
   });
 
   it('reports deadline distance without rounding an overdue partial day back to zero', () => {

@@ -12,6 +12,8 @@ workflow は `smkc-score-app/` で次の順序を実行します。
 
 Job summary には各 check の outcome に加えて、一時例外の具体的な `state`、status を評価したUTC時刻、review deadline、期限までの残日数、追跡対象3依存の実インストールバージョンを表示します。`security-audit-status.js` は GitHub Actions 上では `state`、`checked_at`、`deadline`、`days_until_deadline`、`prisma_version`、`prisma_config_version`、`deepmerge_ts_version` を step output として公開します。`checked_at` は status 判定に使った時刻そのものをISO 8601 UTC形式で残すため、後から保存された Job summary だけを見ても相対的な残日数を再解釈できます。`days_until_deadline` は期限前を正数、期限当日を `0`、期限超過後を負数で表します。workflow は例外の内容や期限そのものを書き換えません。
 
+ローカルや補助スクリプトから同じ証拠を機械的に取得する場合は、`smkc-score-app/` で `node scripts/security-audit-status.js --json` を実行できます。標準出力には `state` / `checkedAt` / `deadline` / `daysUntilDeadline` / `versions` / `message` を含む単一のJSONオブジェクトだけを出力し、終了コードは通常形式と同じく `active` のときだけ0です。これにより文字列ログを解析せずに期限や依存バージョンを取得できます。
+
 依存バージョンは「forward fix が入ったか」を判断するための証拠であり、それだけで脆弱性解消とは判定しません。たとえば `deepmerge-ts` が 8.x に変わって `context-changed` になった場合でも、canonical audit と通常CIを通してから例外削除を判断します。
 
 ## 判断ルール

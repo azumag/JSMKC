@@ -102,6 +102,23 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   };
 }
 
+function formatSecurityAuditExceptionStatus(status, { json = false } = {}) {
+  if (json) {
+    return `${JSON.stringify(status)}\n`;
+  }
+
+  return (
+    `security audit exception status: ${status.state}\n` +
+    `status checked at: ${status.checkedAt ?? 'unavailable'}\n` +
+    `review deadline: ${status.deadline}\n` +
+    `days until review deadline: ${status.daysUntilDeadline ?? 'unavailable'}\n` +
+    `prisma: ${status.versions.prisma ?? 'unavailable'}\n` +
+    `@prisma/config: ${status.versions.prismaConfig ?? 'unavailable'}\n` +
+    `deepmerge-ts: ${status.versions.deepmergeTs ?? 'unavailable'}\n` +
+    `${status.message}\n`
+  );
+}
+
 function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
   if (!outputPath) {
     return;
@@ -133,14 +150,7 @@ function main() {
   }
 
   const status = getSecurityAuditExceptionStatus({ manifest, lockfile });
-  process.stdout.write(`security audit exception status: ${status.state}\n`);
-  process.stdout.write(`status checked at: ${status.checkedAt ?? 'unavailable'}\n`);
-  process.stdout.write(`review deadline: ${status.deadline}\n`);
-  process.stdout.write(`days until review deadline: ${status.daysUntilDeadline ?? 'unavailable'}\n`);
-  process.stdout.write(`prisma: ${status.versions.prisma ?? 'unavailable'}\n`);
-  process.stdout.write(`@prisma/config: ${status.versions.prismaConfig ?? 'unavailable'}\n`);
-  process.stdout.write(`deepmerge-ts: ${status.versions.deepmergeTs ?? 'unavailable'}\n`);
-  process.stdout.write(`${status.message}\n`);
+  process.stdout.write(formatSecurityAuditExceptionStatus(status, { json: process.argv.includes('--json') }));
 
   try {
     writeGitHubOutputs(status);
@@ -159,6 +169,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  formatSecurityAuditExceptionStatus,
   getDaysUntilReviewDeadline,
   getSecurityAuditExceptionStatus,
   getTrackedDependencyVersions,
