@@ -2,10 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import {
-  getSecurityAuditExceptionStatus,
-  writeGitHubOutputs,
-} from '../../scripts/security-audit-status.js';
+import { getSecurityAuditExceptionStatus, writeGitHubOutputs } from '../../scripts/security-audit-status.js';
 
 const appRoot = path.resolve(__dirname, '../..');
 const manifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
@@ -75,9 +72,7 @@ describe('security audit exception status', () => {
 
       writeGitHubOutputs(status, outputPath);
 
-      expect(fs.readFileSync(outputPath, 'utf8')).toBe(
-        'state=active\ndeadline=2026-10-06T00:00:00.000Z\n',
-      );
+      expect(fs.readFileSync(outputPath, 'utf8')).toBe('state=active\ndeadline=2026-10-06T00:00:00.000Z\n');
     } finally {
       fs.rmSync(outputDirectory, { recursive: true, force: true });
     }
