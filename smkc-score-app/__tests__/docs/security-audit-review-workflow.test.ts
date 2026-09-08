@@ -24,15 +24,7 @@ interface PackageManifest {
 }
 
 describe('manual security audit review workflow', () => {
-  const workflowPath = path.resolve(
-    __dirname,
-    '..',
-    '..',
-    '..',
-    '.github',
-    'workflows',
-    'security-audit-review.yml',
-  );
+  const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'security-audit-review.yml');
   const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
 
   let workflow: WorkflowConfig;
