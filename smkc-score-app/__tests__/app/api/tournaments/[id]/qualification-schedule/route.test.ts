@@ -49,6 +49,32 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
       expect.objectContaining({
         tournamentId: 'tournament-1',
         configuredMethod: 'cdm',
+        policyMatrix: expect.arrayContaining([
+          expect.objectContaining({
+            playerCount: 7,
+            effectiveMethod: 'circle',
+            cdmFixtureCapacity: 8,
+            cdmBreakSlotCount: 1,
+          }),
+          expect.objectContaining({
+            playerCount: 13,
+            effectiveMethod: 'circle',
+            cdmFixtureCapacity: null,
+            cdmBreakSlotCount: null,
+          }),
+          expect.objectContaining({
+            playerCount: 14,
+            effectiveMethod: 'cdm',
+            cdmFixtureCapacity: 16,
+            cdmBreakSlotCount: 2,
+          }),
+          expect.objectContaining({
+            playerCount: 21,
+            effectiveMethod: 'cdm',
+            generationSupported: false,
+            cdmFixtureCapacity: null,
+          }),
+        ]),
         modes: expect.objectContaining({
           bm: [
             expect.objectContaining({
@@ -110,6 +136,7 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
         },
       }),
     );
+    expect(json.data.policyMatrix).toHaveLength(15);
   });
 
   it('marks unsupported effective CDM requests as not generation-ready', async () => {

@@ -66,7 +66,7 @@ export default async function CdmArchiveReconciliationPage({ params }: { params:
             <dd className="font-mono">{tournament.qualificationScheduleMethod}</dd>
           </div>
         </dl>
-        <QualificationScheduleDiagnosticsPanel diagnostics={diagnostics} />
+        <QualificationScheduleDiagnosticsPanel configuredMethod={configuredMethod} diagnostics={diagnostics} />
         {excluded ? (
           <p className="text-sm text-muted-foreground">JSMKC tournaments are intentionally excluded from correction.</p>
         ) : tournament.status !== 'completed' ? (

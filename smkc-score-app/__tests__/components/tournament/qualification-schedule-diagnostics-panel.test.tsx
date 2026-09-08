@@ -46,13 +46,13 @@ const diagnostics: QualificationScheduleDiagnostics = {
 
 describe('QualificationScheduleDiagnosticsPanel', () => {
   it('renders configured and effective methods with policy reasons for populated groups', () => {
-    render(<QualificationScheduleDiagnosticsPanel diagnostics={diagnostics} />);
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={diagnostics} />);
 
     expect(screen.getByRole('heading', { name: 'Effective qualification schedule' })).toBeInTheDocument();
-    expect(screen.getByText('13 players')).toBeInTheDocument();
-    expect(screen.getByText('14 players')).toBeInTheDocument();
-    expect(screen.getAllByText('CIRCLE')).toHaveLength(2);
-    expect(screen.getByText('CDM')).toBeInTheDocument();
+    expect(screen.getAllByText('13 players')).toHaveLength(2);
+    expect(screen.getAllByText('14 players')).toHaveLength(2);
+    expect(screen.getAllByText('CIRCLE').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('CDM').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Configured: CDM · Effective: CIRCLE')).toBeInTheDocument();
     expect(screen.getByText('Configured: CDM · Effective: CDM')).toBeInTheDocument();
     expect(screen.getByText('Configured: CIRCLE · Effective: CIRCLE')).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
   });
 
   it('summarizes the groups and players relevant to the pending scheduling decisions', () => {
-    render(<QualificationScheduleDiagnosticsPanel diagnostics={diagnostics} />);
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={diagnostics} />);
 
     const summary = screen.getByLabelText('Qualification schedule decision summary');
     expect(summary).toHaveTextContent('Legacy circle: 1');
@@ -88,6 +88,21 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     );
   });
 
+  it('renders the 7..21 policy matrix independently of current group sizes', () => {
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={{ bm: [], mr: [], gp: [] }} />);
+
+    const matrix = screen.getByLabelText('Qualification schedule policy matrix');
+    expect(matrix).toHaveTextContent('Policy matrix (7–21 players)');
+    expect(matrix).toHaveTextContent('7 players');
+    expect(matrix).toHaveTextContent('8-slot CDM · 1 BREAK');
+    expect(matrix).toHaveTextContent('13 players');
+    expect(matrix).toHaveTextContent('CDM fixture unavailable');
+    expect(matrix).toHaveTextContent('14 players');
+    expect(matrix).toHaveTextContent('16-slot CDM · 2 BREAK');
+    expect(matrix).toHaveTextContent('21 players');
+    expect(matrix).toHaveTextContent('Generation unsupported');
+  });
+
   it('warns when the effective CDM request has no fixture and cannot generate a schedule', () => {
     const unsupported: QualificationScheduleDiagnostics = {
       bm: [
@@ -106,7 +121,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
       gp: [],
     };
 
-    render(<QualificationScheduleDiagnosticsPanel diagnostics={unsupported} />);
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={unsupported} />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Current effective CDM request cannot generate a schedule for 21 players because no matching fixture is available.',
@@ -115,17 +130,18 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
   });
 
   it('shows an empty state for modes without qualification groups', () => {
-    render(<QualificationScheduleDiagnosticsPanel diagnostics={diagnostics} />);
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={diagnostics} />);
 
     expect(screen.getByRole('heading', { name: 'GP' })).toBeInTheDocument();
     expect(screen.getByText('No qualification groups yet.')).toBeInTheDocument();
   });
 
-  it('omits the decision summary when no qualification groups exist yet', () => {
+  it('omits the decision summary when no qualification groups exist yet while retaining the policy matrix', () => {
     const empty: QualificationScheduleDiagnostics = { bm: [], mr: [], gp: [] };
 
-    render(<QualificationScheduleDiagnosticsPanel diagnostics={empty} />);
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={empty} />);
 
     expect(screen.queryByLabelText('Qualification schedule decision summary')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Qualification schedule policy matrix')).toBeInTheDocument();
   });
 });

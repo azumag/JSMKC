@@ -1,12 +1,14 @@
 import { Badge } from '@/components/ui/badge';
 import {
   QUALIFICATION_DIAGNOSTIC_MODES,
+  buildQualificationSchedulePolicyMatrix,
   summarizeQualificationScheduleDiagnostics,
   type QualificationScheduleDiagnostics,
   type QualificationScheduleDiagnosticsModeBucket,
   type QualificationScheduleDiagnosticsSizeBucket,
 } from '@/lib/qualification-schedule-diagnostics';
 import type { QualificationSchedulePolicyReason } from '@/lib/qualification-schedule-policy';
+import type { QualificationScheduleMethod } from '@/lib/round-robin';
 
 const MODE_LABELS = {
   bm: 'BM',
@@ -41,11 +43,14 @@ function formatLegacyCircleModeBucket(bucket: QualificationScheduleDiagnosticsMo
 }
 
 export function QualificationScheduleDiagnosticsPanel({
+  configuredMethod,
   diagnostics,
 }: {
+  configuredMethod: QualificationScheduleMethod;
   diagnostics: QualificationScheduleDiagnostics;
 }) {
   const summary = summarizeQualificationScheduleDiagnostics(diagnostics);
+  const policyMatrix = buildQualificationSchedulePolicyMatrix(configuredMethod);
 
   return (
     <section aria-labelledby="qualification-schedule-diagnostics-title" className="space-y-3 rounded-md border p-4">
@@ -87,6 +92,33 @@ export function QualificationScheduleDiagnosticsPanel({
           )}
         </div>
       )}
+
+      <div aria-label="Qualification schedule policy matrix" className="space-y-2 rounded-md border p-3">
+        <div>
+          <h3 className="font-medium">Policy matrix (7–21 players)</h3>
+          <p className="text-xs text-muted-foreground">
+            Current effective method and CDM fixture preview for each decision-relevant group size.
+          </p>
+        </div>
+        <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+          {policyMatrix.map((decision) => (
+            <div key={decision.playerCount} className="rounded border bg-muted/20 p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{decision.playerCount} players</span>
+                <Badge variant={decision.effectiveMethod === 'cdm' ? 'default' : 'outline'}>
+                  {decision.effectiveMethod.toUpperCase()}
+                </Badge>
+              </div>
+              <div className="mt-1 text-muted-foreground">
+                {decision.cdmFixtureCapacity === null
+                  ? 'CDM fixture unavailable'
+                  : `${decision.cdmFixtureCapacity}-slot CDM · ${decision.cdmBreakSlotCount ?? 0} BREAK`}
+              </div>
+              {!decision.generationSupported && <div className="mt-1 text-destructive">Generation unsupported</div>}
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="grid gap-3 md:grid-cols-3">
         {QUALIFICATION_DIAGNOSTIC_MODES.map((mode) => {

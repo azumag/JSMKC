@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import {
   buildQualificationScheduleDiagnostics,
+  buildQualificationSchedulePolicyMatrix,
   summarizeQualificationScheduleDiagnostics,
 } from '@/lib/qualification-schedule-diagnostics';
 import type { QualificationScheduleMethod } from '@/lib/round-robin';
@@ -49,6 +50,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return createSuccessResponse({
       tournamentId: tournament.id,
       configuredMethod,
+      policyMatrix: buildQualificationSchedulePolicyMatrix(configuredMethod),
       modes,
       summary: summarizeQualificationScheduleDiagnostics(modes),
     });

@@ -5,6 +5,8 @@ import {
 import type { QualificationScheduleMethod } from '@/lib/round-robin';
 
 export const QUALIFICATION_DIAGNOSTIC_MODES = ['bm', 'mr', 'gp'] as const;
+export const QUALIFICATION_POLICY_MATRIX_MIN_PLAYER_COUNT = 7;
+export const QUALIFICATION_POLICY_MATRIX_MAX_PLAYER_COUNT = 21;
 
 export type QualificationDiagnosticMode = (typeof QUALIFICATION_DIAGNOSTIC_MODES)[number];
 
@@ -81,6 +83,22 @@ export function buildQualificationScheduleDiagnostics(
       return [mode, groups];
     }),
   ) as QualificationScheduleDiagnostics;
+}
+
+/**
+ * Build a read-only policy matrix for the fixture-relevant 7..21 player range.
+ * Unlike tournament diagnostics, this is independent of currently populated
+ * groups and makes the pending #3054 boundary / BREAK trade-offs inspectable
+ * before operators change any tournament data.
+ */
+export function buildQualificationSchedulePolicyMatrix(
+  configuredMethod: QualificationScheduleMethod,
+): QualificationSchedulePolicyDecision[] {
+  return Array.from(
+    { length: QUALIFICATION_POLICY_MATRIX_MAX_PLAYER_COUNT - QUALIFICATION_POLICY_MATRIX_MIN_PLAYER_COUNT + 1 },
+    (_, index) =>
+      getQualificationSchedulePolicyDecision(configuredMethod, QUALIFICATION_POLICY_MATRIX_MIN_PLAYER_COUNT + index),
+  );
 }
 
 function sumPlayerCount(groups: QualificationGroupDiagnostic[]) {

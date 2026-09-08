@@ -1,0 +1,47 @@
+# Qualification schedule policy matrix
+
+Issue #3054 の仕様判断を、実際の大会データを変更せず確認するための読み取り専用ポリシーマトリクスです。
+
+`buildQualificationSchedulePolicyMatrix(configuredMethod)` は、RR 2025 Start fixture と現行の `qualificationScheduleMethod` policy が交差する 7〜21 名を連続して評価します。管理者向け診断 API `GET /api/tournaments/:id/qualification-schedule` の `policyMatrix` と `/tournaments/:id/cdm-archive-reconcile` の `Policy matrix (7–21 players)` 表示は同じ関数を使うため、API と UI で境界条件を重複実装しません。
+
+このマトリクスは現在の予選グループ構成とは独立しています。まだ 7 名・13 名・21 名などのグループが存在しない大会でも、現行 policy なら何が起きるかを事前に確認できます。大会設定、予選レコード、対戦表は変更しません。
+
+## CDM-first (`configuredMethod = cdm`)
+
+| 選手数 | 現行実効方式 | CDM fixture | BREAK | 現行方式で生成可能 |
+| -----: | ------------ | ----------: | ----: | ------------------ |
+|      7 | circle       |           8 |     1 | yes                |
+|      8 | circle       |           8 |     0 | yes                |
+|      9 | circle       |          10 |     1 | yes                |
+|     10 | circle       |          10 |     0 | yes                |
+|     11 | circle       |          12 |     1 | yes                |
+|     12 | circle       |          12 |     0 | yes                |
+|     13 | circle       | unavailable |     - | yes                |
+|     14 | CDM          |          16 |     2 | yes                |
+|     15 | CDM          |          16 |     1 | yes                |
+|     16 | CDM          |          16 |     0 | yes                |
+|     17 | CDM          |          18 |     1 | yes                |
+|     18 | CDM          |          18 |     0 | yes                |
+|     19 | CDM          |          20 |     1 | yes                |
+|     20 | CDM          |          20 |     0 | yes                |
+|     21 | CDM          | unavailable |     - | no                 |
+
+13 名以下を circle に保つ 13→14 境界は現行大会 policy であり、低レベルの fixture 可否そのものではありません。7〜12 名には CDM fixture が存在するため、#3054 で 13 名以下を CDM 化する場合は、BREAK を許容する人数と exact-fit の人数をこの表から切り分けられます。13 名は現行 fixture がないため、単純な policy 切替だけでは CDM 化できません。
+
+21 名は現行 policy が CDM を要求する一方で対応 fixture がなく、生成は未対応として明示的に失敗します。この挙動も仕様判断なしに circle へフォールバックさせません。
+
+## Explicit circle (`configuredMethod = circle`)
+
+明示的に circle が保存された大会は 7〜21 名すべてで `effectiveMethod = circle` のままです。CDM fixture 容量と BREAK 数はプレビュー情報として返りますが、方式を自動変更する意味ではありません。
+
+## #3054 での使い方
+
+仕様を決める際は、少なくとも次をこのマトリクスと実大会の `summary` / `modes` の両方で確認します。
+
+- 7〜12 名の既存 fixture を TT に採用するか
+- BREAK が必要な 7 / 9 / 11 / 14 / 15 / 17 / 19 名を同じ運用で扱うか
+- fixture のない 13 名をどう扱うか
+- 21 名以上を現行どおり未対応として止めるか
+- 明示的な circle 大会を移行対象に含めるか
+
+マトリクスは policy と fixture の「可能性」を示し、実大会の `summary` / `modes` は「現在どれだけ影響があるか」を示します。どちらも読み取り専用で、#3054 の大会ルール確定前に挙動を変更しないための診断情報です。
