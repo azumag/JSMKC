@@ -40,6 +40,8 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 - `cdmBreakSlotCount`: そのfixtureで必要なBREAK slot数。未対応なら `null`
 - `generationSupported`: 現在の `effectiveMethod` で対戦表を生成可能か。circleは `true`、CDMは対応fixtureがある場合のみ `true`
 
+レスポンスには `modes` と同じ診断データから計算した `summary` も含まれます。管理UIと同じ `Legacy circle` / CDM fixture readiness / BREAK / generation blocked の件数をAPI利用側でも再計算せず参照できるため、#3054 の仕様判断対象を運用ツールから機械的に集計できます。
+
 このAPIは大会設定・予選レコード・対戦表を変更しません。#3054 の仕様確定前でも、実大会が13→14境界のどちら側にいるかを運営・デバッグ時に確認できます。
 
 同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、保存された方式（Configured）、実際に適用される方式（Effective）、判定理由に加え、CDMへ切り替えた場合のfixture容量とBREAK slot数を確認できます。現在の実効方式がCDMなのに対応fixtureがない場合は、対戦表生成がサポートされていない状態として警告も表示します。とくに `Configured: CDM · Effective: CIRCLE` のような表示により、13名以下のCDM-first大会が現在の互換policyでcircleへ解決されていることを設定変更と取り違えず確認できます。表示によって大会設定や対戦表が変更されることはありません。
