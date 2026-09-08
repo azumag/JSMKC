@@ -1,0 +1,58 @@
+name: Refresh OpenNext security lock
+
+on:
+  push:
+    branches:
+      - fix/3210-security-lock-refresh
+    paths:
+      - .github/workflows/refresh-opennext-security-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: smkc-score-app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Pin npm
+        run: npm install --global npm@10.9.4
+      - name: Refresh OpenNext within existing semver range
+        run: npm update @opennextjs/cloudflare --package-lock-only --ignore-scripts
+      - name: Verify security-compatible adapter stack
+        run: |
+          node <<'NODE'
+          const lock = require('./package-lock.json');
+          const versions = {
+            openNext: lock.packages['node_modules/@opennextjs/cloudflare']?.version,
+            openNextAws: lock.packages['node_modules/@opennextjs/aws']?.version,
+            next: lock.packages['node_modules/next']?.version,
+            jsYaml: lock.packages['node_modules/js-yaml']?.version,
+            sharp: lock.packages['node_modules/sharp']?.version,
+          };
+          console.log(versions);
+          if (versions.openNext !== '1.20.6') throw new Error(`expected @opennextjs/cloudflare 1.20.6, got ${versions.openNext}`);
+          if (versions.openNextAws !== '4.1.4') throw new Error(`expected @opennextjs/aws 4.1.4, got ${versions.openNextAws}`);
+          if (versions.next !== '16.3.4') throw new Error(`expected next 16.3.4, got ${versions.next}`);
+          if (versions.jsYaml !== '4.3.2') throw new Error(`expected js-yaml 4.3.2, got ${versions.jsYaml}`);
+          if (versions.sharp !== '0.35.4') throw new Error(`expected sharp 0.35.4, got ${versions.sharp}`);
+          NODE
+      - name: Commit refreshed lockfile
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Lockfile already current.'
+            exit 0
+          fi
+          git commit -m 'fix: align OpenNext with Next 16.3 security release'
+          git push origin HEAD:fix/3210-security-lock-refresh
