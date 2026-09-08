@@ -97,14 +97,17 @@ describe('manual security audit review workflow', () => {
     expect(auditStep?.if).not.toContain('steps.exception_status.outcome');
   });
 
-  it('documents the deadline-distance output published by the review workflow', () => {
+  it('documents the self-describing exception identity and deadline-distance outputs', () => {
+    expect(runbook).toContain('`tracking_issue`');
+    expect(runbook).toContain('`advisory`');
+    expect(runbook).toContain('`advisory_range`');
     expect(runbook).toContain('`days_until_deadline`');
     expect(runbook).toContain('期限前を正数');
     expect(runbook).toContain('期限当日を `0`');
     expect(runbook).toContain('期限超過後を負数');
   });
 
-  it('always publishes read-only review evidence, exception details, and tracked dependency versions', () => {
+  it('always publishes read-only review evidence, exception identity, and tracked dependency versions', () => {
     const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(summaryStep?.if).toBe('always()');
@@ -112,6 +115,9 @@ describe('manual security audit review workflow', () => {
       LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
       EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
       EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
+      EXCEPTION_TRACKING_ISSUE: '${{ steps.exception_status.outputs.tracking_issue }}',
+      EXCEPTION_ADVISORY: '${{ steps.exception_status.outputs.advisory }}',
+      EXCEPTION_ADVISORY_RANGE: '${{ steps.exception_status.outputs.advisory_range }}',
       EXCEPTION_CHECKED_AT: '${{ steps.exception_status.outputs.checked_at }}',
       EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
       EXCEPTION_DAYS_UNTIL_DEADLINE: '${{ steps.exception_status.outputs.days_until_deadline }}',
@@ -120,6 +126,11 @@ describe('manual security audit review workflow', () => {
       DEEPMERGE_TS_VERSION: '${{ steps.exception_status.outputs.deepmerge_ts_version }}',
       CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
     });
+    expect(summaryStep?.run).toContain('Tracking issue');
+    expect(summaryStep?.run).toContain('Tracked advisory');
+    expect(summaryStep?.run).toContain('EXCEPTION_TRACKING_ISSUE');
+    expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY');
+    expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY_RANGE');
     expect(summaryStep?.run).toContain('Temporary exception state');
     expect(summaryStep?.run).toContain('Status checked at');
     expect(summaryStep?.run).toContain('Review deadline');

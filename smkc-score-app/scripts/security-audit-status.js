@@ -13,6 +13,9 @@ const {
 } = require('./security-audit-lockfile.js');
 const { loadPackageManifest } = require('./verify-npm-version.js');
 
+const TRACKING_ISSUE = 3114;
+const TRACKED_ADVISORY = 'GHSA-ggr8-5vv4-36mx';
+const TRACKED_ADVISORY_RANGE = '<8.0.0';
 const TRACKED_DEPENDENCY_PATHS = {
   prisma: 'node_modules/prisma',
   prismaConfig: 'node_modules/@prisma/config',
@@ -63,6 +66,11 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   const checkedAt = Number.isFinite(now.getTime()) ? now.toISOString() : null;
   const daysUntilDeadline = getDaysUntilReviewDeadline(deadline, now);
   const versions = getTrackedDependencyVersions(lockfile);
+  const identity = {
+    trackingIssue: TRACKING_ISSUE,
+    advisory: TRACKED_ADVISORY,
+    advisoryRange: TRACKED_ADVISORY_RANGE,
+  };
 
   if (
     !hasExpectedSecurityAuditLockfileShape(lockfile) ||
@@ -70,6 +78,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     !hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)
   ) {
     return {
+      ...identity,
       state: 'invalid-input',
       deadline,
       checkedAt,
@@ -81,6 +90,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
 
   if (!hasExpectedTemporaryExceptionContext(lockfile, manifest)) {
     return {
+      ...identity,
       state: 'context-changed',
       deadline,
       checkedAt,
@@ -93,6 +103,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
 
   if (isTemporaryExceptionExpired(now)) {
     return {
+      ...identity,
       state: 'expired',
       deadline,
       checkedAt,
@@ -103,6 +114,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   }
 
   return {
+    ...identity,
     state: 'active',
     deadline,
     checkedAt,
@@ -119,6 +131,8 @@ function formatSecurityAuditExceptionStatus(status, { json = false } = {}) {
 
   return (
     `security audit exception status: ${status.state}\n` +
+    `tracking issue: #${status.trackingIssue}\n` +
+    `tracked advisory: ${status.advisory} (${status.advisoryRange})\n` +
     `status checked at: ${status.checkedAt ?? 'unavailable'}\n` +
     `review deadline: ${status.deadline}\n` +
     `days until review deadline: ${status.daysUntilDeadline ?? 'unavailable'}\n` +
@@ -142,7 +156,7 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
 
   fs.appendFileSync(
     outputPath,
-    `state=${status.state}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
+    `state=${status.state}\ntracking_issue=${status.trackingIssue}\nadvisory=${status.advisory}\nadvisory_range=${status.advisoryRange}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
     'utf8',
   );
 }
