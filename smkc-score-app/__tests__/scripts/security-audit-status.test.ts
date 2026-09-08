@@ -7,6 +7,7 @@ import {
   getDaysUntilReviewDeadline,
   getSecurityAuditExceptionStatus,
   getTrackedDependencyVersions,
+  parseCliOptions,
   writeGitHubOutputs,
 } from '../../scripts/security-audit-status.js';
 
@@ -34,6 +35,18 @@ describe('security audit exception status', () => {
       },
       message: 'the exact #3114 temporary exception context is still active',
     });
+  });
+
+  it('accepts only the documented JSON output flag', () => {
+    expect(parseCliOptions([])).toEqual({ json: false });
+    expect(parseCliOptions(['--json'])).toEqual({ json: true });
+    expect(parseCliOptions(['--json', '--json'])).toEqual({ json: true });
+  });
+
+  it('rejects unknown CLI arguments instead of silently falling back to human-readable output', () => {
+    expect(() => parseCliOptions(['--jsno'])).toThrow('Unknown option: --jsno');
+    expect(() => parseCliOptions(['--json', '--quiet'])).toThrow('Unknown option: --quiet');
+    expect(() => parseCliOptions(['--quiet', '--pretty'])).toThrow('Unknown options: --quiet, --pretty');
   });
 
   it('formats the same evidence as machine-readable JSON for automation', () => {
