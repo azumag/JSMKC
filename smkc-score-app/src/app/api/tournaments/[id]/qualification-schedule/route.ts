@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
+import { buildLegacyCircleCdmScheduleComparisons } from '@/lib/qualification-schedule-comparison';
 import {
   buildQualificationScheduleDiagnostics,
   buildQualificationSchedulePolicyMatrix,
@@ -51,6 +52,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       tournamentId: tournament.id,
       configuredMethod,
       policyMatrix: buildQualificationSchedulePolicyMatrix(configuredMethod),
+      smallGroupCdmComparisons: buildLegacyCircleCdmScheduleComparisons(),
       modes,
       summary: summarizeQualificationScheduleDiagnostics(modes),
     });
