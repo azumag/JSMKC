@@ -1,5 +1,9 @@
 import { getCdmRoundRobinFixturePlan } from '@/lib/cdm-round-robin-fixtures';
-import { BREAK_PLAYER_ID, generateRoundRobinSchedule, type RoundRobinSchedule } from '@/lib/round-robin';
+import {
+  BREAK_PLAYER_ID,
+  generateRoundRobinSchedule,
+  type RoundRobinSchedule,
+} from '@/lib/round-robin';
 
 export const LEGACY_CIRCLE_CDM_COMPARISON_MIN_PLAYER_COUNT = 7;
 export const LEGACY_CIRCLE_CDM_COMPARISON_MAX_PLAYER_COUNT = 13;
