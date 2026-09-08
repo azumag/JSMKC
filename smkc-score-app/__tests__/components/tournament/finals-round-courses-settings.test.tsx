@@ -9,6 +9,68 @@ describe('FinalsRoundCoursesSettings', () => {
     global.fetch = originalFetch;
   });
 
+  it('resets unsaved input when the selected match changes even if the saved courses are the same', () => {
+    const { rerender } = render(
+      <FinalsRoundCoursesSettings
+        match={{ id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4 }}
+        matches={[
+          { id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4, assignedCourses: ['MC1'] },
+        ]}
+        endpoint="/api/test"
+        onSaved={jest.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Round courses'), { target: { value: 'DP1' } });
+    expect(screen.getByLabelText('Round courses')).toHaveValue('DP1');
+
+    rerender(
+      <FinalsRoundCoursesSettings
+        match={{ id: 'm2', stage: 'finals', round: 'winners_qf', completed: false, version: 2 }}
+        matches={[
+          { id: 'm2', stage: 'finals', round: 'winners_qf', completed: false, version: 2, assignedCourses: ['MC1'] },
+        ]}
+        endpoint="/api/test"
+        onSaved={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('Round courses')).toHaveValue('MC1');
+  });
+
+  it('resynchronizes the input when assigned courses change for the current round', () => {
+    const { rerender } = render(
+      <FinalsRoundCoursesSettings
+        match={{ id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4 }}
+        matches={[
+          { id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4, assignedCourses: ['MC1'] },
+        ]}
+        endpoint="/api/test"
+        onSaved={jest.fn()}
+      />,
+    );
+
+    rerender(
+      <FinalsRoundCoursesSettings
+        match={{ id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 5 }}
+        matches={[
+          {
+            id: 'm1',
+            stage: 'finals',
+            round: 'winners_qf',
+            completed: false,
+            version: 5,
+            assignedCourses: ['DP1', 'GV1'],
+          },
+        ]}
+        endpoint="/api/test"
+        onSaved={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('Round courses')).toHaveValue('DP1, GV1');
+  });
+
   it('sends every pending match version and leaves completed matches out of the update contract', async () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
     const onSaved = jest.fn();
