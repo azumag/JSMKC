@@ -63,6 +63,19 @@ describe('CI workflow configuration', () => {
     );
   });
 
+  it('checks the tracked #3114 exception status before the network-backed audit', () => {
+    const auditStep = lintAndTestJob.steps.find((s) => s.run?.includes('node scripts/security-audit.js'));
+    const run = auditStep?.run ?? '';
+
+    expect(run).toContain('node scripts/security-audit-status.js');
+    expect(run.indexOf('node scripts/security-audit-lockfile.js')).toBeLessThan(
+      run.indexOf('node scripts/security-audit-status.js'),
+    );
+    expect(run.indexOf('node scripts/security-audit-status.js')).toBeLessThan(
+      run.indexOf('node scripts/security-audit.js'),
+    );
+  });
+
   it('runs the security audit inside the smkc-score-app working-directory job', () => {
     // defaults.run.working-directory で全ステップが smkc-score-app/ 配下で実行される。
     // helper が package-lock.json を直接検証するため、この working-directory は必須。
