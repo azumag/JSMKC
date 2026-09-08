@@ -76,7 +76,7 @@ describe('buildQualificationScheduleDiagnostics', () => {
 });
 
 describe('summarizeQualificationScheduleDiagnostics', () => {
-  it('counts the groups affected by pending #3054 decisions without changing policy', () => {
+  it('counts and buckets the groups affected by pending #3054 decisions without changing policy', () => {
     const diagnostics = buildQualificationScheduleDiagnostics('cdm', {
       bm: [
         ...Array.from({ length: 11 }, () => ({ group: 'A' })),
@@ -85,16 +85,36 @@ describe('summarizeQualificationScheduleDiagnostics', () => {
         ...Array.from({ length: 14 }, () => ({ group: 'D' })),
       ],
       mr: Array.from({ length: 21 }, () => ({ group: 'E' })),
-      gp: [],
+      gp: Array.from({ length: 12 }, () => ({ group: 'F' })),
     });
 
     expect(summarizeQualificationScheduleDiagnostics(diagnostics)).toEqual({
-      totalGroupCount: 5,
-      legacyCircleGroupCount: 3,
-      legacyCircleCdmReadyGroupCount: 2,
-      legacyCircleCdmExactFitGroupCount: 1,
+      totalGroupCount: 6,
+      legacyCircleGroupCount: 4,
+      legacyCircleCdmReadyGroupCount: 3,
+      legacyCircleCdmExactFitGroupCount: 2,
       legacyCircleCdmBreakRequiredGroupCount: 1,
       legacyCircleCdmUnavailableGroupCount: 1,
+      legacyCircleSizeBreakdown: [
+        {
+          playerCount: 11,
+          groupCount: 1,
+          cdmFixtureCapacity: 12,
+          cdmBreakSlotCount: 1,
+        },
+        {
+          playerCount: 12,
+          groupCount: 2,
+          cdmFixtureCapacity: 12,
+          cdmBreakSlotCount: 0,
+        },
+        {
+          playerCount: 13,
+          groupCount: 1,
+          cdmFixtureCapacity: null,
+          cdmBreakSlotCount: null,
+        },
+      ],
       cdmFixtureUnavailableGroupCount: 2,
       cdmBreakRequiredGroupCount: 2,
       generationBlockedGroupCount: 1,

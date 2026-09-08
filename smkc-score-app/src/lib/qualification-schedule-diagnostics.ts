@@ -16,6 +16,13 @@ export type QualificationScheduleDiagnostics = Record<QualificationDiagnosticMod
 
 export type QualificationRowsByMode = Record<QualificationDiagnosticMode, ReadonlyArray<{ group: string }>>;
 
+export interface QualificationScheduleDiagnosticsSizeBucket {
+  playerCount: number;
+  groupCount: number;
+  cdmFixtureCapacity: number | null;
+  cdmBreakSlotCount: number | null;
+}
+
 export interface QualificationScheduleDiagnosticsSummary {
   totalGroupCount: number;
   legacyCircleGroupCount: number;
@@ -23,6 +30,7 @@ export interface QualificationScheduleDiagnosticsSummary {
   legacyCircleCdmExactFitGroupCount: number;
   legacyCircleCdmBreakRequiredGroupCount: number;
   legacyCircleCdmUnavailableGroupCount: number;
+  legacyCircleSizeBreakdown: QualificationScheduleDiagnosticsSizeBucket[];
   cdmFixtureUnavailableGroupCount: number;
   cdmBreakRequiredGroupCount: number;
   generationBlockedGroupCount: number;
@@ -67,6 +75,24 @@ export function summarizeQualificationScheduleDiagnostics(
   const groups = QUALIFICATION_DIAGNOSTIC_MODES.flatMap((mode) => diagnostics[mode]);
   const legacyCircleGroups = groups.filter((group) => group.reason === 'cdm-small-group-legacy-circle');
   const legacyCircleCdmReadyGroups = legacyCircleGroups.filter((group) => group.cdmFixtureCapacity !== null);
+  const legacyCircleSizeBreakdown = [
+    ...legacyCircleGroups
+      .reduce((buckets, group) => {
+        const existing = buckets.get(group.playerCount);
+        if (existing) {
+          existing.groupCount += 1;
+        } else {
+          buckets.set(group.playerCount, {
+            playerCount: group.playerCount,
+            groupCount: 1,
+            cdmFixtureCapacity: group.cdmFixtureCapacity,
+            cdmBreakSlotCount: group.cdmBreakSlotCount,
+          });
+        }
+        return buckets;
+      }, new Map<number, QualificationScheduleDiagnosticsSizeBucket>())
+      .values(),
+  ].sort((left, right) => left.playerCount - right.playerCount);
 
   return {
     totalGroupCount: groups.length,
@@ -79,6 +105,7 @@ export function summarizeQualificationScheduleDiagnostics(
     ).length,
     legacyCircleCdmUnavailableGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity === null)
       .length,
+    legacyCircleSizeBreakdown,
     cdmFixtureUnavailableGroupCount: groups.filter((group) => group.cdmFixtureCapacity === null).length,
     cdmBreakRequiredGroupCount: groups.filter((group) => (group.cdmBreakSlotCount ?? 0) > 0).length,
     generationBlockedGroupCount: groups.filter((group) => !group.generationSupported).length,
