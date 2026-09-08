@@ -6,10 +6,12 @@ JSMKC の `lint-and-test` CI は npm を **10.9.4** に固定する。
 
 さらに `node scripts/security-audit.js` 自身が audit subprocess を起動する直前に npm runtime verifier を呼び、`package.json` の `packageManager` が exact `npm@x.y.z` 形式であることと、実行時の `npm --version` がその固定値と一致することを再検証する。CI の shell chain に verifier を別コマンドとして置かないため、audit helper をローカル・別CIから直接実行しても runtime guard を迂回できない。
 
-固定値の正本は `smkc-score-app/package.json` の `packageManager` と `.github/workflows/ci.yml` の Pin npm step で、`smkc-score-app/__tests__/docs/ci-config.test.ts` が両者の一致、`npm ci` より前の pin、lockfile preflight と Security audit entrypoint の順序を回帰テストする。`smkc-score-app/__tests__/scripts/verify-npm-version.test.ts` は exact pin の解釈・runtime process failure・version mismatch の fail-closed 条件を検証し、`security-audit-runtime-guard.test.ts` は audit helper が `npm audit` より前に verifier を必ず呼ぶことを固定する。
+#3114 の期限付き例外については、CI の Security audit step で `security-audit-lockfile.js` の後、ネットワークへ接続する本監査の前に `security-audit-status.js` を実行する。これにより、既知の例外文脈が期限切れ・依存更新・manifest/lockfile drift で変化した場合は、`npm audit` の結果だけで自動的に「解消」と判断せず fail-closed で停止する。status が `active` の場合だけ通常の `security-audit.js` へ進み、例外削除や期限更新は #3114 で再評価したうえで明示的に行う。
+
+固定値の正本は `smkc-score-app/package.json` の `packageManager` と `.github/workflows/ci.yml` の Pin npm step で、`smkc-score-app/__tests__/docs/ci-config.test.ts` が両者の一致、`npm ci` より前の pin、lockfile preflight → temporary exception status → Security audit entrypoint の順序を回帰テストする。`smkc-score-app/__tests__/scripts/verify-npm-version.test.ts` は exact pin の解釈・runtime process failure・version mismatch の fail-closed 条件を検証し、`security-audit-runtime-guard.test.ts` は audit helper が `npm audit` より前に verifier を必ず呼ぶことを固定する。
 
 ## 更新手順
 
-npm を更新するときは、単に version を上げず、候補版で `npm ci` と `node scripts/security-audit-lockfile.js && node scripts/security-audit.js` を実行し、runtime version guard と audit report shape / exit status の検証が引き続き成立することを確認する。必要なら security-audit helper と policy を同じ PR で更新する。
+npm を更新するときは、単に version を上げず、候補版で `npm ci` と `node scripts/security-audit-lockfile.js && node scripts/security-audit-status.js && node scripts/security-audit.js` を実行し、runtime version guard と audit report shape / exit status の検証が引き続き成立することを確認する。必要なら security-audit helper と policy を同じ PR で更新する。
 
 確認後、`package.json` の `packageManager` と CI の Pin npm step を同じ version に更新し、lint、format、unit tests、security audit、Cloudflare build を通す。npm の変更だけを理由に #3114 の high/critical gate や temporary exception 条件を緩めない。
