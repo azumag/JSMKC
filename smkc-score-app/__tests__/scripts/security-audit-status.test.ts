@@ -1,7 +1,8 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-import { getSecurityAuditExceptionStatus } from '../../scripts/security-audit-status.js';
+import { getSecurityAuditExceptionStatus, writeGitHubOutputs } from '../../scripts/security-audit-status.js';
 
 const appRoot = path.resolve(__dirname, '../..');
 const manifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
@@ -56,5 +57,24 @@ describe('security audit exception status', () => {
         now: new Date('2026-09-08T00:00:00.000Z'),
       }).state,
     ).toBe('invalid-input');
+  });
+
+  it('publishes the state and deadline as GitHub Actions step outputs', () => {
+    const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-status-'));
+    const outputPath = path.join(outputDirectory, 'github-output');
+
+    try {
+      const status = getSecurityAuditExceptionStatus({
+        manifest,
+        lockfile,
+        now: new Date('2026-09-08T00:00:00.000Z'),
+      });
+
+      writeGitHubOutputs(status, outputPath);
+
+      expect(fs.readFileSync(outputPath, 'utf8')).toBe('state=active\ndeadline=2026-10-06T00:00:00.000Z\n');
+    } finally {
+      fs.rmSync(outputDirectory, { recursive: true, force: true });
+    }
   });
 });
