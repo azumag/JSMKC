@@ -56,6 +56,9 @@ jobs:
           LOCKFILE_PREFLIGHT_OUTCOME: ${{ steps.lockfile_preflight.outcome }}
           EXCEPTION_STATUS_OUTCOME: ${{ steps.exception_status.outcome }}
           EXCEPTION_STATUS_STATE: ${{ steps.exception_status.outputs.state }}
+          EXCEPTION_TRACKING_ISSUE: ${{ steps.exception_status.outputs.tracking_issue }}
+          EXCEPTION_ADVISORY: ${{ steps.exception_status.outputs.advisory }}
+          EXCEPTION_ADVISORY_RANGE: ${{ steps.exception_status.outputs.advisory_range }}
           EXCEPTION_CHECKED_AT: ${{ steps.exception_status.outputs.checked_at }}
           EXCEPTION_REVIEW_DEADLINE: ${{ steps.exception_status.outputs.deadline }}
           EXCEPTION_DAYS_UNTIL_DEADLINE: ${{ steps.exception_status.outputs.days_until_deadline }}
@@ -72,6 +75,10 @@ jobs:
             echo "| Lockfile preflight | \`${LOCKFILE_PREFLIGHT_OUTCOME}\` |"
             echo "| Temporary exception status | \`${EXCEPTION_STATUS_OUTCOME}\` |"
             echo "| Canonical npm audit | \`${CANONICAL_AUDIT_OUTCOME}\` |"
+            echo
+            echo "Tracking issue: \`#${EXCEPTION_TRACKING_ISSUE:-unavailable}\`"
+            echo
+            echo "Tracked advisory: \`${EXCEPTION_ADVISORY:-unavailable}\` (\`${EXCEPTION_ADVISORY_RANGE:-unavailable}\`)"
             echo
             echo "Temporary exception state: \`${EXCEPTION_STATUS_STATE:-unavailable}\`"
             echo
