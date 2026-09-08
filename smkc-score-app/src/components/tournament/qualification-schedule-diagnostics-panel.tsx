@@ -39,9 +39,11 @@ export function QualificationScheduleDiagnosticsPanel({
       {summary.totalGroupCount > 0 && (
         <div
           aria-label="Qualification schedule decision summary"
-          className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4"
+          className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs sm:grid-cols-2 lg:grid-cols-3"
         >
           <div>Legacy circle: {summary.legacyCircleGroupCount}</div>
+          <div>Legacy circle with CDM fixture: {summary.legacyCircleCdmReadyGroupCount}</div>
+          <div>Legacy circle without CDM fixture: {summary.legacyCircleCdmUnavailableGroupCount}</div>
           <div>CDM fixture unavailable: {summary.cdmFixtureUnavailableGroupCount}</div>
           <div>BREAK required: {summary.cdmBreakRequiredGroupCount}</div>
           <div>Generation blocked: {summary.generationBlockedGroupCount}</div>
