@@ -115,6 +115,8 @@ jobs:
       - name: Security audit
         # Fail closed for all high/critical findings except the exact, dev-only
         # Prisma -> deepmerge-ts advisory tracked in #3114. Validate the
-        # package-lock schema first; security-audit.js then verifies the pinned
-        # npm runtime itself before invoking npm audit and pinning report semantics.
-        run: node scripts/security-audit-lockfile.js && node scripts/security-audit.js
+        # package-lock schema first, then require the tracked exception context
+        # to still be active before the network-backed audit. security-audit.js
+        # verifies the pinned npm runtime itself before invoking npm audit and
+        # pinning report semantics.
+        run: node scripts/security-audit-lockfile.js && node scripts/security-audit-status.js && node scripts/security-audit.js
