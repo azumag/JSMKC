@@ -24,6 +24,9 @@ describe('security audit exception status', () => {
         now: new Date('2026-09-08T00:00:00.000Z'),
       }),
     ).toEqual({
+      trackingIssue: 3114,
+      advisory: 'GHSA-ggr8-5vv4-36mx',
+      advisoryRange: '<8.0.0',
       state: 'active',
       deadline: '2026-10-06T00:00:00.000Z',
       checkedAt: '2026-09-08T00:00:00.000Z',
@@ -49,7 +52,7 @@ describe('security audit exception status', () => {
     expect(() => parseCliOptions(['--quiet', '--pretty'])).toThrow('Unknown options: --quiet, --pretty');
   });
 
-  it('formats the same evidence as machine-readable JSON for automation', () => {
+  it('formats the same self-describing evidence as machine-readable JSON for automation', () => {
     const status = getSecurityAuditExceptionStatus({
       manifest,
       lockfile,
@@ -57,9 +60,14 @@ describe('security audit exception status', () => {
     });
 
     expect(JSON.parse(formatSecurityAuditExceptionStatus(status, { json: true }))).toEqual(status);
+    expect(status).toMatchObject({
+      trackingIssue: 3114,
+      advisory: 'GHSA-ggr8-5vv4-36mx',
+      advisoryRange: '<8.0.0',
+    });
   });
 
-  it('keeps the existing human-readable output as the default format', () => {
+  it('keeps the existing human-readable output as the default format with exception identity', () => {
     const status = getSecurityAuditExceptionStatus({
       manifest,
       lockfile,
@@ -67,6 +75,10 @@ describe('security audit exception status', () => {
     });
 
     expect(formatSecurityAuditExceptionStatus(status)).toContain('security audit exception status: active\n');
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('tracking issue: #3114\n');
+    expect(formatSecurityAuditExceptionStatus(status)).toContain(
+      'tracked advisory: GHSA-ggr8-5vv4-36mx (<8.0.0)\n',
+    );
     expect(formatSecurityAuditExceptionStatus(status)).toContain('days until review deadline: 28\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('deepmerge-ts: 7.1.5\n');
   });
@@ -145,7 +157,7 @@ describe('security audit exception status', () => {
     ).toBe('invalid-input');
   });
 
-  it('publishes status and dependency versions as GitHub Actions step outputs', () => {
+  it('publishes exception identity, status, and dependency versions as GitHub Actions step outputs', () => {
     const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-status-'));
     const outputPath = path.join(outputDirectory, 'github-output');
 
@@ -160,6 +172,9 @@ describe('security audit exception status', () => {
 
       expect(fs.readFileSync(outputPath, 'utf8')).toBe(
         'state=active\n' +
+          'tracking_issue=3114\n' +
+          'advisory=GHSA-ggr8-5vv4-36mx\n' +
+          'advisory_range=<8.0.0\n' +
           'checked_at=2026-09-08T00:00:00.000Z\n' +
           'deadline=2026-10-06T00:00:00.000Z\n' +
           'days_until_deadline=28\n' +
