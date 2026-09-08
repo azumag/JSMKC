@@ -34,10 +34,10 @@ export function FinalsRoundCoursesSettings({
   const pending = matches.filter(
     (candidate) => candidate.stage === match.stage && candidate.round === match.round && !candidate.completed,
   );
-  const activeCourses = toCourses(pending[0]?.assignedCourses);
-  const [value, setValue] = useState(activeCourses.join(', '));
+  const activeCoursesValue = toCourses(pending[0]?.assignedCourses).join(', ');
+  const [value, setValue] = useState(activeCoursesValue);
   const [saving, setSaving] = useState(false);
-  useEffect(() => setValue(activeCourses.join(', ')), [match.id, activeCourses.join('|')]);
+  useEffect(() => setValue(activeCoursesValue), [match.id, activeCoursesValue]);
 
   const save = async () => {
     const courses = value
