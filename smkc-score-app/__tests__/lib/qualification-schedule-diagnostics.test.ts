@@ -79,21 +79,24 @@ describe('summarizeQualificationScheduleDiagnostics', () => {
   it('counts the groups affected by pending #3054 decisions without changing policy', () => {
     const diagnostics = buildQualificationScheduleDiagnostics('cdm', {
       bm: [
-        ...Array.from({ length: 12 }, () => ({ group: 'A' })),
-        ...Array.from({ length: 13 }, () => ({ group: 'B' })),
-        ...Array.from({ length: 14 }, () => ({ group: 'C' })),
+        ...Array.from({ length: 11 }, () => ({ group: 'A' })),
+        ...Array.from({ length: 12 }, () => ({ group: 'B' })),
+        ...Array.from({ length: 13 }, () => ({ group: 'C' })),
+        ...Array.from({ length: 14 }, () => ({ group: 'D' })),
       ],
-      mr: Array.from({ length: 21 }, () => ({ group: 'D' })),
+      mr: Array.from({ length: 21 }, () => ({ group: 'E' })),
       gp: [],
     });
 
     expect(summarizeQualificationScheduleDiagnostics(diagnostics)).toEqual({
-      totalGroupCount: 4,
-      legacyCircleGroupCount: 2,
-      legacyCircleCdmReadyGroupCount: 1,
+      totalGroupCount: 5,
+      legacyCircleGroupCount: 3,
+      legacyCircleCdmReadyGroupCount: 2,
+      legacyCircleCdmExactFitGroupCount: 1,
+      legacyCircleCdmBreakRequiredGroupCount: 1,
       legacyCircleCdmUnavailableGroupCount: 1,
       cdmFixtureUnavailableGroupCount: 2,
-      cdmBreakRequiredGroupCount: 1,
+      cdmBreakRequiredGroupCount: 2,
       generationBlockedGroupCount: 1,
     });
   });
