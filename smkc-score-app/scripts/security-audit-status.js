@@ -21,6 +21,16 @@ const TRACKED_DEPENDENCY_PATHS = {
 const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
+function parseCliOptions(argv = process.argv.slice(2)) {
+  const unknownArguments = argv.filter((argument) => argument !== '--json');
+
+  if (unknownArguments.length > 0) {
+    throw new Error(`Unknown option${unknownArguments.length === 1 ? '' : 's'}: ${unknownArguments.join(', ')}`);
+  }
+
+  return { json: argv.includes('--json') };
+}
+
 function getTrackedDependencyVersions(lockfile) {
   const packages = lockfile?.packages;
 
@@ -138,6 +148,15 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
 }
 
 function main() {
+  let cliOptions;
+
+  try {
+    cliOptions = parseCliOptions();
+  } catch (error) {
+    process.stderr.write(`Invalid security audit status arguments: ${error.message}\n`);
+    process.exit(1);
+  }
+
   let manifest;
   let lockfile;
 
@@ -150,7 +169,7 @@ function main() {
   }
 
   const status = getSecurityAuditExceptionStatus({ manifest, lockfile });
-  process.stdout.write(formatSecurityAuditExceptionStatus(status, { json: process.argv.includes('--json') }));
+  process.stdout.write(formatSecurityAuditExceptionStatus(status, cliOptions));
 
   try {
     writeGitHubOutputs(status);
@@ -173,5 +192,6 @@ module.exports = {
   getDaysUntilReviewDeadline,
   getSecurityAuditExceptionStatus,
   getTrackedDependencyVersions,
+  parseCliOptions,
   writeGitHubOutputs,
 };
