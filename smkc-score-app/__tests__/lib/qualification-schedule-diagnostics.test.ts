@@ -90,6 +90,8 @@ describe('summarizeQualificationScheduleDiagnostics', () => {
     expect(summarizeQualificationScheduleDiagnostics(diagnostics)).toEqual({
       totalGroupCount: 4,
       legacyCircleGroupCount: 2,
+      legacyCircleCdmReadyGroupCount: 1,
+      legacyCircleCdmUnavailableGroupCount: 1,
       cdmFixtureUnavailableGroupCount: 2,
       cdmBreakRequiredGroupCount: 1,
       generationBlockedGroupCount: 1,

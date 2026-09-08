@@ -44,7 +44,9 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、保存された方式（Configured）、実際に適用される方式（Effective）、判定理由に加え、CDMへ切り替えた場合のfixture容量とBREAK slot数を確認できます。現在の実効方式がCDMなのに対応fixtureがない場合は、対戦表生成がサポートされていない状態として警告も表示します。とくに `Configured: CDM · Effective: CIRCLE` のような表示により、13名以下のCDM-first大会が現在の互換policyでcircleへ解決されていることを設定変更と取り違えず確認できます。表示によって大会設定や対戦表が変更されることはありません。
 
-画面上部には `summarizeQualificationScheduleDiagnostics` による読み取り専用の集計も表示します。`Legacy circle` はCDM-firstだが現行policyでcircleを使うグループ数、`CDM fixture unavailable` はCDM previewが存在しないグループ数、`BREAK required` はCDMへ切り替えた場合にBREAK slotが必要なグループ数、`Generation blocked` は現在の実効方式では対戦表生成できないグループ数です。これにより、#3054 の各仕様判断が実大会の何グループに影響するかを、設定変更なしで把握できます。
+画面上部には `summarizeQualificationScheduleDiagnostics` による読み取り専用の集計も表示します。`Legacy circle` はCDM-firstだが現行policyでcircleを使うグループ数です。その内訳として、`Legacy circle with CDM fixture` は現行policyではcircleのままだが低レベルのCDM fixture自体は利用できるグループ数、`Legacy circle without CDM fixture` は13名など現状のfixture対応表ではそのままCDMへ切り替えられないグループ数を示します。これにより、#3054 の「13名以下もCDMへ切り替えるか」という判断を、単なる対象件数ではなく「現在のfixtureだけで移行可能なグループ」と「追加fixtureまたは別方針が必要なグループ」に分けて把握できます。
+
+`CDM fixture unavailable` はCDM previewが存在しない全グループ数、`BREAK required` はCDMへ切り替えた場合にBREAK slotが必要なグループ数、`Generation blocked` は現在の実効方式では対戦表生成できないグループ数です。これらはすべて読み取り専用で、大会設定や生成policyを変更しません。
 
 CDM fixture preview の対応は現在次の通りです。
 
@@ -85,4 +87,4 @@ CDM fixture preview の対応は現在次の通りです。
 
 ## 回帰テスト
 
-`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果、明示的なcircle設定の維持、#3054 の判断対象グループを集計するsummaryを検証します。`__tests__/components/tournament/qualification-schedule-diagnostics-panel.test.tsx` では管理UIが保存された方式と実効方式の差、circle/CDMの実効方式、判定理由、判断用summary、未対応CDM requestの警告、空モードを表示することを確認します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
+`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果、明示的なcircle設定の維持、#3054 の判断対象グループを集計するsummary、およびlegacy circleのうち現在のCDM fixtureだけで切り替え可能なグループと未対応グループの内訳を検証します。`__tests__/components/tournament/qualification-schedule-diagnostics-panel.test.tsx` では管理UIが保存された方式と実効方式の差、circle/CDMの実効方式、判定理由、判断用summaryとlegacy circleのCDM readiness内訳、未対応CDM requestの警告、空モードを表示することを確認します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。

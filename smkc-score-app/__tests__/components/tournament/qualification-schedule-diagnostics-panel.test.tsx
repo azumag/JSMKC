@@ -71,6 +71,8 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
 
     const summary = screen.getByLabelText('Qualification schedule decision summary');
     expect(summary).toHaveTextContent('Legacy circle: 1');
+    expect(summary).toHaveTextContent('Legacy circle with CDM fixture: 0');
+    expect(summary).toHaveTextContent('Legacy circle without CDM fixture: 1');
     expect(summary).toHaveTextContent('CDM fixture unavailable: 1');
     expect(summary).toHaveTextContent('BREAK required: 1');
     expect(summary).toHaveTextContent('Generation blocked: 0');
