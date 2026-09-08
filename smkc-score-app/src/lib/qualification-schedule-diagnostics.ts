@@ -68,12 +68,9 @@ export function summarizeQualificationScheduleDiagnostics(
   return {
     totalGroupCount: groups.length,
     legacyCircleGroupCount: legacyCircleGroups.length,
-    legacyCircleCdmReadyGroupCount: legacyCircleGroups.filter(
-      (group) => group.cdmFixtureCapacity !== null,
-    ).length,
-    legacyCircleCdmUnavailableGroupCount: legacyCircleGroups.filter(
-      (group) => group.cdmFixtureCapacity === null,
-    ).length,
+    legacyCircleCdmReadyGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity !== null).length,
+    legacyCircleCdmUnavailableGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity === null)
+      .length,
     cdmFixtureUnavailableGroupCount: groups.filter((group) => group.cdmFixtureCapacity === null).length,
     cdmBreakRequiredGroupCount: groups.filter((group) => (group.cdmBreakSlotCount ?? 0) > 0).length,
     generationBlockedGroupCount: groups.filter((group) => !group.generationSupported).length,
