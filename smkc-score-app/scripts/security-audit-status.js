@@ -52,6 +52,14 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   };
 }
 
+function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
+  if (!outputPath) {
+    return;
+  }
+
+  fs.appendFileSync(outputPath, `state=${status.state}\ndeadline=${status.deadline}\n`, 'utf8');
+}
+
 function main() {
   let manifest;
   let lockfile;
@@ -69,6 +77,13 @@ function main() {
   process.stdout.write(`review deadline: ${status.deadline}\n`);
   process.stdout.write(`${status.message}\n`);
 
+  try {
+    writeGitHubOutputs(status);
+  } catch (error) {
+    process.stderr.write(`Failed to publish security audit status outputs: ${error.message}\n`);
+    process.exit(1);
+  }
+
   if (status.state !== 'active') {
     process.exit(1);
   }
@@ -78,4 +93,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { getSecurityAuditExceptionStatus };
+module.exports = { getSecurityAuditExceptionStatus, writeGitHubOutputs };
