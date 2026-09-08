@@ -3,6 +3,7 @@ import {
   QUALIFICATION_DIAGNOSTIC_MODES,
   summarizeQualificationScheduleDiagnostics,
   type QualificationScheduleDiagnostics,
+  type QualificationScheduleDiagnosticsSizeBucket,
 } from '@/lib/qualification-schedule-diagnostics';
 import type { QualificationSchedulePolicyReason } from '@/lib/qualification-schedule-policy';
 
@@ -17,6 +18,16 @@ const REASON_LABELS: Record<QualificationSchedulePolicyReason, string> = {
   'cdm-small-group-legacy-circle': 'CDM-first tournament, but groups of 13 or fewer still use circle scheduling.',
   'cdm-requested': 'Current policy requests the CDM fixture for groups of 14 or more.',
 };
+
+function formatLegacyCircleSizeBucket(bucket: QualificationScheduleDiagnosticsSizeBucket) {
+  const fixture =
+    bucket.cdmFixtureCapacity === null
+      ? 'no CDM fixture'
+      : `${bucket.cdmFixtureCapacity}-slot CDM / ${bucket.cdmBreakSlotCount ?? 0} BREAK`;
+  const groupLabel = bucket.groupCount === 1 ? 'group' : 'groups';
+
+  return `${bucket.playerCount} players × ${bucket.groupCount} ${groupLabel} (${fixture})`;
+}
 
 export function QualificationScheduleDiagnosticsPanel({
   diagnostics,
@@ -49,6 +60,11 @@ export function QualificationScheduleDiagnosticsPanel({
           <div>CDM fixture unavailable: {summary.cdmFixtureUnavailableGroupCount}</div>
           <div>BREAK required: {summary.cdmBreakRequiredGroupCount}</div>
           <div>Generation blocked: {summary.generationBlockedGroupCount}</div>
+          {summary.legacyCircleSizeBreakdown.length > 0 && (
+            <div className="sm:col-span-2 lg:col-span-3">
+              Legacy circle sizes: {summary.legacyCircleSizeBreakdown.map(formatLegacyCircleSizeBucket).join(' · ')}
+            </div>
+          )}
         </div>
       )}
 
