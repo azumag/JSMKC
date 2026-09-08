@@ -76,7 +76,7 @@ describe('buildQualificationScheduleDiagnostics', () => {
 });
 
 describe('summarizeQualificationScheduleDiagnostics', () => {
-  it('counts and groups the groups affected by pending #3054 decisions without changing policy', () => {
+  it('counts and buckets the groups affected by pending #3054 decisions without changing policy', () => {
     const diagnostics = buildQualificationScheduleDiagnostics('cdm', {
       bm: [
         ...Array.from({ length: 11 }, () => ({ group: 'A' })),
