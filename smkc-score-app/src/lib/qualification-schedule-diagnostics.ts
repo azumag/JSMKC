@@ -20,6 +20,8 @@ export interface QualificationScheduleDiagnosticsSummary {
   totalGroupCount: number;
   legacyCircleGroupCount: number;
   legacyCircleCdmReadyGroupCount: number;
+  legacyCircleCdmExactFitGroupCount: number;
+  legacyCircleCdmBreakRequiredGroupCount: number;
   legacyCircleCdmUnavailableGroupCount: number;
   cdmFixtureUnavailableGroupCount: number;
   cdmBreakRequiredGroupCount: number;
@@ -64,11 +66,17 @@ export function summarizeQualificationScheduleDiagnostics(
 ): QualificationScheduleDiagnosticsSummary {
   const groups = QUALIFICATION_DIAGNOSTIC_MODES.flatMap((mode) => diagnostics[mode]);
   const legacyCircleGroups = groups.filter((group) => group.reason === 'cdm-small-group-legacy-circle');
+  const legacyCircleCdmReadyGroups = legacyCircleGroups.filter((group) => group.cdmFixtureCapacity !== null);
 
   return {
     totalGroupCount: groups.length,
     legacyCircleGroupCount: legacyCircleGroups.length,
-    legacyCircleCdmReadyGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity !== null).length,
+    legacyCircleCdmReadyGroupCount: legacyCircleCdmReadyGroups.length,
+    legacyCircleCdmExactFitGroupCount: legacyCircleCdmReadyGroups.filter((group) => group.cdmBreakSlotCount === 0)
+      .length,
+    legacyCircleCdmBreakRequiredGroupCount: legacyCircleCdmReadyGroups.filter(
+      (group) => (group.cdmBreakSlotCount ?? 0) > 0,
+    ).length,
     legacyCircleCdmUnavailableGroupCount: legacyCircleGroups.filter((group) => group.cdmFixtureCapacity === null)
       .length,
     cdmFixtureUnavailableGroupCount: groups.filter((group) => group.cdmFixtureCapacity === null).length,

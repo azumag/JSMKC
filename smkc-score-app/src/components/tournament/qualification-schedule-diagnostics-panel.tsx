@@ -43,6 +43,8 @@ export function QualificationScheduleDiagnosticsPanel({
         >
           <div>Legacy circle: {summary.legacyCircleGroupCount}</div>
           <div>Legacy circle with CDM fixture: {summary.legacyCircleCdmReadyGroupCount}</div>
+          <div>Legacy circle exact-fit CDM: {summary.legacyCircleCdmExactFitGroupCount}</div>
+          <div>Legacy circle CDM with BREAK: {summary.legacyCircleCdmBreakRequiredGroupCount}</div>
           <div>Legacy circle without CDM fixture: {summary.legacyCircleCdmUnavailableGroupCount}</div>
           <div>CDM fixture unavailable: {summary.cdmFixtureUnavailableGroupCount}</div>
           <div>BREAK required: {summary.cdmBreakRequiredGroupCount}</div>
