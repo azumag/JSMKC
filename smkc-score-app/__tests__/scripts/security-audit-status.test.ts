@@ -72,6 +72,17 @@ describe('security audit exception status', () => {
     });
   });
 
+  it('rejects unsafe version text before publishing GitHub Actions outputs', () => {
+    const unsafeLockfile = structuredClone(lockfile);
+    unsafeLockfile.packages['node_modules/deepmerge-ts'].version = '7.1.5\nforged_output=1';
+
+    expect(getTrackedDependencyVersions(unsafeLockfile)).toEqual({
+      prisma: '6.19.3',
+      prismaConfig: '6.19.3',
+      deepmergeTs: null,
+    });
+  });
+
   it('fails status evaluation when manifest and lockfile identity drift', () => {
     const mismatchedManifest = { ...manifest, version: '0.0.0-drift' };
 
