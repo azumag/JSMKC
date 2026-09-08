@@ -58,9 +58,7 @@ function sameNumberArray(left: readonly number[], right: readonly number[]) {
  * player count without mutating tournament data. Seed order is held constant
  * so day, 1P/2P side, and BREAK assignment differences remain observable.
  */
-export function compareCircleAndCdmQualificationSchedules(
-  playerCount: number,
-): QualificationScheduleComparison | null {
+export function compareCircleAndCdmQualificationSchedules(playerCount: number): QualificationScheduleComparison | null {
   const fixturePlan = getCdmRoundRobinFixturePlan(playerCount);
   if (!fixturePlan) return null;
 
