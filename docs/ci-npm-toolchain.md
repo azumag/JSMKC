@@ -8,7 +8,9 @@ JSMKC の `lint-and-test` CI は npm を **10.9.4** に固定する。
 
 #3114 の期限付き例外については、CI の Security audit step で `security-audit-lockfile.js` の後、ネットワークへ接続する本監査の前に `security-audit-status.js` を実行する。これにより、既知の例外文脈が期限切れ・依存更新・manifest/lockfile drift で変化した場合は、`npm audit` の結果だけで自動的に「解消」と判断せず fail-closed で停止する。status が `active` の場合だけ通常の `security-audit.js` へ進み、例外削除や期限更新は #3114 で再評価したうえで明示的に行う。
 
-固定値の正本は `smkc-score-app/package.json` の `packageManager` と `.github/workflows/ci.yml` の Pin npm step で、`smkc-score-app/__tests__/docs/ci-config.test.ts` が両者の一致、`npm ci` より前の pin、lockfile preflight → temporary exception status → Security audit entrypoint の順序を回帰テストする。`smkc-score-app/__tests__/scripts/verify-npm-version.test.ts` は exact pin の解釈・runtime process failure・version mismatch の fail-closed 条件を検証し、`security-audit-runtime-guard.test.ts` は audit helper が `npm audit` より前に verifier を必ず呼ぶことを固定する。
+upstream の修正確認や再レビュー期限前の再評価を、アプリ変更用 PR を作らずに実行したい場合は GitHub Actions の **Security audit review** workflow を手動起動する。この workflow は `workflow_dispatch` のみで定期実行は行わず、read-only の repository permission で checkout した後、CI と同じ Node.js 22 / npm 10.9.4 / `npm ci` / lockfile preflight → temporary exception status → network-backed audit の順序を実行する。結果が green でも #3114 の例外条件を自動変更・延長・削除はしないため、upstream の状態と audit 結果を確認してから明示的に判断する。
+
+固定値の正本は `smkc-score-app/package.json` の `packageManager` と `.github/workflows/ci.yml` の Pin npm step で、`smkc-score-app/__tests__/docs/ci-config.test.ts` が両者の一致、`npm ci` より前の pin、lockfile preflight → temporary exception status → Security audit entrypoint の順序を回帰テストする。`smkc-score-app/__tests__/docs/security-audit-review-workflow.test.ts` は手動 review workflow が定期起動されないこと、read-only permission、同じ npm pin と audit 順序を維持することを検証する。`smkc-score-app/__tests__/scripts/verify-npm-version.test.ts` は exact pin の解釈・runtime process failure・version mismatch の fail-closed 条件を検証し、`security-audit-runtime-guard.test.ts` は audit helper が `npm audit` より前に verifier を必ず呼ぶことを固定する。
 
 ## 更新手順
 
