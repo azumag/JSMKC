@@ -19,6 +19,7 @@ const TRACKED_DEPENDENCY_PATHS = {
   deepmergeTs: 'node_modules/deepmerge-ts',
 };
 const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function getTrackedDependencyVersions(lockfile) {
   const packages = lockfile?.packages;
@@ -31,8 +32,25 @@ function getTrackedDependencyVersions(lockfile) {
   );
 }
 
+function getDaysUntilReviewDeadline(deadline, now = new Date()) {
+  const deadlineMs = Date.parse(deadline);
+  const nowMs = now.getTime();
+
+  if (!Number.isFinite(deadlineMs) || !Number.isFinite(nowMs)) {
+    return null;
+  }
+
+  const deltaMs = deadlineMs - nowMs;
+  if (deltaMs >= 0) {
+    return Math.ceil(deltaMs / MILLISECONDS_PER_DAY);
+  }
+
+  return -Math.ceil(Math.abs(deltaMs) / MILLISECONDS_PER_DAY);
+}
+
 function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() }) {
   const deadline = getTemporaryExceptionReviewDeadline();
+  const daysUntilDeadline = getDaysUntilReviewDeadline(deadline, now);
   const versions = getTrackedDependencyVersions(lockfile);
 
   if (
@@ -43,6 +61,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'invalid-input',
       deadline,
+      daysUntilDeadline,
       versions,
       message: 'package.json / package-lock.json do not satisfy the security audit preconditions',
     };
@@ -52,6 +71,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'context-changed',
       deadline,
+      daysUntilDeadline,
       versions,
       message:
         'the exact #3114 temporary exception context is no longer present; run the full security audit before removing the exception',
@@ -62,6 +82,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       state: 'expired',
       deadline,
+      daysUntilDeadline,
       versions,
       message: 'the #3114 temporary exception review deadline has been reached',
     };
@@ -70,6 +91,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   return {
     state: 'active',
     deadline,
+    daysUntilDeadline,
     versions,
     message: 'the exact #3114 temporary exception context is still active',
   };
@@ -83,10 +105,11 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
   const prismaVersion = status.versions.prisma ?? 'unavailable';
   const prismaConfigVersion = status.versions.prismaConfig ?? 'unavailable';
   const deepmergeTsVersion = status.versions.deepmergeTs ?? 'unavailable';
+  const daysUntilDeadline = status.daysUntilDeadline ?? 'unavailable';
 
   fs.appendFileSync(
     outputPath,
-    `state=${status.state}\ndeadline=${status.deadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
+    `state=${status.state}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
     'utf8',
   );
 }
@@ -106,6 +129,7 @@ function main() {
   const status = getSecurityAuditExceptionStatus({ manifest, lockfile });
   process.stdout.write(`security audit exception status: ${status.state}\n`);
   process.stdout.write(`review deadline: ${status.deadline}\n`);
+  process.stdout.write(`days until review deadline: ${status.daysUntilDeadline ?? 'unavailable'}\n`);
   process.stdout.write(`prisma: ${status.versions.prisma ?? 'unavailable'}\n`);
   process.stdout.write(`@prisma/config: ${status.versions.prismaConfig ?? 'unavailable'}\n`);
   process.stdout.write(`deepmerge-ts: ${status.versions.deepmergeTs ?? 'unavailable'}\n`);
@@ -127,4 +151,9 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { getSecurityAuditExceptionStatus, getTrackedDependencyVersions, writeGitHubOutputs };
+module.exports = {
+  getDaysUntilReviewDeadline,
+  getSecurityAuditExceptionStatus,
+  getTrackedDependencyVersions,
+  writeGitHubOutputs,
+};

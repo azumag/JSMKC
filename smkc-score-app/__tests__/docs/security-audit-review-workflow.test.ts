@@ -103,6 +103,7 @@ describe('manual security audit review workflow', () => {
       EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
       EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
       EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
+      EXCEPTION_DAYS_UNTIL_DEADLINE: '${{ steps.exception_status.outputs.days_until_deadline }}',
       PRISMA_VERSION: '${{ steps.exception_status.outputs.prisma_version }}',
       PRISMA_CONFIG_VERSION: '${{ steps.exception_status.outputs.prisma_config_version }}',
       DEEPMERGE_TS_VERSION: '${{ steps.exception_status.outputs.deepmerge_ts_version }}',
@@ -110,6 +111,7 @@ describe('manual security audit review workflow', () => {
     });
     expect(summaryStep?.run).toContain('Temporary exception state');
     expect(summaryStep?.run).toContain('Review deadline');
+    expect(summaryStep?.run).toContain('Days until review deadline');
     expect(summaryStep?.run).toContain('Tracked dependency');
     expect(summaryStep?.run).toContain('PRISMA_VERSION');
     expect(summaryStep?.run).toContain('PRISMA_CONFIG_VERSION');

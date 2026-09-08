@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
+  getDaysUntilReviewDeadline,
   getSecurityAuditExceptionStatus,
   getTrackedDependencyVersions,
   writeGitHubOutputs,
@@ -23,6 +24,7 @@ describe('security audit exception status', () => {
     ).toEqual({
       state: 'active',
       deadline: '2026-10-06T00:00:00.000Z',
+      daysUntilDeadline: 28,
       versions: {
         prisma: '6.19.3',
         prismaConfig: '6.19.3',
@@ -30,6 +32,17 @@ describe('security audit exception status', () => {
       },
       message: 'the exact #3114 temporary exception context is still active',
     });
+  });
+
+  it('reports deadline distance without rounding an overdue partial day back to zero', () => {
+    expect(getDaysUntilReviewDeadline('2026-10-06T00:00:00.000Z', new Date('2026-10-05T12:00:00.000Z'))).toBe(1);
+    expect(getDaysUntilReviewDeadline('2026-10-06T00:00:00.000Z', new Date('2026-10-06T00:00:00.000Z'))).toBe(0);
+    expect(getDaysUntilReviewDeadline('2026-10-06T00:00:00.000Z', new Date('2026-10-06T00:01:00.000Z'))).toBe(-1);
+  });
+
+  it('returns null when deadline distance cannot be computed safely', () => {
+    expect(getDaysUntilReviewDeadline('not-a-date', new Date('2026-09-08T00:00:00.000Z'))).toBeNull();
+    expect(getDaysUntilReviewDeadline('2026-10-06T00:00:00.000Z', new Date(Number.NaN))).toBeNull();
   });
 
   it('reports the same context as expired at the review deadline', () => {
@@ -111,6 +124,7 @@ describe('security audit exception status', () => {
       expect(fs.readFileSync(outputPath, 'utf8')).toBe(
         'state=active\n' +
           'deadline=2026-10-06T00:00:00.000Z\n' +
+          'days_until_deadline=28\n' +
           'prisma_version=6.19.3\n' +
           'prisma_config_version=6.19.3\n' +
           'deepmerge_ts_version=7.1.5\n',
