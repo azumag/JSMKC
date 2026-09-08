@@ -26,6 +26,7 @@ export interface QualificationScheduleDiagnosticsSizeBucket {
 export interface QualificationScheduleDiagnosticsModeBucket {
   mode: QualificationDiagnosticMode;
   groupCount: number;
+  playerCount: number;
   cdmReadyGroupCount: number;
   cdmExactFitGroupCount: number;
   cdmBreakRequiredGroupCount: number;
@@ -35,6 +36,7 @@ export interface QualificationScheduleDiagnosticsModeBucket {
 export interface QualificationScheduleDiagnosticsSummary {
   totalGroupCount: number;
   legacyCircleGroupCount: number;
+  legacyCirclePlayerCount: number;
   legacyCircleCdmReadyGroupCount: number;
   legacyCircleCdmExactFitGroupCount: number;
   legacyCircleCdmBreakRequiredGroupCount: number;
@@ -110,6 +112,7 @@ export function summarizeQualificationScheduleDiagnostics(
     return {
       mode,
       groupCount: modeGroups.length,
+      playerCount: modeGroups.reduce((total, group) => total + group.playerCount, 0),
       cdmReadyGroupCount: cdmReadyGroups.length,
       cdmExactFitGroupCount: cdmReadyGroups.filter((group) => group.cdmBreakSlotCount === 0).length,
       cdmBreakRequiredGroupCount: cdmReadyGroups.filter((group) => (group.cdmBreakSlotCount ?? 0) > 0).length,
@@ -120,6 +123,7 @@ export function summarizeQualificationScheduleDiagnostics(
   return {
     totalGroupCount: groups.length,
     legacyCircleGroupCount: legacyCircleGroups.length,
+    legacyCirclePlayerCount: legacyCircleGroups.reduce((total, group) => total + group.playerCount, 0),
     legacyCircleCdmReadyGroupCount: legacyCircleCdmReadyGroups.length,
     legacyCircleCdmExactFitGroupCount: legacyCircleCdmReadyGroups.filter((group) => group.cdmBreakSlotCount === 0)
       .length,
