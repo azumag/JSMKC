@@ -18,6 +18,7 @@ const TRACKED_DEPENDENCY_PATHS = {
   prismaConfig: 'node_modules/@prisma/config',
   deepmergeTs: 'node_modules/deepmerge-ts',
 };
+const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
 
 function getTrackedDependencyVersions(lockfile) {
   const packages = lockfile?.packages;
@@ -25,7 +26,7 @@ function getTrackedDependencyVersions(lockfile) {
   return Object.fromEntries(
     Object.entries(TRACKED_DEPENDENCY_PATHS).map(([key, packagePath]) => {
       const version = packages?.[packagePath]?.version;
-      return [key, typeof version === 'string' ? version : null];
+      return [key, typeof version === 'string' && SAFE_VERSION_PATTERN.test(version) ? version : null];
     }),
   );
 }
