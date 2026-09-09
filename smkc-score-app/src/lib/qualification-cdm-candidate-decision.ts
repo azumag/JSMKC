@@ -1,3 +1,4 @@
+import { CDM_ROUND_ROBIN_FIXTURES } from '@/lib/cdm-round-robin-fixtures';
 import {
   analyzeUnsupportedCdmFixtureCandidate,
   type UnsupportedCdmFixtureCandidateImpact,
@@ -13,6 +14,17 @@ export interface RecommendedPlayerSlotAssignment {
   slotShift: number;
 }
 
+export interface RecommendedPlacementScheduleImpact {
+  realMatchCount: number;
+  pairSetDifferenceCount: number;
+  pairDayUnchangedCount: number;
+  pairDayChangedCount: number;
+  totalPairDayShift: number;
+  maxPairDayShift: number;
+  pairSideChangedCount: number;
+  pairDayAndSideUnchangedCount: number;
+}
+
 export interface UnsupportedCdmFixtureCandidateDecision {
   playerCount: number;
   conventionalBreakSlotPositions: number[];
@@ -21,12 +33,23 @@ export interface UnsupportedCdmFixtureCandidateDecision {
   recommendedPlayerSlotAssignments: RecommendedPlayerSlotAssignment[];
   remappedPlayerCount: number;
   maximumPlayerSlotShift: number;
+  recommendedPlacementScheduleImpact: RecommendedPlacementScheduleImpact;
   candidateImpact: UnsupportedCdmFixtureCandidateImpact;
   breakPlacementOptimization: UnsupportedCdmBreakPlacementOptimization;
 }
 
+interface ComparableFixtureMatch {
+  day: number;
+  player1Seed: number;
+  player2Seed: number;
+}
+
 function numberArraysEqual(left: readonly number[], right: readonly number[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function pairKey(player1Seed: number, player2Seed: number) {
+  return player1Seed < player2Seed ? `${player1Seed}:${player2Seed}` : `${player2Seed}:${player1Seed}`;
 }
 
 function buildRecommendedPlayerSlotAssignments(
@@ -51,6 +74,99 @@ function buildRecommendedPlayerSlotAssignments(
   });
 }
 
+function buildRealFixtureMatchMap(
+  playerCount: number,
+  fixtureCapacity: number,
+  breakSlotPositions: readonly number[],
+) {
+  const fixture = CDM_ROUND_ROBIN_FIXTURES[fixtureCapacity];
+  if (!fixture) return null;
+
+  const breakSlotIndexes = new Set(breakSlotPositions.map((position) => position - 1));
+  const realSlotIndexes = Array.from({ length: fixtureCapacity }, (_, index) => index).filter(
+    (slotIndex) => !breakSlotIndexes.has(slotIndex),
+  );
+  if (realSlotIndexes.length !== playerCount) return null;
+
+  const playerSeedBySlotIndex = new Map(realSlotIndexes.map((slotIndex, index) => [slotIndex, index + 1]));
+  const matches = new Map<string, ComparableFixtureMatch>();
+
+  for (const [dayIndex, dayPairs] of fixture.entries()) {
+    for (const [player1SlotIndex, player2SlotIndex] of dayPairs) {
+      const player1Seed = playerSeedBySlotIndex.get(player1SlotIndex);
+      const player2Seed = playerSeedBySlotIndex.get(player2SlotIndex);
+      if (player1Seed === undefined || player2Seed === undefined) continue;
+
+      const key = pairKey(player1Seed, player2Seed);
+      if (matches.has(key)) return null;
+      matches.set(key, {
+        day: dayIndex + 1,
+        player1Seed,
+        player2Seed,
+      });
+    }
+  }
+
+  return matches;
+}
+
+function compareFixturePlacements(
+  playerCount: number,
+  fixtureCapacity: number,
+  conventionalBreakSlotPositions: readonly number[],
+  recommendedBreakSlotPositions: readonly number[],
+): RecommendedPlacementScheduleImpact | null {
+  const conventionalMatches = buildRealFixtureMatchMap(
+    playerCount,
+    fixtureCapacity,
+    conventionalBreakSlotPositions,
+  );
+  const recommendedMatches = buildRealFixtureMatchMap(playerCount, fixtureCapacity, recommendedBreakSlotPositions);
+  if (!conventionalMatches || !recommendedMatches) return null;
+
+  const allPairKeys = new Set([...conventionalMatches.keys(), ...recommendedMatches.keys()]);
+  let pairSetDifferenceCount = 0;
+  let pairDayUnchangedCount = 0;
+  let pairDayChangedCount = 0;
+  let totalPairDayShift = 0;
+  let maxPairDayShift = 0;
+  let pairSideChangedCount = 0;
+  let pairDayAndSideUnchangedCount = 0;
+
+  for (const key of allPairKeys) {
+    const conventionalMatch = conventionalMatches.get(key);
+    const recommendedMatch = recommendedMatches.get(key);
+    if (!conventionalMatch || !recommendedMatch) {
+      pairSetDifferenceCount += 1;
+      continue;
+    }
+
+    const sameDay = conventionalMatch.day === recommendedMatch.day;
+    const sameSide = conventionalMatch.player1Seed === recommendedMatch.player1Seed;
+    if (sameDay) {
+      pairDayUnchangedCount += 1;
+    } else {
+      const dayShift = Math.abs(conventionalMatch.day - recommendedMatch.day);
+      pairDayChangedCount += 1;
+      totalPairDayShift += dayShift;
+      maxPairDayShift = Math.max(maxPairDayShift, dayShift);
+    }
+    if (!sameSide) pairSideChangedCount += 1;
+    if (sameDay && sameSide) pairDayAndSideUnchangedCount += 1;
+  }
+
+  return {
+    realMatchCount: conventionalMatches.size,
+    pairSetDifferenceCount,
+    pairDayUnchangedCount,
+    pairDayChangedCount,
+    totalPairDayShift,
+    maxPairDayShift,
+    pairSideChangedCount,
+    pairDayAndSideUnchangedCount,
+  };
+}
+
 /**
  * Consolidate the read-only evidence for an unsupported CDM fixture candidate.
  *
@@ -59,6 +175,10 @@ function buildRecommendedPlayerSlotAssignments(
  * The optimizer is allowed to place BREAK slots anywhere. Surfacing both makes
  * it explicit when the fairness-improving recommendation would also require a
  * seed-to-fixture-slot policy decision rather than only a larger BREAK limit.
+ *
+ * This helper also compares the two placements using the raw fixture so the
+ * Day and 1P/2P churn implied by a fairness-oriented remap is visible before a
+ * production scheduling decision is made.
  *
  * This helper does not add a generator mapping, alter qualification policy, or
  * persist a schedule.
@@ -82,7 +202,13 @@ export function buildUnsupportedCdmFixtureCandidateDecision(
     candidateImpact.fixtureCapacity,
     recommendedBreakSlotPositions,
   );
-  if (!recommendedPlayerSlotAssignments) return null;
+  const recommendedPlacementScheduleImpact = compareFixturePlacements(
+    playerCount,
+    candidateImpact.fixtureCapacity,
+    conventionalBreakSlotPositions,
+    recommendedBreakSlotPositions,
+  );
+  if (!recommendedPlayerSlotAssignments || !recommendedPlacementScheduleImpact) return null;
 
   return {
     playerCount,
@@ -95,6 +221,7 @@ export function buildUnsupportedCdmFixtureCandidateDecision(
     recommendedPlayerSlotAssignments,
     remappedPlayerCount: recommendedPlayerSlotAssignments.filter(({ slotShift }) => slotShift !== 0).length,
     maximumPlayerSlotShift: Math.max(0, ...recommendedPlayerSlotAssignments.map(({ slotShift }) => slotShift)),
+    recommendedPlacementScheduleImpact,
     candidateImpact,
     breakPlacementOptimization,
   };
