@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { buildBalancedCdmSideSeedOverridePlan } from '@/lib/qualification-balanced-cdm-side-seed-plan';
 import { buildLegacyCircleCdmScheduleComparisons } from '@/lib/qualification-schedule-comparison';
 import {
   QUALIFICATION_DIAGNOSTIC_MODES,
@@ -176,6 +177,21 @@ export function QualificationScheduleDiagnosticsPanel({
                   ? `available · max imbalance ${comparison.balancedCdmMaxSideImbalance} · override ${comparison.balancedCdmSideOverridePairCount} pairs / ${comparison.balancedCdmSideOverridePlayerCount} players`
                   : 'unavailable because pair sets differ'}
               </div>
+              {comparison.balancedCdmSidePlanAvailable && (
+                <details className="mt-1 text-muted-foreground">
+                  <summary className="cursor-pointer">
+                    Balanced-side seed overrides ({comparison.balancedCdmSideOverridePairCount})
+                  </summary>
+                  <div className="mt-1">
+                    {buildBalancedCdmSideSeedOverridePlan(comparison.playerCount)
+                      ?.map(
+                        (override) =>
+                          `D${override.day}: ${override.cdmPlayer1Seed}↔${override.cdmPlayer2Seed}`,
+                      )
+                      .join(' · ') || 'No side overrides required.'}
+                  </div>
+                </details>
+              )}
               <div className="mt-1 text-muted-foreground">
                 BYE/BREAK assignment changes: {comparison.byeAssignmentChangedPlayerCount} players
                 {comparison.totalByeDayShift !== null && comparison.maxByeDayShift !== null
