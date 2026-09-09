@@ -16,6 +16,8 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 - `realMatchCount`: BREAK を除いた実対戦数
 - `circleTotalDays`: circle 方式の総 Day 数
 - `cdmTotalDays`: CDM fixture の総 Day 数
+- `circleMaxSideImbalance`: circle 方式で、各選手の `|1P回数 - 2P回数|` の最大値
+- `cdmMaxSideImbalance`: CDM fixture で、各選手の `|1P回数 - 2P回数|` の最大値
 - `pairSetDifferenceCount`: circle と CDM で片方にしか存在しない実対戦カード数
 - `pairDayChangedCount`: 同じ対戦カードだが Day が変わる件数
 - `pairSideChangedCount`: 同じ対戦カードだが 1P / 2P が反転する件数
@@ -25,6 +27,10 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 
 現行の 7〜12 名 fixture では `circleTotalDays` と `cdmTotalDays` がすべて一致します。管理 UI でも `Schedule days: circle X → CDM X` と表示するため、小規模グループを CDM 化しても総 Day 数は増えず、影響は主に対戦 Day・1P/2P配置・BREAK割当にあることを確認できます。この性質は回帰テストで固定しています。
 
+一方、1P / 2P の均衡は方式間で明確に異なります。circle 方式は side-balance optimization を行うため、7 / 9 / 11 名では最大差 0、8 / 10 / 12 名では最大差 1 です。現行 RR 2025 CDM fixture の最大差はそれぞれ 4 / 3 / 4 / 5 / 6 / 5 です。管理 UI の `Max 1P/2P imbalance: circle X → CDM Y` でこの差を確認できます。
+
+これは fixture の良否を自動判定するものではありません。CDM fixture の 1P / 2P 向きをそのまま再現することを仕様とするなら、この偏りも fixture fidelity の一部です。逆に TT 側で1P / 2Pの均衡を維持したい場合、CDMの対戦カード・Day順だけを採用して side assignment は再最適化する設計もあり得ますが、その場合は「CDMと完全一致」ではなくなるため #3054 で明示的な仕様判断が必要です。
+
 奇数人数では circle / CDM の両方に BYE / BREAK が発生し得るため、`byeAssignmentChangedPlayerCount` も運営影響として確認します。偶数人数では通常 0 です。
 
 ## #3054 での判断への使い方
@@ -32,6 +38,7 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 この比較は、Issue #3054 のうち次の論点を具体化します。
 
 - CDM化で変えたいのが「対戦カード集合」なのか「Day順」なのか「1P/2P配置」まで含むのか
+- 1P / 2P の fixture fidelity と、現行 circle の side balance のどちらを優先するか
 - 7 / 9 / 11 名で BREAK の割当変更を許容するか
 - 7〜12 名を現行の circle から CDM fixture へ切り替える価値があるか
 
