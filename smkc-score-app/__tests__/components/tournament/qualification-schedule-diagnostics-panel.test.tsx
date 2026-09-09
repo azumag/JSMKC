@@ -115,6 +115,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(comparison).toHaveTextContent('Max 1P/2P imbalance: circle 0 → CDM 4');
     expect(comparison).toHaveTextContent('Players above minimum 1P/2P imbalance: circle 0 → CDM 5');
     expect(comparison).toHaveTextContent('Day changes: 9 pairs / 6 players · total shift 22 days · max shift 5 days');
+    expect(comparison).toHaveTextContent('Seed Day impact: unchanged seeds 1 · peak player shift 11 days at seeds 4');
     expect(comparison).toHaveTextContent(
       'BYE/BREAK assignment changes: 6 players · total shift 14 days · max shift 4 days',
     );
@@ -126,6 +127,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(comparison).toHaveTextContent(
       'Day changes: 47 pairs / 11 players · total shift 174 days · max shift 8 days',
     );
+    expect(comparison).toHaveTextContent('Seed Day impact: unchanged seeds 1 · peak player shift 42 days at seeds 12');
     expect(comparison).toHaveTextContent(
       'BYE/BREAK assignment changes: 0 players · total shift 0 days · max shift 0 days',
     );
