@@ -21,13 +21,15 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         circleExcessSideImbalancePlayerCount: 0,
         cdmExcessSideImbalancePlayerCount: 4,
         pairSetDifferenceCount: 0,
+        pairDayChangedCount: 15,
+        totalPairDayShift: 36,
+        maxPairDayShift: 5,
         balancedCdmSidePlanAvailable: true,
         balancedCdmMaxSideImbalance: 1,
         balancedCdmExcessSideImbalancePlayerCount: 0,
         byeAssignmentChangedPlayerCount: 0,
       }),
     );
-    expect(comparison!.pairDayChangedCount).toBeGreaterThan(0);
     expect(comparison!.playerDayChangedCount).toBeGreaterThan(0);
     expect(comparison!.playerDayChangedCount).toBeLessThanOrEqual(comparison!.playerCount);
     expect(comparison!.playerSideChangedCount).toBeLessThanOrEqual(comparison!.playerCount);
@@ -52,6 +54,9 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         circleExcessSideImbalancePlayerCount: 0,
         cdmExcessSideImbalancePlayerCount: 5,
         pairSetDifferenceCount: 0,
+        pairDayChangedCount: 9,
+        totalPairDayShift: 22,
+        maxPairDayShift: 5,
         balancedCdmSidePlanAvailable: true,
         balancedCdmMaxSideImbalance: 0,
         balancedCdmExcessSideImbalancePlayerCount: 0,
@@ -75,6 +80,8 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       expect(comparison.cdmTotalDays).toBe(comparison.circleTotalDays);
       expect(comparison.pairSetDifferenceCount).toBe(0);
       expect(comparison.pairDayChangedCount).toBeGreaterThan(0);
+      expect(comparison.totalPairDayShift).toBeGreaterThanOrEqual(comparison.pairDayChangedCount);
+      expect(comparison.maxPairDayShift).toBeGreaterThan(0);
       expect(comparison.playerDayChangedCount).toBeGreaterThan(0);
       expect(comparison.playerDayChangedCount).toBeLessThanOrEqual(comparison.playerCount);
       expect(comparison.pairSideChangedCount).toBeGreaterThanOrEqual(0);
@@ -90,6 +97,26 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       expect(comparison.byeAssignmentChangedPlayerCount).toBeGreaterThanOrEqual(0);
       expect(comparison.circleExcessSideImbalancePlayerCount).toBe(0);
     }
+  });
+
+  it('quantifies how far matching pairs move between circle and CDM days', () => {
+    const comparisons = buildLegacyCircleCdmScheduleComparisons();
+
+    expect(
+      comparisons.map(({ playerCount, pairDayChangedCount, totalPairDayShift, maxPairDayShift }) => ({
+        playerCount,
+        pairDayChangedCount,
+        totalPairDayShift,
+        maxPairDayShift,
+      })),
+    ).toEqual([
+      { playerCount: 7, pairDayChangedCount: 9, totalPairDayShift: 22, maxPairDayShift: 5 },
+      { playerCount: 8, pairDayChangedCount: 15, totalPairDayShift: 36, maxPairDayShift: 5 },
+      { playerCount: 9, pairDayChangedCount: 18, totalPairDayShift: 50, maxPairDayShift: 7 },
+      { playerCount: 10, pairDayChangedCount: 25, totalPairDayShift: 74, maxPairDayShift: 7 },
+      { playerCount: 11, pairDayChangedCount: 38, totalPairDayShift: 132, maxPairDayShift: 8 },
+      { playerCount: 12, pairDayChangedCount: 47, totalPairDayShift: 174, maxPairDayShift: 8 },
+    ]);
   });
 
   it('quantifies the 1P/2P balance cost of adopting the fixed CDM fixtures', () => {
