@@ -1,5 +1,9 @@
 import { buildBalancedCdmSidePreviewSchedule } from '@/lib/qualification-schedule-comparison';
-import { generateRoundRobinSchedule, type RoundRobinMatch, type RoundRobinSchedule } from '@/lib/round-robin';
+import {
+  generateRoundRobinSchedule,
+  type RoundRobinMatch,
+  type RoundRobinSchedule,
+} from '@/lib/round-robin';
 
 export type BalancedCdmSidePreviewInvariant =
   | 'cdm-total-days'
@@ -28,7 +32,9 @@ function pairKey(match: RoundRobinMatch) {
 }
 
 function buildRealMatchMap(schedule: RoundRobinSchedule) {
-  return new Map(schedule.matches.filter((match) => !match.isBye).map((match) => [pairKey(match), match] as const));
+  return new Map(
+    schedule.matches.filter((match) => !match.isBye).map((match) => [pairKey(match), match] as const),
+  );
 }
 
 function buildBreakSignatures(schedule: RoundRobinSchedule) {
