@@ -140,7 +140,10 @@ export function QualificationScheduleDiagnosticsPanel({
                 {comparison.realMatchCount} real matches · {comparison.cdmBreakSlotCount} BREAK
               </div>
               <div className="mt-1">
-                Pair set: {comparison.pairSetDifferenceCount === 0 ? 'identical' : `${comparison.pairSetDifferenceCount} differences`}
+                Pair set:{' '}
+                {comparison.pairSetDifferenceCount === 0
+                  ? 'identical'
+                  : `${comparison.pairSetDifferenceCount} differences`}
               </div>
               <div className="mt-1 text-muted-foreground">
                 Day changes: {comparison.pairDayChangedCount} · Side changes: {comparison.pairSideChangedCount}
