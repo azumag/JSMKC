@@ -11,6 +11,8 @@ export interface QualificationScheduleComparison {
   realMatchCount: number;
   circleTotalDays: number;
   cdmTotalDays: number;
+  circleMaxSideImbalance: number;
+  cdmMaxSideImbalance: number;
   pairSetDifferenceCount: number;
   pairDayChangedCount: number;
   pairSideChangedCount: number;
@@ -49,6 +51,18 @@ function buildByeAssignments(schedule: RoundRobinSchedule, playerIds: string[]) 
   return daysByPlayer;
 }
 
+function getMaxRealMatchSideImbalance(schedule: RoundRobinSchedule, playerIds: string[]) {
+  const sideBalances = new Map(playerIds.map((playerId) => [playerId, 0]));
+
+  for (const match of schedule.matches) {
+    if (match.isBye) continue;
+    sideBalances.set(match.player1Id, (sideBalances.get(match.player1Id) ?? 0) + 1);
+    sideBalances.set(match.player2Id, (sideBalances.get(match.player2Id) ?? 0) - 1);
+  }
+
+  return Math.max(0, ...Array.from(sideBalances.values(), (balance) => Math.abs(balance)));
+}
+
 function sameNumberArray(left: readonly number[], right: readonly number[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
@@ -56,7 +70,7 @@ function sameNumberArray(left: readonly number[], right: readonly number[]) {
 /**
  * Compare the legacy circle schedule with the RR 2025 CDM fixture for one
  * player count without mutating tournament data. Seed order is held constant
- * so day, 1P/2P side, and BREAK assignment differences remain observable.
+ * so day, 1P/2P side balance, and BREAK assignment differences remain observable.
  */
 export function compareCircleAndCdmQualificationSchedules(playerCount: number): QualificationScheduleComparison | null {
   const fixturePlan = getCdmRoundRobinFixturePlan(playerCount);
@@ -96,6 +110,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     realMatchCount: cdmMatches.size,
     circleTotalDays: circle.totalDays,
     cdmTotalDays: cdm.totalDays,
+    circleMaxSideImbalance: getMaxRealMatchSideImbalance(circle, playerIds),
+    cdmMaxSideImbalance: getMaxRealMatchSideImbalance(cdm, playerIds),
     pairSetDifferenceCount,
     pairDayChangedCount,
     pairSideChangedCount,

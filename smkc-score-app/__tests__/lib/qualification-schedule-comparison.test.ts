@@ -16,6 +16,8 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         realMatchCount: 28,
         circleTotalDays: 7,
         cdmTotalDays: 7,
+        circleMaxSideImbalance: 1,
+        cdmMaxSideImbalance: 3,
         pairSetDifferenceCount: 0,
         byeAssignmentChangedPlayerCount: 0,
       }),
@@ -35,6 +37,8 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         realMatchCount: 21,
         circleTotalDays: 7,
         cdmTotalDays: 7,
+        circleMaxSideImbalance: 0,
+        cdmMaxSideImbalance: 4,
         pairSetDifferenceCount: 0,
       }),
     );
@@ -59,5 +63,24 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       expect(comparison.pairSideChangedCount).toBeGreaterThanOrEqual(0);
       expect(comparison.byeAssignmentChangedPlayerCount).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('quantifies the 1P/2P balance cost of adopting the fixed CDM fixtures', () => {
+    const comparisons = buildLegacyCircleCdmScheduleComparisons();
+
+    expect(
+      comparisons.map(({ playerCount, circleMaxSideImbalance, cdmMaxSideImbalance }) => ({
+        playerCount,
+        circleMaxSideImbalance,
+        cdmMaxSideImbalance,
+      })),
+    ).toEqual([
+      { playerCount: 7, circleMaxSideImbalance: 0, cdmMaxSideImbalance: 4 },
+      { playerCount: 8, circleMaxSideImbalance: 1, cdmMaxSideImbalance: 3 },
+      { playerCount: 9, circleMaxSideImbalance: 0, cdmMaxSideImbalance: 4 },
+      { playerCount: 10, circleMaxSideImbalance: 1, cdmMaxSideImbalance: 5 },
+      { playerCount: 11, circleMaxSideImbalance: 0, cdmMaxSideImbalance: 6 },
+      { playerCount: 12, circleMaxSideImbalance: 1, cdmMaxSideImbalance: 5 },
+    ]);
   });
 });
