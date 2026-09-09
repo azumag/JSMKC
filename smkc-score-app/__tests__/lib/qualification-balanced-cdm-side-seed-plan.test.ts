@@ -8,9 +8,9 @@ describe('buildBalancedCdmSideSeedOverridePlan', () => {
 
       expect(plan).not.toBeNull();
       expect(plan).toHaveLength(comparison.balancedCdmSideOverridePairCount);
-      expect(
-        new Set(plan!.flatMap((override) => [override.cdmPlayer1Seed, override.cdmPlayer2Seed])).size,
-      ).toBe(comparison.balancedCdmSideOverridePlayerCount);
+      expect(new Set(plan!.flatMap((override) => [override.cdmPlayer1Seed, override.cdmPlayer2Seed])).size).toBe(
+        comparison.balancedCdmSideOverridePlayerCount,
+      );
 
       for (const override of plan!) {
         expect(override.day).toBeGreaterThanOrEqual(1);
