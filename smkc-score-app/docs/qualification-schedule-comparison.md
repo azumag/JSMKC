@@ -4,6 +4,8 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 
 管理者向け診断 API `GET /api/tournaments/:id/qualification-schedule` は `smallGroupCdmComparisons` を返します。対象は、現行 policy では legacy circle のままだが低レベルの RR 2025 CDM fixture が存在する 7〜12 名です。13 名は対応 fixture がないため比較対象に含めません。
 
+同じ情報は `/tournaments/:id/cdm-archive-reconcile` の `Circle → CDM impact (7–12 players)` にも表示します。API と管理 UI は同じ `buildLegacyCircleCdmScheduleComparisons()` を使うため、比較ロジックを重複実装しません。
+
 比較は同じ seed 順の仮想選手 `P1..Pn` を circle / CDM の両方へ入力して作ります。保存済み大会設定、予選レコード、対戦表、結果は一切変更しません。
 
 ## Fields
