@@ -81,30 +81,20 @@ function main() {
     return 0;
   }
 
-  console.log(`Formatting ${changedFiles.length} changed file(s) for diagnostics.`);
+  console.log(`Checking formatting for ${changedFiles.length} changed file(s).`);
   const prettierExecutable = path.join(
     appRoot,
     'node_modules',
     '.bin',
     process.platform === 'win32' ? 'prettier.cmd' : 'prettier',
   );
-  const result = spawnSync(prettierExecutable, ['--write', ...changedFiles], {
+  const result = spawnSync(prettierExecutable, ['--check', ...changedFiles], {
     cwd: appRoot,
     stdio: 'inherit',
   });
 
   if (result.error) throw result.error;
-  if (result.status !== 0) return result.status ?? 1;
-
-  const formattedDiff = execFileSync(
-    'git',
-    ['diff', '--', `${appPrefix}src/lib/qualification-cdm-break-placement-optimization.ts`],
-    { cwd: repositoryRoot, encoding: 'utf8' },
-  );
-  console.log('FORMATTED_SOURCE_DIFF_START');
-  console.log(formattedDiff);
-  console.log('FORMATTED_SOURCE_DIFF_END');
-  return 1;
+  return result.status ?? 1;
 }
 
 try {
