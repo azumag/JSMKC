@@ -1,3 +1,4 @@
+import { CDM_ROUND_ROBIN_FIXTURES } from '@/lib/cdm-round-robin-fixtures';
 import {
   getQualificationSchedulePolicyDecision,
   type QualificationSchedulePolicyDecision,
@@ -17,6 +18,11 @@ export interface QualificationGroupDiagnostic extends QualificationSchedulePolic
 export type QualificationScheduleDiagnostics = Record<QualificationDiagnosticMode, QualificationGroupDiagnostic[]>;
 
 export type QualificationRowsByMode = Record<QualificationDiagnosticMode, ReadonlyArray<{ group: string }>>;
+
+export interface QualificationSchedulePolicyMatrixDecision extends QualificationSchedulePolicyDecision {
+  nearestLargerCdmFixtureCapacity: number | null;
+  nearestLargerCdmBreakSlotCount: number | null;
+}
 
 export interface QualificationScheduleDiagnosticsSizeBucket {
   playerCount: number;
@@ -85,19 +91,55 @@ export function buildQualificationScheduleDiagnostics(
   ) as QualificationScheduleDiagnostics;
 }
 
+function getNearestLargerCdmFixtureCandidate(playerCount: number) {
+  const capacity = Object.keys(CDM_ROUND_ROBIN_FIXTURES)
+    .map(Number)
+    .sort((left, right) => left - right)
+    .find((fixtureCapacity) => fixtureCapacity > playerCount);
+
+  if (capacity === undefined) {
+    return {
+      nearestLargerCdmFixtureCapacity: null,
+      nearestLargerCdmBreakSlotCount: null,
+    };
+  }
+
+  return {
+    nearestLargerCdmFixtureCapacity: capacity,
+    nearestLargerCdmBreakSlotCount: capacity - playerCount,
+  };
+}
+
 /**
  * Build a read-only policy matrix for the fixture-relevant 7..21 player range.
  * Unlike tournament diagnostics, this is independent of currently populated
  * groups and makes the pending #3054 boundary / BREAK trade-offs inspectable
  * before operators change any tournament data.
+ *
+ * For sizes that have no current generator mapping, the matrix also reports
+ * the nearest larger raw fixture capacity. This is decision evidence only: it
+ * does not make that size supported or change the effective schedule method.
  */
 export function buildQualificationSchedulePolicyMatrix(
   configuredMethod: QualificationScheduleMethod,
-): QualificationSchedulePolicyDecision[] {
+): QualificationSchedulePolicyMatrixDecision[] {
   return Array.from(
     { length: QUALIFICATION_POLICY_MATRIX_MAX_PLAYER_COUNT - QUALIFICATION_POLICY_MATRIX_MIN_PLAYER_COUNT + 1 },
-    (_, index) =>
-      getQualificationSchedulePolicyDecision(configuredMethod, QUALIFICATION_POLICY_MATRIX_MIN_PLAYER_COUNT + index),
+    (_, index) => {
+      const decision = getQualificationSchedulePolicyDecision(
+        configuredMethod,
+        QUALIFICATION_POLICY_MATRIX_MIN_PLAYER_COUNT + index,
+      );
+      const candidate =
+        decision.cdmFixtureCapacity === null
+          ? getNearestLargerCdmFixtureCandidate(decision.playerCount)
+          : {
+              nearestLargerCdmFixtureCapacity: null,
+              nearestLargerCdmBreakSlotCount: null,
+            };
+
+      return { ...decision, ...candidate };
+    },
   );
 }
 

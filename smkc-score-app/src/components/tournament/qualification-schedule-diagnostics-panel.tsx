@@ -124,6 +124,12 @@ export function QualificationScheduleDiagnosticsPanel({
                   ? 'CDM fixture unavailable'
                   : `${decision.cdmFixtureCapacity}-slot CDM · ${decision.cdmBreakSlotCount ?? 0} BREAK`}
               </div>
+              {decision.cdmFixtureCapacity === null && decision.nearestLargerCdmFixtureCapacity !== null && (
+                <div className="mt-1 text-muted-foreground">
+                  Nearest larger raw fixture: {decision.nearestLargerCdmFixtureCapacity} slots ·{' '}
+                  {decision.nearestLargerCdmBreakSlotCount ?? 0} BREAK (not enabled)
+                </div>
+              )}
               {!decision.generationSupported && <div className="mt-1 text-destructive">Generation unsupported</div>}
             </div>
           ))}

@@ -97,6 +97,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(matrix).toHaveTextContent('8-slot CDM · 1 BREAK');
     expect(matrix).toHaveTextContent('13 players');
     expect(matrix).toHaveTextContent('CDM fixture unavailable');
+    expect(matrix).toHaveTextContent('Nearest larger raw fixture: 16 slots · 3 BREAK (not enabled)');
     expect(matrix).toHaveTextContent('14 players');
     expect(matrix).toHaveTextContent('16-slot CDM · 2 BREAK');
     expect(matrix).toHaveTextContent('21 players');

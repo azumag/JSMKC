@@ -195,6 +195,31 @@ describe('buildQualificationSchedulePolicyMatrix', () => {
     ]);
   });
 
+  it('surfaces the nearest larger raw fixture for the unsupported 13-player gap without enabling it', () => {
+    const decisions = new Map(
+      buildQualificationSchedulePolicyMatrix('cdm').map((decision) => [decision.playerCount, decision]),
+    );
+
+    expect(decisions.get(13)).toMatchObject({
+      playerCount: 13,
+      effectiveMethod: 'circle',
+      cdmFixtureCapacity: null,
+      cdmBreakSlotCount: null,
+      generationSupported: true,
+      nearestLargerCdmFixtureCapacity: 16,
+      nearestLargerCdmBreakSlotCount: 3,
+    });
+    expect(decisions.get(21)).toMatchObject({
+      playerCount: 21,
+      effectiveMethod: 'cdm',
+      cdmFixtureCapacity: null,
+      cdmBreakSlotCount: null,
+      generationSupported: false,
+      nearestLargerCdmFixtureCapacity: null,
+      nearestLargerCdmBreakSlotCount: null,
+    });
+  });
+
   it('keeps every matrix entry on circle for explicitly configured circle tournaments', () => {
     expect(
       buildQualificationSchedulePolicyMatrix('circle').every((decision) => decision.effectiveMethod === 'circle'),

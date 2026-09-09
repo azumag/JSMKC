@@ -61,6 +61,8 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
             effectiveMethod: 'circle',
             cdmFixtureCapacity: null,
             cdmBreakSlotCount: null,
+            nearestLargerCdmFixtureCapacity: 16,
+            nearestLargerCdmBreakSlotCount: 3,
           }),
           expect.objectContaining({
             playerCount: 14,
@@ -73,6 +75,8 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
             effectiveMethod: 'cdm',
             generationSupported: false,
             cdmFixtureCapacity: null,
+            nearestLargerCdmFixtureCapacity: null,
+            nearestLargerCdmBreakSlotCount: null,
           }),
         ]),
         modes: expect.objectContaining({
