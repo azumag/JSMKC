@@ -54,6 +54,9 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           circleMaxSideImbalance: 0,
           cdmMaxSideImbalance: 4,
           pairSetDifferenceCount: 0,
+          pairDayChangedCount: 9,
+          totalPairDayShift: 22,
+          maxPairDayShift: 5,
           balancedCdmSidePlanAvailable: true,
           balancedCdmMaxSideImbalance: 0,
           balancedCdmExcessSideImbalancePlayerCount: 0,
@@ -66,6 +69,9 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           circleMaxSideImbalance: 1,
           cdmMaxSideImbalance: 3,
           pairSetDifferenceCount: 0,
+          pairDayChangedCount: 15,
+          totalPairDayShift: 36,
+          maxPairDayShift: 5,
           balancedCdmSidePlanAvailable: true,
           balancedCdmMaxSideImbalance: 1,
           balancedCdmExcessSideImbalancePlayerCount: 0,
@@ -79,15 +85,23 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           circleMaxSideImbalance: 1,
           cdmMaxSideImbalance: 5,
           pairSetDifferenceCount: 0,
+          pairDayChangedCount: 47,
+          totalPairDayShift: 174,
+          maxPairDayShift: 8,
           balancedCdmSidePlanAvailable: true,
           balancedCdmMaxSideImbalance: 1,
           balancedCdmExcessSideImbalancePlayerCount: 0,
         }),
       ]),
     );
-    expect(comparisons.every((comparison: { pairDayChangedCount: number }) => comparison.pairDayChangedCount > 0)).toBe(
-      true,
-    );
+    expect(
+      comparisons.every(
+        (comparison: { pairDayChangedCount: number; totalPairDayShift: number; maxPairDayShift: number }) =>
+          comparison.pairDayChangedCount > 0 &&
+          comparison.totalPairDayShift >= comparison.pairDayChangedCount &&
+          comparison.maxPairDayShift > 0,
+      ),
+    ).toBe(true);
     expect(
       comparisons.every(
         (comparison: { playerCount: number; playerDayChangedCount: number }) =>
