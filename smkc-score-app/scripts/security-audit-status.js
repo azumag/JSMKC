@@ -22,6 +22,9 @@ const TRACKED_DEPENDENCY_PATHS = {
   deepmergeTs: 'node_modules/deepmerge-ts',
 };
 const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
+const COMPARABLE_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+const SIMPLE_REQUIREMENT_PATTERN = /^(?:\^|~|>=)?\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/;
+const PATCHED_DEEPMERGE_VERSION = Object.freeze({ major: 8, minor: 0, patch: 0 });
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function parseCliOptions(argv = process.argv.slice(2)) {
@@ -43,6 +46,72 @@ function getTrackedDependencyVersions(lockfile) {
       return [key, typeof version === 'string' && SAFE_VERSION_PATTERN.test(version) ? version : null];
     }),
   );
+}
+
+function parseComparableSemver(version) {
+  if (typeof version !== 'string') {
+    return null;
+  }
+
+  const match = COMPARABLE_SEMVER_PATTERN.exec(version);
+  if (!match) {
+    return null;
+  }
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (![major, minor, patch].every(Number.isSafeInteger)) {
+    return null;
+  }
+
+  return {
+    major,
+    minor,
+    patch,
+    prerelease: match[4] ?? null,
+  };
+}
+
+function isPatchedDeepmergeVersion(version) {
+  const parsed = parseComparableSemver(version);
+  if (!parsed) {
+    return false;
+  }
+
+  if (parsed.major !== PATCHED_DEEPMERGE_VERSION.major) {
+    return parsed.major > PATCHED_DEEPMERGE_VERSION.major;
+  }
+  if (parsed.minor !== PATCHED_DEEPMERGE_VERSION.minor) {
+    return parsed.minor > PATCHED_DEEPMERGE_VERSION.minor;
+  }
+  if (parsed.patch !== PATCHED_DEEPMERGE_VERSION.patch) {
+    return parsed.patch > PATCHED_DEEPMERGE_VERSION.patch;
+  }
+
+  return parsed.prerelease === null;
+}
+
+function getPrismaConfigDeepmergeRequirement(lockfile) {
+  const requirement =
+    lockfile?.packages?.[TRACKED_DEPENDENCY_PATHS.prismaConfig]?.dependencies?.['deepmerge-ts'];
+  return typeof requirement === 'string' && requirement.length > 0 ? requirement : null;
+}
+
+function isPatchedDeepmergeRequirement(requirement) {
+  if (typeof requirement !== 'string') {
+    return false;
+  }
+
+  const match = SIMPLE_REQUIREMENT_PATTERN.exec(requirement);
+  return Boolean(match && isPatchedDeepmergeVersion(match[1]));
+}
+
+function hasForwardRemediationCandidate(lockfile) {
+  const versions = getTrackedDependencyVersions(lockfile);
+  const requirement = getPrismaConfigDeepmergeRequirement(lockfile);
+
+  return isPatchedDeepmergeVersion(versions.deepmergeTs) && isPatchedDeepmergeRequirement(requirement);
 }
 
 function getDaysUntilReviewDeadline(deadline, now = new Date()) {
@@ -85,6 +154,19 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
       daysUntilDeadline,
       versions,
       message: 'package.json / package-lock.json do not satisfy the security audit preconditions',
+    };
+  }
+
+  if (hasForwardRemediationCandidate(lockfile)) {
+    return {
+      ...identity,
+      state: 'forward-remediation-candidate',
+      deadline,
+      checkedAt,
+      daysUntilDeadline,
+      versions,
+      message:
+        'the installed deepmerge-ts version and @prisma/config dependency edge both point to >=8.0.0; run the full security audit and CI before removing the #3114 exception',
     };
   }
 
@@ -204,8 +286,13 @@ if (require.main === module) {
 module.exports = {
   formatSecurityAuditExceptionStatus,
   getDaysUntilReviewDeadline,
+  getPrismaConfigDeepmergeRequirement,
   getSecurityAuditExceptionStatus,
   getTrackedDependencyVersions,
+  hasForwardRemediationCandidate,
+  isPatchedDeepmergeRequirement,
+  isPatchedDeepmergeVersion,
   parseCliOptions,
+  parseComparableSemver,
   writeGitHubOutputs,
 };
