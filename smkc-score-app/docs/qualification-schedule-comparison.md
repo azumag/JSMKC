@@ -44,6 +44,8 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 
 7〜12 名では `pairSetDifferenceCount = 0` なので、CDM の対戦カード集合と Day 順を維持したまま、各実対戦の 1P / 2P 向きだけを circle 側と同じにする hybrid が構成できます。Day は side balance の集計に影響しないため、この hybrid の最大偏りと最小偏り超過人数は circle と同じになります。管理 UI の `Balanced-side CDM` は、その hybrid が構成可能か、固定 CDM fixture から何対戦・何選手分の side override が必要かを読み取り専用で示します。
 
+この hybrid は `buildBalancedCdmSidePreviewSchedule(playerIds)` で実際の `RoundRobinSchedule` としてメモリ上に構成できるようにしています。preview は CDM fixture の Day と BREAK 配置をそのまま保持し、実対戦の 1P / 2P 向きだけを circle 側へ合わせます。比較メトリクスもこの materialized preview から side balance を再計算するため、単なる数式上の推定ではなく、将来仕様として採用した場合に生成できる形で検証されています。この関数は保存処理から呼ばれず、DB・既存対戦表・大会結果は変更しません。
+
 これは fixture の良否を自動判定するものではありません。CDM fixture の 1P / 2P 向きをそのまま再現することを仕様とするなら、この偏りも fixture fidelity の一部です。逆に TT 側で1P / 2Pの均衡を維持したい場合、CDMの対戦カード・Day順だけを採用して side assignment は circle と同じ向きへ置換する設計が可能です。ただし、その場合は「CDMと完全一致」ではなくなるため #3054 で明示的な仕様判断が必要です。
 
 奇数人数では circle / CDM の両方に BYE / BREAK が発生します。`byeAssignmentChangedPlayerCount` に加えて `totalByeDayShift` / `maxByeDayShift` を持つことで、「休みになる選手が変わるか」だけでなく「同じ選手の休みが何 Day 動くか」も確認できます。現行 fixture の `変更選手数 / BYE移動量合計 / 最大BYE移動` は 7名=`6 / 14 / 4`、9名=`7 / 24 / 6`、11名=`9 / 42 / 8` です。偶数人数の 8 / 10 / 12 名では BYE がないためすべて `0 / 0 / 0` です。人数が増えるほど休養タイミングの並べ替えも大きくなるため、BREAK運用を採用するかどうかの判断材料になります。
