@@ -18,6 +18,8 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         cdmTotalDays: 7,
         circleMaxSideImbalance: 1,
         cdmMaxSideImbalance: 3,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 4,
         pairSetDifferenceCount: 0,
         byeAssignmentChangedPlayerCount: 0,
       }),
@@ -39,6 +41,8 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         cdmTotalDays: 7,
         circleMaxSideImbalance: 0,
         cdmMaxSideImbalance: 4,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 5,
         pairSetDifferenceCount: 0,
       }),
     );
@@ -62,6 +66,7 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       expect(comparison.pairDayChangedCount).toBeGreaterThan(0);
       expect(comparison.pairSideChangedCount).toBeGreaterThanOrEqual(0);
       expect(comparison.byeAssignmentChangedPlayerCount).toBeGreaterThanOrEqual(0);
+      expect(comparison.circleExcessSideImbalancePlayerCount).toBe(0);
     }
   });
 
@@ -69,18 +74,64 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
     const comparisons = buildLegacyCircleCdmScheduleComparisons();
 
     expect(
-      comparisons.map(({ playerCount, circleMaxSideImbalance, cdmMaxSideImbalance }) => ({
-        playerCount,
-        circleMaxSideImbalance,
-        cdmMaxSideImbalance,
-      })),
+      comparisons.map(
+        ({
+          playerCount,
+          circleMaxSideImbalance,
+          cdmMaxSideImbalance,
+          circleExcessSideImbalancePlayerCount,
+          cdmExcessSideImbalancePlayerCount,
+        }) => ({
+          playerCount,
+          circleMaxSideImbalance,
+          cdmMaxSideImbalance,
+          circleExcessSideImbalancePlayerCount,
+          cdmExcessSideImbalancePlayerCount,
+        }),
+      ),
     ).toEqual([
-      { playerCount: 7, circleMaxSideImbalance: 0, cdmMaxSideImbalance: 4 },
-      { playerCount: 8, circleMaxSideImbalance: 1, cdmMaxSideImbalance: 3 },
-      { playerCount: 9, circleMaxSideImbalance: 0, cdmMaxSideImbalance: 4 },
-      { playerCount: 10, circleMaxSideImbalance: 1, cdmMaxSideImbalance: 5 },
-      { playerCount: 11, circleMaxSideImbalance: 0, cdmMaxSideImbalance: 6 },
-      { playerCount: 12, circleMaxSideImbalance: 1, cdmMaxSideImbalance: 5 },
+      {
+        playerCount: 7,
+        circleMaxSideImbalance: 0,
+        cdmMaxSideImbalance: 4,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 5,
+      },
+      {
+        playerCount: 8,
+        circleMaxSideImbalance: 1,
+        cdmMaxSideImbalance: 3,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 4,
+      },
+      {
+        playerCount: 9,
+        circleMaxSideImbalance: 0,
+        cdmMaxSideImbalance: 4,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 8,
+      },
+      {
+        playerCount: 10,
+        circleMaxSideImbalance: 1,
+        cdmMaxSideImbalance: 5,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 7,
+      },
+      {
+        playerCount: 11,
+        circleMaxSideImbalance: 0,
+        cdmMaxSideImbalance: 6,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 9,
+      },
+      {
+        playerCount: 12,
+        circleMaxSideImbalance: 1,
+        cdmMaxSideImbalance: 5,
+        circleExcessSideImbalancePlayerCount: 0,
+        cdmExcessSideImbalancePlayerCount: 7,
+      },
     ]);
   });
 });
