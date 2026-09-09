@@ -74,11 +74,7 @@ function buildRecommendedPlayerSlotAssignments(
   });
 }
 
-function buildRealFixtureMatchMap(
-  playerCount: number,
-  fixtureCapacity: number,
-  breakSlotPositions: readonly number[],
-) {
+function buildRealFixtureMatchMap(playerCount: number, fixtureCapacity: number, breakSlotPositions: readonly number[]) {
   const fixture = CDM_ROUND_ROBIN_FIXTURES[fixtureCapacity];
   if (!fixture) return null;
 
@@ -116,11 +112,7 @@ function compareFixturePlacements(
   conventionalBreakSlotPositions: readonly number[],
   recommendedBreakSlotPositions: readonly number[],
 ): RecommendedPlacementScheduleImpact | null {
-  const conventionalMatches = buildRealFixtureMatchMap(
-    playerCount,
-    fixtureCapacity,
-    conventionalBreakSlotPositions,
-  );
+  const conventionalMatches = buildRealFixtureMatchMap(playerCount, fixtureCapacity, conventionalBreakSlotPositions);
   const recommendedMatches = buildRealFixtureMatchMap(playerCount, fixtureCapacity, recommendedBreakSlotPositions);
   if (!conventionalMatches || !recommendedMatches) return null;
 
