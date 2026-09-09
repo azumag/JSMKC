@@ -68,6 +68,9 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         pairDayChangedCount: 15,
         totalPairDayShift: 36,
         maxPairDayShift: 5,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 14,
+        maxPlayerTotalDayShiftSeedPositions: [3, 8],
         balancedCdmSidePlanAvailable: true,
         balancedCdmMaxSideImbalance: 1,
         balancedCdmExcessSideImbalancePlayerCount: 0,
@@ -103,6 +106,9 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         pairDayChangedCount: 9,
         totalPairDayShift: 22,
         maxPairDayShift: 5,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 11,
+        maxPlayerTotalDayShiftSeedPositions: [4],
         balancedCdmSidePlanAvailable: true,
         balancedCdmMaxSideImbalance: 0,
         balancedCdmExcessSideImbalancePlayerCount: 0,
@@ -133,6 +139,11 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       expect(comparison.maxPairDayShift).toBeGreaterThan(0);
       expect(comparison.playerDayChangedCount).toBeGreaterThan(0);
       expect(comparison.playerDayChangedCount).toBeLessThanOrEqual(comparison.playerCount);
+      expect(comparison.dayUnchangedSeedPositions.length).toBe(
+        comparison.playerCount - comparison.playerDayChangedCount,
+      );
+      expect(comparison.maxPlayerTotalDayShift).toBeGreaterThanOrEqual(comparison.maxPairDayShift);
+      expect(comparison.maxPlayerTotalDayShiftSeedPositions.length).toBeGreaterThan(0);
       expect(comparison.pairSideChangedCount).toBeGreaterThanOrEqual(0);
       expect(comparison.playerSideChangedCount).toBeGreaterThanOrEqual(0);
       expect(comparison.playerSideChangedCount).toBeLessThanOrEqual(comparison.playerCount);
@@ -167,6 +178,58 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       { playerCount: 10, pairDayChangedCount: 25, totalPairDayShift: 74, maxPairDayShift: 7 },
       { playerCount: 11, pairDayChangedCount: 38, totalPairDayShift: 132, maxPairDayShift: 8 },
       { playerCount: 12, pairDayChangedCount: 47, totalPairDayShift: 174, maxPairDayShift: 8 },
+    ]);
+  });
+
+  it('shows how aggregate Day movement is distributed across seed positions', () => {
+    const comparisons = buildLegacyCircleCdmScheduleComparisons();
+
+    expect(
+      comparisons.map(
+        ({ playerCount, dayUnchangedSeedPositions, maxPlayerTotalDayShift, maxPlayerTotalDayShiftSeedPositions }) => ({
+          playerCount,
+          dayUnchangedSeedPositions,
+          maxPlayerTotalDayShift,
+          maxPlayerTotalDayShiftSeedPositions,
+        }),
+      ),
+    ).toEqual([
+      {
+        playerCount: 7,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 11,
+        maxPlayerTotalDayShiftSeedPositions: [4],
+      },
+      {
+        playerCount: 8,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 14,
+        maxPlayerTotalDayShiftSeedPositions: [3, 8],
+      },
+      {
+        playerCount: 9,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 18,
+        maxPlayerTotalDayShiftSeedPositions: [6],
+      },
+      {
+        playerCount: 10,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 24,
+        maxPlayerTotalDayShiftSeedPositions: [6, 10],
+      },
+      {
+        playerCount: 11,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 32,
+        maxPlayerTotalDayShiftSeedPositions: [11],
+      },
+      {
+        playerCount: 12,
+        dayUnchangedSeedPositions: [1],
+        maxPlayerTotalDayShift: 42,
+        maxPlayerTotalDayShiftSeedPositions: [12],
+      },
     ]);
   });
 
