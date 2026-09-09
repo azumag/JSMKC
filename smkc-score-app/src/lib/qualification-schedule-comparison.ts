@@ -36,6 +36,14 @@ export interface QualificationScheduleComparison {
   maxByeDayShift: number | null;
 }
 
+export interface BalancedCdmSideOverride {
+  day: number;
+  cdmPlayer1Id: string;
+  cdmPlayer2Id: string;
+  balancedPlayer1Id: string;
+  balancedPlayer2Id: string;
+}
+
 interface ComparableMatch {
   day: number;
   player1Id: string;
@@ -130,6 +138,35 @@ function sameNumberArray(left: readonly number[], right: readonly number[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function buildBalancedCdmSideOverridePlanFromSchedules(
+  circle: RoundRobinSchedule,
+  cdm: RoundRobinSchedule,
+): BalancedCdmSideOverride[] | null {
+  const circleMatches = buildRealMatchMap(circle);
+  const cdmMatches = buildRealMatchMap(cdm);
+  if (circleMatches.size !== cdmMatches.size) return null;
+  for (const key of circleMatches.keys()) {
+    if (!cdmMatches.has(key)) return null;
+  }
+
+  const overrides: BalancedCdmSideOverride[] = [];
+  for (const match of cdm.matches) {
+    if (match.isBye) continue;
+    const circleMatch = circleMatches.get(pairKey(match.player1Id, match.player2Id));
+    if (!circleMatch) return null;
+    if (circleMatch.player1Id === match.player1Id) continue;
+    overrides.push({
+      day: match.day,
+      cdmPlayer1Id: match.player1Id,
+      cdmPlayer2Id: match.player2Id,
+      balancedPlayer1Id: circleMatch.player1Id,
+      balancedPlayer2Id: circleMatch.player2Id,
+    });
+  }
+
+  return overrides;
+}
+
 function buildBalancedCdmSidePreviewFromSchedules(
   circle: RoundRobinSchedule,
   cdm: RoundRobinSchedule,
@@ -155,6 +192,18 @@ function buildBalancedCdmSidePreviewFromSchedules(
       };
     }),
   };
+}
+
+/**
+ * Build the exact 1P/2P reversals required to keep CDM Day/BREAK placement
+ * while reusing the circle schedule's balanced side orientation. Entries are
+ * returned in fixed CDM fixture order. Nothing is persisted.
+ */
+export function buildBalancedCdmSideOverridePlan(playerIds: string[]): BalancedCdmSideOverride[] | null {
+  if (!getCdmRoundRobinFixturePlan(playerIds.length)) return null;
+  const circle = generateRoundRobinSchedule(playerIds, { method: 'circle' });
+  const cdm = generateRoundRobinSchedule(playerIds, { method: 'cdm' });
+  return buildBalancedCdmSideOverridePlanFromSchedules(circle, cdm);
 }
 
 /**
@@ -238,10 +287,14 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     totalDayShiftByPlayer.get(playerId) === maxPlayerTotalDayShift ? [index + 1] : [],
   );
   const balancedCdmSidePreview = buildBalancedCdmSidePreviewFromSchedules(circle, cdm);
+  const balancedCdmSideOverrides = buildBalancedCdmSideOverridePlanFromSchedules(circle, cdm);
   const balancedCdmSideImbalance = balancedCdmSidePreview
     ? getRealMatchSideImbalanceStats(balancedCdmSidePreview, playerIds)
     : null;
-  const balancedCdmSidePlanAvailable = balancedCdmSidePreview !== null;
+  const balancedCdmSidePlanAvailable = balancedCdmSidePreview !== null && balancedCdmSideOverrides !== null;
+  const balancedCdmSideOverridePlayerIds = new Set(
+    balancedCdmSideOverrides?.flatMap((override) => [override.cdmPlayer1Id, override.cdmPlayer2Id]) ?? [],
+  );
   const circleByes = buildByeAssignments(circle, playerIds);
   const cdmByes = buildByeAssignments(cdm, playerIds);
   const byeDayShift = getByeDayShiftStats(circleByes, cdmByes, playerIds);
@@ -272,8 +325,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     pairSideChangedCount,
     playerSideChangedCount: playersWithSideChanges.size,
     balancedCdmSidePlanAvailable,
-    balancedCdmSideOverridePairCount: balancedCdmSidePlanAvailable ? pairSideChangedCount : null,
-    balancedCdmSideOverridePlayerCount: balancedCdmSidePlanAvailable ? playersWithSideChanges.size : null,
+    balancedCdmSideOverridePairCount: balancedCdmSideOverrides?.length ?? null,
+    balancedCdmSideOverridePlayerCount: balancedCdmSideOverrides ? balancedCdmSideOverridePlayerIds.size : null,
     balancedCdmMaxSideImbalance: balancedCdmSideImbalance?.max ?? null,
     balancedCdmExcessSideImbalancePlayerCount: balancedCdmSideImbalance?.excessPlayerCount ?? null,
     byeAssignmentChangedPlayerCount,
