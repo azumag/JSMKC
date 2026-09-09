@@ -1,0 +1,23 @@
+# 13-player CDM decision snapshot
+
+Issue #3054 の 13 名ケースについて、既存の raw fixture impact と BREAK slot 全探索結果を一つの読み取り専用データとして扱うための診断メモです。
+
+`buildUnsupportedCdmFixtureCandidateDecision(playerCount)` は、既存の `analyzeUnsupportedCdmFixtureCandidate` と `optimizeUnsupportedCdmBreakPlacement` を統合します。現行 generator mapping、`qualificationScheduleMethod`、対戦生成、DB は変更しません。対応済み人数、raw fixture の次候補が存在しない人数、不正入力では `null` を返します。
+
+13 名では、現行 generator と同じ「実選手を先頭 slot に詰める」規約を16-slot fixtureへ延長すると、BREAK slot は **14, 15, 16** になります。一方、公平性評価で選ばれる代表配置は **1, 5, 9** です。この差を `recommendedPlacementUsesLeadingPlayerConvention = false` として明示します。
+
+この違いは、13名CDM対応が単なる「BREAK上限を2から3へ増やす」変更ではないことを示します。末尾3 slotをBREAKに固定した場合は最大3 Day連続の休みが発生しますが、BREAK slotを1, 5, 9へ置くと最大連続休みを1 Dayに抑え、全選手のBREAK間隔を最低4 Day確保できます。ただし、そのためには実seedとfixture slotの対応を現行の先頭詰め規約から変える必要があります。
+
+管理者向け `GET /api/tournaments/:id/qualification-schedule` は `unsupportedCdmFixtureCandidateDecisions` を返します。現在の7〜21名policy matrixで該当するのは13名だけで、次の情報を同じレスポンスから確認できます。
+
+- 現行規約の BREAK slot positions: 14, 15, 16
+- 推奨 BREAK slot positions: 1, 5, 9
+- 現行規約での最大連続 BREAK: 3 Day
+- 推奨配置で達成できる最大連続 BREAK: 1 Day
+- 全選手を通した最小 BREAK 間隔: 4 Day
+- 評価した配置: 560通り
+- 同じ最良scoreの配置: 16通り
+- 推奨配置の BREAK × BREAK Day: 4, 8, 12
+- seedごとの推奨 BREAK Day
+
+したがって、実装着手前に最低でも「CDMのseed-to-slot対応を固定するか」「休養配置の公平性を優先してBREAK slotを途中へ挿入してよいか」を大会ルールとして決める必要があります。本診断はその判断材料を一箇所へ集約するだけで、13名をCDM生成可能にはしません。
