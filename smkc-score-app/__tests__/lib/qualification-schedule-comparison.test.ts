@@ -53,6 +53,7 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
     expect(comparisons.map((comparison) => comparison.playerCount)).toEqual([7, 8, 9, 10, 11, 12]);
     for (const comparison of comparisons) {
       expect(comparison.realMatchCount).toBe((comparison.playerCount * (comparison.playerCount - 1)) / 2);
+      expect(comparison.cdmTotalDays).toBe(comparison.circleTotalDays);
       expect(comparison.pairSetDifferenceCount).toBe(0);
       expect(comparison.pairDayChangedCount).toBeGreaterThan(0);
       expect(comparison.pairSideChangedCount).toBeGreaterThanOrEqual(0);
