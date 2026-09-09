@@ -79,5 +79,17 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
     expect(comparisons.every((comparison: { pairDayChangedCount: number }) => comparison.pairDayChangedCount > 0)).toBe(
       true,
     );
+    expect(
+      comparisons.every(
+        (comparison: { playerCount: number; playerDayChangedCount: number }) =>
+          comparison.playerDayChangedCount > 0 && comparison.playerDayChangedCount <= comparison.playerCount,
+      ),
+    ).toBe(true);
+    expect(
+      comparisons.every(
+        (comparison: { playerCount: number; playerSideChangedCount: number }) =>
+          comparison.playerSideChangedCount >= 0 && comparison.playerSideChangedCount <= comparison.playerCount,
+      ),
+    ).toBe(true);
   });
 });
