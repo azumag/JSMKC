@@ -186,7 +186,12 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
 
     expect(
       comparisons.map(
-        ({ playerCount, dayUnchangedSeedPositions, maxPlayerTotalDayShift, maxPlayerTotalDayShiftSeedPositions }) => ({
+        ({
+          playerCount,
+          dayUnchangedSeedPositions,
+          maxPlayerTotalDayShift,
+          maxPlayerTotalDayShiftSeedPositions,
+        }) => ({
           playerCount,
           dayUnchangedSeedPositions,
           maxPlayerTotalDayShift,
