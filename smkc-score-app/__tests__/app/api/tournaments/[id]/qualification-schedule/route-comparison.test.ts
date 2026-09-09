@@ -60,6 +60,9 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           balancedCdmSidePlanAvailable: true,
           balancedCdmMaxSideImbalance: 0,
           balancedCdmExcessSideImbalancePlayerCount: 0,
+          byeAssignmentChangedPlayerCount: 6,
+          totalByeDayShift: 14,
+          maxByeDayShift: 4,
         }),
         expect.objectContaining({
           playerCount: 8,
@@ -76,6 +79,8 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           balancedCdmMaxSideImbalance: 1,
           balancedCdmExcessSideImbalancePlayerCount: 0,
           byeAssignmentChangedPlayerCount: 0,
+          totalByeDayShift: 0,
+          maxByeDayShift: 0,
         }),
         expect.objectContaining({
           playerCount: 12,
@@ -91,6 +96,8 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           balancedCdmSidePlanAvailable: true,
           balancedCdmMaxSideImbalance: 1,
           balancedCdmExcessSideImbalancePlayerCount: 0,
+          totalByeDayShift: 0,
+          maxByeDayShift: 0,
         }),
       ]),
     );
@@ -118,6 +125,12 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           comparison.playerSideChangedCount >= 0 &&
           comparison.playerSideChangedCount <= comparison.playerCount &&
           comparison.balancedCdmSideOverridePlayerCount === comparison.playerSideChangedCount,
+      ),
+    ).toBe(true);
+    expect(
+      comparisons.every(
+        (comparison: { totalByeDayShift: number | null; maxByeDayShift: number | null }) =>
+          comparison.totalByeDayShift !== null && comparison.maxByeDayShift !== null,
       ),
     ).toBe(true);
   });
