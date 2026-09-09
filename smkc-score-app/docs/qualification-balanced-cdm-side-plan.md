@@ -24,6 +24,22 @@ Issue #3054 では、7〜12名の legacy circle グループについて、RR 20
 
 7〜12名の legacy-circle 比較では、seed plan の件数は `balancedCdmSideOverridePairCount` と一致し、影響 seed 数は `balancedCdmSideOverridePlayerCount` と一致します。各 entry は 1P/2P を純粋に反転するため、`balancedPlayer1Seed === cdmPlayer2Seed` かつ `balancedPlayer2Seed === cdmPlayer1Seed` です。13名のように対応 CDM fixture がない人数や、不正な人数入力では `null` を返します。
 
+## Preview invariant validation
+
+`validateBalancedCdmSidePreviewSchedule(playerIds)` は、materialized preview が hybrid の前提を満たしているかを読み取り専用で検証します。対応 fixture がなく preview 自体を作れない場合は `null` を返します。
+
+検証する invariant は次の5点です。
+
+- CDM と `totalDays` が一致する
+- CDM と実対戦 pair set が一致する
+- 各実対戦の Day が CDM と一致する
+- BYE/BREAK match の Day と参加者が CDM と一致する
+- 各実対戦の 1P/2P 向きが circle と一致する
+
+戻り値は各 check の真偽、`valid`、失敗した invariant code を保持します。現在の 7〜12名 fixture では全 check が成功することを回帰テストで固定しています。将来 #3054 を実際の書き込み経路へ接続する場合も、この検証を事前条件として使うことで、fixture 更新や schedule generator の変更による silent drift を検出できます。
+
+この validator も大会設定・対戦表・DB・保存済み結果には触れません。
+
 ## Diagnostics UI
 
 管理用の qualification schedule diagnostics では、7〜12名それぞれの balanced-side hybrid について seed override plan を折りたたみ表示します。表示は `D{day}: {seed1}↔{seed2}` 形式で、固定 CDM fixture のどの試合で 1P/2P を反転する必要があるかを、実プレイヤー情報に依存せず確認できます。既存の集計値だけでなく、レビュー時に具体的な Day / seed の組み合わせまで追えることが目的です。
