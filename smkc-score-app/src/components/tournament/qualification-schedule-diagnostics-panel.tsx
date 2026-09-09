@@ -142,6 +142,9 @@ export function QualificationScheduleDiagnosticsPanel({
               <div className="mt-1 text-muted-foreground">
                 Schedule days: circle {comparison.circleTotalDays} → CDM {comparison.cdmTotalDays}
               </div>
+              <div className="mt-1 text-muted-foreground">
+                Max 1P/2P imbalance: circle {comparison.circleMaxSideImbalance} → CDM {comparison.cdmMaxSideImbalance}
+              </div>
               <div className="mt-1">
                 Pair set:{' '}
                 {comparison.pairSetDifferenceCount === 0
