@@ -135,9 +135,7 @@ function scoreBreakPlacement(
     maxConsecutiveBreakDayCount: Math.max(
       ...breakDaysByPlayerSeed.map(({ breakDays }) => getMaxConsecutiveDayCount(breakDays)),
     ),
-    minimumPlayerBreakDayGap: Math.min(
-      ...breakDaysByPlayerSeed.map(({ breakDays }) => getMinimumDayGap(breakDays)),
-    ),
+    minimumPlayerBreakDayGap: Math.min(...breakDaysByPlayerSeed.map(({ breakDays }) => getMinimumDayGap(breakDays))),
     minimumBreakOnlyDayGap: getMinimumDayGap(breakOnlyDays),
   };
 }
