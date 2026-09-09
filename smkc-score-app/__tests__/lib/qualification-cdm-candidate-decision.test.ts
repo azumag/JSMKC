@@ -51,7 +51,9 @@ describe('buildUnsupportedCdmFixtureCandidateDecision', () => {
       },
     });
 
-    const occupiedSlots = decision!.recommendedPlayerSlotAssignments.map(({ fixtureSlotPosition }) => fixtureSlotPosition);
+    const occupiedSlots = decision!.recommendedPlayerSlotAssignments.map(
+      ({ fixtureSlotPosition }) => fixtureSlotPosition,
+    );
     expect(occupiedSlots).toEqual([2, 3, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16]);
     expect(occupiedSlots).not.toEqual(expect.arrayContaining(decision!.recommendedBreakSlotPositions));
   });
