@@ -33,7 +33,9 @@ function pairKey(match: RoundRobinMatch) {
 
 function buildRealMatchMap(schedule: RoundRobinSchedule) {
   return new Map(
-    schedule.matches.filter((match) => !match.isBye).map((match) => [pairKey(match), match] as const),
+    schedule.matches
+      .filter((match) => !match.isBye)
+      .map((match) => [pairKey(match), match] as const),
   );
 }
 
@@ -45,7 +47,10 @@ function buildBreakSignatures(schedule: RoundRobinSchedule) {
 }
 
 function sameStringArray(left: readonly string[], right: readonly string[]) {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 /**
@@ -71,17 +76,24 @@ export function validateBalancedCdmSidePreviewSchedule(
 
   const preservesCdmTotalDays = preview.totalDays === cdm.totalDays;
   const preservesCdmPairSet =
-    previewMatches.size === cdmMatches.size && Array.from(cdmMatches.keys()).every((key) => previewMatches.has(key));
+    previewMatches.size === cdmMatches.size &&
+    Array.from(cdmMatches.keys()).every((key) => previewMatches.has(key));
   const preservesCdmDayPlacement =
     preservesCdmPairSet &&
-    Array.from(cdmMatches.entries()).every(([key, cdmMatch]) => previewMatches.get(key)?.day === cdmMatch.day);
-  const preservesCdmBreakPlacement = sameStringArray(buildBreakSignatures(preview), buildBreakSignatures(cdm));
+    Array.from(cdmMatches.entries()).every(
+      ([key, cdmMatch]) => previewMatches.get(key)?.day === cdmMatch.day,
+    );
+  const preservesCdmBreakPlacement = sameStringArray(
+    buildBreakSignatures(preview),
+    buildBreakSignatures(cdm),
+  );
   const preservesCircleSideOrientation =
     previewMatches.size === circleMatches.size &&
     Array.from(circleMatches.entries()).every(([key, circleMatch]) => {
       const previewMatch = previewMatches.get(key);
       return (
-        previewMatch?.player1Id === circleMatch.player1Id && previewMatch?.player2Id === circleMatch.player2Id
+        previewMatch?.player1Id === circleMatch.player1Id &&
+        previewMatch?.player2Id === circleMatch.player2Id
       );
     });
 
@@ -98,7 +110,9 @@ export function validateBalancedCdmSidePreviewSchedule(
   if (!preservesCdmPairSet) failedInvariants.push('cdm-pair-set');
   if (!preservesCdmDayPlacement) failedInvariants.push('cdm-day-placement');
   if (!preservesCdmBreakPlacement) failedInvariants.push('cdm-break-placement');
-  if (!preservesCircleSideOrientation) failedInvariants.push('circle-side-orientation');
+  if (!preservesCircleSideOrientation) {
+    failedInvariants.push('circle-side-orientation');
+  }
 
   return {
     playerCount: playerIds.length,
