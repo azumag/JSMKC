@@ -17,13 +17,16 @@ export interface QualificationScheduleComparison {
   cdmExcessSideImbalancePlayerCount: number;
   pairSetDifferenceCount: number;
   pairDayChangedCount: number;
+  playerDayChangedCount: number;
   pairSideChangedCount: number;
+  playerSideChangedCount: number;
   byeAssignmentChangedPlayerCount: number;
 }
 
 interface ComparableMatch {
   day: number;
   player1Id: string;
+  player2Id: string;
 }
 
 interface SideImbalanceStats {
@@ -42,6 +45,7 @@ function buildRealMatchMap(schedule: RoundRobinSchedule) {
     matches.set(pairKey(match.player1Id, match.player2Id), {
       day: match.day,
       player1Id: match.player1Id,
+      player2Id: match.player2Id,
     });
   }
   return matches;
@@ -97,6 +101,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
   const circleSideImbalance = getRealMatchSideImbalanceStats(circle, playerIds);
   const cdmSideImbalance = getRealMatchSideImbalanceStats(cdm, playerIds);
   const allPairKeys = new Set([...circleMatches.keys(), ...cdmMatches.keys()]);
+  const playersWithDayChanges = new Set<string>();
+  const playersWithSideChanges = new Set<string>();
 
   let pairSetDifferenceCount = 0;
   let pairDayChangedCount = 0;
@@ -108,8 +114,16 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
       pairSetDifferenceCount += 1;
       continue;
     }
-    if (circleMatch.day !== cdmMatch.day) pairDayChangedCount += 1;
-    if (circleMatch.player1Id !== cdmMatch.player1Id) pairSideChangedCount += 1;
+    if (circleMatch.day !== cdmMatch.day) {
+      pairDayChangedCount += 1;
+      playersWithDayChanges.add(circleMatch.player1Id);
+      playersWithDayChanges.add(circleMatch.player2Id);
+    }
+    if (circleMatch.player1Id !== cdmMatch.player1Id) {
+      pairSideChangedCount += 1;
+      playersWithSideChanges.add(circleMatch.player1Id);
+      playersWithSideChanges.add(circleMatch.player2Id);
+    }
   }
 
   const circleByes = buildByeAssignments(circle, playerIds);
@@ -131,7 +145,9 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     cdmExcessSideImbalancePlayerCount: cdmSideImbalance.excessPlayerCount,
     pairSetDifferenceCount,
     pairDayChangedCount,
+    playerDayChangedCount: playersWithDayChanges.size,
     pairSideChangedCount,
+    playerSideChangedCount: playersWithSideChanges.size,
     byeAssignmentChangedPlayerCount,
   };
 }
