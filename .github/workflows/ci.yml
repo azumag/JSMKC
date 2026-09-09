@@ -103,12 +103,6 @@ jobs:
           FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Show Prettier diff on formatting failure
-        if: ${{ failure() }}
-        run: |
-          npx prettier --write __tests__/docs/security-audit-review-workflow.test.ts __tests__/scripts/security-audit-status.test.ts
-          git diff -- __tests__/docs/security-audit-review-workflow.test.ts __tests__/scripts/security-audit-status.test.ts
-
       - name: Unit tests
         # Keep functional validation independent from the dependency audit so a
         # pre-existing advisory does not hide regressions in the PR under test.
