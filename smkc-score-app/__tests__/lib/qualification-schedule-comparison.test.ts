@@ -23,12 +23,12 @@ describe('buildBalancedCdmSidePreviewSchedule', () => {
     const circleMatches = new Map(
       circle.matches
         .filter((match) => !match.isBye)
-        .map((match) => [pairKey(match.player1Id, match.player2Id), match]),
+        .map((match) => [pairKey(match.player1Id, match.player2Id), match] as const),
     );
     const cdmMatches = new Map(
       cdm.matches
         .filter((match) => !match.isBye)
-        .map((match) => [pairKey(match.player1Id, match.player2Id), match]),
+        .map((match) => [pairKey(match.player1Id, match.player2Id), match] as const),
     );
 
     for (const match of preview!.matches.filter((candidate) => !candidate.isBye)) {
@@ -38,7 +38,9 @@ describe('buildBalancedCdmSidePreviewSchedule', () => {
       expect(match.player2Id).toBe(circleMatches.get(key)?.player2Id);
     }
 
-    expect(preview!.matches.filter((match) => match.isBye)).toEqual(cdm.matches.filter((match) => match.isBye));
+    expect(preview!.matches.filter((match) => match.isBye)).toEqual(
+      cdm.matches.filter((match) => match.isBye),
+    );
   });
 
   it('returns null when the requested player count has no CDM fixture', () => {
