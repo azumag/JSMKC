@@ -23,6 +23,9 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 - `totalPairDayShift`: 両方式に存在する実対戦について `|circle Day - CDM Day|` を合計した値
 - `maxPairDayShift`: 1つの実対戦が移動する Day 数の最大値
 - `playerDayChangedCount`: 少なくとも1試合の Day が変わる選手数
+- `dayUnchangedSeedPositions`: 全実対戦が circle と同じ Day に残る seed position の一覧
+- `maxPlayerTotalDayShift`: 1選手について、その選手が出場する全実対戦の `|circle Day - CDM Day|` を合計した値の最大値
+- `maxPlayerTotalDayShiftSeedPositions`: `maxPlayerTotalDayShift` になる seed position の一覧
 - `pairSideChangedCount`: 同じ対戦カードだが 1P / 2P が反転する件数
 - `playerSideChangedCount`: 少なくとも1試合の 1P / 2P が反転する選手数
 - `balancedCdmSidePlanAvailable`: CDM の対戦カード集合・Day順を保ちつつ circle の 1P / 2P 向きを再利用できるか
@@ -37,6 +40,8 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 `pairSetDifferenceCount = 0` であれば、実選手同士の総当たり集合自体は同一です。そのうえで `pairDayChangedCount` や `pairSideChangedCount` が 0 より大きければ、「対戦相手の集合は同じだが順序や1P/2P配置は変わる」と判断できます。`playerDayChangedCount` と `playerSideChangedCount` は同じ差分を選手単位に集約し、移行によって実際に何人の進行順・1P/2P配置が影響を受けるかを確認するために使います。
 
 `pairDayChangedCount` だけでは、Day が変わるカードが「隣の Day へ少し動く」のか「大会進行上かなり離れた Day へ動く」のかを区別できません。そこで `totalPairDayShift` と `maxPairDayShift` も保持します。現行 fixture の 7〜12 名では、`pairDayChangedCount / totalPairDayShift / maxPairDayShift` はそれぞれ `9 / 22 / 5`, `15 / 36 / 5`, `18 / 50 / 7`, `25 / 74 / 7`, `38 / 132 / 8`, `47 / 174 / 8` です。CDM化は総 Day 数を増やしませんが、人数が大きいほど対戦順の並べ替え量は無視できないことが分かります。
+
+この総移動量を seed 単位にも集約します。現行 fixture の 7〜12 名では `dayUnchangedSeedPositions` がすべて `[1]` で、seed 1 の実対戦 Day だけは circle から変わりません。一方、`maxPlayerTotalDayShift / maxPlayerTotalDayShiftSeedPositions` は 7名=`11 / [4]`、8名=`14 / [3, 8]`、9名=`18 / [6]`、10名=`24 / [6, 10]`、11名=`32 / [11]`、12名=`42 / [12]` です。集計値だけでは見えにくかった「seed 1 は Day 順が維持される一方、別の seed に変更量が集中する」という非対称性を、仕様判断時に確認できます。
 
 現行の 7〜12 名 fixture では `circleTotalDays` と `cdmTotalDays` がすべて一致します。管理 UI でも `Schedule days: circle X → CDM X` と表示するため、小規模グループを CDM 化しても総 Day 数は増えず、影響は主に対戦 Day・1P/2P配置・BREAK割当にあることを確認できます。この性質は回帰テストで固定しています。
 
@@ -56,6 +61,7 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 
 - CDM化で変えたいのが「対戦カード集合」なのか「Day順」なのか「1P/2P配置」まで含むのか
 - Day順の変更が何カード・何選手へ波及するかだけでなく、各カードが何 Day 分移動するか
+- Day順の変更が seed 間で均等か、それとも特定 seed に集中するか
 - 1P / 2P の fixture fidelity と、現行 circle の side balance のどちらを優先するか
 - CDM の Day 順を維持しつつ side balance を circle 相当に保つ hybrid を仕様として許容するか
 - 7 / 9 / 11 名で BREAK の割当変更だけでなく休養 Day の移動幅も許容するか
