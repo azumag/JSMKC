@@ -5,8 +5,12 @@ import path from 'node:path';
 import {
   formatSecurityAuditExceptionStatus,
   getDaysUntilReviewDeadline,
+  getPrismaConfigDeepmergeRequirement,
   getSecurityAuditExceptionStatus,
   getTrackedDependencyVersions,
+  hasForwardRemediationCandidate,
+  isPatchedDeepmergeRequirement,
+  isPatchedDeepmergeVersion,
   parseCliOptions,
   writeGitHubOutputs,
 } from '../../scripts/security-audit-status.js';
@@ -102,10 +106,10 @@ describe('security audit exception status', () => {
     ).toBe('expired');
   });
 
-  it('reports context-changed with forward-remediation version evidence', () => {
+  it('classifies a patched installed version plus patched @prisma/config dependency edge as a forward remediation candidate', () => {
     const remediatedLockfile = structuredClone(lockfile);
-    remediatedLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.1';
-    remediatedLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.1';
+    remediatedLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.2';
+    remediatedLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.2';
 
     const status = getSecurityAuditExceptionStatus({
       manifest,
@@ -113,12 +117,51 @@ describe('security audit exception status', () => {
       now: new Date('2026-09-08T00:00:00.000Z'),
     });
 
-    expect(status.state).toBe('context-changed');
+    expect(status.state).toBe('forward-remediation-candidate');
     expect(status.versions).toEqual({
       prisma: '6.19.3',
       prismaConfig: '6.19.3',
-      deepmergeTs: '8.0.1',
+      deepmergeTs: '8.0.2',
     });
+    expect(status.message).toContain('run the full security audit and CI');
+    expect(getPrismaConfigDeepmergeRequirement(remediatedLockfile)).toBe('8.0.2');
+    expect(hasForwardRemediationCandidate(remediatedLockfile)).toBe(true);
+  });
+
+  it('keeps a consumer-side installed-version override as generic context-changed evidence', () => {
+    const overriddenLockfile = structuredClone(lockfile);
+    overriddenLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.2';
+
+    const status = getSecurityAuditExceptionStatus({
+      manifest,
+      lockfile: overriddenLockfile,
+      now: new Date('2026-09-08T00:00:00.000Z'),
+    });
+
+    expect(status.state).toBe('context-changed');
+    expect(status.versions.deepmergeTs).toBe('8.0.2');
+    expect(getPrismaConfigDeepmergeRequirement(overriddenLockfile)).toBe('7.1.5');
+    expect(hasForwardRemediationCandidate(overriddenLockfile)).toBe(false);
+  });
+
+  it('treats only semver versions at or above the patched deepmerge-ts boundary as patched', () => {
+    expect(isPatchedDeepmergeVersion('7.1.6')).toBe(false);
+    expect(isPatchedDeepmergeVersion('8.0.0-rc.1')).toBe(false);
+    expect(isPatchedDeepmergeVersion('8.0.0')).toBe(true);
+    expect(isPatchedDeepmergeVersion('8.0.0+build.1')).toBe(true);
+    expect(isPatchedDeepmergeVersion('8.0.1-beta.1')).toBe(true);
+    expect(isPatchedDeepmergeVersion('9.0.0')).toBe(true);
+    expect(isPatchedDeepmergeVersion('not-semver')).toBe(false);
+  });
+
+  it('accepts only simple patched dependency requirements for remediation candidate classification', () => {
+    expect(isPatchedDeepmergeRequirement('8.0.2')).toBe(true);
+    expect(isPatchedDeepmergeRequirement('^8.0.2')).toBe(true);
+    expect(isPatchedDeepmergeRequirement('~8.0.2')).toBe(true);
+    expect(isPatchedDeepmergeRequirement('>= 8.0.0')).toBe(true);
+    expect(isPatchedDeepmergeRequirement('^7.1.5')).toBe(false);
+    expect(isPatchedDeepmergeRequirement('>=8.0.0 <9')).toBe(false);
+    expect(isPatchedDeepmergeRequirement('workspace:^8.0.0')).toBe(false);
   });
 
   it('uses null when a tracked dependency version cannot be read', () => {
