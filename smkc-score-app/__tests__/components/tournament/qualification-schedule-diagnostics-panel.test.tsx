@@ -103,6 +103,22 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(matrix).toHaveTextContent('Generation unsupported');
   });
 
+  it('renders the same-seed circle versus CDM comparison evidence for 7..12 players', () => {
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={{ bm: [], mr: [], gp: [] }} />);
+
+    const comparison = screen.getByLabelText('Circle versus CDM schedule comparison');
+    expect(comparison).toHaveTextContent('Circle → CDM impact (7–12 players)');
+    expect(comparison).toHaveTextContent('7 players');
+    expect(comparison).toHaveTextContent('8-slot CDM');
+    expect(comparison).toHaveTextContent('21 real matches · 1 BREAK');
+    expect(comparison).toHaveTextContent('12 players');
+    expect(comparison).toHaveTextContent('66 real matches · 0 BREAK');
+    expect(comparison).toHaveTextContent('Pair set: identical');
+    expect(comparison).toHaveTextContent('Day changes:');
+    expect(comparison).toHaveTextContent('Side changes:');
+    expect(comparison).toHaveTextContent('BYE/BREAK assignment changes:');
+  });
+
   it('warns when the effective CDM request has no fixture and cannot generate a schedule', () => {
     const unsupported: QualificationScheduleDiagnostics = {
       bm: [
