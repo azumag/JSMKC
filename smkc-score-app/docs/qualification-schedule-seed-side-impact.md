@@ -6,14 +6,12 @@ Issue #3054 の判断材料として、RR 2025 CDM fixture の固定 1P / 2P 向
 
 ## 現行 fixture の結果
 
-| Players | Minimum unavoidable `|1P-2P|` | CDM max | Affected seeds |
-| ---: | ---: | ---: | --- |
-| 7 | 0 | 4 | 2, 3, 4, 5, 7 |
-| 8 | 1 | 3 | 2, 3, 4, 7 |
-| 9 | 0 | 4 | 1, 2, 3, 4, 6, 7, 8, 9 |
-| 10 | 1 | 5 | 1, 2, 3, 6, 7, 8, 9 |
-| 11 | 0 | 6 | 2, 3, 4, 5, 6, 7, 8, 9, 11 |
-| 12 | 1 | 5 | 2, 3, 5, 6, 8, 11, 12 |
+- 7名: 最小偏り 0 / CDM最大 4 / affected seeds 2, 3, 4, 5, 7
+- 8名: 最小偏り 1 / CDM最大 3 / affected seeds 2, 3, 4, 7
+- 9名: 最小偏り 0 / CDM最大 4 / affected seeds 1, 2, 3, 4, 6, 7, 8, 9
+- 10名: 最小偏り 1 / CDM最大 5 / affected seeds 1, 2, 3, 6, 7, 8, 9
+- 11名: 最小偏り 0 / CDM最大 6 / affected seeds 2, 3, 4, 5, 6, 7, 8, 9, 11
+- 12名: 最小偏り 1 / CDM最大 5 / affected seeds 2, 3, 5, 6, 8, 11, 12
 
 既存の `cdmExcessSideImbalancePlayerCount` は影響人数だけを示していたが、この seed 一覧により偏りが特定 seed に集中しているかを確認できる。seed position がランキングや配置順と意味的に結び付く運用では、単なる人数だけでなく「どの seed が固定 CDM orientation の影響を受けるか」も仕様判断時に確認する必要がある。
 
