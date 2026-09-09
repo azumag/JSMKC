@@ -156,7 +156,8 @@ export function QualificationScheduleDiagnosticsPanel({
                   : `${comparison.pairSetDifferenceCount} differences`}
               </div>
               <div className="mt-1 text-muted-foreground">
-                Day changes: {comparison.pairDayChangedCount} · Side changes: {comparison.pairSideChangedCount}
+                Day changes: {comparison.pairDayChangedCount} pairs / {comparison.playerDayChangedCount} players · Side
+                changes: {comparison.pairSideChangedCount} pairs / {comparison.playerSideChangedCount} players
               </div>
               <div className="mt-1 text-muted-foreground">
                 BYE/BREAK assignment changes: {comparison.byeAssignmentChangedPlayerCount} players
