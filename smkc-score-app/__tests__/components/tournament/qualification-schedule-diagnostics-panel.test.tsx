@@ -122,6 +122,9 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(comparison).toHaveTextContent('Pair set: identical');
     expect(comparison).toHaveTextContent(/Day changes: \d+ pairs \/ \d+ players/);
     expect(comparison).toHaveTextContent(/Side changes: \d+ pairs \/ \d+ players/);
+    expect(comparison).toHaveTextContent(
+      /Balanced-side CDM: available · max imbalance 0 · override \d+ pairs \/ \d+ players/,
+    );
     expect(comparison).toHaveTextContent('BYE/BREAK assignment changes:');
   });
 

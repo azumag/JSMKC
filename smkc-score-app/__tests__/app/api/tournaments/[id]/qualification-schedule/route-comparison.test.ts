@@ -54,6 +54,9 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           circleMaxSideImbalance: 0,
           cdmMaxSideImbalance: 4,
           pairSetDifferenceCount: 0,
+          balancedCdmSidePlanAvailable: true,
+          balancedCdmMaxSideImbalance: 0,
+          balancedCdmExcessSideImbalancePlayerCount: 0,
         }),
         expect.objectContaining({
           playerCount: 8,
@@ -63,6 +66,9 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           circleMaxSideImbalance: 1,
           cdmMaxSideImbalance: 3,
           pairSetDifferenceCount: 0,
+          balancedCdmSidePlanAvailable: true,
+          balancedCdmMaxSideImbalance: 1,
+          balancedCdmExcessSideImbalancePlayerCount: 0,
           byeAssignmentChangedPlayerCount: 0,
         }),
         expect.objectContaining({
@@ -73,6 +79,9 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
           circleMaxSideImbalance: 1,
           cdmMaxSideImbalance: 5,
           pairSetDifferenceCount: 0,
+          balancedCdmSidePlanAvailable: true,
+          balancedCdmMaxSideImbalance: 1,
+          balancedCdmExcessSideImbalancePlayerCount: 0,
         }),
       ]),
     );
@@ -87,8 +96,14 @@ describe('GET /api/tournaments/[id]/qualification-schedule comparison evidence',
     ).toBe(true);
     expect(
       comparisons.every(
-        (comparison: { playerCount: number; playerSideChangedCount: number }) =>
-          comparison.playerSideChangedCount >= 0 && comparison.playerSideChangedCount <= comparison.playerCount,
+        (comparison: {
+          playerCount: number;
+          playerSideChangedCount: number;
+          balancedCdmSideOverridePlayerCount: number;
+        }) =>
+          comparison.playerSideChangedCount >= 0 &&
+          comparison.playerSideChangedCount <= comparison.playerCount &&
+          comparison.balancedCdmSideOverridePlayerCount === comparison.playerSideChangedCount,
       ),
     ).toBe(true);
   });

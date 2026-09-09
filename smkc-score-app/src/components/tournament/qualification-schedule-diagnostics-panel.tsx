@@ -160,6 +160,12 @@ export function QualificationScheduleDiagnosticsPanel({
                 changes: {comparison.pairSideChangedCount} pairs / {comparison.playerSideChangedCount} players
               </div>
               <div className="mt-1 text-muted-foreground">
+                Balanced-side CDM:{' '}
+                {comparison.balancedCdmSidePlanAvailable
+                  ? `available · max imbalance ${comparison.balancedCdmMaxSideImbalance} · override ${comparison.balancedCdmSideOverridePairCount} pairs / ${comparison.balancedCdmSideOverridePlayerCount} players`
+                  : 'unavailable because pair sets differ'}
+              </div>
+              <div className="mt-1 text-muted-foreground">
                 BYE/BREAK assignment changes: {comparison.byeAssignmentChangedPlayerCount} players
               </div>
             </div>

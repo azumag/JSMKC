@@ -20,6 +20,11 @@ export interface QualificationScheduleComparison {
   playerDayChangedCount: number;
   pairSideChangedCount: number;
   playerSideChangedCount: number;
+  balancedCdmSidePlanAvailable: boolean;
+  balancedCdmSideOverridePairCount: number | null;
+  balancedCdmSideOverridePlayerCount: number | null;
+  balancedCdmMaxSideImbalance: number | null;
+  balancedCdmExcessSideImbalancePlayerCount: number | null;
   byeAssignmentChangedPlayerCount: number;
 }
 
@@ -126,6 +131,7 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     }
   }
 
+  const balancedCdmSidePlanAvailable = pairSetDifferenceCount === 0;
   const circleByes = buildByeAssignments(circle, playerIds);
   const cdmByes = buildByeAssignments(cdm, playerIds);
   const byeAssignmentChangedPlayerCount = playerIds.filter(
@@ -148,6 +154,13 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     playerDayChangedCount: playersWithDayChanges.size,
     pairSideChangedCount,
     playerSideChangedCount: playersWithSideChanges.size,
+    balancedCdmSidePlanAvailable,
+    balancedCdmSideOverridePairCount: balancedCdmSidePlanAvailable ? pairSideChangedCount : null,
+    balancedCdmSideOverridePlayerCount: balancedCdmSidePlanAvailable ? playersWithSideChanges.size : null,
+    balancedCdmMaxSideImbalance: balancedCdmSidePlanAvailable ? circleSideImbalance.max : null,
+    balancedCdmExcessSideImbalancePlayerCount: balancedCdmSidePlanAvailable
+      ? circleSideImbalance.excessPlayerCount
+      : null,
     byeAssignmentChangedPlayerCount,
   };
 }
