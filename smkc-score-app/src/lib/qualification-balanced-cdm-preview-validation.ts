@@ -1,16 +1,8 @@
 import { buildBalancedCdmSidePreviewSchedule } from '@/lib/qualification-schedule-comparison';
-import {
-  generateRoundRobinSchedule,
-  type RoundRobinMatch,
-  type RoundRobinSchedule,
-} from '@/lib/round-robin';
+import { generateRoundRobinSchedule, type RoundRobinMatch, type RoundRobinSchedule } from '@/lib/round-robin';
 
 export type BalancedCdmSidePreviewInvariant =
-  | 'cdm-total-days'
-  | 'cdm-pair-set'
-  | 'cdm-day-placement'
-  | 'cdm-break-placement'
-  | 'circle-side-orientation';
+  'cdm-total-days' | 'cdm-pair-set' | 'cdm-day-placement' | 'cdm-break-placement' | 'circle-side-orientation';
 
 export interface BalancedCdmSidePreviewValidationChecks {
   preservesCdmTotalDays: boolean;
@@ -32,11 +24,7 @@ function pairKey(match: RoundRobinMatch) {
 }
 
 function buildRealMatchMap(schedule: RoundRobinSchedule) {
-  return new Map(
-    schedule.matches
-      .filter((match) => !match.isBye)
-      .map((match) => [pairKey(match), match] as const),
-  );
+  return new Map(schedule.matches.filter((match) => !match.isBye).map((match) => [pairKey(match), match] as const));
 }
 
 function buildBreakSignatures(schedule: RoundRobinSchedule) {
@@ -47,10 +35,7 @@ function buildBreakSignatures(schedule: RoundRobinSchedule) {
 }
 
 function sameStringArray(left: readonly string[], right: readonly string[]) {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 /**
@@ -62,9 +47,7 @@ function sameStringArray(left: readonly string[], right: readonly string[]) {
  * select a qualification schedule. null means no compatible preview can be
  * built for the supplied player count/pair set.
  */
-export function validateBalancedCdmSidePreviewSchedule(
-  playerIds: string[],
-): BalancedCdmSidePreviewValidation | null {
+export function validateBalancedCdmSidePreviewSchedule(playerIds: string[]): BalancedCdmSidePreviewValidation | null {
   const preview = buildBalancedCdmSidePreviewSchedule(playerIds);
   if (!preview) return null;
 
@@ -76,25 +59,16 @@ export function validateBalancedCdmSidePreviewSchedule(
 
   const preservesCdmTotalDays = preview.totalDays === cdm.totalDays;
   const preservesCdmPairSet =
-    previewMatches.size === cdmMatches.size &&
-    Array.from(cdmMatches.keys()).every((key) => previewMatches.has(key));
+    previewMatches.size === cdmMatches.size && Array.from(cdmMatches.keys()).every((key) => previewMatches.has(key));
   const preservesCdmDayPlacement =
     preservesCdmPairSet &&
-    Array.from(cdmMatches.entries()).every(
-      ([key, cdmMatch]) => previewMatches.get(key)?.day === cdmMatch.day,
-    );
-  const preservesCdmBreakPlacement = sameStringArray(
-    buildBreakSignatures(preview),
-    buildBreakSignatures(cdm),
-  );
+    Array.from(cdmMatches.entries()).every(([key, cdmMatch]) => previewMatches.get(key)?.day === cdmMatch.day);
+  const preservesCdmBreakPlacement = sameStringArray(buildBreakSignatures(preview), buildBreakSignatures(cdm));
   const preservesCircleSideOrientation =
     previewMatches.size === circleMatches.size &&
     Array.from(circleMatches.entries()).every(([key, circleMatch]) => {
       const previewMatch = previewMatches.get(key);
-      return (
-        previewMatch?.player1Id === circleMatch.player1Id &&
-        previewMatch?.player2Id === circleMatch.player2Id
-      );
+      return previewMatch?.player1Id === circleMatch.player1Id && previewMatch?.player2Id === circleMatch.player2Id;
     });
 
   const checks: BalancedCdmSidePreviewValidationChecks = {
