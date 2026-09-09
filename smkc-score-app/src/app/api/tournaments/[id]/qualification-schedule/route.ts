@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
+import { buildUnsupportedCdmFixtureCandidateDecision } from '@/lib/qualification-cdm-candidate-decision';
 import { buildLegacyCircleCdmScheduleComparisons } from '@/lib/qualification-schedule-comparison';
 import {
   buildQualificationScheduleDiagnostics,
@@ -47,11 +48,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ]);
 
     const modes = buildQualificationScheduleDiagnostics(configuredMethod, { bm, mr, gp });
+    const policyMatrix = buildQualificationSchedulePolicyMatrix(configuredMethod);
+    const unsupportedCdmFixtureCandidateDecisions = policyMatrix.flatMap(({ playerCount }) => {
+      const decision = buildUnsupportedCdmFixtureCandidateDecision(playerCount);
+      return decision ? [decision] : [];
+    });
 
     return createSuccessResponse({
       tournamentId: tournament.id,
       configuredMethod,
-      policyMatrix: buildQualificationSchedulePolicyMatrix(configuredMethod),
+      policyMatrix,
+      unsupportedCdmFixtureCandidateDecisions,
       smallGroupCdmComparisons: buildLegacyCircleCdmScheduleComparisons(),
       modes,
       summary: summarizeQualificationScheduleDiagnostics(modes),
