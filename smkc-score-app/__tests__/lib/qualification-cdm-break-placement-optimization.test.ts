@@ -1,7 +1,7 @@
 import { optimizeUnsupportedCdmBreakPlacement } from '@/lib/qualification-cdm-break-placement-optimization';
 
 describe('optimizeUnsupportedCdmBreakPlacement', () => {
-  it('finds a 13-player placement with no consecutive BREAK days', () => {
+  it('finds a 13-player placement with no consecutive BREAK days and maximizes worst-case spacing', () => {
     expect(optimizeUnsupportedCdmBreakPlacement(13)).toEqual({
       playerCount: 13,
       fixtureCapacity: 16,
@@ -9,8 +9,10 @@ describe('optimizeUnsupportedCdmBreakPlacement', () => {
       evaluatedPlacementCount: 560,
       minimumPossibleMaxConsecutiveBreakDayCount: 1,
       placementCountAtMinimumConsecutiveBreaks: 208,
+      maximumMinimumPlayerBreakDayGap: 4,
+      placementCountAtMaximumPlayerBreakGap: 16,
       maximumMinimumBreakOnlyDayGap: 4,
-      placementCountAtRecommendedScore: 48,
+      placementCountAtRecommendedScore: 16,
       recommendedBreakSlotPositions: [1, 5, 9],
       recommendedBreakOnlyDays: [4, 8, 12],
       recommendedBreakDaysByPlayerSeed: [
@@ -31,14 +33,14 @@ describe('optimizeUnsupportedCdmBreakPlacement', () => {
     });
   });
 
-  it('keeps all recommended player BREAK days non-consecutive and evenly counts three BREAKs', () => {
+  it('keeps all recommended player BREAK days at least four days apart and evenly counts three BREAKs', () => {
     const optimization = optimizeUnsupportedCdmBreakPlacement(13);
 
     expect(optimization).not.toBeNull();
     for (const player of optimization!.recommendedBreakDaysByPlayerSeed) {
       expect(player.breakDays).toHaveLength(3);
       for (let index = 1; index < player.breakDays.length; index += 1) {
-        expect(player.breakDays[index] - player.breakDays[index - 1]).toBeGreaterThan(1);
+        expect(player.breakDays[index] - player.breakDays[index - 1]).toBeGreaterThanOrEqual(4);
       }
     }
   });
