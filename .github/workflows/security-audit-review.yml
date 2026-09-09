@@ -64,6 +64,7 @@ jobs:
           EXCEPTION_DAYS_UNTIL_DEADLINE: ${{ steps.exception_status.outputs.days_until_deadline }}
           PRISMA_VERSION: ${{ steps.exception_status.outputs.prisma_version }}
           PRISMA_CONFIG_VERSION: ${{ steps.exception_status.outputs.prisma_config_version }}
+          PRISMA_CONFIG_DEEPMERGE_REQUIREMENT: ${{ steps.exception_status.outputs.prisma_config_deepmerge_requirement }}
           DEEPMERGE_TS_VERSION: ${{ steps.exception_status.outputs.deepmerge_ts_version }}
           CANONICAL_AUDIT_OUTCOME: ${{ steps.canonical_audit.outcome }}
         run: |
@@ -88,11 +89,12 @@ jobs:
             echo
             echo "Days until review deadline: \`${EXCEPTION_DAYS_UNTIL_DEADLINE:-unavailable}\`"
             echo
-            echo "| Tracked dependency | Installed version |"
+            echo "| Tracked evidence | Value |"
             echo "| --- | --- |"
-            echo "| prisma | \`${PRISMA_VERSION:-unavailable}\` |"
-            echo "| @prisma/config | \`${PRISMA_CONFIG_VERSION:-unavailable}\` |"
-            echo "| deepmerge-ts | \`${DEEPMERGE_TS_VERSION:-unavailable}\` |"
+            echo "| prisma installed version | \`${PRISMA_VERSION:-unavailable}\` |"
+            echo "| @prisma/config installed version | \`${PRISMA_CONFIG_VERSION:-unavailable}\` |"
+            echo "| @prisma/config → deepmerge-ts requirement | \`${PRISMA_CONFIG_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
+            echo "| deepmerge-ts installed version | \`${DEEPMERGE_TS_VERSION:-unavailable}\` |"
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"

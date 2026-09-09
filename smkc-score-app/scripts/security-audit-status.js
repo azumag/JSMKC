@@ -22,6 +22,7 @@ const TRACKED_DEPENDENCY_PATHS = {
   deepmergeTs: 'node_modules/deepmerge-ts',
 };
 const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
+const SAFE_REQUIREMENT_PATTERN = /^[^\r\n]{1,200}$/;
 const COMPARABLE_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 const SIMPLE_REQUIREMENT_PATTERN = /^(?:\^|~|>=)?\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/;
 const PATCHED_DEEPMERGE_VERSION = Object.freeze({ major: 8, minor: 0, patch: 0 });
@@ -94,7 +95,7 @@ function isPatchedDeepmergeVersion(version) {
 
 function getPrismaConfigDeepmergeRequirement(lockfile) {
   const requirement = lockfile?.packages?.[TRACKED_DEPENDENCY_PATHS.prismaConfig]?.dependencies?.['deepmerge-ts'];
-  return typeof requirement === 'string' && requirement.length > 0 ? requirement : null;
+  return typeof requirement === 'string' && SAFE_REQUIREMENT_PATTERN.test(requirement) ? requirement : null;
 }
 
 function isPatchedDeepmergeRequirement(requirement) {
@@ -134,6 +135,9 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
   const checkedAt = Number.isFinite(now.getTime()) ? now.toISOString() : null;
   const daysUntilDeadline = getDaysUntilReviewDeadline(deadline, now);
   const versions = getTrackedDependencyVersions(lockfile);
+  const requirements = {
+    prismaConfigDeepmergeTs: getPrismaConfigDeepmergeRequirement(lockfile),
+  };
   const identity = {
     trackingIssue: TRACKING_ISSUE,
     advisory: TRACKED_ADVISORY,
@@ -152,6 +156,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
       checkedAt,
       daysUntilDeadline,
       versions,
+      requirements,
       message: 'package.json / package-lock.json do not satisfy the security audit preconditions',
     };
   }
@@ -164,6 +169,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
       checkedAt,
       daysUntilDeadline,
       versions,
+      requirements,
       message:
         'the installed deepmerge-ts version and @prisma/config dependency edge both point to >=8.0.0; run the full security audit and CI before removing the #3114 exception',
     };
@@ -177,6 +183,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
       checkedAt,
       daysUntilDeadline,
       versions,
+      requirements,
       message:
         'the exact #3114 temporary exception context is no longer present; run the full security audit before removing the exception',
     };
@@ -190,6 +197,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
       checkedAt,
       daysUntilDeadline,
       versions,
+      requirements,
       message: 'the #3114 temporary exception review deadline has been reached',
     };
   }
@@ -201,6 +209,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     checkedAt,
     daysUntilDeadline,
     versions,
+    requirements,
     message: 'the exact #3114 temporary exception context is still active',
   };
 }
@@ -219,6 +228,7 @@ function formatSecurityAuditExceptionStatus(status, { json = false } = {}) {
     `days until review deadline: ${status.daysUntilDeadline ?? 'unavailable'}\n` +
     `prisma: ${status.versions.prisma ?? 'unavailable'}\n` +
     `@prisma/config: ${status.versions.prismaConfig ?? 'unavailable'}\n` +
+    `@prisma/config -> deepmerge-ts requirement: ${status.requirements.prismaConfigDeepmergeTs ?? 'unavailable'}\n` +
     `deepmerge-ts: ${status.versions.deepmergeTs ?? 'unavailable'}\n` +
     `${status.message}\n`
   );
@@ -231,13 +241,14 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
 
   const prismaVersion = status.versions.prisma ?? 'unavailable';
   const prismaConfigVersion = status.versions.prismaConfig ?? 'unavailable';
+  const prismaConfigDeepmergeRequirement = status.requirements.prismaConfigDeepmergeTs ?? 'unavailable';
   const deepmergeTsVersion = status.versions.deepmergeTs ?? 'unavailable';
   const checkedAt = status.checkedAt ?? 'unavailable';
   const daysUntilDeadline = status.daysUntilDeadline ?? 'unavailable';
 
   fs.appendFileSync(
     outputPath,
-    `state=${status.state}\ntracking_issue=${status.trackingIssue}\nadvisory=${status.advisory}\nadvisory_range=${status.advisoryRange}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
+    `state=${status.state}\ntracking_issue=${status.trackingIssue}\nadvisory=${status.advisory}\nadvisory_range=${status.advisoryRange}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\nprisma_config_deepmerge_requirement=${prismaConfigDeepmergeRequirement}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
     'utf8',
   );
 }

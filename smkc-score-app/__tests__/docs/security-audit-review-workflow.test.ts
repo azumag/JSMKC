@@ -97,17 +97,18 @@ describe('manual security audit review workflow', () => {
     expect(auditStep?.if).not.toContain('steps.exception_status.outcome');
   });
 
-  it('documents the self-describing exception identity and deadline-distance outputs', () => {
+  it('documents the self-describing exception identity, deadline distance, and dependency edge outputs', () => {
     expect(runbook).toContain('`tracking_issue`');
     expect(runbook).toContain('`advisory`');
     expect(runbook).toContain('`advisory_range`');
     expect(runbook).toContain('`days_until_deadline`');
+    expect(runbook).toContain('`prisma_config_deepmerge_requirement`');
     expect(runbook).toContain('期限前を正数');
     expect(runbook).toContain('期限当日を `0`');
     expect(runbook).toContain('期限超過後を負数');
   });
 
-  it('always publishes read-only review evidence, exception identity, and tracked dependency versions', () => {
+  it('always publishes read-only review evidence, exception identity, dependency versions, and the Prisma dependency edge', () => {
     const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(summaryStep?.if).toBe('always()');
@@ -123,6 +124,7 @@ describe('manual security audit review workflow', () => {
       EXCEPTION_DAYS_UNTIL_DEADLINE: '${{ steps.exception_status.outputs.days_until_deadline }}',
       PRISMA_VERSION: '${{ steps.exception_status.outputs.prisma_version }}',
       PRISMA_CONFIG_VERSION: '${{ steps.exception_status.outputs.prisma_config_version }}',
+      PRISMA_CONFIG_DEEPMERGE_REQUIREMENT: '${{ steps.exception_status.outputs.prisma_config_deepmerge_requirement }}',
       DEEPMERGE_TS_VERSION: '${{ steps.exception_status.outputs.deepmerge_ts_version }}',
       CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
     });
@@ -135,9 +137,10 @@ describe('manual security audit review workflow', () => {
     expect(summaryStep?.run).toContain('Status checked at');
     expect(summaryStep?.run).toContain('Review deadline');
     expect(summaryStep?.run).toContain('Days until review deadline');
-    expect(summaryStep?.run).toContain('Tracked dependency');
+    expect(summaryStep?.run).toContain('Tracked evidence');
     expect(summaryStep?.run).toContain('PRISMA_VERSION');
     expect(summaryStep?.run).toContain('PRISMA_CONFIG_VERSION');
+    expect(summaryStep?.run).toContain('PRISMA_CONFIG_DEEPMERGE_REQUIREMENT');
     expect(summaryStep?.run).toContain('DEEPMERGE_TS_VERSION');
     expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
     expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');

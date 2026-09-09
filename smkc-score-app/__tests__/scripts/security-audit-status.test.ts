@@ -40,6 +40,9 @@ describe('security audit exception status', () => {
         prismaConfig: '6.19.3',
         deepmergeTs: '7.1.5',
       },
+      requirements: {
+        prismaConfigDeepmergeTs: '7.1.5',
+      },
       message: 'the exact #3114 temporary exception context is still active',
     });
   });
@@ -68,6 +71,7 @@ describe('security audit exception status', () => {
       trackingIssue: 3114,
       advisory: 'GHSA-ggr8-5vv4-36mx',
       advisoryRange: '<8.0.0',
+      requirements: { prismaConfigDeepmergeTs: '7.1.5' },
     });
   });
 
@@ -82,6 +86,7 @@ describe('security audit exception status', () => {
     expect(formatSecurityAuditExceptionStatus(status)).toContain('tracking issue: #3114\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('tracked advisory: GHSA-ggr8-5vv4-36mx (<8.0.0)\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('days until review deadline: 28\n');
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('@prisma/config -> deepmerge-ts requirement: 7.1.5\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('deepmerge-ts: 7.1.5\n');
   });
 
@@ -123,6 +128,7 @@ describe('security audit exception status', () => {
       prismaConfig: '6.19.3',
       deepmergeTs: '8.0.2',
     });
+    expect(status.requirements).toEqual({ prismaConfigDeepmergeTs: '8.0.2' });
     expect(status.message).toContain('run the full security audit and CI');
     expect(getPrismaConfigDeepmergeRequirement(remediatedLockfile)).toBe('8.0.2');
     expect(hasForwardRemediationCandidate(remediatedLockfile)).toBe(true);
@@ -140,6 +146,7 @@ describe('security audit exception status', () => {
 
     expect(status.state).toBe('context-changed');
     expect(status.versions.deepmergeTs).toBe('8.0.2');
+    expect(status.requirements.prismaConfigDeepmergeTs).toBe('7.1.5');
     expect(getPrismaConfigDeepmergeRequirement(overriddenLockfile)).toBe('7.1.5');
     expect(hasForwardRemediationCandidate(overriddenLockfile)).toBe(false);
   });
@@ -173,17 +180,20 @@ describe('security audit exception status', () => {
       prismaConfig: null,
       deepmergeTs: '7.1.5',
     });
+    expect(getPrismaConfigDeepmergeRequirement(incompleteLockfile)).toBeNull();
   });
 
-  it('rejects unsafe version text before publishing GitHub Actions outputs', () => {
+  it('rejects unsafe version and dependency requirement text before publishing GitHub Actions outputs', () => {
     const unsafeLockfile = structuredClone(lockfile);
     unsafeLockfile.packages['node_modules/deepmerge-ts'].version = '7.1.5\nforged_output=1';
+    unsafeLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '7.1.5\nforged_requirement=1';
 
     expect(getTrackedDependencyVersions(unsafeLockfile)).toEqual({
       prisma: '6.19.3',
       prismaConfig: '6.19.3',
       deepmergeTs: null,
     });
+    expect(getPrismaConfigDeepmergeRequirement(unsafeLockfile)).toBeNull();
   });
 
   it('fails status evaluation when manifest and lockfile identity drift', () => {
@@ -198,7 +208,7 @@ describe('security audit exception status', () => {
     ).toBe('invalid-input');
   });
 
-  it('publishes exception identity, status, and dependency versions as GitHub Actions step outputs', () => {
+  it('publishes exception identity, status, dependency versions, and the Prisma dependency edge as GitHub Actions step outputs', () => {
     const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-status-'));
     const outputPath = path.join(outputDirectory, 'github-output');
 
@@ -221,6 +231,7 @@ describe('security audit exception status', () => {
           'days_until_deadline=28\n' +
           'prisma_version=6.19.3\n' +
           'prisma_config_version=6.19.3\n' +
+          'prisma_config_deepmerge_requirement=7.1.5\n' +
           'deepmerge_ts_version=7.1.5\n',
       );
     } finally {
