@@ -114,9 +114,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(comparison).toHaveTextContent('Schedule days: circle 7 → CDM 7');
     expect(comparison).toHaveTextContent('Max 1P/2P imbalance: circle 0 → CDM 4');
     expect(comparison).toHaveTextContent('Players above minimum 1P/2P imbalance: circle 0 → CDM 5');
-    expect(comparison).toHaveTextContent(
-      'Day changes: 9 pairs / 6 players · total shift 22 days · max shift 5 days',
-    );
+    expect(comparison).toHaveTextContent('Day changes: 9 pairs / 6 players · total shift 22 days · max shift 5 days');
     expect(comparison).toHaveTextContent('12 players');
     expect(comparison).toHaveTextContent('66 real matches · 0 BREAK');
     expect(comparison).toHaveTextContent('Schedule days: circle 11 → CDM 11');
