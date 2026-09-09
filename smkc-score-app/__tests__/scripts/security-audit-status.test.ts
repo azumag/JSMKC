@@ -86,9 +86,7 @@ describe('security audit exception status', () => {
     expect(formatSecurityAuditExceptionStatus(status)).toContain('tracking issue: #3114\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('tracked advisory: GHSA-ggr8-5vv4-36mx (<8.0.0)\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('days until review deadline: 28\n');
-    expect(formatSecurityAuditExceptionStatus(status)).toContain(
-      '@prisma/config -> deepmerge-ts requirement: 7.1.5\n',
-    );
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('@prisma/config -> deepmerge-ts requirement: 7.1.5\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('deepmerge-ts: 7.1.5\n');
   });
 
@@ -113,28 +111,31 @@ describe('security audit exception status', () => {
     ).toBe('expired');
   });
 
-  it('classifies a patched installed version plus patched @prisma/config dependency edge as a forward remediation candidate', () => {
-    const remediatedLockfile = structuredClone(lockfile);
-    remediatedLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.2';
-    remediatedLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.2';
+  it(
+    'classifies a patched installed version plus patched @prisma/config dependency edge as a forward remediation candidate',
+    () => {
+      const remediatedLockfile = structuredClone(lockfile);
+      remediatedLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.2';
+      remediatedLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.2';
 
-    const status = getSecurityAuditExceptionStatus({
-      manifest,
-      lockfile: remediatedLockfile,
-      now: new Date('2026-09-08T00:00:00.000Z'),
-    });
+      const status = getSecurityAuditExceptionStatus({
+        manifest,
+        lockfile: remediatedLockfile,
+        now: new Date('2026-09-08T00:00:00.000Z'),
+      });
 
-    expect(status.state).toBe('forward-remediation-candidate');
-    expect(status.versions).toEqual({
-      prisma: '6.19.3',
-      prismaConfig: '6.19.3',
-      deepmergeTs: '8.0.2',
-    });
-    expect(status.requirements).toEqual({ prismaConfigDeepmergeTs: '8.0.2' });
-    expect(status.message).toContain('run the full security audit and CI');
-    expect(getPrismaConfigDeepmergeRequirement(remediatedLockfile)).toBe('8.0.2');
-    expect(hasForwardRemediationCandidate(remediatedLockfile)).toBe(true);
-  });
+      expect(status.state).toBe('forward-remediation-candidate');
+      expect(status.versions).toEqual({
+        prisma: '6.19.3',
+        prismaConfig: '6.19.3',
+        deepmergeTs: '8.0.2',
+      });
+      expect(status.requirements).toEqual({ prismaConfigDeepmergeTs: '8.0.2' });
+      expect(status.message).toContain('run the full security audit and CI');
+      expect(getPrismaConfigDeepmergeRequirement(remediatedLockfile)).toBe('8.0.2');
+      expect(hasForwardRemediationCandidate(remediatedLockfile)).toBe(true);
+    },
+  );
 
   it('keeps a consumer-side installed-version override as generic context-changed evidence', () => {
     const overriddenLockfile = structuredClone(lockfile);
@@ -211,34 +212,37 @@ describe('security audit exception status', () => {
     ).toBe('invalid-input');
   });
 
-  it('publishes exception identity, status, dependency versions, and the Prisma dependency edge as GitHub Actions step outputs', () => {
-    const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-status-'));
-    const outputPath = path.join(outputDirectory, 'github-output');
+  it(
+    'publishes exception identity, status, dependency versions, and the Prisma dependency edge as GitHub Actions step outputs',
+    () => {
+      const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-status-'));
+      const outputPath = path.join(outputDirectory, 'github-output');
 
-    try {
-      const status = getSecurityAuditExceptionStatus({
-        manifest,
-        lockfile,
-        now: new Date('2026-09-08T00:00:00.000Z'),
-      });
+      try {
+        const status = getSecurityAuditExceptionStatus({
+          manifest,
+          lockfile,
+          now: new Date('2026-09-08T00:00:00.000Z'),
+        });
 
-      writeGitHubOutputs(status, outputPath);
+        writeGitHubOutputs(status, outputPath);
 
-      expect(fs.readFileSync(outputPath, 'utf8')).toBe(
-        'state=active\n' +
-          'tracking_issue=3114\n' +
-          'advisory=GHSA-ggr8-5vv4-36mx\n' +
-          'advisory_range=<8.0.0\n' +
-          'checked_at=2026-09-08T00:00:00.000Z\n' +
-          'deadline=2026-10-06T00:00:00.000Z\n' +
-          'days_until_deadline=28\n' +
-          'prisma_version=6.19.3\n' +
-          'prisma_config_version=6.19.3\n' +
-          'prisma_config_deepmerge_requirement=7.1.5\n' +
-          'deepmerge_ts_version=7.1.5\n',
-      );
-    } finally {
-      fs.rmSync(outputDirectory, { recursive: true, force: true });
-    }
-  });
+        expect(fs.readFileSync(outputPath, 'utf8')).toBe(
+          'state=active\n' +
+            'tracking_issue=3114\n' +
+            'advisory=GHSA-ggr8-5vv4-36mx\n' +
+            'advisory_range=<8.0.0\n' +
+            'checked_at=2026-09-08T00:00:00.000Z\n' +
+            'deadline=2026-10-06T00:00:00.000Z\n' +
+            'days_until_deadline=28\n' +
+            'prisma_version=6.19.3\n' +
+            'prisma_config_version=6.19.3\n' +
+            'prisma_config_deepmerge_requirement=7.1.5\n' +
+            'deepmerge_ts_version=7.1.5\n',
+        );
+      } finally {
+        fs.rmSync(outputDirectory, { recursive: true, force: true });
+      }
+    },
+  );
 });
