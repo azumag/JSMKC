@@ -79,6 +79,25 @@ describe('GET /api/tournaments/[id]/qualification-schedule', () => {
             nearestLargerCdmBreakSlotCount: null,
           }),
         ]),
+        unsupportedCdmFixtureCandidateDecisions: [
+          expect.objectContaining({
+            playerCount: 13,
+            conventionalBreakSlotPositions: [14, 15, 16],
+            recommendedBreakSlotPositions: [1, 5, 9],
+            recommendedPlacementUsesLeadingPlayerConvention: false,
+            candidateImpact: expect.objectContaining({
+              fixtureCapacity: 16,
+              breakSlotCount: 3,
+              maxConsecutiveBreakDayCount: 3,
+            }),
+            breakPlacementOptimization: expect.objectContaining({
+              evaluatedPlacementCount: 560,
+              minimumPossibleMaxConsecutiveBreakDayCount: 1,
+              maximumMinimumPlayerBreakDayGap: 4,
+              recommendedBreakOnlyDays: [4, 8, 12],
+            }),
+          }),
+        ],
         modes: expect.objectContaining({
           bm: [
             expect.objectContaining({
