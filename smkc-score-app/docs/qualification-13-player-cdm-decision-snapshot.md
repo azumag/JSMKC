@@ -59,6 +59,6 @@ Issue #3054 の 13 名ケースについて、既存の raw fixture impact と B
 - 推奨配置の BREAK × BREAK Day: 4, 8, 12
 - seedごとの推奨 BREAK Day
 
-同じ判断材料は管理者向け qualification schedule diagnostics panel にも表示します。APIレスポンスを直接読む必要なく、現行規約と推奨配置の BREAK slot、最大連続BREAK、最小BREAK間隔、BREAK-only Day、全探索件数を大会管理画面から確認できます。表示は読み取り専用で、候補配置を採用したり対戦を再生成したりする操作は行いません。
+BREAK配置に関する主要な判断材料は管理者向け qualification schedule diagnostics panel にも表示します。APIレスポンスを直接読まなくても、現行規約と推奨配置の BREAK slot、最大連続BREAK、最小BREAK間隔、BREAK-only Day、全探索件数を大会管理画面から確認できます。pair集合・Day shift・1P/2P反転数の詳細は `unsupportedCdmFixtureCandidateDecisions` の `recommendedPlacementScheduleImpact` で確認できます。どちらも読み取り専用で、候補配置を採用したり対戦を再生成したりする操作は行いません。
 
 したがって、実装着手前に最低でも「CDMのseed-to-slot対応を固定するか」「休養配置の公平性を優先してBREAK slotを途中へ挿入してよいか」「Day順と1P/2P配置までCDM規約として固定するか」を大会ルールとして決める必要があります。本診断はその判断材料を一箇所へ集約するだけで、13名をCDM生成可能にはしません。
