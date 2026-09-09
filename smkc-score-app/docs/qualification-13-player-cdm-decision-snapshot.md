@@ -8,10 +8,33 @@ Issue #3054 の 13 名ケースについて、既存の raw fixture impact と B
 
 この違いは、13名CDM対応が単なる「BREAK上限を2から3へ増やす」変更ではないことを示します。末尾3 slotをBREAKに固定した場合は最大3 Day連続の休みが発生しますが、BREAK slotを1, 5, 9へ置くと最大連続休みを1 Dayに抑え、全選手のBREAK間隔を最低4 Day確保できます。ただし、そのためには実seedとfixture slotの対応を現行の先頭詰め規約から変える必要があります。
 
+公平性推奨 `[1, 5, 9]` を採用し、実seedの相対順序を維持したまま残りslotへ詰める場合、seed-to-slot対応は次のようになります。
+
+| seed | fixture slot | shift |
+| ---: | -----------: | ----: |
+|    1 |            2 |    +1 |
+|    2 |            3 |    +1 |
+|    3 |            4 |    +1 |
+|    4 |            6 |    +2 |
+|    5 |            7 |    +2 |
+|    6 |            8 |    +2 |
+|    7 |           10 |    +3 |
+|    8 |           11 |    +3 |
+|    9 |           12 |    +3 |
+|   10 |           13 |    +3 |
+|   11 |           14 |    +3 |
+|   12 |           15 |    +3 |
+|   13 |           16 |    +3 |
+
+つまり推奨配置では **13名全員のfixture slotが現行のseed番号から移動**し、最大shiftは **+3 slot** です。`recommendedPlayerSlotAssignments`、`remappedPlayerCount`、`maximumPlayerSlotShift` としてこの影響を機械可読に返します。これはシード順位を入れ替える意味ではなく、実seedの順序を維持しながら BREAK slot を途中へ挿入した結果として fixture slot 番号が後方へずれる、という意味です。
+
 管理者向け `GET /api/tournaments/:id/qualification-schedule` は `unsupportedCdmFixtureCandidateDecisions` を返します。現在の7〜21名policy matrixで該当するのは13名だけで、次の情報を同じレスポンスから確認できます。
 
 - 現行規約の BREAK slot positions: 14, 15, 16
 - 推奨 BREAK slot positions: 1, 5, 9
+- 推奨配置での seed-to-fixture-slot 対応
+- remap対象: 13 / 13 players
+- 最大 fixture-slot shift: +3
 - 現行規約での最大連続 BREAK: 3 Day
 - 推奨配置で達成できる最大連続 BREAK: 1 Day
 - 全選手を通した最小 BREAK 間隔: 4 Day

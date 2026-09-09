@@ -10,6 +10,23 @@ describe('buildUnsupportedCdmFixtureCandidateDecision', () => {
       conventionalBreakSlotPositions: [14, 15, 16],
       recommendedBreakSlotPositions: [1, 5, 9],
       recommendedPlacementUsesLeadingPlayerConvention: false,
+      remappedPlayerCount: 13,
+      maximumPlayerSlotShift: 3,
+      recommendedPlayerSlotAssignments: [
+        { playerSeed: 1, fixtureSlotPosition: 2, slotShift: 1 },
+        { playerSeed: 2, fixtureSlotPosition: 3, slotShift: 1 },
+        { playerSeed: 3, fixtureSlotPosition: 4, slotShift: 1 },
+        { playerSeed: 4, fixtureSlotPosition: 6, slotShift: 2 },
+        { playerSeed: 5, fixtureSlotPosition: 7, slotShift: 2 },
+        { playerSeed: 6, fixtureSlotPosition: 8, slotShift: 2 },
+        { playerSeed: 7, fixtureSlotPosition: 10, slotShift: 3 },
+        { playerSeed: 8, fixtureSlotPosition: 11, slotShift: 3 },
+        { playerSeed: 9, fixtureSlotPosition: 12, slotShift: 3 },
+        { playerSeed: 10, fixtureSlotPosition: 13, slotShift: 3 },
+        { playerSeed: 11, fixtureSlotPosition: 14, slotShift: 3 },
+        { playerSeed: 12, fixtureSlotPosition: 15, slotShift: 3 },
+        { playerSeed: 13, fixtureSlotPosition: 16, slotShift: 3 },
+      ],
       candidateImpact: {
         playerCount: 13,
         fixtureCapacity: 16,
@@ -33,6 +50,12 @@ describe('buildUnsupportedCdmFixtureCandidateDecision', () => {
         recommendedBreakOnlyDays: [4, 8, 12],
       },
     });
+
+    const occupiedSlots = decision!.recommendedPlayerSlotAssignments.map(
+      ({ fixtureSlotPosition }) => fixtureSlotPosition,
+    );
+    expect(occupiedSlots).toEqual([2, 3, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16]);
+    expect(occupiedSlots).not.toEqual(expect.arrayContaining(decision!.recommendedBreakSlotPositions));
   });
 
   it('returns null when there is no unsupported larger-fixture candidate', () => {
