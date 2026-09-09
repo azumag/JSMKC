@@ -1,4 +1,7 @@
-import { CDM_ROUND_ROBIN_FIXTURES, getCdmRoundRobinFixturePlan } from '@/lib/cdm-round-robin-fixtures';
+import {
+  CDM_ROUND_ROBIN_FIXTURES,
+  getCdmRoundRobinFixturePlan,
+} from '@/lib/cdm-round-robin-fixtures';
 
 export interface PlayerBreakDayPlan {
   playerSeed: number;
@@ -89,13 +92,12 @@ function scoreBreakPlacement(
   breakSlotIndexes: readonly number[],
 ): BreakPlacementScore {
   const breakSlots = new Set(breakSlotIndexes);
-  const realSlotIndexes = Array.from({ length: playerCount + breakSlotIndexes.length }, (_, index) => index).filter(
-    (index) => !breakSlots.has(index),
-  );
+  const fixtureCapacity = playerCount + breakSlotIndexes.length;
+  const allSlotIndexes = Array.from({ length: fixtureCapacity }, (_, index) => index);
+  const realSlotIndexes = allSlotIndexes.filter((index) => !breakSlots.has(index));
   const playerSeedBySlot = new Map(realSlotIndexes.map((slotIndex, index) => [slotIndex, index + 1]));
-  const breakDaysByPlayerSeed = realSlotIndexes.map((slotIndex, index) => ({
+  const breakDaysByPlayerSeed = realSlotIndexes.map((_, index) => ({
     playerSeed: index + 1,
-    slotIndex,
     breakDays: [] as number[],
   }));
   const breakOnlyDays: number[] = [];
@@ -126,7 +128,10 @@ function scoreBreakPlacement(
   return {
     breakSlotPositions: breakSlotIndexes.map((index) => index + 1),
     breakOnlyDays,
-    breakDaysByPlayerSeed: breakDaysByPlayerSeed.map(({ playerSeed, breakDays }) => ({ playerSeed, breakDays })),
+    breakDaysByPlayerSeed: breakDaysByPlayerSeed.map(({ playerSeed, breakDays }) => ({
+      playerSeed,
+      breakDays,
+    })),
     maxConsecutiveBreakDayCount: Math.max(
       ...breakDaysByPlayerSeed.map(({ breakDays }) => getMaxConsecutiveDayCount(breakDays)),
     ),
