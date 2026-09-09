@@ -108,44 +108,41 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('期限超過後を負数');
   });
 
-  it(
-    'always publishes read-only review evidence, exception identity, dependency versions, and the Prisma dependency edge',
-    () => {
-      const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
+  it('always publishes read-only review evidence, exception identity, dependency versions, and the Prisma dependency edge', () => {
+    const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
-      expect(summaryStep?.if).toBe('always()');
-      expect(summaryStep?.env).toEqual({
-        LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
-        EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
-        EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
-        EXCEPTION_TRACKING_ISSUE: '${{ steps.exception_status.outputs.tracking_issue }}',
-        EXCEPTION_ADVISORY: '${{ steps.exception_status.outputs.advisory }}',
-        EXCEPTION_ADVISORY_RANGE: '${{ steps.exception_status.outputs.advisory_range }}',
-        EXCEPTION_CHECKED_AT: '${{ steps.exception_status.outputs.checked_at }}',
-        EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
-        EXCEPTION_DAYS_UNTIL_DEADLINE: '${{ steps.exception_status.outputs.days_until_deadline }}',
-        PRISMA_VERSION: '${{ steps.exception_status.outputs.prisma_version }}',
-        PRISMA_CONFIG_VERSION: '${{ steps.exception_status.outputs.prisma_config_version }}',
-        PRISMA_CONFIG_DEEPMERGE_REQUIREMENT: '${{ steps.exception_status.outputs.prisma_config_deepmerge_requirement }}',
-        DEEPMERGE_TS_VERSION: '${{ steps.exception_status.outputs.deepmerge_ts_version }}',
-        CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
-      });
-      expect(summaryStep?.run).toContain('Tracking issue');
-      expect(summaryStep?.run).toContain('Tracked advisory');
-      expect(summaryStep?.run).toContain('EXCEPTION_TRACKING_ISSUE');
-      expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY');
-      expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY_RANGE');
-      expect(summaryStep?.run).toContain('Temporary exception state');
-      expect(summaryStep?.run).toContain('Status checked at');
-      expect(summaryStep?.run).toContain('Review deadline');
-      expect(summaryStep?.run).toContain('Days until review deadline');
-      expect(summaryStep?.run).toContain('Tracked evidence');
-      expect(summaryStep?.run).toContain('PRISMA_VERSION');
-      expect(summaryStep?.run).toContain('PRISMA_CONFIG_VERSION');
-      expect(summaryStep?.run).toContain('PRISMA_CONFIG_DEEPMERGE_REQUIREMENT');
-      expect(summaryStep?.run).toContain('DEEPMERGE_TS_VERSION');
-      expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
-      expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');
-    },
-  );
+    expect(summaryStep?.if).toBe('always()');
+    expect(summaryStep?.env).toEqual({
+      LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
+      EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
+      EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
+      EXCEPTION_TRACKING_ISSUE: '${{ steps.exception_status.outputs.tracking_issue }}',
+      EXCEPTION_ADVISORY: '${{ steps.exception_status.outputs.advisory }}',
+      EXCEPTION_ADVISORY_RANGE: '${{ steps.exception_status.outputs.advisory_range }}',
+      EXCEPTION_CHECKED_AT: '${{ steps.exception_status.outputs.checked_at }}',
+      EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
+      EXCEPTION_DAYS_UNTIL_DEADLINE: '${{ steps.exception_status.outputs.days_until_deadline }}',
+      PRISMA_VERSION: '${{ steps.exception_status.outputs.prisma_version }}',
+      PRISMA_CONFIG_VERSION: '${{ steps.exception_status.outputs.prisma_config_version }}',
+      PRISMA_CONFIG_DEEPMERGE_REQUIREMENT: '${{ steps.exception_status.outputs.prisma_config_deepmerge_requirement }}',
+      DEEPMERGE_TS_VERSION: '${{ steps.exception_status.outputs.deepmerge_ts_version }}',
+      CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
+    });
+    expect(summaryStep?.run).toContain('Tracking issue');
+    expect(summaryStep?.run).toContain('Tracked advisory');
+    expect(summaryStep?.run).toContain('EXCEPTION_TRACKING_ISSUE');
+    expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY');
+    expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY_RANGE');
+    expect(summaryStep?.run).toContain('Temporary exception state');
+    expect(summaryStep?.run).toContain('Status checked at');
+    expect(summaryStep?.run).toContain('Review deadline');
+    expect(summaryStep?.run).toContain('Days until review deadline');
+    expect(summaryStep?.run).toContain('Tracked evidence');
+    expect(summaryStep?.run).toContain('PRISMA_VERSION');
+    expect(summaryStep?.run).toContain('PRISMA_CONFIG_VERSION');
+    expect(summaryStep?.run).toContain('PRISMA_CONFIG_DEEPMERGE_REQUIREMENT');
+    expect(summaryStep?.run).toContain('DEEPMERGE_TS_VERSION');
+    expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
+    expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');
+  });
 });
