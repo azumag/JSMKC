@@ -20,10 +20,12 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 - `cdmMaxSideImbalance`: CDM fixture で、各選手の `|1P回数 - 2P回数|` の最大値
 - `pairSetDifferenceCount`: circle と CDM で片方にしか存在しない実対戦カード数
 - `pairDayChangedCount`: 同じ対戦カードだが Day が変わる件数
+- `playerDayChangedCount`: 少なくとも1試合の Day が変わる選手数
 - `pairSideChangedCount`: 同じ対戦カードだが 1P / 2P が反転する件数
+- `playerSideChangedCount`: 少なくとも1試合の 1P / 2P が反転する選手数
 - `byeAssignmentChangedPlayerCount`: BREAK / BYE の Day 配置が変わる選手数
 
-`pairSetDifferenceCount = 0` であれば、実選手同士の総当たり集合自体は同一です。そのうえで `pairDayChangedCount` や `pairSideChangedCount` が 0 より大きければ、「対戦相手の集合は同じだが順序や1P/2P配置は変わる」と判断できます。
+`pairSetDifferenceCount = 0` であれば、実選手同士の総当たり集合自体は同一です。そのうえで `pairDayChangedCount` や `pairSideChangedCount` が 0 より大きければ、「対戦相手の集合は同じだが順序や1P/2P配置は変わる」と判断できます。`playerDayChangedCount` と `playerSideChangedCount` は同じ差分を選手単位に集約し、移行によって実際に何人の進行順・1P/2P配置が影響を受けるかを確認するために使います。
 
 現行の 7〜12 名 fixture では `circleTotalDays` と `cdmTotalDays` がすべて一致します。管理 UI でも `Schedule days: circle X → CDM X` と表示するため、小規模グループを CDM 化しても総 Day 数は増えず、影響は主に対戦 Day・1P/2P配置・BREAK割当にあることを確認できます。この性質は回帰テストで固定しています。
 
@@ -38,6 +40,7 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 この比較は、Issue #3054 のうち次の論点を具体化します。
 
 - CDM化で変えたいのが「対戦カード集合」なのか「Day順」なのか「1P/2P配置」まで含むのか
+- Day順や1P/2P配置の変更が、対戦カード件数だけでなく何人の選手へ波及するか
 - 1P / 2P の fixture fidelity と、現行 circle の side balance のどちらを優先するか
 - 7 / 9 / 11 名で BREAK の割当変更を許容するか
 - 7〜12 名を現行の circle から CDM fixture へ切り替える価値があるか
