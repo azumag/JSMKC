@@ -8,10 +8,27 @@ export interface UnsupportedCdmFixtureCandidateImpact {
   realMatchCount: number;
   playerBreakMatchCount: number;
   breakOnlyMatchCount: number;
+  breakOnlyDays: number[];
   minBreaksPerPlayer: number;
   maxBreaksPerPlayer: number;
+  maxConsecutiveBreakDayCount: number;
+  maxConsecutiveBreakDayPlayerSeeds: number[];
   minPlayersOnBreakPerDay: number;
   maxPlayersOnBreakPerDay: number;
+}
+
+function getMaxConsecutiveDayCount(days: readonly number[]) {
+  let maxCount = 0;
+  let currentCount = 0;
+  let previousDay: number | null = null;
+
+  for (const day of days) {
+    currentCount = previousDay !== null && day === previousDay + 1 ? currentCount + 1 : 1;
+    maxCount = Math.max(maxCount, currentCount);
+    previousDay = day;
+  }
+
+  return maxCount;
 }
 
 /**
@@ -37,13 +54,17 @@ export function analyzeUnsupportedCdmFixtureCandidate(
 
   const fixture = CDM_ROUND_ROBIN_FIXTURES[fixtureCapacity];
   const breaksByPlayer = Array.from({ length: playerCount }, () => 0);
+  const breakDaysByPlayer = Array.from({ length: playerCount }, () => [] as number[]);
   const playersOnBreakPerDay: number[] = [];
+  const breakOnlyDays: number[] = [];
   let realMatchCount = 0;
   let playerBreakMatchCount = 0;
   let breakOnlyMatchCount = 0;
 
-  for (const dayPairs of fixture) {
+  for (const [dayIndex, dayPairs] of fixture.entries()) {
+    const day = dayIndex + 1;
     let playersOnBreak = 0;
+    let hasBreakOnlyMatch = false;
 
     for (const [player1Index, player2Index] of dayPairs) {
       const player1IsBreak = player1Index >= playerCount;
@@ -56,17 +77,26 @@ export function analyzeUnsupportedCdmFixtureCandidate(
 
       if (player1IsBreak && player2IsBreak) {
         breakOnlyMatchCount += 1;
+        hasBreakOnlyMatch = true;
         continue;
       }
 
       const realPlayerIndex = player1IsBreak ? player2Index : player1Index;
       breaksByPlayer[realPlayerIndex] += 1;
+      breakDaysByPlayer[realPlayerIndex].push(day);
       playerBreakMatchCount += 1;
       playersOnBreak += 1;
     }
 
+    if (hasBreakOnlyMatch) breakOnlyDays.push(day);
     playersOnBreakPerDay.push(playersOnBreak);
   }
+
+  const consecutiveBreakDayCounts = breakDaysByPlayer.map(getMaxConsecutiveDayCount);
+  const maxConsecutiveBreakDayCount = Math.max(...consecutiveBreakDayCounts);
+  const maxConsecutiveBreakDayPlayerSeeds = consecutiveBreakDayCounts.flatMap((count, index) =>
+    count === maxConsecutiveBreakDayCount ? [index + 1] : [],
+  );
 
   return {
     playerCount,
@@ -76,8 +106,11 @@ export function analyzeUnsupportedCdmFixtureCandidate(
     realMatchCount,
     playerBreakMatchCount,
     breakOnlyMatchCount,
+    breakOnlyDays,
     minBreaksPerPlayer: Math.min(...breaksByPlayer),
     maxBreaksPerPlayer: Math.max(...breaksByPlayer),
+    maxConsecutiveBreakDayCount,
+    maxConsecutiveBreakDayPlayerSeeds,
     minPlayersOnBreakPerDay: Math.min(...playersOnBreakPerDay),
     maxPlayersOnBreakPerDay: Math.max(...playersOnBreakPerDay),
   };
