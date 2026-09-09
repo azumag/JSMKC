@@ -121,6 +121,46 @@ function sameNumberArray(left: readonly number[], right: readonly number[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function buildBalancedCdmSidePreviewFromSchedules(
+  circle: RoundRobinSchedule,
+  cdm: RoundRobinSchedule,
+): RoundRobinSchedule | null {
+  const circleMatches = buildRealMatchMap(circle);
+  const cdmMatches = buildRealMatchMap(cdm);
+  if (circleMatches.size !== cdmMatches.size) return null;
+  for (const key of circleMatches.keys()) {
+    if (!cdmMatches.has(key)) return null;
+  }
+
+  return {
+    totalDays: cdm.totalDays,
+    hasByes: cdm.hasByes,
+    matches: cdm.matches.map((match) => {
+      if (match.isBye) return { ...match };
+      const circleMatch = circleMatches.get(pairKey(match.player1Id, match.player2Id));
+      if (!circleMatch) return { ...match };
+      return {
+        ...match,
+        player1Id: circleMatch.player1Id,
+        player2Id: circleMatch.player2Id,
+      };
+    }),
+  };
+}
+
+/**
+ * Build an in-memory hybrid preview that keeps the CDM fixture's Day/BREAK
+ * placement while reusing the circle schedule's balanced 1P/2P orientation.
+ * Nothing is persisted, and null means the two schedules do not share the same
+ * real-match pair set (or the player count has no CDM fixture).
+ */
+export function buildBalancedCdmSidePreviewSchedule(playerIds: string[]): RoundRobinSchedule | null {
+  if (!getCdmRoundRobinFixturePlan(playerIds.length)) return null;
+  const circle = generateRoundRobinSchedule(playerIds, { method: 'circle' });
+  const cdm = generateRoundRobinSchedule(playerIds, { method: 'cdm' });
+  return buildBalancedCdmSidePreviewFromSchedules(circle, cdm);
+}
+
 /**
  * Compare the legacy circle schedule with the RR 2025 CDM fixture for one
  * player count without mutating tournament data. Seed order is held constant
@@ -168,7 +208,11 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     }
   }
 
-  const balancedCdmSidePlanAvailable = pairSetDifferenceCount === 0;
+  const balancedCdmSidePreview = buildBalancedCdmSidePreviewFromSchedules(circle, cdm);
+  const balancedCdmSideImbalance = balancedCdmSidePreview
+    ? getRealMatchSideImbalanceStats(balancedCdmSidePreview, playerIds)
+    : null;
+  const balancedCdmSidePlanAvailable = balancedCdmSidePreview !== null;
   const circleByes = buildByeAssignments(circle, playerIds);
   const cdmByes = buildByeAssignments(cdm, playerIds);
   const byeDayShift = getByeDayShiftStats(circleByes, cdmByes, playerIds);
@@ -197,10 +241,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     balancedCdmSidePlanAvailable,
     balancedCdmSideOverridePairCount: balancedCdmSidePlanAvailable ? pairSideChangedCount : null,
     balancedCdmSideOverridePlayerCount: balancedCdmSidePlanAvailable ? playersWithSideChanges.size : null,
-    balancedCdmMaxSideImbalance: balancedCdmSidePlanAvailable ? circleSideImbalance.max : null,
-    balancedCdmExcessSideImbalancePlayerCount: balancedCdmSidePlanAvailable
-      ? circleSideImbalance.excessPlayerCount
-      : null,
+    balancedCdmMaxSideImbalance: balancedCdmSideImbalance?.max ?? null,
+    balancedCdmExcessSideImbalancePlayerCount: balancedCdmSideImbalance?.excessPlayerCount ?? null,
     byeAssignmentChangedPlayerCount,
     totalByeDayShift: byeDayShift?.total ?? null,
     maxByeDayShift: byeDayShift?.max ?? null,

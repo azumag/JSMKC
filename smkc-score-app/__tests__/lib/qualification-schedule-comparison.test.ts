@@ -1,7 +1,51 @@
 import {
+  buildBalancedCdmSidePreviewSchedule,
   buildLegacyCircleCdmScheduleComparisons,
   compareCircleAndCdmQualificationSchedules,
 } from '@/lib/qualification-schedule-comparison';
+import { generateRoundRobinSchedule } from '@/lib/round-robin';
+
+function pairKey(player1Id: string, player2Id: string) {
+  return [player1Id, player2Id].sort().join(':');
+}
+
+describe('buildBalancedCdmSidePreviewSchedule', () => {
+  it('keeps CDM Day/BREAK placement while taking circle 1P/2P orientation', () => {
+    const playerIds = Array.from({ length: 7 }, (_, index) => `P${index + 1}`);
+    const circle = generateRoundRobinSchedule(playerIds, { method: 'circle' });
+    const cdm = generateRoundRobinSchedule(playerIds, { method: 'cdm' });
+    const preview = buildBalancedCdmSidePreviewSchedule(playerIds);
+
+    expect(preview).not.toBeNull();
+    expect(preview!.totalDays).toBe(cdm.totalDays);
+    expect(preview!.hasByes).toBe(cdm.hasByes);
+
+    const circleMatches = new Map(
+      circle.matches
+        .filter((match) => !match.isBye)
+        .map((match) => [pairKey(match.player1Id, match.player2Id), match] as const),
+    );
+    const cdmMatches = new Map(
+      cdm.matches
+        .filter((match) => !match.isBye)
+        .map((match) => [pairKey(match.player1Id, match.player2Id), match] as const),
+    );
+
+    for (const match of preview!.matches.filter((candidate) => !candidate.isBye)) {
+      const key = pairKey(match.player1Id, match.player2Id);
+      expect(match.day).toBe(cdmMatches.get(key)?.day);
+      expect(match.player1Id).toBe(circleMatches.get(key)?.player1Id);
+      expect(match.player2Id).toBe(circleMatches.get(key)?.player2Id);
+    }
+
+    expect(preview!.matches.filter((match) => match.isBye)).toEqual(cdm.matches.filter((match) => match.isBye));
+  });
+
+  it('returns null when the requested player count has no CDM fixture', () => {
+    const playerIds = Array.from({ length: 13 }, (_, index) => `P${index + 1}`);
+    expect(buildBalancedCdmSidePreviewSchedule(playerIds)).toBeNull();
+  });
+});
 
 describe('compareCircleAndCdmQualificationSchedules', () => {
   it('compares the same seeded players without changing the real round-robin pair set', () => {
