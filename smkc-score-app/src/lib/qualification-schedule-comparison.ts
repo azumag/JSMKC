@@ -15,6 +15,7 @@ export interface QualificationScheduleComparison {
   cdmMaxSideImbalance: number;
   circleExcessSideImbalancePlayerCount: number;
   cdmExcessSideImbalancePlayerCount: number;
+  cdmExcessSideImbalanceSeedPositions: number[];
   pairSetDifferenceCount: number;
   pairDayChangedCount: number;
   totalPairDayShift: number;
@@ -44,6 +45,7 @@ interface ComparableMatch {
 interface SideImbalanceStats {
   max: number;
   excessPlayerCount: number;
+  excessPlayerIds: string[];
 }
 
 interface DayShiftStats {
@@ -113,10 +115,14 @@ function getRealMatchSideImbalanceStats(schedule: RoundRobinSchedule, playerIds:
 
   const absoluteBalances = Array.from(sideBalances.values(), (balance) => Math.abs(balance));
   const unavoidableMinimum = playerIds.length % 2 === 0 ? 1 : 0;
+  const excessPlayerIds = playerIds.filter(
+    (playerId) => Math.abs(sideBalances.get(playerId) ?? 0) > unavoidableMinimum,
+  );
 
   return {
     max: Math.max(0, ...absoluteBalances),
-    excessPlayerCount: absoluteBalances.filter((balance) => balance > unavoidableMinimum).length,
+    excessPlayerCount: excessPlayerIds.length,
+    excessPlayerIds,
   };
 }
 
@@ -180,6 +186,10 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
   const cdmMatches = buildRealMatchMap(cdm);
   const circleSideImbalance = getRealMatchSideImbalanceStats(circle, playerIds);
   const cdmSideImbalance = getRealMatchSideImbalanceStats(cdm, playerIds);
+  const cdmExcessSideImbalancePlayerIds = new Set(cdmSideImbalance.excessPlayerIds);
+  const cdmExcessSideImbalanceSeedPositions = playerIds.flatMap((playerId, index) =>
+    cdmExcessSideImbalancePlayerIds.has(playerId) ? [index + 1] : [],
+  );
   const allPairKeys = new Set([...circleMatches.keys(), ...cdmMatches.keys()]);
   const playersWithDayChanges = new Set<string>();
   const playersWithSideChanges = new Set<string>();
@@ -250,6 +260,7 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     cdmMaxSideImbalance: cdmSideImbalance.max,
     circleExcessSideImbalancePlayerCount: circleSideImbalance.excessPlayerCount,
     cdmExcessSideImbalancePlayerCount: cdmSideImbalance.excessPlayerCount,
+    cdmExcessSideImbalanceSeedPositions,
     pairSetDifferenceCount,
     pairDayChangedCount,
     totalPairDayShift,
