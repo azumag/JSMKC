@@ -17,6 +17,8 @@ export interface QualificationScheduleComparison {
   cdmExcessSideImbalancePlayerCount: number;
   pairSetDifferenceCount: number;
   pairDayChangedCount: number;
+  totalPairDayShift: number;
+  maxPairDayShift: number;
   playerDayChangedCount: number;
   pairSideChangedCount: number;
   playerSideChangedCount: number;
@@ -111,6 +113,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
 
   let pairSetDifferenceCount = 0;
   let pairDayChangedCount = 0;
+  let totalPairDayShift = 0;
+  let maxPairDayShift = 0;
   let pairSideChangedCount = 0;
   for (const key of allPairKeys) {
     const circleMatch = circleMatches.get(key);
@@ -120,7 +124,10 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
       continue;
     }
     if (circleMatch.day !== cdmMatch.day) {
+      const dayShift = Math.abs(circleMatch.day - cdmMatch.day);
       pairDayChangedCount += 1;
+      totalPairDayShift += dayShift;
+      maxPairDayShift = Math.max(maxPairDayShift, dayShift);
       playersWithDayChanges.add(circleMatch.player1Id);
       playersWithDayChanges.add(circleMatch.player2Id);
     }
@@ -151,6 +158,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     cdmExcessSideImbalancePlayerCount: cdmSideImbalance.excessPlayerCount,
     pairSetDifferenceCount,
     pairDayChangedCount,
+    totalPairDayShift,
+    maxPairDayShift,
     playerDayChangedCount: playersWithDayChanges.size,
     pairSideChangedCount,
     playerSideChangedCount: playersWithSideChanges.size,
