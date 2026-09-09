@@ -20,6 +20,9 @@ export interface QualificationScheduleComparison {
   totalPairDayShift: number;
   maxPairDayShift: number;
   playerDayChangedCount: number;
+  dayUnchangedSeedPositions: number[];
+  maxPlayerTotalDayShift: number;
+  maxPlayerTotalDayShiftSeedPositions: number[];
   pairSideChangedCount: number;
   playerSideChangedCount: number;
   balancedCdmSidePlanAvailable: boolean;
@@ -180,6 +183,7 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
   const allPairKeys = new Set([...circleMatches.keys(), ...cdmMatches.keys()]);
   const playersWithDayChanges = new Set<string>();
   const playersWithSideChanges = new Set<string>();
+  const totalDayShiftByPlayer = new Map(playerIds.map((playerId) => [playerId, 0]));
 
   let pairSetDifferenceCount = 0;
   let pairDayChangedCount = 0;
@@ -200,6 +204,14 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
       maxPairDayShift = Math.max(maxPairDayShift, dayShift);
       playersWithDayChanges.add(circleMatch.player1Id);
       playersWithDayChanges.add(circleMatch.player2Id);
+      totalDayShiftByPlayer.set(
+        circleMatch.player1Id,
+        (totalDayShiftByPlayer.get(circleMatch.player1Id) ?? 0) + dayShift,
+      );
+      totalDayShiftByPlayer.set(
+        circleMatch.player2Id,
+        (totalDayShiftByPlayer.get(circleMatch.player2Id) ?? 0) + dayShift,
+      );
     }
     if (circleMatch.player1Id !== cdmMatch.player1Id) {
       pairSideChangedCount += 1;
@@ -208,6 +220,13 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     }
   }
 
+  const dayUnchangedSeedPositions = playerIds.flatMap((playerId, index) =>
+    playersWithDayChanges.has(playerId) ? [] : [index + 1],
+  );
+  const maxPlayerTotalDayShift = Math.max(0, ...totalDayShiftByPlayer.values());
+  const maxPlayerTotalDayShiftSeedPositions = playerIds.flatMap((playerId, index) =>
+    totalDayShiftByPlayer.get(playerId) === maxPlayerTotalDayShift ? [index + 1] : [],
+  );
   const balancedCdmSidePreview = buildBalancedCdmSidePreviewFromSchedules(circle, cdm);
   const balancedCdmSideImbalance = balancedCdmSidePreview
     ? getRealMatchSideImbalanceStats(balancedCdmSidePreview, playerIds)
@@ -236,6 +255,9 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     totalPairDayShift,
     maxPairDayShift,
     playerDayChangedCount: playersWithDayChanges.size,
+    dayUnchangedSeedPositions,
+    maxPlayerTotalDayShift,
+    maxPlayerTotalDayShiftSeedPositions,
     pairSideChangedCount,
     playerSideChangedCount: playersWithSideChanges.size,
     balancedCdmSidePlanAvailable,
