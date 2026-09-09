@@ -23,6 +23,11 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 - `playerDayChangedCount`: 少なくとも1試合の Day が変わる選手数
 - `pairSideChangedCount`: 同じ対戦カードだが 1P / 2P が反転する件数
 - `playerSideChangedCount`: 少なくとも1試合の 1P / 2P が反転する選手数
+- `balancedCdmSidePlanAvailable`: CDM の対戦カード集合・Day順を保ちつつ circle の 1P / 2P 向きを再利用できるか
+- `balancedCdmSideOverridePairCount`: balanced-side CDM にするため、固定 CDM fixture から向きを反転させる実対戦数
+- `balancedCdmSideOverridePlayerCount`: balanced-side CDM によって少なくとも1試合の向きが変わる選手数
+- `balancedCdmMaxSideImbalance`: balanced-side CDM での最大 `|1P回数 - 2P回数|`
+- `balancedCdmExcessSideImbalancePlayerCount`: balanced-side CDM で理論上の最小偏りを超える選手数
 - `byeAssignmentChangedPlayerCount`: BREAK / BYE の Day 配置が変わる選手数
 
 `pairSetDifferenceCount = 0` であれば、実選手同士の総当たり集合自体は同一です。そのうえで `pairDayChangedCount` や `pairSideChangedCount` が 0 より大きければ、「対戦相手の集合は同じだが順序や1P/2P配置は変わる」と判断できます。`playerDayChangedCount` と `playerSideChangedCount` は同じ差分を選手単位に集約し、移行によって実際に何人の進行順・1P/2P配置が影響を受けるかを確認するために使います。
@@ -31,7 +36,9 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 
 一方、1P / 2P の均衡は方式間で明確に異なります。circle 方式は side-balance optimization を行うため、7 / 9 / 11 名では最大差 0、8 / 10 / 12 名では最大差 1 です。現行 RR 2025 CDM fixture の最大差はそれぞれ 4 / 3 / 4 / 5 / 6 / 5 です。管理 UI の `Max 1P/2P imbalance: circle X → CDM Y` でこの差を確認できます。
 
-これは fixture の良否を自動判定するものではありません。CDM fixture の 1P / 2P 向きをそのまま再現することを仕様とするなら、この偏りも fixture fidelity の一部です。逆に TT 側で1P / 2Pの均衡を維持したい場合、CDMの対戦カード・Day順だけを採用して side assignment は再最適化する設計もあり得ますが、その場合は「CDMと完全一致」ではなくなるため #3054 で明示的な仕様判断が必要です。
+7〜12 名では `pairSetDifferenceCount = 0` なので、CDM の対戦カード集合と Day 順を維持したまま、各実対戦の 1P / 2P 向きだけを circle 側と同じにする hybrid が構成できます。Day は side balance の集計に影響しないため、この hybrid の最大偏りと最小偏り超過人数は circle と同じになります。管理 UI の `Balanced-side CDM` は、その hybrid が構成可能か、固定 CDM fixture から何対戦・何選手分の side override が必要かを読み取り専用で示します。
+
+これは fixture の良否を自動判定するものではありません。CDM fixture の 1P / 2P 向きをそのまま再現することを仕様とするなら、この偏りも fixture fidelity の一部です。逆に TT 側で1P / 2Pの均衡を維持したい場合、CDMの対戦カード・Day順だけを採用して side assignment は circle と同じ向きへ置換する設計が可能です。ただし、その場合は「CDMと完全一致」ではなくなるため #3054 で明示的な仕様判断が必要です。
 
 奇数人数では circle / CDM の両方に BYE / BREAK が発生し得るため、`byeAssignmentChangedPlayerCount` も運営影響として確認します。偶数人数では通常 0 です。
 
@@ -42,6 +49,7 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 - CDM化で変えたいのが「対戦カード集合」なのか「Day順」なのか「1P/2P配置」まで含むのか
 - Day順や1P/2P配置の変更が、対戦カード件数だけでなく何人の選手へ波及するか
 - 1P / 2P の fixture fidelity と、現行 circle の side balance のどちらを優先するか
+- CDM の Day 順を維持しつつ side balance を circle 相当に保つ hybrid を仕様として許容するか
 - 7 / 9 / 11 名で BREAK の割当変更を許容するか
 - 7〜12 名を現行の circle から CDM fixture へ切り替える価値があるか
 
