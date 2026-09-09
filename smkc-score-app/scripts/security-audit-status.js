@@ -93,8 +93,7 @@ function isPatchedDeepmergeVersion(version) {
 }
 
 function getPrismaConfigDeepmergeRequirement(lockfile) {
-  const requirement =
-    lockfile?.packages?.[TRACKED_DEPENDENCY_PATHS.prismaConfig]?.dependencies?.['deepmerge-ts'];
+  const requirement = lockfile?.packages?.[TRACKED_DEPENDENCY_PATHS.prismaConfig]?.dependencies?.['deepmerge-ts'];
   return typeof requirement === 'string' && requirement.length > 0 ? requirement : null;
 }
 
