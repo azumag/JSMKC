@@ -44,6 +44,13 @@ function formatLegacyCircleModeBucket(bucket: QualificationScheduleDiagnosticsMo
   return `${MODE_LABELS[bucket.mode]} ${bucket.groupCount} ${groupLabel} / ${bucket.playerCount} ${playerLabel} (${bucket.cdmExactFitGroupCount} exact-fit / ${bucket.cdmBreakRequiredGroupCount} BREAK / ${bucket.cdmUnavailableGroupCount} unavailable; ${bucket.cdmReadyPlayerCount} CDM-ready ${readyPlayerLabel} / ${bucket.cdmUnavailablePlayerCount} unavailable ${unavailablePlayerLabel} / ${bucket.cdmBreakSlotCount} BREAK ${breakSlotLabel})`;
 }
 
+function formatBalancedCdmSideSeedOverridePlan(playerCount: number) {
+  const plan = buildBalancedCdmSideSeedOverridePlan(playerCount);
+  if (!plan || plan.length === 0) return 'No side overrides required.';
+
+  return plan.map((override) => `D${override.day}: ${override.cdmPlayer1Seed}↔${override.cdmPlayer2Seed}`).join(' · ');
+}
+
 export function QualificationScheduleDiagnosticsPanel({
   configuredMethod,
   diagnostics,
@@ -182,14 +189,7 @@ export function QualificationScheduleDiagnosticsPanel({
                   <summary className="cursor-pointer">
                     Balanced-side seed overrides ({comparison.balancedCdmSideOverridePairCount})
                   </summary>
-                  <div className="mt-1">
-                    {buildBalancedCdmSideSeedOverridePlan(comparison.playerCount)
-                      ?.map(
-                        (override) =>
-                          `D${override.day}: ${override.cdmPlayer1Seed}↔${override.cdmPlayer2Seed}`,
-                      )
-                      .join(' · ') || 'No side overrides required.'}
-                  </div>
+                  <div className="mt-1">{formatBalancedCdmSideSeedOverridePlan(comparison.playerCount)}</div>
                 </details>
               )}
               <div className="mt-1 text-muted-foreground">
