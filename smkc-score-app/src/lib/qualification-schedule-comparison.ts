@@ -28,6 +28,8 @@ export interface QualificationScheduleComparison {
   balancedCdmMaxSideImbalance: number | null;
   balancedCdmExcessSideImbalancePlayerCount: number | null;
   byeAssignmentChangedPlayerCount: number;
+  totalByeDayShift: number | null;
+  maxByeDayShift: number | null;
 }
 
 interface ComparableMatch {
@@ -39,6 +41,11 @@ interface ComparableMatch {
 interface SideImbalanceStats {
   max: number;
   excessPlayerCount: number;
+}
+
+interface DayShiftStats {
+  total: number;
+  max: number;
 }
 
 function pairKey(player1Id: string, player2Id: string) {
@@ -67,6 +74,29 @@ function buildByeAssignments(schedule: RoundRobinSchedule, playerIds: string[]) 
     daysByPlayer.get(playerId)?.push(match.day);
   }
   return daysByPlayer;
+}
+
+function getByeDayShiftStats(
+  circleByes: Map<string, number[]>,
+  cdmByes: Map<string, number[]>,
+  playerIds: string[],
+): DayShiftStats | null {
+  let total = 0;
+  let max = 0;
+
+  for (const playerId of playerIds) {
+    const circleDays = [...(circleByes.get(playerId) ?? [])].sort((left, right) => left - right);
+    const cdmDays = [...(cdmByes.get(playerId) ?? [])].sort((left, right) => left - right);
+    if (circleDays.length !== cdmDays.length) return null;
+
+    for (let index = 0; index < circleDays.length; index += 1) {
+      const shift = Math.abs(circleDays[index] - cdmDays[index]);
+      total += shift;
+      max = Math.max(max, shift);
+    }
+  }
+
+  return { total, max };
 }
 
 function getRealMatchSideImbalanceStats(schedule: RoundRobinSchedule, playerIds: string[]): SideImbalanceStats {
@@ -141,6 +171,7 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
   const balancedCdmSidePlanAvailable = pairSetDifferenceCount === 0;
   const circleByes = buildByeAssignments(circle, playerIds);
   const cdmByes = buildByeAssignments(cdm, playerIds);
+  const byeDayShift = getByeDayShiftStats(circleByes, cdmByes, playerIds);
   const byeAssignmentChangedPlayerCount = playerIds.filter(
     (playerId) => !sameNumberArray(circleByes.get(playerId) ?? [], cdmByes.get(playerId) ?? []),
   ).length;
@@ -171,6 +202,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
       ? circleSideImbalance.excessPlayerCount
       : null,
     byeAssignmentChangedPlayerCount,
+    totalByeDayShift: byeDayShift?.total ?? null,
+    maxByeDayShift: byeDayShift?.max ?? null,
   };
 }
 
