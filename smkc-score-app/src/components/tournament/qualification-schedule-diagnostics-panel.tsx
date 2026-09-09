@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { buildBalancedCdmSideSeedOverridePlan } from '@/lib/qualification-balanced-cdm-side-seed-plan';
+import { buildUnsupportedCdmFixtureCandidateDecision } from '@/lib/qualification-cdm-candidate-decision';
 import { buildLegacyCircleCdmScheduleComparisons } from '@/lib/qualification-schedule-comparison';
 import {
   QUALIFICATION_DIAGNOSTIC_MODES,
@@ -60,6 +61,10 @@ export function QualificationScheduleDiagnosticsPanel({
 }) {
   const summary = summarizeQualificationScheduleDiagnostics(diagnostics);
   const policyMatrix = buildQualificationSchedulePolicyMatrix(configuredMethod);
+  const unsupportedCdmFixtureCandidateDecisions = policyMatrix.flatMap(({ playerCount }) => {
+    const decision = buildUnsupportedCdmFixtureCandidateDecision(playerCount);
+    return decision ? [decision] : [];
+  });
   const smallGroupComparisons = buildLegacyCircleCdmScheduleComparisons();
 
   return (
@@ -135,6 +140,53 @@ export function QualificationScheduleDiagnosticsPanel({
           ))}
         </div>
       </div>
+
+      {unsupportedCdmFixtureCandidateDecisions.length > 0 && (
+        <div aria-label="Unsupported CDM fixture candidate decisions" className="space-y-2 rounded-md border p-3">
+          <div>
+            <h3 className="font-medium">Unsupported CDM candidate evidence</h3>
+            <p className="text-xs text-muted-foreground">
+              Read-only comparison of the current leading-player slot convention with the fairest raw-fixture BREAK
+              placement. These candidates are not enabled for schedule generation.
+            </p>
+          </div>
+          <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+            {unsupportedCdmFixtureCandidateDecisions.map((decision) => (
+              <div key={decision.playerCount} className="rounded border bg-muted/20 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{decision.playerCount} players</span>
+                  <Badge variant="outline">{decision.candidateImpact.fixtureCapacity}-slot raw fixture</Badge>
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  Conventional BREAK slots: {decision.conventionalBreakSlotPositions.join(', ')}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  Recommended BREAK slots: {decision.recommendedBreakSlotPositions.join(', ')}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  Leading-player convention:{' '}
+                  {decision.recommendedPlacementUsesLeadingPlayerConvention ? 'preserved' : 'slot remapping required'}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  Max consecutive BREAK days: {decision.candidateImpact.maxConsecutiveBreakDayCount} →{' '}
+                  {decision.breakPlacementOptimization.minimumPossibleMaxConsecutiveBreakDayCount}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  Minimum player BREAK gap: {decision.breakPlacementOptimization.maximumMinimumPlayerBreakDayGap} days
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  BREAK-only days: {decision.candidateImpact.breakOnlyDays.join(', ')} →{' '}
+                  {decision.breakPlacementOptimization.recommendedBreakOnlyDays.join(', ')}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  Evaluated placements: {decision.breakPlacementOptimization.evaluatedPlacementCount} · best score:{' '}
+                  {decision.breakPlacementOptimization.placementCountAtRecommendedScore}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div aria-label="Circle versus CDM schedule comparison" className="space-y-2 rounded-md border p-3">
         <div>

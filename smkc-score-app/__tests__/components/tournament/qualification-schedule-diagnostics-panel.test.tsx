@@ -49,7 +49,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={diagnostics} />);
 
     expect(screen.getByRole('heading', { name: 'Effective qualification schedule' })).toBeInTheDocument();
-    expect(screen.getAllByText('13 players')).toHaveLength(2);
+    expect(screen.getAllByText('13 players')).toHaveLength(3);
     expect(screen.getAllByText('14 players')).toHaveLength(2);
     expect(screen.getAllByText('CIRCLE').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('CDM').length).toBeGreaterThanOrEqual(1);
@@ -102,6 +102,22 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(matrix).toHaveTextContent('16-slot CDM · 2 BREAK');
     expect(matrix).toHaveTextContent('21 players');
     expect(matrix).toHaveTextContent('Generation unsupported');
+  });
+
+  it('renders the unsupported CDM candidate decision evidence in the admin UI', () => {
+    render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={{ bm: [], mr: [], gp: [] }} />);
+
+    const evidence = screen.getByLabelText('Unsupported CDM fixture candidate decisions');
+    expect(evidence).toHaveTextContent('Unsupported CDM candidate evidence');
+    expect(evidence).toHaveTextContent('13 players');
+    expect(evidence).toHaveTextContent('16-slot raw fixture');
+    expect(evidence).toHaveTextContent('Conventional BREAK slots: 14, 15, 16');
+    expect(evidence).toHaveTextContent('Recommended BREAK slots: 1, 5, 9');
+    expect(evidence).toHaveTextContent('Leading-player convention: slot remapping required');
+    expect(evidence).toHaveTextContent('Max consecutive BREAK days: 3 → 1');
+    expect(evidence).toHaveTextContent('Minimum player BREAK gap: 4 days');
+    expect(evidence).toHaveTextContent('BREAK-only days: 13, 14, 15 → 4, 8, 12');
+    expect(evidence).toHaveTextContent('Evaluated placements: 560 · best score: 16');
   });
 
   it('renders the same-seed circle versus CDM comparison evidence for 7..12 players', () => {
