@@ -10,8 +10,11 @@ describe('analyzeUnsupportedCdmFixtureCandidate', () => {
       realMatchCount: 78,
       playerBreakMatchCount: 39,
       breakOnlyMatchCount: 3,
+      breakOnlyDays: [13, 14, 15],
       minBreaksPerPlayer: 3,
       maxBreaksPerPlayer: 3,
+      maxConsecutiveBreakDayCount: 3,
+      maxConsecutiveBreakDayPlayerSeeds: [1, 4, 5, 8, 9, 12, 13],
       minPlayersOnBreakPerDay: 1,
       maxPlayersOnBreakPerDay: 3,
     });
@@ -25,6 +28,7 @@ describe('analyzeUnsupportedCdmFixtureCandidate', () => {
       (impact!.fixtureCapacity * (impact!.fixtureCapacity - 1)) / 2,
     );
     expect(impact!.playerBreakMatchCount).toBe(impact!.playerCount * impact!.breakSlotCount);
+    expect(impact!.breakOnlyDays).toHaveLength(impact!.breakOnlyMatchCount);
   });
 
   it('returns null for already-supported, invalid, or fixture-exhausted player counts', () => {
