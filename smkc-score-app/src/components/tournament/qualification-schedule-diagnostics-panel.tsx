@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { buildLegacyCircleCdmScheduleComparisons } from '@/lib/qualification-schedule-comparison';
 import {
   QUALIFICATION_DIAGNOSTIC_MODES,
   buildQualificationSchedulePolicyMatrix,
@@ -51,6 +52,7 @@ export function QualificationScheduleDiagnosticsPanel({
 }) {
   const summary = summarizeQualificationScheduleDiagnostics(diagnostics);
   const policyMatrix = buildQualificationSchedulePolicyMatrix(configuredMethod);
+  const smallGroupComparisons = buildLegacyCircleCdmScheduleComparisons();
 
   return (
     <section aria-labelledby="qualification-schedule-diagnostics-title" className="space-y-3 rounded-md border p-4">
@@ -115,6 +117,37 @@ export function QualificationScheduleDiagnosticsPanel({
                   : `${decision.cdmFixtureCapacity}-slot CDM · ${decision.cdmBreakSlotCount ?? 0} BREAK`}
               </div>
               {!decision.generationSupported && <div className="mt-1 text-destructive">Generation unsupported</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div aria-label="Circle versus CDM schedule comparison" className="space-y-2 rounded-md border p-3">
+        <div>
+          <h3 className="font-medium">Circle → CDM impact (7–12 players)</h3>
+          <p className="text-xs text-muted-foreground">
+            Same-seed read-only comparison for the small-group fixtures available to the pending #3054 decision.
+          </p>
+        </div>
+        <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+          {smallGroupComparisons.map((comparison) => (
+            <div key={comparison.playerCount} className="rounded border bg-muted/20 p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{comparison.playerCount} players</span>
+                <Badge variant="outline">{comparison.cdmFixtureCapacity}-slot CDM</Badge>
+              </div>
+              <div className="mt-1 text-muted-foreground">
+                {comparison.realMatchCount} real matches · {comparison.cdmBreakSlotCount} BREAK
+              </div>
+              <div className="mt-1">
+                Pair set: {comparison.pairSetDifferenceCount === 0 ? 'identical' : `${comparison.pairSetDifferenceCount} differences`}
+              </div>
+              <div className="mt-1 text-muted-foreground">
+                Day changes: {comparison.pairDayChangedCount} · Side changes: {comparison.pairSideChangedCount}
+              </div>
+              <div className="mt-1 text-muted-foreground">
+                BYE/BREAK assignment changes: {comparison.byeAssignmentChangedPlayerCount} players
+              </div>
             </div>
           ))}
         </div>
