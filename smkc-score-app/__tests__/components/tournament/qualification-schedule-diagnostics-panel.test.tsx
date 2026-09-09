@@ -120,8 +120,8 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(comparison).toHaveTextContent('Max 1P/2P imbalance: circle 1 → CDM 5');
     expect(comparison).toHaveTextContent('Players above minimum 1P/2P imbalance: circle 0 → CDM 7');
     expect(comparison).toHaveTextContent('Pair set: identical');
-    expect(comparison).toHaveTextContent('Day changes:');
-    expect(comparison).toHaveTextContent('Side changes:');
+    expect(comparison).toHaveTextContent(/Day changes: \d+ pairs \/ \d+ players/);
+    expect(comparison).toHaveTextContent(/Side changes: \d+ pairs \/ \d+ players/);
     expect(comparison).toHaveTextContent('BYE/BREAK assignment changes:');
   });
 
