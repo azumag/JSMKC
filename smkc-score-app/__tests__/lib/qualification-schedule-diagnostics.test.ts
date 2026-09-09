@@ -196,7 +196,9 @@ describe('buildQualificationSchedulePolicyMatrix', () => {
   });
 
   it('surfaces the nearest larger raw fixture for the unsupported 13-player gap without enabling it', () => {
-    const decisions = new Map(buildQualificationSchedulePolicyMatrix('cdm').map((decision) => [decision.playerCount, decision]));
+    const decisions = new Map(
+      buildQualificationSchedulePolicyMatrix('cdm').map((decision) => [decision.playerCount, decision]),
+    );
 
     expect(decisions.get(13)).toMatchObject({
       playerCount: 13,
