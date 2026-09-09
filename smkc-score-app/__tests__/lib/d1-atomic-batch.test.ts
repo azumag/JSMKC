@@ -12,9 +12,27 @@ describe('D1 atomic finals/audit batches', () => {
 
   beforeAll(async () => {
     mf = new Miniflare({
-      modules: true,
-      script: 'export default { fetch() { return new Response("ok"); } };',
-      d1Databases: ['DB'],
+      workers: [
+        {
+          config: {
+            type: 'worker',
+            name: '',
+            compatibilityDate: '2000-01-01',
+            manifest: {
+              mainModule: 'script.mjs',
+              modules: {
+                'script.mjs': {
+                  type: 'esm',
+                  contents: 'export default { fetch() { return new Response("ok"); } };',
+                },
+              },
+            },
+            env: {
+              DB: { type: 'd1', id: 'DB' },
+            },
+          },
+        },
+      ],
     });
     db = await mf.getD1Database('DB');
     await db.exec(`
