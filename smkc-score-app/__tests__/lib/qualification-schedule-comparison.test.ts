@@ -21,6 +21,9 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         circleExcessSideImbalancePlayerCount: 0,
         cdmExcessSideImbalancePlayerCount: 4,
         pairSetDifferenceCount: 0,
+        balancedCdmSidePlanAvailable: true,
+        balancedCdmMaxSideImbalance: 1,
+        balancedCdmExcessSideImbalancePlayerCount: 0,
         byeAssignmentChangedPlayerCount: 0,
       }),
     );
@@ -28,6 +31,8 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
     expect(comparison!.playerDayChangedCount).toBeGreaterThan(0);
     expect(comparison!.playerDayChangedCount).toBeLessThanOrEqual(comparison!.playerCount);
     expect(comparison!.playerSideChangedCount).toBeLessThanOrEqual(comparison!.playerCount);
+    expect(comparison!.balancedCdmSideOverridePairCount).toBe(comparison!.pairSideChangedCount);
+    expect(comparison!.balancedCdmSideOverridePlayerCount).toBe(comparison!.playerSideChangedCount);
   });
 
   it('keeps odd-player BREAK effects visible in the comparison evidence', () => {
@@ -47,6 +52,9 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         circleExcessSideImbalancePlayerCount: 0,
         cdmExcessSideImbalancePlayerCount: 5,
         pairSetDifferenceCount: 0,
+        balancedCdmSidePlanAvailable: true,
+        balancedCdmMaxSideImbalance: 0,
+        balancedCdmExcessSideImbalancePlayerCount: 0,
       }),
     );
   });
@@ -72,6 +80,13 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       expect(comparison.pairSideChangedCount).toBeGreaterThanOrEqual(0);
       expect(comparison.playerSideChangedCount).toBeGreaterThanOrEqual(0);
       expect(comparison.playerSideChangedCount).toBeLessThanOrEqual(comparison.playerCount);
+      expect(comparison.balancedCdmSidePlanAvailable).toBe(true);
+      expect(comparison.balancedCdmSideOverridePairCount).toBe(comparison.pairSideChangedCount);
+      expect(comparison.balancedCdmSideOverridePlayerCount).toBe(comparison.playerSideChangedCount);
+      expect(comparison.balancedCdmMaxSideImbalance).toBe(comparison.circleMaxSideImbalance);
+      expect(comparison.balancedCdmExcessSideImbalancePlayerCount).toBe(
+        comparison.circleExcessSideImbalancePlayerCount,
+      );
       expect(comparison.byeAssignmentChangedPlayerCount).toBeGreaterThanOrEqual(0);
       expect(comparison.circleExcessSideImbalancePlayerCount).toBe(0);
     }
