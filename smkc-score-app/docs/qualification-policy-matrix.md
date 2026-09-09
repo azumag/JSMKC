@@ -45,3 +45,18 @@ Issue #3054 の仕様判断を、実際の大会データを変更せず確認�
 - 明示的な circle 大会を移行対象に含めるか
 
 マトリクスは policy と fixture の「可能性」を示し、実大会の `summary` / `modes` は「現在どれだけ影響があるか」を示します。どちらも読み取り専用で、#3054 の大会ルール確定前に挙動を変更しないための診断情報です。
+
+### 7〜12 名の 1P/2P 偏り
+
+管理 UI の `Circle → CDM impact (7–12 players)` は、同じシード順で circle と CDM fixture を生成して 1P/2P 配置の差も比較します。`Max 1P/2P imbalance` に加えて、各選手が総当たりで必ず持つ理論上の最小偏り（奇数人数は 0、偶数人数は 1）を超える選手数を `Players above minimum 1P/2P imbalance` として表示します。
+
+人数別の比較結果は次のとおりです。
+
+- 7名: 最大偏り circle 0 → CDM 4、最小超過選手 circle 0名 → CDM 5名
+- 8名: 最大偏り circle 1 → CDM 3、最小超過選手 circle 0名 → CDM 4名
+- 9名: 最大偏り circle 0 → CDM 4、最小超過選手 circle 0名 → CDM 8名
+- 10名: 最大偏り circle 1 → CDM 5、最小超過選手 circle 0名 → CDM 7名
+- 11名: 最大偏り circle 0 → CDM 6、最小超過選手 circle 0名 → CDM 9名
+- 12名: 最大偏り circle 1 → CDM 5、最小超過選手 circle 0名 → CDM 7名
+
+circle は既存の side-balance 最適化により全対象人数で理論上の最小偏りに収まります。一方、RR 2025 の固定 CDM fixture を 1P/2P 向きまでそのまま採用すると、7〜12 名では 4〜9 名の選手が最小偏りを超えます。このため #3054 の「CDM方式」を、対戦カード・Day順だけ合わせるのか、1P/2P 向きまで完全一致させるのかは公平性に直接影響する仕様判断として扱います。

@@ -13,6 +13,8 @@ export interface QualificationScheduleComparison {
   cdmTotalDays: number;
   circleMaxSideImbalance: number;
   cdmMaxSideImbalance: number;
+  circleExcessSideImbalancePlayerCount: number;
+  cdmExcessSideImbalancePlayerCount: number;
   pairSetDifferenceCount: number;
   pairDayChangedCount: number;
   pairSideChangedCount: number;
@@ -22,6 +24,11 @@ export interface QualificationScheduleComparison {
 interface ComparableMatch {
   day: number;
   player1Id: string;
+}
+
+interface SideImbalanceStats {
+  max: number;
+  excessPlayerCount: number;
 }
 
 function pairKey(player1Id: string, player2Id: string) {
@@ -51,7 +58,7 @@ function buildByeAssignments(schedule: RoundRobinSchedule, playerIds: string[]) 
   return daysByPlayer;
 }
 
-function getMaxRealMatchSideImbalance(schedule: RoundRobinSchedule, playerIds: string[]) {
+function getRealMatchSideImbalanceStats(schedule: RoundRobinSchedule, playerIds: string[]): SideImbalanceStats {
   const sideBalances = new Map(playerIds.map((playerId) => [playerId, 0]));
 
   for (const match of schedule.matches) {
@@ -60,7 +67,13 @@ function getMaxRealMatchSideImbalance(schedule: RoundRobinSchedule, playerIds: s
     sideBalances.set(match.player2Id, (sideBalances.get(match.player2Id) ?? 0) - 1);
   }
 
-  return Math.max(0, ...Array.from(sideBalances.values(), (balance) => Math.abs(balance)));
+  const absoluteBalances = Array.from(sideBalances.values(), (balance) => Math.abs(balance));
+  const unavoidableMinimum = playerIds.length % 2 === 0 ? 1 : 0;
+
+  return {
+    max: Math.max(0, ...absoluteBalances),
+    excessPlayerCount: absoluteBalances.filter((balance) => balance > unavoidableMinimum).length,
+  };
 }
 
 function sameNumberArray(left: readonly number[], right: readonly number[]) {
@@ -81,6 +94,8 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
   const cdm = generateRoundRobinSchedule(playerIds, { method: 'cdm' });
   const circleMatches = buildRealMatchMap(circle);
   const cdmMatches = buildRealMatchMap(cdm);
+  const circleSideImbalance = getRealMatchSideImbalanceStats(circle, playerIds);
+  const cdmSideImbalance = getRealMatchSideImbalanceStats(cdm, playerIds);
   const allPairKeys = new Set([...circleMatches.keys(), ...cdmMatches.keys()]);
 
   let pairSetDifferenceCount = 0;
@@ -110,8 +125,10 @@ export function compareCircleAndCdmQualificationSchedules(playerCount: number): 
     realMatchCount: cdmMatches.size,
     circleTotalDays: circle.totalDays,
     cdmTotalDays: cdm.totalDays,
-    circleMaxSideImbalance: getMaxRealMatchSideImbalance(circle, playerIds),
-    cdmMaxSideImbalance: getMaxRealMatchSideImbalance(cdm, playerIds),
+    circleMaxSideImbalance: circleSideImbalance.max,
+    cdmMaxSideImbalance: cdmSideImbalance.max,
+    circleExcessSideImbalancePlayerCount: circleSideImbalance.excessPlayerCount,
+    cdmExcessSideImbalancePlayerCount: cdmSideImbalance.excessPlayerCount,
     pairSetDifferenceCount,
     pairDayChangedCount,
     pairSideChangedCount,
