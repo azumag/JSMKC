@@ -170,6 +170,9 @@ export function QualificationScheduleDiagnosticsPanel({
               </div>
               <div className="mt-1 text-muted-foreground">
                 BYE/BREAK assignment changes: {comparison.byeAssignmentChangedPlayerCount} players
+                {comparison.totalByeDayShift !== null && comparison.maxByeDayShift !== null
+                  ? ` · total shift ${comparison.totalByeDayShift} days · max shift ${comparison.maxByeDayShift} days`
+                  : ' · day shift unavailable'}
               </div>
             </div>
           ))}

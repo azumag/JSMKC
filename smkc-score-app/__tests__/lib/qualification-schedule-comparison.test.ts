@@ -28,6 +28,8 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         balancedCdmMaxSideImbalance: 1,
         balancedCdmExcessSideImbalancePlayerCount: 0,
         byeAssignmentChangedPlayerCount: 0,
+        totalByeDayShift: 0,
+        maxByeDayShift: 0,
       }),
     );
     expect(comparison!.playerDayChangedCount).toBeGreaterThan(0);
@@ -60,6 +62,9 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
         balancedCdmSidePlanAvailable: true,
         balancedCdmMaxSideImbalance: 0,
         balancedCdmExcessSideImbalancePlayerCount: 0,
+        byeAssignmentChangedPlayerCount: 6,
+        totalByeDayShift: 14,
+        maxByeDayShift: 4,
       }),
     );
   });
@@ -95,6 +100,8 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
         comparison.circleExcessSideImbalancePlayerCount,
       );
       expect(comparison.byeAssignmentChangedPlayerCount).toBeGreaterThanOrEqual(0);
+      expect(comparison.totalByeDayShift).not.toBeNull();
+      expect(comparison.maxByeDayShift).not.toBeNull();
       expect(comparison.circleExcessSideImbalancePlayerCount).toBe(0);
     }
   });
@@ -116,6 +123,26 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       { playerCount: 10, pairDayChangedCount: 25, totalPairDayShift: 74, maxPairDayShift: 7 },
       { playerCount: 11, pairDayChangedCount: 38, totalPairDayShift: 132, maxPairDayShift: 8 },
       { playerCount: 12, pairDayChangedCount: 47, totalPairDayShift: 174, maxPairDayShift: 8 },
+    ]);
+  });
+
+  it('quantifies how far odd-player BYE days move between circle and CDM', () => {
+    const comparisons = buildLegacyCircleCdmScheduleComparisons();
+
+    expect(
+      comparisons.map(({ playerCount, byeAssignmentChangedPlayerCount, totalByeDayShift, maxByeDayShift }) => ({
+        playerCount,
+        byeAssignmentChangedPlayerCount,
+        totalByeDayShift,
+        maxByeDayShift,
+      })),
+    ).toEqual([
+      { playerCount: 7, byeAssignmentChangedPlayerCount: 6, totalByeDayShift: 14, maxByeDayShift: 4 },
+      { playerCount: 8, byeAssignmentChangedPlayerCount: 0, totalByeDayShift: 0, maxByeDayShift: 0 },
+      { playerCount: 9, byeAssignmentChangedPlayerCount: 7, totalByeDayShift: 24, maxByeDayShift: 6 },
+      { playerCount: 10, byeAssignmentChangedPlayerCount: 0, totalByeDayShift: 0, maxByeDayShift: 0 },
+      { playerCount: 11, byeAssignmentChangedPlayerCount: 9, totalByeDayShift: 42, maxByeDayShift: 8 },
+      { playerCount: 12, byeAssignmentChangedPlayerCount: 0, totalByeDayShift: 0, maxByeDayShift: 0 },
     ]);
   });
 

@@ -31,6 +31,8 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 - `balancedCdmMaxSideImbalance`: balanced-side CDM での最大 `|1P回数 - 2P回数|`
 - `balancedCdmExcessSideImbalancePlayerCount`: balanced-side CDM で理論上の最小偏りを超える選手数
 - `byeAssignmentChangedPlayerCount`: BREAK / BYE の Day 配置が変わる選手数
+- `totalByeDayShift`: 各選手の対応する BREAK / BYE Day について `|circle Day - CDM Day|` を合計した値。BYE数が方式間で一致しない場合は `null`
+- `maxByeDayShift`: 1選手の BREAK / BYE が移動する Day 数の最大値。BYE数が方式間で一致しない場合は `null`
 
 `pairSetDifferenceCount = 0` であれば、実選手同士の総当たり集合自体は同一です。そのうえで `pairDayChangedCount` や `pairSideChangedCount` が 0 より大きければ、「対戦相手の集合は同じだが順序や1P/2P配置は変わる」と判断できます。`playerDayChangedCount` と `playerSideChangedCount` は同じ差分を選手単位に集約し、移行によって実際に何人の進行順・1P/2P配置が影響を受けるかを確認するために使います。
 
@@ -44,7 +46,7 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 
 これは fixture の良否を自動判定するものではありません。CDM fixture の 1P / 2P 向きをそのまま再現することを仕様とするなら、この偏りも fixture fidelity の一部です。逆に TT 側で1P / 2Pの均衡を維持したい場合、CDMの対戦カード・Day順だけを採用して side assignment は circle と同じ向きへ置換する設計が可能です。ただし、その場合は「CDMと完全一致」ではなくなるため #3054 で明示的な仕様判断が必要です。
 
-奇数人数では circle / CDM の両方に BYE / BREAK が発生し得るため、`byeAssignmentChangedPlayerCount` も運営影響として確認します。偶数人数では通常 0 です。
+奇数人数では circle / CDM の両方に BYE / BREAK が発生します。`byeAssignmentChangedPlayerCount` に加えて `totalByeDayShift` / `maxByeDayShift` を持つことで、「休みになる選手が変わるか」だけでなく「同じ選手の休みが何 Day 動くか」も確認できます。現行 fixture の `変更選手数 / BYE移動量合計 / 最大BYE移動` は 7名=`6 / 14 / 4`、9名=`7 / 24 / 6`、11名=`9 / 42 / 8` です。偶数人数の 8 / 10 / 12 名では BYE がないためすべて `0 / 0 / 0` です。人数が増えるほど休養タイミングの並べ替えも大きくなるため、BREAK運用を採用するかどうかの判断材料になります。
 
 ## #3054 での判断への使い方
 
@@ -54,7 +56,7 @@ Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか
 - Day順の変更が何カード・何選手へ波及するかだけでなく、各カードが何 Day 分移動するか
 - 1P / 2P の fixture fidelity と、現行 circle の side balance のどちらを優先するか
 - CDM の Day 順を維持しつつ side balance を circle 相当に保つ hybrid を仕様として許容するか
-- 7 / 9 / 11 名で BREAK の割当変更を許容するか
+- 7 / 9 / 11 名で BREAK の割当変更だけでなく休養 Day の移動幅も許容するか
 - 7〜12 名を現行の circle から CDM fixture へ切り替える価値があるか
 
 一方、既存 circle 大会まで移行するか、13 名をどう扱うか、仕様確定後に既存結果へ遡及適用するかは別の大会ルール判断です。この比較結果だけで自動変更は行いません。
