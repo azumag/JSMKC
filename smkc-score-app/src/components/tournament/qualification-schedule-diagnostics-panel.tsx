@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { buildBalancedCdmSideSeedOverridePlan } from '@/lib/qualification-balanced-cdm-side-seed-plan';
 import { buildLegacyCircleCdmScheduleComparisons } from '@/lib/qualification-schedule-comparison';
 import {
   QUALIFICATION_DIAGNOSTIC_MODES,
@@ -41,6 +42,13 @@ function formatLegacyCircleModeBucket(bucket: QualificationScheduleDiagnosticsMo
   const breakSlotLabel = bucket.cdmBreakSlotCount === 1 ? 'slot' : 'slots';
 
   return `${MODE_LABELS[bucket.mode]} ${bucket.groupCount} ${groupLabel} / ${bucket.playerCount} ${playerLabel} (${bucket.cdmExactFitGroupCount} exact-fit / ${bucket.cdmBreakRequiredGroupCount} BREAK / ${bucket.cdmUnavailableGroupCount} unavailable; ${bucket.cdmReadyPlayerCount} CDM-ready ${readyPlayerLabel} / ${bucket.cdmUnavailablePlayerCount} unavailable ${unavailablePlayerLabel} / ${bucket.cdmBreakSlotCount} BREAK ${breakSlotLabel})`;
+}
+
+function formatBalancedCdmSideSeedOverridePlan(playerCount: number) {
+  const plan = buildBalancedCdmSideSeedOverridePlan(playerCount);
+  if (!plan || plan.length === 0) return 'No side overrides required.';
+
+  return plan.map((override) => `D${override.day}: ${override.cdmPlayer1Seed}↔${override.cdmPlayer2Seed}`).join(' · ');
 }
 
 export function QualificationScheduleDiagnosticsPanel({
@@ -176,6 +184,14 @@ export function QualificationScheduleDiagnosticsPanel({
                   ? `available · max imbalance ${comparison.balancedCdmMaxSideImbalance} · override ${comparison.balancedCdmSideOverridePairCount} pairs / ${comparison.balancedCdmSideOverridePlayerCount} players`
                   : 'unavailable because pair sets differ'}
               </div>
+              {comparison.balancedCdmSidePlanAvailable && (
+                <details className="mt-1 text-muted-foreground">
+                  <summary className="cursor-pointer">
+                    Balanced-side seed overrides ({comparison.balancedCdmSideOverridePairCount})
+                  </summary>
+                  <div className="mt-1">{formatBalancedCdmSideSeedOverridePlan(comparison.playerCount)}</div>
+                </details>
+              )}
               <div className="mt-1 text-muted-foreground">
                 BYE/BREAK assignment changes: {comparison.byeAssignmentChangedPlayerCount} players
                 {comparison.totalByeDayShift !== null && comparison.maxByeDayShift !== null

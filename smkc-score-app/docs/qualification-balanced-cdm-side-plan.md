@@ -24,6 +24,12 @@ Issue #3054 では、7〜12名の legacy circle グループについて、RR 20
 
 7〜12名の legacy-circle 比較では、seed plan の件数は `balancedCdmSideOverridePairCount` と一致し、影響 seed 数は `balancedCdmSideOverridePlayerCount` と一致します。各 entry は 1P/2P を純粋に反転するため、`balancedPlayer1Seed === cdmPlayer2Seed` かつ `balancedPlayer2Seed === cdmPlayer1Seed` です。13名のように対応 CDM fixture がない人数や、不正な人数入力では `null` を返します。
 
+## Diagnostics UI
+
+管理用の qualification schedule diagnostics では、7〜12名それぞれの balanced-side hybrid について seed override plan を折りたたみ表示します。表示は `D{day}: {seed1}↔{seed2}` 形式で、固定 CDM fixture のどの試合で 1P/2P を反転する必要があるかを、実プレイヤー情報に依存せず確認できます。既存の集計値だけでなく、レビュー時に具体的な Day / seed の組み合わせまで追えることが目的です。
+
+この表示も read-only であり、DB、保存済み大会、対戦表、結果、`qualificationScheduleMethod`、13→14名の policy 境界は変更しません。
+
 この helper も DB、保存済み大会、対戦表、結果を更新しません。現在の `qualificationScheduleMethod` や 13→14名の policy 境界も変更しません。目的は、#3054 で balanced-side hybrid を採用すると決まった場合に、必要な fixture-side override をコード上で一意に再現・検証し、seed position 単位でレビューできる状態にすることです。
 
-回帰テストでは、7〜12名の全対応サイズについて override 件数が既存の `pairSideChangedCount` と一致し、override の影響選手数が `playerSideChangedCount` と一致することを確認します。また、各 override が固定 CDM fixture の 1P/2P を正確に反転し、materialized preview と同じ Day・向きになること、seed projection が同じ件数・影響 seed 数を保持することも確認します。
+回帰テストでは、7〜12名の全対応サイズについて override 件数が既存の `pairSideChangedCount` と一致し、override の影響選手数が `playerSideChangedCount` と一致することを確認します。また、各 override が固定 CDM fixture の 1P/2P を正確に反転し、materialized preview と同じ Day・向きになること、seed projection が同じ件数・影響 seed 数を保持することも確認します。UI テストでは、診断パネルに override 件数と少なくとも1件の Day / seed 反転表示が出ることを確認します。

@@ -136,6 +136,8 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(comparison).toHaveTextContent(
       /Balanced-side CDM: available · max imbalance 0 · override \d+ pairs \/ \d+ players/,
     );
+    expect(comparison).toHaveTextContent(/Balanced-side seed overrides \(\d+\)/);
+    expect(comparison).toHaveTextContent(/D\d+: \d+↔\d+/);
   });
 
   it('warns when the effective CDM request has no fixture and cannot generate a schedule', () => {
