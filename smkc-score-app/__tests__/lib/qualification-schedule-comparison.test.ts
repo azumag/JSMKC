@@ -25,6 +25,9 @@ describe('compareCircleAndCdmQualificationSchedules', () => {
       }),
     );
     expect(comparison!.pairDayChangedCount).toBeGreaterThan(0);
+    expect(comparison!.playerDayChangedCount).toBeGreaterThan(0);
+    expect(comparison!.playerDayChangedCount).toBeLessThanOrEqual(comparison!.playerCount);
+    expect(comparison!.playerSideChangedCount).toBeLessThanOrEqual(comparison!.playerCount);
   });
 
   it('keeps odd-player BREAK effects visible in the comparison evidence', () => {
@@ -64,7 +67,11 @@ describe('buildLegacyCircleCdmScheduleComparisons', () => {
       expect(comparison.cdmTotalDays).toBe(comparison.circleTotalDays);
       expect(comparison.pairSetDifferenceCount).toBe(0);
       expect(comparison.pairDayChangedCount).toBeGreaterThan(0);
+      expect(comparison.playerDayChangedCount).toBeGreaterThan(0);
+      expect(comparison.playerDayChangedCount).toBeLessThanOrEqual(comparison.playerCount);
       expect(comparison.pairSideChangedCount).toBeGreaterThanOrEqual(0);
+      expect(comparison.playerSideChangedCount).toBeGreaterThanOrEqual(0);
+      expect(comparison.playerSideChangedCount).toBeLessThanOrEqual(comparison.playerCount);
       expect(comparison.byeAssignmentChangedPlayerCount).toBeGreaterThanOrEqual(0);
       expect(comparison.circleExcessSideImbalancePlayerCount).toBe(0);
     }
