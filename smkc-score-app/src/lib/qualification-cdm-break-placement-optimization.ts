@@ -12,6 +12,8 @@ export interface UnsupportedCdmBreakPlacementOptimization {
   evaluatedPlacementCount: number;
   minimumPossibleMaxConsecutiveBreakDayCount: number;
   placementCountAtMinimumConsecutiveBreaks: number;
+  maximumMinimumPlayerBreakDayGap: number;
+  placementCountAtMaximumPlayerBreakGap: number;
   maximumMinimumBreakOnlyDayGap: number;
   placementCountAtRecommendedScore: number;
   recommendedBreakSlotPositions: number[];
@@ -24,6 +26,7 @@ interface BreakPlacementScore {
   breakOnlyDays: number[];
   breakDaysByPlayerSeed: PlayerBreakDayPlan[];
   maxConsecutiveBreakDayCount: number;
+  minimumPlayerBreakDayGap: number;
   minimumBreakOnlyDayGap: number;
 }
 
@@ -132,6 +135,9 @@ function scoreBreakPlacement(
     maxConsecutiveBreakDayCount: Math.max(
       ...breakDaysByPlayerSeed.map(({ breakDays }) => getMaxConsecutiveDayCount(breakDays)),
     ),
+    minimumPlayerBreakDayGap: Math.min(
+      ...breakDaysByPlayerSeed.map(({ breakDays }) => getMinimumDayGap(breakDays)),
+    ),
     minimumBreakOnlyDayGap: getMinimumDayGap(breakOnlyDays),
   };
 }
@@ -145,8 +151,9 @@ function scoreBreakPlacement(
  *
  * Recommendation order:
  * 1. minimize the worst consecutive BREAK-day streak for any player;
- * 2. maximize the minimum gap between days containing BREAK-vs-BREAK rows;
- * 3. use the lexicographically smallest 1-based BREAK-slot positions as a
+ * 2. maximize the worst-case minimum gap between each player's BREAK days;
+ * 3. maximize the minimum gap between days containing BREAK-vs-BREAK rows;
+ * 4. use the lexicographically smallest 1-based BREAK-slot positions as a
  *    deterministic tie-breaker.
  */
 export function optimizeUnsupportedCdmBreakPlacement(
@@ -174,10 +181,16 @@ export function optimizeUnsupportedCdmBreakPlacement(
   const minimumConsecutivePlacements = placements.filter(
     ({ maxConsecutiveBreakDayCount }) => maxConsecutiveBreakDayCount === minimumPossibleMaxConsecutiveBreakDayCount,
   );
-  const maximumMinimumBreakOnlyDayGap = Math.max(
-    ...minimumConsecutivePlacements.map(({ minimumBreakOnlyDayGap }) => minimumBreakOnlyDayGap),
+  const maximumMinimumPlayerBreakDayGap = Math.max(
+    ...minimumConsecutivePlacements.map(({ minimumPlayerBreakDayGap }) => minimumPlayerBreakDayGap),
   );
-  const recommendedScorePlacements = minimumConsecutivePlacements
+  const maximumPlayerBreakGapPlacements = minimumConsecutivePlacements.filter(
+    ({ minimumPlayerBreakDayGap }) => minimumPlayerBreakDayGap === maximumMinimumPlayerBreakDayGap,
+  );
+  const maximumMinimumBreakOnlyDayGap = Math.max(
+    ...maximumPlayerBreakGapPlacements.map(({ minimumBreakOnlyDayGap }) => minimumBreakOnlyDayGap),
+  );
+  const recommendedScorePlacements = maximumPlayerBreakGapPlacements
     .filter(({ minimumBreakOnlyDayGap }) => minimumBreakOnlyDayGap === maximumMinimumBreakOnlyDayGap)
     .sort((left, right) => compareNumberArrays(left.breakSlotPositions, right.breakSlotPositions));
   const recommended = recommendedScorePlacements[0];
@@ -189,6 +202,8 @@ export function optimizeUnsupportedCdmBreakPlacement(
     evaluatedPlacementCount: placements.length,
     minimumPossibleMaxConsecutiveBreakDayCount,
     placementCountAtMinimumConsecutiveBreaks: minimumConsecutivePlacements.length,
+    maximumMinimumPlayerBreakDayGap,
+    placementCountAtMaximumPlayerBreakGap: maximumPlayerBreakGapPlacements.length,
     maximumMinimumBreakOnlyDayGap,
     placementCountAtRecommendedScore: recommendedScorePlacements.length,
     recommendedBreakSlotPositions: recommended.breakSlotPositions,
