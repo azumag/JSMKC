@@ -38,9 +38,7 @@ describe('buildBalancedCdmSidePreviewSchedule', () => {
       expect(match.player2Id).toBe(circleMatches.get(key)?.player2Id);
     }
 
-    expect(preview!.matches.filter((match) => match.isBye)).toEqual(
-      cdm.matches.filter((match) => match.isBye),
-    );
+    expect(preview!.matches.filter((match) => match.isBye)).toEqual(cdm.matches.filter((match) => match.isBye));
   });
 
   it('returns null when the requested player count has no CDM fixture', () => {
