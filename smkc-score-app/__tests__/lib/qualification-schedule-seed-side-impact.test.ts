@@ -5,13 +5,11 @@ describe('CDM side imbalance seed impact', () => {
     const comparisons = buildLegacyCircleCdmScheduleComparisons();
 
     expect(
-      comparisons.map(
-        ({ playerCount, cdmExcessSideImbalancePlayerCount, cdmExcessSideImbalanceSeedPositions }) => ({
-          playerCount,
-          cdmExcessSideImbalancePlayerCount,
-          cdmExcessSideImbalanceSeedPositions,
-        }),
-      ),
+      comparisons.map(({ playerCount, cdmExcessSideImbalancePlayerCount, cdmExcessSideImbalanceSeedPositions }) => ({
+        playerCount,
+        cdmExcessSideImbalancePlayerCount,
+        cdmExcessSideImbalanceSeedPositions,
+      })),
     ).toEqual([
       {
         playerCount: 7,
