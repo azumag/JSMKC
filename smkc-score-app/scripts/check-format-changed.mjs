@@ -88,13 +88,20 @@ function main() {
     '.bin',
     process.platform === 'win32' ? 'prettier.cmd' : 'prettier',
   );
-  const result = spawnSync(prettierExecutable, ['--check', ...changedFiles], {
+
+  // Temporary diagnostics for PR #3237. Format the runner worktree only and
+  // print the resulting patch so the exact Prettier change can be committed.
+  const diagnostic = spawnSync(prettierExecutable, ['--write', ...changedFiles], {
     cwd: appRoot,
     stdio: 'inherit',
   });
-
-  if (result.error) throw result.error;
-  return result.status ?? 1;
+  if (diagnostic.error) throw diagnostic.error;
+  const diagnosticDiff = execFileSync('git', ['diff', '--', ...changedFiles.map((file) => `${appPrefix}${file}`)], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+  });
+  console.log(diagnosticDiff);
+  return 1;
 }
 
 try {
