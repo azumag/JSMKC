@@ -1,7 +1,4 @@
-import {
-  CDM_ROUND_ROBIN_FIXTURES,
-  getCdmRoundRobinFixturePlan,
-} from '@/lib/cdm-round-robin-fixtures';
+import { CDM_ROUND_ROBIN_FIXTURES, getCdmRoundRobinFixturePlan } from '@/lib/cdm-round-robin-fixtures';
 
 export interface UnsupportedCdmFixtureCandidateImpact {
   playerCount: number;
