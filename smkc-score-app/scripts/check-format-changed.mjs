@@ -94,14 +94,6 @@ function main() {
   });
 
   if (result.error) throw result.error;
-  if (result.status !== 0) {
-    const writeResult = spawnSync(prettierExecutable, ['--write', ...changedFiles], {
-      cwd: appRoot,
-      stdio: 'inherit',
-    });
-    if (writeResult.error) throw writeResult.error;
-    console.log(execFileSync('git', ['diff', '--', appRoot], { cwd: repositoryRoot, encoding: 'utf8' }));
-  }
   return result.status ?? 1;
 }
 
