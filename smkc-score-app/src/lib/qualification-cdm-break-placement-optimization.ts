@@ -1,7 +1,4 @@
-import {
-  CDM_ROUND_ROBIN_FIXTURES,
-  getCdmRoundRobinFixturePlan,
-} from '@/lib/cdm-round-robin-fixtures';
+import { CDM_ROUND_ROBIN_FIXTURES, getCdmRoundRobinFixturePlan } from '@/lib/cdm-round-robin-fixtures';
 
 export interface PlayerBreakDayPlan {
   playerSeed: number;
@@ -175,8 +172,7 @@ export function optimizeUnsupportedCdmBreakPlacement(
     ...placements.map(({ maxConsecutiveBreakDayCount }) => maxConsecutiveBreakDayCount),
   );
   const minimumConsecutivePlacements = placements.filter(
-    ({ maxConsecutiveBreakDayCount }) =>
-      maxConsecutiveBreakDayCount === minimumPossibleMaxConsecutiveBreakDayCount,
+    ({ maxConsecutiveBreakDayCount }) => maxConsecutiveBreakDayCount === minimumPossibleMaxConsecutiveBreakDayCount,
   );
   const maximumMinimumBreakOnlyDayGap = Math.max(
     ...minimumConsecutivePlacements.map(({ minimumBreakOnlyDayGap }) => minimumBreakOnlyDayGap),
