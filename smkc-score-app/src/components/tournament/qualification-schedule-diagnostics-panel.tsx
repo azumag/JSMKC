@@ -139,6 +139,9 @@ export function QualificationScheduleDiagnosticsPanel({
               <div className="mt-1 text-muted-foreground">
                 {comparison.realMatchCount} real matches · {comparison.cdmBreakSlotCount} BREAK
               </div>
+              <div className="mt-1 text-muted-foreground">
+                Schedule days: circle {comparison.circleTotalDays} → CDM {comparison.cdmTotalDays}
+              </div>
               <div className="mt-1">
                 Pair set:{' '}
                 {comparison.pairSetDifferenceCount === 0
