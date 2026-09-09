@@ -160,8 +160,12 @@ export function QualificationScheduleDiagnosticsPanel({
                 shift {comparison.totalPairDayShift} days · max shift {comparison.maxPairDayShift} days
               </div>
               <div className="mt-1 text-muted-foreground">
-                Seed Day impact: unchanged seeds {comparison.dayUnchangedSeedPositions.join(', ')} · peak player shift{' '}
-                {comparison.maxPlayerTotalDayShift} days at seeds {comparison.maxPlayerTotalDayShiftSeedPositions.join(', ')}
+                <span>Seed Day impact: unchanged seeds {comparison.dayUnchangedSeedPositions.join(', ')}</span>
+                {' · '}
+                <span>
+                  peak player shift {comparison.maxPlayerTotalDayShift} days at seeds{' '}
+                  {comparison.maxPlayerTotalDayShiftSeedPositions.join(', ')}
+                </span>
               </div>
               <div className="mt-1 text-muted-foreground">
                 Side changes: {comparison.pairSideChangedCount} pairs / {comparison.playerSideChangedCount} players
