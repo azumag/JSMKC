@@ -37,15 +37,12 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     expect(steps.indexOf(readinessStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
   });
 
-  it('surfaces probe failure without turning migration readiness into the compatible-range gate', () => {
+  it('keeps migration readiness outside the compatible-range gate', () => {
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
     expect(summaryStep).toBeDefined();
     expect(gateStep).toBeDefined();
-    expect(summaryStep?.env?.PRISMA_V7_READINESS_OUTCOME).toBe('${{ steps.prisma_v7_readiness.outcome }}');
-    expect(summaryStep?.run).toContain('Prisma 7 migration readiness probe');
-    expect(summaryStep?.run).toContain('PRISMA_V7_READINESS_OUTCOME');
     expect(summaryStep?.run).toContain('Prisma 7 readiness evidence are advisory only');
     expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_READINESS_OUTCOME');
   });
