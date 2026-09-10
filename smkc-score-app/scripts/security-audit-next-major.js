@@ -10,6 +10,7 @@ const {
 } = require('./security-audit-upstream.js');
 
 const CARET_SEMVER_SELECTOR_PATTERN = /^\^\s*(\d+)\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
 
 function getNextMajorPrismaSelector(manifest) {
   const currentPrismaSelector = getPrismaVersionSelector(manifest);
@@ -56,6 +57,10 @@ function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
 function writeNextMajorGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
   if (!outputPath) {
     return;
+  }
+
+  if (typeof status.currentPrismaSelector !== 'string' || !SAFE_OUTPUT_PATTERN.test(status.currentPrismaSelector)) {
+    throw new Error('refusing unsafe GitHub Actions output for current_prisma_selector');
   }
 
   writeGitHubOutputs(status, outputPath);
