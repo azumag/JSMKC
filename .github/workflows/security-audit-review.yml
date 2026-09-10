@@ -111,7 +111,6 @@ jobs:
           NEXT_MAJOR_PRISMA_CONFIG_SELECTOR: ${{ steps.next_major_upstream.outputs.prisma_config_selector }}
           LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION: ${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}
           NEXT_MAJOR_DEEPMERGE_REQUIREMENT: ${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}
-          PRISMA_V7_READINESS_OUTCOME: ${{ steps.prisma_v7_readiness.outcome }}
         run: |
           {
             echo "## #3114 security audit review"
@@ -131,7 +130,6 @@ jobs:
             echo "| Canonical npm audit | \`${CANONICAL_AUDIT_OUTCOME}\` |"
             echo "| Compatible Prisma release probe | \`${COMPATIBLE_UPSTREAM_OUTCOME}\` |"
             echo "| Next-major Prisma remediation probe | \`${NEXT_MAJOR_UPSTREAM_OUTCOME}\` |"
-            echo "| Prisma 7 migration readiness probe | \`${PRISMA_V7_READINESS_OUTCOME}\` |"
             echo
             echo "Tracking issue: \`#${EXCEPTION_TRACKING_ISSUE:-unavailable}\`"
             echo
