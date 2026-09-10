@@ -257,7 +257,7 @@ export function QualificationScheduleDiagnosticsPanel({
               </div>
               <div className="mt-1 text-muted-foreground">
                 Players above minimum 1P/2P imbalance: circle {comparison.circleExcessSideImbalancePlayerCount} → CDM{' '}
-                {comparison.cdmExcessSideImalancePlayerCount}
+                {comparison.cdmExcessSideImbalancePlayerCount}
               </div>
               <div className="mt-1">
                 Pair set:{' '}
