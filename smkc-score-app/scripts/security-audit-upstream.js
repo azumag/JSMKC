@@ -2,10 +2,7 @@
 
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-const {
-  isPatchedDeepmergeRequirement,
-  parseComparableSemver,
-} = require('./security-audit-status.js');
+const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./security-audit-status.js');
 
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
