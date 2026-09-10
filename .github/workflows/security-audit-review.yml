@@ -58,6 +58,17 @@ jobs:
         if: always()
         run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
+      - id: next_major_upstream
+        name: Check next-major Prisma remediation
+        if: always()
+        continue-on-error: true
+        run: node scripts/security-audit-next-major.js
+
+      - id: next_major_upstream_timestamp
+        name: Timestamp next-major upstream evidence
+        if: always()
+        run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: "Summarize #3114 review evidence"
         if: always()
         env:
@@ -85,6 +96,15 @@ jobs:
           PRISMA_CONFIG_SELECTOR: ${{ steps.compatible_upstream.outputs.prisma_config_selector }}
           LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION: ${{ steps.compatible_upstream.outputs.latest_compatible_prisma_config_version }}
           LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT: ${{ steps.compatible_upstream.outputs.prisma_config_deepmerge_requirement }}
+          NEXT_MAJOR_UPSTREAM_OUTCOME: ${{ steps.next_major_upstream.outcome }}
+          NEXT_MAJOR_UPSTREAM_STATE: ${{ steps.next_major_upstream.outputs.state }}
+          NEXT_MAJOR_UPSTREAM_REGISTRY: ${{ steps.next_major_upstream.outputs.registry }}
+          NEXT_MAJOR_CURRENT_PRISMA_SELECTOR: ${{ steps.next_major_upstream.outputs.current_prisma_selector }}
+          NEXT_MAJOR_PRISMA_SELECTOR: ${{ steps.next_major_upstream.outputs.prisma_selector }}
+          LATEST_NEXT_MAJOR_PRISMA_VERSION: ${{ steps.next_major_upstream.outputs.latest_compatible_prisma_version }}
+          NEXT_MAJOR_PRISMA_CONFIG_SELECTOR: ${{ steps.next_major_upstream.outputs.prisma_config_selector }}
+          LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION: ${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}
+          NEXT_MAJOR_DEEPMERGE_REQUIREMENT: ${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}
         run: |
           {
             echo "## #3114 security audit review"
@@ -95,12 +115,15 @@ jobs:
             echo
             echo "Compatible upstream checked at: \`${{ steps.compatible_upstream_timestamp.outputs.checked_at }}\`"
             echo
+            echo "Next-major upstream checked at: \`${{ steps.next_major_upstream_timestamp.outputs.checked_at }}\`"
+            echo
             echo "| Check | Outcome |"
             echo "| --- | --- |"
             echo "| Lockfile preflight | \`${LOCKFILE_PREFLIGHT_OUTCOME}\` |"
             echo "| Temporary exception status | \`${EXCEPTION_STATUS_OUTCOME}\` |"
             echo "| Canonical npm audit | \`${CANONICAL_AUDIT_OUTCOME}\` |"
             echo "| Compatible Prisma release probe | \`${COMPATIBLE_UPSTREAM_OUTCOME}\` |"
+            echo "| Next-major Prisma remediation probe | \`${NEXT_MAJOR_UPSTREAM_OUTCOME}\` |"
             echo
             echo "Tracking issue: \`#${EXCEPTION_TRACKING_ISSUE:-unavailable}\`"
             echo
@@ -130,6 +153,19 @@ jobs:
             echo "| prisma → @prisma/config selector | \`${PRISMA_CONFIG_SELECTOR:-unavailable}\` |"
             echo "| Latest compatible @prisma/config | \`${LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| Compatible @prisma/config → deepmerge-ts requirement | \`${LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
+            echo
+            echo "| Next-major remediation evidence (advisory only) | Value |"
+            echo "| --- | --- |"
+            echo "| Probe state | \`${NEXT_MAJOR_UPSTREAM_STATE:-unavailable}\` |"
+            echo "| Registry | \`${NEXT_MAJOR_UPSTREAM_REGISTRY:-unavailable}\` |"
+            echo "| Current manifest prisma selector | \`${NEXT_MAJOR_CURRENT_PRISMA_SELECTOR:-unavailable}\` |"
+            echo "| Probed next-major prisma selector | \`${NEXT_MAJOR_PRISMA_SELECTOR:-unavailable}\` |"
+            echo "| Latest next-major prisma | \`${LATEST_NEXT_MAJOR_PRISMA_VERSION:-unavailable}\` |"
+            echo "| prisma → @prisma/config selector | \`${NEXT_MAJOR_PRISMA_CONFIG_SELECTOR:-unavailable}\` |"
+            echo "| Latest next-major @prisma/config | \`${LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:-unavailable}\` |"
+            echo "| Next-major @prisma/config → deepmerge-ts requirement | \`${NEXT_MAJOR_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
+            echo
+            echo "Next-major evidence is advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"
