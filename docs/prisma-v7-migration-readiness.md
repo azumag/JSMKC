@@ -10,7 +10,7 @@ node scripts/prisma-v7-readiness.cjs
 node scripts/prisma-v7-readiness.cjs --json
 ```
 
-The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads only `package.json`, `prisma/schema.prisma`, and the presence of `prisma.config.ts`. It never runs `npm install`, generates a client, edits the lockfile, changes D1, or modifies the #3114 exception.
+The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads `package.json`, `prisma/schema.prisma`, the presence of `prisma.config.ts`, and application source files under `src/` to inventory legacy `@prisma/client` imports. It never runs `npm install`, generates a client, edits source files or the lockfile, changes D1, or modifies the #3114 exception.
 
 ## Checks
 
@@ -20,6 +20,7 @@ The probe records the migration prerequisites that must be handled together in a
 - `prisma`, `@prisma/client`, and `@prisma/adapter-d1` are all on target major 7 and their majors are aligned.
 - the Prisma generator uses `provider = "prisma-client"` rather than the legacy `prisma-client-js` provider.
 - the generator has an explicit output directory, because application imports must move from `@prisma/client` to the generated client path as part of the v7 migration.
+- application source under `src/` no longer imports `@prisma/client` or its runtime subpaths. The probe records each matching source path and package specifier so the migration PR has a concrete import inventory instead of discovering these call sites only after generation/type-check failures.
 - `datasource.url` has moved out of `schema.prisma`.
 - `prisma.config.ts` exists for CLI datasource/configuration.
 
@@ -37,6 +38,7 @@ At the time this probe was added, `main` has:
 - no explicit generator `output`
 - `datasource db` still contains `url = env("DATABASE_URL")`
 - no `prisma.config.ts`
+- application source still contains imports from `@prisma/client` and `@prisma/client/runtime/...`; these are now listed by the readiness probe as explicit migration work
 
 The existing adapter is already on major 7 while CLI/client remain on major 6. The readiness probe surfaces that version split without asserting that it is itself the cause of the current production behavior or changing it automatically.
 
@@ -57,4 +59,4 @@ If any of these require a behavior or deployment-policy decision, record it on #
 
 The manual `Security audit review` workflow also runs this readiness probe after collecting the compatible-range and next-major upstream evidence. The probe remains advisory: it uses `continue-on-error`, is not referenced by the compatible-range fail-closed gate, and cannot trigger a Prisma major upgrade or change the #3114 exception.
 
-The probe writes its detailed readiness table to the GitHub Actions job summary, and its step result remains visible in the workflow run. This keeps the migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
+The probe writes its detailed readiness table, including the legacy Prisma import inventory, to the GitHub Actions job summary, and its step result remains visible in the workflow run. This keeps the migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.

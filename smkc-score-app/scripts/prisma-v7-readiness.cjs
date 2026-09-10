@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 const TARGET_PRISMA_MAJOR = 7;
 
@@ -32,7 +33,58 @@ function hasAssignment(block, key) {
   return new RegExp(`^\\s*${key}\\s*=`, 'm').test(block);
 }
 
-function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent }) {
+const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
+
+function extractLegacyPrismaClientSpecifiers(source) {
+  const patterns = [
+    /\bfrom\s*['"](@prisma\/client(?:\/[^'"]*)?)['"]/g,
+    /\b(?:import|require)\s*\(\s*['"](@prisma\/client(?:\/[^'"]*)?)['"]\s*\)/g,
+    /\bimport\s*['"](@prisma\/client(?:\/[^'"]*)?)['"]/g,
+  ];
+  const specifiers = [];
+
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      if (!specifiers.includes(match[1])) specifiers.push(match[1]);
+    }
+  }
+
+  return specifiers;
+}
+
+function findLegacyPrismaClientImports(rootDir) {
+  if (!fs.existsSync(rootDir)) return [];
+
+  const findings = [];
+
+  function visit(currentDir) {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      const absolutePath = path.join(currentDir, entry.name);
+
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+        continue;
+      }
+
+      if (!entry.isFile() || !SOURCE_EXTENSIONS.has(path.extname(entry.name))) continue;
+
+      const specifiers = extractLegacyPrismaClientSpecifiers(fs.readFileSync(absolutePath, 'utf8'));
+      if (specifiers.length === 0) continue;
+
+      findings.push({
+        path: path.relative('.', absolutePath).split(path.sep).join('/'),
+        specifiers,
+      });
+    }
+  }
+
+  visit(rootDir);
+  return findings;
+}
+
+function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent, legacyPrismaClientImports = [] }) {
   const prismaSelector = manifest.devDependencies?.prisma ?? null;
   const clientSelector = manifest.dependencies?.['@prisma/client'] ?? null;
   const adapterSelector = manifest.dependencies?.['@prisma/adapter-d1'] ?? null;
@@ -56,6 +108,7 @@ function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent }) {
     generatorHasExplicitOutput: hasAssignment(generatorBlock, 'output'),
     datasourceUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'url'),
     prismaConfigPresent: Boolean(prismaConfigPresent),
+    applicationImportsUseGeneratedClient: legacyPrismaClientImports.length === 0,
   };
 
   const blockers = Object.entries(checks)
@@ -73,12 +126,21 @@ function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent }) {
       prismaAdapterD1: adapterSelector,
     },
     generatorProvider,
+    legacyPrismaClientImports,
     checks,
   };
 }
 
 function formatPrismaV7Readiness(status, { json = false } = {}) {
   if (json) return `${JSON.stringify(status)}\n`;
+
+  const legacyImportRows =
+    status.legacyPrismaClientImports.length === 0
+      ? ['| none | none |']
+      : status.legacyPrismaClientImports.map(
+          ({ path: importPath, specifiers }) =>
+            `| \`${importPath}\` | ${specifiers.map((specifier) => `\`${specifier}\``).join(', ')} |`,
+        );
 
   const checkRows = Object.entries(status.checks)
     .map(([check, passed]) => `| ${check} | ${passed ? 'ready' : 'needs migration'} |`)
@@ -98,6 +160,12 @@ function formatPrismaV7Readiness(status, { json = false } = {}) {
     `| @prisma/adapter-d1 | \`${status.selectors.prismaAdapterD1 ?? 'missing'}\` |`,
     '',
     `Generator provider: \`${status.generatorProvider ?? 'missing'}\``,
+    '',
+    '### Legacy application imports',
+    '',
+    '| Source path | Prisma specifier(s) |',
+    '| --- | --- |',
+    ...legacyImportRows,
     '',
     '| Readiness check | Result |',
     '| --- | --- |',
@@ -124,6 +192,7 @@ function main() {
       manifest,
       schema,
       prismaConfigPresent: fs.existsSync('prisma.config.ts'),
+      legacyPrismaClientImports: findLegacyPrismaClientImports('src'),
     });
     const output = formatPrismaV7Readiness(status, options);
     process.stdout.write(output);
@@ -143,7 +212,9 @@ if (require.main === module) {
 
 module.exports = {
   TARGET_PRISMA_MAJOR,
+  extractLegacyPrismaClientSpecifiers,
   extractSemverMajor,
+  findLegacyPrismaClientImports,
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
   parseCliOptions,
