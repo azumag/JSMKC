@@ -50,6 +50,11 @@ jobs:
         if: ${{ always() && steps.lockfile_preflight.outcome == 'success' }}
         run: node scripts/security-audit.js
 
+      - id: compatible_upstream
+        name: Check latest compatible Prisma release
+        if: always()
+        run: node scripts/security-audit-upstream.js
+
       - name: "Summarize #3114 review evidence"
         if: always()
         env:
@@ -67,6 +72,12 @@ jobs:
           PRISMA_CONFIG_DEEPMERGE_REQUIREMENT: ${{ steps.exception_status.outputs.prisma_config_deepmerge_requirement }}
           DEEPMERGE_TS_VERSION: ${{ steps.exception_status.outputs.deepmerge_ts_version }}
           CANONICAL_AUDIT_OUTCOME: ${{ steps.canonical_audit.outcome }}
+          COMPATIBLE_UPSTREAM_OUTCOME: ${{ steps.compatible_upstream.outcome }}
+          COMPATIBLE_UPSTREAM_STATE: ${{ steps.compatible_upstream.outputs.state }}
+          COMPATIBLE_UPSTREAM_REGISTRY: ${{ steps.compatible_upstream.outputs.registry }}
+          PRISMA_SELECTOR: ${{ steps.compatible_upstream.outputs.prisma_selector }}
+          LATEST_COMPATIBLE_PRISMA_VERSION: ${{ steps.compatible_upstream.outputs.latest_compatible_prisma_version }}
+          LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT: ${{ steps.compatible_upstream.outputs.prisma_config_deepmerge_requirement }}
         run: |
           {
             echo "## #3114 security audit review"
@@ -76,6 +87,7 @@ jobs:
             echo "| Lockfile preflight | \`${LOCKFILE_PREFLIGHT_OUTCOME}\` |"
             echo "| Temporary exception status | \`${EXCEPTION_STATUS_OUTCOME}\` |"
             echo "| Canonical npm audit | \`${CANONICAL_AUDIT_OUTCOME}\` |"
+            echo "| Compatible Prisma release probe | \`${COMPATIBLE_UPSTREAM_OUTCOME}\` |"
             echo
             echo "Tracking issue: \`#${EXCEPTION_TRACKING_ISSUE:-unavailable}\`"
             echo
@@ -95,6 +107,14 @@ jobs:
             echo "| @prisma/config installed version | \`${PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| @prisma/config → deepmerge-ts requirement | \`${PRISMA_CONFIG_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
             echo "| deepmerge-ts installed version | \`${DEEPMERGE_TS_VERSION:-unavailable}\` |"
+            echo
+            echo "| Latest compatible upstream evidence | Value |"
+            echo "| --- | --- |"
+            echo "| Probe state | \`${COMPATIBLE_UPSTREAM_STATE:-unavailable}\` |"
+            echo "| Registry | \`${COMPATIBLE_UPSTREAM_REGISTRY:-unavailable}\` |"
+            echo "| Manifest prisma selector | \`${PRISMA_SELECTOR:-unavailable}\` |"
+            echo "| Latest compatible prisma | \`${LATEST_COMPATIBLE_PRISMA_VERSION:-unavailable}\` |"
+            echo "| Compatible @prisma/config → deepmerge-ts requirement | \`${LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"
