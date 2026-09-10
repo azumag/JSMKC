@@ -1,4 +1,5 @@
 import {
+  extractLegacyPrismaClientSpecifiers,
   extractSemverMajor,
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
@@ -27,11 +28,23 @@ describe('Prisma 7 migration readiness probe', () => {
     }
   `;
 
+  const currentLegacyImports = [
+    {
+      path: 'src/lib/prisma.ts',
+      specifiers: ['@prisma/client'],
+    },
+    {
+      path: 'src/lib/prisma-error.ts',
+      specifiers: ['@prisma/client/runtime/library'],
+    },
+  ];
+
   it('reports the current repository migration items without mutating them', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
       schema: currentSchema,
       prismaConfigPresent: false,
+      legacyPrismaClientImports: currentLegacyImports,
     });
 
     expect(status.ready).toBe(false);
@@ -50,6 +63,7 @@ describe('Prisma 7 migration readiness probe', () => {
         'generatorHasExplicitOutput',
         'datasourceUrlMovedOutOfSchema',
         'prismaConfigPresent',
+        'applicationImportsUseGeneratedClient',
       ]),
     );
     expect(status.blockers).not.toContain('prismaAdapterAtTargetMajor');
@@ -78,11 +92,24 @@ describe('Prisma 7 migration readiness probe', () => {
         }
       `,
       prismaConfigPresent: true,
+      legacyPrismaClientImports: [],
     });
 
     expect(status.ready).toBe(true);
     expect(status.blockerCount).toBe(0);
     expect(status.blockers).toEqual([]);
+  });
+
+  it('finds package and runtime imports that must move to the generated client', () => {
+    expect(
+      extractLegacyPrismaClientSpecifiers(`
+        import { PrismaClient } from '@prisma/client';
+        import type { Prisma } from "@prisma/client";
+        const requestError = require('@prisma/client/runtime/library');
+        const dynamicClient = import("@prisma/client");
+        import '@/lib/local-module';
+      `),
+    ).toEqual(['@prisma/client', '@prisma/client/runtime/library']);
   });
 
   it('parses supported selectors conservatively', () => {
@@ -98,11 +125,14 @@ describe('Prisma 7 migration readiness probe', () => {
       manifest: currentManifest,
       schema: currentSchema,
       prismaConfigPresent: false,
+      legacyPrismaClientImports: currentLegacyImports,
     });
     const output = formatPrismaV7Readiness(status);
 
     expect(output).toContain('Overall readiness: `not-ready`');
     expect(output).toContain('@prisma/adapter-d1');
+    expect(output).toContain('src/lib/prisma.ts');
+    expect(output).toContain('@prisma/client/runtime/library');
     expect(output).toContain('read-only migration evidence');
     expect(output).not.toContain('dependencies updated');
   });
@@ -116,6 +146,7 @@ describe('Prisma 7 migration readiness probe', () => {
       manifest: currentManifest,
       schema: currentSchema,
       prismaConfigPresent: false,
+      legacyPrismaClientImports: currentLegacyImports,
     });
     expect(JSON.parse(formatPrismaV7Readiness(status, { json: true }))).toMatchObject({
       targetMajor: 7,
