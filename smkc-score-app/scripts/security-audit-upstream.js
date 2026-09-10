@@ -38,6 +38,27 @@ function getPrismaConfigVersionSelector(prismaDependencies) {
   return selector;
 }
 
+function getPrismaConfigDeepmergeRequirement(prismaConfigDependencies) {
+  if (
+    !prismaConfigDependencies ||
+    typeof prismaConfigDependencies !== 'object' ||
+    Array.isArray(prismaConfigDependencies)
+  ) {
+    throw new Error('npm view returned invalid @prisma/config dependencies metadata');
+  }
+
+  const requirement = prismaConfigDependencies['deepmerge-ts'];
+  if (requirement === undefined) {
+    return null;
+  }
+
+  if (typeof requirement !== 'string' || !SAFE_OUTPUT_PATTERN.test(requirement)) {
+    throw new Error('npm view returned an invalid @prisma/config -> deepmerge-ts requirement');
+  }
+
+  return requirement;
+}
+
 function parseNpmViewJson(stdout, label) {
   if (typeof stdout !== 'string' || stdout.trim() === '') {
     throw new Error(`npm view returned empty output for ${label}`);
@@ -151,21 +172,13 @@ function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
   const prismaConfigSelector = getPrismaConfigVersionSelector(prismaDependencies);
   const compatiblePrismaConfigVersions = npmView(`@prisma/config@${prismaConfigSelector}`, 'version');
   const latestCompatiblePrismaConfigVersion = selectLatestVersion(compatiblePrismaConfigVersions);
-  const prismaConfigDeepmergeRequirement = npmView(
-    `@prisma/config@${latestCompatiblePrismaConfigVersion}`,
-    'dependencies.deepmerge-ts',
-  );
+  const prismaConfigDependencies = npmView(`@prisma/config@${latestCompatiblePrismaConfigVersion}`, 'dependencies');
+  const prismaConfigDeepmergeRequirement = getPrismaConfigDeepmergeRequirement(prismaConfigDependencies);
 
-  if (
-    typeof prismaConfigDeepmergeRequirement !== 'string' ||
-    !SAFE_OUTPUT_PATTERN.test(prismaConfigDeepmergeRequirement)
-  ) {
-    throw new Error('npm view returned an invalid @prisma/config -> deepmerge-ts requirement');
-  }
-
-  const state = isPatchedDeepmergeRequirement(prismaConfigDeepmergeRequirement)
-    ? 'compatible-forward-remediation-available'
-    : 'compatible-release-still-vulnerable';
+  const state =
+    prismaConfigDeepmergeRequirement === null || isPatchedDeepmergeRequirement(prismaConfigDeepmergeRequirement)
+      ? 'compatible-forward-remediation-available'
+      : 'compatible-release-still-vulnerable';
 
   return {
     state,
@@ -190,7 +203,7 @@ function formatCompatiblePrismaReleaseStatus(status, { json = false } = {}) {
     `latest compatible prisma: ${status.latestCompatiblePrismaVersion}\n` +
     `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
     `latest compatible @prisma/config: ${status.latestCompatiblePrismaConfigVersion}\n` +
-    `@prisma/config -> deepmerge-ts requirement: ${status.prismaConfigDeepmergeRequirement}\n`
+    `@prisma/config -> deepmerge-ts requirement: ${status.prismaConfigDeepmergeRequirement ?? 'absent'}\n`
   );
 }
 
@@ -206,7 +219,7 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
     latest_compatible_prisma_version: status.latestCompatiblePrismaVersion,
     prisma_config_selector: status.prismaConfigSelector,
     latest_compatible_prisma_config_version: status.latestCompatiblePrismaConfigVersion,
-    prisma_config_deepmerge_requirement: status.prismaConfigDeepmergeRequirement,
+    prisma_config_deepmerge_requirement: status.prismaConfigDeepmergeRequirement ?? 'absent',
   };
 
   for (const [key, value] of Object.entries(outputs)) {
@@ -264,6 +277,7 @@ module.exports = {
   NPM_VIEW_TIMEOUT_MS,
   compareComparableSemver,
   formatCompatiblePrismaReleaseStatus,
+  getPrismaConfigDeepmergeRequirement,
   getPrismaConfigVersionSelector,
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
