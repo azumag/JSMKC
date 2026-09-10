@@ -32,6 +32,16 @@ describe('compatible Prisma upstream probe', () => {
     expect(selectLatestVersion(['6.19.3', '6.20.0-dev.1', '6.20.0', '6.19.4'])).toBe('6.20.0');
   });
 
+  it('ignores newer prerelease versions when selecting the remediation candidate', () => {
+    expect(selectLatestVersion(['6.19.3', '6.20.0-dev.10', '6.19.4'])).toBe('6.19.4');
+  });
+
+  it('fails closed when npm only returns prerelease versions', () => {
+    expect(() => selectLatestVersion(['6.20.0-dev.1', '6.20.0-rc.1'])).toThrow(
+      'npm view returned no stable compatible Prisma versions',
+    );
+  });
+
   it('accepts the version-prefixed JSON object shape emitted for npm view ranges', () => {
     expect(
       selectLatestVersion({
@@ -75,6 +85,21 @@ describe('compatible Prisma upstream probe', () => {
     expect(inspectCompatiblePrismaRelease({ manifest, npmView }).state).toBe(
       'compatible-forward-remediation-available',
     );
+  });
+
+  it('does not probe a prerelease even if it is newer than the latest stable version', () => {
+    const npmView = jest.fn((selector: string, field: string) => {
+      if (selector === 'prisma@^6.19.3' && field === 'version') {
+        return ['6.19.3', '6.20.0-dev.10', '6.19.4'];
+      }
+      if (selector === '@prisma/config@6.19.4' && field === 'dependencies.deepmerge-ts') {
+        return '7.1.5';
+      }
+      throw new Error(`unexpected npm view: ${selector} ${field}`);
+    });
+
+    expect(inspectCompatiblePrismaRelease({ manifest, npmView }).latestCompatiblePrismaVersion).toBe('6.19.4');
+    expect(npmView).not.toHaveBeenCalledWith('@prisma/config@6.20.0-dev.10', 'dependencies.deepmerge-ts');
   });
 
   it('pins npm view to the canonical registry and parses JSON output', () => {

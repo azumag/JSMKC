@@ -111,9 +111,14 @@ function selectLatestVersion(npmViewValue) {
 
     return { parsed, version };
   });
+  const stableVersions = parsedVersions.filter(({ parsed }) => parsed.prerelease === null);
 
-  parsedVersions.sort((left, right) => compareComparableSemver(left.parsed, right.parsed));
-  return parsedVersions.at(-1).version;
+  if (stableVersions.length === 0) {
+    throw new Error('npm view returned no stable compatible Prisma versions');
+  }
+
+  stableVersions.sort((left, right) => compareComparableSemver(left.parsed, right.parsed));
+  return stableVersions.at(-1).version;
 }
 
 function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
