@@ -206,8 +206,7 @@ describe('manual security audit review workflow', () => {
       NEXT_MAJOR_PRISMA_CONFIG_SELECTOR: '${{ steps.next_major_upstream.outputs.prisma_config_selector }}',
       LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:
         '${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}',
-      NEXT_MAJOR_DEEPMERGE_REQUIREMENT:
-        '${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}',
+      NEXT_MAJOR_DEEPMERGE_REQUIREMENT: '${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}',
     });
     expect(summaryStep?.run).toContain('Review ref');
     expect(summaryStep?.run).toContain('REVIEW_REF');
