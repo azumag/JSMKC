@@ -164,7 +164,8 @@ export function QualificationScheduleDiagnosticsPanel({
                   Fairness representative BREAK slots: {decision.recommendedBreakSlotPositions.join(', ')}
                 </div>
                 <div className="mt-1 text-muted-foreground">
-                  Lowest-churn fair BREAK slots: {decision.leastDisruptiveFairPlacement.breakSlotPositions.join(', ')}
+                  Lowest-churn fair BREAK slots:{' '}
+                  {decision.leastDisruptiveFairPlacement.breakSlotPositions.join(', ')}
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   Leading-player convention:{' '}
@@ -174,8 +175,8 @@ export function QualificationScheduleDiagnosticsPanel({
                   Fairness representative churn: {decision.recommendedPlacementScheduleImpact.pairDayChangedCount}/
                   {decision.recommendedPlacementScheduleImpact.realMatchCount} Day changes · total shift{' '}
                   {decision.recommendedPlacementScheduleImpact.totalPairDayShift} days ·{' '}
-                  {decision.recommendedPlacementScheduleImpact.pairSideChangedCount} side flips · {decision.remappedPlayerCount}/
-                  {decision.playerCount} seeds remapped
+                  {decision.recommendedPlacementScheduleImpact.pairSideChangedCount} side flips ·{' '}
+                  {decision.remappedPlayerCount}/{decision.playerCount} seeds remapped
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   Lowest-churn fair impact: {decision.leastDisruptiveFairPlacement.scheduleImpact.pairDayChangedCount}/
