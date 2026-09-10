@@ -98,10 +98,25 @@ jobs:
         run: npm run lint
 
       - name: Check formatting of changed files
+        id: format_check
         run: npm run format:check
         env:
           FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Capture Prettier diagnostic
+        if: failure() && steps.format_check.outcome == 'failure'
+        run: |
+          npx prettier --write scripts/security-audit-upstream.js __tests__/scripts/security-audit-upstream.test.ts
+          git diff -- scripts/security-audit-upstream.js __tests__/scripts/security-audit-upstream.test.ts > /tmp/prettier.diff
+
+      - name: Upload Prettier diagnostic
+        if: failure() && steps.format_check.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: prettier-diff
+          path: /tmp/prettier.diff
+          if-no-files-found: error
 
       - name: Unit tests
         # Keep functional validation independent from the dependency audit so a
