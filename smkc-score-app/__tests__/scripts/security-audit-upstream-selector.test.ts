@@ -5,7 +5,7 @@ import {
 } from '../../scripts/security-audit-upstream.js';
 
 describe('compatible Prisma upstream selector boundaries', () => {
-  it.each(['6.19.3', '^6.19.3', '~6.19.3', '>=6.19.3', '<7.0.0', '6.20.0-rc.1']) (
+  it.each(['6.19.3', '^6.19.3', '~6.19.3', '>=6.19.3', '<7.0.0', '6.20.0-rc.1'])(
     'accepts registry SemVer selector %s',
     (selector) => {
       expect(isRegistrySemverSelector(selector)).toBe(true);
