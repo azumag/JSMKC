@@ -5,6 +5,7 @@ import {
   CANONICAL_NPM_REGISTRY,
   NPM_VIEW_TIMEOUT_MS,
   formatCompatiblePrismaReleaseStatus,
+  getPrismaConfigVersionSelector,
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
   runNpmView,
@@ -27,6 +28,17 @@ describe('compatible Prisma upstream probe', () => {
     expect(() =>
       getPrismaVersionSelector({ devDependencies: { prisma: '^6.19.3\n--registry=https://example.test/' } }),
     ).toThrow('devDependencies.prisma');
+  });
+
+  it('reads the @prisma/config selector from Prisma package metadata', () => {
+    expect(getPrismaConfigVersionSelector({ '@prisma/config': '^6.20.0' })).toBe('^6.20.0');
+  });
+
+  it('fails closed when Prisma package metadata does not expose a safe @prisma/config selector', () => {
+    expect(() => getPrismaConfigVersionSelector({})).toThrow('@prisma/config dependency selector');
+    expect(() => getPrismaConfigVersionSelector({ '@prisma/config': '6.20.0\nmalformed' })).toThrow(
+      '@prisma/config dependency selector',
+    );
   });
 
   it('selects the newest comparable stable version', () => {
@@ -57,6 +69,12 @@ describe('compatible Prisma upstream probe', () => {
       if (selector === 'prisma@^6.19.3' && field === 'version') {
         return ['6.19.3'];
       }
+      if (selector === 'prisma@6.19.3' && field === 'dependencies') {
+        return { '@prisma/config': '6.19.3' };
+      }
+      if (selector === '@prisma/config@6.19.3' && field === 'version') {
+        return '6.19.3';
+      }
       if (selector === '@prisma/config@6.19.3' && field === 'dependencies.deepmerge-ts') {
         return '7.1.5';
       }
@@ -68,24 +86,39 @@ describe('compatible Prisma upstream probe', () => {
       registry: CANONICAL_NPM_REGISTRY,
       prismaSelector: '^6.19.3',
       latestCompatiblePrismaVersion: '6.19.3',
+      prismaConfigSelector: '6.19.3',
+      latestCompatiblePrismaConfigVersion: '6.19.3',
       prismaConfigDeepmergeRequirement: '7.1.5',
     });
   });
 
-  it('reports a compatible forward-remediation release only when the Prisma dependency edge is patched', () => {
+  it('follows the Prisma dependency edge instead of assuming @prisma/config shares the Prisma version', () => {
     const npmView = jest.fn((selector: string, field: string) => {
       if (selector === 'prisma@^6.19.3' && field === 'version') {
         return ['6.19.3', '6.20.0'];
       }
-      if (selector === '@prisma/config@6.20.0' && field === 'dependencies.deepmerge-ts') {
+      if (selector === 'prisma@6.20.0' && field === 'dependencies') {
+        return { '@prisma/config': '^6.20.0' };
+      }
+      if (selector === '@prisma/config@^6.20.0' && field === 'version') {
+        return ['6.20.0', '6.20.1'];
+      }
+      if (selector === '@prisma/config@6.20.1' && field === 'dependencies.deepmerge-ts') {
         return '8.0.2';
       }
       throw new Error(`unexpected npm view: ${selector} ${field}`);
     });
 
-    expect(inspectCompatiblePrismaRelease({ manifest, npmView }).state).toBe(
-      'compatible-forward-remediation-available',
-    );
+    expect(inspectCompatiblePrismaRelease({ manifest, npmView })).toEqual({
+      state: 'compatible-forward-remediation-available',
+      registry: CANONICAL_NPM_REGISTRY,
+      prismaSelector: '^6.19.3',
+      latestCompatiblePrismaVersion: '6.20.0',
+      prismaConfigSelector: '^6.20.0',
+      latestCompatiblePrismaConfigVersion: '6.20.1',
+      prismaConfigDeepmergeRequirement: '8.0.2',
+    });
+    expect(npmView).not.toHaveBeenCalledWith('@prisma/config@6.20.0', 'dependencies.deepmerge-ts');
   });
 
   it('does not probe a prerelease even if it is newer than the latest stable version', () => {
@@ -93,13 +126,22 @@ describe('compatible Prisma upstream probe', () => {
       if (selector === 'prisma@^6.19.3' && field === 'version') {
         return ['6.19.3', '6.20.0-dev.10', '6.19.4'];
       }
+      if (selector === 'prisma@6.19.4' && field === 'dependencies') {
+        return { '@prisma/config': '6.19.4' };
+      }
+      if (selector === '@prisma/config@6.19.4' && field === 'version') {
+        return ['6.19.4', '6.20.0-dev.10'];
+      }
       if (selector === '@prisma/config@6.19.4' && field === 'dependencies.deepmerge-ts') {
         return '7.1.5';
       }
       throw new Error(`unexpected npm view: ${selector} ${field}`);
     });
 
-    expect(inspectCompatiblePrismaRelease({ manifest, npmView }).latestCompatiblePrismaVersion).toBe('6.19.4');
+    const status = inspectCompatiblePrismaRelease({ manifest, npmView });
+    expect(status.latestCompatiblePrismaVersion).toBe('6.19.4');
+    expect(status.latestCompatiblePrismaConfigVersion).toBe('6.19.4');
+    expect(npmView).not.toHaveBeenCalledWith('prisma@6.20.0-dev.10', 'dependencies');
     expect(npmView).not.toHaveBeenCalledWith('@prisma/config@6.20.0-dev.10', 'dependencies.deepmerge-ts');
   });
 
@@ -138,11 +180,15 @@ describe('compatible Prisma upstream probe', () => {
       registry: CANONICAL_NPM_REGISTRY,
       prismaSelector: '^6.19.3',
       latestCompatiblePrismaVersion: '6.19.3',
+      prismaConfigSelector: '6.19.3',
+      latestCompatiblePrismaConfigVersion: '6.19.3',
       prismaConfigDeepmergeRequirement: '7.1.5',
     });
 
     expect(text).toContain('compatible Prisma upstream status: compatible-release-still-vulnerable');
     expect(text).toContain('latest compatible prisma: 6.19.3');
+    expect(text).toContain('prisma -> @prisma/config selector: 6.19.3');
+    expect(text).toContain('latest compatible @prisma/config: 6.19.3');
     expect(text).toContain('@prisma/config -> deepmerge-ts requirement: 7.1.5');
   });
 
@@ -157,6 +203,8 @@ describe('compatible Prisma upstream probe', () => {
           registry: CANONICAL_NPM_REGISTRY,
           prismaSelector: '^6.19.3',
           latestCompatiblePrismaVersion: '6.19.3',
+          prismaConfigSelector: '6.19.3',
+          latestCompatiblePrismaConfigVersion: '6.19.3',
           prismaConfigDeepmergeRequirement: '7.1.5',
         },
         outputPath,
@@ -165,6 +213,8 @@ describe('compatible Prisma upstream probe', () => {
       const output = fs.readFileSync(outputPath, 'utf8');
       expect(output).toContain('state=compatible-release-still-vulnerable\n');
       expect(output).toContain('latest_compatible_prisma_version=6.19.3\n');
+      expect(output).toContain('prisma_config_selector=6.19.3\n');
+      expect(output).toContain('latest_compatible_prisma_config_version=6.19.3\n');
       expect(output).toContain('prisma_config_deepmerge_requirement=7.1.5\n');
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
