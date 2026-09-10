@@ -18,6 +18,10 @@ describe('QualificationScheduleDiagnosticsPanel low-churn CDM candidate evidence
     expect(evidence).toHaveTextContent(
       'Lowest-churn fair impact: 56/78 Day changes · total shift 218 days · 27 side flips · 6/13 seeds remapped · max slot shift +2',
     );
+    expect(evidence).toHaveTextContent('Lowest-churn seed remap (6)');
+    expect(evidence).toHaveTextContent(
+      'S8→9 (+1) · S9→10 (+1) · S10→11 (+1) · S11→13 (+2) · S12→14 (+2) · S13→15 (+2)',
+    );
     expect(evidence).toHaveTextContent(
       'Blocking decisions: break-slot-placement, day-order-fidelity, side-orientation-fidelity',
     );
