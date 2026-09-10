@@ -127,7 +127,9 @@ describe('manual security audit review workflow', () => {
     expect(steps.indexOf(summaryStep as WorkflowStep)).toBeLessThan(steps.indexOf(gateStep as WorkflowStep));
   });
 
-  it('documents the self-describing exception identity, deadline distance, dependency edge outputs, and compatible upstream probe', () => {
+  it('documents the self-describing exception identity, source revision, deadline distance, dependency edge outputs, and compatible upstream probe', () => {
+    expect(runbook).toContain('Review ref');
+    expect(runbook).toContain('Review commit');
     expect(runbook).toContain('`tracking_issue`');
     expect(runbook).toContain('`advisory`');
     expect(runbook).toContain('`advisory_range`');
@@ -145,11 +147,13 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('期限超過後を負数');
   });
 
-  it('always publishes read-only review evidence, exception identity, dependency versions, and the Prisma dependency edge', () => {
+  it('always publishes read-only review evidence, source revision, exception identity, dependency versions, and the Prisma dependency edge', () => {
     const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(summaryStep?.if).toBe('always()');
     expect(summaryStep?.env).toEqual({
+      REVIEW_REF: '${{ github.ref }}',
+      REVIEW_SHA: '${{ github.sha }}',
       LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
       EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
       EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
@@ -175,6 +179,10 @@ describe('manual security audit review workflow', () => {
       LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:
         '${{ steps.compatible_upstream.outputs.prisma_config_deepmerge_requirement }}',
     });
+    expect(summaryStep?.run).toContain('Review ref');
+    expect(summaryStep?.run).toContain('REVIEW_REF');
+    expect(summaryStep?.run).toContain('Review commit');
+    expect(summaryStep?.run).toContain('REVIEW_SHA');
     expect(summaryStep?.run).toContain('Tracking issue');
     expect(summaryStep?.run).toContain('Tracked advisory');
     expect(summaryStep?.run).toContain('EXCEPTION_TRACKING_ISSUE');

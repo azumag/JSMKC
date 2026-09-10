@@ -56,6 +56,8 @@ jobs:
       - name: "Summarize #3114 review evidence"
         if: always()
         env:
+          REVIEW_REF: ${{ github.ref }}
+          REVIEW_SHA: ${{ github.sha }}
           LOCKFILE_PREFLIGHT_OUTCOME: ${{ steps.lockfile_preflight.outcome }}
           EXCEPTION_STATUS_OUTCOME: ${{ steps.exception_status.outcome }}
           EXCEPTION_STATUS_STATE: ${{ steps.exception_status.outputs.state }}
@@ -81,6 +83,10 @@ jobs:
         run: |
           {
             echo "## #3114 security audit review"
+            echo
+            echo "Review ref: \`${REVIEW_REF:-unavailable}\`"
+            echo
+            echo "Review commit: \`${REVIEW_SHA:-unavailable}\`"
             echo
             echo "| Check | Outcome |"
             echo "| --- | --- |"
