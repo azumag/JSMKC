@@ -94,7 +94,7 @@ describe('next-major Prisma upstream probe', () => {
 
     expect(text).toContain('current manifest prisma selector: ^6.19.3');
     expect(text).toContain('next-major prisma selector: ^7.0.0');
-    expect(text).toContain('latest compatible prisma: 7.10.0');
+    expect(text).toContain('latest next-major prisma: 7.10.0');
     expect(text).not.toContain('updated package.json');
   });
 
@@ -122,6 +122,31 @@ describe('next-major Prisma upstream probe', () => {
       expect(output).toContain('prisma_selector=^7.0.0\n');
       expect(output).toContain('state=compatible-forward-remediation-available\n');
       expect(output).toContain('prisma_config_deepmerge_requirement=8.0.2\n');
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unsafe current selectors before writing workflow outputs', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'security-audit-next-major-'));
+    const outputPath = path.join(directory, 'github-output.txt');
+
+    try {
+      expect(() =>
+        writeNextMajorGitHubOutputs(
+          {
+            state: 'compatible-forward-remediation-available',
+            registry: 'https://registry.npmjs.org/',
+            currentPrismaSelector: '^6.19.3\nmalformed',
+            prismaSelector: '^7.0.0',
+            latestCompatiblePrismaVersion: '7.10.0',
+            prismaConfigSelector: '7.10.0',
+            latestCompatiblePrismaConfigVersion: '7.10.0',
+            prismaConfigDeepmergeRequirement: '8.0.2',
+          },
+          outputPath,
+        ),
+      ).toThrow('current_prisma_selector');
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
