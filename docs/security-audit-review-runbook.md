@@ -1,6 +1,6 @@
 # #3114 security audit review runbook
 
-`Security audit review` は、Prisma → `@prisma/config` → `deepmerge-ts` の期限付き audit 例外を再評価するための手動 GitHub Actions workflow です。定期実行や repository の変更は行わず、`contents: read` のみで監査証拠を収集します。
+`Security audit review` は、Prisma → `@prisma/config` → `deepmerge-ts` の期限付き audit 例外を再評価するための手動 GitHub Actions workflow です。定期実行や repository の変更は行わず、`contents: read` のみで監査証拠を収集します。手動レビューがネットワーク停止などで長時間ぶら下がらないよう、job 全体には30分の実行上限を設定しています。
 
 ## 実行結果の読み方
 
