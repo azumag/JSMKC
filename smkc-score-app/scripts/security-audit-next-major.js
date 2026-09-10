@@ -2,7 +2,6 @@
 
 const fs = require('node:fs');
 const {
-  formatCompatiblePrismaReleaseStatus,
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
   parseCliOptions,
@@ -48,9 +47,14 @@ function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
   }
 
   return (
+    `next-major Prisma upstream status: ${status.state}\n` +
+    `registry: ${status.registry}\n` +
     `current manifest prisma selector: ${status.currentPrismaSelector}\n` +
     `next-major prisma selector: ${status.prismaSelector}\n` +
-    formatCompatiblePrismaReleaseStatus(status)
+    `latest next-major prisma: ${status.latestCompatiblePrismaVersion}\n` +
+    `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
+    `latest next-major @prisma/config: ${status.latestCompatiblePrismaConfigVersion}\n` +
+    `@prisma/config -> deepmerge-ts requirement: ${status.prismaConfigDeepmergeRequirement ?? 'absent'}\n`
   );
 }
 
