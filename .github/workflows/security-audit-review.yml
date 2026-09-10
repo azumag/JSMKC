@@ -69,6 +69,12 @@ jobs:
         if: always()
         run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
+      - id: prisma_v7_readiness
+        name: Inspect Prisma 7 migration readiness
+        if: always()
+        continue-on-error: true
+        run: node scripts/prisma-v7-readiness.cjs
+
       - name: "Summarize #3114 review evidence"
         if: always()
         env:
@@ -105,6 +111,7 @@ jobs:
           NEXT_MAJOR_PRISMA_CONFIG_SELECTOR: ${{ steps.next_major_upstream.outputs.prisma_config_selector }}
           LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION: ${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}
           NEXT_MAJOR_DEEPMERGE_REQUIREMENT: ${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}
+          PRISMA_V7_READINESS_OUTCOME: ${{ steps.prisma_v7_readiness.outcome }}
         run: |
           {
             echo "## #3114 security audit review"
@@ -124,6 +131,7 @@ jobs:
             echo "| Canonical npm audit | \`${CANONICAL_AUDIT_OUTCOME}\` |"
             echo "| Compatible Prisma release probe | \`${COMPATIBLE_UPSTREAM_OUTCOME}\` |"
             echo "| Next-major Prisma remediation probe | \`${NEXT_MAJOR_UPSTREAM_OUTCOME}\` |"
+            echo "| Prisma 7 migration readiness probe | \`${PRISMA_V7_READINESS_OUTCOME}\` |"
             echo
             echo "Tracking issue: \`#${EXCEPTION_TRACKING_ISSUE:-unavailable}\`"
             echo
@@ -165,7 +173,7 @@ jobs:
             echo "| Latest next-major @prisma/config | \`${LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| Next-major @prisma/config → deepmerge-ts requirement | \`${NEXT_MAJOR_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
             echo
-            echo "Next-major evidence is advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
+            echo "Next-major and Prisma 7 readiness evidence are advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"
