@@ -30,11 +30,9 @@ function parseNpmViewJson(stdout, label) {
 }
 
 function runNpmView(selector, field, spawn = spawnSync) {
-  const result = spawn(
-    'npm',
-    ['view', selector, field, '--json', `--registry=${CANONICAL_NPM_REGISTRY}`],
-    { encoding: 'utf8' },
-  );
+  const result = spawn('npm', ['view', selector, field, '--json', `--registry=${CANONICAL_NPM_REGISTRY}`], {
+    encoding: 'utf8',
+  });
 
   if (result.error) {
     throw new Error(`failed to run npm view for ${selector}: ${result.error.message}`);
