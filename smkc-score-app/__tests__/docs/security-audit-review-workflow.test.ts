@@ -27,6 +27,8 @@ interface PackageManifest {
   packageManager?: string;
 }
 
+const REVIEWED_SETUP_NODE_V5_SHA = 'a0853c24544627f65ddf259abe73b1d18a591444';
+
 describe('manual security audit review workflow', () => {
   const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'security-audit-review.yml');
   const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
@@ -66,7 +68,7 @@ describe('manual security audit review workflow', () => {
     expect(packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);
 
     const steps = auditJob.steps ?? [];
-    const setupNodeStep = steps.find((step) => step.uses === 'actions/setup-node@v5');
+    const setupNodeStep = steps.find((step) => step.uses === `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`);
     const pinStep = steps.find((step) => step.run?.includes('npm install --global npm@'));
     const installStep = steps.find((step) => step.run?.trim() === 'npm ci');
 
