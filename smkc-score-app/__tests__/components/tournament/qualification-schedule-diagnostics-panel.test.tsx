@@ -112,7 +112,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(evidence).toHaveTextContent('13 players');
     expect(evidence).toHaveTextContent('16-slot raw fixture');
     expect(evidence).toHaveTextContent('Conventional BREAK slots: 14, 15, 16');
-    expect(evidence).toHaveTextContent('Recommended BREAK slots: 1, 5, 9');
+    expect(evidence).toHaveTextContent('Fairness representative BREAK slots: 1, 5, 9');
     expect(evidence).toHaveTextContent('Leading-player convention: slot remapping required');
     expect(evidence).toHaveTextContent('Max consecutive BREAK days: 3 → 1');
     expect(evidence).toHaveTextContent('Minimum player BREAK gap: 4 days');
