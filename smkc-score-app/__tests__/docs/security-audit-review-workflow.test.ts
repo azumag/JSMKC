@@ -69,13 +69,13 @@ describe('manual security audit review workflow', () => {
 
     const steps = auditJob.steps ?? [];
     const setupNodeStep = steps.find((step) => step.uses === `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`);
-    const pinStep = steps.find((step) => step.run?.includes('npm install --global npm@'));
+    const pinStep = steps.find((step) => step.name === 'Pin npm');
     const installStep = steps.find((step) => step.run?.trim() === 'npm ci');
 
     expect(setupNodeStep?.with).toEqual({ 'node-version': '22' });
     expect(pinStep).toBeDefined();
     expect(installStep).toBeUndefined();
-    expect(pinStep?.run).toContain(`npm install --global ${packageManager}`);
+    expect(pinStep?.run).toContain(`npm install --global --ignore-scripts --no-audit --no-fund ${packageManager}`);
     expect(pinStep?.run).toContain(`test "$(npm --version)" = "${packageManager?.replace(/^npm@/, '')}"`);
   });
 
@@ -139,6 +139,7 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('compatible-forward-remediation-available');
     expect(runbook).toContain('compatible upstream gate');
     expect(runbook).toContain('`npm ci` は実行しません');
+    expect(runbook).toContain('`--ignore-scripts --no-audit --no-fund`');
     expect(runbook).toContain('期限前を正数');
     expect(runbook).toContain('期限当日を `0`');
     expect(runbook).toContain('期限超過後を負数');
