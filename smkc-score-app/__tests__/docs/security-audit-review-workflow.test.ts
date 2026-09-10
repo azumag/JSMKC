@@ -113,6 +113,8 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('`advisory_range`');
     expect(runbook).toContain('`days_until_deadline`');
     expect(runbook).toContain('`prisma_config_deepmerge_requirement`');
+    expect(runbook).toContain('`prisma_config_selector`');
+    expect(runbook).toContain('`latest_compatible_prisma_config_version`');
     expect(runbook).toContain('`security-audit-upstream.js`');
     expect(runbook).toContain('compatible-forward-remediation-available');
     expect(runbook).toContain('期限前を正数');
@@ -144,6 +146,9 @@ describe('manual security audit review workflow', () => {
       COMPATIBLE_UPSTREAM_REGISTRY: '${{ steps.compatible_upstream.outputs.registry }}',
       PRISMA_SELECTOR: '${{ steps.compatible_upstream.outputs.prisma_selector }}',
       LATEST_COMPATIBLE_PRISMA_VERSION: '${{ steps.compatible_upstream.outputs.latest_compatible_prisma_version }}',
+      PRISMA_CONFIG_SELECTOR: '${{ steps.compatible_upstream.outputs.prisma_config_selector }}',
+      LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION:
+        '${{ steps.compatible_upstream.outputs.latest_compatible_prisma_config_version }}',
       LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:
         '${{ steps.compatible_upstream.outputs.prisma_config_deepmerge_requirement }}',
     });
@@ -164,6 +169,8 @@ describe('manual security audit review workflow', () => {
     expect(summaryStep?.run).toContain('Compatible Prisma release probe');
     expect(summaryStep?.run).toContain('COMPATIBLE_UPSTREAM_STATE');
     expect(summaryStep?.run).toContain('LATEST_COMPATIBLE_PRISMA_VERSION');
+    expect(summaryStep?.run).toContain('PRISMA_CONFIG_SELECTOR');
+    expect(summaryStep?.run).toContain('LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION');
     expect(summaryStep?.run).toContain('LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT');
     expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
     expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');

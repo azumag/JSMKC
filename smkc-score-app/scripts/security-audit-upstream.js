@@ -18,6 +18,16 @@ function getPrismaVersionSelector(manifest) {
   return selector;
 }
 
+function getPrismaConfigVersionSelector(prismaDependencies) {
+  const selector = prismaDependencies?.['@prisma/config'];
+
+  if (typeof selector !== 'string' || !SAFE_OUTPUT_PATTERN.test(selector)) {
+    throw new Error('Prisma package metadata must contain a safe @prisma/config dependency selector');
+  }
+
+  return selector;
+}
+
 function parseNpmViewJson(stdout, label) {
   if (typeof stdout !== 'string' || stdout.trim() === '') {
     throw new Error(`npm view returned empty output for ${label}`);
@@ -127,8 +137,12 @@ function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
   const prismaSelector = getPrismaVersionSelector(manifest);
   const compatibleVersions = npmView(`prisma@${prismaSelector}`, 'version');
   const latestCompatiblePrismaVersion = selectLatestVersion(compatibleVersions);
+  const prismaDependencies = npmView(`prisma@${latestCompatiblePrismaVersion}`, 'dependencies');
+  const prismaConfigSelector = getPrismaConfigVersionSelector(prismaDependencies);
+  const compatiblePrismaConfigVersions = npmView(`@prisma/config@${prismaConfigSelector}`, 'version');
+  const latestCompatiblePrismaConfigVersion = selectLatestVersion(compatiblePrismaConfigVersions);
   const prismaConfigDeepmergeRequirement = npmView(
-    `@prisma/config@${latestCompatiblePrismaVersion}`,
+    `@prisma/config@${latestCompatiblePrismaConfigVersion}`,
     'dependencies.deepmerge-ts',
   );
 
@@ -148,6 +162,8 @@ function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
     registry: CANONICAL_NPM_REGISTRY,
     prismaSelector,
     latestCompatiblePrismaVersion,
+    prismaConfigSelector,
+    latestCompatiblePrismaConfigVersion,
     prismaConfigDeepmergeRequirement,
   };
 }
@@ -158,6 +174,8 @@ function formatCompatiblePrismaReleaseStatus(status) {
     `registry: ${status.registry}\n` +
     `manifest prisma selector: ${status.prismaSelector}\n` +
     `latest compatible prisma: ${status.latestCompatiblePrismaVersion}\n` +
+    `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
+    `latest compatible @prisma/config: ${status.latestCompatiblePrismaConfigVersion}\n` +
     `@prisma/config -> deepmerge-ts requirement: ${status.prismaConfigDeepmergeRequirement}\n`
   );
 }
@@ -172,6 +190,8 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
     registry: status.registry,
     prisma_selector: status.prismaSelector,
     latest_compatible_prisma_version: status.latestCompatiblePrismaVersion,
+    prisma_config_selector: status.prismaConfigSelector,
+    latest_compatible_prisma_config_version: status.latestCompatiblePrismaConfigVersion,
     prisma_config_deepmerge_requirement: status.prismaConfigDeepmergeRequirement,
   };
 
@@ -221,6 +241,7 @@ module.exports = {
   NPM_VIEW_TIMEOUT_MS,
   compareComparableSemver,
   formatCompatiblePrismaReleaseStatus,
+  getPrismaConfigVersionSelector,
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
   normalizeVersionCandidates,
