@@ -2,6 +2,8 @@
 
 `Security audit review` は、Prisma → `@prisma/config` → `deepmerge-ts` の期限付き audit 例外を再評価するための手動 GitHub Actions workflow です。定期実行や repository の変更は行わず、`contents: read` のみで監査証拠を収集します。手動レビューがネットワーク停止などで長時間ぶら下がらないよう、job 全体には30分の実行上限を設定しています。
 
+この workflow では `npm ci` は実行しません。lockfile/status/upstream の各 probe は repository 内の Node.js script と `package.json` / `package-lock.json` だけで動作し、canonical audit も検証済み manifest/lockfile snapshot に対する `npm audit --package-lock-only`、upstream probe も pinned npm CLI の `npm view` だけを使うため、`node_modules` は不要です。依存ツリーをインストールしないことで、監査だけの workflow で `postinstall` / `prepare` などの dependency lifecycle script を実行せず、不要な dependency download と npm cache restore も避けます。npm CLI 自体は `packageManager` と同じ version に pin してから監査します。
+
 ## 実行結果の読み方
 
 workflow は `smkc-score-app/` で次の順序を実行します。
