@@ -25,6 +25,14 @@ export interface RecommendedPlacementScheduleImpact {
   pairDayAndSideUnchangedCount: number;
 }
 
+export interface FairnessEquivalentLowChurnPlacement {
+  breakSlotPositions: number[];
+  playerSlotAssignments: RecommendedPlayerSlotAssignment[];
+  remappedPlayerCount: number;
+  maximumPlayerSlotShift: number;
+  scheduleImpact: RecommendedPlacementScheduleImpact;
+}
+
 export type UnsupportedCdmCandidateBlockingDecision =
   'break-slot-placement' | 'pair-set-fidelity' | 'day-order-fidelity' | 'side-orientation-fidelity';
 
@@ -37,6 +45,7 @@ export interface UnsupportedCdmFixtureCandidateDecision {
   remappedPlayerCount: number;
   maximumPlayerSlotShift: number;
   recommendedPlacementScheduleImpact: RecommendedPlacementScheduleImpact;
+  leastDisruptiveFairPlacement: FairnessEquivalentLowChurnPlacement;
   blockingDecisions: UnsupportedCdmCandidateBlockingDecision[];
   candidateImpact: UnsupportedCdmFixtureCandidateImpact;
   breakPlacementOptimization: UnsupportedCdmBreakPlacementOptimization;
@@ -50,6 +59,15 @@ interface ComparableFixtureMatch {
 
 function numberArraysEqual(left: readonly number[], right: readonly number[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function compareNumberArrays(left: readonly number[], right: readonly number[]) {
+  const length = Math.min(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+
+  return left.length - right.length;
 }
 
 function pairKey(player1Seed: number, player2Seed: number) {
@@ -163,6 +181,50 @@ function compareFixturePlacements(
   };
 }
 
+function buildFairnessEquivalentPlacementEvaluation(
+  playerCount: number,
+  fixtureCapacity: number,
+  conventionalBreakSlotPositions: readonly number[],
+  breakSlotPositions: readonly number[],
+): FairnessEquivalentLowChurnPlacement | null {
+  const playerSlotAssignments = buildRecommendedPlayerSlotAssignments(playerCount, fixtureCapacity, breakSlotPositions);
+  const scheduleImpact = compareFixturePlacements(
+    playerCount,
+    fixtureCapacity,
+    conventionalBreakSlotPositions,
+    breakSlotPositions,
+  );
+  if (!playerSlotAssignments || !scheduleImpact) return null;
+
+  return {
+    breakSlotPositions: [...breakSlotPositions],
+    playerSlotAssignments,
+    remappedPlayerCount: playerSlotAssignments.filter(({ slotShift }) => slotShift !== 0).length,
+    maximumPlayerSlotShift: Math.max(0, ...playerSlotAssignments.map(({ slotShift }) => slotShift)),
+    scheduleImpact,
+  };
+}
+
+function compareFairnessEquivalentScheduleChurn(
+  left: FairnessEquivalentLowChurnPlacement,
+  right: FairnessEquivalentLowChurnPlacement,
+) {
+  const comparisons = [
+    left.scheduleImpact.pairSetDifferenceCount - right.scheduleImpact.pairSetDifferenceCount,
+    left.scheduleImpact.pairDayChangedCount - right.scheduleImpact.pairDayChangedCount,
+    left.scheduleImpact.totalPairDayShift - right.scheduleImpact.totalPairDayShift,
+    left.scheduleImpact.pairSideChangedCount - right.scheduleImpact.pairSideChangedCount,
+    left.scheduleImpact.maxPairDayShift - right.scheduleImpact.maxPairDayShift,
+    left.remappedPlayerCount - right.remappedPlayerCount,
+    left.maximumPlayerSlotShift - right.maximumPlayerSlotShift,
+  ];
+
+  return (
+    comparisons.find((comparison) => comparison !== 0) ??
+    compareNumberArrays(left.breakSlotPositions, right.breakSlotPositions)
+  );
+}
+
 function buildBlockingDecisions(
   recommendedPlacementUsesLeadingPlayerConvention: boolean,
   scheduleImpact: RecommendedPlacementScheduleImpact,
@@ -188,9 +250,12 @@ function buildBlockingDecisions(
  *
  * This helper also compares the two placements using the raw fixture so the
  * Day and 1P/2P churn implied by a fairness-oriented remap is visible before a
- * production scheduling decision is made. `blockingDecisions` converts those
- * observed differences into stable machine-readable policy questions without
- * choosing an answer on behalf of tournament operations.
+ * production scheduling decision is made. The optimizer's fairness score can
+ * have multiple ties, so `leastDisruptiveFairPlacement` separately identifies
+ * the fairness-equivalent placement with the lowest observed schedule churn.
+ * It does not weaken the fairness criteria or enable the candidate.
+ * `blockingDecisions` converts observed differences into stable machine-readable
+ * policy questions without choosing an answer on behalf of tournament operations.
  *
  * This helper does not add a generator mapping, alter qualification policy, or
  * persist a schedule.
@@ -226,6 +291,21 @@ export function buildUnsupportedCdmFixtureCandidateDecision(
   );
   if (!recommendedPlayerSlotAssignments || !recommendedPlacementScheduleImpact) return null;
 
+  const fairnessEquivalentPlacements = breakPlacementOptimization.recommendedScoreBreakSlotPositions.map(
+    (breakSlotPositions) =>
+      buildFairnessEquivalentPlacementEvaluation(
+        playerCount,
+        candidateImpact.fixtureCapacity,
+        conventionalBreakSlotPositions,
+        breakSlotPositions,
+      ),
+  );
+  if (fairnessEquivalentPlacements.some((placement) => placement === null)) return null;
+  const leastDisruptiveFairPlacement = (fairnessEquivalentPlacements as FairnessEquivalentLowChurnPlacement[]).sort(
+    compareFairnessEquivalentScheduleChurn,
+  )[0];
+  if (!leastDisruptiveFairPlacement) return null;
+
   return {
     playerCount,
     conventionalBreakSlotPositions,
@@ -235,6 +315,7 @@ export function buildUnsupportedCdmFixtureCandidateDecision(
     remappedPlayerCount: recommendedPlayerSlotAssignments.filter(({ slotShift }) => slotShift !== 0).length,
     maximumPlayerSlotShift: Math.max(0, ...recommendedPlayerSlotAssignments.map(({ slotShift }) => slotShift)),
     recommendedPlacementScheduleImpact,
+    leastDisruptiveFairPlacement,
     blockingDecisions: buildBlockingDecisions(
       recommendedPlacementUsesLeadingPlayerConvention,
       recommendedPlacementScheduleImpact,

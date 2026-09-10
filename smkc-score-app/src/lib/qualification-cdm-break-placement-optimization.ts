@@ -16,6 +16,7 @@ export interface UnsupportedCdmBreakPlacementOptimization {
   placementCountAtMaximumPlayerBreakGap: number;
   maximumMinimumBreakOnlyDayGap: number;
   placementCountAtRecommendedScore: number;
+  recommendedScoreBreakSlotPositions: number[][];
   recommendedBreakSlotPositions: number[];
   recommendedBreakOnlyDays: number[];
   recommendedBreakDaysByPlayerSeed: PlayerBreakDayPlan[];
@@ -153,6 +154,10 @@ function scoreBreakPlacement(
  * 3. maximize the minimum gap between days containing BREAK-vs-BREAK rows;
  * 4. use the lexicographically smallest 1-based BREAK-slot positions as a
  *    deterministic tie-breaker.
+ *
+ * All placements tied after steps 1-3 are returned in
+ * `recommendedScoreBreakSlotPositions` so callers can evaluate secondary,
+ * non-fairness trade-offs without weakening the fairness score.
  */
 export function optimizeUnsupportedCdmBreakPlacement(
   playerCount: number,
@@ -204,6 +209,7 @@ export function optimizeUnsupportedCdmBreakPlacement(
     placementCountAtMaximumPlayerBreakGap: maximumPlayerBreakGapPlacements.length,
     maximumMinimumBreakOnlyDayGap,
     placementCountAtRecommendedScore: recommendedScorePlacements.length,
+    recommendedScoreBreakSlotPositions: recommendedScorePlacements.map(({ breakSlotPositions }) => breakSlotPositions),
     recommendedBreakSlotPositions: recommended.breakSlotPositions,
     recommendedBreakOnlyDays: recommended.breakOnlyDays,
     recommendedBreakDaysByPlayerSeed: recommended.breakDaysByPlayerSeed,

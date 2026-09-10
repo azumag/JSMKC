@@ -43,6 +43,25 @@ Issue #3054 の 13 名ケースについて、既存の raw fixture impact と B
 
 このため、公平性推奨 `[1, 5, 9]` は「休み方だけを改善して通常対戦順はほぼ維持する」変更ではありません。pair集合は維持されますが、**72/78対戦のDayが変わり、34/78対戦で1P/2Pも反転**します。Issue #3054 の「CDM方式」を対戦pair集合だけとみなすのか、Day順・1P/2Pまで既存fixture規約として固定するのかは、13名対応の実装前に明示的に決める必要があります。
 
+## 同じ公平性score内での schedule churn 最小化
+
+公平性の評価軸（最大連続BREAK、全選手の最小BREAK間隔、BREAK-only Dayの最小間隔）だけでは最良配置が **16通り** 同率になります。従来の `recommendedBreakSlotPositions = [1, 5, 9]` は、その16通りから辞書順最小を決定的代表値として選んだものです。つまり `[1, 5, 9]` だけが公平という意味ではありません。
+
+`recommendedScoreBreakSlotPositions` で16通りすべてを返し、その中から現行の末尾BREAK `[14, 15, 16]` に対する schedule churn が最小のものを別途 `leastDisruptiveFairPlacement` として評価します。公平性scoreは一切弱めず、二次評価として pair集合差分、Day変更対戦数、Day shift合計、1P/2P反転数、最大Day shift、seed-to-slot remap量の順で比較します。
+
+13名では **`[8, 12, 16]`** が最小churn候補になります。この配置も最大連続BREAK **1 Day**、全選手の最小BREAK間隔 **4 Day**、BREAK-only Day最小間隔 **4 Day** を満たします。一方、辞書順代表 `[1, 5, 9]` と比べると既存fixtureからの変更量をかなり抑えられます。
+
+| 指標                   | 公平性代表 `[1,5,9]` | 最小churn公平配置 `[8,12,16]` |
+| ---------------------- | -------------------: | ----------------------------: |
+| Dayが変わる対戦        |              72 / 78 |                   **56 / 78** |
+| Day shift合計          |              314 Day |                   **218 Day** |
+| 1P/2Pが反転する対戦    |              34 / 78 |                   **27 / 78** |
+| Day・1P/2Pとも完全一致 |               2 / 78 |                   **21 / 78** |
+| remapされるseed        |              13 / 13 |                    **6 / 13** |
+| 最大fixture-slot shift |                   +3 |                        **+2** |
+
+`[8, 12, 16]` でも Day変更56件、side反転27件は残るため、Day順・side orientation の仕様判断自体は消えません。ただし「公平性を優先すると必然的に72件のDay変更・全seed remapが必要」というわけではなく、**同じ公平性scoreの範囲で既存fixtureへの変更量をかなり削減できる**ことが分かります。13名対応を実装する場合は、辞書順代表ではなくこの低churn候補を比較対象に含める価値があります。
+
 ## Machine-readable blocking decisions
 
 数値を読むだけでなく、どの大会ルール判断が実装を止めているかを API 利用側で直接扱えるよう、`blockingDecisions` を返します。これは既存の差分から機械的に導出するだけで、どの選択肢を採用すべきかは決定しません。
@@ -59,6 +78,8 @@ Issue #3054 の 13 名ケースについて、既存の raw fixture impact と B
 
 - 現行規約の BREAK slot positions: 14, 15, 16
 - 推奨 BREAK slot positions: 1, 5, 9
+- 同じ公平性scoreの全 BREAK slot positions
+- 同じ公平性score内の最小schedule-churn候補: 8, 12, 16
 - 推奨配置での seed-to-fixture-slot 対応
 - remap対象: 13 / 13 players
 - 最大 fixture-slot shift: +3
@@ -72,6 +93,6 @@ Issue #3054 の 13 名ケースについて、既存の raw fixture impact と B
 - 推奨配置の BREAK × BREAK Day: 4, 8, 12
 - seedごとの推奨 BREAK Day
 
-BREAK配置に関する主要な判断材料は管理者向け qualification schedule diagnostics panel にも表示します。APIレスポンスを直接読まなくても、現行規約と推奨配置の BREAK slot、最大連続BREAK、最小BREAK間隔、BREAK-only Day、全探索件数を大会管理画面から確認できます。pair集合・Day shift・1P/2P反転数と `blockingDecisions` の詳細は `unsupportedCdmFixtureCandidateDecisions` で確認できます。どちらも読み取り専用で、候補配置を採用したり対戦を再生成したりする操作は行いません。
+BREAK配置に関する主要な判断材料は管理者向け qualification schedule diagnostics panel にも表示します。APIレスポンスを直接読まなくても、現行規約と推奨配置の BREAK slot、最大連続BREAK、最小BREAK間隔、BREAK-only Day、全探索件数を大会管理画面から確認できます。pair集合・Day shift・1P/2P反転数、同率公平性候補と `leastDisruptiveFairPlacement`、`blockingDecisions` の詳細は `unsupportedCdmFixtureCandidateDecisions` で確認できます。どちらも読み取り専用で、候補配置を採用したり対戦を再生成したりする操作は行いません。
 
 したがって、実装着手前に最低でも「CDMのseed-to-slot対応を固定するか」「休養配置の公平性を優先してBREAK slotを途中へ挿入してよいか」「Day順と1P/2P配置までCDM規約として固定するか」を大会ルールとして決める必要があります。本診断はその判断材料を一箇所へ集約するだけで、13名をCDM生成可能にはしません。
