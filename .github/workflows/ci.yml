@@ -94,6 +94,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Diagnose candidate formatting
+        run: |
+          npx prettier src/lib/qualification-cdm-candidate-decision.ts > /tmp/qualification-cdm-candidate-decision.ts
+          diff -u src/lib/qualification-cdm-candidate-decision.ts /tmp/qualification-cdm-candidate-decision.ts || true
+
       - name: Lint
         run: npm run lint
 
