@@ -103,6 +103,13 @@ jobs:
           FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Diagnose compatible probe formatting
+        if: failure()
+        run: |
+          npx prettier --write scripts/security-audit-upstream.js
+          git diff -- scripts/security-audit-upstream.js
+          exit 1
+
       - name: Unit tests
         # Keep functional validation independent from the dependency audit so a
         # pre-existing advisory does not hide regressions in the PR under test.
