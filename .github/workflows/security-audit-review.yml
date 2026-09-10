@@ -69,6 +69,12 @@ jobs:
         if: always()
         run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
+      - id: prisma_v7_readiness
+        name: Inspect Prisma 7 migration readiness
+        if: always()
+        continue-on-error: true
+        run: node scripts/prisma-v7-readiness.cjs
+
       - name: "Summarize #3114 review evidence"
         if: always()
         env:
@@ -165,7 +171,7 @@ jobs:
             echo "| Latest next-major @prisma/config | \`${LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| Next-major @prisma/config → deepmerge-ts requirement | \`${NEXT_MAJOR_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
             echo
-            echo "Next-major evidence is advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
+            echo "Next-major and Prisma 7 readiness evidence are advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"
