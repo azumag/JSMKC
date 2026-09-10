@@ -68,9 +68,7 @@ describe('manual security audit review workflow', () => {
     expect(packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);
 
     const steps = auditJob.steps ?? [];
-    const setupNodeStep = steps.find(
-      (step) => step.uses === `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`,
-    );
+    const setupNodeStep = steps.find((step) => step.uses === `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`);
     const pinStep = steps.find((step) => step.run?.includes('npm install --global npm@'));
     const installStep = steps.find((step) => step.run?.trim() === 'npm ci');
 
