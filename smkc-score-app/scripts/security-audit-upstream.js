@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./security-audit-status.js');
 
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
+const NPM_VIEW_TIMEOUT_MS = 60_000;
 const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
 
 function getPrismaVersionSelector(manifest) {
@@ -32,6 +33,7 @@ function parseNpmViewJson(stdout, label) {
 function runNpmView(selector, field, spawn = spawnSync) {
   const result = spawn('npm', ['view', selector, field, '--json', `--registry=${CANONICAL_NPM_REGISTRY}`], {
     encoding: 'utf8',
+    timeout: NPM_VIEW_TIMEOUT_MS,
   });
 
   if (result.error) {
@@ -216,6 +218,7 @@ if (require.main === module) {
 
 module.exports = {
   CANONICAL_NPM_REGISTRY,
+  NPM_VIEW_TIMEOUT_MS,
   compareComparableSemver,
   formatCompatiblePrismaReleaseStatus,
   getPrismaVersionSelector,

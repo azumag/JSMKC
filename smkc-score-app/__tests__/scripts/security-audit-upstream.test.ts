@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import {
   CANONICAL_NPM_REGISTRY,
+  NPM_VIEW_TIMEOUT_MS,
   formatCompatiblePrismaReleaseStatus,
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
@@ -102,7 +103,7 @@ describe('compatible Prisma upstream probe', () => {
     expect(npmView).not.toHaveBeenCalledWith('@prisma/config@6.20.0-dev.10', 'dependencies.deepmerge-ts');
   });
 
-  it('pins npm view to the canonical registry and parses JSON output', () => {
+  it('pins npm view to the canonical registry and bounds each request', () => {
     const spawn = jest.fn(() => ({
       status: 0,
       stdout: '"6.19.3"\n',
@@ -114,7 +115,20 @@ describe('compatible Prisma upstream probe', () => {
     expect(spawn).toHaveBeenCalledWith(
       'npm',
       ['view', 'prisma@^6.19.3', 'version', '--json', `--registry=${CANONICAL_NPM_REGISTRY}`],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', timeout: NPM_VIEW_TIMEOUT_MS },
+    );
+  });
+
+  it('fails closed when npm view times out', () => {
+    const spawn = jest.fn(() => ({
+      status: null,
+      stdout: '',
+      stderr: '',
+      error: new Error('spawnSync npm ETIMEDOUT'),
+    }));
+
+    expect(() => runNpmView('prisma@^6.19.3', 'version', spawn as never)).toThrow(
+      'failed to run npm view for prisma@^6.19.3: spawnSync npm ETIMEDOUT',
     );
   });
 
