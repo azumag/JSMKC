@@ -66,8 +66,34 @@ function compareComparableSemver(left, right) {
   return left.prerelease.localeCompare(right.prerelease);
 }
 
+function normalizeVersionCandidates(npmViewValue) {
+  if (typeof npmViewValue === 'string') {
+    return [npmViewValue];
+  }
+
+  if (Array.isArray(npmViewValue)) {
+    return npmViewValue;
+  }
+
+  if (npmViewValue && typeof npmViewValue === 'object') {
+    return Object.values(npmViewValue).map((value) => {
+      if (typeof value === 'string') {
+        return value;
+      }
+
+      if (value && typeof value === 'object' && typeof value.version === 'string') {
+        return value.version;
+      }
+
+      throw new Error('npm view returned an invalid Prisma version collection');
+    });
+  }
+
+  throw new Error('npm view returned an invalid Prisma version collection');
+}
+
 function selectLatestVersion(npmViewValue) {
-  const versions = Array.isArray(npmViewValue) ? npmViewValue : [npmViewValue];
+  const versions = normalizeVersionCandidates(npmViewValue);
 
   if (versions.length === 0) {
     throw new Error('npm view returned no compatible Prisma versions');
@@ -189,6 +215,7 @@ module.exports = {
   formatCompatiblePrismaReleaseStatus,
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
+  normalizeVersionCandidates,
   parseNpmViewJson,
   runNpmView,
   selectLatestVersion,
