@@ -6,11 +6,11 @@ The repository therefore has a read-only readiness probe:
 
 ```bash
 cd smkc-score-app
-node scripts/prisma-v7-readiness.js
-node scripts/prisma-v7-readiness.js --json
+node scripts/prisma-v7-readiness.cjs
+node scripts/prisma-v7-readiness.cjs --json
 ```
 
-The probe reads only `package.json`, `prisma/schema.prisma`, and the presence of `prisma.config.ts`. It never runs `npm install`, generates a client, edits the lockfile, changes D1, or modifies the #3114 exception.
+The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads only `package.json`, `prisma/schema.prisma`, and the presence of `prisma.config.ts`. It never runs `npm install`, generates a client, edits the lockfile, changes D1, or modifies the #3114 exception.
 
 ## Checks
 
