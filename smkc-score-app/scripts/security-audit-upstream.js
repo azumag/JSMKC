@@ -7,6 +7,8 @@ const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./secu
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
 const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
+const REGISTRY_SEMVER_SELECTOR_PATTERN =
+  /^(?:\^|~|>=|>|<=|<)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   const unknownArguments = argv.filter((argument) => argument !== '--json');
@@ -18,11 +20,19 @@ function parseCliOptions(argv = process.argv.slice(2)) {
   return { json: argv.includes('--json') };
 }
 
+function isRegistrySemverSelector(selector) {
+  return (
+    typeof selector === 'string' &&
+    SAFE_OUTPUT_PATTERN.test(selector) &&
+    REGISTRY_SEMVER_SELECTOR_PATTERN.test(selector)
+  );
+}
+
 function getPrismaVersionSelector(manifest) {
   const selector = manifest?.devDependencies?.prisma;
 
-  if (typeof selector !== 'string' || !SAFE_OUTPUT_PATTERN.test(selector)) {
-    throw new Error('package.json devDependencies.prisma must be a non-empty single-line string');
+  if (!isRegistrySemverSelector(selector)) {
+    throw new Error('package.json devDependencies.prisma must be a registry SemVer selector');
   }
 
   return selector;
@@ -31,8 +41,8 @@ function getPrismaVersionSelector(manifest) {
 function getPrismaConfigVersionSelector(prismaDependencies) {
   const selector = prismaDependencies?.['@prisma/config'];
 
-  if (typeof selector !== 'string' || !SAFE_OUTPUT_PATTERN.test(selector)) {
-    throw new Error('Prisma package metadata must contain a safe @prisma/config dependency selector');
+  if (!isRegistrySemverSelector(selector)) {
+    throw new Error('Prisma package metadata must contain a registry SemVer @prisma/config dependency selector');
   }
 
   return selector;
@@ -281,6 +291,7 @@ module.exports = {
   getPrismaConfigVersionSelector,
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
+  isRegistrySemverSelector,
   normalizeVersionCandidates,
   parseCliOptions,
   parseNpmViewJson,
