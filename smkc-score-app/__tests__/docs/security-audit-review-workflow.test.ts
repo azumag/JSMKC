@@ -61,19 +61,20 @@ describe('manual security audit review workflow', () => {
     expect(auditJob.defaults?.run?.['working-directory']).toBe('smkc-score-app');
   });
 
-  it('pins the same npm runtime as package.json before npm ci', () => {
+  it('pins the same npm runtime as package.json without installing the dependency tree', () => {
     const packageManager = packageManifest.packageManager;
     expect(packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);
 
     const steps = auditJob.steps ?? [];
+    const setupNodeStep = steps.find((step) => step.uses === 'actions/setup-node@v5');
     const pinStep = steps.find((step) => step.run?.includes('npm install --global npm@'));
     const installStep = steps.find((step) => step.run?.trim() === 'npm ci');
 
+    expect(setupNodeStep?.with).toEqual({ 'node-version': '22' });
     expect(pinStep).toBeDefined();
-    expect(installStep).toBeDefined();
+    expect(installStep).toBeUndefined();
     expect(pinStep?.run).toContain(`npm install --global ${packageManager}`);
     expect(pinStep?.run).toContain(`test "$(npm --version)" = "${packageManager?.replace(/^npm@/, '')}"`);
-    expect(steps.indexOf(pinStep as WorkflowStep)).toBeLessThan(steps.indexOf(installStep as WorkflowStep));
   });
 
   it('keeps the fail-closed preflight/status/audit order', () => {
@@ -135,6 +136,7 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('`security-audit-upstream.js`');
     expect(runbook).toContain('compatible-forward-remediation-available');
     expect(runbook).toContain('compatible upstream gate');
+    expect(runbook).toContain('`npm ci` は実行しません');
     expect(runbook).toContain('期限前を正数');
     expect(runbook).toContain('期限当日を `0`');
     expect(runbook).toContain('期限超過後を負数');
