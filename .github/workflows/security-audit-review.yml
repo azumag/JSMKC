@@ -122,3 +122,25 @@ jobs:
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - id: compatible_upstream_gate
+        name: Require explicit follow-up for compatible remediation
+        if: always()
+        env:
+          COMPATIBLE_UPSTREAM_OUTCOME: ${{ steps.compatible_upstream.outcome }}
+          COMPATIBLE_UPSTREAM_STATE: ${{ steps.compatible_upstream.outputs.state }}
+        run: |
+          if [ "$COMPATIBLE_UPSTREAM_OUTCOME" != "success" ]; then
+            echo "Compatible upstream probe did not complete successfully; review the evidence above." >&2
+            exit 1
+          fi
+
+          if [ "$COMPATIBLE_UPSTREAM_STATE" = "compatible-forward-remediation-available" ]; then
+            echo "A compatible stable Prisma remediation candidate is available; validate it in an explicit dependency update PR before keeping #3114 active." >&2
+            exit 1
+          fi
+
+          if [ "$COMPATIBLE_UPSTREAM_STATE" != "compatible-release-still-vulnerable" ]; then
+            echo "Unexpected compatible upstream state: ${COMPATIBLE_UPSTREAM_STATE:-unavailable}" >&2
+            exit 1
+          fi
