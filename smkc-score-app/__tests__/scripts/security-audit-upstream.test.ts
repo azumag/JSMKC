@@ -162,9 +162,7 @@ describe('compatible Prisma upstream probe', () => {
       latestCompatiblePrismaConfigVersion: '6.20.0',
       prismaConfigDeepmergeRequirement: null,
     });
-    expect(formatCompatiblePrismaReleaseStatus(status)).toContain(
-      '@prisma/config -> deepmerge-ts requirement: absent',
-    );
+    expect(formatCompatiblePrismaReleaseStatus(status)).toContain('@prisma/config -> deepmerge-ts requirement: absent');
   });
 
   it('does not probe a prerelease even if it is newer than the latest stable version', () => {
