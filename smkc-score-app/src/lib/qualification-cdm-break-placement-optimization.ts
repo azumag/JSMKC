@@ -209,9 +209,7 @@ export function optimizeUnsupportedCdmBreakPlacement(
     placementCountAtMaximumPlayerBreakGap: maximumPlayerBreakGapPlacements.length,
     maximumMinimumBreakOnlyDayGap,
     placementCountAtRecommendedScore: recommendedScorePlacements.length,
-    recommendedScoreBreakSlotPositions: recommendedScorePlacements.map(
-      ({ breakSlotPositions }) => breakSlotPositions,
-    ),
+    recommendedScoreBreakSlotPositions: recommendedScorePlacements.map(({ breakSlotPositions }) => breakSlotPositions),
     recommendedBreakSlotPositions: recommended.breakSlotPositions,
     recommendedBreakOnlyDays: recommended.breakOnlyDays,
     recommendedBreakDaysByPlayerSeed: recommended.breakDaysByPlayerSeed,
