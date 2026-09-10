@@ -84,12 +84,7 @@ function findLegacyPrismaClientImports(rootDir) {
   return findings;
 }
 
-function inspectPrismaV7Readiness({
-  manifest,
-  schema,
-  prismaConfigPresent,
-  legacyPrismaClientImports = [],
-}) {
+function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent, legacyPrismaClientImports = [] }) {
   const prismaSelector = manifest.devDependencies?.prisma ?? null;
   const clientSelector = manifest.dependencies?.['@prisma/client'] ?? null;
   const adapterSelector = manifest.dependencies?.['@prisma/adapter-d1'] ?? null;
