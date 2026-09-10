@@ -146,8 +146,8 @@ export function QualificationScheduleDiagnosticsPanel({
           <div>
             <h3 className="font-medium">Unsupported CDM candidate evidence</h3>
             <p className="text-xs text-muted-foreground">
-              Read-only comparison of the current leading-player slot convention with fair raw-fixture BREAK
-              placements. These candidates are not enabled for schedule generation.
+              Read-only comparison of the current leading-player slot convention with fair raw-fixture BREAK placements.
+              These candidates are not enabled for schedule generation.
             </p>
           </div>
           <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
@@ -164,8 +164,7 @@ export function QualificationScheduleDiagnosticsPanel({
                   Fairness representative BREAK slots: {decision.recommendedBreakSlotPositions.join(', ')}
                 </div>
                 <div className="mt-1 text-muted-foreground">
-                  Lowest-churn fair BREAK slots:{' '}
-                  {decision.leastDisruptiveFairPlacement.breakSlotPositions.join(', ')}
+                  Lowest-churn fair BREAK slots: {decision.leastDisruptiveFairPlacement.breakSlotPositions.join(', ')}
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   Leading-player convention:{' '}
@@ -183,8 +182,8 @@ export function QualificationScheduleDiagnosticsPanel({
                   {decision.leastDisruptiveFairPlacement.scheduleImpact.realMatchCount} Day changes · total shift{' '}
                   {decision.leastDisruptiveFairPlacement.scheduleImpact.totalPairDayShift} days ·{' '}
                   {decision.leastDisruptiveFairPlacement.scheduleImpact.pairSideChangedCount} side flips ·{' '}
-                  {decision.leastDisruptiveFairPlacement.remappedPlayerCount}/{decision.playerCount} seeds remapped · max
-                  slot shift +{decision.leastDisruptiveFairPlacement.maximumPlayerSlotShift}
+                  {decision.leastDisruptiveFairPlacement.remappedPlayerCount}/{decision.playerCount} seeds remapped ·
+                  max slot shift +{decision.leastDisruptiveFairPlacement.maximumPlayerSlotShift}
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   Blocking decisions: {decision.blockingDecisions.join(', ') || 'none'}
