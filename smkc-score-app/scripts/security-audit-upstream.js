@@ -111,7 +111,9 @@ function selectLatestVersion(npmViewValue) {
 
     return { parsed, version };
   });
-  const stableVersions = parsedVersions.filter(({ parsed }) => parsed.prerelease === null);
+  const stableVersions = parsedVersions.filter(
+    ({ parsed }) => parsed.prerelease === null,
+  );
 
   if (stableVersions.length === 0) {
     throw new Error('npm view returned no stable compatible Prisma versions');
