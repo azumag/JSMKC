@@ -172,15 +172,11 @@ function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
   const prismaConfigSelector = getPrismaConfigVersionSelector(prismaDependencies);
   const compatiblePrismaConfigVersions = npmView(`@prisma/config@${prismaConfigSelector}`, 'version');
   const latestCompatiblePrismaConfigVersion = selectLatestVersion(compatiblePrismaConfigVersions);
-  const prismaConfigDependencies = npmView(
-    `@prisma/config@${latestCompatiblePrismaConfigVersion}`,
-    'dependencies',
-  );
+  const prismaConfigDependencies = npmView(`@prisma/config@${latestCompatiblePrismaConfigVersion}`, 'dependencies');
   const prismaConfigDeepmergeRequirement = getPrismaConfigDeepmergeRequirement(prismaConfigDependencies);
 
   const state =
-    prismaConfigDeepmergeRequirement === null ||
-    isPatchedDeepmergeRequirement(prismaConfigDeepmergeRequirement)
+    prismaConfigDeepmergeRequirement === null || isPatchedDeepmergeRequirement(prismaConfigDeepmergeRequirement)
       ? 'compatible-forward-remediation-available'
       : 'compatible-release-still-vulnerable';
 
