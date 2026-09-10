@@ -16,7 +16,15 @@ interface WorkflowConfig {
 }
 
 describe('security audit review Prisma 7 readiness evidence', () => {
-  const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'security-audit-review.yml');
+  const workflowPath = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    '.github',
+    'workflows',
+    'security-audit-review.yml',
+  );
   const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowConfig;
   const steps = workflow.jobs?.audit?.steps ?? [];
 
@@ -25,10 +33,15 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     const readinessStep = steps.find((step) => step.id === 'prisma_v7_readiness');
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
 
+    expect(nextMajorTimestampStep).toBeDefined();
+    expect(readinessStep).toBeDefined();
+    expect(summaryStep).toBeDefined();
     expect(readinessStep?.if).toBe('always()');
     expect(readinessStep?.['continue-on-error']).toBe(true);
     expect(readinessStep?.run?.trim()).toBe('node scripts/prisma-v7-readiness.cjs');
-    expect(steps.indexOf(nextMajorTimestampStep as WorkflowStep)).toBeLessThan(steps.indexOf(readinessStep as WorkflowStep));
+    expect(steps.indexOf(nextMajorTimestampStep as WorkflowStep)).toBeLessThan(
+      steps.indexOf(readinessStep as WorkflowStep),
+    );
     expect(steps.indexOf(readinessStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
   });
 
@@ -36,6 +49,8 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
+    expect(summaryStep).toBeDefined();
+    expect(gateStep).toBeDefined();
     expect(summaryStep?.env?.PRISMA_V7_READINESS_OUTCOME).toBe('${{ steps.prisma_v7_readiness.outcome }}');
     expect(summaryStep?.run).toContain('Prisma 7 migration readiness probe');
     expect(summaryStep?.run).toContain('PRISMA_V7_READINESS_OUTCOME');
