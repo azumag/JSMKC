@@ -32,6 +32,15 @@ describe('compatible Prisma upstream probe', () => {
     expect(selectLatestVersion(['6.19.3', '6.20.0-dev.1', '6.20.0', '6.19.4'])).toBe('6.20.0');
   });
 
+  it('accepts the version-prefixed JSON object shape emitted for npm view ranges', () => {
+    expect(
+      selectLatestVersion({
+        'prisma@6.19.3': '6.19.3',
+        'prisma@6.19.4': '6.19.4',
+      }),
+    ).toBe('6.19.4');
+  });
+
   it('reports when the latest compatible release still depends on vulnerable deepmerge-ts', () => {
     const npmView = jest.fn((selector: string, field: string) => {
       if (selector === 'prisma@^6.19.3' && field === 'version') {
