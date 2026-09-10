@@ -7,7 +7,8 @@ const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./secu
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
 const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
-const REGISTRY_SEMVER_SELECTOR_PATTERN = /^(?:\^|~|>=|>|<=|<)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const REGISTRY_SEMVER_SELECTOR_PATTERN =
+  /^(?:\^|~|>=|>|<=|<)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   const unknownArguments = argv.filter((argument) => argument !== '--json');
