@@ -37,6 +37,7 @@ describe('buildUnsupportedCdmFixtureCandidateDecision', () => {
         pairSideChangedCount: 34,
         pairDayAndSideUnchangedCount: 2,
       },
+      blockingDecisions: ['break-slot-placement', 'day-order-fidelity', 'side-orientation-fidelity'],
       candidateImpact: {
         playerCount: 13,
         fixtureCapacity: 16,
@@ -67,6 +68,7 @@ describe('buildUnsupportedCdmFixtureCandidateDecision', () => {
     expect(occupiedSlots).toEqual([2, 3, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16]);
     expect(occupiedSlots).not.toEqual(expect.arrayContaining(decision!.recommendedBreakSlotPositions));
     expect(decision!.recommendedPlacementScheduleImpact.realMatchCount).toBe(decision!.candidateImpact.realMatchCount);
+    expect(decision!.blockingDecisions).not.toContain('pair-set-fidelity');
   });
 
   it('returns null when there is no unsupported larger-fixture candidate', () => {

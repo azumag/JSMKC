@@ -25,6 +25,9 @@ export interface RecommendedPlacementScheduleImpact {
   pairDayAndSideUnchangedCount: number;
 }
 
+export type UnsupportedCdmCandidateBlockingDecision =
+  'break-slot-placement' | 'pair-set-fidelity' | 'day-order-fidelity' | 'side-orientation-fidelity';
+
 export interface UnsupportedCdmFixtureCandidateDecision {
   playerCount: number;
   conventionalBreakSlotPositions: number[];
@@ -34,6 +37,7 @@ export interface UnsupportedCdmFixtureCandidateDecision {
   remappedPlayerCount: number;
   maximumPlayerSlotShift: number;
   recommendedPlacementScheduleImpact: RecommendedPlacementScheduleImpact;
+  blockingDecisions: UnsupportedCdmCandidateBlockingDecision[];
   candidateImpact: UnsupportedCdmFixtureCandidateImpact;
   breakPlacementOptimization: UnsupportedCdmBreakPlacementOptimization;
 }
@@ -159,6 +163,20 @@ function compareFixturePlacements(
   };
 }
 
+function buildBlockingDecisions(
+  recommendedPlacementUsesLeadingPlayerConvention: boolean,
+  scheduleImpact: RecommendedPlacementScheduleImpact,
+): UnsupportedCdmCandidateBlockingDecision[] {
+  const decisions: UnsupportedCdmCandidateBlockingDecision[] = [];
+
+  if (!recommendedPlacementUsesLeadingPlayerConvention) decisions.push('break-slot-placement');
+  if (scheduleImpact.pairSetDifferenceCount > 0) decisions.push('pair-set-fidelity');
+  if (scheduleImpact.pairDayChangedCount > 0) decisions.push('day-order-fidelity');
+  if (scheduleImpact.pairSideChangedCount > 0) decisions.push('side-orientation-fidelity');
+
+  return decisions;
+}
+
 /**
  * Consolidate the read-only evidence for an unsupported CDM fixture candidate.
  *
@@ -170,7 +188,9 @@ function compareFixturePlacements(
  *
  * This helper also compares the two placements using the raw fixture so the
  * Day and 1P/2P churn implied by a fairness-oriented remap is visible before a
- * production scheduling decision is made.
+ * production scheduling decision is made. `blockingDecisions` converts those
+ * observed differences into stable machine-readable policy questions without
+ * choosing an answer on behalf of tournament operations.
  *
  * This helper does not add a generator mapping, alter qualification policy, or
  * persist a schedule.
@@ -189,6 +209,10 @@ export function buildUnsupportedCdmFixtureCandidateDecision(
     (_, index) => candidateImpact.playerCount + index + 1,
   );
   const recommendedBreakSlotPositions = breakPlacementOptimization.recommendedBreakSlotPositions;
+  const recommendedPlacementUsesLeadingPlayerConvention = numberArraysEqual(
+    conventionalBreakSlotPositions,
+    recommendedBreakSlotPositions,
+  );
   const recommendedPlayerSlotAssignments = buildRecommendedPlayerSlotAssignments(
     playerCount,
     candidateImpact.fixtureCapacity,
@@ -206,14 +230,15 @@ export function buildUnsupportedCdmFixtureCandidateDecision(
     playerCount,
     conventionalBreakSlotPositions,
     recommendedBreakSlotPositions,
-    recommendedPlacementUsesLeadingPlayerConvention: numberArraysEqual(
-      conventionalBreakSlotPositions,
-      recommendedBreakSlotPositions,
-    ),
+    recommendedPlacementUsesLeadingPlayerConvention,
     recommendedPlayerSlotAssignments,
     remappedPlayerCount: recommendedPlayerSlotAssignments.filter(({ slotShift }) => slotShift !== 0).length,
     maximumPlayerSlotShift: Math.max(0, ...recommendedPlayerSlotAssignments.map(({ slotShift }) => slotShift)),
     recommendedPlacementScheduleImpact,
+    blockingDecisions: buildBlockingDecisions(
+      recommendedPlacementUsesLeadingPlayerConvention,
+      recommendedPlacementScheduleImpact,
+    ),
     candidateImpact,
     breakPlacementOptimization,
   };
