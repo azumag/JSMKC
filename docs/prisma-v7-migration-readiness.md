@@ -1,0 +1,54 @@
+# Prisma 7 migration readiness for #3114
+
+Prisma ORM 7 contains the upstream `deepmerge-ts >=8` remediation needed to remove the temporary GHSA-ggr8-5vv4-36mx audit exception tracked in #3114, but moving JSMKC from Prisma 6 to Prisma 7 is a major-version migration and must not be performed only to silence the audit finding.
+
+The repository therefore has a read-only readiness probe:
+
+```bash
+cd smkc-score-app
+node scripts/prisma-v7-readiness.js
+node scripts/prisma-v7-readiness.js --json
+```
+
+The probe reads only `package.json`, `prisma/schema.prisma`, and the presence of `prisma.config.ts`. It never runs `npm install`, generates a client, edits the lockfile, changes D1, or modifies the #3114 exception.
+
+## Checks
+
+The probe records the migration prerequisites that must be handled together in an explicit Prisma 7 dependency-migration PR:
+
+- `package.json` uses ESM (`"type": "module"`). Prisma 7's generated client and CLI configuration are ESM-first, so this change must be assessed against the repository's existing CommonJS helper scripts rather than applied mechanically.
+- `prisma`, `@prisma/client`, and `@prisma/adapter-d1` are all on target major 7 and their majors are aligned.
+- the Prisma generator uses `provider = "prisma-client"` rather than the legacy `prisma-client-js` provider.
+- the generator has an explicit output directory, because application imports must move from `@prisma/client` to the generated client path as part of the v7 migration.
+- `datasource.url` has moved out of `schema.prisma`.
+- `prisma.config.ts` exists for CLI datasource/configuration.
+
+These checks follow Prisma's v7 migration guidance. They are intentionally migration evidence, not an automatic upgrade gate.
+
+## Current repository evidence
+
+At the time this probe was added, `main` has:
+
+- `prisma: ^6.19.3`
+- `@prisma/client: ^6.19.3`
+- `@prisma/adapter-d1: ^7.8.0`
+- no top-level `"type": "module"`
+- `provider = "prisma-client-js"`
+- no explicit generator `output`
+- `datasource db` still contains `url = env("DATABASE_URL")`
+- no `prisma.config.ts`
+
+The existing adapter is already on major 7 while CLI/client remain on major 6. The readiness probe surfaces that version split without asserting that it is itself the cause of the current production behavior or changing it automatically.
+
+## Migration decision boundary
+
+When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, regenerate the client, and verify at minimum:
+
+1. Prisma generate and type checking.
+2. unit tests and lint/format.
+3. Prisma/D1 migration parity.
+4. Cloudflare/OpenNext build.
+5. D1 adapter behavior on a real preview path, including representative reads and writes.
+6. `npm audit --audit-level=high` with the #3114 exception removed only after the vulnerable dependency edge is actually gone from the installed lockfile graph.
+
+If any of these require a behavior or deployment-policy decision, record it on #3114 (or a dedicated migration issue) rather than weakening the audit gate or applying a consumer-side major override.
