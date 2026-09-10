@@ -1,0 +1,125 @@
+import {
+  extractSemverMajor,
+  formatPrismaV7Readiness,
+  inspectPrismaV7Readiness,
+  parseCliOptions,
+} from '../../scripts/prisma-v7-readiness.js';
+
+describe('Prisma 7 migration readiness probe', () => {
+  const currentManifest = {
+    dependencies: {
+      '@prisma/adapter-d1': '^7.8.0',
+      '@prisma/client': '^6.19.3',
+    },
+    devDependencies: {
+      prisma: '^6.19.3',
+    },
+  };
+
+  const currentSchema = `
+    generator client {
+      provider = "prisma-client-js"
+    }
+
+    datasource db {
+      provider = "sqlite"
+      url = env("DATABASE_URL")
+    }
+  `;
+
+  it('reports the current repository migration items without mutating them', () => {
+    const status = inspectPrismaV7Readiness({
+      manifest: currentManifest,
+      schema: currentSchema,
+      prismaConfigPresent: false,
+    });
+
+    expect(status.ready).toBe(false);
+    expect(status.selectors).toEqual({
+      prisma: '^6.19.3',
+      prismaClient: '^6.19.3',
+      prismaAdapterD1: '^7.8.0',
+    });
+    expect(status.blockers).toEqual(
+      expect.arrayContaining([
+        'packageTypeModule',
+        'prismaCliAtTargetMajor',
+        'prismaClientAtTargetMajor',
+        'prismaPackageMajorsAligned',
+        'generatorUsesPrismaClient',
+        'generatorHasExplicitOutput',
+        'datasourceUrlMovedOutOfSchema',
+        'prismaConfigPresent',
+      ]),
+    );
+    expect(status.blockers).not.toContain('prismaAdapterAtTargetMajor');
+  });
+
+  it('reports ready only when the v7 package and schema prerequisites are explicit', () => {
+    const status = inspectPrismaV7Readiness({
+      manifest: {
+        type: 'module',
+        dependencies: {
+          '@prisma/adapter-d1': '^7.10.0',
+          '@prisma/client': '^7.10.0',
+        },
+        devDependencies: {
+          prisma: '^7.10.0',
+        },
+      },
+      schema: `
+        generator client {
+          provider = "prisma-client"
+          output = "../src/generated/prisma"
+        }
+
+        datasource db {
+          provider = "sqlite"
+        }
+      `,
+      prismaConfigPresent: true,
+    });
+
+    expect(status.ready).toBe(true);
+    expect(status.blockerCount).toBe(0);
+    expect(status.blockers).toEqual([]);
+  });
+
+  it('parses supported selectors conservatively', () => {
+    expect(extractSemverMajor('^7.10.0')).toBe(7);
+    expect(extractSemverMajor('~6.19.3')).toBe(6);
+    expect(extractSemverMajor('7.10.0')).toBe(7);
+    expect(extractSemverMajor('workspace:*')).toBeNull();
+    expect(extractSemverMajor(null)).toBeNull();
+  });
+
+  it('keeps the human-readable output explicitly read-only', () => {
+    const status = inspectPrismaV7Readiness({
+      manifest: currentManifest,
+      schema: currentSchema,
+      prismaConfigPresent: false,
+    });
+    const output = formatPrismaV7Readiness(status);
+
+    expect(output).toContain('Overall readiness: `not-ready`');
+    expect(output).toContain('@prisma/adapter-d1');
+    expect(output).toContain('read-only migration evidence');
+    expect(output).not.toContain('dependencies updated');
+  });
+
+  it('supports machine-readable JSON and rejects unknown options', () => {
+    expect(parseCliOptions([])).toEqual({ json: false });
+    expect(parseCliOptions(['--json'])).toEqual({ json: true });
+    expect(() => parseCliOptions(['--write'])).toThrow('unsupported option');
+
+    const status = inspectPrismaV7Readiness({
+      manifest: currentManifest,
+      schema: currentSchema,
+      prismaConfigPresent: false,
+    });
+    expect(JSON.parse(formatPrismaV7Readiness(status, { json: true }))).toMatchObject({
+      targetMajor: 7,
+      ready: false,
+    });
+  });
+});
