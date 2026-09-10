@@ -99,10 +99,7 @@ describe('compatible Prisma upstream probe', () => {
     });
 
     expect(inspectCompatiblePrismaRelease({ manifest, npmView }).latestCompatiblePrismaVersion).toBe('6.19.4');
-    expect(npmView).not.toHaveBeenCalledWith(
-      '@prisma/config@6.20.0-dev.10',
-      'dependencies.deepmerge-ts',
-    );
+    expect(npmView).not.toHaveBeenCalledWith('@prisma/config@6.20.0-dev.10', 'dependencies.deepmerge-ts');
   });
 
   it('pins npm view to the canonical registry and parses JSON output', () => {
