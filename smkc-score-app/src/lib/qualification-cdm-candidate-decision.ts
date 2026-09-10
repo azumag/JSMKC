@@ -187,11 +187,7 @@ function buildFairnessEquivalentPlacementEvaluation(
   conventionalBreakSlotPositions: readonly number[],
   breakSlotPositions: readonly number[],
 ): FairnessEquivalentLowChurnPlacement | null {
-  const playerSlotAssignments = buildRecommendedPlayerSlotAssignments(
-    playerCount,
-    fixtureCapacity,
-    breakSlotPositions,
-  );
+  const playerSlotAssignments = buildRecommendedPlayerSlotAssignments(playerCount, fixtureCapacity, breakSlotPositions);
   const scheduleImpact = compareFixturePlacements(
     playerCount,
     fixtureCapacity,
