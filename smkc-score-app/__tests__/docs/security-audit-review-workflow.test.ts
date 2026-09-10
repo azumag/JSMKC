@@ -5,6 +5,7 @@ import { parse } from 'yaml';
 interface WorkflowStep {
   id?: string;
   if?: string;
+  'continue-on-error'?: boolean;
   env?: Record<string, string>;
   name?: string;
   run?: string;
@@ -110,6 +111,24 @@ describe('manual security audit review workflow', () => {
     expect(steps.indexOf(auditStep as WorkflowStep)).toBeLessThan(steps.indexOf(upstreamStep as WorkflowStep));
   });
 
+  it('collects next-major remediation evidence without making it an automatic upgrade gate', () => {
+    const steps = auditJob.steps ?? [];
+    const compatibleStep = steps.find((step) => step.id === 'compatible_upstream');
+    const nextMajorStep = steps.find((step) => step.id === 'next_major_upstream');
+    const timestampStep = steps.find((step) => step.id === 'next_major_upstream_timestamp');
+    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
+
+    expect(nextMajorStep?.if).toBe('always()');
+    expect(nextMajorStep?.['continue-on-error']).toBe(true);
+    expect(nextMajorStep?.run?.trim()).toBe('node scripts/security-audit-next-major.js');
+    expect(timestampStep?.if).toBe('always()');
+    expect(steps.indexOf(compatibleStep as WorkflowStep)).toBeLessThan(steps.indexOf(nextMajorStep as WorkflowStep));
+    expect(steps.indexOf(nextMajorStep as WorkflowStep)).toBeLessThan(steps.indexOf(timestampStep as WorkflowStep));
+    expect(steps.indexOf(timestampStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
+    expect(gateStep?.env).not.toHaveProperty('NEXT_MAJOR_UPSTREAM_STATE');
+  });
+
   it('fails closed when the compatible upstream probe needs explicit follow-up', () => {
     const steps = auditJob.steps ?? [];
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
@@ -147,7 +166,7 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('期限超過後を負数');
   });
 
-  it('always publishes read-only review evidence, source revision, exception identity, dependency versions, and the Prisma dependency edge', () => {
+  it('always publishes read-only review evidence, source revision, exception identity, dependency versions, and both Prisma probes', () => {
     const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(summaryStep?.if).toBe('always()');
@@ -178,6 +197,16 @@ describe('manual security audit review workflow', () => {
         '${{ steps.compatible_upstream.outputs.latest_compatible_prisma_config_version }}',
       LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:
         '${{ steps.compatible_upstream.outputs.prisma_config_deepmerge_requirement }}',
+      NEXT_MAJOR_UPSTREAM_OUTCOME: '${{ steps.next_major_upstream.outcome }}',
+      NEXT_MAJOR_UPSTREAM_STATE: '${{ steps.next_major_upstream.outputs.state }}',
+      NEXT_MAJOR_UPSTREAM_REGISTRY: '${{ steps.next_major_upstream.outputs.registry }}',
+      NEXT_MAJOR_CURRENT_PRISMA_SELECTOR: '${{ steps.next_major_upstream.outputs.current_prisma_selector }}',
+      NEXT_MAJOR_PRISMA_SELECTOR: '${{ steps.next_major_upstream.outputs.prisma_selector }}',
+      LATEST_NEXT_MAJOR_PRISMA_VERSION: '${{ steps.next_major_upstream.outputs.latest_compatible_prisma_version }}',
+      NEXT_MAJOR_PRISMA_CONFIG_SELECTOR: '${{ steps.next_major_upstream.outputs.prisma_config_selector }}',
+      LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:
+        '${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}',
+      NEXT_MAJOR_DEEPMERGE_REQUIREMENT: '${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}',
     });
     expect(summaryStep?.run).toContain('Review ref');
     expect(summaryStep?.run).toContain('REVIEW_REF');
@@ -203,6 +232,15 @@ describe('manual security audit review workflow', () => {
     expect(summaryStep?.run).toContain('PRISMA_CONFIG_SELECTOR');
     expect(summaryStep?.run).toContain('LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION');
     expect(summaryStep?.run).toContain('LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT');
+    expect(summaryStep?.run).toContain('Next-major Prisma remediation probe');
+    expect(summaryStep?.run).toContain('NEXT_MAJOR_UPSTREAM_STATE');
+    expect(summaryStep?.run).toContain('NEXT_MAJOR_CURRENT_PRISMA_SELECTOR');
+    expect(summaryStep?.run).toContain('NEXT_MAJOR_PRISMA_SELECTOR');
+    expect(summaryStep?.run).toContain('LATEST_NEXT_MAJOR_PRISMA_VERSION');
+    expect(summaryStep?.run).toContain('NEXT_MAJOR_PRISMA_CONFIG_SELECTOR');
+    expect(summaryStep?.run).toContain('LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION');
+    expect(summaryStep?.run).toContain('NEXT_MAJOR_DEEPMERGE_REQUIREMENT');
+    expect(summaryStep?.run).toContain('major upgrade requires an explicit dependency migration PR');
     expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
     expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');
   });
