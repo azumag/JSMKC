@@ -53,6 +53,11 @@ jobs:
         if: always()
         run: node scripts/security-audit-upstream.js
 
+      - id: compatible_upstream_timestamp
+        name: Timestamp compatible upstream evidence
+        if: always()
+        run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: "Summarize #3114 review evidence"
         if: always()
         env:
@@ -87,6 +92,8 @@ jobs:
             echo "Review ref: \`${REVIEW_REF:-unavailable}\`"
             echo
             echo "Review commit: \`${REVIEW_SHA:-unavailable}\`"
+            echo
+            echo "Compatible upstream checked at: \`${{ steps.compatible_upstream_timestamp.outputs.checked_at }}\`"
             echo
             echo "| Check | Outcome |"
             echo "| --- | --- |"
