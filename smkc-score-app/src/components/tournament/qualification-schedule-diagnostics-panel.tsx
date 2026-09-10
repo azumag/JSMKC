@@ -1,6 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 import { buildBalancedCdmSideSeedOverridePlan } from '@/lib/qualification-balanced-cdm-side-seed-plan';
-import { buildUnsupportedCdmFixtureCandidateDecision } from '@/lib/qualification-cdm-candidate-decision';
+import {
+  buildUnsupportedCdmFixtureCandidateDecision,
+  type RecommendedPlayerSlotAssignment,
+} from '@/lib/qualification-cdm-candidate-decision';
 import { buildLegacyCircleCdmScheduleComparisons } from '@/lib/qualification-schedule-comparison';
 import {
   QUALIFICATION_DIAGNOSTIC_MODES,
@@ -50,6 +53,18 @@ function formatBalancedCdmSideSeedOverridePlan(playerCount: number) {
   if (!plan || plan.length === 0) return 'No side overrides required.';
 
   return plan.map((override) => `D${override.day}: ${override.cdmPlayer1Seed}↔${override.cdmPlayer2Seed}`).join(' · ');
+}
+
+function formatRemappedPlayerSlotAssignments(assignments: readonly RecommendedPlayerSlotAssignment[]) {
+  const remappedAssignments = assignments.filter(({ slotShift }) => slotShift !== 0);
+  if (remappedAssignments.length === 0) return 'No seed remapping required.';
+
+  return remappedAssignments
+    .map(
+      ({ playerSeed, fixtureSlotPosition, slotShift }) =>
+        `S${playerSeed}→${fixtureSlotPosition} (${slotShift > 0 ? '+' : ''}${slotShift})`,
+    )
+    .join(' · ');
 }
 
 export function QualificationScheduleDiagnosticsPanel({
@@ -185,6 +200,14 @@ export function QualificationScheduleDiagnosticsPanel({
                   {decision.leastDisruptiveFairPlacement.remappedPlayerCount}/{decision.playerCount} seeds remapped ·
                   max slot shift +{decision.leastDisruptiveFairPlacement.maximumPlayerSlotShift}
                 </div>
+                <details className="mt-1 text-muted-foreground">
+                  <summary className="cursor-pointer">
+                    Lowest-churn seed remap ({decision.leastDisruptiveFairPlacement.remappedPlayerCount})
+                  </summary>
+                  <div className="mt-1">
+                    {formatRemappedPlayerSlotAssignments(decision.leastDisruptiveFairPlacement.playerSlotAssignments)}
+                  </div>
+                </details>
                 <div className="mt-1 text-muted-foreground">
                   Blocking decisions: {decision.blockingDecisions.join(', ') || 'none'}
                 </div>
