@@ -8,6 +8,16 @@ const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
 const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
 
+function parseCliOptions(argv = process.argv.slice(2)) {
+  const unknownArguments = argv.filter((argument) => argument !== '--json');
+
+  if (unknownArguments.length > 0) {
+    throw new Error(`Unknown option${unknownArguments.length === 1 ? '' : 's'}: ${unknownArguments.join(', ')}`);
+  }
+
+  return { json: argv.includes('--json') };
+}
+
 function getPrismaVersionSelector(manifest) {
   const selector = manifest?.devDependencies?.prisma;
 
@@ -168,7 +178,11 @@ function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
   };
 }
 
-function formatCompatiblePrismaReleaseStatus(status) {
+function formatCompatiblePrismaReleaseStatus(status, { json = false } = {}) {
+  if (json) {
+    return `${JSON.stringify(status)}\n`;
+  }
+
   return (
     `compatible Prisma upstream status: ${status.state}\n` +
     `registry: ${status.registry}\n` +
@@ -211,6 +225,15 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
 }
 
 function main() {
+  let cliOptions;
+
+  try {
+    cliOptions = parseCliOptions();
+  } catch (error) {
+    process.stderr.write(`Invalid compatible Prisma upstream arguments: ${error.message}\n`);
+    process.exit(1);
+  }
+
   let manifest;
 
   try {
@@ -224,7 +247,7 @@ function main() {
 
   try {
     status = inspectCompatiblePrismaRelease({ manifest });
-    process.stdout.write(formatCompatiblePrismaReleaseStatus(status));
+    process.stdout.write(formatCompatiblePrismaReleaseStatus(status, cliOptions));
     writeGitHubOutputs(status);
   } catch (error) {
     process.stderr.write(`Failed to inspect compatible Prisma release: ${error.message}\n`);
@@ -245,6 +268,7 @@ module.exports = {
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
   normalizeVersionCandidates,
+  parseCliOptions,
   parseNpmViewJson,
   runNpmView,
   selectLatestVersion,
