@@ -94,15 +94,6 @@ function main() {
   });
 
   if (result.error) throw result.error;
-  if (result.status !== 0) {
-    console.log('Formatting diagnostic: applying Prettier in the runner and printing the resulting diff.');
-    const writeResult = spawnSync(prettierExecutable, ['--write', ...changedFiles], {
-      cwd: appRoot,
-      stdio: 'inherit',
-    });
-    if (writeResult.error) throw writeResult.error;
-    spawnSync('git', ['diff', '--', ...changedFiles], { cwd: appRoot, stdio: 'inherit' });
-  }
   return result.status ?? 1;
 }
 
