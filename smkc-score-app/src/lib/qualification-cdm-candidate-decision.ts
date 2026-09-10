@@ -26,10 +26,7 @@ export interface RecommendedPlacementScheduleImpact {
 }
 
 export type UnsupportedCdmCandidateBlockingDecision =
-  | 'break-slot-placement'
-  | 'pair-set-fidelity'
-  | 'day-order-fidelity'
-  | 'side-orientation-fidelity';
+  'break-slot-placement' | 'pair-set-fidelity' | 'day-order-fidelity' | 'side-orientation-fidelity';
 
 export interface UnsupportedCdmFixtureCandidateDecision {
   playerCount: number;
