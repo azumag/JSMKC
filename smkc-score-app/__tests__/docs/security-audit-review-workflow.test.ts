@@ -107,6 +107,23 @@ describe('manual security audit review workflow', () => {
     expect(steps.indexOf(auditStep as WorkflowStep)).toBeLessThan(steps.indexOf(upstreamStep as WorkflowStep));
   });
 
+  it('fails closed when the compatible upstream probe needs explicit follow-up', () => {
+    const steps = auditJob.steps ?? [];
+    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
+
+    expect(gateStep?.if).toBe('always()');
+    expect(gateStep?.env).toEqual({
+      COMPATIBLE_UPSTREAM_OUTCOME: '${{ steps.compatible_upstream.outcome }}',
+      COMPATIBLE_UPSTREAM_STATE: '${{ steps.compatible_upstream.outputs.state }}',
+    });
+    expect(gateStep?.run).toContain('COMPATIBLE_UPSTREAM_OUTCOME');
+    expect(gateStep?.run).toContain('compatible-forward-remediation-available');
+    expect(gateStep?.run).toContain('compatible-release-still-vulnerable');
+    expect(gateStep?.run).toContain('exit 1');
+    expect(steps.indexOf(summaryStep as WorkflowStep)).toBeLessThan(steps.indexOf(gateStep as WorkflowStep));
+  });
+
   it('documents the self-describing exception identity, deadline distance, dependency edge outputs, and compatible upstream probe', () => {
     expect(runbook).toContain('`tracking_issue`');
     expect(runbook).toContain('`advisory`');
@@ -117,6 +134,7 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('`latest_compatible_prisma_config_version`');
     expect(runbook).toContain('`security-audit-upstream.js`');
     expect(runbook).toContain('compatible-forward-remediation-available');
+    expect(runbook).toContain('compatible upstream gate');
     expect(runbook).toContain('期限前を正数');
     expect(runbook).toContain('期限当日を `0`');
     expect(runbook).toContain('期限超過後を負数');
