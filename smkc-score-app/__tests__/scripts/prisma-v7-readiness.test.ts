@@ -3,7 +3,7 @@ import {
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
   parseCliOptions,
-} from '../../scripts/prisma-v7-readiness.js';
+} from '../../scripts/prisma-v7-readiness.cjs';
 
 describe('Prisma 7 migration readiness probe', () => {
   const currentManifest = {
