@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const appRoot = join(__dirname, '../..');
 const buildGuard = join(appRoot, 'scripts/cloudflare-build.sh');
