@@ -1,0 +1,386 @@
+// jest-dom matchers are only loaded in jsdom environment.
+// Add /** @jest-environment jsdom */ docblock to test files that need DOM APIs.
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('@testing-library/jest-dom');
+}
+
+// Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
+class ResponsePolyfill {
+  constructor(body, init = {}) {
+    this.body = body;
+    this.status = init.status || 200;
+    this.statusText = init.statusText || 'OK';
+    this.headers = new Headers(init.headers || {});
+    this.type = 'default';
+    this.url = '';
+    this.ok = this.status >= 200 && this.status < 300;
+    this.redirected = false;
+    this.used = false;
+  }
+
+  static json(data, init = {}) {
+    const body = JSON.stringify(data);
+    return new ResponsePolyfill(body, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    });
+  }
+
+  async json() {
+    return JSON.parse(this.body);
+  }
+
+  async text() {
+    return this.body;
+  }
+}
+
+// Add Response polyfill globally for Node.js environment
+if (typeof global.Response === 'undefined') {
+  global.Response = ResponsePolyfill;
+}
+
+// Also add to window for browser-like environment
+if (typeof window !== 'undefined' && !window.Response) {
+  window.Response = ResponsePolyfill;
+}
+
+// Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment.
+// `subtle` delegates to Node's built-in webcrypto implementation (real
+// SHA-256 etc.) so modules relying on crypto.subtle.digest (e.g.
+// qr-login-token.ts) behave identically to production instead of throwing.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { webcrypto } = require('crypto');
+Object.defineProperty(global, 'crypto', {
+  value: {
+    randomUUID: () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    },
+    getRandomValues: (arr) => {
+      for (let i = 0; i < arr.length; i++) {
+        arr[i] = Math.floor(Math.random() * 256);
+      }
+      return arr;
+    },
+    subtle: webcrypto.subtle,
+  },
+  writable: true,
+});
+
+// Mock Element.prototype.scrollIntoView for Radix UI Select components
+// Radix UI uses scrollIntoView for positioning and focus management
+if (typeof Element !== 'undefined' && Element.prototype && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = jest.fn();
+}
+
+// Polyfill TextEncoder and TextDecoder using global util module
+// Note: require() is used here intentionally for Jest setup
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const util = require('util');
+if (typeof global.TextEncoder === 'undefined') {
+  global.TextEncoder = util.TextEncoder;
+}
+if (typeof global.TextDecoder === 'undefined') {
+  global.TextDecoder = util.TextDecoder;
+}
+
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: jest.fn(() => ({ env: { DB: {} } })),
+  initOpenNextCloudflareForDev: jest.fn(),
+}));
+
+// Mock @prisma/client to provide Prisma namespace members in test environments
+// where the Prisma engine binary is unavailable (no prisma generate was run).
+// Without this mock:
+// - Prisma.sql tagged template (rank-calculation.ts) throws "not a function"
+// - Prisma.PrismaClientKnownRequestError used with instanceof throws
+//   "Right-hand side of instanceof is not an object"
+jest.mock('@prisma/client', () => {
+  const originalModule = jest.requireActual('@prisma/client');
+
+  // Tagged template tag that returns an object compatible with $executeRaw spread
+  const sql = (strings, ...values) => ({
+    strings: Array.from(strings),
+    values,
+    sql: strings.raw ? strings.raw.join('') : strings.join(''),
+  });
+
+  // Minimal error class used with instanceof checks in error-handling and finals-phase-manager
+  class PrismaClientKnownRequestError extends Error {
+    constructor(message, { code, clientVersion } = {}) {
+      super(message);
+      this.code = code;
+      this.clientVersion = clientVersion;
+      this.name = 'PrismaClientKnownRequestError';
+    }
+  }
+  class PrismaClientValidationError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = 'PrismaClientValidationError';
+    }
+  }
+
+  return {
+    ...originalModule,
+    // TC-2786/2787: Also exported at the module top level so that
+    // `import { PrismaClientKnownRequestError } from '@prisma/client'`
+    // (named import style) resolves to the same mock class in tests.
+    PrismaClientKnownRequestError,
+    PrismaClientValidationError,
+    Prisma: {
+      ...(originalModule.Prisma ?? {}),
+      sql,
+      // Sentinel value for JSON null fields in Prisma update/create calls
+      JsonNull: null,
+      PrismaClientKnownRequestError,
+      PrismaClientValidationError,
+    },
+    PrismaClient: jest.fn().mockImplementation(() => ({})),
+  };
+});
+
+// Mock Prisma client globally - optimized to minimize overhead
+// Provides both default and named `prisma` export to match src/lib/prisma.ts
+jest.mock('@/lib/prisma', () => {
+  const createMockModel = () => ({
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  });
+
+  const createMockModelWithMethods = () => ({
+    ...createMockModel(),
+    aggregate: jest.fn(),
+    count: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    groupBy: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    createMany: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+    delete: jest.fn(),
+    deleteMany: jest.fn(),
+  });
+
+  // Single mock instance shared by both default and named exports
+  const mockPrisma = {
+    tournament: createMockModelWithMethods(),
+    auditLog: {
+      create: jest.fn(),
+      createMany: jest.fn(),
+      findMany: jest.fn(),
+    },
+    player: createMockModelWithMethods(),
+    user: createMockModelWithMethods(),
+    account: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
+    session: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
+    bMMatch: createMockModelWithMethods(),
+    bMQualification: createMockModelWithMethods(),
+    mRMatch: createMockModelWithMethods(),
+    mRQualification: createMockModelWithMethods(),
+    gPMatch: createMockModelWithMethods(),
+    gPQualification: createMockModelWithMethods(),
+    finalsRoundSetting: createMockModelWithMethods(),
+    tTEntry: createMockModelWithMethods(),
+    tTPhaseRound: createMockModelWithMethods(),
+    tTPhaseSuddenDeathRound: createMockModelWithMethods(),
+    tTPhaseLifeAdjustment: createMockModelWithMethods(),
+    tournamentPlayerScore: createMockModelWithMethods(),
+    scoreEntryLog: {
+      aggregate: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    matchCharacterUsage: {
+      findMany: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    $executeRaw: jest.fn(),
+    $executeRawUnsafe: jest.fn(),
+  };
+
+  return {
+    __esModule: true,
+    default: mockPrisma,
+    prisma: mockPrisma,
+  };
+});
+
+// Mock NextAuth.js
+jest.mock('next-auth/react', () => ({
+  useSession: jest.fn(),
+  signIn: jest.fn(),
+  signOut: jest.fn(),
+}));
+
+// Mock Next.js router
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    refresh: jest.fn(),
+  }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/',
+}));
+
+// Mock window.location
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'location', {
+    value: {
+      href: '',
+      assign: jest.fn(),
+      replace: jest.fn(),
+    },
+    writable: true,
+  });
+}
+
+// Mock next/server to fix Response.json issue
+jest.mock('next/server', () => {
+  // NextResponse mock supports both constructor (new NextResponse(body, init))
+  // and static NextResponse.json(data, init).
+  // - The constructor form is used by routes returning non-JSON responses (e.g. 304 Not Modified).
+  // - NextResponse.json is a jest.fn() so tests can assert on it with toHaveBeenCalledWith.
+  class MockNextResponse {
+    constructor(body, init = {}) {
+      this.status = init.status || 200;
+      this.statusText = init.statusText || 'OK';
+      this.headers = new Headers(init.headers || {});
+      this.body = body;
+      this.ok = this.status >= 200 && this.status < 300;
+    }
+
+    async json() {
+      if (this.body === null || this.body === undefined) return null;
+      return JSON.parse(this.body);
+    }
+
+    async text() {
+      return this.body === null || this.body === undefined ? '' : String(this.body);
+    }
+  }
+
+  // Attach json as a jest.fn() so tests can use toHaveBeenCalledWith on NextResponse.json.
+  // The implementation creates a MockNextResponse instance with JSON body + Content-Type header.
+  MockNextResponse.json = jest.fn((body, init) => {
+    const status = init?.status || 200;
+    return new MockNextResponse(JSON.stringify(body), {
+      status,
+      statusText: init?.statusText || 'OK',
+      headers: new Headers({
+        'Content-Type': 'application/json',
+        ...(init?.headers || {}),
+      }),
+    });
+  });
+
+  return {
+    NextResponse: MockNextResponse,
+    NextRequest: class {
+      constructor(urlOrRequest, init) {
+        if (typeof urlOrRequest === 'string') {
+          this.url = urlOrRequest;
+          this.headers = new Headers(init?.headers);
+          this.method = init?.method || 'GET';
+          this.body = init?.body;
+        } else {
+          this.url = urlOrRequest.url;
+          this.headers = urlOrRequest.headers;
+          this.method = urlOrRequest.method;
+          this.body = urlOrRequest.body;
+        }
+      }
+
+      async json() {
+        return JSON.parse(this.body);
+      }
+    },
+    __esModule: true,
+  };
+});
+
+// Mock console methods to reduce noise in tests
+global.console = {
+  ...console,
+  // Uncomment to ignore specific console.log messages
+  // log: jest.fn(),
+  // warn: jest.fn(),
+  // error: jest.fn(),
+};
+
+// Setup fetch polyfill if needed
+if (!global.fetch) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  global.fetch = require('jest-fetch-mock');
+}
+
+// Mock xss package to avoid potential ESM issues in Jest.
+// Implements basic sanitization to satisfy test expectations.
+const basicSanitize = (html) => {
+  // Basic XSS sanitization for testing purposes
+  if (typeof html !== 'string') return html;
+
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+    .replace(/\s+on\w+=\s*"[^"]*"/gi, '') // Remove event handlers with space before
+    .replace(/\s+on\w+=\s*'[^']*'/gi, '') // Remove event handlers (single quotes)
+    .replace(/\s+on\w+=\s*[^\s>]+/gi, '') // Remove event handlers without quotes
+    .replace(/javascript:/gi, ''); // Remove javascript: protocol
+};
+
+jest.mock('xss', () => jest.fn((html) => basicSanitize(html)));
+
+// Mock rate-limit module globally to avoid request header issues in tests.
+// checkRateLimit always allows requests; getClientIdentifier returns a dummy IP.
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }),
+  getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
+  getServerSideIdentifier: jest.fn().mockResolvedValue('127.0.0.1'),
+  rateLimitConfigs: {
+    scoreInput: { limit: 120, windowMs: 60000 },
+    polling: { limit: 120, windowMs: 60000 },
+    sessionStatus: { limit: 60, windowMs: 60000 },
+    general: { limit: 60, windowMs: 60000 },
+  },
+  rateLimitStore: new Map(),
+  rateLimitInMemory: jest.fn().mockReturnValue({ success: true, remaining: 100 }),
+  clearRateLimitStore: jest.fn(),
+}));
+
+// Mock request-utils globally for factory tests that need getClientIdentifier.
+jest.mock('@/lib/request-utils', () => ({
+  getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
+  getUserAgent: jest.fn().mockReturnValue('jest-test'),
+  getServerSideIdentifier: jest.fn().mockResolvedValue('127.0.0.1'),
+}));
+
+// Clear all mocks before each test
+beforeEach(() => {
+  jest.clearAllMocks();
+});
