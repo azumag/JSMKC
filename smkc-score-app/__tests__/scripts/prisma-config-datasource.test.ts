@@ -21,11 +21,16 @@ describe('Prisma datasource config migration', () => {
     },
   );
 
-  it('keeps the Prisma 6 compatibility engine while the CLI remains on major 6', () => {
-    const prismaMajor = extractSemverMajor(manifest.devDependencies?.prisma ?? null);
+  it(
+    'keeps the Prisma 6 compatibility engine while the CLI remains on major 6',
+    () => {
+      const prismaMajor = extractSemverMajor(
+        manifest.devDependencies?.prisma ?? null,
+      );
 
-    if (prismaMajor === 6) {
-      expect(prismaConfig).toMatch(/engine\s*:\s*["']classic["']/);
-    }
-  });
+      if (prismaMajor === 6) {
+        expect(prismaConfig).toMatch(/engine\s*:\s*["']classic["']/);
+      }
+    },
+  );
 });
