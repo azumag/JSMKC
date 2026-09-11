@@ -59,6 +59,20 @@ function tsTargetSupportsPrisma7(target) {
   return match ? Number(match[1]) >= 2023 : false;
 }
 
+function nodeVersionSupportsPrisma7(version) {
+  if (typeof version !== 'string') return false;
+  const normalized = version.trim().replace(/^v/, '');
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:\+[^\s]+)?$/.exec(normalized);
+  if (!match) return false;
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+
+  if (major === 20) return minor >= 19;
+  if (major === 22) return minor >= 12;
+  return major === 24;
+}
+
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 
 function extractLegacyPrismaClientSpecifiers(source) {
@@ -116,6 +130,7 @@ function inspectPrismaV7Readiness({
   prismaConfigSource = null,
   tsconfigSource = null,
   legacyPrismaClientImports = [],
+  nodeVersion = null,
 }) {
   const prismaSelector = manifest.devDependencies?.prisma ?? null;
   const clientSelector = manifest.dependencies?.['@prisma/client'] ?? null;
@@ -136,6 +151,7 @@ function inspectPrismaV7Readiness({
   const tsconfigTarget = extractTsconfigCompilerOption(tsconfigSource, 'target');
 
   const checks = {
+    nodeRuntimeSupportsPrisma7: nodeVersionSupportsPrisma7(nodeVersion),
     packageTypeModule: manifest.type === 'module',
     prismaCliAtTargetMajor: prismaMajor === TARGET_PRISMA_MAJOR,
     prismaClientAtTargetMajor: clientMajor === TARGET_PRISMA_MAJOR,
@@ -163,6 +179,9 @@ function inspectPrismaV7Readiness({
     ready: blockers.length === 0,
     blockerCount: blockers.length,
     blockers,
+    runtime: {
+      node: nodeVersion,
+    },
     selectors: {
       prisma: prismaSelector,
       prismaClient: clientSelector,
@@ -206,6 +225,12 @@ function formatPrismaV7Readiness(status, { json = false } = {}) {
     `| prisma | \`${status.selectors.prisma ?? 'missing'}\` |`,
     `| @prisma/client | \`${status.selectors.prismaClient ?? 'missing'}\` |`,
     `| @prisma/adapter-d1 | \`${status.selectors.prismaAdapterD1 ?? 'missing'}\` |`,
+    '',
+    '### Runtime requirements',
+    '',
+    '| Runtime | Version |',
+    '| --- | --- |',
+    `| Node.js | \`${status.runtime.node ?? 'missing'}\` |`,
     '',
     `Generator provider: \`${status.generatorProvider ?? 'missing'}\``,
     '',
@@ -254,6 +279,7 @@ function main() {
       prismaConfigSource,
       tsconfigSource,
       legacyPrismaClientImports: findLegacyPrismaClientImports('src'),
+      nodeVersion: process.versions.node,
     });
     const output = formatPrismaV7Readiness(status, options);
     process.stdout.write(output);
@@ -279,6 +305,7 @@ module.exports = {
   findLegacyPrismaClientImports,
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
+  nodeVersionSupportsPrisma7,
   parseCliOptions,
   prismaConfigHasDatasourceUrl,
   prismaConfigHasEngineSetting,
