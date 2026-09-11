@@ -42,7 +42,9 @@ function findConstructedAdapterLocalName(source, adapterConstructorLocalName) {
 function extractPrismaClientOptions(source, prismaClientLocalName) {
   if (!prismaClientLocalName) return null;
   const clientName = escapeRegExp(prismaClientLocalName);
-  const match = new RegExp(`\\bnew\\s+${clientName}\\s*\\(\\s*\\{([\\s\\S]{0,4000}?)\\}\\s*\\)`).exec(source);
+  const match = new RegExp(
+    `\\bnew\\s+${clientName}\\s*\\(\\s*\\{([\\s\\S]{0,4000}?)\\}\\s*\\)`,
+  ).exec(source);
   return match?.[1] ?? null;
 }
 
