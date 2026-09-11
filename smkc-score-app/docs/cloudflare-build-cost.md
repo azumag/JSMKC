@@ -8,18 +8,23 @@ preserving the fixed production and preview environments.
 
 Use two separate Worker build connections.
 
-| Worker         | Production branch | Non-production branch builds | Build cache | Build command      | Deploy command               |
-| -------------- | ----------------- | ---------------------------- | ----------- | ------------------ | ---------------------------- |
-| `smkc`         | `main`            | **OFF**                      | **ON**      | `npm run build:cf` | `npm run deploy:cf`          |
-| `smkc-preview` | `preview`         | **OFF**                      | **ON**      | `npm run build:cf` | `npm run deploy:cf:preview`  |
+| Worker         | Production branch | Non-production branch builds | Build cache | Build command      | Deploy command              |
+| -------------- | ----------------- | ---------------------------- | ----------- | ------------------ | --------------------------- |
+| `smkc`         | `main`            | **OFF**                      | **ON**      | `npm run build:cf` | `npm run deploy:cf`         |
+| `smkc-preview` | `preview`         | **OFF**                      | **ON**      | `npm run build:cf` | `npm run deploy:cf:preview` |
 
 Both connections use `smkc-score-app` as the root directory.
 
-The former configuration enabled non-production builds for `smkc-preview`, which
-caused every push to every PR branch to run Prisma generation plus a full OpenNext
-build. That duplicated GitHub CI and consumed paid Workers Build Minutes. The fixed
-preview environment does not require per-commit/branch preview Workers, so feature
-branches are intentionally excluded.
+The former configuration enabled non-production builds for feature branches, which
+caused every PR push to run Prisma generation plus a full OpenNext build. That
+duplicated GitHub CI and consumed paid Workers Build Minutes. The fixed preview
+environment does not require per-commit/branch preview Workers, so feature branches
+are intentionally excluded.
+
+The repository intentionally does not turn a feature-branch build into a fake
+successful deployment. Branch control must prevent the unwanted Cloudflare build
+from starting. This keeps the production and fixed-preview deploy commands unchanged
+and avoids publishing incomplete artifacts merely to satisfy a PR check.
 
 ## Build watch paths
 
@@ -42,20 +47,17 @@ Wrangler/OpenNext configuration, or static assets. If a push contains both an
 excluded file and a deployable file, the deployable file must still trigger the
 build.
 
-## Repository-side defense
+## Pull-request checks
 
-Cloudflare system variables `WORKERS_CI=1` and `WORKERS_CI_BRANCH=<branch>` are
-used by `scripts/cloudflare-build.sh` and `scripts/cloudflare-deploy.sh`.
+Ordinary feature PRs are validated by GitHub CI and no longer wait for a Cloudflare
+Workers Build. The existing `Wait for Cloudflare Workers Build` job name is retained
+as a fast compatibility check so branch protection/rulesets that reference the old
+check name do not break during the migration.
 
-- `main` may build and deploy production.
-- `preview` may build and deploy the fixed preview Worker and preview D1 migrations.
-- any other branch exits before the expensive OpenNext build and before D1
-  migrations/deploy.
-- outside Workers Builds (local development and GitHub CI), the existing build and
-  deploy commands continue to work normally.
+Cloudflare deployment validation moves to the long-lived deployment branches:
 
-This guard is defense-in-depth only. Cloudflare Branch control remains the primary
-cost control because it prevents an unwanted build from starting at all.
+- `main` validates the production `smkc` deployment.
+- `preview` validates the fixed `smkc-preview` deployment and preview D1 database.
 
 ## Preview workflow
 
