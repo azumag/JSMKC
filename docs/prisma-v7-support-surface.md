@@ -21,6 +21,8 @@ The probe scans these bounded targets only:
 
 It recognizes static imports, dynamic imports / `require()`, Jest module targets such as `jest.mock()` and `jest.requireActual()`, and `@prisma/client` entries in Next.js `serverExternalPackages`. It does not scan `node_modules`, generated output, or the whole working tree, so running it after `npm ci` does not expand into dependency contents.
 
+When `GITHUB_STEP_SUMMARY` is available, the human-readable probe output is appended to the job summary. The manual `Security audit review` workflow runs the probe after the primary Prisma 7 readiness probe with `continue-on-error: true`, so support-code migration debt is visible alongside the other #3114 evidence without changing the compatible-range fail-closed gate.
+
 ## Why this is separate from application readiness
 
 Prisma 7's `prisma-client` generator uses an explicit generated-client output path. Migrating application imports under `src/` is therefore only one part of the change. The test harness currently mocks the package-level Prisma client, tests may import runtime subpaths directly, and Next.js currently externalizes `@prisma/client`. Those references must be reviewed alongside the generated-client import migration or CI/build failures can appear after the application source itself has been converted.
