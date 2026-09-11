@@ -15,11 +15,13 @@ The probe scans these bounded targets only:
 - `__tests__/`
 - `__mocks__/`
 - `e2e/`
-- `jest.setup.js`
+- `jest.setup.cjs`
 - `jest.config.ts`
 - `next.config.ts`
 
 It recognizes static imports, dynamic imports / `require()`, Jest module targets such as `jest.mock()` and `jest.requireActual()`, and `@prisma/client` entries in Next.js `serverExternalPackages`. It does not scan `node_modules`, generated output, or the whole working tree, so running it after `npm ci` does not expand into dependency contents.
+
+The root Jest setup is intentionally named `jest.setup.cjs`. This preserves its existing CommonJS execution semantics if the application package later enables top-level `"type": "module"`, while the support-surface probe still scans that file for legacy Prisma package references that must be migrated deliberately. `jest.config.ts` points directly at the `.cjs` setup entry, so this boundary is explicit rather than dependent on the current package default.
 
 When `GITHUB_STEP_SUMMARY` is available, the human-readable probe output is appended to the job summary. The manual `Security audit review` workflow runs the probe after the primary Prisma 7 readiness probe with `continue-on-error: true`, so support-code migration debt is visible alongside the other #3114 evidence without changing the compatible-range fail-closed gate.
 
@@ -31,7 +33,7 @@ The support-surface probe intentionally does **not** rewrite those references. I
 
 ## Relationship to #3114
 
-#3114 can only remove the temporary `deepmerge-ts` audit exception after a safe forward Prisma release is adopted and the vulnerable dependency edge disappears from the installed graph. Prisma 7 contains that upstream remediation, but the major-version migration remains a coordinated change.
+#3114 can only remove the temporary `deepmerge-ts` audit exception after a safe forward Prisma release is adopted and the vulnerable dependency edge disappears from the installed graph. The upstream Prisma v7 branch contains the `deepmerge-ts` 8 remediation from `prisma/orm#30189`, but JSMKC must still wait for a suitable published package set and perform an explicit major-version migration rather than treating an upstream branch merge as a released dependency update.
 
 Use both read-only probes before that migration PR:
 
