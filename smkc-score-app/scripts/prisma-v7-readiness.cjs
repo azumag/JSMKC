@@ -166,8 +166,7 @@ function inspectPrismaV7Readiness({
   const installedKnownMajors = [installedPrismaMajor, installedClientMajor, installedAdapterMajor].filter(
     (value) => value !== null,
   );
-  const installedPackageMajorsAligned =
-    installedKnownMajors.length === 3 && new Set(installedKnownMajors).size === 1;
+  const installedPackageMajorsAligned = installedKnownMajors.length === 3 && new Set(installedKnownMajors).size === 1;
   const installedPackageVersionsAligned =
     installedVersionValues.length === 3 && new Set(installedVersionValues).size === 1;
 
