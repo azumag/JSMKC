@@ -288,15 +288,25 @@ Cloudflare's docs note that when connecting an existing Worker, the Worker name 
 
 ### Build settings for this repository
 
-This is a monorepo, so set these values in Cloudflare:
+Use two separate Cloudflare Workers Builds connections. Ordinary feature PRs are
+validated by GitHub CI only; Cloudflare builds are reserved for the long-lived
+production and fixed-preview branches.
 
-- Root directory: `smkc-score-app`
-- Build command: `npm run build:cf`
-- Deploy command: `npm run deploy:cf`
-- Build watch path: `smkc-score-app/**` (recommended)
+| Worker | Production branch | Non-production branch builds | Root directory | Build command | Deploy command |
+|---|---|---|---|---|---|
+| `smkc` | `main` | **OFF** | `smkc-score-app` | `npm run build:cf` | `npm run deploy:cf` |
+| `smkc-preview` | `preview` | **OFF** | `smkc-score-app` | `npm run build:cf` | `npm run deploy:cf:preview` |
 
-Cloudflare's docs state that Workers Builds runs the build command first and then the deploy command, and that the root directory should point at the app directory in monorepos.
-`npm run deploy:cf` applies pending D1 migrations with `wrangler d1 migrations apply DB --remote` before `wrangler deploy`, so new Worker code is not promoted against an old production schema.
+Enable Cloudflare's build cache for both connections. Do not re-enable
+non-production branch builds for feature PRs; that duplicates GitHub CI and consumes
+Workers Build Minutes without improving the fixed-preview workflow.
+
+`npm run deploy:cf` applies pending D1 migrations with
+`wrangler d1 migrations apply DB --remote` before `wrangler deploy`, so new Worker
+code is not promoted against an old production schema.
+
+Detailed branch-control, build-cache, and watch-path settings are maintained in
+[`docs/cloudflare-build-cost.md`](docs/cloudflare-build-cost.md).
 
 ### Preview deployment for E2E
 
@@ -325,36 +335,17 @@ Deploy and migrate preview with:
 npm run deploy:preview
 ```
 
-Configure pull requests to deploy to preview through Cloudflare Workers Builds, not GitHub Actions:
+The fixed preview environment is updated intentionally through the long-lived
+`preview` branch. When an integration or E2E preview is needed, update `preview` to
+the exact commit or release candidate to validate and wait for the
+`smkc-preview` Workers Build. Do not deploy ordinary PR/feature branches through
+Cloudflare Workers Builds.
 
-1. In Cloudflare dashboard, open Workers & Pages → `smkc`.
-2. Open `Settings` → `Build`.
-3. Connect this repository for production builds.
-4. Keep the production branch as `main`.
-5. Set the root directory to `smkc-score-app`.
-6. Set the build command to `npm run build:cf`.
-7. Set the production deploy command to `npm run deploy:cf`.
-8. In Cloudflare dashboard, open Workers & Pages → `smkc-preview`.
-9. Open `Settings` → `Build`.
-10. Connect the same repository for preview builds.
-11. Enable builds for non-production branches in `Branch control`.
-12. Keep the root directory as `smkc-score-app`.
-13. Set the build command to `npm run build:cf`.
-14. Set the deploy command and non-production branch deploy command to
-    `npm run deploy:cf:preview`.
-
-Do not configure only the production Worker `smkc` with a non-production branch
-command that deploys `smkc-preview`. It can technically work because
-`npm run deploy:cf:preview` runs `wrangler deploy --env preview`, but the
-Cloudflare dashboard then shows branch settings under one Worker while traffic
-and runtime variables belong to another. Keep `smkc` and `smkc-preview` as
-separate Build connections so the deployed Worker, custom domain, runtime
-secrets, and branch rules all line up.
-
-With this setup, pushes to `main` deploy the production `smkc` Worker, while PR
-branches build through Cloudflare and promote the `smkc-preview` Worker. The
-preview deploy command applies D1 migrations to `smkc-db-preview` before
-deploying the preview Worker.
+Keep `smkc` and `smkc-preview` as separate Build connections so each Worker has the
+correct custom domain, runtime variables, D1 database, branch rule, and deploy
+command. Pushes to `main` deploy production `smkc`; pushes to `preview` deploy the
+fixed `smkc-preview` environment and apply pending migrations to
+`smkc-db-preview` before deployment.
 
 Run preview E2E with the dedicated Playwright profile:
 
