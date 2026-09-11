@@ -6,6 +6,7 @@ import {
   extractTsconfigCompilerOption,
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
+  nodeVersionSupportsPrisma7,
   parseCliOptions,
   prismaConfigHasDatasourceUrl,
   prismaConfigHasEngineSetting,
@@ -80,6 +81,8 @@ describe('Prisma 7 migration readiness probe', () => {
     },
   ];
 
+  const supportedNodeVersion = '22.12.0';
+
   it('reports the current repository migration items without mutating them', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
@@ -87,9 +90,11 @@ describe('Prisma 7 migration readiness probe', () => {
       prismaConfigSource: currentPrismaConfig,
       tsconfigSource: currentTsconfig,
       legacyPrismaClientImports: currentLegacyImports,
+      nodeVersion: supportedNodeVersion,
     });
 
     expect(status.ready).toBe(false);
+    expect(status.runtime).toEqual({ node: supportedNodeVersion });
     expect(status.selectors).toEqual({
       prisma: '^6.19.3',
       prismaClient: '^6.19.3',
@@ -113,6 +118,7 @@ describe('Prisma 7 migration readiness probe', () => {
         'applicationImportsUseGeneratedClient',
       ]),
     );
+    expect(status.blockers).not.toContain('nodeRuntimeSupportsPrisma7');
     expect(status.blockers).not.toContain('prismaAdapterAtTargetMajor');
     expect(status.blockers).not.toContain('prismaConfigPresent');
     expect(status.blockers).not.toContain('prismaConfigHasDatasourceUrl');
@@ -122,7 +128,7 @@ describe('Prisma 7 migration readiness probe', () => {
     expect(status.blockers).not.toContain('tsconfigTargetEs2023OrNewer');
   });
 
-  it('reports ready only when the v7 package, schema, config, and TypeScript prerequisites are explicit', () => {
+  it('reports ready only when the v7 package, schema, config, runtime, and TypeScript prerequisites are explicit', () => {
     const status = inspectPrismaV7Readiness({
       manifest: {
         type: 'module',
@@ -156,11 +162,37 @@ describe('Prisma 7 migration readiness probe', () => {
       `,
       tsconfigSource: prisma7Tsconfig,
       legacyPrismaClientImports: [],
+      nodeVersion: supportedNodeVersion,
     });
 
     expect(status.ready).toBe(true);
     expect(status.blockerCount).toBe(0);
     expect(status.blockers).toEqual([]);
+  });
+
+  it('tracks Prisma 7 Node.js runtime support explicitly', () => {
+    expect(nodeVersionSupportsPrisma7('20.19.0')).toBe(true);
+    expect(nodeVersionSupportsPrisma7('20.20.1')).toBe(true);
+    expect(nodeVersionSupportsPrisma7('20.18.9')).toBe(false);
+    expect(nodeVersionSupportsPrisma7('22.12.0')).toBe(true);
+    expect(nodeVersionSupportsPrisma7('v22.14.1')).toBe(true);
+    expect(nodeVersionSupportsPrisma7('22.11.0')).toBe(false);
+    expect(nodeVersionSupportsPrisma7('24.0.0')).toBe(true);
+    expect(nodeVersionSupportsPrisma7('23.11.0')).toBe(false);
+    expect(nodeVersionSupportsPrisma7('25.0.0')).toBe(false);
+    expect(nodeVersionSupportsPrisma7('22.12.0-rc.1')).toBe(false);
+    expect(nodeVersionSupportsPrisma7(null)).toBe(false);
+
+    const status = inspectPrismaV7Readiness({
+      manifest: currentManifest,
+      schema: currentSchema,
+      prismaConfigSource: currentPrismaConfig,
+      tsconfigSource: currentTsconfig,
+      legacyPrismaClientImports: currentLegacyImports,
+      nodeVersion: '22.11.0',
+    });
+
+    expect(status.blockers).toContain('nodeRuntimeSupportsPrisma7');
   });
 
   it('requires datasource.url inside the Prisma config instead of treating file presence as sufficient', () => {
@@ -264,11 +296,15 @@ describe('Prisma 7 migration readiness probe', () => {
       prismaConfigSource: currentPrismaConfig,
       tsconfigSource: currentTsconfig,
       legacyPrismaClientImports: currentLegacyImports,
+      nodeVersion: supportedNodeVersion,
     });
     const output = formatPrismaV7Readiness(status);
 
     expect(output).toContain('Overall readiness: `not-ready`');
     expect(output).toContain('@prisma/adapter-d1');
+    expect(output).toContain('Runtime requirements');
+    expect(output).toContain('| Node.js | `22.12.0` |');
+    expect(output).toContain('nodeRuntimeSupportsPrisma7');
     expect(output).toContain('src/lib/prisma.ts');
     expect(output).toContain('@prisma/client/runtime/library');
     expect(output).toContain('prismaConfigHasDatasourceUrl');
@@ -291,10 +327,14 @@ describe('Prisma 7 migration readiness probe', () => {
       prismaConfigSource: currentPrismaConfig,
       tsconfigSource: currentTsconfig,
       legacyPrismaClientImports: currentLegacyImports,
+      nodeVersion: supportedNodeVersion,
     });
     expect(JSON.parse(formatPrismaV7Readiness(status, { json: true }))).toMatchObject({
       targetMajor: 7,
       ready: false,
+      runtime: {
+        node: supportedNodeVersion,
+      },
       tsconfig: {
         module: 'esnext',
         moduleResolution: 'bundler',
