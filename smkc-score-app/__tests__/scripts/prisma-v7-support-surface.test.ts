@@ -25,6 +25,15 @@ describe('Prisma 7 support-code migration surface', () => {
     ]);
   });
 
+  it('does not treat prose-only package mentions as imports', () => {
+    expect(
+      extractLegacyPrismaClientReferences(`
+        // Error classes come from '@prisma/client/runtime/library' in Prisma 6.
+        const note = "types come from '@prisma/client' after generation";
+      `),
+    ).toEqual([]);
+  });
+
   it('records Next server externalization that must be rechecked after generated-client migration', () => {
     expect(
       extractNextConfigReferences(`
