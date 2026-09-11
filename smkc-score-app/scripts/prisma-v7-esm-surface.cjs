@@ -80,8 +80,7 @@ function maskCommentsAndStrings(source) {
       continue;
     }
 
-    const quote =
-      state === 'single-quote' ? "'" : state === 'double-quote' ? '"' : state === 'template' ? '`' : null;
+    const quote = state === 'single-quote' ? "'" : state === 'double-quote' ? '"' : state === 'template' ? '`' : null;
 
     if (character === '\\') {
       output += ' ';
