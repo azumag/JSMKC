@@ -42,9 +42,7 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     expect(steps.indexOf(readinessStep as WorkflowStep)).toBeLessThan(
       steps.indexOf(supportSurfaceStep as WorkflowStep),
     );
-    expect(steps.indexOf(supportSurfaceStep as WorkflowStep)).toBeLessThan(
-      steps.indexOf(summaryStep as WorkflowStep),
-    );
+    expect(steps.indexOf(supportSurfaceStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
   });
 
   it('keeps migration readiness and support-code evidence outside the compatible-range gate', () => {
