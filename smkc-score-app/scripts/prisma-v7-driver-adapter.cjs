@@ -29,6 +29,16 @@ function findNamedImportLocalName(source, exportedName, moduleSpecifier = null) 
   return null;
 }
 
+function findConstructedAdapterLocalName(source, adapterConstructorLocalName) {
+  if (!adapterConstructorLocalName) return null;
+
+  const constructorName = escapeRegExp(adapterConstructorLocalName);
+  const match = new RegExp(
+    `\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*new\\s+${constructorName}\\s*\\(`,
+  ).exec(source);
+  return match?.[1] ?? null;
+}
+
 function extractPrismaClientOptions(source, prismaClientLocalName) {
   if (!prismaClientLocalName) return null;
   const clientName = escapeRegExp(prismaClientLocalName);
@@ -36,11 +46,23 @@ function extractPrismaClientOptions(source, prismaClientLocalName) {
   return match?.[1] ?? null;
 }
 
+function prismaClientOptionsUseAdapter(clientOptions, adapterInstanceLocalName) {
+  if (!clientOptions || !adapterInstanceLocalName) return false;
+
+  const instanceName = escapeRegExp(adapterInstanceLocalName);
+  if (adapterInstanceLocalName === 'adapter' && /(?:^|,)\s*adapter\s*(?:,|$)/m.test(clientOptions)) {
+    return true;
+  }
+
+  return new RegExp(`\\badapter\\s*:\\s*${instanceName}\\b`).test(clientOptions);
+}
+
 function inspectPrismaV7DriverAdapter(source) {
   if (typeof source !== 'string') {
     return {
       ready: false,
       adapterLocalName: null,
+      adapterInstanceLocalName: null,
       prismaClientLocalName: null,
       checks: {
         importsPrismaD1Adapter: false,
@@ -52,19 +74,20 @@ function inspectPrismaV7DriverAdapter(source) {
 
   const code = stripComments(source);
   const adapterLocalName = findNamedImportLocalName(code, 'PrismaD1', '@prisma/adapter-d1');
+  const adapterInstanceLocalName = findConstructedAdapterLocalName(code, adapterLocalName);
   const prismaClientLocalName = findNamedImportLocalName(code, 'PrismaClient');
   const clientOptions = extractPrismaClientOptions(code, prismaClientLocalName);
 
   const checks = {
     importsPrismaD1Adapter: adapterLocalName !== null,
-    constructsPrismaD1Adapter:
-      adapterLocalName !== null && new RegExp(`\\bnew\\s+${escapeRegExp(adapterLocalName)}\\s*\\(`).test(code),
-    passesAdapterToPrismaClient: clientOptions !== null && /\badapter\s*(?:,|:)/.test(clientOptions),
+    constructsPrismaD1Adapter: adapterInstanceLocalName !== null,
+    passesAdapterToPrismaClient: prismaClientOptionsUseAdapter(clientOptions, adapterInstanceLocalName),
   };
 
   return {
     ready: Object.values(checks).every(Boolean),
     adapterLocalName,
+    adapterInstanceLocalName,
     prismaClientLocalName,
     checks,
   };
@@ -80,13 +103,14 @@ function formatPrismaV7DriverAdapter(status) {
     '',
     `Driver adapter wiring: \`${status.ready ? 'ready' : 'needs migration'}\``,
     `Detected D1 adapter local name: \`${status.adapterLocalName ?? 'none'}\``,
+    `Detected D1 adapter instance: \`${status.adapterInstanceLocalName ?? 'none'}\``,
     `Detected PrismaClient local name: \`${status.prismaClientLocalName ?? 'none'}\``,
     '',
     '| Readiness check | Result |',
     '| --- | --- |',
     checkRows,
     '',
-    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter and passes an adapter option when PrismaClient is created.',
+    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter and passes that constructed adapter when PrismaClient is created.',
     '',
   ].join('\n');
 }
@@ -113,8 +137,10 @@ if (require.main === module) {
 
 module.exports = {
   extractPrismaClientOptions,
+  findConstructedAdapterLocalName,
   findNamedImportLocalName,
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
+  prismaClientOptionsUseAdapter,
   stripComments,
 };
