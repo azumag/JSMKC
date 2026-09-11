@@ -86,10 +86,7 @@ describe('Prisma 7 support-code migration surface', () => {
 
     expect(
       JSON.parse(
-        formatPrismaV7SupportSurface(
-          { ready: true, referenceCount: 0, findings: [] },
-          { json: true },
-        ),
+        formatPrismaV7SupportSurface({ ready: true, referenceCount: 0, findings: [] }, { json: true }),
       ),
     ).toEqual({ ready: true, referenceCount: 0, findings: [] });
   });
