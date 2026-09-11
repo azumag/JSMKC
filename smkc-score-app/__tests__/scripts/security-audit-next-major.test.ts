@@ -98,7 +98,7 @@ describe('next-major Prisma upstream probe', () => {
     expect(status.state).toBe('compatible-forward-remediation-available');
     expect(status.publishedRemediationPackageSet).toEqual({
       state: 'unavailable',
-      prismaClientVersion: null,
+      prismaClientVersion: '7.11.0',
       prismaAdapterD1Version: null,
     });
     expect(getPublishedRemediationCandidate(status)).toBeNull();
