@@ -31,9 +31,9 @@ function findConstructedAdapterLocalName(source, adapterConstructorLocalName) {
   if (!adapterConstructorLocalName) return null;
 
   const constructorName = escapeRegExp(adapterConstructorLocalName);
-  const match = new RegExp(
-    `\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*new\\s+${constructorName}\\s*\\(`,
-  ).exec(source);
+  const match = new RegExp(`\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*new\\s+${constructorName}\\s*\\(`).exec(
+    source,
+  );
   return match?.[1] ?? null;
 }
 
