@@ -12,6 +12,8 @@ node scripts/prisma-v7-readiness.cjs --json
 
 The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads `package.json`, `prisma/schema.prisma`, the presence of `prisma.config.ts`, and application source files under `src/` to inventory legacy `@prisma/client` imports. It never runs `npm install`, generates a client, edits source files or the lockfile, changes D1, or modifies the #3114 exception.
 
+A companion read-only probe, documented in `docs/prisma-v7-support-surface.md`, inventories legacy Prisma package references outside application source (tests, Jest setup, E2E/tooling, and Next.js externalization). Run both probes before an explicit Prisma 7 migration so the application import migration does not hide support-code/build work that would otherwise surface only after CI or Cloudflare build failures.
+
 ## Checks
 
 The probe records the migration prerequisites that must be handled together in an explicit Prisma 7 dependency-migration PR:
@@ -28,7 +30,7 @@ These checks follow Prisma's v7 migration guidance. They are intentionally migra
 
 ## Current repository evidence
 
-At the time this probe was added, `main` has:
+Current `main` has:
 
 - `prisma: ^6.19.3`
 - `@prisma/client: ^6.19.3`
@@ -37,7 +39,7 @@ At the time this probe was added, `main` has:
 - `provider = "prisma-client-js"`
 - no explicit generator `output`
 - `datasource db` still contains `url = env("DATABASE_URL")`
-- no `prisma.config.ts`
+- `prisma.config.ts` already exists for schema/migrations configuration; the remaining v7 work is to move datasource URL/configuration out of the schema without breaking current CLI/Cloudflare behavior
 - application source still contains imports from `@prisma/client` and `@prisma/client/runtime/...`; these are now listed by the readiness probe as explicit migration work
 
 The existing adapter is already on major 7 while CLI/client remain on major 6. The readiness probe surfaces that version split without asserting that it is itself the cause of the current production behavior or changing it automatically.
