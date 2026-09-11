@@ -10,7 +10,7 @@ node scripts/prisma-v7-readiness.cjs
 node scripts/prisma-v7-readiness.cjs --json
 ```
 
-The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads `package.json`, `prisma/schema.prisma`, the contents of `prisma.config.ts` when present, and application source files under `src/` to inventory legacy `@prisma/client` imports. It never runs `npm install`, generates a client, edits source files or the lockfile, changes D1, or modifies the #3114 exception.
+The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads `package.json`, `prisma/schema.prisma`, the contents of `prisma.config.ts` and `tsconfig.json` when present, and application source files under `src/` to inventory legacy `@prisma/client` imports. It never runs `npm install`, generates a client, edits source files or the lockfile, changes TypeScript configuration, changes D1, or modifies the #3114 exception.
 
 A companion read-only probe, documented in `docs/prisma-v7-support-surface.md`, inventories legacy Prisma package references outside application source (tests, Jest setup, E2E/tooling, and Next.js externalization). Run both probes before an explicit Prisma 7 migration so the application import migration does not hide support-code/build work that would otherwise surface only after CI or Cloudflare build failures.
 
@@ -26,8 +26,9 @@ The probe records the migration prerequisites that must be handled together in a
 - `datasource.url` has moved out of `schema.prisma`.
 - `prisma.config.ts` exists for CLI datasource/configuration.
 - `prisma.config.ts` contains a `datasource.url` entry. File presence alone is not enough: without the URL in Prisma config, removing `datasource.url` from the schema would leave the CLI migration/generation path incomplete.
+- `tsconfig.json` is present and keeps the Prisma 7 ESM-consumption settings from the upstream migration guide: `module = "ESNext"`, `moduleResolution = "bundler"`, and `target = "ES2023"` or newer (`ESNext` is also accepted). This is read-only evidence; the probe does not rewrite the project's TypeScript target automatically because that can affect application output and must be validated together with Next.js/Cloudflare builds.
 
-These checks follow Prisma's v7 migration guidance. They are intentionally migration evidence, not an automatic upgrade gate.
+These checks follow Prisma's v7 migration guidance. They are intentionally migration evidence, not an automatic upgrade gate. Prisma's current v7 upgrade documentation also lists Node.js 20.19.0 as the minimum and recommends Node 22.x; JSMKC CI already runs Node 22, but runtime/build-environment compatibility still belongs in the explicit migration PR rather than being inferred solely from the package manifest.
 
 ## Current repository evidence
 
@@ -40,14 +41,15 @@ Current `main` has:
 - `provider = "prisma-client-js"`
 - no explicit generator `output`
 - `datasource db` still contains `url = env("DATABASE_URL")`
-- `prisma.config.ts` already exists for schema/migrations configuration, but it does not yet define `datasource.url`; the readiness probe now reports that separately from simple config-file presence
-- application source still contains imports from `@prisma/client` and `@prisma/client/runtime/...`; these are now listed by the readiness probe as explicit migration work
+- `prisma.config.ts` already exists for schema/migrations configuration, but it does not yet define `datasource.url`; the readiness probe reports that separately from simple config-file presence
+- `tsconfig.json` already uses `module = "esnext"` and `moduleResolution = "bundler"`, but its current `target = "ES2017"` is below the `ES2023` target in Prisma's v7 migration guidance; the readiness probe now reports this as explicit migration work instead of allowing a false ready state
+- application source still contains imports from `@prisma/client` and `@prisma/client/runtime/...`; these are listed by the readiness probe as explicit migration work
 
 The existing adapter is already on major 7 while CLI/client remain on major 6. The readiness probe surfaces that version split without asserting that it is itself the cause of the current production behavior or changing it automatically.
 
 ## Migration decision boundary
 
-When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, regenerate the client, and verify at minimum:
+When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, update the TypeScript module target as required, regenerate the client, and verify at minimum:
 
 1. Prisma generate and type checking.
 2. unit tests and lint/format.
@@ -62,4 +64,4 @@ If any of these require a behavior or deployment-policy decision, record it on #
 
 The manual `Security audit review` workflow also runs this readiness probe after collecting the compatible-range and next-major upstream evidence. The probe remains advisory: it uses `continue-on-error`, is not referenced by the compatible-range fail-closed gate, and cannot trigger a Prisma major upgrade or change the #3114 exception.
 
-The probe writes its detailed readiness table, including the legacy Prisma import inventory and the Prisma config datasource check, to the GitHub Actions job summary, and its step result remains visible in the workflow run. This keeps the migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
+The probe writes its detailed readiness table, including the legacy Prisma import inventory, Prisma config datasource check, and TypeScript module settings, to the GitHub Actions job summary, and its step result remains visible in the workflow run. This keeps the migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
