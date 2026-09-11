@@ -58,10 +58,7 @@ describe('Prisma 7 removed datasource fields', () => {
     expect(status.checks.datasourceDirectUrlMovedOutOfSchema).toBe(false);
     expect(status.checks.datasourceShadowDatabaseUrlMovedOutOfSchema).toBe(false);
     expect(status.blockers).toEqual(
-      expect.arrayContaining([
-        'datasourceDirectUrlMovedOutOfSchema',
-        'datasourceShadowDatabaseUrlMovedOutOfSchema',
-      ]),
+      expect.arrayContaining(['datasourceDirectUrlMovedOutOfSchema', 'datasourceShadowDatabaseUrlMovedOutOfSchema']),
     );
   });
 
