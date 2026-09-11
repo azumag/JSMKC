@@ -58,17 +58,11 @@ describe('Prisma 7 TypeScript prerequisites', () => {
     });
 
     expect(status.ready).toBe(false);
-    expect(status.blockers).toEqual([
-      'typescriptVersionAtLeast5_4',
-      'tsconfigStrict',
-      'tsconfigEsModuleInterop',
-    ]);
+    expect(status.blockers).toEqual(['typescriptVersionAtLeast5_4', 'tsconfigStrict', 'tsconfigEsModuleInterop']);
   });
 
   it('guards the current repository TypeScript prerequisites before the Prisma 7 migration', () => {
-    const typescriptManifest = JSON.parse(
-      readFileSync('node_modules/typescript/package.json', 'utf8'),
-    ) as {
+    const typescriptManifest = JSON.parse(readFileSync('node_modules/typescript/package.json', 'utf8')) as {
       version?: string;
     };
     const tsconfigSource = readFileSync('tsconfig.json', 'utf8');
