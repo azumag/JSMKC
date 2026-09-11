@@ -33,6 +33,13 @@ function hasAssignment(block, key) {
   return new RegExp(`^\\s*${key}\\s*=`, 'm').test(block);
 }
 
+function prismaConfigHasDatasourceUrl(source) {
+  if (typeof source !== 'string') return false;
+  const datasourceBlock = /^[ \t]*datasource\s*:\s*\{([\s\S]*?)\}/m.exec(source)?.[1] ?? null;
+  if (!datasourceBlock) return false;
+  return /^\s*url\s*:/m.test(datasourceBlock);
+}
+
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 
 function extractLegacyPrismaClientSpecifiers(source) {
@@ -84,7 +91,7 @@ function findLegacyPrismaClientImports(rootDir) {
   return findings;
 }
 
-function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent, legacyPrismaClientImports = [] }) {
+function inspectPrismaV7Readiness({ manifest, schema, prismaConfigSource = null, legacyPrismaClientImports = [] }) {
   const prismaSelector = manifest.devDependencies?.prisma ?? null;
   const clientSelector = manifest.dependencies?.['@prisma/client'] ?? null;
   const adapterSelector = manifest.dependencies?.['@prisma/adapter-d1'] ?? null;
@@ -97,6 +104,7 @@ function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent, legac
   const generatorBlock = extractSchemaBlock(schema, 'generator', 'client');
   const datasourceBlock = extractSchemaBlock(schema, 'datasource', 'db');
   const generatorProvider = extractQuotedAssignment(generatorBlock, 'provider');
+  const prismaConfigPresent = typeof prismaConfigSource === 'string';
 
   const checks = {
     packageTypeModule: manifest.type === 'module',
@@ -107,7 +115,8 @@ function inspectPrismaV7Readiness({ manifest, schema, prismaConfigPresent, legac
     generatorUsesPrismaClient: generatorProvider === 'prisma-client',
     generatorHasExplicitOutput: hasAssignment(generatorBlock, 'output'),
     datasourceUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'url'),
-    prismaConfigPresent: Boolean(prismaConfigPresent),
+    prismaConfigPresent,
+    prismaConfigHasDatasourceUrl: prismaConfigHasDatasourceUrl(prismaConfigSource),
     applicationImportsUseGeneratedClient: legacyPrismaClientImports.length === 0,
   };
 
@@ -188,10 +197,12 @@ function main() {
   try {
     const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
     const schema = fs.readFileSync('prisma/schema.prisma', 'utf8');
+    const prismaConfigPath = 'prisma.config.ts';
+    const prismaConfigSource = fs.existsSync(prismaConfigPath) ? fs.readFileSync(prismaConfigPath, 'utf8') : null;
     const status = inspectPrismaV7Readiness({
       manifest,
       schema,
-      prismaConfigPresent: fs.existsSync('prisma.config.ts'),
+      prismaConfigSource,
       legacyPrismaClientImports: findLegacyPrismaClientImports('src'),
     });
     const output = formatPrismaV7Readiness(status, options);
@@ -218,4 +229,5 @@ module.exports = {
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
   parseCliOptions,
+  prismaConfigHasDatasourceUrl,
 };
