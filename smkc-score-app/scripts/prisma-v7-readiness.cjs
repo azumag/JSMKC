@@ -159,6 +159,7 @@ function inspectPrismaV7Readiness({
   const packageMajorsAligned = knownMajors.length === 3 && new Set(knownMajors).size === 1;
 
   const installedVersions = getInstalledPrismaPackageVersions(lockfile);
+  const installedVersionValues = Object.values(installedVersions).filter((value) => typeof value === 'string');
   const installedPrismaMajor = extractSemverMajor(installedVersions.prisma);
   const installedClientMajor = extractSemverMajor(installedVersions.prismaClient);
   const installedAdapterMajor = extractSemverMajor(installedVersions.prismaAdapterD1);
@@ -167,6 +168,8 @@ function inspectPrismaV7Readiness({
   );
   const installedPackageMajorsAligned =
     installedKnownMajors.length === 3 && new Set(installedKnownMajors).size === 1;
+  const installedPackageVersionsAligned =
+    installedVersionValues.length === 3 && new Set(installedVersionValues).size === 1;
 
   const generatorBlock = extractSchemaBlock(schema, 'generator', 'client');
   const datasourceBlock = extractSchemaBlock(schema, 'datasource', 'db');
@@ -190,6 +193,7 @@ function inspectPrismaV7Readiness({
     installedPrismaClientAtTargetMajor: installedClientMajor === TARGET_PRISMA_MAJOR,
     installedPrismaAdapterAtTargetMajor: installedAdapterMajor === TARGET_PRISMA_MAJOR,
     installedPrismaPackageMajorsAligned: installedPackageMajorsAligned,
+    installedPrismaPackageVersionsAligned: installedPackageVersionsAligned,
     generatorUsesPrismaClient: generatorProvider === 'prisma-client',
     generatorHasExplicitOutput: hasAssignment(generatorBlock, 'output'),
     datasourceUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'url'),
