@@ -5,6 +5,7 @@ const {
   getPrismaVersionSelector,
   inspectCompatiblePrismaRelease,
   parseCliOptions,
+  runNpmView,
   selectLatestVersion,
   writeGitHubOutputs,
 } = require('./security-audit-upstream.js');
@@ -38,29 +39,40 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
   }
 
   const candidateVersion = status.latestCompatiblePrismaVersion;
+  let prismaClientVersion = null;
+  let prismaAdapterD1Version = null;
 
   try {
-    const prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${candidateVersion}`, 'version'));
-    const prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${candidateVersion}`, 'version'));
-
-    return {
-      state:
-        prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion
-          ? 'ready'
-          : 'incomplete',
-      prismaClientVersion,
-      prismaAdapterD1Version,
-    };
+    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${candidateVersion}`, 'version'));
   } catch {
     return {
       state: 'unavailable',
-      prismaClientVersion: null,
-      prismaAdapterD1Version: null,
+      prismaClientVersion,
+      prismaAdapterD1Version,
     };
   }
+
+  try {
+    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${candidateVersion}`, 'version'));
+  } catch {
+    return {
+      state: 'unavailable',
+      prismaClientVersion,
+      prismaAdapterD1Version,
+    };
+  }
+
+  return {
+    state:
+      prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion
+        ? 'ready'
+        : 'incomplete',
+    prismaClientVersion,
+    prismaAdapterD1Version,
+  };
 }
 
-function inspectNextMajorPrismaRelease({ manifest, npmView }) {
+function inspectNextMajorPrismaRelease({ manifest, npmView = runNpmView }) {
   const currentPrismaSelector = getPrismaVersionSelector(manifest);
   const nextMajorPrismaSelector = getNextMajorPrismaSelector(manifest);
   const nextMajorStatus = inspectCompatiblePrismaRelease({
