@@ -35,7 +35,7 @@ function hasAssignment(block, key) {
 
 function prismaConfigHasDatasourceUrl(source) {
   if (typeof source !== 'string') return false;
-  const datasourceBlock = /\bdatasource\s*:\s*\{([\s\S]*?)\}/m.exec(source)?.[1] ?? null;
+  const datasourceBlock = /^[ \t]*datasource\s*:\s*\{([\s\S]*?)\}/m.exec(source)?.[1] ?? null;
   if (!datasourceBlock) return false;
   return /^\s*url\s*:/m.test(datasourceBlock);
 }
