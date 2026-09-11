@@ -80,14 +80,7 @@ function maskCommentsAndStrings(source) {
       continue;
     }
 
-    const quote =
-      state === 'single-quote'
-        ? "'"
-        : state === 'double-quote'
-          ? '"'
-          : state === 'template'
-            ? '`'
-            : null;
+    const quote = state === 'single-quote' ? "'" : state === 'double-quote' ? '"' : state === 'template' ? '`' : null;
 
     if (character === '\\') {
       output += ' ';
@@ -135,9 +128,7 @@ function findCommonJsJavaScriptFiles(targets = DEFAULT_TARGETS) {
 
     const stat = fs.statSync(targetPath);
     if (stat.isDirectory()) {
-      const entries = fs
-        .readdirSync(targetPath, { withFileTypes: true })
-        .sort((a, b) => a.name.localeCompare(b.name));
+      const entries = fs.readdirSync(targetPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
       for (const entry of entries) {
         visit(path.join(targetPath, entry.name));
       }
@@ -175,9 +166,7 @@ function formatPrismaV7EsmSurface(status, { json = false } = {}) {
   const rows =
     status.findings.length === 0
       ? ['| none | none |']
-      : status.findings.map(
-          ({ path: filePath, constructs }) => `| \`${filePath}\` | ${constructs.join(', ')} |`,
-        );
+      : status.findings.map(({ path: filePath, constructs }) => `| \`${filePath}\` | ${constructs.join(', ')} |`);
 
   return [
     '## Prisma 7 ESM migration surface (#3114)',
