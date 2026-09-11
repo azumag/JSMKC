@@ -1,6 +1,12 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
   extractCommonJsConstructs,
+  findCommonJsJavaScriptFiles,
   formatPrismaV7EsmSurface,
+  hasExplicitCommonJsPackageScope,
   inspectPrismaV7EsmSurface,
   maskCommentsAndStrings,
   parseCliOptions,
@@ -32,6 +38,37 @@ describe('Prisma 7 ESM migration surface', () => {
     expect(extractCommonJsConstructs(source)).toEqual([]);
   });
 
+  it('treats explicit nested CommonJS package scopes as safe for a future top-level ESM switch', () => {
+    const root = mkdtempSync(join(tmpdir(), 'prisma-v7-esm-surface-'));
+
+    try {
+      const protectedDir = join(root, 'e2e');
+      mkdirSync(protectedDir, { recursive: true });
+      writeFileSync(join(protectedDir, 'package.json'), '{"type":"commonjs"}\n', 'utf8');
+      writeFileSync(join(protectedDir, 'helper.js'), "const fs = require('node:fs'); module.exports = fs;\n", 'utf8');
+
+      const unprotectedDir = join(root, 'scripts');
+      mkdirSync(unprotectedDir, { recursive: true });
+      writeFileSync(
+        join(unprotectedDir, 'helper.js'),
+        "const fs = require('node:fs'); module.exports = fs;\n",
+        'utf8',
+      );
+
+      expect(hasExplicitCommonJsPackageScope(join(protectedDir, 'helper.js'), root)).toBe(true);
+      expect(hasExplicitCommonJsPackageScope(join(unprotectedDir, 'helper.js'), root)).toBe(false);
+      expect(findCommonJsJavaScriptFiles([protectedDir], root)).toEqual([]);
+      expect(findCommonJsJavaScriptFiles([unprotectedDir], root)).toEqual([
+        {
+          path: 'scripts/helper.js',
+          constructs: ['require-call', 'module.exports'],
+        },
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('reports migration work without treating advisory evidence as a mutation', () => {
     const status = inspectPrismaV7EsmSurface({
       findings: [
@@ -50,7 +87,7 @@ describe('Prisma 7 ESM migration surface', () => {
     const output = formatPrismaV7EsmSurface(status);
     expect(output).toContain('Top-level type=module readiness: `not-ready`');
     expect(output).toContain('scripts/security-audit-status.js');
-    expect(output).toContain('renaming to `.cjs`');
+    expect(output).toContain('nested package scope');
     expect(output).toContain('read-only migration evidence');
   });
 
