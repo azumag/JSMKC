@@ -45,7 +45,11 @@ describe('Prisma 7 ESM migration surface', () => {
       const protectedDir = join(root, 'e2e');
       mkdirSync(protectedDir, { recursive: true });
       writeFileSync(join(protectedDir, 'package.json'), '{"type":"commonjs"}\n', 'utf8');
-      writeFileSync(join(protectedDir, 'helper.js'), "const fs = require('node:fs'); module.exports = fs;\n", 'utf8');
+      writeFileSync(
+        join(protectedDir, 'helper.js'),
+        "const fs = require('node:fs'); module.exports = fs;\n",
+        'utf8',
+      );
 
       const unprotectedDir = join(root, 'scripts');
       mkdirSync(unprotectedDir, { recursive: true });
