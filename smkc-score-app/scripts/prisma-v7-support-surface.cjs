@@ -151,7 +151,12 @@ function main() {
     const status = inspectPrismaV7SupportSurface({
       findings: findLegacyPrismaClientSupportReferences(),
     });
-    process.stdout.write(formatPrismaV7SupportSurface(status, options));
+    const output = formatPrismaV7SupportSurface(status, options);
+    process.stdout.write(output);
+
+    if (process.env.GITHUB_STEP_SUMMARY && !options.json) {
+      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
+    }
   } catch (error) {
     process.stderr.write(`Failed to inspect Prisma 7 support-code migration surface: ${error.message}\n`);
     process.exit(1);
