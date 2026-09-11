@@ -196,6 +196,8 @@ function inspectPrismaV7Readiness({
     generatorUsesPrismaClient: generatorProvider === 'prisma-client',
     generatorHasExplicitOutput: hasAssignment(generatorBlock, 'output'),
     datasourceUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'url'),
+    datasourceDirectUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'directUrl'),
+    datasourceShadowDatabaseUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'shadowDatabaseUrl'),
     prismaConfigPresent,
     prismaConfigHasDatasourceUrl: prismaConfigHasDatasourceUrl(prismaConfigSource),
     prismaConfigOmitsRemovedEngine: prismaConfigPresent && !prismaConfigHasEngineSetting(prismaConfigSource),
