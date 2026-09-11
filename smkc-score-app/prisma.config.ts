@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 // Load .env.local first, then .env as fallback
 config({ path: ".env.local" });
@@ -12,6 +12,10 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // `prisma generate` runs during CI install without DATABASE_URL. Prisma's
+    // config env() helper throws while loading every CLI command, even ones
+    // that do not need a datasource, so keep this optional until a DB command
+    // actually needs the URL.
+    url: process.env.DATABASE_URL ?? "",
   },
 });
