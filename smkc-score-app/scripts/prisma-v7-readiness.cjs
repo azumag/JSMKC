@@ -4,6 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const TARGET_PRISMA_MAJOR = 7;
+const LOCKFILE_PACKAGE_PATHS = Object.freeze({
+  prisma: 'node_modules/prisma',
+  prismaClient: 'node_modules/@prisma/client',
+  prismaAdapterD1: 'node_modules/@prisma/adapter-d1',
+});
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   if (argv.length === 0) return { json: false };
@@ -73,6 +78,17 @@ function nodeVersionSupportsPrisma7(version) {
   return major === 24;
 }
 
+function getInstalledPrismaPackageVersions(lockfile) {
+  const packages = lockfile?.packages;
+
+  return Object.fromEntries(
+    Object.entries(LOCKFILE_PACKAGE_PATHS).map(([key, packagePath]) => {
+      const version = packages?.[packagePath]?.version;
+      return [key, typeof version === 'string' ? version : null];
+    }),
+  );
+}
+
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 
 function extractLegacyPrismaClientSpecifiers(source) {
@@ -126,6 +142,7 @@ function findLegacyPrismaClientImports(rootDir) {
 
 function inspectPrismaV7Readiness({
   manifest,
+  lockfile = null,
   schema,
   prismaConfigSource = null,
   tsconfigSource = null,
@@ -141,11 +158,22 @@ function inspectPrismaV7Readiness({
   const knownMajors = [prismaMajor, clientMajor, adapterMajor].filter((value) => value !== null);
   const packageMajorsAligned = knownMajors.length === 3 && new Set(knownMajors).size === 1;
 
+  const installedVersions = getInstalledPrismaPackageVersions(lockfile);
+  const installedPrismaMajor = extractSemverMajor(installedVersions.prisma);
+  const installedClientMajor = extractSemverMajor(installedVersions.prismaClient);
+  const installedAdapterMajor = extractSemverMajor(installedVersions.prismaAdapterD1);
+  const installedKnownMajors = [installedPrismaMajor, installedClientMajor, installedAdapterMajor].filter(
+    (value) => value !== null,
+  );
+  const installedPackageMajorsAligned =
+    installedKnownMajors.length === 3 && new Set(installedKnownMajors).size === 1;
+
   const generatorBlock = extractSchemaBlock(schema, 'generator', 'client');
   const datasourceBlock = extractSchemaBlock(schema, 'datasource', 'db');
   const generatorProvider = extractQuotedAssignment(generatorBlock, 'provider');
   const prismaConfigPresent = typeof prismaConfigSource === 'string';
   const tsconfigPresent = typeof tsconfigSource === 'string';
+  const lockfilePresent = Boolean(lockfile && typeof lockfile === 'object' && lockfile.packages);
   const tsconfigModule = extractTsconfigCompilerOption(tsconfigSource, 'module');
   const tsconfigModuleResolution = extractTsconfigCompilerOption(tsconfigSource, 'moduleResolution');
   const tsconfigTarget = extractTsconfigCompilerOption(tsconfigSource, 'target');
@@ -157,6 +185,11 @@ function inspectPrismaV7Readiness({
     prismaClientAtTargetMajor: clientMajor === TARGET_PRISMA_MAJOR,
     prismaAdapterAtTargetMajor: adapterMajor === TARGET_PRISMA_MAJOR,
     prismaPackageMajorsAligned: packageMajorsAligned,
+    lockfilePresent,
+    installedPrismaCliAtTargetMajor: installedPrismaMajor === TARGET_PRISMA_MAJOR,
+    installedPrismaClientAtTargetMajor: installedClientMajor === TARGET_PRISMA_MAJOR,
+    installedPrismaAdapterAtTargetMajor: installedAdapterMajor === TARGET_PRISMA_MAJOR,
+    installedPrismaPackageMajorsAligned: installedPackageMajorsAligned,
     generatorUsesPrismaClient: generatorProvider === 'prisma-client',
     generatorHasExplicitOutput: hasAssignment(generatorBlock, 'output'),
     datasourceUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'url'),
@@ -187,6 +220,7 @@ function inspectPrismaV7Readiness({
       prismaClient: clientSelector,
       prismaAdapterD1: adapterSelector,
     },
+    installedVersions,
     generatorProvider,
     tsconfig: {
       module: tsconfigModule,
@@ -220,11 +254,11 @@ function formatPrismaV7Readiness(status, { json = false } = {}) {
     '',
     `Overall readiness: \`${status.ready ? 'ready' : 'not-ready'}\` (${status.blockerCount} migration item(s))`,
     '',
-    '| Package | Selector |',
-    '| --- | --- |',
-    `| prisma | \`${status.selectors.prisma ?? 'missing'}\` |`,
-    `| @prisma/client | \`${status.selectors.prismaClient ?? 'missing'}\` |`,
-    `| @prisma/adapter-d1 | \`${status.selectors.prismaAdapterD1 ?? 'missing'}\` |`,
+    '| Package | Selector | Installed version |',
+    '| --- | --- | --- |',
+    `| prisma | \`${status.selectors.prisma ?? 'missing'}\` | \`${status.installedVersions.prisma ?? 'missing'}\` |`,
+    `| @prisma/client | \`${status.selectors.prismaClient ?? 'missing'}\` | \`${status.installedVersions.prismaClient ?? 'missing'}\` |`,
+    `| @prisma/adapter-d1 | \`${status.selectors.prismaAdapterD1 ?? 'missing'}\` | \`${status.installedVersions.prismaAdapterD1 ?? 'missing'}\` |`,
     '',
     '### Runtime requirements',
     '',
@@ -252,7 +286,7 @@ function formatPrismaV7Readiness(status, { json = false } = {}) {
     '| --- | --- |',
     checkRows,
     '',
-    'This is read-only migration evidence. It does not update dependencies, schema, generated client code, TypeScript configuration, or the #3114 audit exception.',
+    'This is read-only migration evidence. It does not update dependencies, lockfile state, schema, generated client code, TypeScript configuration, or the #3114 audit exception.',
     '',
   ].join('\n');
 }
@@ -268,6 +302,7 @@ function main() {
 
   try {
     const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+    const lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
     const schema = fs.readFileSync('prisma/schema.prisma', 'utf8');
     const prismaConfigPath = 'prisma.config.ts';
     const prismaConfigSource = fs.existsSync(prismaConfigPath) ? fs.readFileSync(prismaConfigPath, 'utf8') : null;
@@ -275,6 +310,7 @@ function main() {
     const tsconfigSource = fs.existsSync(tsconfigPath) ? fs.readFileSync(tsconfigPath, 'utf8') : null;
     const status = inspectPrismaV7Readiness({
       manifest,
+      lockfile,
       schema,
       prismaConfigSource,
       tsconfigSource,
@@ -298,12 +334,14 @@ if (require.main === module) {
 }
 
 module.exports = {
+  LOCKFILE_PACKAGE_PATHS,
   TARGET_PRISMA_MAJOR,
   extractLegacyPrismaClientSpecifiers,
   extractSemverMajor,
   extractTsconfigCompilerOption,
   findLegacyPrismaClientImports,
   formatPrismaV7Readiness,
+  getInstalledPrismaPackageVersions,
   inspectPrismaV7Readiness,
   nodeVersionSupportsPrisma7,
   parseCliOptions,
