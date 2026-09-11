@@ -94,21 +94,6 @@ function main() {
   });
 
   if (result.error) throw result.error;
-  if (result.status !== 0) {
-    const diagnosticTarget = 'scripts/prisma-v7-driver-adapter.cjs';
-    const writeResult = spawnSync(prettierExecutable, ['--write', diagnosticTarget], {
-      cwd: appRoot,
-      stdio: 'inherit',
-    });
-    if (writeResult.error) throw writeResult.error;
-    const diffResult = spawnSync('git', ['diff', '--', `${appPrefix}${diagnosticTarget}`], {
-      cwd: repositoryRoot,
-      encoding: 'utf8',
-    });
-    if (diffResult.error) throw diffResult.error;
-    console.log('Prettier diagnostic diff for adapter probe:');
-    console.log(diffResult.stdout);
-  }
   return result.status ?? 1;
 }
 
