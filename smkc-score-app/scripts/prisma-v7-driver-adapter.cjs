@@ -19,9 +19,7 @@ function findNamedImportLocalName(source, exportedName, moduleSpecifier = null) 
     if (moduleSpecifier && match[2] !== moduleSpecifier) continue;
 
     for (const entry of match[1].split(',')) {
-      const named = new RegExp(
-        `^\\s*${escapeRegExp(exportedName)}(?:\\s+as\\s+([A-Za-z_$][\\w$]*))?\\s*$`,
-      ).exec(entry);
+      const named = new RegExp(`^\\s*${escapeRegExp(exportedName)}(?:\\s+as\\s+([A-Za-z_$][\\w$]*))?\\s*$`).exec(entry);
       if (named) return named[1] ?? exportedName;
     }
   }
@@ -42,9 +40,7 @@ function findConstructedAdapterLocalName(source, adapterConstructorLocalName) {
 function extractPrismaClientOptions(source, prismaClientLocalName) {
   if (!prismaClientLocalName) return null;
   const clientName = escapeRegExp(prismaClientLocalName);
-  const match = new RegExp(
-    `\\bnew\\s+${clientName}\\s*\\(\\s*\\{([\\s\\S]{0,4000}?)\\}\\s*\\)`,
-  ).exec(source);
+  const match = new RegExp(`\\bnew\\s+${clientName}\\s*\\(\\s*\\{([\\s\\S]{0,4000}?)\\}\\s*\\)`).exec(source);
   return match?.[1] ?? null;
 }
 
