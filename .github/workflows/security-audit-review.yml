@@ -124,6 +124,9 @@ jobs:
           LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION: ${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}
           NEXT_MAJOR_DEEPMERGE_REQUIREMENT: ${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}
           NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE: ${{ steps.next_major_upstream.outputs.published_remediation_candidate }}
+          NEXT_MAJOR_PUBLISHED_PACKAGE_SET_STATE: ${{ steps.next_major_upstream.outputs.published_remediation_package_set_state }}
+          NEXT_MAJOR_PUBLISHED_PRISMA_CLIENT_VERSION: ${{ steps.next_major_upstream.outputs.published_remediation_prisma_client_version }}
+          NEXT_MAJOR_PUBLISHED_ADAPTER_D1_VERSION: ${{ steps.next_major_upstream.outputs.published_remediation_adapter_d1_version }}
         run: |
           {
             echo "## #3114 security audit review"
@@ -184,6 +187,9 @@ jobs:
             echo "| Latest next-major @prisma/config | \`${LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| Next-major @prisma/config → deepmerge-ts requirement | \`${NEXT_MAJOR_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
             echo "| Published remediation candidate | \`${NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE:-unavailable}\` |"
+            echo "| Published remediation package set | \`${NEXT_MAJOR_PUBLISHED_PACKAGE_SET_STATE:-unavailable}\` |"
+            echo "| Candidate @prisma/client | \`${NEXT_MAJOR_PUBLISHED_PRISMA_CLIENT_VERSION:-unavailable}\` |"
+            echo "| Candidate @prisma/adapter-d1 | \`${NEXT_MAJOR_PUBLISHED_ADAPTER_D1_VERSION:-unavailable}\` |"
             echo
             echo "Next-major, Prisma 7 readiness, Prisma 7 support-code, and Prisma 7 ESM migration evidence are advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
             echo
