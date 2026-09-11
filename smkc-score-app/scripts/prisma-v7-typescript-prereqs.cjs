@@ -66,11 +66,7 @@ function readTypeScriptVersionEvidence({ readFileSync = fs.readFileSync, existsS
   };
 }
 
-function inspectPrismaV7TypeScriptPrerequisites({
-  typescriptVersion,
-  typescriptVersionSource = null,
-  tsconfigSource,
-}) {
+function inspectPrismaV7TypeScriptPrerequisites({ typescriptVersion, typescriptVersionSource = null, tsconfigSource }) {
   const strict = extractBooleanCompilerOption(tsconfigSource, 'strict');
   const esModuleInterop = extractBooleanCompilerOption(tsconfigSource, 'esModuleInterop');
   const checks = {
