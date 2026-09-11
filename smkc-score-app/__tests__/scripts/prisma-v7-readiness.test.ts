@@ -4,6 +4,7 @@ import {
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
   parseCliOptions,
+  prismaConfigHasDatasourceUrl,
 } from '../../scripts/prisma-v7-readiness.cjs';
 
 describe('Prisma 7 migration readiness probe', () => {
@@ -28,6 +29,17 @@ describe('Prisma 7 migration readiness probe', () => {
     }
   `;
 
+  const currentPrismaConfig = `
+    import { defineConfig } from "prisma/config";
+
+    export default defineConfig({
+      schema: "prisma/schema.prisma",
+      migrations: {
+        path: "prisma/migrations",
+      },
+    });
+  `;
+
   const currentLegacyImports = [
     {
       path: 'src/lib/prisma.ts',
@@ -43,7 +55,7 @@ describe('Prisma 7 migration readiness probe', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
       schema: currentSchema,
-      prismaConfigPresent: true,
+      prismaConfigSource: currentPrismaConfig,
       legacyPrismaClientImports: currentLegacyImports,
     });
 
@@ -62,6 +74,7 @@ describe('Prisma 7 migration readiness probe', () => {
         'generatorUsesPrismaClient',
         'generatorHasExplicitOutput',
         'datasourceUrlMovedOutOfSchema',
+        'prismaConfigHasDatasourceUrl',
         'applicationImportsUseGeneratedClient',
       ]),
     );
@@ -69,7 +82,7 @@ describe('Prisma 7 migration readiness probe', () => {
     expect(status.blockers).not.toContain('prismaConfigPresent');
   });
 
-  it('reports ready only when the v7 package and schema prerequisites are explicit', () => {
+  it('reports ready only when the v7 package, schema, and config prerequisites are explicit', () => {
     const status = inspectPrismaV7Readiness({
       manifest: {
         type: 'module',
@@ -91,13 +104,43 @@ describe('Prisma 7 migration readiness probe', () => {
           provider = "sqlite"
         }
       `,
-      prismaConfigPresent: true,
+      prismaConfigSource: `
+        import { defineConfig, env } from "prisma/config";
+
+        export default defineConfig({
+          schema: "prisma/schema.prisma",
+          datasource: {
+            url: env("DATABASE_URL"),
+          },
+        });
+      `,
       legacyPrismaClientImports: [],
     });
 
     expect(status.ready).toBe(true);
     expect(status.blockerCount).toBe(0);
     expect(status.blockers).toEqual([]);
+  });
+
+  it('requires datasource.url inside the Prisma config instead of treating file presence as sufficient', () => {
+    expect(prismaConfigHasDatasourceUrl(currentPrismaConfig)).toBe(false);
+    expect(
+      prismaConfigHasDatasourceUrl(`
+        export default defineConfig({
+          schema: "prisma/schema.prisma",
+          datasource: {
+            url: env("DATABASE_URL"),
+          },
+        });
+      `),
+    ).toBe(true);
+    expect(
+      prismaConfigHasDatasourceUrl(`
+        // url: env("DATABASE_URL")
+        export default defineConfig({ schema: "prisma/schema.prisma" });
+      `),
+    ).toBe(false);
+    expect(prismaConfigHasDatasourceUrl(null)).toBe(false);
   });
 
   it('finds package and runtime imports that must move to the generated client', () => {
@@ -124,7 +167,7 @@ describe('Prisma 7 migration readiness probe', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
       schema: currentSchema,
-      prismaConfigPresent: true,
+      prismaConfigSource: currentPrismaConfig,
       legacyPrismaClientImports: currentLegacyImports,
     });
     const output = formatPrismaV7Readiness(status);
@@ -133,6 +176,7 @@ describe('Prisma 7 migration readiness probe', () => {
     expect(output).toContain('@prisma/adapter-d1');
     expect(output).toContain('src/lib/prisma.ts');
     expect(output).toContain('@prisma/client/runtime/library');
+    expect(output).toContain('prismaConfigHasDatasourceUrl');
     expect(output).toContain('read-only migration evidence');
     expect(output).not.toContain('dependencies updated');
   });
@@ -145,7 +189,7 @@ describe('Prisma 7 migration readiness probe', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
       schema: currentSchema,
-      prismaConfigPresent: true,
+      prismaConfigSource: currentPrismaConfig,
       legacyPrismaClientImports: currentLegacyImports,
     });
     expect(JSON.parse(formatPrismaV7Readiness(status, { json: true }))).toMatchObject({
