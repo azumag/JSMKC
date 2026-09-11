@@ -19,9 +19,9 @@ function findNamedImportLocalName(source, exportedName, moduleSpecifier = null) 
     if (moduleSpecifier && match[2] !== moduleSpecifier) continue;
 
     for (const entry of match[1].split(',')) {
-      const named = new RegExp(`^\\s*${escapeRegExp(exportedName)}(?:\\s+as\\s+([A-Za-z_$][\\w$]*))?\\s*$`).exec(
-        entry,
-      );
+      const named = new RegExp(
+        `^\\s*${escapeRegExp(exportedName)}(?:\\s+as\\s+([A-Za-z_$][\\w$]*))?\\s*$`,
+      ).exec(entry);
       if (named) return named[1] ?? exportedName;
     }
   }
