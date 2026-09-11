@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 
 const MIN_TYPESCRIPT_VERSION = Object.freeze([5, 4, 0]);
+const TYPESCRIPT_LOCKFILE_PATH = 'node_modules/typescript';
 
 function parseStableSemver(version) {
   if (typeof version !== 'string') return null;
@@ -32,7 +33,40 @@ function extractBooleanCompilerOption(source, key) {
   return match ? match[1] === 'true' : null;
 }
 
-function inspectPrismaV7TypeScriptPrerequisites({ typescriptVersion, tsconfigSource }) {
+function getLockedTypeScriptVersion(lockfile) {
+  const version = lockfile?.packages?.[TYPESCRIPT_LOCKFILE_PATH]?.version;
+  return typeof version === 'string' ? version : null;
+}
+
+function readTypeScriptVersionEvidence({ readFileSync = fs.readFileSync, existsSync = fs.existsSync } = {}) {
+  const installedManifestPath = 'node_modules/typescript/package.json';
+
+  if (existsSync(installedManifestPath)) {
+    const installedManifest = JSON.parse(readFileSync(installedManifestPath, 'utf8'));
+    if (typeof installedManifest.version !== 'string') {
+      throw new Error(`${installedManifestPath} does not contain a string version`);
+    }
+
+    return {
+      version: installedManifest.version,
+      source: installedManifestPath,
+    };
+  }
+
+  const lockfilePath = 'package-lock.json';
+  const lockfile = JSON.parse(readFileSync(lockfilePath, 'utf8'));
+  const lockedVersion = getLockedTypeScriptVersion(lockfile);
+  if (!lockedVersion) {
+    throw new Error(`${lockfilePath} does not contain ${TYPESCRIPT_LOCKFILE_PATH}.version`);
+  }
+
+  return {
+    version: lockedVersion,
+    source: `${lockfilePath}#packages.${TYPESCRIPT_LOCKFILE_PATH}`,
+  };
+}
+
+function inspectPrismaV7TypeScriptPrerequisites({ typescriptVersion, typescriptVersionSource = null, tsconfigSource }) {
   const strict = extractBooleanCompilerOption(tsconfigSource, 'strict');
   const esModuleInterop = extractBooleanCompilerOption(tsconfigSource, 'esModuleInterop');
   const checks = {
@@ -47,6 +81,7 @@ function inspectPrismaV7TypeScriptPrerequisites({ typescriptVersion, tsconfigSou
   return {
     minimumTypeScriptVersion: MIN_TYPESCRIPT_VERSION.join('.'),
     typescriptVersion,
+    typescriptVersionSource,
     tsconfig: {
       strict,
       esModuleInterop,
@@ -61,7 +96,8 @@ function formatPrismaV7TypeScriptPrerequisites(status) {
   return [
     '## Prisma 7 TypeScript prerequisites (#3114)',
     '',
-    `Installed TypeScript: \`${status.typescriptVersion ?? 'missing'}\``,
+    `TypeScript version: \`${status.typescriptVersion ?? 'missing'}\``,
+    `TypeScript evidence source: \`${status.typescriptVersionSource ?? 'unknown'}\``,
     `Required minimum: \`${status.minimumTypeScriptVersion}\``,
     '',
     '| Requirement | Value | Result |',
@@ -72,17 +108,18 @@ function formatPrismaV7TypeScriptPrerequisites(status) {
     '',
     `Overall readiness: \`${status.ready ? 'ready' : 'not-ready'}\``,
     '',
-    'This probe is read-only. It does not update TypeScript, tsconfig.json, Prisma packages, generated client code, or the #3114 audit exception.',
+    'This probe is read-only. It does not install or update TypeScript, edit tsconfig.json, change Prisma packages, generate client code, or modify the #3114 audit exception.',
     '',
   ].join('\n');
 }
 
 function main() {
   try {
-    const typescriptManifest = JSON.parse(fs.readFileSync('node_modules/typescript/package.json', 'utf8'));
+    const typescriptEvidence = readTypeScriptVersionEvidence();
     const tsconfigSource = fs.readFileSync('tsconfig.json', 'utf8');
     const status = inspectPrismaV7TypeScriptPrerequisites({
-      typescriptVersion: typescriptManifest.version ?? null,
+      typescriptVersion: typescriptEvidence.version,
+      typescriptVersionSource: typescriptEvidence.source,
       tsconfigSource,
     });
     const output = formatPrismaV7TypeScriptPrerequisites(status);
@@ -103,10 +140,13 @@ if (require.main === module) {
 
 module.exports = {
   MIN_TYPESCRIPT_VERSION,
+  TYPESCRIPT_LOCKFILE_PATH,
   compareVersionTuple,
   extractBooleanCompilerOption,
   formatPrismaV7TypeScriptPrerequisites,
+  getLockedTypeScriptVersion,
   inspectPrismaV7TypeScriptPrerequisites,
   parseStableSemver,
+  readTypeScriptVersionEvidence,
   typescriptVersionSupportsPrisma7,
 };
