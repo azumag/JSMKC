@@ -1,4 +1,5 @@
 import {
+  DEFAULT_TARGETS,
   extractLegacyPrismaClientReferences,
   extractNextConfigReferences,
   formatPrismaV7SupportSurface,
@@ -47,6 +48,11 @@ describe('Prisma 7 support-code migration surface', () => {
     ).toEqual([{ kind: 'next-server-external', specifier: prismaClientSpecifier }]);
   });
 
+  it('keeps the explicit CommonJS Jest setup in the support-code inventory', () => {
+    expect(DEFAULT_TARGETS).toContain('jest.setup.cjs');
+    expect(DEFAULT_TARGETS).not.toContain('jest.setup.js');
+  });
+
   it('treats support-code references as migration work without changing application code', () => {
     const status = inspectPrismaV7SupportSurface({
       findings: [
@@ -55,7 +61,7 @@ describe('Prisma 7 support-code migration surface', () => {
           references: [{ kind: 'import', specifier: prismaRuntimeSpecifier }],
         },
         {
-          path: 'jest.setup.js',
+          path: 'jest.setup.cjs',
           references: [{ kind: 'jest-module-target', specifier: prismaClientSpecifier }],
         },
       ],

@@ -8,7 +8,7 @@ const createJestConfig = nextJest({
 
 // Add any custom config to be passed to Jest
 const customJestConfig: Config = {
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you based on your tsconfig.json paths)
     '^@/(.*)$': '<rootDir>/src/$1',
@@ -20,11 +20,7 @@ const customJestConfig: Config = {
     '^next-intl$': '<rootDir>/__mocks__/next-intl.js',
   },
   testEnvironment: 'node',
-  collectCoverageFrom: [
-    'src/**/*.{js,jsx,ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/**/index.{js,jsx,ts,tsx}',
-  ],
+  collectCoverageFrom: ['src/**/*.{js,jsx,ts,tsx}', '!src/**/*.d.ts', '!src/**/index.{js,jsx,ts,tsx}'],
   coverageThreshold: {
     global: {
       branches: 70,

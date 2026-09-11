@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
-const DEFAULT_TARGETS = ['__tests__', '__mocks__', 'e2e', 'jest.setup.js', 'jest.config.ts', 'next.config.ts'];
+const DEFAULT_TARGETS = ['__tests__', '__mocks__', 'e2e', 'jest.setup.cjs', 'jest.config.ts', 'next.config.ts'];
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   if (argv.length === 0) return { json: false };
