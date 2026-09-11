@@ -10,7 +10,7 @@ node scripts/prisma-v7-readiness.cjs
 node scripts/prisma-v7-readiness.cjs --json
 ```
 
-The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads `package.json`, `prisma/schema.prisma`, the contents of `prisma.config.ts` and `tsconfig.json` when present, and application source files under `src/` to inventory legacy `@prisma/client` imports. It never runs `npm install`, generates a client, edits source files or the lockfile, changes TypeScript configuration, changes D1, or modifies the #3114 exception.
+The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads `package.json`, `prisma/schema.prisma`, the contents of `prisma.config.ts` and `tsconfig.json` when present, records the Node.js runtime executing the probe, and scans application source files under `src/` to inventory legacy `@prisma/client` imports. It never runs `npm install`, generates a client, edits source files or the lockfile, changes TypeScript configuration, changes D1, or modifies the #3114 exception.
 
 A companion read-only probe, documented in `docs/prisma-v7-support-surface.md`, inventories legacy Prisma package references outside application source (tests, Jest setup, E2E/tooling, and Next.js externalization). Run both probes before an explicit Prisma 7 migration so the application import migration does not hide support-code/build work that would otherwise surface only after CI or Cloudflare build failures.
 
@@ -20,6 +20,7 @@ A second companion probe, documented in `docs/prisma-v7-esm-surface.md`, invento
 
 The probe records the migration prerequisites that must be handled together in an explicit Prisma 7 dependency-migration PR:
 
+- the Node.js runtime executing the probe satisfies Prisma 7's supported runtime floor: Node `^20.19.0`, `^22.12.0`, or `^24.0.0`. Unsupported minors, odd-numbered majors, and prerelease runtimes remain explicit blockers instead of being hidden behind a generic `Node 22` workflow label.
 - `package.json` uses ESM (`"type": "module"`). Prisma 7's generated client and CLI configuration are ESM-first, so this change must be assessed against the repository's existing CommonJS helper scripts rather than applied mechanically. The companion ESM-surface inventory records those `.js` helpers before this switch is attempted.
 - `prisma`, `@prisma/client`, and `@prisma/adapter-d1` are all on target major 7 and their majors are aligned.
 - the Prisma generator uses `provider = "prisma-client"` rather than the legacy `prisma-client-js` provider.
@@ -31,7 +32,7 @@ The probe records the migration prerequisites that must be handled together in a
 - `prisma.config.ts` no longer contains the Prisma 6-only `engine` option. JSMKC currently needs `engine = "classic"` for its staged Prisma 6 datasource-config path, but Prisma 7 removes that option entirely, so it must be deleted in the explicit major-version migration rather than carried forward accidentally.
 - `tsconfig.json` is present and keeps the Prisma 7 ESM-consumption settings from the upstream migration guide: `module = "ESNext"`, `moduleResolution = "bundler"`, and `target = "ES2023"` or newer (`ESNext` is also accepted).
 
-These checks follow Prisma's v7 migration guidance. They are intentionally migration evidence, not an automatic upgrade gate. Prisma's current v7 upgrade documentation also lists Node.js 20.19.0 as the minimum and recommends Node 22.x; JSMKC CI already runs Node 22, but runtime/build-environment compatibility still belongs in the explicit migration PR rather than being inferred solely from the package manifest.
+These checks follow Prisma's v7 migration guidance. They are intentionally migration evidence, not an automatic upgrade gate. Prisma's current v7 system requirements list Node.js `^20.19.0`, `^22.12.0`, or `^24.0.0`; the manual security-review workflow already runs the probe under the repository's Node 22 CI setup, and the probe now records the exact runtime version and marks unsupported runtimes as migration blockers rather than assuming that a major-only configuration is sufficient.
 
 ## Current repository evidence
 
@@ -41,6 +42,7 @@ Current `main` has:
 - `@prisma/client: ^6.19.3`
 - `@prisma/adapter-d1: ^7.8.0`
 - no top-level `"type": "module"`
+- CI workflows use Node 22; the readiness probe records the exact Node runtime used for each review and verifies it is at least 22.12.0 on that line
 - multiple Node/E2E `.js` helpers still using CommonJS constructs; `scripts/prisma-v7-esm-surface.cjs` inventories those files without changing them
 - `provider = "prisma-client-js"`
 - no explicit generator `output`
@@ -54,13 +56,13 @@ The Prisma 6 datasource-config staging follows the upstream 6.18 migration path 
 
 The existing adapter is already on major 7 while CLI/client remain on major 6. The readiness probe surfaces that version split without asserting that it is itself the cause of the current production behavior or changing it automatically.
 
-The ES2023 target is intentionally guarded by a repository-level readiness regression test. Future target upgrades remain allowed, but lowering the target below Prisma 7's documented requirement will fail that test instead of silently reintroducing a migration blocker.
+The ES2023 target is intentionally guarded by a repository-level readiness regression test. Future target upgrades remain allowed, but lowering the target below Prisma 7's documented requirement will fail that test instead of silently reintroducing a migration blocker. The Node runtime rule is similarly covered with boundary tests for the supported 20.19, 22.12, and 24.x lines so a future CI/runtime change cannot silently invalidate Prisma 7 readiness evidence.
 
 ## Migration decision boundary
 
 When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target and staged datasource configuration, remove the Prisma 6-only `engine` setting required by the transitional config, resolve the recorded CommonJS `.js` helper surface before enabling top-level ESM, regenerate the client, and verify at minimum:
 
-1. Prisma generate and type checking.
+1. Prisma generate and type checking on a supported Node runtime.
 2. unit tests and lint/format.
 3. Prisma/D1 migration parity.
 4. Cloudflare/OpenNext build.
@@ -74,4 +76,4 @@ If any of these require a behavior or deployment-policy decision, record it on #
 
 The manual `Security audit review` workflow also runs the readiness, support-code, and ESM-surface probes after collecting the compatible-range and next-major upstream evidence. The probes remain advisory: they use `continue-on-error`, are not referenced by the compatible-range fail-closed gate, and cannot trigger a Prisma major upgrade or change the #3114 exception.
 
-The probes write their detailed readiness tables to the GitHub Actions job summary, including the legacy Prisma import inventory, Prisma config datasource and removed-engine checks, TypeScript module settings, support-code Prisma references, and CommonJS `.js` helper inventory. This keeps migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
+The probes write their detailed readiness tables to the GitHub Actions job summary, including the executing Node.js runtime, legacy Prisma import inventory, Prisma config datasource and removed-engine checks, TypeScript module settings, support-code Prisma references, and CommonJS `.js` helper inventory. This keeps migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
