@@ -12,6 +12,8 @@ node scripts/prisma-v7-readiness.cjs --json
 
 The probe uses a `.cjs` extension deliberately so it remains executable while the migration evaluates a top-level `"type": "module"` change. It reads `package.json`, `prisma/schema.prisma`, the presence of `prisma.config.ts`, and application source files under `src/` to inventory legacy `@prisma/client` imports. It never runs `npm install`, generates a client, edits source files or the lockfile, changes D1, or modifies the #3114 exception.
 
+A companion read-only probe, documented in `docs/prisma-v7-support-surface.md`, inventories legacy Prisma package references outside application source (tests, Jest setup, E2E/tooling, and Next.js externalization). Run both probes before an explicit Prisma 7 migration so the application import migration does not hide support-code/build work that would otherwise surface only after CI or Cloudflare build failures.
+
 ## Checks
 
 The probe records the migration prerequisites that must be handled together in an explicit Prisma 7 dependency-migration PR:
