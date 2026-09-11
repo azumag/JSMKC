@@ -140,6 +140,12 @@ describe('Prisma 7 migration readiness probe', () => {
         export default defineConfig({ schema: "prisma/schema.prisma" });
       `),
     ).toBe(false);
+    expect(
+      prismaConfigHasDatasourceUrl(`
+        // datasource: { url: env("DATABASE_URL") }
+        export default defineConfig({ schema: "prisma/schema.prisma" });
+      `),
+    ).toBe(false);
     expect(prismaConfigHasDatasourceUrl(null)).toBe(false);
   });
 
