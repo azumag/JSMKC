@@ -13,7 +13,7 @@ function escapeRegExp(value) {
 function findNamedImportLocalName(source, exportedName, moduleSpecifier = null) {
   if (typeof source !== 'string') return null;
 
-  const importPattern = /^\s*import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]\s*;?/gm;
+  const importPattern = /\bimport\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]\s*;?/g;
 
   for (const match of source.matchAll(importPattern)) {
     if (moduleSpecifier && match[2] !== moduleSpecifier) continue;
