@@ -64,9 +64,7 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
 
   return {
     state:
-      prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion
-        ? 'ready'
-        : 'incomplete',
+      prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion ? 'ready' : 'incomplete',
     prismaClientVersion,
     prismaAdapterD1Version,
   };
