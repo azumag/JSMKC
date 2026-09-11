@@ -66,7 +66,9 @@ describe('Prisma 7 TypeScript prerequisites', () => {
   });
 
   it('guards the current repository TypeScript prerequisites before the Prisma 7 migration', () => {
-    const typescriptManifest = JSON.parse(readFileSync('node_modules/typescript/package.json', 'utf8')) as {
+    const typescriptManifest = JSON.parse(
+      readFileSync('node_modules/typescript/package.json', 'utf8'),
+    ) as {
       version?: string;
     };
     const tsconfigSource = readFileSync('tsconfig.json', 'utf8');
