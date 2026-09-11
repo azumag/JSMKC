@@ -10,7 +10,7 @@ node scripts/prisma-v7-esm-surface.cjs
 node scripts/prisma-v7-esm-surface.cjs --json
 ```
 
-The probe scans Node/test support surfaces (`scripts`, `e2e`, `__tests__`, `__mocks__`, and `jest.setup.js`) and reports `.js` files that contain CommonJS loads/exports or CommonJS-only Node globals and would change interpretation under a future top-level ESM switch. Comments and quoted/template string contents are masked before matching so prose-only mentions do not become migration work.
+The probe scans Node/test support surfaces (`scripts`, `e2e`, `__tests__`, and `__mocks__`) plus the legacy root `jest.setup.js` path and reports `.js` files that contain CommonJS loads/exports or CommonJS-only Node globals and would change interpretation under a future top-level ESM switch. Comments and quoted/template string contents are masked before matching so prose-only mentions do not become migration work.
 
 Files beneath a nested package scope with explicit `"type": "commonjs"` are intentionally excluded because Node will continue to interpret their `.js` files as CommonJS after the application package switches to ESM. Existing `.cjs` files are excluded for the same reason.
 
@@ -18,9 +18,11 @@ The probe intentionally does **not** edit files, rename extensions, add top-leve
 
 ## Current evidence
 
-Current `main` has large, deliberately CommonJS support-code families under `scripts/`, `e2e/`, and `__mocks__/`. Converting all of those helpers to ESM in the same Prisma dependency migration would create a large unrelated blast radius, so those directories now carry narrow package scopes with explicit `"type": "commonjs"`.
+Current `main` has large, deliberately CommonJS support-code families under `scripts/`, `e2e/`, and `__mocks__/`. Converting all of those helpers to ESM in the same Prisma dependency migration would create a large unrelated blast radius, so those directories carry narrow package scopes with explicit `"type": "commonjs"`.
 
-This is a behavior-preserving preparation step: the application package is still CommonJS-by-default today, while the nested declarations make the intended helper runtime mode explicit before a future top-level `"type": "module"` switch. The ESM-surface probe understands those explicit scopes and therefore reports only CommonJS `.js` files that would actually change interpretation when top-level ESM is enabled.
+The root Jest setup is also deliberately CommonJS. It is named `jest.setup.cjs`, and `jest.config.ts` references that explicit `.cjs` entry. This removes the Jest setup from the future top-level ESM `.js` migration surface without rewriting its mocks, polyfills, or runtime behavior. The separate Prisma support-surface probe continues to scan the `.cjs` setup for legacy `@prisma/client` references, because an explicit CommonJS boundary does not remove the Prisma import migration work.
+
+These are behavior-preserving preparation steps: the application package is still CommonJS-by-default today, while the nested declarations and `.cjs` extension make the intended helper runtime mode explicit before a future top-level `"type": "module"` switch. The ESM-surface probe understands those explicit boundaries and therefore reports only CommonJS `.js` files that would actually change interpretation when top-level ESM is enabled.
 
 The remaining reported files are genuine migration surface. For each one, the explicit Prisma 7 migration can choose the least disruptive compatible option:
 
@@ -35,7 +37,7 @@ The inventory does not mechanically choose among those options because executabl
 Before enabling top-level `"type": "module"` in the Prisma 7 migration PR:
 
 - run this inventory and review every remaining reported `.js` helper;
-- preserve the explicit CommonJS scopes for `scripts/`, `e2e/`, and `__mocks__/` unless those helpers are deliberately migrated to ESM;
+- preserve the explicit CommonJS scopes for `scripts/`, `e2e/`, and `__mocks__/` and the explicit `jest.setup.cjs` entry unless those helpers are deliberately migrated to ESM;
 - preserve or deliberately update every package script and relative helper import that points at a renamed file;
 - run unit tests, the security-audit helpers, Prisma generate, and Cloudflare/OpenNext build;
 - run representative E2E/preview paths for any changed E2E helper chain;
