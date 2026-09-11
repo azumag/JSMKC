@@ -40,6 +40,20 @@ function prismaConfigHasDatasourceUrl(source) {
   return /^\s*url\s*:/m.test(datasourceBlock);
 }
 
+function extractTsconfigCompilerOption(source, key) {
+  if (typeof source !== 'string') return null;
+  const pattern = new RegExp(`^[ \\t]*["']?${key}["']?\\s*:\\s*["']([^"']+)["']`, 'm');
+  return pattern.exec(source)?.[1] ?? null;
+}
+
+function tsTargetSupportsPrisma7(target) {
+  if (typeof target !== 'string') return false;
+  const normalized = target.trim().toLowerCase();
+  if (normalized === 'esnext') return true;
+  const match = /^es(\d{4})$/.exec(normalized);
+  return match ? Number(match[1]) >= 2023 : false;
+}
+
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 
 function extractLegacyPrismaClientSpecifiers(source) {
@@ -91,7 +105,13 @@ function findLegacyPrismaClientImports(rootDir) {
   return findings;
 }
 
-function inspectPrismaV7Readiness({ manifest, schema, prismaConfigSource = null, legacyPrismaClientImports = [] }) {
+function inspectPrismaV7Readiness({
+  manifest,
+  schema,
+  prismaConfigSource = null,
+  tsconfigSource = null,
+  legacyPrismaClientImports = [],
+}) {
   const prismaSelector = manifest.devDependencies?.prisma ?? null;
   const clientSelector = manifest.dependencies?.['@prisma/client'] ?? null;
   const adapterSelector = manifest.dependencies?.['@prisma/adapter-d1'] ?? null;
@@ -105,6 +125,10 @@ function inspectPrismaV7Readiness({ manifest, schema, prismaConfigSource = null,
   const datasourceBlock = extractSchemaBlock(schema, 'datasource', 'db');
   const generatorProvider = extractQuotedAssignment(generatorBlock, 'provider');
   const prismaConfigPresent = typeof prismaConfigSource === 'string';
+  const tsconfigPresent = typeof tsconfigSource === 'string';
+  const tsconfigModule = extractTsconfigCompilerOption(tsconfigSource, 'module');
+  const tsconfigModuleResolution = extractTsconfigCompilerOption(tsconfigSource, 'moduleResolution');
+  const tsconfigTarget = extractTsconfigCompilerOption(tsconfigSource, 'target');
 
   const checks = {
     packageTypeModule: manifest.type === 'module',
@@ -117,6 +141,10 @@ function inspectPrismaV7Readiness({ manifest, schema, prismaConfigSource = null,
     datasourceUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'url'),
     prismaConfigPresent,
     prismaConfigHasDatasourceUrl: prismaConfigHasDatasourceUrl(prismaConfigSource),
+    tsconfigPresent,
+    tsconfigModuleEsNext: tsconfigModule?.toLowerCase() === 'esnext',
+    tsconfigModuleResolutionBundler: tsconfigModuleResolution?.toLowerCase() === 'bundler',
+    tsconfigTargetEs2023OrNewer: tsTargetSupportsPrisma7(tsconfigTarget),
     applicationImportsUseGeneratedClient: legacyPrismaClientImports.length === 0,
   };
 
@@ -135,6 +163,11 @@ function inspectPrismaV7Readiness({ manifest, schema, prismaConfigSource = null,
       prismaAdapterD1: adapterSelector,
     },
     generatorProvider,
+    tsconfig: {
+      module: tsconfigModule,
+      moduleResolution: tsconfigModuleResolution,
+      target: tsconfigTarget,
+    },
     legacyPrismaClientImports,
     checks,
   };
@@ -170,6 +203,14 @@ function formatPrismaV7Readiness(status, { json = false } = {}) {
     '',
     `Generator provider: \`${status.generatorProvider ?? 'missing'}\``,
     '',
+    '### TypeScript module settings',
+    '',
+    '| Compiler option | Value |',
+    '| --- | --- |',
+    `| module | \`${status.tsconfig.module ?? 'missing'}\` |`,
+    `| moduleResolution | \`${status.tsconfig.moduleResolution ?? 'missing'}\` |`,
+    `| target | \`${status.tsconfig.target ?? 'missing'}\` |`,
+    '',
     '### Legacy application imports',
     '',
     '| Source path | Prisma specifier(s) |',
@@ -180,7 +221,7 @@ function formatPrismaV7Readiness(status, { json = false } = {}) {
     '| --- | --- |',
     checkRows,
     '',
-    'This is read-only migration evidence. It does not update dependencies, schema, generated client code, or the #3114 audit exception.',
+    'This is read-only migration evidence. It does not update dependencies, schema, generated client code, TypeScript configuration, or the #3114 audit exception.',
     '',
   ].join('\n');
 }
@@ -199,10 +240,13 @@ function main() {
     const schema = fs.readFileSync('prisma/schema.prisma', 'utf8');
     const prismaConfigPath = 'prisma.config.ts';
     const prismaConfigSource = fs.existsSync(prismaConfigPath) ? fs.readFileSync(prismaConfigPath, 'utf8') : null;
+    const tsconfigPath = 'tsconfig.json';
+    const tsconfigSource = fs.existsSync(tsconfigPath) ? fs.readFileSync(tsconfigPath, 'utf8') : null;
     const status = inspectPrismaV7Readiness({
       manifest,
       schema,
       prismaConfigSource,
+      tsconfigSource,
       legacyPrismaClientImports: findLegacyPrismaClientImports('src'),
     });
     const output = formatPrismaV7Readiness(status, options);
@@ -225,9 +269,11 @@ module.exports = {
   TARGET_PRISMA_MAJOR,
   extractLegacyPrismaClientSpecifiers,
   extractSemverMajor,
+  extractTsconfigCompilerOption,
   findLegacyPrismaClientImports,
   formatPrismaV7Readiness,
   inspectPrismaV7Readiness,
   parseCliOptions,
   prismaConfigHasDatasourceUrl,
+  tsTargetSupportsPrisma7,
 };
