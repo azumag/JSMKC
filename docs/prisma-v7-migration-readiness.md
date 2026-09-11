@@ -26,7 +26,7 @@ The probe records the migration prerequisites that must be handled together in a
 - `datasource.url` has moved out of `schema.prisma`.
 - `prisma.config.ts` exists for CLI datasource/configuration.
 - `prisma.config.ts` contains a `datasource.url` entry. File presence alone is not enough: without the URL in Prisma config, removing `datasource.url` from the schema would leave the CLI migration/generation path incomplete.
-- `tsconfig.json` is present and keeps the Prisma 7 ESM-consumption settings from the upstream migration guide: `module = "ESNext"`, `moduleResolution = "bundler"`, and `target = "ES2023"` or newer (`ESNext` is also accepted). This is read-only evidence; the probe does not rewrite the project's TypeScript target automatically because that can affect application output and must be validated together with Next.js/Cloudflare builds.
+- `tsconfig.json` is present and keeps the Prisma 7 ESM-consumption settings from the upstream migration guide: `module = "ESNext"`, `moduleResolution = "bundler"`, and `target = "ES2023"` or newer (`ESNext` is also accepted).
 
 These checks follow Prisma's v7 migration guidance. They are intentionally migration evidence, not an automatic upgrade gate. Prisma's current v7 upgrade documentation also lists Node.js 20.19.0 as the minimum and recommends Node 22.x; JSMKC CI already runs Node 22, but runtime/build-environment compatibility still belongs in the explicit migration PR rather than being inferred solely from the package manifest.
 
@@ -42,14 +42,16 @@ Current `main` has:
 - no explicit generator `output`
 - `datasource db` still contains `url = env("DATABASE_URL")`
 - `prisma.config.ts` already exists for schema/migrations configuration, but it does not yet define `datasource.url`; the readiness probe reports that separately from simple config-file presence
-- `tsconfig.json` already uses `module = "esnext"` and `moduleResolution = "bundler"`, but its current `target = "ES2017"` is below the `ES2023` target in Prisma's v7 migration guidance; the readiness probe now reports this as explicit migration work instead of allowing a false ready state
+- `tsconfig.json` uses `module = "esnext"`, `moduleResolution = "bundler"`, and `target = "ES2023"`; the target was raised independently from ES2017 so this non-Prisma prerequisite can be validated by the normal application/Cloudflare CI before the major dependency migration
 - application source still contains imports from `@prisma/client` and `@prisma/client/runtime/...`; these are listed by the readiness probe as explicit migration work
 
 The existing adapter is already on major 7 while CLI/client remain on major 6. The readiness probe surfaces that version split without asserting that it is itself the cause of the current production behavior or changing it automatically.
 
+The ES2023 target is intentionally guarded by a repository-level readiness regression test. Future target upgrades remain allowed, but lowering the target below Prisma 7's documented requirement will fail that test instead of silently reintroducing a migration blocker.
+
 ## Migration decision boundary
 
-When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, update the TypeScript module target as required, regenerate the client, and verify at minimum:
+When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target, regenerate the client, and verify at minimum:
 
 1. Prisma generate and type checking.
 2. unit tests and lint/format.
