@@ -28,6 +28,7 @@ The probe records the migration prerequisites that must be handled together in a
 - `datasource.url` has moved out of `schema.prisma`.
 - `prisma.config.ts` exists for CLI datasource/configuration.
 - `prisma.config.ts` contains a `datasource.url` entry. File presence alone is not enough: without the URL in Prisma config, removing `datasource.url` from the schema would leave the CLI migration/generation path incomplete.
+- `prisma.config.ts` no longer contains the Prisma 6-only `engine` option. JSMKC currently needs `engine = "classic"` for its staged Prisma 6 datasource-config path, but Prisma 7 removes that option entirely, so it must be deleted in the explicit major-version migration rather than carried forward accidentally.
 - `tsconfig.json` is present and keeps the Prisma 7 ESM-consumption settings from the upstream migration guide: `module = "ESNext"`, `moduleResolution = "bundler"`, and `target = "ES2023"` or newer (`ESNext` is also accepted).
 
 These checks follow Prisma's v7 migration guidance. They are intentionally migration evidence, not an automatic upgrade gate. Prisma's current v7 upgrade documentation also lists Node.js 20.19.0 as the minimum and recommends Node 22.x; JSMKC CI already runs Node 22, but runtime/build-environment compatibility still belongs in the explicit migration PR rather than being inferred solely from the package manifest.
@@ -45,7 +46,7 @@ Current `main` has:
 - no explicit generator `output`
 - `datasource db` still contains `url = env("DATABASE_URL")`; removing it remains part of the explicit Prisma 7 migration because that schema edit changes the CLI contract used by the currently installed Prisma 6 toolchain
 - `prisma.config.ts` now defines `datasource.url` from the same `DATABASE_URL` environment variable, so CLI datasource configuration is staged before the major upgrade instead of being introduced at the same time as all other Prisma 7 changes
-- while the CLI remains on Prisma 6.19.x, `prisma.config.ts` keeps `engine = "classic"`. Prisma 6.18 introduced datasource configuration in `prisma.config.ts` as a forward-compatible migration path and requires the classic engine for this transitional setup
+- while the CLI remains on Prisma 6.19.x, `prisma.config.ts` keeps `engine = "classic"`. The readiness probe now reports this as `prismaConfigOmitsRemovedEngine = needs migration` because Prisma 7 removes the `engine` option; the setting remains in place until the major upgrade so the current Prisma 6 CLI contract is not changed prematurely
 - `tsconfig.json` uses `module = "esnext"`, `moduleResolution = "bundler"`, and `target = "ES2023"`; the target was raised independently from ES2017 so this non-Prisma prerequisite can be validated by the normal application/Cloudflare CI before the major dependency migration
 - application source still contains imports from `@prisma/client` and `@prisma/client/runtime/...`; these are listed by the readiness probe as explicit migration work
 
@@ -57,7 +58,7 @@ The ES2023 target is intentionally guarded by a repository-level readiness regre
 
 ## Migration decision boundary
 
-When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target and staged datasource configuration, remove the Prisma 6-only compatibility engine if required by the Prisma 7 config contract, resolve the recorded CommonJS `.js` helper surface before enabling top-level ESM, regenerate the client, and verify at minimum:
+When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target and staged datasource configuration, remove the Prisma 6-only `engine` setting required by the transitional config, resolve the recorded CommonJS `.js` helper surface before enabling top-level ESM, regenerate the client, and verify at minimum:
 
 1. Prisma generate and type checking.
 2. unit tests and lint/format.
@@ -73,4 +74,4 @@ If any of these require a behavior or deployment-policy decision, record it on #
 
 The manual `Security audit review` workflow also runs the readiness, support-code, and ESM-surface probes after collecting the compatible-range and next-major upstream evidence. The probes remain advisory: they use `continue-on-error`, are not referenced by the compatible-range fail-closed gate, and cannot trigger a Prisma major upgrade or change the #3114 exception.
 
-The probes write their detailed readiness tables to the GitHub Actions job summary, including the legacy Prisma import inventory, Prisma config datasource check, TypeScript module settings, support-code Prisma references, and CommonJS `.js` helper inventory. This keeps migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
+The probes write their detailed readiness tables to the GitHub Actions job summary, including the legacy Prisma import inventory, Prisma config datasource and removed-engine checks, TypeScript module settings, support-code Prisma references, and CommonJS `.js` helper inventory. This keeps migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
