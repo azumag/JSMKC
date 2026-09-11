@@ -24,11 +24,13 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     const nextMajorTimestampStep = steps.find((step) => step.id === 'next_major_upstream_timestamp');
     const readinessStep = steps.find((step) => step.id === 'prisma_v7_readiness');
     const supportSurfaceStep = steps.find((step) => step.id === 'prisma_v7_support_surface');
+    const esmSurfaceStep = steps.find((step) => step.id === 'prisma_v7_esm_surface');
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(nextMajorTimestampStep).toBeDefined();
     expect(readinessStep).toBeDefined();
     expect(supportSurfaceStep).toBeDefined();
+    expect(esmSurfaceStep).toBeDefined();
     expect(summaryStep).toBeDefined();
     expect(readinessStep?.if).toBe('always()');
     expect(readinessStep?.['continue-on-error']).toBe(true);
@@ -36,23 +38,30 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     expect(supportSurfaceStep?.if).toBe('always()');
     expect(supportSurfaceStep?.['continue-on-error']).toBe(true);
     expect(supportSurfaceStep?.run?.trim()).toBe('node scripts/prisma-v7-support-surface.cjs');
+    expect(esmSurfaceStep?.if).toBe('always()');
+    expect(esmSurfaceStep?.['continue-on-error']).toBe(true);
+    expect(esmSurfaceStep?.run?.trim()).toBe('node scripts/prisma-v7-esm-surface.cjs');
     expect(steps.indexOf(nextMajorTimestampStep as WorkflowStep)).toBeLessThan(
       steps.indexOf(readinessStep as WorkflowStep),
     );
     expect(steps.indexOf(readinessStep as WorkflowStep)).toBeLessThan(
       steps.indexOf(supportSurfaceStep as WorkflowStep),
     );
-    expect(steps.indexOf(supportSurfaceStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
+    expect(steps.indexOf(supportSurfaceStep as WorkflowStep)).toBeLessThan(
+      steps.indexOf(esmSurfaceStep as WorkflowStep),
+    );
+    expect(steps.indexOf(esmSurfaceStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
   });
 
-  it('keeps migration readiness and support-code evidence outside the compatible-range gate', () => {
+  it('keeps migration readiness, support-code, and ESM evidence outside the compatible-range gate', () => {
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
     expect(summaryStep).toBeDefined();
     expect(gateStep).toBeDefined();
-    expect(summaryStep?.run).toContain('Prisma 7 support-code evidence are advisory only');
+    expect(summaryStep?.run).toContain('Prisma 7 ESM migration evidence are advisory only');
     expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_READINESS_OUTCOME');
     expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_SUPPORT_SURFACE_OUTCOME');
+    expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_ESM_SURFACE_OUTCOME');
   });
 });
