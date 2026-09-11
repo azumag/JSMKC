@@ -43,10 +43,13 @@ Current `main` has:
 - multiple Node/E2E `.js` helpers still using CommonJS constructs; `scripts/prisma-v7-esm-surface.cjs` inventories those files without changing them
 - `provider = "prisma-client-js"`
 - no explicit generator `output`
-- `datasource db` still contains `url = env("DATABASE_URL")`
-- `prisma.config.ts` already exists for schema/migrations configuration, but it does not yet define `datasource.url`; the readiness probe reports that separately from simple config-file presence
+- `datasource db` still contains `url = env("DATABASE_URL")`; removing it remains part of the explicit Prisma 7 migration because that schema edit changes the CLI contract used by the currently installed Prisma 6 toolchain
+- `prisma.config.ts` now defines `datasource.url` from the same `DATABASE_URL` environment variable, so CLI datasource configuration is staged before the major upgrade instead of being introduced at the same time as all other Prisma 7 changes
+- while the CLI remains on Prisma 6.19.x, `prisma.config.ts` keeps `engine = "classic"`. Prisma 6.18 introduced datasource configuration in `prisma.config.ts` as a forward-compatible migration path and requires the classic engine for this transitional setup; the repository regression test requires that compatibility setting only while the installed CLI major is 6
 - `tsconfig.json` uses `module = "esnext"`, `moduleResolution = "bundler"`, and `target = "ES2023"`; the target was raised independently from ES2017 so this non-Prisma prerequisite can be validated by the normal application/Cloudflare CI before the major dependency migration
 - application source still contains imports from `@prisma/client` and `@prisma/client/runtime/...`; these are listed by the readiness probe as explicit migration work
+
+The Prisma 6 datasource-config staging follows the upstream 6.18 migration path documented in the Prisma changelog (`https://www.prisma.io/changelog/2025-10-22`). This step intentionally leaves the schema URL in place for now, so the readiness probe still reports `datasourceUrlMovedOutOfSchema` until the explicit major-version migration removes it.
 
 The existing adapter is already on major 7 while CLI/client remain on major 6. The readiness probe surfaces that version split without asserting that it is itself the cause of the current production behavior or changing it automatically.
 
@@ -54,7 +57,7 @@ The ES2023 target is intentionally guarded by a repository-level readiness regre
 
 ## Migration decision boundary
 
-When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target, resolve the recorded CommonJS `.js` helper surface before enabling top-level ESM, regenerate the client, and verify at minimum:
+When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target and staged datasource configuration, remove the Prisma 6-only compatibility engine if required by the Prisma 7 config contract, resolve the recorded CommonJS `.js` helper surface before enabling top-level ESM, regenerate the client, and verify at minimum:
 
 1. Prisma generate and type checking.
 2. unit tests and lint/format.
