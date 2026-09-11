@@ -43,7 +43,7 @@ describe('Prisma 7 migration readiness probe', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
       schema: currentSchema,
-      prismaConfigPresent: false,
+      prismaConfigPresent: true,
       legacyPrismaClientImports: currentLegacyImports,
     });
 
@@ -62,11 +62,11 @@ describe('Prisma 7 migration readiness probe', () => {
         'generatorUsesPrismaClient',
         'generatorHasExplicitOutput',
         'datasourceUrlMovedOutOfSchema',
-        'prismaConfigPresent',
         'applicationImportsUseGeneratedClient',
       ]),
     );
     expect(status.blockers).not.toContain('prismaAdapterAtTargetMajor');
+    expect(status.blockers).not.toContain('prismaConfigPresent');
   });
 
   it('reports ready only when the v7 package and schema prerequisites are explicit', () => {
@@ -124,7 +124,7 @@ describe('Prisma 7 migration readiness probe', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
       schema: currentSchema,
-      prismaConfigPresent: false,
+      prismaConfigPresent: true,
       legacyPrismaClientImports: currentLegacyImports,
     });
     const output = formatPrismaV7Readiness(status);
@@ -145,7 +145,7 @@ describe('Prisma 7 migration readiness probe', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
       schema: currentSchema,
-      prismaConfigPresent: false,
+      prismaConfigPresent: true,
       legacyPrismaClientImports: currentLegacyImports,
     });
     expect(JSON.parse(formatPrismaV7Readiness(status, { json: true }))).toMatchObject({
