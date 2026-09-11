@@ -113,9 +113,7 @@ if (require.main === module) {
 
   if (shouldUseLegacyCiEngineOverrides(process.env, prismaSelector)) {
     // Surface the override so CI logs make the trade-off explicit.
-    process.stderr.write(
-      '[prisma-generate] CI detected on Prisma < 7 — using legacy WASM engine overrides\n',
-    );
+    process.stderr.write('[prisma-generate] CI detected on Prisma < 7 — using legacy WASM engine overrides\n');
   } else if (process.env.CI) {
     process.stderr.write(
       '[prisma-generate] CI detected without a Prisma < 7 selector — legacy engine overrides disabled\n',
@@ -131,9 +129,7 @@ if (require.main === module) {
     // Spawning `npx` itself failed (e.g. missing binary). Surface the error
     // rather than silently exiting 0, otherwise CI appears to pass when the
     // generation never actually ran.
-    process.stderr.write(
-      `[prisma-generate] failed to spawn prisma CLI: ${result.error.message}\n`,
-    );
+    process.stderr.write(`[prisma-generate] failed to spawn prisma CLI: ${result.error.message}\n`);
     process.exit(1);
   }
 
