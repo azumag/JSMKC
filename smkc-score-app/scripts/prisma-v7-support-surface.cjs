@@ -31,7 +31,12 @@ function addMatches(source, pattern, kind, references) {
 function extractLegacyPrismaClientReferences(source) {
   const references = [];
 
-  addMatches(source, /\bfrom\s*['"](@prisma\/client(?:\/[^'"]*)?)['"]/g, 'import', references);
+  addMatches(
+    source,
+    /\bimport\s+(?:type\s+)?(?:[\w$*{},\s]+?\s+from\s*)['"](@prisma\/client(?:\/[^'"]*)?)['"]/g,
+    'import',
+    references,
+  );
   addMatches(
     source,
     /\b(?:import|require)\s*\(\s*['"](@prisma\/client(?:\/[^'"]*)?)['"]\s*\)/g,
