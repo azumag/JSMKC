@@ -20,7 +20,7 @@ describe('security audit review Prisma 7 readiness evidence', () => {
   const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowConfig;
   const steps = workflow.jobs?.audit?.steps ?? [];
 
-  it('collects local migration readiness and support-code surface as advisory evidence before the main summary', () => {
+  it('collects local Prisma 7 migration evidence before the main summary', () => {
     const nextMajorTimestampStep = steps.find((step) => step.id === 'next_major_upstream_timestamp');
     const readinessStep = steps.find((step) => step.id === 'prisma_v7_readiness');
     const supportSurfaceStep = steps.find((step) => step.id === 'prisma_v7_support_surface');
