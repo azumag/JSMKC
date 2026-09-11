@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * prisma-generate.js — Prisma-major-aware wrapper around `prisma generate`.
+ * prisma-generate.js — CI-aware wrapper around `prisma generate`.
  *
  * Why this script exists:
  *   In CI containers (GitHub Actions), Prisma 6 cannot download the native
@@ -13,25 +13,25 @@
  *   `PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1` so Prisma 6 does not abort when
  *   the optional engines metadata is absent.
  *
- *   Cloudflare/OpenNext builds need the same Prisma 6 WASM generation path
- *   even when they are invoked outside a conventional CI environment. The
- *   `--force-legacy-engine-overrides-for-prisma6` flag lets `prebuild:cf`
- *   request that behavior without hard-coding removed Prisma environment
- *   variables in package.json.
- *
  *   Prisma 7 removes several Rust-engine environment variables, including
- *   `PRISMA_QUERY_ENGINE_LIBRARY`. Both the normal CI path and the explicit
- *   Cloudflare-build path therefore stop injecting the legacy overrides as
- *   soon as the repository's Prisma CLI selector reaches v7.
+ *   `PRISMA_QUERY_ENGINE_LIBRARY`. The wrapper therefore only injects the
+ *   legacy CI overrides while the repository's Prisma CLI selector is on a
+ *   pre-v7 major. This preserves today's Prisma 6 CI behavior while ensuring
+ *   the future Prisma 7 migration does not carry the removed variable forward
+ *   through postinstall.
+ *
+ *   On developer machines, those env vars are unnecessary — the native
+ *   engines download fine and run faster than the WASM fallback. We detect
+ *   the `CI` environment variable (set automatically by GitHub Actions and
+ *   most other CI providers) and only apply the overrides there.
  *
  * Behavior:
  *   - CI + Prisma < 7 → invoke `prisma generate` with the /dev/null engine
  *     overrides.
- *   - explicit Cloudflare flag + Prisma < 7 → use the same overrides even
- *     outside CI.
- *   - Prisma >= 7 or an unknown selector → invoke plain `prisma generate`;
- *     removed Prisma 6 engine variables are not injected.
- *   - local development without the flag → invoke plain `prisma generate`.
+ *   - CI + Prisma >= 7 → invoke plain `prisma generate`; the removed Prisma 6
+ *     engine variables are not injected.
+ *   - CI not detected → invoke plain `prisma generate`, leaving engine
+ *     selection to the CLI.
  *
  * Exits with the prisma CLI's own exit code so npm/yarn surface failures
  * correctly.
@@ -44,8 +44,6 @@ const LEGACY_CI_ENGINE_OVERRIDES = Object.freeze({
   PRISMA_QUERY_ENGINE_LIBRARY: '/dev/null',
   PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: '1',
 });
-
-const FORCE_LEGACY_ENGINE_OVERRIDES_FLAG = '--force-legacy-engine-overrides-for-prisma6';
 
 /**
  * Extract the leading semver major from the repository's Prisma selector.
@@ -63,40 +61,36 @@ function extractPrismaMajor(selector) {
 }
 
 /**
- * Decide whether the legacy Prisma 6 engine overrides are still required.
+ * Decide whether the legacy Prisma 6 CI engine overrides are still required.
  *
  * @param {NodeJS.ProcessEnv} parentEnv
  * @param {unknown} prismaSelector
- * @param {{ forceLegacyEngineOverrides?: boolean }} options
  * @returns {boolean}
  */
-function shouldUseLegacyCiEngineOverrides(parentEnv, prismaSelector, options = {}) {
+function shouldUseLegacyCiEngineOverrides(parentEnv, prismaSelector) {
+  if (!parentEnv.CI) return false;
   const major = extractPrismaMajor(prismaSelector);
-  if (major === null || major >= 7) return false;
-
-  return Boolean(parentEnv.CI) || options.forceLegacyEngineOverrides === true;
+  return major !== null && major < 7;
 }
 
 /**
  * Build the environment to pass to the spawned `prisma generate` process.
  *
- * In CI on Prisma 6, or when the Cloudflare build path explicitly requests
- * the legacy Prisma 6 generation mode, overlay the WASM-fallback overrides on
- * top of the parent env. Prisma 7 and newer receive the parent environment
- * unchanged because the old Rust-engine override variables are no longer part
- * of the supported v7 contract. Local development also passes through
- * unchanged unless the explicit Cloudflare-build flag is used.
+ * In CI on Prisma 6, overlay the WASM-fallback overrides on top of the parent
+ * env so the Prisma CLI can run without downloading native engine binaries.
+ * Prisma 7 and newer receive the parent environment unchanged because the old
+ * Rust-engine override variables are no longer part of the supported v7
+ * contract. Outside CI, the parent env also passes through untouched.
  *
  * Exported for unit tests; the script entrypoint below calls it with the
  * repository's current `devDependencies.prisma` selector.
  *
  * @param {NodeJS.ProcessEnv} parentEnv
  * @param {unknown} prismaSelector
- * @param {{ forceLegacyEngineOverrides?: boolean }} options
  * @returns {NodeJS.ProcessEnv}
  */
-function buildSpawnEnv(parentEnv, prismaSelector = manifest.devDependencies?.prisma, options = {}) {
-  if (!shouldUseLegacyCiEngineOverrides(parentEnv, prismaSelector, options)) {
+function buildSpawnEnv(parentEnv, prismaSelector = manifest.devDependencies?.prisma) {
+  if (!shouldUseLegacyCiEngineOverrides(parentEnv, prismaSelector)) {
     return { ...parentEnv };
   }
 
@@ -107,7 +101,6 @@ function buildSpawnEnv(parentEnv, prismaSelector = manifest.devDependencies?.pri
 }
 
 module.exports = {
-  FORCE_LEGACY_ENGINE_OVERRIDES_FLAG,
   LEGACY_CI_ENGINE_OVERRIDES,
   buildSpawnEnv,
   extractPrismaMajor,
@@ -116,19 +109,14 @@ module.exports = {
 
 if (require.main === module) {
   const prismaSelector = manifest.devDependencies?.prisma;
-  const forceLegacyEngineOverrides = process.argv.slice(2).includes(FORCE_LEGACY_ENGINE_OVERRIDES_FLAG);
-  const options = { forceLegacyEngineOverrides };
-  const env = buildSpawnEnv(process.env, prismaSelector, options);
-  const useLegacyEngineOverrides = shouldUseLegacyCiEngineOverrides(process.env, prismaSelector, options);
+  const env = buildSpawnEnv(process.env, prismaSelector);
 
-  if (useLegacyEngineOverrides) {
-    const reason = forceLegacyEngineOverrides ? 'Cloudflare build requested' : 'CI detected';
+  if (shouldUseLegacyCiEngineOverrides(process.env, prismaSelector)) {
+    // Surface the override so CI logs make the trade-off explicit.
+    process.stderr.write('[prisma-generate] CI detected on Prisma < 7 — using legacy WASM engine overrides\n');
+  } else if (process.env.CI) {
     process.stderr.write(
-      `[prisma-generate] ${reason} on Prisma < 7 — using legacy WASM engine overrides\n`,
-    );
-  } else if (process.env.CI || forceLegacyEngineOverrides) {
-    process.stderr.write(
-      '[prisma-generate] Prisma < 7 legacy engine overrides disabled for the selected Prisma version\n',
+      '[prisma-generate] CI detected without a Prisma < 7 selector — legacy engine overrides disabled\n',
     );
   }
 
