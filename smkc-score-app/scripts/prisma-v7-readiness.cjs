@@ -40,6 +40,11 @@ function prismaConfigHasDatasourceUrl(source) {
   return /^\s*url\s*:/m.test(datasourceBlock);
 }
 
+function prismaConfigHasEngineSetting(source) {
+  if (typeof source !== 'string') return false;
+  return /^[ \t]*engine\s*:/m.test(source);
+}
+
 function extractTsconfigCompilerOption(source, key) {
   if (typeof source !== 'string') return null;
   const pattern = new RegExp(`^[ \\t]*["']?${key}["']?\\s*:\\s*["']([^"']+)["']`, 'm');
@@ -141,6 +146,7 @@ function inspectPrismaV7Readiness({
     datasourceUrlMovedOutOfSchema: !hasAssignment(datasourceBlock, 'url'),
     prismaConfigPresent,
     prismaConfigHasDatasourceUrl: prismaConfigHasDatasourceUrl(prismaConfigSource),
+    prismaConfigOmitsRemovedEngine: prismaConfigPresent && !prismaConfigHasEngineSetting(prismaConfigSource),
     tsconfigPresent,
     tsconfigModuleEsNext: tsconfigModule?.toLowerCase() === 'esnext',
     tsconfigModuleResolutionBundler: tsconfigModuleResolution?.toLowerCase() === 'bundler',
@@ -275,5 +281,6 @@ module.exports = {
   inspectPrismaV7Readiness,
   parseCliOptions,
   prismaConfigHasDatasourceUrl,
+  prismaConfigHasEngineSetting,
   tsTargetSupportsPrisma7,
 };

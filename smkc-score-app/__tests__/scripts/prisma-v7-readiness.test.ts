@@ -8,6 +8,7 @@ import {
   inspectPrismaV7Readiness,
   parseCliOptions,
   prismaConfigHasDatasourceUrl,
+  prismaConfigHasEngineSetting,
   tsTargetSupportsPrisma7,
 } from '../../scripts/prisma-v7-readiness.cjs';
 
@@ -38,8 +39,12 @@ describe('Prisma 7 migration readiness probe', () => {
 
     export default defineConfig({
       schema: "prisma/schema.prisma",
+      engine: "classic",
       migrations: {
         path: "prisma/migrations",
+      },
+      datasource: {
+        url: process.env.DATABASE_URL ?? "",
       },
     });
   `;
@@ -104,12 +109,13 @@ describe('Prisma 7 migration readiness probe', () => {
         'generatorUsesPrismaClient',
         'generatorHasExplicitOutput',
         'datasourceUrlMovedOutOfSchema',
-        'prismaConfigHasDatasourceUrl',
+        'prismaConfigOmitsRemovedEngine',
         'applicationImportsUseGeneratedClient',
       ]),
     );
     expect(status.blockers).not.toContain('prismaAdapterAtTargetMajor');
     expect(status.blockers).not.toContain('prismaConfigPresent');
+    expect(status.blockers).not.toContain('prismaConfigHasDatasourceUrl');
     expect(status.blockers).not.toContain('tsconfigPresent');
     expect(status.blockers).not.toContain('tsconfigModuleEsNext');
     expect(status.blockers).not.toContain('tsconfigModuleResolutionBundler');
@@ -158,7 +164,7 @@ describe('Prisma 7 migration readiness probe', () => {
   });
 
   it('requires datasource.url inside the Prisma config instead of treating file presence as sufficient', () => {
-    expect(prismaConfigHasDatasourceUrl(currentPrismaConfig)).toBe(false);
+    expect(prismaConfigHasDatasourceUrl(currentPrismaConfig)).toBe(true);
     expect(
       prismaConfigHasDatasourceUrl(`
         export default defineConfig({
@@ -182,6 +188,32 @@ describe('Prisma 7 migration readiness probe', () => {
       `),
     ).toBe(false);
     expect(prismaConfigHasDatasourceUrl(null)).toBe(false);
+  });
+
+  it('tracks the Prisma 6-only engine setting as a Prisma 7 migration blocker', () => {
+    expect(prismaConfigHasEngineSetting(currentPrismaConfig)).toBe(true);
+    expect(
+      prismaConfigHasEngineSetting(`
+        export default defineConfig({
+          schema: "prisma/schema.prisma",
+          datasource: { url: env("DATABASE_URL") },
+        });
+      `),
+    ).toBe(false);
+    expect(
+      prismaConfigHasEngineSetting(`
+        // engine: "classic"
+        export default defineConfig({ schema: "prisma/schema.prisma" });
+      `),
+    ).toBe(false);
+    expect(prismaConfigHasEngineSetting(null)).toBe(false);
+  });
+
+  it('keeps the repository Prisma config on the staged v6 datasource path until the major migration', () => {
+    const repositoryPrismaConfig = readFileSync('prisma.config.ts', 'utf8');
+
+    expect(prismaConfigHasDatasourceUrl(repositoryPrismaConfig)).toBe(true);
+    expect(prismaConfigHasEngineSetting(repositoryPrismaConfig)).toBe(true);
   });
 
   it('checks the TypeScript module settings required by the Prisma 7 migration guide', () => {
@@ -240,6 +272,7 @@ describe('Prisma 7 migration readiness probe', () => {
     expect(output).toContain('src/lib/prisma.ts');
     expect(output).toContain('@prisma/client/runtime/library');
     expect(output).toContain('prismaConfigHasDatasourceUrl');
+    expect(output).toContain('prismaConfigOmitsRemovedEngine');
     expect(output).toContain('TypeScript module settings');
     expect(output).toContain('| target | `ES2023` |');
     expect(output).toContain('tsconfigTargetEs2023OrNewer');
