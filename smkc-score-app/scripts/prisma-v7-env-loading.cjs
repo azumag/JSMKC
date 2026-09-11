@@ -3,9 +3,7 @@
 const fs = require('node:fs');
 
 function withoutCommentOnlyLines(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 }
 
 function findNamedDotenvConfigImport(source) {
@@ -43,7 +41,10 @@ function inspectPrismaV7EnvLoading(source) {
     configSource,
   );
   if (namespaceImport) {
-    const invocation = new RegExp(`^\\s*${namespaceImport[1].replace(/[$]/g, '\\$&')}\\.config\\s*\\(`, 'm');
+    const invocation = new RegExp(
+      `^\\s*${namespaceImport[1].replace(/[$]/g, '\\$&')}\\.config\\s*\\(`,
+      'm',
+    );
     if (invocation.test(configSource)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
