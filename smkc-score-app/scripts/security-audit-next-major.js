@@ -41,10 +41,20 @@ function inspectNextMajorPrismaRelease({ manifest, npmView }) {
   };
 }
 
+function getPublishedRemediationCandidate(status) {
+  if (status?.state !== 'compatible-forward-remediation-available') {
+    return null;
+  }
+
+  return status.latestCompatiblePrismaVersion;
+}
+
 function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
   if (json) {
     return `${JSON.stringify(status)}\n`;
   }
+
+  const publishedRemediationCandidate = getPublishedRemediationCandidate(status);
 
   return (
     `next-major Prisma upstream status: ${status.state}\n` +
@@ -52,6 +62,7 @@ function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
     `current manifest prisma selector: ${status.currentPrismaSelector}\n` +
     `next-major prisma selector: ${status.prismaSelector}\n` +
     `latest next-major prisma: ${status.latestCompatiblePrismaVersion}\n` +
+    `published remediation candidate: ${publishedRemediationCandidate ?? 'none'}\n` +
     `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
     `latest next-major @prisma/config: ${status.latestCompatiblePrismaConfigVersion}\n` +
     `@prisma/config -> deepmerge-ts requirement: ${status.prismaConfigDeepmergeRequirement ?? 'absent'}\n`
@@ -67,8 +78,17 @@ function writeNextMajorGitHubOutputs(status, outputPath = process.env.GITHUB_OUT
     throw new Error('refusing unsafe GitHub Actions output for current_prisma_selector');
   }
 
+  const publishedRemediationCandidate = getPublishedRemediationCandidate(status) ?? 'none';
+  if (!SAFE_OUTPUT_PATTERN.test(publishedRemediationCandidate)) {
+    throw new Error('refusing unsafe GitHub Actions output for published_remediation_candidate');
+  }
+
   writeGitHubOutputs(status, outputPath);
-  fs.appendFileSync(outputPath, `current_prisma_selector=${status.currentPrismaSelector}\n`, 'utf8');
+  fs.appendFileSync(
+    outputPath,
+    `current_prisma_selector=${status.currentPrismaSelector}\npublished_remediation_candidate=${publishedRemediationCandidate}\n`,
+    'utf8',
+  );
 }
 
 function main() {
@@ -108,6 +128,7 @@ module.exports = {
   CARET_SEMVER_SELECTOR_PATTERN,
   formatNextMajorPrismaReleaseStatus,
   getNextMajorPrismaSelector,
+  getPublishedRemediationCandidate,
   inspectNextMajorPrismaRelease,
   writeNextMajorGitHubOutputs,
 };
