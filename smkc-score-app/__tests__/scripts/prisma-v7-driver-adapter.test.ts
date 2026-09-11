@@ -2,9 +2,11 @@ import { readFileSync } from 'node:fs';
 
 import {
   extractPrismaClientOptions,
+  findConstructedAdapterLocalName,
   findNamedImportLocalName,
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
+  prismaClientOptionsUseAdapter,
   stripComments,
 } from '../../scripts/prisma-v7-driver-adapter.cjs';
 
@@ -13,9 +15,9 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     import { PrismaD1 as D1Adapter } from '@prisma/adapter-d1';
     import { PrismaClient as DatabaseClient } from './generated/prisma/client';
 
-    const adapter = new D1Adapter(db);
+    const d1Adapter = new D1Adapter(db);
     const prisma = new DatabaseClient({
-      adapter,
+      adapter: d1Adapter,
       log: ['error'],
       omit: { player: { password: true } },
     });
@@ -27,6 +29,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(status).toEqual({
       ready: true,
       adapterLocalName: 'D1Adapter',
+      adapterInstanceLocalName: 'd1Adapter',
       prismaClientLocalName: 'DatabaseClient',
       checks: {
         importsPrismaD1Adapter: true,
@@ -51,6 +54,37 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(status.checks.passesAdapterToPrismaClient).toBe(false);
   });
 
+  it('requires PrismaClient to receive the same D1 adapter instance that the probe observed', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from '@prisma/client';
+
+      const d1Adapter = new PrismaD1(db);
+      const otherAdapter = createOtherAdapter();
+      const prisma = new PrismaClient({ adapter: otherAdapter });
+    `);
+
+    expect(status.ready).toBe(false);
+    expect(status.adapterInstanceLocalName).toBe('d1Adapter');
+    expect(status.checks.passesAdapterToPrismaClient).toBe(false);
+  });
+
+  it('accepts the adapter shorthand used by the current repository', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from '@prisma/client';
+
+      const adapter = new PrismaD1(db);
+      const prisma = new PrismaClient({
+        adapter,
+        log: ['error'],
+      });
+    `);
+
+    expect(status.ready).toBe(true);
+    expect(status.adapterInstanceLocalName).toBe('adapter');
+  });
+
   it('does not accept adapter-shaped examples that exist only in comments', () => {
     const status = inspectPrismaV7DriverAdapter(`
       // import { PrismaD1 } from '@prisma/adapter-d1';
@@ -64,6 +98,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
 
     expect(status.ready).toBe(false);
     expect(status.adapterLocalName).toBeNull();
+    expect(status.adapterInstanceLocalName).toBeNull();
     expect(status.checks.constructsPrismaD1Adapter).toBe(false);
     expect(status.checks.passesAdapterToPrismaClient).toBe(false);
   });
@@ -74,15 +109,19 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
 
     expect(status.ready).toBe(true);
     expect(status.adapterLocalName).toBe('PrismaD1');
+    expect(status.adapterInstanceLocalName).toBe('adapter');
     expect(status.prismaClientLocalName).toBe('PrismaClient');
   });
 
   it('parses named-import aliases and PrismaClient options conservatively', () => {
     const code = stripComments(readySource);
+    const clientOptions = extractPrismaClientOptions(code, 'DatabaseClient');
 
     expect(findNamedImportLocalName(code, 'PrismaD1', '@prisma/adapter-d1')).toBe('D1Adapter');
+    expect(findConstructedAdapterLocalName(code, 'D1Adapter')).toBe('d1Adapter');
     expect(findNamedImportLocalName(code, 'PrismaClient')).toBe('DatabaseClient');
-    expect(extractPrismaClientOptions(code, 'DatabaseClient')).toContain('adapter,');
+    expect(clientOptions).toContain('adapter: d1Adapter');
+    expect(prismaClientOptionsUseAdapter(clientOptions, 'd1Adapter')).toBe(true);
     expect(extractPrismaClientOptions(code, 'MissingClient')).toBeNull();
   });
 
@@ -90,6 +129,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     const output = formatPrismaV7DriverAdapter(inspectPrismaV7DriverAdapter(readySource));
 
     expect(output).toContain('Driver adapter wiring: `ready`');
+    expect(output).toContain('Detected D1 adapter instance: `d1Adapter`');
     expect(output).toContain('| passesAdapterToPrismaClient | ready |');
     expect(output).toContain('read-only probe');
   });
