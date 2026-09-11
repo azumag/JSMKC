@@ -9,6 +9,7 @@ SMK Championship の大会運営における点数計算・順位管理システ
 **SMKC (SMK Championship)** は、SFC版SMKの競技大会フォーマットです。
 
 先頭の文字は各地域/組織のプレフィックスとして使用できます：
+
 - **JSMKC** - Japan SMK Championship
 - **ESMKC** - Europe SMK Championship
 - **NASMKC** - North America SMK Championship
@@ -24,12 +25,12 @@ SMK Championship の大会運営における点数計算・順位管理システ
 
 本システムは以下の4つの競技モードに対応しています：
 
-| Mode | Format | Description |
-|------|--------|-------------|
-| **Time Trial** | Individual | 全20コースの合計タイムで順位決定 |
-| **Battle Mode** | 1vs1 | バトルコース1〜4で風船を割り合う |
-| **Match Race** | 1vs1 | ランダム4コースでレース対決 |
-| **Grand Prix** | 1vs1 | カップ戦でドライバーズポイント勝負 |
+| Mode            | Format     | Description                        |
+| --------------- | ---------- | ---------------------------------- |
+| **Time Trial**  | Individual | 全20コースの合計タイムで順位決定   |
+| **Battle Mode** | 1vs1       | バトルコース1〜4で風船を割り合う   |
+| **Match Race**  | 1vs1       | ランダム4コースでレース対決        |
+| **Grand Prix**  | 1vs1       | カップ戦でドライバーズポイント勝負 |
 
 ---
 
@@ -38,15 +39,18 @@ SMK Championship の大会運営における点数計算・順位管理システ
 ### Time Trial (タイムアタック)
 
 #### Qualification Round
+
 - 全20コースを走行
 - 合計タイムで順位決定
 
 #### Losers Round (敗者復活)
+
 - 予選17位〜24位が参加
 - サドンデス方式（最下位が脱落）
 - 4人になるまで繰り返し
 
 #### Finals (決勝)
+
 - **ライフ制**: 初期ライフ3
 - タイム下位半分がライフ-1
 - ライフ0で脱落
@@ -57,22 +61,26 @@ SMK Championship の大会運営における点数計算・順位管理システ
 ### Battle Mode (バトル)
 
 #### Qualification Round
+
 - 2〜3グループに分かれてグループ内総当たり
 - 各対戦は4ラウンド（バトルコース1〜4）
 
 #### Scoring System
-| Result | Points |
-|--------|--------|
-| Win (3+ rounds) | 2 pts |
-| Tie (2-2) | 1 pt |
-| Loss (1- rounds) | 0 pts |
+
+| Result           | Points |
+| ---------------- | ------ |
+| Win (3+ rounds)  | 2 pts  |
+| Tie (2-2)        | 1 pt   |
+| Loss (1- rounds) | 0 pts  |
 
 #### Finals (Double Elimination)
+
 - ダブルエリミネーション方式（2敗で敗退）
 - ウィナーズブラケット / ルーザーズブラケット
 - 5勝先取 or 7勝先取
 
 #### Grand Final
+
 - 無敗側: 1回負けても再戦可能
 - 1敗側: 1回負けで敗退
 
@@ -81,13 +89,16 @@ SMK Championship の大会運営における点数計算・順位管理システ
 ### Match Race (vsマッチレース)
 
 #### Qualification Round
+
 - グループ内総当たり
 - ランダム4コース（全20コース対象）
 
 #### Scoring System
+
 バトルモードと同じ（勝ち越し2点、引き分け1点、負け越し0点）
 
 #### Finals
+
 - ダブルエリミネーション方式
 - 5勝先取 or 7勝先取
 
@@ -96,19 +107,22 @@ SMK Championship の大会運営における点数計算・順位管理システ
 ### Grand Prix (vsグランプリ)
 
 #### Qualification Round
+
 - グループ内総当たり
 - 4カップから運営が選択
 
 #### Driver Points
+
 | Position | Points |
-|----------|--------|
-| 1st | 9 pts |
-| 2nd | 6 pts |
-| 3rd | 3 pts |
-| 4th | 1 pt |
-| 5th+ | 0 pts |
+| -------- | ------ |
+| 1st      | 9 pts  |
+| 2nd      | 6 pts  |
+| 3rd      | 3 pts  |
+| 4th      | 1 pt   |
+| 5th+     | 0 pts  |
 
 #### Finals
+
 - ダブルエリミネーション方式
 - 2勝先取 or 3勝先取
 
@@ -116,21 +130,21 @@ SMK Championship の大会運営における点数計算・順位管理システ
 
 ## Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Frontend | Next.js 15.x (App Router) | React framework |
-| | TypeScript | Type-safe development |
-| | Tailwind CSS | Styling |
-| | shadcn/ui | UI component library |
-| | Radix UI | Accessibility foundation |
-| | NextAuth.js | Authentication |
-| Backend | Next.js API Routes | REST API |
-| | Prisma ORM | Database access |
-| Database | PostgreSQL (Neon) | Data store |
-| Deployment | Vercel | Hosting |
-| Form Management | React Hook Form | Form handling |
-| Validation | Zod | Schema validation |
-| Excel Export | xlsx (SheetJS) | Data export |
+| Layer           | Technology                | Purpose                  |
+| --------------- | ------------------------- | ------------------------ |
+| Frontend        | Next.js 15.x (App Router) | React framework          |
+|                 | TypeScript                | Type-safe development    |
+|                 | Tailwind CSS              | Styling                  |
+|                 | shadcn/ui                 | UI component library     |
+|                 | Radix UI                  | Accessibility foundation |
+|                 | NextAuth.js               | Authentication           |
+| Backend         | Next.js API Routes        | REST API                 |
+|                 | Prisma ORM                | Database access          |
+| Database        | PostgreSQL (Neon)         | Data store               |
+| Deployment      | Vercel                    | Hosting                  |
+| Form Management | React Hook Form           | Form handling            |
+| Validation      | Zod                       | Schema validation        |
+| Excel Export    | xlsx (SheetJS)            | Data export              |
 
 ---
 
@@ -223,15 +237,15 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Development Commands
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npx prisma studio` | Open Prisma Studio (Database GUI) |
-| `npx prisma migrate dev --name <name>` | Create a new migration |
-| `npx prisma generate` | Generate Prisma Client |
+| Command                                | Description                       |
+| -------------------------------------- | --------------------------------- |
+| `npm run dev`                          | Start development server          |
+| `npm run build`                        | Build for production              |
+| `npm run start`                        | Start production server           |
+| `npm run lint`                         | Run ESLint                        |
+| `npx prisma studio`                    | Open Prisma Studio (Database GUI) |
+| `npx prisma migrate dev --name <name>` | Create a new migration            |
+| `npx prisma generate`                  | Generate Prisma Client            |
 
 ---
 
@@ -288,15 +302,25 @@ Cloudflare's docs note that when connecting an existing Worker, the Worker name 
 
 ### Build settings for this repository
 
-This is a monorepo, so set these values in Cloudflare:
+Use two separate Cloudflare Workers Builds connections. Ordinary feature PRs are
+validated by GitHub CI only; Cloudflare builds are reserved for the long-lived
+production and fixed-preview branches.
 
-- Root directory: `smkc-score-app`
-- Build command: `npm run build:cf`
-- Deploy command: `npm run deploy:cf`
-- Build watch path: `smkc-score-app/**` (recommended)
+| Worker         | Production branch | Non-production branch builds | Root directory   | Build command      | Deploy command              |
+| -------------- | ----------------- | ---------------------------- | ---------------- | ------------------ | --------------------------- |
+| `smkc`         | `main`            | **OFF**                      | `smkc-score-app` | `npm run build:cf` | `npm run deploy:cf`         |
+| `smkc-preview` | `preview`         | **OFF**                      | `smkc-score-app` | `npm run build:cf` | `npm run deploy:cf:preview` |
 
-Cloudflare's docs state that Workers Builds runs the build command first and then the deploy command, and that the root directory should point at the app directory in monorepos.
-`npm run deploy:cf` applies pending D1 migrations with `wrangler d1 migrations apply DB --remote` before `wrangler deploy`, so new Worker code is not promoted against an old production schema.
+Enable Cloudflare's build cache for both connections. Do not re-enable
+non-production branch builds for feature PRs; that duplicates GitHub CI and consumes
+Workers Build Minutes without improving the fixed-preview workflow.
+
+`npm run deploy:cf` applies pending D1 migrations with
+`wrangler d1 migrations apply DB --remote` before `wrangler deploy`, so new Worker
+code is not promoted against an old production schema.
+
+Detailed branch-control, build-cache, and watch-path settings are maintained in
+[`docs/cloudflare-build-cost.md`](docs/cloudflare-build-cost.md).
 
 ### Preview deployment for E2E
 
@@ -325,36 +349,17 @@ Deploy and migrate preview with:
 npm run deploy:preview
 ```
 
-Configure pull requests to deploy to preview through Cloudflare Workers Builds, not GitHub Actions:
+The fixed preview environment is updated intentionally through the long-lived
+`preview` branch. When an integration or E2E preview is needed, update `preview` to
+the exact commit or release candidate to validate and wait for the
+`smkc-preview` Workers Build. Do not deploy ordinary PR/feature branches through
+Cloudflare Workers Builds.
 
-1. In Cloudflare dashboard, open Workers & Pages → `smkc`.
-2. Open `Settings` → `Build`.
-3. Connect this repository for production builds.
-4. Keep the production branch as `main`.
-5. Set the root directory to `smkc-score-app`.
-6. Set the build command to `npm run build:cf`.
-7. Set the production deploy command to `npm run deploy:cf`.
-8. In Cloudflare dashboard, open Workers & Pages → `smkc-preview`.
-9. Open `Settings` → `Build`.
-10. Connect the same repository for preview builds.
-11. Enable builds for non-production branches in `Branch control`.
-12. Keep the root directory as `smkc-score-app`.
-13. Set the build command to `npm run build:cf`.
-14. Set the deploy command and non-production branch deploy command to
-    `npm run deploy:cf:preview`.
-
-Do not configure only the production Worker `smkc` with a non-production branch
-command that deploys `smkc-preview`. It can technically work because
-`npm run deploy:cf:preview` runs `wrangler deploy --env preview`, but the
-Cloudflare dashboard then shows branch settings under one Worker while traffic
-and runtime variables belong to another. Keep `smkc` and `smkc-preview` as
-separate Build connections so the deployed Worker, custom domain, runtime
-secrets, and branch rules all line up.
-
-With this setup, pushes to `main` deploy the production `smkc` Worker, while PR
-branches build through Cloudflare and promote the `smkc-preview` Worker. The
-preview deploy command applies D1 migrations to `smkc-db-preview` before
-deploying the preview Worker.
+Keep `smkc` and `smkc-preview` as separate Build connections so each Worker has the
+correct custom domain, runtime variables, D1 database, branch rule, and deploy
+command. Pushes to `main` deploy production `smkc`; pushes to `preview` deploy the
+fixed `smkc-preview` environment and apply pending migrations to
+`smkc-db-preview` before deployment.
 
 Run preview E2E with the dedicated Playwright profile:
 
@@ -412,12 +417,14 @@ Cloudflare documents build variables separately from runtime variables. For this
 ## Features
 
 ### Implemented
+
 - [x] **Players**: プレイヤー登録・編集・削除
 - [x] **Tournaments**: トーナメント作成・管理
 - [x] **Battle Mode Qualification**: グループ分け、総当たり対戦表、スコア入力、勝ち点自動計算
 - [x] **OBS Browser-Source Overlay**: スコア入力・状態遷移を配信画面にトースト通知（[後述](#obs-browser-source-overlay)）
 
 ### Coming Soon
+
 - [ ] Battle Mode Finals (Double Elimination)
 - [ ] Match Race
 - [ ] Grand Prix
@@ -445,13 +452,13 @@ https://smkc.bluemoon.works/tournaments/<トーナメントID または slug>/ov
 
 OBS Studio の「ソースを追加」→「ブラウザ」で以下を入力：
 
-| 項目 | 値 |
-|---|---|
-| URL | 上記の overlay URL |
-| 幅 | `1920` |
-| 高さ | `1080` |
-| シーンがアクティブになっていない時にソースをシャットダウン | **OFF** |
-| シーンがアクティブになった時にブラウザをリフレッシュ | **OFF** |
+| 項目                                                       | 値                 |
+| ---------------------------------------------------------- | ------------------ |
+| URL                                                        | 上記の overlay URL |
+| 幅                                                         | `1920`             |
+| 高さ                                                       | `1080`             |
+| シーンがアクティブになっていない時にソースをシャットダウン | **OFF**            |
+| シーンがアクティブになった時にブラウザをリフレッシュ       | **OFF**            |
 
 > **OFF にする理由**: ON だとシーン切替のたびにポーリング状態がリセットされ、その瞬間直近 30 秒のイベントが一気に再生されてしまいます
 
@@ -459,15 +466,15 @@ OBS Studio の「ソースを追加」→「ブラウザ」で以下を入力：
 
 ### 通知されるイベント
 
-| イベント種別 | 発火タイミング |
-|---|---|
-| `match_completed` | BM/MR/GP の試合スコアが確定したとき |
-| `score_reported` | 参加者が `/report` 経由でスコアを自己申告したとき |
-| `ta_time_recorded` | TA エントリのタイムが入力・更新されたとき |
-| `qualification_confirmed` | 予選確定フラグを ON にしたとき |
-| `finals_started` | BM 決勝ブラケットが生成されたとき |
-| `ta_phase_advanced` | TA フェーズで新ラウンドが開始されたとき |
-| `overall_ranking_updated` | 総合ランキングが再集計されたとき |
+| イベント種別              | 発火タイミング                                    |
+| ------------------------- | ------------------------------------------------- |
+| `match_completed`         | BM/MR/GP の試合スコアが確定したとき               |
+| `score_reported`          | 参加者が `/report` 経由でスコアを自己申告したとき |
+| `ta_time_recorded`        | TA エントリのタイムが入力・更新されたとき         |
+| `qualification_confirmed` | 予選確定フラグを ON にしたとき                    |
+| `finals_started`          | BM 決勝ブラケットが生成されたとき                 |
+| `ta_phase_advanced`       | TA フェーズで新ラウンドが開始されたとき           |
+| `overall_ranking_updated` | 総合ランキングが再集計されたとき                  |
 
 ### 表示仕様
 
@@ -480,11 +487,11 @@ OBS Studio の「ソースを追加」→「ブラウザ」で以下を入力：
 
 ### トラブルシューティング
 
-| 症状 | 対処 |
-|---|---|
-| 何も表示されない | URL のトーナメント ID/slug が正しいか確認。OBS のブラウザソース上で右クリック→「OBS の対話を有効にする」→「対話する」で開発者ツールを開き、`/api/tournaments/.../overlay-events` のレスポンスを確認 |
-| 配信開始直後に過去のイベントが大量に流れる | "シーンがアクティブになった時にブラウザをリフレッシュ" を OFF。仕様上、初回ポーリングで直近 30 秒分が出るため、進行が止まっている時間帯に OBS を起動すると最小化できる |
-| 透過にならない（白/黒の背景が見える） | キャッシュをリフレッシュ（OBS 上で右クリック→「リフレッシュ」）。それでも残る場合は OBS のブラウザソースのバージョンが古い可能性があるため OBS 自体を最新化 |
+| 症状                                       | 対処                                                                                                                                                                                                |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 何も表示されない                           | URL のトーナメント ID/slug が正しいか確認。OBS のブラウザソース上で右クリック→「OBS の対話を有効にする」→「対話する」で開発者ツールを開き、`/api/tournaments/.../overlay-events` のレスポンスを確認 |
+| 配信開始直後に過去のイベントが大量に流れる | "シーンがアクティブになった時にブラウザをリフレッシュ" を OFF。仕様上、初回ポーリングで直近 30 秒分が出るため、進行が止まっている時間帯に OBS を起動すると最小化できる                              |
+| 透過にならない（白/黒の背景が見える）      | キャッシュをリフレッシュ（OBS 上で右クリック→「リフレッシュ」）。それでも残る場合は OBS のブラウザソースのバージョンが古い可能性があるため OBS 自体を最新化                                         |
 
 ### 関連ドキュメント
 
@@ -552,11 +559,11 @@ prisma/
 
 ## Glossary
 
-| Term | Description |
-|------|-------------|
-| JSMKC | Japan SMK Championship |
-| Double Elimination | 2回負けると敗退するトーナメント形式 |
-| Winners Bracket | まだ負けていないプレイヤーのトーナメント枠 |
-| Losers Bracket | 1回負けたプレイヤーのトーナメント枠 |
-| Sudden Death | 最下位が即脱落する方式 |
-| Driver Points | グランプリモードでの順位に応じた得点 |
+| Term               | Description                                |
+| ------------------ | ------------------------------------------ |
+| JSMKC              | Japan SMK Championship                     |
+| Double Elimination | 2回負けると敗退するトーナメント形式        |
+| Winners Bracket    | まだ負けていないプレイヤーのトーナメント枠 |
+| Losers Bracket     | 1回負けたプレイヤーのトーナメント枠        |
+| Sudden Death       | 最下位が即脱落する方式                     |
+| Driver Points      | グランプリモードでの順位に応じた得点       |
