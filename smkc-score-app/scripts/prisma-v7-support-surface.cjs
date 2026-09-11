@@ -73,8 +73,7 @@ function inspectFile(filePath) {
     for (const reference of extractNextConfigReferences(source)) {
       if (
         !references.some(
-          (existing) =>
-            existing.kind === reference.kind && existing.specifier === reference.specifier,
+          (existing) => existing.kind === reference.kind && existing.specifier === reference.specifier,
         )
       ) {
         references.push(reference);
