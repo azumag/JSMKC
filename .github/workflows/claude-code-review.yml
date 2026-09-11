@@ -81,51 +81,18 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
   wait-cloudflare-build:
+    # Keep this compatibility check name because existing protection/rules may
+    # reference it. Ordinary feature PRs intentionally no longer require a
+    # Cloudflare deployment: GitHub CI validates them, while the fixed preview
+    # is updated only through the long-lived preview branch.
     name: Wait for Cloudflare Workers Build
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    permissions:
-      checks: read
     steps:
-      - name: 'Wait for Workers Builds: smkc check'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Cloudflare feature-branch build intentionally disabled
         run: |
-          set -euo pipefail
-          deadline=$((SECONDS + 1800))
-
-          while (( SECONDS < deadline )); do
-            check_json="$(gh api \
-              -H "Accept: application/vnd.github+json" \
-              "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" \
-              --jq '[.check_runs[] | select(.name == "Workers Builds: smkc")] | sort_by(.started_at // "") | last // {}')"
-
-            status="$(printf '%s' "$check_json" | jq -r '.status // "missing"')"
-            conclusion="$(printf '%s' "$check_json" | jq -r '.conclusion // ""')"
-
-            case "$status" in
-              completed)
-                if [ "$conclusion" = "success" ]; then
-                  echo "Workers Builds: smkc completed successfully."
-                  exit 0
-                fi
-                echo "::error::Workers Builds: smkc completed with conclusion '${conclusion:-unknown}'."
-                exit 1
-                ;;
-              missing)
-                echo "Workers Builds: smkc has not appeared yet; retrying in 20s."
-                ;;
-              *)
-                echo "Workers Builds: smkc status=${status}; retrying in 20s."
-                ;;
-            esac
-
-            sleep 20
-          done
-
-          echo "::error::Timed out waiting 1800s for Workers Builds: smkc."
-          exit 1
+          echo "Feature PRs are validated by GitHub CI and do not require a Cloudflare Workers Build."
+          echo "Deploy the long-lived preview branch when fixed-preview/E2E validation is required."
 
   claude-review:
     # Intentionally retained as a successful compatibility gate, but it no
