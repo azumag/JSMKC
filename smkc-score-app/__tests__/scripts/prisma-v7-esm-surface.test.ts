@@ -65,6 +65,19 @@ describe('Prisma 7 ESM migration surface', () => {
     }
   });
 
+  it('keeps explicit .cjs helpers outside the future top-level ESM migration surface', () => {
+    const root = mkdtempSync(join(tmpdir(), 'prisma-v7-esm-surface-cjs-'));
+
+    try {
+      const setupPath = join(root, 'jest.setup.cjs');
+      writeFileSync(setupPath, "const fs = require('node:fs'); module.exports = fs;\n", 'utf8');
+
+      expect(findCommonJsJavaScriptFiles([setupPath], root)).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('reports migration work without treating advisory evidence as a mutation', () => {
     const status = inspectPrismaV7EsmSurface({
       findings: [
