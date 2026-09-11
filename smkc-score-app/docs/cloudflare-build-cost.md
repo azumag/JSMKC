@@ -8,10 +8,10 @@ preserving the fixed production and preview environments.
 
 Use two separate Worker build connections.
 
-| Worker | Production branch | Non-production branch builds | Build cache | Build command | Deploy command |
-| --- | --- | --- | --- | --- | --- |
-| `smkc` | `main` | **OFF** | **ON** | `npm run build:cf` | `npm run deploy:cf` |
-| `smkc-preview` | `preview` | **OFF** | **ON** | `npm run build:cf` | `npm run deploy:cf:preview` |
+| Worker         | Production branch | Non-production branch builds | Build cache | Build command      | Deploy command               |
+| -------------- | ----------------- | ---------------------------- | ----------- | ------------------ | ---------------------------- |
+| `smkc`         | `main`            | **OFF**                      | **ON**      | `npm run build:cf` | `npm run deploy:cf`          |
+| `smkc-preview` | `preview`         | **OFF**                      | **ON**      | `npm run build:cf` | `npm run deploy:cf:preview`  |
 
 Both connections use `smkc-score-app` as the root directory.
 
