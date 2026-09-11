@@ -88,9 +88,7 @@ describe('Prisma 7 support-code migration surface', () => {
     expect(() => parseCliOptions(['--write'])).toThrow('unsupported option');
 
     expect(
-      JSON.parse(
-        formatPrismaV7SupportSurface({ ready: true, referenceCount: 0, findings: [] }, { json: true }),
-      ),
+      JSON.parse(formatPrismaV7SupportSurface({ ready: true, referenceCount: 0, findings: [] }, { json: true })),
     ).toEqual({ ready: true, referenceCount: 0, findings: [] });
   });
 });
