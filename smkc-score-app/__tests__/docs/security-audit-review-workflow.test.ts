@@ -216,6 +216,9 @@ describe('manual security audit review workflow', () => {
         '${{ steps.next_major_upstream.outputs.published_remediation_prisma_client_version }}',
       NEXT_MAJOR_PUBLISHED_ADAPTER_D1_VERSION:
         '${{ steps.next_major_upstream.outputs.published_remediation_adapter_d1_version }}',
+      PRISMA_V7_READINESS_OUTCOME: '${{ steps.prisma_v7_readiness.outcome }}',
+      PRISMA_V7_SUPPORT_SURFACE_OUTCOME: '${{ steps.prisma_v7_support_surface.outcome }}',
+      PRISMA_V7_ESM_SURFACE_OUTCOME: '${{ steps.prisma_v7_esm_surface.outcome }}',
     });
     expect(summaryStep?.run).toContain('Review ref');
     expect(summaryStep?.run).toContain('REVIEW_REF');

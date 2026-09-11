@@ -127,6 +127,9 @@ jobs:
           NEXT_MAJOR_PUBLISHED_PACKAGE_SET_STATE: ${{ steps.next_major_upstream.outputs.published_remediation_package_set_state }}
           NEXT_MAJOR_PUBLISHED_PRISMA_CLIENT_VERSION: ${{ steps.next_major_upstream.outputs.published_remediation_prisma_client_version }}
           NEXT_MAJOR_PUBLISHED_ADAPTER_D1_VERSION: ${{ steps.next_major_upstream.outputs.published_remediation_adapter_d1_version }}
+          PRISMA_V7_READINESS_OUTCOME: ${{ steps.prisma_v7_readiness.outcome }}
+          PRISMA_V7_SUPPORT_SURFACE_OUTCOME: ${{ steps.prisma_v7_support_surface.outcome }}
+          PRISMA_V7_ESM_SURFACE_OUTCOME: ${{ steps.prisma_v7_esm_surface.outcome }}
         run: |
           {
             echo "## #3114 security audit review"
@@ -146,6 +149,9 @@ jobs:
             echo "| Canonical npm audit | \`${CANONICAL_AUDIT_OUTCOME}\` |"
             echo "| Compatible Prisma release probe | \`${COMPATIBLE_UPSTREAM_OUTCOME}\` |"
             echo "| Next-major Prisma remediation probe | \`${NEXT_MAJOR_UPSTREAM_OUTCOME}\` |"
+            echo "| Prisma 7 migration readiness probe | \`${PRISMA_V7_READINESS_OUTCOME}\` |"
+            echo "| Prisma 7 support-code surface probe | \`${PRISMA_V7_SUPPORT_SURFACE_OUTCOME}\` |"
+            echo "| Prisma 7 ESM surface probe | \`${PRISMA_V7_ESM_SURFACE_OUTCOME}\` |"
             echo
             echo "Tracking issue: \`#${EXCEPTION_TRACKING_ISSUE:-unavailable}\`"
             echo
