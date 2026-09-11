@@ -127,6 +127,7 @@ describe('manual security audit review workflow', () => {
     expect(steps.indexOf(nextMajorStep as WorkflowStep)).toBeLessThan(steps.indexOf(timestampStep as WorkflowStep));
     expect(steps.indexOf(timestampStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
     expect(gateStep?.env).not.toHaveProperty('NEXT_MAJOR_UPSTREAM_STATE');
+    expect(gateStep?.env).not.toHaveProperty('NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE');
   });
 
   it('fails closed when the compatible upstream probe needs explicit follow-up', () => {
@@ -207,6 +208,8 @@ describe('manual security audit review workflow', () => {
       LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:
         '${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}',
       NEXT_MAJOR_DEEPMERGE_REQUIREMENT: '${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}',
+      NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE:
+        '${{ steps.next_major_upstream.outputs.published_remediation_candidate }}',
     });
     expect(summaryStep?.run).toContain('Review ref');
     expect(summaryStep?.run).toContain('REVIEW_REF');
@@ -240,6 +243,8 @@ describe('manual security audit review workflow', () => {
     expect(summaryStep?.run).toContain('NEXT_MAJOR_PRISMA_CONFIG_SELECTOR');
     expect(summaryStep?.run).toContain('LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION');
     expect(summaryStep?.run).toContain('NEXT_MAJOR_DEEPMERGE_REQUIREMENT');
+    expect(summaryStep?.run).toContain('Published remediation candidate');
+    expect(summaryStep?.run).toContain('NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE');
     expect(summaryStep?.run).toContain('major upgrade requires an explicit dependency migration PR');
     expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
     expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');

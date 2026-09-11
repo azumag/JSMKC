@@ -123,6 +123,7 @@ jobs:
           NEXT_MAJOR_PRISMA_CONFIG_SELECTOR: ${{ steps.next_major_upstream.outputs.prisma_config_selector }}
           LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION: ${{ steps.next_major_upstream.outputs.latest_compatible_prisma_config_version }}
           NEXT_MAJOR_DEEPMERGE_REQUIREMENT: ${{ steps.next_major_upstream.outputs.prisma_config_deepmerge_requirement }}
+          NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE: ${{ steps.next_major_upstream.outputs.published_remediation_candidate }}
         run: |
           {
             echo "## #3114 security audit review"
@@ -182,6 +183,7 @@ jobs:
             echo "| prisma → @prisma/config selector | \`${NEXT_MAJOR_PRISMA_CONFIG_SELECTOR:-unavailable}\` |"
             echo "| Latest next-major @prisma/config | \`${LATEST_NEXT_MAJOR_PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| Next-major @prisma/config → deepmerge-ts requirement | \`${NEXT_MAJOR_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
+            echo "| Published remediation candidate | \`${NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE:-unavailable}\` |"
             echo
             echo "Next-major, Prisma 7 readiness, Prisma 7 support-code, and Prisma 7 ESM migration evidence are advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
             echo
