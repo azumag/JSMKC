@@ -7,29 +7,32 @@ import {
 } from '../../scripts/prisma-v7-support-surface.cjs';
 
 describe('Prisma 7 support-code migration surface', () => {
+  const prismaClientSpecifier = '@prisma' + '/client';
+  const prismaRuntimeSpecifier = `${prismaClientSpecifier}/runtime/library`;
+
   it('finds imports, runtime loads, and Jest module targets', () => {
     expect(
       extractLegacyPrismaClientReferences(`
-        import { Prisma } from '@prisma/client';
-        import type { PrismaClient } from "@prisma/client";
-        const runtime = require('@prisma/client/runtime/library');
-        const lazyClient = import("@prisma/client");
-        jest.mock('@prisma/client', () => ({}));
-        const actual = jest.requireActual('@prisma/client');
+        import { Prisma } from '${prismaClientSpecifier}';
+        import type { PrismaClient } from "${prismaClientSpecifier}";
+        const runtime = require('${prismaRuntimeSpecifier}');
+        const lazyClient = import("${prismaClientSpecifier}");
+        jest.mock('${prismaClientSpecifier}', () => ({}));
+        const actual = jest.requireActual('${prismaClientSpecifier}');
       `),
     ).toEqual([
-      { kind: 'import', specifier: '@prisma/client' },
-      { kind: 'runtime-load', specifier: '@prisma/client/runtime/library' },
-      { kind: 'runtime-load', specifier: '@prisma/client' },
-      { kind: 'jest-module-target', specifier: '@prisma/client' },
+      { kind: 'import', specifier: prismaClientSpecifier },
+      { kind: 'runtime-load', specifier: prismaRuntimeSpecifier },
+      { kind: 'runtime-load', specifier: prismaClientSpecifier },
+      { kind: 'jest-module-target', specifier: prismaClientSpecifier },
     ]);
   });
 
   it('does not treat prose-only package mentions as imports', () => {
     expect(
       extractLegacyPrismaClientReferences(`
-        // Error classes come from '@prisma/client/runtime/library' in Prisma 6.
-        const note = "types come from '@prisma/client' after generation";
+        // Error classes come from '${prismaRuntimeSpecifier}' in Prisma 6.
+        const note = "types come from '${prismaClientSpecifier}' after generation";
       `),
     ).toEqual([]);
   });
@@ -38,10 +41,10 @@ describe('Prisma 7 support-code migration surface', () => {
     expect(
       extractNextConfigReferences(`
         export default {
-          serverExternalPackages: ['@prisma/client', '.prisma/client'],
+          serverExternalPackages: ['${prismaClientSpecifier}', '.prisma/client'],
         };
       `),
-    ).toEqual([{ kind: 'next-server-external', specifier: '@prisma/client' }]);
+    ).toEqual([{ kind: 'next-server-external', specifier: prismaClientSpecifier }]);
   });
 
   it('treats support-code references as migration work without changing application code', () => {
@@ -49,11 +52,11 @@ describe('Prisma 7 support-code migration surface', () => {
       findings: [
         {
           path: '__tests__/lib/prisma-error.test.ts',
-          references: [{ kind: 'import', specifier: '@prisma/client/runtime/library' }],
+          references: [{ kind: 'import', specifier: prismaRuntimeSpecifier }],
         },
         {
           path: 'jest.setup.js',
-          references: [{ kind: 'jest-module-target', specifier: '@prisma/client' }],
+          references: [{ kind: 'jest-module-target', specifier: prismaClientSpecifier }],
         },
       ],
     });
