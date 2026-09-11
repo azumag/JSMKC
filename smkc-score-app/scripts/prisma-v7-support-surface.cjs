@@ -4,14 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
-const DEFAULT_TARGETS = [
-  '__tests__',
-  '__mocks__',
-  'e2e',
-  'jest.setup.js',
-  'jest.config.ts',
-  'next.config.ts',
-];
+const DEFAULT_TARGETS = ['__tests__', '__mocks__', 'e2e', 'jest.setup.js', 'jest.config.ts', 'next.config.ts'];
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   if (argv.length === 0) return { json: false };
@@ -72,9 +65,7 @@ function inspectFile(filePath) {
   if (path.basename(filePath) === 'next.config.ts') {
     for (const reference of extractNextConfigReferences(source)) {
       if (
-        !references.some(
-          (existing) => existing.kind === reference.kind && existing.specifier === reference.specifier,
-        )
+        !references.some((existing) => existing.kind === reference.kind && existing.specifier === reference.specifier)
       ) {
         references.push(reference);
       }
@@ -92,9 +83,7 @@ function findLegacyPrismaClientSupportReferences(targets = DEFAULT_TARGETS) {
 
     const stat = fs.statSync(targetPath);
     if (stat.isDirectory()) {
-      const entries = fs
-        .readdirSync(targetPath, { withFileTypes: true })
-        .sort((a, b) => a.name.localeCompare(b.name));
+      const entries = fs.readdirSync(targetPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
       for (const entry of entries) {
         visit(path.join(targetPath, entry.name));
       }
@@ -132,9 +121,7 @@ function formatPrismaV7SupportSurface(status, { json = false } = {}) {
     status.findings.length === 0
       ? ['| none | none | none |']
       : status.findings.flatMap((finding) =>
-          finding.references.map(
-            ({ kind, specifier }) => `| \`${finding.path}\` | ${kind} | \`${specifier}\` |`,
-          ),
+          finding.references.map(({ kind, specifier }) => `| \`${finding.path}\` | ${kind} | \`${specifier}\` |`),
         );
 
   return [
