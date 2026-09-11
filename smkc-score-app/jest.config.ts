@@ -20,11 +20,7 @@ const customJestConfig: Config = {
     '^next-intl$': '<rootDir>/__mocks__/next-intl.js',
   },
   testEnvironment: 'node',
-  collectCoverageFrom: [
-    'src/**/*.{js,jsx,ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/**/index.{js,jsx,ts,tsx}',
-  ],
+  collectCoverageFrom: ['src/**/*.{js,jsx,ts,tsx}', '!src/**/*.d.ts', '!src/**/index.{js,jsx,ts,tsx}'],
   coverageThreshold: {
     global: {
       branches: 70,
