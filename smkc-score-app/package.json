@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write .",
-    "format:check": "prettier --write scripts/prisma-v7-typescript-prereqs.cjs && git diff -- scripts/prisma-v7-typescript-prereqs.cjs && exit 1",
+    "format:check": "node scripts/check-format-changed.mjs",
     "test": "SKIP_OPENNEXT_CLOUDFLARE_DEV=1 NODE_ENV=test NODE_OPTIONS='--max-old-space-size=4096' jest",
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
