@@ -120,7 +120,34 @@ function inspectJavaScriptFile(filePath) {
   return extractCommonJsConstructs(fs.readFileSync(filePath, 'utf8'));
 }
 
-function findCommonJsJavaScriptFiles(targets = DEFAULT_TARGETS) {
+function readPackageType(packageJsonPath) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    return typeof manifest.type === 'string' ? manifest.type : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasExplicitCommonJsPackageScope(filePath, rootDir = '.') {
+  const root = path.resolve(rootDir);
+  let currentDir = path.dirname(path.resolve(filePath));
+
+  while (currentDir !== root && currentDir.startsWith(`${root}${path.sep}`)) {
+    const packageJsonPath = path.join(currentDir, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      return readPackageType(packageJsonPath) === 'commonjs';
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) break;
+    currentDir = parentDir;
+  }
+
+  return false;
+}
+
+function findCommonJsJavaScriptFiles(targets = DEFAULT_TARGETS, rootDir = '.') {
   const findings = [];
 
   function visit(targetPath) {
@@ -136,12 +163,13 @@ function findCommonJsJavaScriptFiles(targets = DEFAULT_TARGETS) {
     }
 
     if (!stat.isFile() || path.extname(targetPath) !== '.js') return;
+    if (hasExplicitCommonJsPackageScope(targetPath, rootDir)) return;
 
     const constructs = inspectJavaScriptFile(targetPath);
     if (constructs.length === 0) return;
 
     findings.push({
-      path: path.relative('.', targetPath).split(path.sep).join('/'),
+      path: path.relative(rootDir, targetPath).split(path.sep).join('/'),
       constructs,
     });
   }
@@ -177,9 +205,9 @@ function formatPrismaV7EsmSurface(status, { json = false } = {}) {
     '| --- | --- |',
     ...rows,
     '',
-    'This is read-only migration evidence. It only inventories Node-executed/test helper `.js` files that would need conversion, renaming to `.cjs`, or an explicit package-scope decision before enabling top-level `"type": "module"`.',
+    'This is read-only migration evidence. It inventories Node-executed/test helper `.js` files that would change interpretation under a future top-level `"type": "module"`.',
     '',
-    'Existing `.cjs` files are intentionally excluded because they remain CommonJS when the package becomes ESM.',
+    'Files protected by a nested package scope with explicit `"type": "commonjs"` are intentionally excluded because they remain CommonJS after the top-level package becomes ESM. Existing `.cjs` files are excluded for the same reason.',
     '',
   ].join('\n');
 }
@@ -218,7 +246,9 @@ module.exports = {
   extractCommonJsConstructs,
   findCommonJsJavaScriptFiles,
   formatPrismaV7EsmSurface,
+  hasExplicitCommonJsPackageScope,
   inspectPrismaV7EsmSurface,
   maskCommentsAndStrings,
   parseCliOptions,
+  readPackageType,
 };
