@@ -14,11 +14,13 @@ The probe uses a `.cjs` extension deliberately so it remains executable while th
 
 A companion read-only probe, documented in `docs/prisma-v7-support-surface.md`, inventories legacy Prisma package references outside application source (tests, Jest setup, E2E/tooling, and Next.js externalization). Run both probes before an explicit Prisma 7 migration so the application import migration does not hide support-code/build work that would otherwise surface only after CI or Cloudflare build failures.
 
+A second companion probe, documented in `docs/prisma-v7-esm-surface.md`, inventories Node/test helper `.js` files that still use CommonJS constructs. This makes the impact of a future top-level `"type": "module"` switch concrete without renaming or rewriting any executable today.
+
 ## Checks
 
 The probe records the migration prerequisites that must be handled together in an explicit Prisma 7 dependency-migration PR:
 
-- `package.json` uses ESM (`"type": "module"`). Prisma 7's generated client and CLI configuration are ESM-first, so this change must be assessed against the repository's existing CommonJS helper scripts rather than applied mechanically.
+- `package.json` uses ESM (`"type": "module"`). Prisma 7's generated client and CLI configuration are ESM-first, so this change must be assessed against the repository's existing CommonJS helper scripts rather than applied mechanically. The companion ESM-surface inventory records those `.js` helpers before this switch is attempted.
 - `prisma`, `@prisma/client`, and `@prisma/adapter-d1` are all on target major 7 and their majors are aligned.
 - the Prisma generator uses `provider = "prisma-client"` rather than the legacy `prisma-client-js` provider.
 - the generator has an explicit output directory, because application imports must move from `@prisma/client` to the generated client path as part of the v7 migration.
@@ -38,6 +40,7 @@ Current `main` has:
 - `@prisma/client: ^6.19.3`
 - `@prisma/adapter-d1: ^7.8.0`
 - no top-level `"type": "module"`
+- multiple Node/E2E `.js` helpers still using CommonJS constructs; `scripts/prisma-v7-esm-surface.cjs` inventories those files without changing them
 - `provider = "prisma-client-js"`
 - no explicit generator `output`
 - `datasource db` still contains `url = env("DATABASE_URL")`
@@ -51,19 +54,20 @@ The ES2023 target is intentionally guarded by a repository-level readiness regre
 
 ## Migration decision boundary
 
-When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target, regenerate the client, and verify at minimum:
+When an explicit Prisma 7 migration is approved, the dependency update PR should change the Prisma package set and schema/config/imports as one coherent migration, preserve the now-compatible TypeScript module target, resolve the recorded CommonJS `.js` helper surface before enabling top-level ESM, regenerate the client, and verify at minimum:
 
 1. Prisma generate and type checking.
 2. unit tests and lint/format.
 3. Prisma/D1 migration parity.
 4. Cloudflare/OpenNext build.
 5. D1 adapter behavior on a real preview path, including representative reads and writes.
-6. `npm audit --audit-level=high` with the #3114 exception removed only after the vulnerable dependency edge is actually gone from the installed lockfile graph.
+6. security-audit and any affected E2E/helper entry points after ESM conversion/renaming.
+7. `npm audit --audit-level=high` with the #3114 exception removed only after the vulnerable dependency edge is actually gone from the installed lockfile graph.
 
 If any of these require a behavior or deployment-policy decision, record it on #3114 (or a dedicated migration issue) rather than weakening the audit gate or applying a consumer-side major override.
 
 ## Manual security review integration
 
-The manual `Security audit review` workflow also runs this readiness probe after collecting the compatible-range and next-major upstream evidence. The probe remains advisory: it uses `continue-on-error`, is not referenced by the compatible-range fail-closed gate, and cannot trigger a Prisma major upgrade or change the #3114 exception.
+The manual `Security audit review` workflow also runs the readiness, support-code, and ESM-surface probes after collecting the compatible-range and next-major upstream evidence. The probes remain advisory: they use `continue-on-error`, are not referenced by the compatible-range fail-closed gate, and cannot trigger a Prisma major upgrade or change the #3114 exception.
 
-The probe writes its detailed readiness table, including the legacy Prisma import inventory, Prisma config datasource check, and TypeScript module settings, to the GitHub Actions job summary, and its step result remains visible in the workflow run. This keeps the migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
+The probes write their detailed readiness tables to the GitHub Actions job summary, including the legacy Prisma import inventory, Prisma config datasource check, TypeScript module settings, support-code Prisma references, and CommonJS `.js` helper inventory. This keeps migration evidence available during each manual review without expanding the existing compatible-range gate contract: reviewers can see both whether a patched Prisma 7 dependency chain exists upstream and which local migration prerequisites still need work before an explicit migration PR is safe to attempt.
