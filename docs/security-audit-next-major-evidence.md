@@ -10,7 +10,9 @@ Issue #3114 の既存 `security-audit-upstream.js` は、`package.json` の現�
 
 この next-major probe は **advisory evidence only** です。失敗しても current compatible-range gate の意味を変えないよう workflow step は `continue-on-error: true` とし、結果・selector・dependency edge・観測時刻だけを Job summary に残します。`compatible_upstream_gate` は従来どおり current manifest range の probe だけを判定し、next-major の結果を自動 upgrade / exception removal の成功条件には使いません。
 
-probe は `published remediation candidate` も出力します。canonical npm registry 上の latest stable next-major が `deepmerge-ts` の patched requirement を持つ場合だけ、その Prisma version を候補として表示し、まだ vulnerable な場合は `none` を表示します。GitHub Actions output にも `published_remediation_candidate=<version|none>` を出すため、reviewer は upstream branch merge を installable release と取り違えずに判断できます。
+probe は `published remediation candidate` も出力します。canonical npm registry 上の latest stable next-major が `deepmerge-ts` の patched requirement を持つだけでは候補にしません。同じ version の `@prisma/client` と `@prisma/adapter-d1` も stable package として取得できることを確認し、CLI・client・D1 adapter の移行package setが揃った場合だけ、その Prisma version を候補として表示します。いずれかを確認できない場合や registry lookup が失敗した場合は候補を `none` のままにし、probe log / GitHub Actions output には package-set state と確認できた version を残します。これにより、CLIだけ先に公開された状態を「そのまま移行可能な remediation」と誤認しません。
+
+GitHub Actions output には `published_remediation_candidate=<version|none>` に加えて、`published_remediation_package_set_state=<ready|incomplete|unavailable|not-applicable>`、`published_remediation_prisma_client_version`、`published_remediation_adapter_d1_version` を出します。Job summary の `Published remediation candidate` は package set が `ready` の場合だけ version を表示するため、reviewer は upstream branch merge や部分的な npm publish を installable migration set と取り違えずに判断できます。
 
 next-major probe が `compatible-forward-remediation-available` を返した場合でも、行うべきことは Prisma major migration の明示的な検討です。`prisma` / `@prisma/client` / adapters の version alignment、schema/generate/migrate、Prisma/D1 parity、unit tests、lint/format、canonical audit、Cloudflare build と実運用互換性を別PRで確認してから #3114 の削除可否を判断します。consumer-side `deepmerge-ts` major override や Prisma major upgradeを、この probe や review workflow が自動で実行することはありません。
 

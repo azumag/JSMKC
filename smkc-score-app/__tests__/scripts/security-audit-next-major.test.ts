@@ -29,7 +29,7 @@ describe('next-major Prisma upstream probe', () => {
     );
   });
 
-  it('reports a published candidate when the next major contains a patched upstream dependency edge', () => {
+  it('reports a published candidate when the patched next major has a matching runtime package set', () => {
     const npmView = jest.fn((selector: string, field: string) => {
       if (selector === 'prisma@^7.0.0' && field === 'version') {
         return ['7.9.1', '7.10.0', '7.11.0'];
@@ -42,6 +42,12 @@ describe('next-major Prisma upstream probe', () => {
       }
       if (selector === '@prisma/config@7.11.0' && field === 'dependencies') {
         return { 'deepmerge-ts': '8.0.2' };
+      }
+      if (selector === '@prisma/client@7.11.0' && field === 'version') {
+        return '7.11.0';
+      }
+      if (selector === '@prisma/adapter-d1@7.11.0' && field === 'version') {
+        return '7.11.0';
       }
       throw new Error(`unexpected npm view: ${selector} ${field}`);
     });
@@ -56,8 +62,46 @@ describe('next-major Prisma upstream probe', () => {
       prismaConfigSelector: '7.11.0',
       latestCompatiblePrismaConfigVersion: '7.11.0',
       prismaConfigDeepmergeRequirement: '8.0.2',
+      publishedRemediationPackageSet: {
+        state: 'ready',
+        prismaClientVersion: '7.11.0',
+        prismaAdapterD1Version: '7.11.0',
+      },
     });
     expect(getPublishedRemediationCandidate(status)).toBe('7.11.0');
+  });
+
+  it('withholds the candidate when the matching runtime package set cannot be verified', () => {
+    const npmView = jest.fn((selector: string, field: string) => {
+      if (selector === 'prisma@^7.0.0' && field === 'version') {
+        return ['7.10.0', '7.11.0'];
+      }
+      if (selector === 'prisma@7.11.0' && field === 'dependencies') {
+        return { '@prisma/config': '7.11.0' };
+      }
+      if (selector === '@prisma/config@7.11.0' && field === 'version') {
+        return '7.11.0';
+      }
+      if (selector === '@prisma/config@7.11.0' && field === 'dependencies') {
+        return { 'deepmerge-ts': '8.0.2' };
+      }
+      if (selector === '@prisma/client@7.11.0' && field === 'version') {
+        return '7.11.0';
+      }
+      if (selector === '@prisma/adapter-d1@7.11.0' && field === 'version') {
+        throw new Error('package not published yet');
+      }
+      throw new Error(`unexpected npm view: ${selector} ${field}`);
+    });
+
+    const status = inspectNextMajorPrismaRelease({ manifest, npmView });
+    expect(status.state).toBe('compatible-forward-remediation-available');
+    expect(status.publishedRemediationPackageSet).toEqual({
+      state: 'unavailable',
+      prismaClientVersion: '7.11.0',
+      prismaAdapterD1Version: null,
+    });
+    expect(getPublishedRemediationCandidate(status)).toBeNull();
   });
 
   it('keeps next-major evidence distinct when the latest published next major is still vulnerable', () => {
@@ -81,6 +125,11 @@ describe('next-major Prisma upstream probe', () => {
     expect(status.state).toBe('compatible-release-still-vulnerable');
     expect(status.currentPrismaSelector).toBe('^6.19.3');
     expect(status.prismaSelector).toBe('^7.0.0');
+    expect(status.publishedRemediationPackageSet).toEqual({
+      state: 'not-applicable',
+      prismaClientVersion: null,
+      prismaAdapterD1Version: null,
+    });
     expect(getPublishedRemediationCandidate(status)).toBeNull();
   });
 
@@ -94,16 +143,22 @@ describe('next-major Prisma upstream probe', () => {
       prismaConfigSelector: '7.10.0',
       latestCompatiblePrismaConfigVersion: '7.10.0',
       prismaConfigDeepmergeRequirement: '7.1.5',
+      publishedRemediationPackageSet: {
+        state: 'not-applicable',
+        prismaClientVersion: null,
+        prismaAdapterD1Version: null,
+      },
     });
 
     expect(text).toContain('current manifest prisma selector: ^6.19.3');
     expect(text).toContain('next-major prisma selector: ^7.0.0');
     expect(text).toContain('latest next-major prisma: 7.10.0');
     expect(text).toContain('published remediation candidate: none');
+    expect(text).toContain('published remediation package set: not-applicable');
     expect(text).not.toContain('updated package.json');
   });
 
-  it('formats the exact stable Prisma version when a published remediation candidate exists', () => {
+  it('formats the exact stable Prisma version and matching runtime package set when a candidate exists', () => {
     const text = formatNextMajorPrismaReleaseStatus({
       state: 'compatible-forward-remediation-available',
       registry: 'https://registry.npmjs.org/',
@@ -113,12 +168,20 @@ describe('next-major Prisma upstream probe', () => {
       prismaConfigSelector: '7.11.0',
       latestCompatiblePrismaConfigVersion: '7.11.0',
       prismaConfigDeepmergeRequirement: '8.0.2',
+      publishedRemediationPackageSet: {
+        state: 'ready',
+        prismaClientVersion: '7.11.0',
+        prismaAdapterD1Version: '7.11.0',
+      },
     });
 
     expect(text).toContain('published remediation candidate: 7.11.0');
+    expect(text).toContain('published remediation package set: ready');
+    expect(text).toContain('candidate @prisma/client: 7.11.0');
+    expect(text).toContain('candidate @prisma/adapter-d1: 7.11.0');
   });
 
-  it('publishes the current selector and installable remediation candidate as separate workflow outputs', () => {
+  it('publishes the current selector and installable remediation package set as separate workflow outputs', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'security-audit-next-major-'));
     const outputPath = path.join(directory, 'github-output.txt');
 
@@ -133,6 +196,11 @@ describe('next-major Prisma upstream probe', () => {
           prismaConfigSelector: '7.11.0',
           latestCompatiblePrismaConfigVersion: '7.11.0',
           prismaConfigDeepmergeRequirement: '8.0.2',
+          publishedRemediationPackageSet: {
+            state: 'ready',
+            prismaClientVersion: '7.11.0',
+            prismaAdapterD1Version: '7.11.0',
+          },
         },
         outputPath,
       );
@@ -143,6 +211,9 @@ describe('next-major Prisma upstream probe', () => {
       expect(output).toContain('state=compatible-forward-remediation-available\n');
       expect(output).toContain('prisma_config_deepmerge_requirement=8.0.2\n');
       expect(output).toContain('published_remediation_candidate=7.11.0\n');
+      expect(output).toContain('published_remediation_package_set_state=ready\n');
+      expect(output).toContain('published_remediation_prisma_client_version=7.11.0\n');
+      expect(output).toContain('published_remediation_adapter_d1_version=7.11.0\n');
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -163,12 +234,18 @@ describe('next-major Prisma upstream probe', () => {
           prismaConfigSelector: '7.10.0',
           latestCompatiblePrismaConfigVersion: '7.10.0',
           prismaConfigDeepmergeRequirement: '7.1.5',
+          publishedRemediationPackageSet: {
+            state: 'not-applicable',
+            prismaClientVersion: null,
+            prismaAdapterD1Version: null,
+          },
         },
         outputPath,
       );
 
       const output = fs.readFileSync(outputPath, 'utf8');
       expect(output).toContain('published_remediation_candidate=none\n');
+      expect(output).toContain('published_remediation_package_set_state=not-applicable\n');
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -190,6 +267,11 @@ describe('next-major Prisma upstream probe', () => {
             prismaConfigSelector: '7.11.0',
             latestCompatiblePrismaConfigVersion: '7.11.0',
             prismaConfigDeepmergeRequirement: '8.0.2',
+            publishedRemediationPackageSet: {
+              state: 'ready',
+              prismaClientVersion: '7.11.0',
+              prismaAdapterD1Version: '7.11.0',
+            },
           },
           outputPath,
         ),
