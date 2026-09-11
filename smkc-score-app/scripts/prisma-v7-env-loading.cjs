@@ -37,14 +37,9 @@ function inspectPrismaV7EnvLoading(source) {
     }
   }
 
-  const namespaceImport = /^\s*import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"]dotenv['"]\s*;?/m.exec(
-    configSource,
-  );
+  const namespaceImport = /^\s*import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"]dotenv['"]\s*;?/m.exec(configSource);
   if (namespaceImport) {
-    const invocation = new RegExp(
-      `^\\s*${namespaceImport[1].replace(/[$]/g, '\\$&')}\\.config\\s*\\(`,
-      'm',
-    );
+    const invocation = new RegExp(`^\\s*${namespaceImport[1].replace(/[$]/g, '\\$&')}\\.config\\s*\\(`, 'm');
     if (invocation.test(configSource)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
