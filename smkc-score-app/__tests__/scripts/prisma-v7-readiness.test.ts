@@ -5,6 +5,7 @@ import {
   extractSemverMajor,
   extractTsconfigCompilerOption,
   formatPrismaV7Readiness,
+  getInstalledPrismaPackageVersions,
   inspectPrismaV7Readiness,
   nodeVersionSupportsPrisma7,
   parseCliOptions,
@@ -21,6 +22,22 @@ describe('Prisma 7 migration readiness probe', () => {
     },
     devDependencies: {
       prisma: '^6.19.3',
+    },
+  };
+
+  const currentLockfile = {
+    packages: {
+      'node_modules/prisma': { version: '6.19.3' },
+      'node_modules/@prisma/client': { version: '6.19.3' },
+      'node_modules/@prisma/adapter-d1': { version: '7.8.0' },
+    },
+  };
+
+  const prisma7Lockfile = {
+    packages: {
+      'node_modules/prisma': { version: '7.10.0' },
+      'node_modules/@prisma/client': { version: '7.10.0' },
+      'node_modules/@prisma/adapter-d1': { version: '7.10.0' },
     },
   };
 
@@ -86,6 +103,7 @@ describe('Prisma 7 migration readiness probe', () => {
   it('reports the current repository migration items without mutating them', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
+      lockfile: currentLockfile,
       schema: currentSchema,
       prismaConfigSource: currentPrismaConfig,
       tsconfigSource: currentTsconfig,
@@ -100,6 +118,11 @@ describe('Prisma 7 migration readiness probe', () => {
       prismaClient: '^6.19.3',
       prismaAdapterD1: '^7.8.0',
     });
+    expect(status.installedVersions).toEqual({
+      prisma: '6.19.3',
+      prismaClient: '6.19.3',
+      prismaAdapterD1: '7.8.0',
+    });
     expect(status.tsconfig).toEqual({
       module: 'esnext',
       moduleResolution: 'bundler',
@@ -111,6 +134,9 @@ describe('Prisma 7 migration readiness probe', () => {
         'prismaCliAtTargetMajor',
         'prismaClientAtTargetMajor',
         'prismaPackageMajorsAligned',
+        'installedPrismaCliAtTargetMajor',
+        'installedPrismaClientAtTargetMajor',
+        'installedPrismaPackageMajorsAligned',
         'generatorUsesPrismaClient',
         'generatorHasExplicitOutput',
         'datasourceUrlMovedOutOfSchema',
@@ -120,6 +146,8 @@ describe('Prisma 7 migration readiness probe', () => {
     );
     expect(status.blockers).not.toContain('nodeRuntimeSupportsPrisma7');
     expect(status.blockers).not.toContain('prismaAdapterAtTargetMajor');
+    expect(status.blockers).not.toContain('lockfilePresent');
+    expect(status.blockers).not.toContain('installedPrismaAdapterAtTargetMajor');
     expect(status.blockers).not.toContain('prismaConfigPresent');
     expect(status.blockers).not.toContain('prismaConfigHasDatasourceUrl');
     expect(status.blockers).not.toContain('tsconfigPresent');
@@ -128,7 +156,7 @@ describe('Prisma 7 migration readiness probe', () => {
     expect(status.blockers).not.toContain('tsconfigTargetEs2023OrNewer');
   });
 
-  it('reports ready only when the v7 package, schema, config, runtime, and TypeScript prerequisites are explicit', () => {
+  it('reports ready only when the v7 package, lockfile, schema, config, runtime, and TypeScript prerequisites are explicit', () => {
     const status = inspectPrismaV7Readiness({
       manifest: {
         type: 'module',
@@ -140,6 +168,7 @@ describe('Prisma 7 migration readiness probe', () => {
           prisma: '^7.10.0',
         },
       },
+      lockfile: prisma7Lockfile,
       schema: `
         generator client {
           provider = "prisma-client"
@@ -170,6 +199,76 @@ describe('Prisma 7 migration readiness probe', () => {
     expect(status.blockers).toEqual([]);
   });
 
+  it('fails readiness when the lockfile does not prove the installed Prisma package set', () => {
+    const status = inspectPrismaV7Readiness({
+      manifest: {
+        type: 'module',
+        dependencies: {
+          '@prisma/adapter-d1': '^7.10.0',
+          '@prisma/client': '^7.10.0',
+        },
+        devDependencies: {
+          prisma: '^7.10.0',
+        },
+      },
+      lockfile: {
+        packages: {
+          'node_modules/prisma': { version: '7.10.0' },
+          'node_modules/@prisma/client': { version: '7.10.0' },
+          'node_modules/@prisma/adapter-d1': { version: '6.19.3' },
+        },
+      },
+      schema: `
+        generator client {
+          provider = "prisma-client"
+          output = "../src/generated/prisma"
+        }
+        datasource db {
+          provider = "sqlite"
+        }
+      `,
+      prismaConfigSource: `
+        export default defineConfig({
+          datasource: { url: env("DATABASE_URL") },
+        });
+      `,
+      tsconfigSource: prisma7Tsconfig,
+      legacyPrismaClientImports: [],
+      nodeVersion: supportedNodeVersion,
+    });
+
+    expect(status.blockers).toEqual(
+      expect.arrayContaining(['installedPrismaAdapterAtTargetMajor', 'installedPrismaPackageMajorsAligned']),
+    );
+  });
+
+  it('reads installed Prisma versions from package-lock evidence conservatively', () => {
+    expect(getInstalledPrismaPackageVersions(currentLockfile)).toEqual({
+      prisma: '6.19.3',
+      prismaClient: '6.19.3',
+      prismaAdapterD1: '7.8.0',
+    });
+    expect(getInstalledPrismaPackageVersions({ packages: {} })).toEqual({
+      prisma: null,
+      prismaClient: null,
+      prismaAdapterD1: null,
+    });
+    expect(getInstalledPrismaPackageVersions(null)).toEqual({
+      prisma: null,
+      prismaClient: null,
+      prismaAdapterD1: null,
+    });
+  });
+
+  it('keeps repository package-lock Prisma majors visible as migration evidence', () => {
+    const repositoryLockfile = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+    const installedVersions = getInstalledPrismaPackageVersions(repositoryLockfile);
+
+    expect(extractSemverMajor(installedVersions.prisma)).toBe(6);
+    expect(extractSemverMajor(installedVersions.prismaClient)).toBe(6);
+    expect(extractSemverMajor(installedVersions.prismaAdapterD1)).toBe(7);
+  });
+
   it('tracks Prisma 7 Node.js runtime support explicitly', () => {
     expect(nodeVersionSupportsPrisma7('20.19.0')).toBe(true);
     expect(nodeVersionSupportsPrisma7('20.20.1')).toBe(true);
@@ -185,6 +284,7 @@ describe('Prisma 7 migration readiness probe', () => {
 
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
+      lockfile: currentLockfile,
       schema: currentSchema,
       prismaConfigSource: currentPrismaConfig,
       tsconfigSource: currentTsconfig,
@@ -292,6 +392,7 @@ describe('Prisma 7 migration readiness probe', () => {
   it('keeps the human-readable output explicitly read-only', () => {
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
+      lockfile: currentLockfile,
       schema: currentSchema,
       prismaConfigSource: currentPrismaConfig,
       tsconfigSource: currentTsconfig,
@@ -302,6 +403,10 @@ describe('Prisma 7 migration readiness probe', () => {
 
     expect(output).toContain('Overall readiness: `not-ready`');
     expect(output).toContain('@prisma/adapter-d1');
+    expect(output).toContain('Installed version');
+    expect(output).toContain('| prisma | `^6.19.3` | `6.19.3` |');
+    expect(output).toContain('| @prisma/adapter-d1 | `^7.8.0` | `7.8.0` |');
+    expect(output).toContain('installedPrismaPackageMajorsAligned');
     expect(output).toContain('Runtime requirements');
     expect(output).toContain('| Node.js | `22.12.0` |');
     expect(output).toContain('nodeRuntimeSupportsPrisma7');
@@ -323,6 +428,7 @@ describe('Prisma 7 migration readiness probe', () => {
 
     const status = inspectPrismaV7Readiness({
       manifest: currentManifest,
+      lockfile: currentLockfile,
       schema: currentSchema,
       prismaConfigSource: currentPrismaConfig,
       tsconfigSource: currentTsconfig,
@@ -334,6 +440,11 @@ describe('Prisma 7 migration readiness probe', () => {
       ready: false,
       runtime: {
         node: supportedNodeVersion,
+      },
+      installedVersions: {
+        prisma: '6.19.3',
+        prismaClient: '6.19.3',
+        prismaAdapterD1: '7.8.0',
       },
       tsconfig: {
         module: 'esnext',
