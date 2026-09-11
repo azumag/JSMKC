@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs';
 import {
   extractBooleanCompilerOption,
   formatPrismaV7TypeScriptPrerequisites,
+  getLockedTypeScriptVersion,
   inspectPrismaV7TypeScriptPrerequisites,
   parseStableSemver,
+  readTypeScriptVersionEvidence,
   typescriptVersionSupportsPrisma7,
 } from '../../scripts/prisma-v7-typescript-prereqs.cjs';
 
@@ -25,6 +27,48 @@ describe('Prisma 7 TypeScript prerequisites', () => {
     expect(parseStableSemver('5.4.0-rc.1')).toBeNull();
   });
 
+  it('prefers the installed TypeScript manifest when dependencies are present', () => {
+    const readFile = jest.fn((filePath: string) => {
+      if (filePath === 'node_modules/typescript/package.json') return JSON.stringify({ version: '5.9.3' });
+      throw new Error(`unexpected read: ${filePath}`);
+    });
+
+    expect(
+      readTypeScriptVersionEvidence({
+        existsSync: (filePath: string) => filePath === 'node_modules/typescript/package.json',
+        readFileSync: readFile,
+      }),
+    ).toEqual({
+      version: '5.9.3',
+      source: 'node_modules/typescript/package.json',
+    });
+    expect(readFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to package-lock evidence when node_modules is absent', () => {
+    const readFile = jest.fn((filePath: string) => {
+      if (filePath === 'package-lock.json') {
+        return JSON.stringify({
+          packages: {
+            'node_modules/typescript': { version: '5.9.3' },
+          },
+        });
+      }
+      throw new Error(`unexpected read: ${filePath}`);
+    });
+
+    expect(
+      readTypeScriptVersionEvidence({
+        existsSync: () => false,
+        readFileSync: readFile,
+      }),
+    ).toEqual({
+      version: '5.9.3',
+      source: 'package-lock.json#packages.node_modules/typescript',
+    });
+    expect(readFile).toHaveBeenCalledWith('package-lock.json', 'utf8');
+  });
+
   it('requires strict and esModuleInterop explicitly', () => {
     const tsconfigSource = `
       {
@@ -36,6 +80,7 @@ describe('Prisma 7 TypeScript prerequisites', () => {
     `;
     const status = inspectPrismaV7TypeScriptPrerequisites({
       typescriptVersion: '5.9.3',
+      typescriptVersionSource: 'package-lock.json#packages.node_modules/typescript',
       tsconfigSource,
     });
 
@@ -61,26 +106,30 @@ describe('Prisma 7 TypeScript prerequisites', () => {
     expect(status.blockers).toEqual(['typescriptVersionAtLeast5_4', 'tsconfigStrict', 'tsconfigEsModuleInterop']);
   });
 
-  it('guards the current repository TypeScript prerequisites before the Prisma 7 migration', () => {
-    const typescriptManifest = JSON.parse(readFileSync('node_modules/typescript/package.json', 'utf8')) as {
-      version?: string;
+  it('guards the current repository lockfile and TypeScript prerequisites before the Prisma 7 migration', () => {
+    const lockfile = JSON.parse(readFileSync('package-lock.json', 'utf8')) as {
+      packages?: Record<string, { version?: string }>;
     };
+    const typescriptVersion = getLockedTypeScriptVersion(lockfile);
     const tsconfigSource = readFileSync('tsconfig.json', 'utf8');
     const status = inspectPrismaV7TypeScriptPrerequisites({
-      typescriptVersion: typescriptManifest.version ?? null,
+      typescriptVersion,
+      typescriptVersionSource: 'package-lock.json#packages.node_modules/typescript',
       tsconfigSource,
     });
 
+    expect(typescriptVersion).not.toBeNull();
     expect(status.ready).toBe(true);
     expect(status.checks.typescriptVersionAtLeast5_4).toBe(true);
     expect(status.checks.tsconfigStrict).toBe(true);
     expect(status.checks.tsconfigEsModuleInterop).toBe(true);
   });
 
-  it('formats the evidence as an explicitly read-only report', () => {
+  it('formats the evidence source and report as explicitly read-only', () => {
     const output = formatPrismaV7TypeScriptPrerequisites(
       inspectPrismaV7TypeScriptPrerequisites({
         typescriptVersion: '5.9.3',
+        typescriptVersionSource: 'package-lock.json#packages.node_modules/typescript',
         tsconfigSource: `
           {
             "compilerOptions": {
@@ -93,6 +142,7 @@ describe('Prisma 7 TypeScript prerequisites', () => {
     );
 
     expect(output).toContain('Prisma 7 TypeScript prerequisites (#3114)');
+    expect(output).toContain('TypeScript evidence source: `package-lock.json#packages.node_modules/typescript`');
     expect(output).toContain('Overall readiness: `ready`');
     expect(output).toContain('This probe is read-only.');
   });
