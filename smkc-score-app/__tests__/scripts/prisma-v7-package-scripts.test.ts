@@ -21,4 +21,10 @@ describe('Prisma 7 readiness package scripts', () => {
       'prisma:v7:esm-surface': 'node scripts/prisma-v7-esm-surface.cjs',
     });
   });
+
+  it('runs the complete advisory review in a stable order', () => {
+    expect(packageJson.scripts?.['prisma:v7:review']).toBe(
+      'npm run prisma:v7:readiness && npm run prisma:v7:typescript-prereqs && npm run prisma:v7:env-loading && npm run prisma:v7:removed-surfaces && npm run prisma:v7:support-surface && npm run prisma:v7:esm-surface',
+    );
+  });
 });
