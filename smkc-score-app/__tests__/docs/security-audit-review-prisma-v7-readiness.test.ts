@@ -61,20 +61,23 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     expect(steps.indexOf(esmSurfaceStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
   });
 
-  it('keeps migration readiness, driver-adapter, support-code, and ESM evidence outside the compatible-range gate', () => {
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
-    const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
+  it(
+    'keeps migration readiness, driver-adapter, support-code, and ESM evidence outside the compatible-range gate',
+    () => {
+      const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+      const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
-    expect(summaryStep).toBeDefined();
-    expect(gateStep).toBeDefined();
-    expect(summaryStep?.run).toContain('Prisma 7 D1 driver-adapter');
-    expect(summaryStep?.env).toHaveProperty(
-      'PRISMA_V7_DRIVER_ADAPTER_OUTCOME',
-      '${{ steps.prisma_v7_driver_adapter.outcome }}',
-    );
-    expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_READINESS_OUTCOME');
-    expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_DRIVER_ADAPTER_OUTCOME');
-    expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_SUPPORT_SURFACE_OUTCOME');
-    expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_ESM_SURFACE_OUTCOME');
-  });
+      expect(summaryStep).toBeDefined();
+      expect(gateStep).toBeDefined();
+      expect(summaryStep?.run).toContain('Prisma 7 D1 driver-adapter');
+      expect(summaryStep?.env).toHaveProperty(
+        'PRISMA_V7_DRIVER_ADAPTER_OUTCOME',
+        '${{ steps.prisma_v7_driver_adapter.outcome }}',
+      );
+      expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_READINESS_OUTCOME');
+      expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_DRIVER_ADAPTER_OUTCOME');
+      expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_SUPPORT_SURFACE_OUTCOME');
+      expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_ESM_SURFACE_OUTCOME');
+    },
+  );
 });
