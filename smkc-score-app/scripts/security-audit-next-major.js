@@ -60,6 +60,17 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
     };
   }
 
+  if (prismaClientVersion !== candidateVersion) {
+    return {
+      state: 'incomplete',
+      reason: 'runtime-package-version-mismatch',
+      prismaClientSelector,
+      prismaClientVersion,
+      prismaAdapterD1Selector,
+      prismaAdapterD1Version,
+    };
+  }
+
   try {
     prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version'));
   } catch {
@@ -73,7 +84,7 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
     };
   }
 
-  const packageSetReady = prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion;
+  const packageSetReady = prismaAdapterD1Version === candidateVersion;
 
   return {
     state: packageSetReady ? 'ready' : 'incomplete',
