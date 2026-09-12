@@ -1,17 +1,15 @@
-import fs from 'fs';
+import { execFileSync } from 'child_process';
 import path from 'path';
-import { format } from 'prettier';
 
 describe('temporary Prisma 7 probe formatter diagnostic', () => {
-  it('prints the canonical Prettier output', async () => {
+  it('prints the canonical Prettier output', () => {
     const filePath = path.resolve(__dirname, '..', '..', 'scripts', 'prisma-v7-removed-surfaces.cjs');
-    const source = fs.readFileSync(filePath, 'utf8');
-    const formatted = await format(source, {
-      parser: 'babel',
-      printWidth: 120,
-      singleQuote: true,
-      trailingComma: 'all',
-    });
+    const prettierPath = path.resolve(__dirname, '..', '..', 'node_modules', 'prettier', 'bin', 'prettier.cjs');
+    const formatted = execFileSync(
+      process.execPath,
+      [prettierPath, filePath, '--parser', 'babel', '--print-width', '120', '--single-quote', '--trailing-comma', 'all'],
+      { encoding: 'utf8' },
+    );
 
     console.log(`PRISMA_V7_FORMAT_START\n${formatted}PRISMA_V7_FORMAT_END`);
   });
