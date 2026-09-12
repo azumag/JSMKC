@@ -186,8 +186,7 @@ describe('security audit exception status', () => {
   it('rejects unsafe version and dependency requirement text before publishing GitHub Actions outputs', () => {
     const unsafeLockfile = structuredClone(lockfile);
     unsafeLockfile.packages['node_modules/deepmerge-ts'].version = '7.1.5\nforged_output=1';
-    unsafeLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] =
-      '7.1.5\tforged_requirement=1';
+    unsafeLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '7.1.5\tforged_requirement=1';
 
     expect(getTrackedDependencyVersions(unsafeLockfile)).toEqual({
       prisma: '6.19.3',
