@@ -1,9 +1,11 @@
 import {
   PRISMA_V7_REVIEW_PROBES,
+  PROBE_TIMEOUT_MS,
   REVIEW_SCHEMA_VERSION,
   collectPrismaV7ReviewEvidence,
   parseCliOptions,
   parseProbeJson,
+  runProbe,
   validateProbeManifest,
 } from '../../scripts/prisma-v7-review-json.cjs';
 
@@ -97,6 +99,39 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
     expect(() => validateProbeManifest([null])).toThrow('entry 0 must be an object');
     expect(() => validateProbeManifest([{ key: '', script: 'probe.cjs' }])).toThrow('non-empty key');
     expect(() => validateProbeManifest([{ key: 'probe', script: '   ' }])).toThrow('non-empty script');
+  });
+
+  it('bounds child probe execution and preserves JSON parsing', () => {
+    const spawn = jest.fn(() => ({ status: 0, stdout: '{"ready":true}\n', stderr: '' }));
+    const evidence = runProbe(
+      { key: 'readiness', script: 'prisma-v7-readiness.cjs' },
+      { cwd: '/tmp/review', env: {}, spawn },
+    );
+
+    expect(evidence).toEqual({ ready: true });
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls[0][0]).toBe(process.execPath);
+    expect(spawn.mock.calls[0][1]).toEqual([expect.stringMatching(/prisma-v7-readiness\.cjs$/), '--json']);
+    expect(spawn.mock.calls[0][2]).toMatchObject({
+      cwd: '/tmp/review',
+      env: {},
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: PROBE_TIMEOUT_MS,
+      killSignal: 'SIGTERM',
+    });
+  });
+
+  it('reports child probe timeouts as fail-closed operational failures', () => {
+    const timeoutError = Object.assign(new Error('spawnSync timed out'), { code: 'ETIMEDOUT' });
+    const spawn = jest.fn(() => ({ error: timeoutError, status: null, stdout: '', stderr: '' }));
+
+    expect(() =>
+      runProbe(
+        { key: 'readiness', script: 'prisma-v7-readiness.cjs' },
+        { spawn, timeoutMs: 1_234 },
+      ),
+    ).toThrow('readiness probe timed out after 1234ms');
   });
 
   it('accepts one JSON object and rejects malformed or ambiguous probe evidence', () => {
