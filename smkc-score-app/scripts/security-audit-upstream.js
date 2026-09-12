@@ -246,6 +246,18 @@ function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNp
     };
   }
 
+  const prismaClientCandidateAvailable = normalizeVersionCandidates(prismaClientVersions).includes(candidateVersion);
+  if (!prismaClientCandidateAvailable) {
+    return {
+      state: 'incomplete',
+      reason: 'prisma-client-candidate-missing',
+      prismaClientSelector,
+      prismaClientVersion,
+      prismaAdapterD1Selector,
+      prismaAdapterD1Version,
+    };
+  }
+
   try {
     prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version'));
   } catch {
@@ -259,11 +271,9 @@ function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNp
     };
   }
 
-  const prismaClientCandidateAvailable = normalizeVersionCandidates(prismaClientVersions).includes(candidateVersion);
-
   return {
-    state: prismaClientCandidateAvailable ? 'ready' : 'incomplete',
-    reason: prismaClientCandidateAvailable ? 'published-package-set-ready' : 'prisma-client-candidate-missing',
+    state: 'ready',
+    reason: 'published-package-set-ready',
     prismaClientSelector,
     prismaClientVersion,
     prismaAdapterD1Selector,
