@@ -64,7 +64,9 @@ describe('compatible Prisma upstream probe', () => {
   });
 
   it('rejects registry versions containing control characters', () => {
-    expect(() => selectLatestVersion(['6.19.3\u001b[31m'])).toThrow('npm view returned an invalid Prisma version');
+    expect(() => selectLatestVersion(['6.19.3\u001b[31m'])).toThrow(
+      'npm view returned an invalid Prisma version',
+    );
   });
 
   it('ignores newer prerelease versions when selecting the remediation candidate', () => {
