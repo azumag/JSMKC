@@ -22,11 +22,13 @@ function renderOutputs(status: ReturnType<typeof getSecurityAuditExceptionStatus
 }
 
 describe('security audit status GitHub Actions reason output', () => {
-  it('publishes none for the compatibility-preserving active status shape', () => {
+  it('preserves the existing active Actions output contract', () => {
     const status = getSecurityAuditExceptionStatus({ manifest, lockfile, now: activeNow });
+    const output = renderOutputs(status);
 
     expect(status).not.toHaveProperty('reason');
-    expect(renderOutputs(status)).toContain('reason=none\n');
+    expect(output).toContain('state=active\n');
+    expect(output).not.toContain('\nreason=');
   });
 
   it('publishes the machine-readable reason for fail-closed states', () => {
