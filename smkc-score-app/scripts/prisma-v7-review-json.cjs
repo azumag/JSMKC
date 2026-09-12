@@ -4,6 +4,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const REVIEW_SCHEMA_VERSION = 1;
+const PROBE_TIMEOUT_MS = 30_000;
 const PRISMA_V7_REVIEW_PROBES = Object.freeze([
   Object.freeze({ key: 'readiness', script: 'prisma-v7-readiness.cjs' }),
   Object.freeze({ key: 'driverAdapter', script: 'prisma-v7-driver-adapter.cjs' }),
@@ -71,15 +72,23 @@ function parseProbeJson(probeKey, stdout) {
   return parsed;
 }
 
-function runProbe(probe, { cwd = process.cwd(), env = process.env } = {}) {
-  const result = spawnSync(process.execPath, [path.join(__dirname, probe.script), '--json'], {
+function runProbe(
+  probe,
+  { cwd = process.cwd(), env = process.env, spawn = spawnSync, timeoutMs = PROBE_TIMEOUT_MS } = {},
+) {
+  const result = spawn(process.execPath, [path.join(__dirname, probe.script), '--json'], {
     cwd,
     env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: timeoutMs,
+    killSignal: 'SIGTERM',
   });
 
   if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      throw new Error(`${probe.key} probe timed out after ${timeoutMs}ms`);
+    }
     throw new Error(`${probe.key} probe could not start: ${result.error.message}`);
   }
 
@@ -120,6 +129,7 @@ if (require.main === module) {
 
 module.exports = {
   PRISMA_V7_REVIEW_PROBES,
+  PROBE_TIMEOUT_MS,
   REVIEW_SCHEMA_VERSION,
   collectPrismaV7ReviewEvidence,
   parseCliOptions,
