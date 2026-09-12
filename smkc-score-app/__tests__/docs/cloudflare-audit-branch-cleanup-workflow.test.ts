@@ -51,7 +51,8 @@ describe('Cloudflare audit branch cleanup workflow', () => {
 
   beforeAll(() => {
     workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowConfig;
-    cleanupStep = workflow.jobs?.cleanup?.steps?.find((step) => step.name === 'Verify and delete exact temporary branches') ?? {};
+    cleanupStep =
+      workflow.jobs?.cleanup?.steps?.find((step) => step.name === 'Verify and delete exact temporary branches') ?? {};
 
     if (!cleanupStep.run) {
       throw new Error('cleanup workflow の削除ステップが見つかりません');
