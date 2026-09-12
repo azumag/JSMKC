@@ -46,13 +46,27 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
   const prismaAdapterD1Selector = candidateVersion;
   let prismaClientVersion = null;
   let prismaAdapterD1Version = null;
+  let prismaClientEvidence;
 
   try {
-    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${prismaClientSelector}`, 'version'));
+    prismaClientEvidence = npmView(`@prisma/client@${prismaClientSelector}`, 'version');
   } catch {
     return {
       state: 'unavailable',
       reason: 'prisma-client-registry-unavailable',
+      prismaClientSelector,
+      prismaClientVersion,
+      prismaAdapterD1Selector,
+      prismaAdapterD1Version,
+    };
+  }
+
+  try {
+    prismaClientVersion = selectLatestVersion(prismaClientEvidence);
+  } catch {
+    return {
+      state: 'unavailable',
+      reason: 'prisma-client-evidence-invalid',
       prismaClientSelector,
       prismaClientVersion,
       prismaAdapterD1Selector,
@@ -71,12 +85,26 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
     };
   }
 
+  let prismaAdapterD1Evidence;
   try {
-    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version'));
+    prismaAdapterD1Evidence = npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version');
   } catch {
     return {
       state: 'unavailable',
       reason: 'adapter-d1-registry-unavailable',
+      prismaClientSelector,
+      prismaClientVersion,
+      prismaAdapterD1Selector,
+      prismaAdapterD1Version,
+    };
+  }
+
+  try {
+    prismaAdapterD1Version = selectLatestVersion(prismaAdapterD1Evidence);
+  } catch {
+    return {
+      state: 'unavailable',
+      reason: 'adapter-d1-evidence-invalid',
       prismaClientSelector,
       prismaClientVersion,
       prismaAdapterD1Selector,
