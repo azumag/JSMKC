@@ -227,9 +227,11 @@ function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNp
   const prismaAdapterD1Selector = getRuntimePackageVersionSelector(manifest, '@prisma/adapter-d1');
   let prismaClientVersion = null;
   let prismaAdapterD1Version = null;
+  let prismaClientVersions;
 
   try {
-    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${prismaClientSelector}`, 'version'));
+    prismaClientVersions = npmView(`@prisma/client@${prismaClientSelector}`, 'version');
+    prismaClientVersion = selectLatestVersion(prismaClientVersions);
   } catch {
     return {
       state: 'unavailable',
@@ -252,8 +254,10 @@ function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNp
     };
   }
 
+  const prismaClientCandidateAvailable = normalizeVersionCandidates(prismaClientVersions).includes(candidateVersion);
+
   return {
-    state: prismaClientVersion === candidateVersion ? 'ready' : 'incomplete',
+    state: prismaClientCandidateAvailable ? 'ready' : 'incomplete',
     prismaClientSelector,
     prismaClientVersion,
     prismaAdapterD1Selector,
