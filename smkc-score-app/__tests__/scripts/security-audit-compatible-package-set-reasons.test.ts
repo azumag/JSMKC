@@ -76,11 +76,10 @@ describe('compatible Prisma remediation package-set reasons', () => {
     });
   });
 
-  it('reports an explicit reason when the compatible client selector lacks the CLI candidate', () => {
+  it('reports the missing client candidate before querying adapter evidence', () => {
     const npmView = jest.fn((selector: string) => {
       if (selector === '@prisma/client@^6.19.3') return ['6.19.3', '6.19.4'];
-      if (selector === '@prisma/adapter-d1@^7.8.0') return ['7.8.0', '7.10.0'];
-      throw new Error(`unexpected npm view: ${selector}`);
+      throw new Error(`adapter lookup should not run after missing client candidate: ${selector}`);
     });
 
     const packageSet = inspectPublishedRemediationPackageSet(remediatedStatus, manifest, npmView);
@@ -88,14 +87,16 @@ describe('compatible Prisma remediation package-set reasons', () => {
       state: 'incomplete',
       reason: 'prisma-client-candidate-missing',
       prismaClientVersion: '6.19.4',
-      prismaAdapterD1Version: '7.10.0',
+      prismaAdapterD1Version: null,
     });
+    expect(npmView).toHaveBeenCalledTimes(1);
 
     const text = formatCompatiblePrismaReleaseStatus({
       ...remediatedStatus,
       publishedRemediationPackageSet: packageSet,
     });
     expect(text).toContain('published remediation package set reason: prisma-client-candidate-missing');
+    expect(text).toContain('manifest-compatible @prisma/adapter-d1: none');
   });
 
   it('publishes the reason as a safe GitHub Actions output', () => {
