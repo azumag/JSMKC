@@ -23,6 +23,7 @@ const TRACKED_DEPENDENCY_PATHS = {
 };
 const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
 const SAFE_REQUIREMENT_PATTERN = /^[ -~]{1,200}$/;
+const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
 const COMPARABLE_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 const SIMPLE_REQUIREMENT_PATTERN = /^(?:\^|~|>=)?\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/;
 const PATCHED_DEEPMERGE_VERSION = Object.freeze({ major: 8, minor: 0, patch: 0 });
@@ -268,17 +269,32 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
     return;
   }
 
-  const reasonOutput = status.reason ? `reason=${status.reason}\n` : '';
-  const prismaVersion = status.versions.prisma ?? 'unavailable';
-  const prismaConfigVersion = status.versions.prismaConfig ?? 'unavailable';
-  const prismaConfigDeepmergeRequirement = status.requirements.prismaConfigDeepmergeTs ?? 'unavailable';
-  const deepmergeTsVersion = status.versions.deepmergeTs ?? 'unavailable';
-  const checkedAt = status.checkedAt ?? 'unavailable';
-  const daysUntilDeadline = status.daysUntilDeadline ?? 'unavailable';
+  const outputs = {
+    state: status.state,
+    ...(status.reason ? { reason: status.reason } : {}),
+    tracking_issue: String(status.trackingIssue),
+    advisory: status.advisory,
+    advisory_range: status.advisoryRange,
+    checked_at: status.checkedAt ?? 'unavailable',
+    deadline: status.deadline,
+    days_until_deadline: String(status.daysUntilDeadline ?? 'unavailable'),
+    prisma_version: status.versions.prisma ?? 'unavailable',
+    prisma_config_version: status.versions.prismaConfig ?? 'unavailable',
+    prisma_config_deepmerge_requirement: status.requirements.prismaConfigDeepmergeTs ?? 'unavailable',
+    deepmerge_ts_version: status.versions.deepmergeTs ?? 'unavailable',
+  };
+
+  for (const [key, value] of Object.entries(outputs)) {
+    if (typeof value !== 'string' || !SAFE_GITHUB_OUTPUT_PATTERN.test(value)) {
+      throw new Error(`refusing unsafe GitHub Actions output for ${key}`);
+    }
+  }
 
   fs.appendFileSync(
     outputPath,
-    `state=${status.state}\n${reasonOutput}tracking_issue=${status.trackingIssue}\nadvisory=${status.advisory}\nadvisory_range=${status.advisoryRange}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\nprisma_config_deepmerge_requirement=${prismaConfigDeepmergeRequirement}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
+    `${Object.entries(outputs)
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n')}\n`,
     'utf8',
   );
 }
