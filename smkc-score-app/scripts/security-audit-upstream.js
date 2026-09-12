@@ -38,6 +38,16 @@ function getPrismaVersionSelector(manifest) {
   return selector;
 }
 
+function getRuntimePackageVersionSelector(manifest, packageName) {
+  const selector = manifest?.dependencies?.[packageName];
+
+  if (!isRegistrySemverSelector(selector)) {
+    throw new Error(`package.json dependencies.${packageName} must be a registry SemVer selector`);
+  }
+
+  return selector;
+}
+
 function getPrismaConfigVersionSelector(prismaDependencies) {
   const selector = prismaDependencies?.['@prisma/config'];
 
@@ -201,7 +211,7 @@ function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
   };
 }
 
-function inspectPublishedRemediationPackageSet(status, npmView = runNpmView) {
+function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNpmView) {
   if (status?.state !== 'compatible-forward-remediation-available') {
     return {
       state: 'not-applicable',
@@ -211,11 +221,13 @@ function inspectPublishedRemediationPackageSet(status, npmView = runNpmView) {
   }
 
   const candidateVersion = status.latestCompatiblePrismaVersion;
+  const prismaClientSelector = getRuntimePackageVersionSelector(manifest, '@prisma/client');
+  const prismaAdapterD1Selector = getRuntimePackageVersionSelector(manifest, '@prisma/adapter-d1');
   let prismaClientVersion = null;
   let prismaAdapterD1Version = null;
 
   try {
-    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${candidateVersion}`, 'version'));
+    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${prismaClientSelector}`, 'version'));
   } catch {
     return {
       state: 'unavailable',
@@ -225,7 +237,7 @@ function inspectPublishedRemediationPackageSet(status, npmView = runNpmView) {
   }
 
   try {
-    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${candidateVersion}`, 'version'));
+    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version'));
   } catch {
     return {
       state: 'unavailable',
@@ -235,17 +247,16 @@ function inspectPublishedRemediationPackageSet(status, npmView = runNpmView) {
   }
 
   return {
-    state:
-      prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion ? 'ready' : 'incomplete',
+    state: prismaClientVersion === candidateVersion ? 'ready' : 'incomplete',
     prismaClientVersion,
     prismaAdapterD1Version,
   };
 }
 
-function enrichCompatiblePrismaReleaseWithPublishedPackageSet(status, npmView = runNpmView) {
+function enrichCompatiblePrismaReleaseWithPublishedPackageSet(status, manifest, npmView = runNpmView) {
   return {
     ...status,
-    publishedRemediationPackageSet: inspectPublishedRemediationPackageSet(status, npmView),
+    publishedRemediationPackageSet: inspectPublishedRemediationPackageSet(status, manifest, npmView),
   };
 }
 
@@ -279,8 +290,8 @@ function formatCompatiblePrismaReleaseStatus(status, { json = false } = {}) {
     `latest compatible prisma: ${status.latestCompatiblePrismaVersion}\n` +
     `published remediation candidate: ${publishedRemediationCandidate ?? 'none'}\n` +
     `published remediation package set: ${publishedRemediationPackageSet.state}\n` +
-    `candidate @prisma/client: ${publishedRemediationPackageSet.prismaClientVersion ?? 'none'}\n` +
-    `candidate @prisma/adapter-d1: ${publishedRemediationPackageSet.prismaAdapterD1Version ?? 'none'}\n` +
+    `manifest-compatible @prisma/client: ${publishedRemediationPackageSet.prismaClientVersion ?? 'none'}\n` +
+    `manifest-compatible @prisma/adapter-d1: ${publishedRemediationPackageSet.prismaAdapterD1Version ?? 'none'}\n` +
     `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
     `latest compatible @prisma/config: ${status.latestCompatiblePrismaConfigVersion}\n` +
     `@prisma/config -> deepmerge-ts requirement: ${status.prismaConfigDeepmergeRequirement ?? 'absent'}\n`
@@ -349,7 +360,10 @@ function main() {
   let status;
 
   try {
-    status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(inspectCompatiblePrismaRelease({ manifest }));
+    status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(
+      inspectCompatiblePrismaRelease({ manifest }),
+      manifest,
+    );
     process.stdout.write(formatCompatiblePrismaReleaseStatus(status, cliOptions));
     writeGitHubOutputs(status);
   } catch (error) {
@@ -372,6 +386,7 @@ module.exports = {
   getPrismaConfigVersionSelector,
   getPrismaVersionSelector,
   getPublishedRemediationCandidate,
+  getRuntimePackageVersionSelector,
   inspectCompatiblePrismaRelease,
   inspectPublishedRemediationPackageSet,
   isRegistrySemverSelector,
