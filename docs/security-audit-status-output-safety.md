@@ -10,6 +10,6 @@ Issue #3114 の `security:audit:status` は、監査状態を `GITHUB_OUTPUT` �
 - 1 value は 1〜200 文字に制限する。
 - 改行、tab、制御文字、空文字、過大な値は fail-closed で拒否する。
 - 1項目でも不正なら `GITHUB_OUTPUT` への書き込み自体を開始しない。
-- `active` 状態で `reason` を省略する既存 contract は維持する。
+- `active` 状態のように `reason` property 自体が存在しない場合だけ `reason` output を省略する。property が存在するのに空文字や非文字列なら、黙って省略せず fail-closed で拒否する。
 
 この hardening は #3114 の temporary exception 判定、dependency version、lockfile、Prisma/D1 runtime、Cloudflare deployment の挙動を変更しません。監査結果を GitHub Actions へ渡す境界だけを防御し、将来 status field の生成元が増えた場合にも output injection を起こしにくくします。

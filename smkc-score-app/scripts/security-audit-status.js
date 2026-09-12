@@ -271,7 +271,7 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
 
   const outputs = {
     state: status.state,
-    ...(status.reason ? { reason: status.reason } : {}),
+    ...(status.reason === undefined ? {} : { reason: status.reason }),
     tracking_issue: String(status.trackingIssue),
     advisory: status.advisory,
     advisory_range: status.advisoryRange,
