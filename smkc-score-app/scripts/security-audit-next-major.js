@@ -134,38 +134,8 @@ function writeNextMajorGitHubOutputs(status, outputPath = process.env.GITHUB_OUT
     throw new Error('refusing unsafe GitHub Actions output for current_prisma_selector');
   }
 
-  const publishedRemediationCandidate = getPublishedRemediationCandidate(status) ?? 'none';
-  if (!SAFE_OUTPUT_PATTERN.test(publishedRemediationCandidate)) {
-    throw new Error('refusing unsafe GitHub Actions output for published_remediation_candidate');
-  }
-
-  const publishedRemediationPackageSet = status.publishedRemediationPackageSet ?? {
-    state: 'unavailable',
-    prismaClientVersion: null,
-    prismaAdapterD1Version: null,
-  };
-  const packageSetOutputs = {
-    published_remediation_package_set_state: publishedRemediationPackageSet.state,
-    published_remediation_prisma_client_version: publishedRemediationPackageSet.prismaClientVersion ?? 'none',
-    published_remediation_adapter_d1_version: publishedRemediationPackageSet.prismaAdapterD1Version ?? 'none',
-  };
-
-  for (const [key, value] of Object.entries(packageSetOutputs)) {
-    if (typeof value !== 'string' || !SAFE_OUTPUT_PATTERN.test(value)) {
-      throw new Error(`refusing unsafe GitHub Actions output for ${key}`);
-    }
-  }
-
   writeGitHubOutputs(status, outputPath);
-  fs.appendFileSync(
-    outputPath,
-    `current_prisma_selector=${status.currentPrismaSelector}\npublished_remediation_candidate=${publishedRemediationCandidate}\n${Object.entries(
-      packageSetOutputs,
-    )
-      .map(([key, value]) => `${key}=${value}`)
-      .join('\n')}\n`,
-    'utf8',
-  );
+  fs.appendFileSync(outputPath, `current_prisma_selector=${status.currentPrismaSelector}\n`, 'utf8');
 }
 
 function main() {
