@@ -122,15 +122,15 @@ jobs:
               exit 1
             fi
 
-            latest_branch_json="$(api_get "$branch_url")"
-            latest_head_sha="$(jq -r '.commit.sha' <<<"$latest_branch_json")"
-            latest_protected="$(jq -r '.protected' <<<"$latest_branch_json")"
-            if [ "$latest_protected" != "false" ]; then
+            verified_branch_json="$(api_get "$branch_url")"
+            verified_head_sha="$(jq -r '.commit.sha' <<<"$verified_branch_json")"
+            verified_protected="$(jq -r '.protected' <<<"$verified_branch_json")"
+            if [ "$verified_protected" != "false" ]; then
               echo "Refusing to delete branch that became protected: $branch" >&2
               exit 1
             fi
-            if [ "$latest_head_sha" != "$initial_head_sha" ]; then
-              echo "Refusing to delete branch that moved during verification: $branch ($initial_head_sha -> $latest_head_sha)" >&2
+            if [ "$verified_head_sha" != "$initial_head_sha" ]; then
+              echo "Refusing to delete branch that moved during verification: $branch ($initial_head_sha -> $verified_head_sha)" >&2
               exit 1
             fi
 
@@ -145,6 +145,14 @@ jobs:
 
             if [ "$open_pr_count" != "0" ]; then
               echo "Refusing to delete $branch: used by $open_pr_count open PR(s)" >&2
+              exit 1
+            fi
+
+            final_branch_json="$(api_get "$branch_url")"
+            final_head_sha="$(jq -r '.commit.sha' <<<"$final_branch_json")"
+            final_protected="$(jq -r '.protected' <<<"$final_branch_json")"
+            if [ "$final_protected" != "false" ] || [ "$final_head_sha" != "$initial_head_sha" ]; then
+              echo "Refusing to delete branch whose state changed immediately before deletion: $branch" >&2
               exit 1
             fi
 
