@@ -2,6 +2,12 @@
 
 const fs = require('node:fs');
 
+function parseCliOptions(argv = process.argv.slice(2)) {
+  if (argv.length === 0) return { json: false };
+  if (argv.length === 1 && argv[0] === '--json') return { json: true };
+  throw new Error(`unsupported option: ${argv.join(' ')}`);
+}
+
 function stripComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 }
@@ -91,7 +97,9 @@ function inspectPrismaV7DriverAdapter(source) {
   };
 }
 
-function formatPrismaV7DriverAdapter(status) {
+function formatPrismaV7DriverAdapter(status, { json = false } = {}) {
+  if (json) return `${JSON.stringify(status)}\n`;
+
   const checkRows = Object.entries(status.checks)
     .map(([check, passed]) => `| ${check} | ${passed ? 'ready' : 'needs migration'} |`)
     .join('\n');
@@ -114,13 +122,21 @@ function formatPrismaV7DriverAdapter(status) {
 }
 
 function main() {
+  let options;
+  try {
+    options = parseCliOptions();
+  } catch (error) {
+    process.stderr.write(`Invalid Prisma 7 D1 driver adapter arguments: ${error.message}\n`);
+    process.exit(1);
+  }
+
   try {
     const source = fs.readFileSync('src/lib/prisma.ts', 'utf8');
     const status = inspectPrismaV7DriverAdapter(source);
-    const output = formatPrismaV7DriverAdapter(status);
+    const output = formatPrismaV7DriverAdapter(status, options);
     process.stdout.write(output);
 
-    if (process.env.GITHUB_STEP_SUMMARY) {
+    if (process.env.GITHUB_STEP_SUMMARY && !options.json) {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
     }
   } catch (error) {
@@ -139,6 +155,7 @@ module.exports = {
   findNamedImportLocalName,
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
+  parseCliOptions,
   prismaClientOptionsUseAdapter,
   stripComments,
 };

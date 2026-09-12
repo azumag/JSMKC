@@ -6,8 +6,16 @@ The read-only probe lives at:
 
 ```bash
 cd smkc-score-app
-node scripts/prisma-v7-driver-adapter.cjs
+npm run prisma:v7:driver-adapter
 ```
+
+For automation or other machine consumers, the same evidence is available as a single JSON object:
+
+```bash
+npm run prisma:v7:driver-adapter:json
+```
+
+The JSON mode reports the same `ready`, detected local names, and per-check booleans as the human-readable mode. It does not write Markdown to `GITHUB_STEP_SUMMARY`; unsupported CLI arguments fail instead of being ignored.
 
 It checks the application client path in `src/lib/prisma.ts` for three independent pieces of evidence:
 
