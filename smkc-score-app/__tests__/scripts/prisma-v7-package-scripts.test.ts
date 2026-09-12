@@ -12,6 +12,7 @@ describe('Prisma 7 readiness package scripts', () => {
 
   it('exposes stable entrypoints for the read-only migration probes', () => {
     expect(packageJson.scripts).toMatchObject({
+      'prisma:v7:review:json': 'node scripts/prisma-v7-review-json.cjs',
       'prisma:v7:readiness': 'node scripts/prisma-v7-readiness.cjs',
       'prisma:v7:readiness:json': 'node scripts/prisma-v7-readiness.cjs --json',
       'prisma:v7:driver-adapter': 'node scripts/prisma-v7-driver-adapter.cjs',

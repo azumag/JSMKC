@@ -20,6 +20,7 @@
     "security:audit:next-major": "node scripts/security-audit-next-major.js",
     "security:audit:next-major:json": "node scripts/security-audit-next-major.js --json",
     "prisma:v7:review": "npm run prisma:v7:readiness && npm run prisma:v7:driver-adapter && npm run prisma:v7:typescript-prereqs && npm run prisma:v7:env-loading && npm run prisma:v7:removed-surfaces && npm run prisma:v7:support-surface && npm run prisma:v7:esm-surface",
+    "prisma:v7:review:json": "node scripts/prisma-v7-review-json.cjs",
     "prisma:v7:readiness": "node scripts/prisma-v7-readiness.cjs",
     "prisma:v7:readiness:json": "node scripts/prisma-v7-readiness.cjs --json",
     "prisma:v7:driver-adapter": "node scripts/prisma-v7-driver-adapter.cjs",
