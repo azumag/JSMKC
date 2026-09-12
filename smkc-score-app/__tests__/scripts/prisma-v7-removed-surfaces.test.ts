@@ -30,7 +30,11 @@ describe('Prisma 7 removed-surface readiness', () => {
   it('detects Prisma 7 removed migration flags without treating comments as commands', () => {
     const findings = inspectLines(
       'scripts/migrate.sh',
-      ['# prisma migrate dev --skip-generate', 'prisma migrate dev --skip-generate --skip-seed', 'prisma migrate diff --from-url "$A" --to-url "$B"'].join('\n'),
+      [
+        '# prisma migrate dev --skip-generate',
+        'prisma migrate dev --skip-generate --skip-seed',
+        'prisma migrate diff --from-url "$A" --to-url "$B"',
+      ].join('\n'),
       REMOVED_COMMAND_PATTERNS,
     );
 
@@ -42,14 +46,19 @@ describe('Prisma 7 removed-surface readiness', () => {
     ]);
   });
 
-  it('detects removed db execute connection flags across a wrapped command', () => {
+  it('detects removed db execute connection flags across a wrapped command and ignores comments', () => {
     const findings = inspectDbExecuteFlags(
       'scripts/execute.sh',
-      ['prisma db execute \\', '  --file ./repair.sql \\', '  --schema prisma/schema.prisma'].join('\n'),
+      [
+        '# prisma db execute --schema prisma/comment-only.prisma',
+        'prisma db execute \\',
+        '  --file ./repair.sql \\',
+        '  --schema prisma/schema.prisma',
+      ].join('\n'),
     );
 
     expect(findings).toEqual([
-      { path: 'scripts/execute.sh', line: 1, kind: 'removed-db-execute-flag', token: '--schema' },
+      { path: 'scripts/execute.sh', line: 2, kind: 'removed-db-execute-flag', token: '--schema' },
     ]);
   });
 
@@ -57,14 +66,25 @@ describe('Prisma 7 removed-surface readiness', () => {
     expect(
       inspectMetricsPreviewFeature(
         'prisma/schema.prisma',
-        ['generator client {', '  provider = "prisma-client-js"', '  previewFeatures = ["metrics"]', '}', '', 'model metrics {', '  id Int @id', '}'].join('\n'),
+        [
+          'generator client {',
+          '  provider = "prisma-client-js"',
+          '  previewFeatures = ["metrics"]',
+          '}',
+          '',
+          'model metrics {',
+          '  id Int @id',
+          '}',
+        ].join('\n'),
       ),
     ).toEqual([{ path: 'prisma/schema.prisma', line: 3, kind: 'removed-metrics-preview', token: 'metrics' }]);
 
     expect(
       inspectMetricsPreviewFeature(
         'prisma/schema.prisma',
-        ['generator client {', '  provider = "prisma-client-js"', '}', '', 'model Metrics {', '  id Int @id', '}'].join('\n'),
+        ['generator client {', '  provider = "prisma-client-js"', '}', '', 'model Metrics {', '  id Int @id', '}'].join(
+          '\n',
+        ),
       ),
     ).toEqual([]);
   });
