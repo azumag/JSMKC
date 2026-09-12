@@ -9,13 +9,14 @@ cd smkc-score-app
 npm run prisma:v7:review
 ```
 
-この aggregate command は primary readiness、TypeScript prerequisites、environment loading、removed surfaces、support-code surface、ESM surface の順に既存 probe を実行します。各 probe が migration blocker を報告すること自体は operational failure ではありません。probe の入力読取や実行そのものが失敗した場合は `&&` chain が停止し、その失敗を隠しません。
+この aggregate command は primary readiness、D1 driver adapter wiring、TypeScript prerequisites、environment loading、removed surfaces、support-code surface、ESM surface の順に既存 probe を実行します。各 probe が migration blocker を報告すること自体は operational failure ではありません。probe の入力読取や実行そのものが失敗した場合は `&&` chain が停止し、その失敗を隠しません。
 
 個別確認には次の entrypoint を利用できます。
 
 ```bash
 npm run prisma:v7:readiness
 npm run prisma:v7:readiness:json
+npm run prisma:v7:driver-adapter
 npm run prisma:v7:typescript-prereqs
 npm run prisma:v7:env-loading
 npm run prisma:v7:removed-surfaces
@@ -27,4 +28,4 @@ npm run prisma:v7:esm-surface
 
 `prisma:v7:readiness:json` は primary readiness probe の machine-readable 出力です。その他の companion probe は現在の human-readable evidence contract を維持します。将来 script path や probe 構成を整理する場合も、npm entrypoint とその回帰テストを同時に更新し、手動 review の呼び出し口と実行順序を安定させます。
 
-これらは Prisma 7 への自動 upgrade gate ではありません。major-version migration を実施する場合は `docs/prisma-v7-migration-readiness.md` の判断境界と検証項目に従い、依存 package set、schema/config、generated-client import、ESM 対応、Cloudflare/D1 検証を明示的な migration PR でまとめて評価します。
+これらは Prisma 7 への自動 upgrade gate ではありません。major-version migration を実施する場合は `docs/prisma-v7-migration-readiness.md` の判断境界と検証項目に従い、依存 package set、schema/config、generated-client import、D1 driver adapter wiring、ESM 対応、Cloudflare/D1 検証を明示的な migration PR でまとめて評価します。
