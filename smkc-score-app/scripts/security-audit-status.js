@@ -268,6 +268,7 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
     return;
   }
 
+  const reasonOutput = status.reason ? `reason=${status.reason}\n` : '';
   const prismaVersion = status.versions.prisma ?? 'unavailable';
   const prismaConfigVersion = status.versions.prismaConfig ?? 'unavailable';
   const prismaConfigDeepmergeRequirement = status.requirements.prismaConfigDeepmergeTs ?? 'unavailable';
@@ -277,7 +278,7 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
 
   fs.appendFileSync(
     outputPath,
-    `state=${status.state}\ntracking_issue=${status.trackingIssue}\nadvisory=${status.advisory}\nadvisory_range=${status.advisoryRange}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\nprisma_config_deepmerge_requirement=${prismaConfigDeepmergeRequirement}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
+    `state=${status.state}\n${reasonOutput}tracking_issue=${status.trackingIssue}\nadvisory=${status.advisory}\nadvisory_range=${status.advisoryRange}\nchecked_at=${checkedAt}\ndeadline=${status.deadline}\ndays_until_deadline=${daysUntilDeadline}\nprisma_version=${prismaVersion}\nprisma_config_version=${prismaConfigVersion}\nprisma_config_deepmerge_requirement=${prismaConfigDeepmergeRequirement}\ndeepmerge_ts_version=${deepmergeTsVersion}\n`,
     'utf8',
   );
 }

@@ -10,7 +10,7 @@ npm run security:audit:next-major
 
 機械処理用の JSON が必要な場合は `npm run security:audit:status:json`、`npm run security:audit:upstream:json`、`npm run security:audit:next-major:json` を使う。JSON entrypoint は各 probe の既存 `--json` モードを固定して呼び出すため、workflow や手動調査から raw script path と CLI option を重複管理しなくてよい。
 
-`security:audit:status` は `active` 以外の結果に machine-readable な `reason` を付与する。特に `invalid-input` は lockfile shape、package identity、manifest/lockfile dependency snapshot のどの fail-closed precondition で停止したかを区別する。human-readable 出力にも同じ reason を表示するため、単一の `invalid-input` state だけから原因を推測する必要がない。`active` の JSON shape は既存互換性のため変更せず、human-readable reason は `none` と表示する。
+`security:audit:status` は `active` 以外の結果に machine-readable な `reason` を付与する。特に `invalid-input` は lockfile shape、package identity、manifest/lockfile dependency snapshot のどの fail-closed precondition で停止したかを区別する。human-readable 出力にも同じ reason を表示するため、単一の `invalid-input` state だけから原因を推測する必要がない。`active` の JSON shape は既存互換性のため変更せず、human-readable reason は `none` と表示する。GitHub Actions では非 `active` のときだけ同じ reason を `reason` step output として追加し、正常な `active` 実行の既存 output contract は変更しない。
 
 `security:audit:upstream` は現在の `package.json` にある Prisma selector の範囲内だけを canonical npm registry へ問い合わせ、互換範囲内に安全な forward remediation と必要な runtime package set が公開されたかを確認する。
 
