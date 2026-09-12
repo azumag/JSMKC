@@ -173,8 +173,7 @@ function formatPrismaV7RemovedSurfaces(status, { json = false } = {}) {
     status.findings.length === 0
       ? ['| none | none | none | none |']
       : status.findings.map(
-          ({ path: findingPath, line, kind, token }) =>
-            `| \`${findingPath}\` | ${line} | ${kind} | \`${token}\` |`,
+          ({ path: findingPath, line, kind, token }) => `| \`${findingPath}\` | ${line} | ${kind} | \`${token}\` |`,
         );
 
   return [
