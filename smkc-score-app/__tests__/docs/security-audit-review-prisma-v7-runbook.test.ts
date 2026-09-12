@@ -18,11 +18,25 @@ describe('security audit review Prisma 7 runbook', () => {
     'utf8',
   );
   const runbook = fs.readFileSync(path.join(repositoryRoot, 'docs', 'security-audit-review-runbook.md'), 'utf8');
+  const outcomesDoc = fs.readFileSync(
+    path.join(repositoryRoot, 'docs', 'security-audit-review-prisma-v7-outcomes.md'),
+    'utf8',
+  );
 
   it('documents every Prisma 7 advisory probe executed by the workflow', () => {
     for (const probe of PRISMA_V7_PROBES) {
       expect(workflow).toContain(`run: node scripts/${probe}`);
       expect(runbook).toContain(`\`${probe}\``);
+    }
+  });
+
+  it('keeps the advisory outcomes doc aligned with the seven workflow probes', () => {
+    expect(outcomesDoc).toContain('collects seven local Prisma 7 migration probes');
+    expect(outcomesDoc).toContain('all seven Prisma 7 probes');
+    expect(outcomesDoc).toContain('`npm run prisma:v7:review:json`');
+
+    for (const probe of PRISMA_V7_PROBES) {
+      expect(outcomesDoc).toContain(`\`${probe}\``);
     }
   });
 
