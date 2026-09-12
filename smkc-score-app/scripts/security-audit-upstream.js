@@ -234,7 +234,6 @@ function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNp
 
   try {
     prismaClientVersions = npmView(`@prisma/client@${prismaClientSelector}`, 'version');
-    prismaClientVersion = selectLatestVersion(prismaClientVersions);
   } catch {
     return {
       state: 'unavailable',
@@ -246,7 +245,33 @@ function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNp
     };
   }
 
-  const prismaClientCandidateAvailable = normalizeVersionCandidates(prismaClientVersions).includes(candidateVersion);
+  try {
+    prismaClientVersion = selectLatestVersion(prismaClientVersions);
+  } catch {
+    return {
+      state: 'unavailable',
+      reason: 'prisma-client-evidence-invalid',
+      prismaClientSelector,
+      prismaClientVersion,
+      prismaAdapterD1Selector,
+      prismaAdapterD1Version,
+    };
+  }
+
+  let prismaClientCandidateAvailable;
+  try {
+    prismaClientCandidateAvailable = normalizeVersionCandidates(prismaClientVersions).includes(candidateVersion);
+  } catch {
+    return {
+      state: 'unavailable',
+      reason: 'prisma-client-evidence-invalid',
+      prismaClientSelector,
+      prismaClientVersion,
+      prismaAdapterD1Selector,
+      prismaAdapterD1Version,
+    };
+  }
+
   if (!prismaClientCandidateAvailable) {
     return {
       state: 'incomplete',
@@ -258,12 +283,26 @@ function inspectPublishedRemediationPackageSet(status, manifest, npmView = runNp
     };
   }
 
+  let prismaAdapterD1Evidence;
   try {
-    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version'));
+    prismaAdapterD1Evidence = npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version');
   } catch {
     return {
       state: 'unavailable',
       reason: 'adapter-d1-registry-unavailable',
+      prismaClientSelector,
+      prismaClientVersion,
+      prismaAdapterD1Selector,
+      prismaAdapterD1Version,
+    };
+  }
+
+  try {
+    prismaAdapterD1Version = selectLatestVersion(prismaAdapterD1Evidence);
+  } catch {
+    return {
+      state: 'unavailable',
+      reason: 'adapter-d1-evidence-invalid',
       prismaClientSelector,
       prismaClientVersion,
       prismaAdapterD1Selector,
