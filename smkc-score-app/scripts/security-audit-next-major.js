@@ -11,7 +11,7 @@ const {
 } = require('./security-audit-upstream.js');
 
 const CARET_SEMVER_SELECTOR_PATTERN = /^\^\s*(\d+)\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
+const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
 
 function getNextMajorPrismaSelector(manifest) {
   const currentPrismaSelector = getPrismaVersionSelector(manifest);
