@@ -362,7 +362,7 @@ describe('next-major Prisma upstream probe', () => {
           {
             state: 'compatible-forward-remediation-available',
             registry: 'https://registry.npmjs.org/',
-            currentPrismaSelector: '^6.19.3\nmalformed',
+            currentPrismaSelector: '^6.19.3\tmalformed',
             prismaSelector: '^7.0.0',
             latestCompatiblePrismaVersion: '7.11.0',
             prismaConfigSelector: '7.11.0',
