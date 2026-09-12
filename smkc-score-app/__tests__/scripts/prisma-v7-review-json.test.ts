@@ -127,10 +127,7 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
     const spawn = jest.fn(() => ({ error: timeoutError, status: null, stdout: '', stderr: '' }));
 
     expect(() =>
-      runProbe(
-        { key: 'readiness', script: 'prisma-v7-readiness.cjs' },
-        { spawn, timeoutMs: 1_234 },
-      ),
+      runProbe({ key: 'readiness', script: 'prisma-v7-readiness.cjs' }, { spawn, timeoutMs: 1_234 }),
     ).toThrow('readiness probe timed out after 1234ms');
   });
 
