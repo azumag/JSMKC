@@ -6,6 +6,7 @@ import {
   findNamedImportLocalName,
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
+  parseCliOptions,
   prismaClientOptionsUseAdapter,
   stripComments,
 } from '../../scripts/prisma-v7-driver-adapter.cjs';
@@ -132,5 +133,20 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(output).toContain('Detected D1 adapter instance: `d1Adapter`');
     expect(output).toContain('| passesAdapterToPrismaClient | ready |');
     expect(output).toContain('read-only probe');
+  });
+
+  it('emits the same evidence as machine-readable JSON', () => {
+    const status = inspectPrismaV7DriverAdapter(readySource);
+    const output = formatPrismaV7DriverAdapter(status, { json: true });
+
+    expect(output.endsWith('\n')).toBe(true);
+    expect(JSON.parse(output)).toEqual(status);
+  });
+
+  it('accepts only the documented CLI modes', () => {
+    expect(parseCliOptions([])).toEqual({ json: false });
+    expect(parseCliOptions(['--json'])).toEqual({ json: true });
+    expect(() => parseCliOptions(['--json', '--extra'])).toThrow('unsupported option');
+    expect(() => parseCliOptions(['--unknown'])).toThrow('unsupported option');
   });
 });
