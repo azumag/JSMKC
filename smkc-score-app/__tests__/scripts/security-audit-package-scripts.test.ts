@@ -5,10 +5,10 @@ interface PackageManifest {
   scripts?: Record<string, string>;
 }
 
+const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+
 describe('security audit package scripts', () => {
-  const packageJson = JSON.parse(
-    fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
-  ) as PackageManifest;
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as PackageManifest;
 
   it('exposes stable entrypoints for the remediation probes', () => {
     expect(packageJson.scripts?.['security:audit:upstream']).toBe(
