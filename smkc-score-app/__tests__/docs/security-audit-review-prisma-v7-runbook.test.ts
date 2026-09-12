@@ -17,10 +17,7 @@ describe('security audit review Prisma 7 runbook', () => {
     path.join(repositoryRoot, '.github', 'workflows', 'security-audit-review.yml'),
     'utf8',
   );
-  const runbook = fs.readFileSync(
-    path.join(repositoryRoot, 'docs', 'security-audit-review-runbook.md'),
-    'utf8',
-  );
+  const runbook = fs.readFileSync(path.join(repositoryRoot, 'docs', 'security-audit-review-runbook.md'), 'utf8');
 
   it('documents every Prisma 7 advisory probe executed by the workflow', () => {
     for (const probe of PRISMA_V7_PROBES) {
