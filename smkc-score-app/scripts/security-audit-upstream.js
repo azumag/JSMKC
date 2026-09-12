@@ -201,16 +201,86 @@ function inspectCompatiblePrismaRelease({ manifest, npmView = runNpmView }) {
   };
 }
 
+function inspectPublishedRemediationPackageSet(status, npmView = runNpmView) {
+  if (status?.state !== 'compatible-forward-remediation-available') {
+    return {
+      state: 'not-applicable',
+      prismaClientVersion: null,
+      prismaAdapterD1Version: null,
+    };
+  }
+
+  const candidateVersion = status.latestCompatiblePrismaVersion;
+  let prismaClientVersion = null;
+  let prismaAdapterD1Version = null;
+
+  try {
+    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${candidateVersion}`, 'version'));
+  } catch {
+    return {
+      state: 'unavailable',
+      prismaClientVersion,
+      prismaAdapterD1Version,
+    };
+  }
+
+  try {
+    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${candidateVersion}`, 'version'));
+  } catch {
+    return {
+      state: 'unavailable',
+      prismaClientVersion,
+      prismaAdapterD1Version,
+    };
+  }
+
+  return {
+    state:
+      prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion ? 'ready' : 'incomplete',
+    prismaClientVersion,
+    prismaAdapterD1Version,
+  };
+}
+
+function enrichCompatiblePrismaReleaseWithPublishedPackageSet(status, npmView = runNpmView) {
+  return {
+    ...status,
+    publishedRemediationPackageSet: inspectPublishedRemediationPackageSet(status, npmView),
+  };
+}
+
+function getPublishedRemediationCandidate(status) {
+  if (
+    status?.state !== 'compatible-forward-remediation-available' ||
+    status?.publishedRemediationPackageSet?.state !== 'ready'
+  ) {
+    return null;
+  }
+
+  return status.latestCompatiblePrismaVersion;
+}
+
 function formatCompatiblePrismaReleaseStatus(status, { json = false } = {}) {
   if (json) {
     return `${JSON.stringify(status)}\n`;
   }
+
+  const publishedRemediationCandidate = getPublishedRemediationCandidate(status);
+  const publishedRemediationPackageSet = status.publishedRemediationPackageSet ?? {
+    state: 'not-checked',
+    prismaClientVersion: null,
+    prismaAdapterD1Version: null,
+  };
 
   return (
     `compatible Prisma upstream status: ${status.state}\n` +
     `registry: ${status.registry}\n` +
     `manifest prisma selector: ${status.prismaSelector}\n` +
     `latest compatible prisma: ${status.latestCompatiblePrismaVersion}\n` +
+    `published remediation candidate: ${publishedRemediationCandidate ?? 'none'}\n` +
+    `published remediation package set: ${publishedRemediationPackageSet.state}\n` +
+    `candidate @prisma/client: ${publishedRemediationPackageSet.prismaClientVersion ?? 'none'}\n` +
+    `candidate @prisma/adapter-d1: ${publishedRemediationPackageSet.prismaAdapterD1Version ?? 'none'}\n` +
     `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
     `latest compatible @prisma/config: ${status.latestCompatiblePrismaConfigVersion}\n` +
     `@prisma/config -> deepmerge-ts requirement: ${status.prismaConfigDeepmergeRequirement ?? 'absent'}\n`
@@ -222,6 +292,12 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
     return;
   }
 
+  const publishedRemediationCandidate = getPublishedRemediationCandidate(status) ?? 'none';
+  const publishedRemediationPackageSet = status.publishedRemediationPackageSet ?? {
+    state: 'not-checked',
+    prismaClientVersion: null,
+    prismaAdapterD1Version: null,
+  };
   const outputs = {
     state: status.state,
     registry: status.registry,
@@ -230,6 +306,10 @@ function writeGitHubOutputs(status, outputPath = process.env.GITHUB_OUTPUT) {
     prisma_config_selector: status.prismaConfigSelector,
     latest_compatible_prisma_config_version: status.latestCompatiblePrismaConfigVersion,
     prisma_config_deepmerge_requirement: status.prismaConfigDeepmergeRequirement ?? 'absent',
+    published_remediation_candidate: publishedRemediationCandidate,
+    published_remediation_package_set_state: publishedRemediationPackageSet.state,
+    published_remediation_prisma_client_version: publishedRemediationPackageSet.prismaClientVersion ?? 'none',
+    published_remediation_adapter_d1_version: publishedRemediationPackageSet.prismaAdapterD1Version ?? 'none',
   };
 
   for (const [key, value] of Object.entries(outputs)) {
@@ -269,7 +349,7 @@ function main() {
   let status;
 
   try {
-    status = inspectCompatiblePrismaRelease({ manifest });
+    status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(inspectCompatiblePrismaRelease({ manifest }));
     process.stdout.write(formatCompatiblePrismaReleaseStatus(status, cliOptions));
     writeGitHubOutputs(status);
   } catch (error) {
@@ -286,11 +366,14 @@ module.exports = {
   CANONICAL_NPM_REGISTRY,
   NPM_VIEW_TIMEOUT_MS,
   compareComparableSemver,
+  enrichCompatiblePrismaReleaseWithPublishedPackageSet,
   formatCompatiblePrismaReleaseStatus,
   getPrismaConfigDeepmergeRequirement,
   getPrismaConfigVersionSelector,
   getPrismaVersionSelector,
+  getPublishedRemediationCandidate,
   inspectCompatiblePrismaRelease,
+  inspectPublishedRemediationPackageSet,
   isRegistrySemverSelector,
   normalizeVersionCandidates,
   parseCliOptions,
