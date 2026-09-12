@@ -11,6 +11,8 @@ Issue #3114 の `smkc-score-app/scripts/security-audit-upstream.js` は、現在
 
 Prisma 7 への major migration readiness は別 probe で package major/version alignment を検証しており、この current-compatible 判定を major migration の互換性証明には使いません。
 
+npm registry query は1回あたり60秒で timeout し、stdout/stderr の child-process buffer を明示的に4 MiBへ制限します。Prisma の range query は多数の version metadata を返すことがあるため、runtime の暗黙既定値に依存せず、過大出力は有限の上限で fail-closed にしつつ通常の range evidence を取りこぼしにくくしています。
+
 ## 出力
 
 compatible upstream probe は従来の `state` と dependency edge に加えて、次の evidence を stdout と GitHub Actions output に出します。

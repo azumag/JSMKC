@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import {
   CANONICAL_NPM_REGISTRY,
+  NPM_VIEW_MAX_BUFFER_BYTES,
   NPM_VIEW_TIMEOUT_MS,
   formatCompatiblePrismaReleaseStatus,
   getPrismaConfigDeepmergeRequirement,
@@ -198,10 +199,11 @@ describe('compatible Prisma upstream probe', () => {
     }));
 
     expect(runNpmView('prisma@^6.19.3', 'version', spawn as never)).toBe('6.19.3');
+    expect(NPM_VIEW_MAX_BUFFER_BYTES).toBe(4 * 1024 * 1024);
     expect(spawn).toHaveBeenCalledWith(
       'npm',
       ['view', 'prisma@^6.19.3', 'version', '--json', `--registry=${CANONICAL_NPM_REGISTRY}`],
-      { encoding: 'utf8', timeout: NPM_VIEW_TIMEOUT_MS },
+      { encoding: 'utf8', timeout: NPM_VIEW_TIMEOUT_MS, maxBuffer: NPM_VIEW_MAX_BUFFER_BYTES },
     );
   });
 
