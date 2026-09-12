@@ -14,6 +14,7 @@ describe('Prisma 7 readiness package scripts', () => {
     expect(packageJson.scripts).toMatchObject({
       'prisma:v7:readiness': 'node scripts/prisma-v7-readiness.cjs',
       'prisma:v7:readiness:json': 'node scripts/prisma-v7-readiness.cjs --json',
+      'prisma:v7:driver-adapter': 'node scripts/prisma-v7-driver-adapter.cjs',
       'prisma:v7:typescript-prereqs': 'node scripts/prisma-v7-typescript-prereqs.cjs',
       'prisma:v7:env-loading': 'node scripts/prisma-v7-env-loading.cjs',
       'prisma:v7:removed-surfaces': 'node scripts/prisma-v7-removed-surfaces.cjs',
@@ -24,7 +25,7 @@ describe('Prisma 7 readiness package scripts', () => {
 
   it('runs the complete advisory review in a stable order', () => {
     expect(packageJson.scripts?.['prisma:v7:review']).toBe(
-      'npm run prisma:v7:readiness && npm run prisma:v7:typescript-prereqs && npm run prisma:v7:env-loading && npm run prisma:v7:removed-surfaces && npm run prisma:v7:support-surface && npm run prisma:v7:esm-surface',
+      'npm run prisma:v7:readiness && npm run prisma:v7:driver-adapter && npm run prisma:v7:typescript-prereqs && npm run prisma:v7:env-loading && npm run prisma:v7:removed-surfaces && npm run prisma:v7:support-surface && npm run prisma:v7:esm-surface',
     );
   });
 });
