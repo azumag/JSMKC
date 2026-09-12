@@ -15,7 +15,15 @@ interface WorkflowConfig {
 }
 
 describe('security audit review reason summary', () => {
-  const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'security-audit-review.yml');
+  const workflowPath = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    '.github',
+    'workflows',
+    'security-audit-review.yml',
+  );
   const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowConfig;
   const steps = workflow.jobs?.audit?.steps ?? [];
 
@@ -26,8 +34,10 @@ describe('security audit review reason summary', () => {
     expect(summaryStep?.if).toBe('always()');
     expect(summaryStep?.env).toEqual({
       EXCEPTION_STATUS_REASON: '${{ steps.exception_status.outputs.reason }}',
-      COMPATIBLE_PACKAGE_SET_REASON: '${{ steps.compatible_upstream.outputs.published_remediation_package_set_reason }}',
-      NEXT_MAJOR_PACKAGE_SET_REASON: '${{ steps.next_major_upstream.outputs.published_remediation_package_set_reason }}',
+      COMPATIBLE_PACKAGE_SET_REASON:
+        '${{ steps.compatible_upstream.outputs.published_remediation_package_set_reason }}',
+      NEXT_MAJOR_PACKAGE_SET_REASON:
+        '${{ steps.next_major_upstream.outputs.published_remediation_package_set_reason }}',
       NEXT_MAJOR_PRISMA_CLIENT_SELECTOR:
         '${{ steps.next_major_upstream.outputs.published_remediation_prisma_client_selector }}',
       NEXT_MAJOR_ADAPTER_D1_SELECTOR:
