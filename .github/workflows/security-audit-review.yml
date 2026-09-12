@@ -243,6 +243,8 @@ jobs:
 
           compatible_candidate="${{ steps.compatible_upstream.outputs.published_remediation_candidate }}"
           compatible_package_set_state="${{ steps.compatible_upstream.outputs.published_remediation_package_set_state }}"
+          compatible_client="${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_version }}"
+          compatible_adapter="${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_version }}"
 
           if [ "$COMPATIBLE_UPSTREAM_STATE" = "compatible-forward-remediation-available" ]; then
             if [ "$compatible_candidate" != "none" ] && [ "$compatible_package_set_state" = "ready" ]; then
@@ -251,7 +253,7 @@ jobs:
             fi
 
             if [ "$compatible_candidate" = "none" ] && [ "$compatible_package_set_state" = "incomplete" ]; then
-              echo "A compatible Prisma CLI/config remediation exists, but the same-version runtime package set is not complete yet; keep #3114 active and review again later." >&2
+              echo "A compatible Prisma CLI/config remediation exists, but manifest-compatible @prisma/client (${compatible_client:-unavailable}) has not reached the CLI candidate yet; @prisma/adapter-d1 evidence is ${compatible_adapter:-unavailable}. Keep #3114 active and review again later." >&2
               exit 0
             fi
 
