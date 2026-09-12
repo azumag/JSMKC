@@ -4,9 +4,17 @@ import {
   findNamedDotenvConfigImport,
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
+  parseCliOptions,
 } from '../../scripts/prisma-v7-env-loading.cjs';
 
 describe('Prisma 7 environment loading readiness', () => {
+  it('accepts only the explicit JSON CLI option', () => {
+    expect(parseCliOptions([])).toEqual({ json: false });
+    expect(parseCliOptions(['--json'])).toEqual({ json: true });
+    expect(() => parseCliOptions(['--unknown'])).toThrow('unsupported option: --unknown');
+    expect(() => parseCliOptions(['--json', '--unknown'])).toThrow('unsupported option: --json --unknown');
+  });
+
   it('accepts the Prisma upgrade guide dotenv/config side-effect import', () => {
     expect(
       inspectPrismaV7EnvLoading(`
@@ -80,5 +88,14 @@ describe('Prisma 7 environment loading readiness', () => {
     expect(output).toContain('Explicit environment loading: `ready`');
     expect(output).toContain('Detected mode: `dotenv.config()`');
     expect(output).toContain('read-only');
+  });
+
+  it('formats the same readiness evidence as one JSON line', () => {
+    const status = { ready: true, mode: 'dotenv.config()' };
+    const output = formatPrismaV7EnvLoading(status, { json: true });
+
+    expect(output).toBe(`${JSON.stringify(status)}\n`);
+    expect(JSON.parse(output)).toEqual(status);
+    expect(output).not.toContain('## Prisma 7 environment loading readiness');
   });
 });
