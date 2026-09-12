@@ -4,6 +4,7 @@ import {
   collectPrismaV7ReviewEvidence,
   parseCliOptions,
   parseProbeJson,
+  validateProbeManifest,
 } from '../../scripts/prisma-v7-review-json.cjs';
 
 describe('Prisma 7 aggregate JSON review evidence', () => {
@@ -61,6 +62,41 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
       { key: 'supportSurface', script: 'prisma-v7-support-surface.cjs' },
       { key: 'esmSurface', script: 'prisma-v7-esm-surface.cjs' },
     ]);
+  });
+
+  it('validates unique probe keys and scripts before running any child probe', () => {
+    let calls = 0;
+    const run = () => {
+      calls += 1;
+      return {};
+    };
+
+    expect(() =>
+      collectPrismaV7ReviewEvidence({
+        run,
+        probes: [
+          { key: 'readiness', script: 'first.cjs' },
+          { key: 'readiness', script: 'second.cjs' },
+        ],
+      }),
+    ).toThrow('duplicate key: readiness');
+    expect(() =>
+      collectPrismaV7ReviewEvidence({
+        run,
+        probes: [
+          { key: 'first', script: 'shared.cjs' },
+          { key: 'second', script: 'shared.cjs' },
+        ],
+      }),
+    ).toThrow('duplicate script: shared.cjs');
+    expect(calls).toBe(0);
+  });
+
+  it('rejects malformed probe manifest entries', () => {
+    expect(() => validateProbeManifest([])).toThrow('must be a non-empty array');
+    expect(() => validateProbeManifest([null])).toThrow('entry 0 must be an object');
+    expect(() => validateProbeManifest([{ key: '', script: 'probe.cjs' }])).toThrow('non-empty key');
+    expect(() => validateProbeManifest([{ key: 'probe', script: '   ' }])).toThrow('non-empty script');
   });
 
   it('accepts one JSON object and rejects malformed or ambiguous probe evidence', () => {

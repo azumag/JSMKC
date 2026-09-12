@@ -19,6 +19,39 @@ function parseCliOptions(argv = process.argv.slice(2)) {
   throw new Error(`unsupported option: ${argv.join(' ')}`);
 }
 
+function validateProbeManifest(probes) {
+  if (!Array.isArray(probes) || probes.length === 0) {
+    throw new Error('Prisma 7 review probe manifest must be a non-empty array');
+  }
+
+  const keys = new Set();
+  const scripts = new Set();
+
+  for (const [index, probe] of probes.entries()) {
+    if (!probe || typeof probe !== 'object' || Array.isArray(probe)) {
+      throw new Error(`Prisma 7 review probe manifest entry ${index} must be an object`);
+    }
+
+    for (const field of ['key', 'script']) {
+      if (typeof probe[field] !== 'string' || probe[field].trim() === '') {
+        throw new Error(`Prisma 7 review probe manifest entry ${index} must have a non-empty ${field}`);
+      }
+    }
+
+    if (keys.has(probe.key)) {
+      throw new Error(`Prisma 7 review probe manifest contains duplicate key: ${probe.key}`);
+    }
+    if (scripts.has(probe.script)) {
+      throw new Error(`Prisma 7 review probe manifest contains duplicate script: ${probe.script}`);
+    }
+
+    keys.add(probe.key);
+    scripts.add(probe.script);
+  }
+
+  return probes;
+}
+
 function parseProbeJson(probeKey, stdout) {
   if (typeof stdout !== 'string' || stdout.trim() === '') {
     throw new Error(`${probeKey} probe returned empty JSON evidence`);
@@ -59,13 +92,14 @@ function runProbe(probe, { cwd = process.cwd(), env = process.env } = {}) {
   return parseProbeJson(probe.key, result.stdout);
 }
 
-function collectPrismaV7ReviewEvidence({ run = runProbe } = {}) {
-  const probes = Object.fromEntries(PRISMA_V7_REVIEW_PROBES.map((probe) => [probe.key, run(probe)]));
+function collectPrismaV7ReviewEvidence({ run = runProbe, probes = PRISMA_V7_REVIEW_PROBES } = {}) {
+  validateProbeManifest(probes);
+  const evidenceByProbe = Object.fromEntries(probes.map((probe) => [probe.key, run(probe)]));
 
   return {
     schemaVersion: REVIEW_SCHEMA_VERSION,
-    probeCount: PRISMA_V7_REVIEW_PROBES.length,
-    probes,
+    probeCount: probes.length,
+    probes: evidenceByProbe,
   };
 }
 
@@ -91,4 +125,5 @@ module.exports = {
   parseCliOptions,
   parseProbeJson,
   runProbe,
+  validateProbeManifest,
 };
