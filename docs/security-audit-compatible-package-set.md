@@ -34,7 +34,7 @@ package-set state は次の意味です。
 `Security audit review` の Job Summary は current-compatible probe の package-set evidence も表示します。`compatible-forward-remediation-available` だけを見て「今すぐ依存更新できる」と扱わず、`published_remediation_candidate` と package-set state を併せて判断します。
 
 - `ready` かつ candidate が存在する場合: 明示的な dependency update PR で lockfile 更新、unit tests、Prisma/D1 parity、Cloudflare build を検証する必要があるため、gate は fail-closed で停止する。
-- `incomplete` かつ candidate が `none` の場合: CLI/config 側の forward fix は見えているが runtime client がまだ同じ candidate へ追随していないため、#3114 を維持したまま review workflow 自体は成功させる。
+- `incomplete` かつ candidate が `none` の場合: CLI/config 側の forward fix は見えているが manifest-compatible runtime client がまだ同じ candidate へ追随していないため、#3114 を維持したまま review workflow 自体は成功させる。gate の diagnostic には観測した `@prisma/client` と `@prisma/adapter-d1` の version も表示し、D1 adapter の major が CLI candidate と一致しないこと自体を blocker と誤認しないようにする。
 - `unavailable` や state/output の不整合: registry evidence を確認できないため fail-closed とし、手動確認を要求する。
 
 この evidence と gate は dependency を変更しません。目的は、forward fix が現れた際に実際の manifest dependency contract に沿った package availability を確認し、明示的な更新PRで互換性検証へ進める状態かを誤判定しないことです。
