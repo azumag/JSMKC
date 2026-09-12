@@ -16,9 +16,7 @@ describe('security audit status diagnostic reasons', () => {
     const invalidLockfile = structuredClone(lockfile);
     delete invalidLockfile.packages;
 
-    expect(
-      getSecurityAuditExceptionStatus({ manifest, lockfile: invalidLockfile, now: activeNow }),
-    ).toMatchObject({
+    expect(getSecurityAuditExceptionStatus({ manifest, lockfile: invalidLockfile, now: activeNow })).toMatchObject({
       state: 'invalid-input',
       reason: 'lockfile-shape-invalid',
     });
@@ -45,18 +43,14 @@ describe('security audit status diagnostic reasons', () => {
     const remediatedLockfile = structuredClone(lockfile);
     remediatedLockfile.packages['node_modules/deepmerge-ts'].version = '8.0.2';
     remediatedLockfile.packages['node_modules/@prisma/config'].dependencies['deepmerge-ts'] = '8.0.2';
-    expect(
-      getSecurityAuditExceptionStatus({ manifest, lockfile: remediatedLockfile, now: activeNow }),
-    ).toMatchObject({
+    expect(getSecurityAuditExceptionStatus({ manifest, lockfile: remediatedLockfile, now: activeNow })).toMatchObject({
       state: 'forward-remediation-candidate',
       reason: 'forward-remediation-candidate',
     });
 
     const changedLockfile = structuredClone(lockfile);
     changedLockfile.packages['node_modules/deepmerge-ts'].version = '7.1.6';
-    expect(
-      getSecurityAuditExceptionStatus({ manifest, lockfile: changedLockfile, now: activeNow }),
-    ).toMatchObject({
+    expect(getSecurityAuditExceptionStatus({ manifest, lockfile: changedLockfile, now: activeNow })).toMatchObject({
       state: 'context-changed',
       reason: 'temporary-exception-context-changed',
     });
