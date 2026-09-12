@@ -95,8 +95,10 @@ describe('Cloudflare audit branch cleanup workflow', () => {
     expect(run).toContain('ahead_by');
     expect(run).toContain('changed_files');
     expect(run).toContain('initial_head_sha');
-    expect(run).toContain('latest_head_sha');
+    expect(run).toContain('verified_head_sha');
+    expect(run).toContain('final_head_sha');
     expect(run).toContain('Refusing to delete branch that moved during verification');
+    expect(run).toContain('Refusing to delete branch whose state changed immediately before deletion');
     expect(run).toContain('--data-urlencode "head=${owner}:${branch}"');
     expect(run).toContain('open_pr_count');
     expect(run).toContain('exit 1');
