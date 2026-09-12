@@ -17,8 +17,12 @@ compatible upstream probe は従来の `state` と dependency edge に加えて�
 
 - `published_remediation_candidate`
 - `published_remediation_package_set_state`
+- `published_remediation_prisma_client_selector`
 - `published_remediation_prisma_client_version`
+- `published_remediation_adapter_d1_selector`
 - `published_remediation_adapter_d1_version`
+
+runtime package の selector と実際に canonical registry から解決した stable version を対で残します。これにより、後から `package.json` の selector が変化した場合でも、「どの manifest contract に対してその version を compatible evidence と判断したか」をログと Actions output から再現できます。runtime package probe を行わない `not-applicable` 状態では selector/version とも `none` です。
 
 `published_remediation_candidate` は、`@prisma/config` の `deepmerge-ts` requirement が修正済みで、manifest-compatible な `@prisma/client` が同じ remediation candidate version まで公開され、かつ manifest-compatible な `@prisma/adapter-d1` stable release を canonical registry で確認できた場合だけ Prisma version を返します。それ以外は `none` です。
 
@@ -26,7 +30,7 @@ package-set state は次の意味です。
 
 - `not-applicable`: compatible Prisma release がまだ vulnerable なので runtime package probe 自体を行わない。
 - `ready`: manifest-compatible client が remediation candidate と一致し、D1 adapter も現在の manifest selector から解決できる。
-- `unavailable`: runtime package の少なくとも1つを registry から確認できなかった。
+- `unavailable`: runtime package の少なくとも1つを registry から確認できなかった。確認開始済みの selector は evidence として保持する。
 - `incomplete`: registry response は得られたが manifest-compatible client が remediation candidate version に追随していない。
 
 ## Review workflow の gate
