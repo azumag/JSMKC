@@ -6,11 +6,19 @@ import {
   enrichCompatiblePrismaReleaseWithPublishedPackageSet,
   formatCompatiblePrismaReleaseStatus,
   getPublishedRemediationCandidate,
+  getRuntimePackageVersionSelector,
   inspectPublishedRemediationPackageSet,
   writeGitHubOutputs,
 } from '../../scripts/security-audit-upstream.js';
 
 describe('compatible Prisma remediation package set', () => {
+  const manifest = {
+    dependencies: {
+      '@prisma/client': '^6.19.3',
+      '@prisma/adapter-d1': '^7.8.0',
+    },
+  };
+
   const vulnerableStatus = {
     state: 'compatible-release-still-vulnerable',
     registry: CANONICAL_NPM_REGISTRY,
@@ -30,10 +38,10 @@ describe('compatible Prisma remediation package set', () => {
     prismaConfigDeepmergeRequirement: '8.0.2',
   };
 
-  it('does not query companion packages while the compatible release is still vulnerable', () => {
+  it('does not query runtime packages while the compatible release is still vulnerable', () => {
     const npmView = jest.fn();
 
-    expect(inspectPublishedRemediationPackageSet(vulnerableStatus, npmView)).toEqual({
+    expect(inspectPublishedRemediationPackageSet(vulnerableStatus, manifest, npmView)).toEqual({
       state: 'not-applicable',
       prismaClientVersion: null,
       prismaAdapterD1Version: null,
@@ -41,32 +49,33 @@ describe('compatible Prisma remediation package set', () => {
     expect(npmView).not.toHaveBeenCalled();
   });
 
-  it('only exposes a remediation candidate when the same-version client and D1 adapter are published', () => {
+  it('uses each declared runtime selector instead of forcing the adapter to the CLI major', () => {
     const npmView = jest.fn((selector: string, field: string) => {
       expect(field).toBe('version');
-      if (selector === '@prisma/client@6.20.0') return '6.20.0';
-      if (selector === '@prisma/adapter-d1@6.20.0') return '6.20.0';
+      if (selector === '@prisma/client@^6.19.3') return ['6.19.3', '6.20.0'];
+      if (selector === '@prisma/adapter-d1@^7.8.0') return ['7.8.0', '7.10.0'];
       throw new Error(`unexpected npm view: ${selector} ${field}`);
     });
 
-    const status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(remediatedStatus, npmView);
+    const status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(remediatedStatus, manifest, npmView);
 
     expect(status.publishedRemediationPackageSet).toEqual({
       state: 'ready',
       prismaClientVersion: '6.20.0',
-      prismaAdapterD1Version: '6.20.0',
+      prismaAdapterD1Version: '7.10.0',
     });
     expect(getPublishedRemediationCandidate(status)).toBe('6.20.0');
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('published remediation candidate: 6.20.0');
+    expect(formatCompatiblePrismaReleaseStatus(status)).toContain('manifest-compatible @prisma/adapter-d1: 7.10.0');
   });
 
-  it('withholds the candidate when a companion package cannot be confirmed', () => {
+  it('withholds the candidate when a runtime package cannot be confirmed', () => {
     const npmView = jest.fn((selector: string) => {
-      if (selector === '@prisma/client@6.20.0') return '6.20.0';
+      if (selector === '@prisma/client@^6.19.3') return '6.20.0';
       throw new Error('package version unavailable');
     });
 
-    const status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(remediatedStatus, npmView);
+    const status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(remediatedStatus, manifest, npmView);
 
     expect(status.publishedRemediationPackageSet).toEqual({
       state: 'unavailable',
@@ -77,18 +86,31 @@ describe('compatible Prisma remediation package set', () => {
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('published remediation candidate: none');
   });
 
-  it('marks mismatched companion package versions as incomplete', () => {
+  it('marks the package set incomplete when the manifest-compatible client does not align with the CLI candidate', () => {
     const npmView = jest.fn((selector: string) => {
-      if (selector === '@prisma/client@6.20.0') return '6.20.0';
-      if (selector === '@prisma/adapter-d1@6.20.0') return '6.19.4';
+      if (selector === '@prisma/client@^6.19.3') return '6.19.4';
+      if (selector === '@prisma/adapter-d1@^7.8.0') return '7.10.0';
       throw new Error(`unexpected npm view: ${selector}`);
     });
 
-    expect(inspectPublishedRemediationPackageSet(remediatedStatus, npmView)).toEqual({
+    expect(inspectPublishedRemediationPackageSet(remediatedStatus, manifest, npmView)).toEqual({
       state: 'incomplete',
-      prismaClientVersion: '6.20.0',
-      prismaAdapterD1Version: '6.19.4',
+      prismaClientVersion: '6.19.4',
+      prismaAdapterD1Version: '7.10.0',
     });
+  });
+
+  it('rejects non-registry runtime selectors instead of treating them as package evidence', () => {
+    expect(() =>
+      getRuntimePackageVersionSelector(
+        {
+          dependencies: {
+            '@prisma/adapter-d1': 'workspace:*',
+          },
+        },
+        '@prisma/adapter-d1',
+      ),
+    ).toThrow('package.json dependencies.@prisma/adapter-d1 must be a registry SemVer selector');
   });
 
   it('publishes package-set evidence as safe single-line GitHub outputs', () => {
@@ -102,7 +124,7 @@ describe('compatible Prisma remediation package set', () => {
           publishedRemediationPackageSet: {
             state: 'ready',
             prismaClientVersion: '6.20.0',
-            prismaAdapterD1Version: '6.20.0',
+            prismaAdapterD1Version: '7.10.0',
           },
         },
         outputPath,
@@ -112,7 +134,7 @@ describe('compatible Prisma remediation package set', () => {
       expect(output).toContain('published_remediation_candidate=6.20.0\n');
       expect(output).toContain('published_remediation_package_set_state=ready\n');
       expect(output).toContain('published_remediation_prisma_client_version=6.20.0\n');
-      expect(output).toContain('published_remediation_adapter_d1_version=6.20.0\n');
+      expect(output).toContain('published_remediation_adapter_d1_version=7.10.0\n');
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
