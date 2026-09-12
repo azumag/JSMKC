@@ -122,11 +122,10 @@ describe('compatible Prisma remediation package set', () => {
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('manifest @prisma/adapter-d1 selector: ^7.8.0');
   });
 
-  it('marks the package set incomplete when the manifest-compatible client does not include the CLI candidate', () => {
+  it('short-circuits adapter lookup when the manifest-compatible client does not include the CLI candidate', () => {
     const npmView = jest.fn((selector: string) => {
       if (selector === '@prisma/client@^6.19.3') return '6.19.4';
-      if (selector === '@prisma/adapter-d1@^7.8.0') return '7.10.0';
-      throw new Error(`unexpected npm view: ${selector}`);
+      throw new Error(`adapter lookup should not run after missing client candidate: ${selector}`);
     });
 
     expect(inspectPublishedRemediationPackageSet(remediatedStatus, manifest, npmView)).toEqual({
@@ -135,8 +134,10 @@ describe('compatible Prisma remediation package set', () => {
       prismaClientSelector: '^6.19.3',
       prismaClientVersion: '6.19.4',
       prismaAdapterD1Selector: '^7.8.0',
-      prismaAdapterD1Version: '7.10.0',
+      prismaAdapterD1Version: null,
     });
+    expect(npmView).toHaveBeenCalledTimes(1);
+    expect(npmView).toHaveBeenCalledWith('@prisma/client@^6.19.3', 'version');
   });
 
   it('rejects non-registry runtime selectors instead of treating them as package evidence', () => {
