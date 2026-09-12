@@ -43,4 +43,18 @@ describe('compatible Prisma remediation package-set workflow contract', () => {
     );
     expect(gateStep?.run).toContain('Compatible remediation evidence is unavailable or inconsistent');
   });
+
+  it('explains incomplete evidence using the manifest-compatible runtime versions', () => {
+    const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
+
+    expect(gateStep?.run).toContain(
+      'compatible_client="${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_version }}"',
+    );
+    expect(gateStep?.run).toContain(
+      'compatible_adapter="${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_version }}"',
+    );
+    expect(gateStep?.run).toContain('manifest-compatible @prisma/client (${compatible_client:-unavailable})');
+    expect(gateStep?.run).toContain('@prisma/adapter-d1 evidence is ${compatible_adapter:-unavailable}');
+    expect(gateStep?.run).not.toContain('same-version runtime package set');
+  });
 });
