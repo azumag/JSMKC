@@ -34,33 +34,41 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
     return {
       state: 'not-applicable',
       reason: 'upstream-remediation-not-applicable',
+      prismaClientSelector: null,
       prismaClientVersion: null,
+      prismaAdapterD1Selector: null,
       prismaAdapterD1Version: null,
     };
   }
 
   const candidateVersion = status.latestCompatiblePrismaVersion;
+  const prismaClientSelector = candidateVersion;
+  const prismaAdapterD1Selector = candidateVersion;
   let prismaClientVersion = null;
   let prismaAdapterD1Version = null;
 
   try {
-    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${candidateVersion}`, 'version'));
+    prismaClientVersion = selectLatestVersion(npmView(`@prisma/client@${prismaClientSelector}`, 'version'));
   } catch {
     return {
       state: 'unavailable',
       reason: 'prisma-client-registry-unavailable',
+      prismaClientSelector,
       prismaClientVersion,
+      prismaAdapterD1Selector,
       prismaAdapterD1Version,
     };
   }
 
   try {
-    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${candidateVersion}`, 'version'));
+    prismaAdapterD1Version = selectLatestVersion(npmView(`@prisma/adapter-d1@${prismaAdapterD1Selector}`, 'version'));
   } catch {
     return {
       state: 'unavailable',
       reason: 'adapter-d1-registry-unavailable',
+      prismaClientSelector,
       prismaClientVersion,
+      prismaAdapterD1Selector,
       prismaAdapterD1Version,
     };
   }
@@ -70,7 +78,9 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
   return {
     state: packageSetReady ? 'ready' : 'incomplete',
     reason: packageSetReady ? 'published-package-set-ready' : 'runtime-package-version-mismatch',
+    prismaClientSelector,
     prismaClientVersion,
+    prismaAdapterD1Selector,
     prismaAdapterD1Version,
   };
 }
@@ -111,7 +121,9 @@ function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
   const publishedRemediationPackageSet = status.publishedRemediationPackageSet ?? {
     state: 'unavailable',
     reason: 'not-checked',
+    prismaClientSelector: null,
     prismaClientVersion: null,
+    prismaAdapterD1Selector: null,
     prismaAdapterD1Version: null,
   };
 
@@ -124,7 +136,9 @@ function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
     `published remediation candidate: ${publishedRemediationCandidate ?? 'none'}\n` +
     `published remediation package set: ${publishedRemediationPackageSet.state}\n` +
     `published remediation package set reason: ${publishedRemediationPackageSet.reason ?? 'unspecified'}\n` +
+    `candidate @prisma/client selector: ${publishedRemediationPackageSet.prismaClientSelector ?? 'none'}\n` +
     `candidate @prisma/client: ${publishedRemediationPackageSet.prismaClientVersion ?? 'none'}\n` +
+    `candidate @prisma/adapter-d1 selector: ${publishedRemediationPackageSet.prismaAdapterD1Selector ?? 'none'}\n` +
     `candidate @prisma/adapter-d1: ${publishedRemediationPackageSet.prismaAdapterD1Version ?? 'none'}\n` +
     `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
     `latest next-major @prisma/config: ${status.latestCompatiblePrismaConfigVersion}\n` +
