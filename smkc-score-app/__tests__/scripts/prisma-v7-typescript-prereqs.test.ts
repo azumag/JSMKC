@@ -5,6 +5,7 @@ import {
   formatPrismaV7TypeScriptPrerequisites,
   getLockedTypeScriptVersion,
   inspectPrismaV7TypeScriptPrerequisites,
+  parseCliOptions,
   parseStableSemver,
   readTypeScriptVersionEvidence,
   typescriptVersionSupportsPrisma7,
@@ -25,6 +26,13 @@ describe('Prisma 7 TypeScript prerequisites', () => {
     expect(parseStableSemver('v5.4.0')).toBeNull();
     expect(parseStableSemver('5.4')).toBeNull();
     expect(parseStableSemver('5.4.0-rc.1')).toBeNull();
+  });
+
+  it('accepts only the explicit JSON CLI option', () => {
+    expect(parseCliOptions([])).toEqual({ json: false });
+    expect(parseCliOptions(['--json'])).toEqual({ json: true });
+    expect(() => parseCliOptions(['--unknown'])).toThrow('unsupported option: --unknown');
+    expect(() => parseCliOptions(['--json', '--unknown'])).toThrow('unsupported option: --json --unknown');
   });
 
   it('prefers the installed TypeScript manifest when dependencies are present', () => {
@@ -145,5 +153,26 @@ describe('Prisma 7 TypeScript prerequisites', () => {
     expect(output).toContain('TypeScript evidence source: `package-lock.json#packages.node_modules/typescript`');
     expect(output).toContain('Overall readiness: `ready`');
     expect(output).toContain('This probe is read-only.');
+  });
+
+  it('formats the same readiness evidence as one JSON line', () => {
+    const status = inspectPrismaV7TypeScriptPrerequisites({
+      typescriptVersion: '5.9.3',
+      typescriptVersionSource: 'package-lock.json#packages.node_modules/typescript',
+      tsconfigSource: `
+        {
+          "compilerOptions": {
+            "strict": true,
+            "esModuleInterop": true
+          }
+        }
+      `,
+    });
+
+    const output = formatPrismaV7TypeScriptPrerequisites(status, { json: true });
+
+    expect(output).toBe(`${JSON.stringify(status)}\n`);
+    expect(JSON.parse(output)).toEqual(status);
+    expect(output).not.toContain('## Prisma 7 TypeScript prerequisites');
   });
 });

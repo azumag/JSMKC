@@ -9,8 +9,16 @@ JSMKC already satisfies these TypeScript-side prerequisites today. They are inte
 From `smkc-score-app`:
 
 ```bash
-node scripts/prisma-v7-typescript-prereqs.cjs
+npm run prisma:v7:typescript-prereqs
 ```
+
+For machine-readable evidence, use:
+
+```bash
+npm run prisma:v7:typescript-prereqs:json
+```
+
+The JSON command returns the same readiness object as one JSON line and does not append Markdown to `GITHUB_STEP_SUMMARY`. Unknown CLI options fail instead of being ignored, so automation cannot accidentally request a mode that the probe does not support.
 
 The probe reads only:
 

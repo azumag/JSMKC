@@ -17,7 +17,9 @@ npm run prisma:v7:review
 npm run prisma:v7:readiness
 npm run prisma:v7:readiness:json
 npm run prisma:v7:driver-adapter
+npm run prisma:v7:driver-adapter:json
 npm run prisma:v7:typescript-prereqs
+npm run prisma:v7:typescript-prereqs:json
 npm run prisma:v7:env-loading
 npm run prisma:v7:removed-surfaces
 npm run prisma:v7:support-surface
@@ -26,6 +28,6 @@ npm run prisma:v7:esm-surface
 
 各 entrypoint は既存の read-only probe をそのまま実行します。依存 version、`package-lock.json`、Prisma schema/config、generated client、D1、Cloudflare 設定、#3114 の一時 audit 例外を変更しません。
 
-`prisma:v7:readiness:json` は primary readiness probe の machine-readable 出力です。その他の companion probe は現在の human-readable evidence contract を維持します。将来 script path や probe 構成を整理する場合も、npm entrypoint とその回帰テストを同時に更新し、手動 review の呼び出し口と実行順序を安定させます。
+`:json` entrypoint は対応する probe と同じ evidence object を one-line JSON で返し、`GITHUB_STEP_SUMMARY` には Markdown を追記しません。現在は primary readiness、D1 driver adapter wiring、TypeScript prerequisites が machine-readable 出力に対応しています。その他の companion probe は現在の human-readable evidence contract を維持します。将来 script path や probe 構成を整理する場合も、npm entrypoint とその回帰テストを同時に更新し、手動 review の呼び出し口と実行順序を安定させます。
 
 これらは Prisma 7 への自動 upgrade gate ではありません。major-version migration を実施する場合は `docs/prisma-v7-migration-readiness.md` の判断境界と検証項目に従い、依存 package set、schema/config、generated-client import、D1 driver adapter wiring、ESM 対応、Cloudflare/D1 検証を明示的な migration PR でまとめて評価します。

@@ -5,6 +5,12 @@ const fs = require('node:fs');
 const MIN_TYPESCRIPT_VERSION = Object.freeze([5, 4, 0]);
 const TYPESCRIPT_LOCKFILE_PATH = 'node_modules/typescript';
 
+function parseCliOptions(argv = process.argv.slice(2)) {
+  if (argv.length === 0) return { json: false };
+  if (argv.length === 1 && argv[0] === '--json') return { json: true };
+  throw new Error(`unsupported option: ${argv.join(' ')}`);
+}
+
 function parseStableSemver(version) {
   if (typeof version !== 'string') return null;
   const match = version.trim().match(/^(\d+)\.(\d+)\.(\d+)(?:\+[^\s]+)?$/);
@@ -92,7 +98,9 @@ function inspectPrismaV7TypeScriptPrerequisites({ typescriptVersion, typescriptV
   };
 }
 
-function formatPrismaV7TypeScriptPrerequisites(status) {
+function formatPrismaV7TypeScriptPrerequisites(status, { json = false } = {}) {
+  if (json) return `${JSON.stringify(status)}\n`;
+
   return [
     '## Prisma 7 TypeScript prerequisites (#3114)',
     '',
@@ -114,6 +122,14 @@ function formatPrismaV7TypeScriptPrerequisites(status) {
 }
 
 function main() {
+  let options;
+  try {
+    options = parseCliOptions();
+  } catch (error) {
+    process.stderr.write(`Invalid Prisma 7 TypeScript prerequisite arguments: ${error.message}\n`);
+    process.exit(1);
+  }
+
   try {
     const typescriptEvidence = readTypeScriptVersionEvidence();
     const tsconfigSource = fs.readFileSync('tsconfig.json', 'utf8');
@@ -122,10 +138,10 @@ function main() {
       typescriptVersionSource: typescriptEvidence.source,
       tsconfigSource,
     });
-    const output = formatPrismaV7TypeScriptPrerequisites(status);
+    const output = formatPrismaV7TypeScriptPrerequisites(status, options);
 
     process.stdout.write(output);
-    if (process.env.GITHUB_STEP_SUMMARY) {
+    if (process.env.GITHUB_STEP_SUMMARY && !options.json) {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
     }
   } catch (error) {
@@ -146,6 +162,7 @@ module.exports = {
   formatPrismaV7TypeScriptPrerequisites,
   getLockedTypeScriptVersion,
   inspectPrismaV7TypeScriptPrerequisites,
+  parseCliOptions,
   parseStableSemver,
   readTypeScriptVersionEvidence,
   typescriptVersionSupportsPrisma7,
