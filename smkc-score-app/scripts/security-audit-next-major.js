@@ -33,6 +33,7 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
   if (status?.state !== 'compatible-forward-remediation-available') {
     return {
       state: 'not-applicable',
+      reason: 'upstream-remediation-not-applicable',
       prismaClientVersion: null,
       prismaAdapterD1Version: null,
     };
@@ -47,6 +48,7 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
   } catch {
     return {
       state: 'unavailable',
+      reason: 'prisma-client-registry-unavailable',
       prismaClientVersion,
       prismaAdapterD1Version,
     };
@@ -57,14 +59,17 @@ function inspectPublishedRemediationPackageSet(status, npmView) {
   } catch {
     return {
       state: 'unavailable',
+      reason: 'adapter-d1-registry-unavailable',
       prismaClientVersion,
       prismaAdapterD1Version,
     };
   }
 
+  const packageSetReady = prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion;
+
   return {
-    state:
-      prismaClientVersion === candidateVersion && prismaAdapterD1Version === candidateVersion ? 'ready' : 'incomplete',
+    state: packageSetReady ? 'ready' : 'incomplete',
+    reason: packageSetReady ? 'published-package-set-ready' : 'runtime-package-version-mismatch',
     prismaClientVersion,
     prismaAdapterD1Version,
   };
@@ -105,6 +110,7 @@ function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
   const publishedRemediationCandidate = getPublishedRemediationCandidate(status);
   const publishedRemediationPackageSet = status.publishedRemediationPackageSet ?? {
     state: 'unavailable',
+    reason: 'not-checked',
     prismaClientVersion: null,
     prismaAdapterD1Version: null,
   };
@@ -117,6 +123,7 @@ function formatNextMajorPrismaReleaseStatus(status, { json = false } = {}) {
     `latest next-major prisma: ${status.latestCompatiblePrismaVersion}\n` +
     `published remediation candidate: ${publishedRemediationCandidate ?? 'none'}\n` +
     `published remediation package set: ${publishedRemediationPackageSet.state}\n` +
+    `published remediation package set reason: ${publishedRemediationPackageSet.reason ?? 'unspecified'}\n` +
     `candidate @prisma/client: ${publishedRemediationPackageSet.prismaClientVersion ?? 'none'}\n` +
     `candidate @prisma/adapter-d1: ${publishedRemediationPackageSet.prismaAdapterD1Version ?? 'none'}\n` +
     `prisma -> @prisma/config selector: ${status.prismaConfigSelector}\n` +
