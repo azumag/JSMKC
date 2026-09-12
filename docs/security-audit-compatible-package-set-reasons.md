@@ -8,9 +8,11 @@ Issue #3114 の current-compatible remediation probe は、package-set の大分
 
 - `upstream-remediation-not-applicable`: current-compatible Prisma CLI/config 側に remediation がまだないため runtime package probe を実行していない。
 - `prisma-client-registry-unavailable`: manifest の `@prisma/client` selector に対する canonical npm registry evidence を取得・検証できなかった。
-- `adapter-d1-registry-unavailable`: client evidence は取得できたが、manifest の `@prisma/adapter-d1` selector に対する canonical npm registry evidence を取得・検証できなかった。
-- `prisma-client-candidate-missing`: client と adapter の registry evidence は取得できたが、manifest-compatible `@prisma/client` version 群に Prisma CLI/config remediation candidate と同じ version が含まれていない。
+- `adapter-d1-registry-unavailable`: remediation candidate を含む client evidence は取得できたが、manifest の `@prisma/adapter-d1` selector に対する canonical npm registry evidence を取得・検証できなかった。
+- `prisma-client-candidate-missing`: manifest-compatible `@prisma/client` version 群に Prisma CLI/config remediation candidate と同じ version が含まれていない。この時点で package set は actionable ではないため、D1 adapter の追加 registry query は実行せず `incomplete` を確定する。
 - `published-package-set-ready`: manifest-compatible client version 群に remediation candidate が存在し、D1 adapter も現在の selector から stable release を確認できた。
+
+client candidate が欠けている場合に adapter lookup を短絡することで、より根本的な `prisma-client-candidate-missing` が後続の一時的な adapter registry failure に上書きされることを防ぎます。同時に、actionable でない package set に対する不要なネットワーク query を1回減らします。この経路では adapter selector は監査 evidence として保持しますが、解決済み adapter version は `none` / `null` のままです。
 
 probe の通常出力には `published remediation package set reason`、GitHub Actions output には `published_remediation_package_set_reason` を追加します。selector、解決済みversion、state と reason を組み合わせることで、registry 障害と publication skew を区別できます。
 
