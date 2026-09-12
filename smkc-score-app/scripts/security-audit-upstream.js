@@ -360,7 +360,10 @@ function main() {
   let status;
 
   try {
-    status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(inspectCompatiblePrismaRelease({ manifest }), manifest);
+    status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(
+      inspectCompatiblePrismaRelease({ manifest }),
+      manifest,
+    );
     process.stdout.write(formatCompatiblePrismaReleaseStatus(status, cliOptions));
     writeGitHubOutputs(status);
   } catch (error) {
