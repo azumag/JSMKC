@@ -144,20 +144,45 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     advisoryRange: TRACKED_ADVISORY_RANGE,
   };
 
-  if (
-    !hasExpectedSecurityAuditLockfileShape(lockfile) ||
-    !hasMatchingSecurityAuditPackageIdentity(manifest, lockfile) ||
-    !hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)
-  ) {
+  if (!hasExpectedSecurityAuditLockfileShape(lockfile)) {
     return {
       ...identity,
       state: 'invalid-input',
+      reason: 'lockfile-shape-invalid',
       deadline,
       checkedAt,
       daysUntilDeadline,
       versions,
       requirements,
-      message: 'package.json / package-lock.json do not satisfy the security audit preconditions',
+      message: 'package-lock.json does not satisfy the security audit lockfile preconditions',
+    };
+  }
+
+  if (!hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)) {
+    return {
+      ...identity,
+      state: 'invalid-input',
+      reason: 'package-identity-mismatch',
+      deadline,
+      checkedAt,
+      daysUntilDeadline,
+      versions,
+      requirements,
+      message: 'package.json and package-lock.json package identity do not match',
+    };
+  }
+
+  if (!hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)) {
+    return {
+      ...identity,
+      state: 'invalid-input',
+      reason: 'manifest-lockfile-snapshot-mismatch',
+      deadline,
+      checkedAt,
+      daysUntilDeadline,
+      versions,
+      requirements,
+      message: 'package.json dependency declarations do not match the package-lock.json root snapshot',
     };
   }
 
@@ -165,6 +190,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       ...identity,
       state: 'forward-remediation-candidate',
+      reason: 'forward-remediation-candidate',
       deadline,
       checkedAt,
       daysUntilDeadline,
@@ -179,6 +205,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       ...identity,
       state: 'context-changed',
+      reason: 'temporary-exception-context-changed',
       deadline,
       checkedAt,
       daysUntilDeadline,
@@ -193,6 +220,7 @@ function getSecurityAuditExceptionStatus({ manifest, lockfile, now = new Date() 
     return {
       ...identity,
       state: 'expired',
+      reason: 'temporary-exception-expired',
       deadline,
       checkedAt,
       daysUntilDeadline,
@@ -221,6 +249,7 @@ function formatSecurityAuditExceptionStatus(status, { json = false } = {}) {
 
   return (
     `security audit exception status: ${status.state}\n` +
+    `status reason: ${status.reason ?? 'none'}\n` +
     `tracking issue: #${status.trackingIssue}\n` +
     `tracked advisory: ${status.advisory} (${status.advisoryRange})\n` +
     `status checked at: ${status.checkedAt ?? 'unavailable'}\n` +
