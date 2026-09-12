@@ -24,6 +24,20 @@ const baseStatus = {
 };
 
 describe('security audit status GitHub Actions output safety', () => {
+  it('rejects an explicitly empty reason instead of silently omitting it', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-output-empty-reason-'));
+    const outputPath = path.join(directory, 'github-output');
+
+    try {
+      expect(() => writeGitHubOutputs({ ...baseStatus, reason: '' }, outputPath)).toThrow(
+        'refusing unsafe GitHub Actions output for reason',
+      );
+      expect(fs.existsSync(outputPath)).toBe(false);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('rejects line-breaking values before writing the output file', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-output-safety-'));
     const outputPath = path.join(directory, 'github-output');
