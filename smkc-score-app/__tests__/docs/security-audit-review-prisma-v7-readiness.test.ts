@@ -49,9 +49,7 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     expect(steps.indexOf(nextMajorTimestampStep as WorkflowStep)).toBeLessThan(
       steps.indexOf(readinessStep as WorkflowStep),
     );
-    expect(steps.indexOf(readinessStep as WorkflowStep)).toBeLessThan(
-      steps.indexOf(driverAdapterStep as WorkflowStep),
-    );
+    expect(steps.indexOf(readinessStep as WorkflowStep)).toBeLessThan(steps.indexOf(driverAdapterStep as WorkflowStep));
     expect(steps.indexOf(driverAdapterStep as WorkflowStep)).toBeLessThan(
       steps.indexOf(supportSurfaceStep as WorkflowStep),
     );
