@@ -15,15 +15,7 @@ interface WorkflowConfig {
 }
 
 describe('security audit review reason summary', () => {
-  const workflowPath = path.resolve(
-    __dirname,
-    '..',
-    '..',
-    '..',
-    '.github',
-    'workflows',
-    'security-audit-review.yml',
-  );
+  const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'security-audit-review.yml');
   const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowConfig;
   const steps = workflow.jobs?.audit?.steps ?? [];
 
