@@ -202,6 +202,10 @@ jobs:
             echo "| prisma → @prisma/config selector | \`${PRISMA_CONFIG_SELECTOR:-unavailable}\` |"
             echo "| Latest compatible @prisma/config | \`${LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| Compatible @prisma/config → deepmerge-ts requirement | \`${LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
+            echo "| Published remediation candidate | \`${{ steps.compatible_upstream.outputs.published_remediation_candidate }}\` |"
+            echo "| Published remediation package set | \`${{ steps.compatible_upstream.outputs.published_remediation_package_set_state }}\` |"
+            echo "| Candidate @prisma/client | \`${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_version }}\` |"
+            echo "| Candidate @prisma/adapter-d1 | \`${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_version }}\` |"
             echo
             echo "| Next-major remediation evidence (advisory only) | Value |"
             echo "| --- | --- |"
@@ -237,8 +241,21 @@ jobs:
             exit 1
           fi
 
+          compatible_candidate="${{ steps.compatible_upstream.outputs.published_remediation_candidate }}"
+          compatible_package_set_state="${{ steps.compatible_upstream.outputs.published_remediation_package_set_state }}"
+
           if [ "$COMPATIBLE_UPSTREAM_STATE" = "compatible-forward-remediation-available" ]; then
-            echo "A compatible stable Prisma remediation candidate is available; validate it in an explicit dependency update PR before keeping #3114 active." >&2
+            if [ "$compatible_candidate" != "none" ] && [ "$compatible_package_set_state" = "ready" ]; then
+              echo "A complete compatible stable Prisma remediation package set is available; validate it in an explicit dependency update PR before keeping #3114 active." >&2
+              exit 1
+            fi
+
+            if [ "$compatible_candidate" = "none" ] && [ "$compatible_package_set_state" = "incomplete" ]; then
+              echo "A compatible Prisma CLI/config remediation exists, but the same-version runtime package set is not complete yet; keep #3114 active and review again later." >&2
+              exit 0
+            fi
+
+            echo "Compatible remediation evidence is unavailable or inconsistent; review the package-set evidence above before changing #3114." >&2
             exit 1
           fi
 

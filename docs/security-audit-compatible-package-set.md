@@ -25,4 +25,12 @@ package-set state は次の意味です。
 - `unavailable`: companion package の少なくとも1つを registry から確認できなかった。
 - `incomplete`: registry response は得られたが candidate と同じ version ではなかった。
 
-この evidence は dependency を変更しません。また `compatible-forward-remediation-available` が検出された場合の既存 fail-closed follow-up gate も緩和しません。目的は、forward fix が現れた際に「CLI の修正だけが公開された状態」をそのまま dependency update 可能と誤認せず、同一versionの package set が揃っているかを明示してから #3114 の例外削除や更新PRを判断できるようにすることです。
+## Review workflow の gate
+
+`Security audit review` の Job Summary は current-compatible probe の package-set evidence も表示します。`compatible-forward-remediation-available` だけを見て「今すぐ依存更新できる」と扱わず、`published_remediation_candidate` と package-set state を併せて判断します。
+
+- `ready` かつ candidate が存在する場合: 実際に更新可能な package set として明示的な dependency update PR を要求し、gate は fail-closed で停止する。
+- `incomplete` かつ candidate が `none` の場合: CLI/config 側の forward fix は見えているが runtime package set がまだ揃っていないため、#3114 を維持したまま review workflow 自体は成功させる。
+- `unavailable` や state/output の不整合: registry evidence を確認できないため fail-closed とし、手動確認を要求する。
+
+この evidence と gate は dependency を変更しません。目的は、forward fix が現れた際に「CLI の修正だけが公開された状態」をそのまま dependency update 可能と誤認せず、同一versionの package set が揃っているかを明示してから #3114 の例外削除や更新PRを判断できるようにすることです。
