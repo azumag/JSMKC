@@ -43,6 +43,7 @@ describe('compatible Prisma remediation package set', () => {
 
     expect(inspectPublishedRemediationPackageSet(vulnerableStatus, manifest, npmView)).toEqual({
       state: 'not-applicable',
+      reason: 'upstream-remediation-not-applicable',
       prismaClientSelector: null,
       prismaClientVersion: null,
       prismaAdapterD1Selector: null,
@@ -63,6 +64,7 @@ describe('compatible Prisma remediation package set', () => {
 
     expect(status.publishedRemediationPackageSet).toEqual({
       state: 'ready',
+      reason: 'published-package-set-ready',
       prismaClientSelector: '^6.19.3',
       prismaClientVersion: '6.20.0',
       prismaAdapterD1Selector: '^7.8.0',
@@ -70,6 +72,9 @@ describe('compatible Prisma remediation package set', () => {
     });
     expect(getPublishedRemediationCandidate(status)).toBe('6.20.0');
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('published remediation candidate: 6.20.0');
+    expect(formatCompatiblePrismaReleaseStatus(status)).toContain(
+      'published remediation package set reason: published-package-set-ready',
+    );
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('manifest @prisma/client selector: ^6.19.3');
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('manifest-compatible @prisma/client: 6.20.0');
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('manifest @prisma/adapter-d1 selector: ^7.8.0');
@@ -87,6 +92,7 @@ describe('compatible Prisma remediation package set', () => {
 
     expect(status.publishedRemediationPackageSet).toEqual({
       state: 'ready',
+      reason: 'published-package-set-ready',
       prismaClientSelector: '^6.19.3',
       prismaClientVersion: '6.21.0',
       prismaAdapterD1Selector: '^7.8.0',
@@ -105,6 +111,7 @@ describe('compatible Prisma remediation package set', () => {
 
     expect(status.publishedRemediationPackageSet).toEqual({
       state: 'unavailable',
+      reason: 'adapter-d1-registry-unavailable',
       prismaClientSelector: '^6.19.3',
       prismaClientVersion: '6.20.0',
       prismaAdapterD1Selector: '^7.8.0',
@@ -124,6 +131,7 @@ describe('compatible Prisma remediation package set', () => {
 
     expect(inspectPublishedRemediationPackageSet(remediatedStatus, manifest, npmView)).toEqual({
       state: 'incomplete',
+      reason: 'prisma-client-candidate-missing',
       prismaClientSelector: '^6.19.3',
       prismaClientVersion: '6.19.4',
       prismaAdapterD1Selector: '^7.8.0',
@@ -154,6 +162,7 @@ describe('compatible Prisma remediation package set', () => {
           ...remediatedStatus,
           publishedRemediationPackageSet: {
             state: 'ready',
+            reason: 'published-package-set-ready',
             prismaClientSelector: '^6.19.3',
             prismaClientVersion: '6.20.0',
             prismaAdapterD1Selector: '^7.8.0',
@@ -166,6 +175,7 @@ describe('compatible Prisma remediation package set', () => {
       const output = fs.readFileSync(outputPath, 'utf8');
       expect(output).toContain('published_remediation_candidate=6.20.0\n');
       expect(output).toContain('published_remediation_package_set_state=ready\n');
+      expect(output).toContain('published_remediation_package_set_reason=published-package-set-ready\n');
       expect(output).toContain('published_remediation_prisma_client_selector=^6.19.3\n');
       expect(output).toContain('published_remediation_prisma_client_version=6.20.0\n');
       expect(output).toContain('published_remediation_adapter_d1_selector=^7.8.0\n');
