@@ -1,0 +1,170 @@
+name: Cleanup Cloudflare audit branches
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cleanup-cloudflare-audit-branches.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: cleanup-cloudflare-audit-branches
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete verified temporary audit branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Verify and delete exact temporary branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Refusing cleanup outside main: ${GITHUB_REF}" >&2
+            exit 1
+          fi
+
+          api="${GITHUB_API_URL}"
+          repo="${GITHUB_REPOSITORY}"
+          owner="${GITHUB_REPOSITORY_OWNER}"
+          auth_header="Authorization: Bearer ${GH_TOKEN}"
+          accept_header="Accept: application/vnd.github+json"
+          version_header="X-GitHub-Api-Version: 2022-11-28"
+
+          branches=(
+            "ops/cloudflare-build-cost-audit"
+            "ops/cloudflare-build-cost-audit-2"
+            "ops/cloudflare-build-cost-audit-3"
+            "ops/cloudflare-build-cost-audit-actual"
+            "ops/cloudflare-build-cost-audit-final"
+            "ops/cloudflare-build-cost-audit-live"
+            "ops/cloudflare-build-cost-audit-please"
+            "ops/cloudflare-build-cost-audit-run"
+          )
+
+          urlencode() {
+            jq -rn --arg value "$1" '$value|@uri'
+          }
+
+          api_get() {
+            curl --fail --silent --show-error \
+              -H "$auth_header" \
+              -H "$accept_header" \
+              -H "$version_header" \
+              "$1"
+          }
+
+          api_delete() {
+            curl --fail --silent --show-error \
+              -X DELETE \
+              -H "$auth_header" \
+              -H "$accept_header" \
+              -H "$version_header" \
+              "$1" \
+              >/dev/null
+          }
+
+          {
+            echo "## Cloudflare audit branch cleanup"
+            echo
+            echo "| Branch | Result |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for branch in "${branches[@]}"; do
+            encoded_branch="$(urlencode "$branch")"
+            branch_url="${api}/repos/${repo}/branches/${encoded_branch}"
+            status="$(curl --silent --show-error --output /tmp/branch.json --write-out '%{http_code}' \
+              -H "$auth_header" \
+              -H "$accept_header" \
+              -H "$version_header" \
+              "$branch_url")"
+
+            if [ "$status" = "404" ]; then
+              echo "Branch already absent: $branch"
+              echo "| \`$branch\` | already absent |" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            if [ "$status" != "200" ]; then
+              echo "Failed to inspect branch $branch (HTTP $status)" >&2
+              exit 1
+            fi
+
+            protected="$(jq -r '.protected' /tmp/branch.json)"
+            if [ "$protected" != "false" ]; then
+              echo "Refusing to delete protected branch: $branch" >&2
+              exit 1
+            fi
+
+            compare_ref="$(urlencode "main...${branch}")"
+            compare_json="$(api_get "${api}/repos/${repo}/compare/${compare_ref}")"
+            ahead_by="$(jq -r '.ahead_by' <<<"$compare_json")"
+            changed_files="$(jq -r '.files | length' <<<"$compare_json")"
+
+            if [ "$ahead_by" != "0" ] || [ "$changed_files" != "0" ]; then
+              echo "Refusing to delete $branch: ahead_by=$ahead_by changed_files=$changed_files" >&2
+              exit 1
+            fi
+
+            open_prs="$(curl --fail --silent --show-error --get \
+              -H "$auth_header" \
+              -H "$accept_header" \
+              -H "$version_header" \
+              --data-urlencode 'state=open' \
+              --data-urlencode "head=${owner}:${branch}" \
+              "${api}/repos/${repo}/pulls")"
+            open_pr_count="$(jq 'length' <<<"$open_prs")"
+
+            if [ "$open_pr_count" != "0" ]; then
+              echo "Refusing to delete $branch: used by $open_pr_count open PR(s)" >&2
+              exit 1
+            fi
+
+            ref_url="${api}/repos/${repo}/git/refs/heads/${encoded_branch}"
+            api_delete "$ref_url"
+
+            verify_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              -H "$auth_header" \
+              -H "$accept_header" \
+              -H "$version_header" \
+              "$branch_url")"
+            if [ "$verify_status" != "404" ]; then
+              echo "Branch deletion could not be verified for $branch (HTTP $verify_status)" >&2
+              exit 1
+            fi
+
+            echo "Deleted verified temporary branch: $branch"
+            echo "| \`$branch\` | deleted |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          remaining=0
+          for branch in "${branches[@]}"; do
+            encoded_branch="$(urlencode "$branch")"
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              -H "$auth_header" \
+              -H "$accept_header" \
+              -H "$version_header" \
+              "${api}/repos/${repo}/branches/${encoded_branch}")"
+            if [ "$status" != "404" ]; then
+              echo "Target branch still exists or could not be verified absent: $branch (HTTP $status)" >&2
+              remaining=$((remaining + 1))
+            fi
+          done
+
+          if [ "$remaining" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "All eight whitelisted temporary audit branches are absent. No other branch names are accepted by this workflow." >> "$GITHUB_STEP_SUMMARY"
