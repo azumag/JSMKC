@@ -14,9 +14,21 @@ const REMOVED_COMMAND_PATTERNS = Object.freeze([
   { kind: 'removed-cli-flag', token: '--skip-seed', pattern: /--skip-seed\b/ },
   { kind: 'removed-migrate-diff-flag', token: '--from-url', pattern: /--from-url\b/ },
   { kind: 'removed-migrate-diff-flag', token: '--to-url', pattern: /--to-url\b/ },
-  { kind: 'removed-migrate-diff-flag', token: '--from-schema-datasource', pattern: /--from-schema-datasource\b/ },
-  { kind: 'removed-migrate-diff-flag', token: '--to-schema-datasource', pattern: /--to-schema-datasource\b/ },
-  { kind: 'removed-migrate-diff-flag', token: '--shadow-database-url', pattern: /--shadow-database-url\b/ },
+  {
+    kind: 'removed-migrate-diff-flag',
+    token: '--from-schema-datasource',
+    pattern: /--from-schema-datasource\b/,
+  },
+  {
+    kind: 'removed-migrate-diff-flag',
+    token: '--to-schema-datasource',
+    pattern: /--to-schema-datasource\b/,
+  },
+  {
+    kind: 'removed-migrate-diff-flag',
+    token: '--shadow-database-url',
+    pattern: /--shadow-database-url\b/,
+  },
 ]);
 
 const REMOVED_RUNTIME_PATTERNS = Object.freeze([
@@ -53,12 +65,21 @@ function inspectLines(filePath, source, patterns) {
   return findings;
 }
 
+function stripCommentOnlyLines(filePath, source) {
+  const extension = path.extname(filePath);
+  return source
+    .split(/\r?\n/)
+    .map((line) => (isCommentOnly(line, extension) ? '' : line))
+    .join('\n');
+}
+
 function inspectDbExecuteFlags(filePath, source) {
   const findings = [];
+  const sanitizedSource = stripCommentOnlyLines(filePath, source);
   const commandPattern = /\bprisma\s+db\s+execute\b[\s\S]{0,240}?--(schema|url)\b/g;
 
-  for (const match of source.matchAll(commandPattern)) {
-    const line = source.slice(0, match.index).split(/\r?\n/).length;
+  for (const match of sanitizedSource.matchAll(commandPattern)) {
+    const line = sanitizedSource.slice(0, match.index).split(/\r?\n/).length;
     findings.push({
       path: filePath.split(path.sep).join('/'),
       line,
@@ -77,7 +98,14 @@ function inspectMetricsPreviewFeature(filePath, source) {
 
   const matchIndex = source.indexOf(previewFeatures);
   const line = matchIndex >= 0 ? source.slice(0, matchIndex).split(/\r?\n/).length : 1;
-  return [{ path: filePath.split(path.sep).join('/'), line, kind: 'removed-metrics-preview', token: 'metrics' }];
+  return [
+    {
+      path: filePath.split(path.sep).join('/'),
+      line,
+      kind: 'removed-metrics-preview',
+      token: 'metrics',
+    },
+  ];
 }
 
 function listFiles(targets, extensions, { exclude = new Set() } = {}) {
@@ -145,7 +173,8 @@ function formatPrismaV7RemovedSurfaces(status, { json = false } = {}) {
     status.findings.length === 0
       ? ['| none | none | none | none |']
       : status.findings.map(
-          ({ path: findingPath, line, kind, token }) => `| \`${findingPath}\` | ${line} | ${kind} | \`${token}\` |`,
+          ({ path: findingPath, line, kind, token }) =>
+            `| \`${findingPath}\` | ${line} | ${kind} | \`${token}\` |`,
         );
 
   return [
@@ -205,4 +234,5 @@ module.exports = {
   inspectMetricsPreviewFeature,
   inspectPrismaV7RemovedSurfaces,
   parseCliOptions,
+  stripCommentOnlyLines,
 };
