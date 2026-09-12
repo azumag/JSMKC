@@ -198,6 +198,18 @@ describe('manual security audit review workflow', () => {
         '${{ steps.compatible_upstream.outputs.latest_compatible_prisma_config_version }}',
       LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:
         '${{ steps.compatible_upstream.outputs.prisma_config_deepmerge_requirement }}',
+      COMPATIBLE_PUBLISHED_REMEDIATION_CANDIDATE:
+        '${{ steps.compatible_upstream.outputs.published_remediation_candidate }}',
+      COMPATIBLE_PUBLISHED_PACKAGE_SET_STATE:
+        '${{ steps.compatible_upstream.outputs.published_remediation_package_set_state }}',
+      COMPATIBLE_PUBLISHED_PRISMA_CLIENT_SELECTOR:
+        '${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_selector }}',
+      COMPATIBLE_PUBLISHED_PRISMA_CLIENT_VERSION:
+        '${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_version }}',
+      COMPATIBLE_PUBLISHED_ADAPTER_D1_SELECTOR:
+        '${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_selector }}',
+      COMPATIBLE_PUBLISHED_ADAPTER_D1_VERSION:
+        '${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_version }}',
       NEXT_MAJOR_UPSTREAM_OUTCOME: '${{ steps.next_major_upstream.outcome }}',
       NEXT_MAJOR_UPSTREAM_STATE: '${{ steps.next_major_upstream.outputs.state }}',
       NEXT_MAJOR_UPSTREAM_REGISTRY: '${{ steps.next_major_upstream.outputs.registry }}',
