@@ -7,7 +7,7 @@ const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./secu
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
 const NPM_VIEW_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
-const SAFE_OUTPUT_PATTERN = /^[^\r\n]{1,200}$/;
+const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
 const REGISTRY_SEMVER_SELECTOR_PATTERN =
   /^(?:\^|~|>=|>|<=|<)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
