@@ -32,6 +32,18 @@ describe('security audit review Prisma 7 advisory outcomes', () => {
     expect(summaryStep?.run).toContain('${{ steps.prisma_v7_typescript_prereqs.outcome }}');
   });
 
+  it('runs the removed-surface probe as read-only advisory evidence', () => {
+    const removedSurfaceStep = steps.find((step) => step.id === 'prisma_v7_removed_surfaces');
+    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+
+    expect(removedSurfaceStep).toBeDefined();
+    expect(removedSurfaceStep?.if).toBe('always()');
+    expect(removedSurfaceStep?.['continue-on-error']).toBe(true);
+    expect(removedSurfaceStep?.run?.trim()).toBe('node scripts/prisma-v7-removed-surfaces.cjs');
+    expect(summaryStep?.run).toContain('| Prisma 7 removed-surface probe |');
+    expect(summaryStep?.run).toContain('${{ steps.prisma_v7_removed_surfaces.outcome }}');
+  });
+
   it('surfaces each existing Prisma 7 advisory probe outcome in the review summary', () => {
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
 
@@ -52,6 +64,7 @@ describe('security audit review Prisma 7 advisory outcomes', () => {
     expect(gateStep).toBeDefined();
     expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_READINESS_OUTCOME');
     expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_TYPESCRIPT_PREREQS_OUTCOME');
+    expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_REMOVED_SURFACES_OUTCOME');
     expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_SUPPORT_SURFACE_OUTCOME');
     expect(gateStep?.env).not.toHaveProperty('PRISMA_V7_ESM_SURFACE_OUTCOME');
   });
