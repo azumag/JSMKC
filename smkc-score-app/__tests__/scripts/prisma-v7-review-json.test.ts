@@ -40,6 +40,17 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
     });
   });
 
+  it('executes every current probe through its JSON CLI mode', () => {
+    const evidence = collectPrismaV7ReviewEvidence();
+
+    expect(evidence.schemaVersion).toBe(REVIEW_SCHEMA_VERSION);
+    expect(evidence.probeCount).toBe(PRISMA_V7_REVIEW_PROBES.length);
+    expect(Object.keys(evidence.probes)).toEqual(PRISMA_V7_REVIEW_PROBES.map((probe) => probe.key));
+    for (const probeEvidence of Object.values(evidence.probes)) {
+      expect(probeEvidence).toEqual(expect.any(Object));
+    }
+  });
+
   it('keeps probe script paths and JSON invocation surface explicit', () => {
     expect(PRISMA_V7_REVIEW_PROBES).toEqual([
       { key: 'readiness', script: 'prisma-v7-readiness.cjs' },
