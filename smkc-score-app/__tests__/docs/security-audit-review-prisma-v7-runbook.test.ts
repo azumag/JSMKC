@@ -1,31 +1,54 @@
 import fs from 'fs';
 import path from 'path';
+import { parse } from 'yaml';
 
-const PRISMA_V7_PROBES = [
-  'prisma-v7-readiness.cjs',
-  'prisma-v7-driver-adapter.cjs',
-  'prisma-v7-typescript-prereqs.cjs',
-  'prisma-v7-env-loading.cjs',
-  'prisma-v7-removed-surfaces.cjs',
-  'prisma-v7-support-surface.cjs',
-  'prisma-v7-esm-surface.cjs',
-] as const;
+import { PRISMA_V7_REVIEW_PROBES } from '../../scripts/prisma-v7-review-json.cjs';
+
+interface WorkflowStep {
+  id?: string;
+  if?: string;
+  'continue-on-error'?: boolean;
+  run?: string;
+}
+
+interface WorkflowConfig {
+  jobs?: { audit?: { steps?: WorkflowStep[] } };
+}
+
+const PRISMA_V7_PROBES = PRISMA_V7_REVIEW_PROBES.map((probe) => probe.script);
 
 describe('security audit review Prisma 7 runbook', () => {
   const repositoryRoot = path.resolve(__dirname, '..', '..', '..');
-  const workflow = fs.readFileSync(
+  const workflowSource = fs.readFileSync(
     path.join(repositoryRoot, '.github', 'workflows', 'security-audit-review.yml'),
     'utf8',
   );
+  const workflow = parse(workflowSource) as WorkflowConfig;
+  const workflowSteps = workflow.jobs?.audit?.steps ?? [];
   const runbook = fs.readFileSync(path.join(repositoryRoot, 'docs', 'security-audit-review-runbook.md'), 'utf8');
   const outcomesDoc = fs.readFileSync(
     path.join(repositoryRoot, 'docs', 'security-audit-review-prisma-v7-outcomes.md'),
     'utf8',
   );
 
+  it('keeps the workflow probe set aligned with the aggregate JSON manifest', () => {
+    const workflowProbeSteps = workflowSteps.filter((step) =>
+      /^node scripts\/prisma-v7-[\w-]+\.cjs$/.test(step.run?.trim() ?? ''),
+    );
+
+    expect(workflowProbeSteps.map((step) => step.run?.trim())).toEqual(
+      PRISMA_V7_REVIEW_PROBES.map((probe) => `node scripts/${probe.script}`),
+    );
+
+    for (const step of workflowProbeSteps) {
+      expect(step.if).toBe('always()');
+      expect(step['continue-on-error']).toBe(true);
+    }
+  });
+
   it('documents every Prisma 7 advisory probe executed by the workflow', () => {
     for (const probe of PRISMA_V7_PROBES) {
-      expect(workflow).toContain(`run: node scripts/${probe}`);
+      expect(workflowSource).toContain(`run: node scripts/${probe}`);
       expect(runbook).toContain(`\`${probe}\``);
     }
   });
