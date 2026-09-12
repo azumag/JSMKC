@@ -75,6 +75,12 @@ jobs:
         continue-on-error: true
         run: node scripts/prisma-v7-readiness.cjs
 
+      - id: prisma_v7_driver_adapter
+        name: Inspect Prisma 7 D1 driver adapter wiring
+        if: always()
+        continue-on-error: true
+        run: node scripts/prisma-v7-driver-adapter.cjs
+
       - id: prisma_v7_typescript_prereqs
         name: Inspect Prisma 7 TypeScript prerequisites
         if: always()
@@ -152,6 +158,7 @@ jobs:
           NEXT_MAJOR_PUBLISHED_PRISMA_CLIENT_VERSION: ${{ steps.next_major_upstream.outputs.published_remediation_prisma_client_version }}
           NEXT_MAJOR_PUBLISHED_ADAPTER_D1_VERSION: ${{ steps.next_major_upstream.outputs.published_remediation_adapter_d1_version }}
           PRISMA_V7_READINESS_OUTCOME: ${{ steps.prisma_v7_readiness.outcome }}
+          PRISMA_V7_DRIVER_ADAPTER_OUTCOME: ${{ steps.prisma_v7_driver_adapter.outcome }}
           PRISMA_V7_SUPPORT_SURFACE_OUTCOME: ${{ steps.prisma_v7_support_surface.outcome }}
           PRISMA_V7_ESM_SURFACE_OUTCOME: ${{ steps.prisma_v7_esm_surface.outcome }}
         run: |
@@ -174,6 +181,7 @@ jobs:
             echo "| Compatible Prisma release probe | \`${COMPATIBLE_UPSTREAM_OUTCOME}\` |"
             echo "| Next-major Prisma remediation probe | \`${NEXT_MAJOR_UPSTREAM_OUTCOME}\` |"
             echo "| Prisma 7 migration readiness probe | \`${PRISMA_V7_READINESS_OUTCOME}\` |"
+            echo "| Prisma 7 D1 driver-adapter probe | \`${PRISMA_V7_DRIVER_ADAPTER_OUTCOME}\` |"
             echo "| Prisma 7 TypeScript prerequisite probe | \`${{ steps.prisma_v7_typescript_prereqs.outcome }}\` |"
             echo "| Prisma 7 environment loading probe | \`${{ steps.prisma_v7_env_loading.outcome }}\` |"
             echo "| Prisma 7 removed-surface probe | \`${{ steps.prisma_v7_removed_surfaces.outcome }}\` |"
@@ -230,7 +238,7 @@ jobs:
             echo "| Candidate @prisma/client | \`${NEXT_MAJOR_PUBLISHED_PRISMA_CLIENT_VERSION:-unavailable}\` |"
             echo "| Candidate @prisma/adapter-d1 | \`${NEXT_MAJOR_PUBLISHED_ADAPTER_D1_VERSION:-unavailable}\` |"
             echo
-            echo "Next-major, Prisma 7 readiness, Prisma 7 environment-loading, Prisma 7 removed-surface, Prisma 7 support-code, and Prisma 7 ESM migration evidence are advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
+            echo "Next-major, Prisma 7 readiness, Prisma 7 D1 driver-adapter, Prisma 7 environment-loading, Prisma 7 removed-surface, Prisma 7 support-code, and Prisma 7 ESM migration evidence are advisory only; a Prisma major upgrade requires an explicit dependency migration PR and full compatibility validation."
             echo
             echo "Prisma 7 TypeScript prerequisite evidence is advisory only and can use package-lock evidence when dependencies are not installed by this read-only review workflow."
             echo
