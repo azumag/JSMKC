@@ -132,6 +132,12 @@ jobs:
           PRISMA_CONFIG_SELECTOR: ${{ steps.compatible_upstream.outputs.prisma_config_selector }}
           LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION: ${{ steps.compatible_upstream.outputs.latest_compatible_prisma_config_version }}
           LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT: ${{ steps.compatible_upstream.outputs.prisma_config_deepmerge_requirement }}
+          COMPATIBLE_PUBLISHED_REMEDIATION_CANDIDATE: ${{ steps.compatible_upstream.outputs.published_remediation_candidate }}
+          COMPATIBLE_PUBLISHED_PACKAGE_SET_STATE: ${{ steps.compatible_upstream.outputs.published_remediation_package_set_state }}
+          COMPATIBLE_PUBLISHED_PRISMA_CLIENT_SELECTOR: ${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_selector }}
+          COMPATIBLE_PUBLISHED_PRISMA_CLIENT_VERSION: ${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_version }}
+          COMPATIBLE_PUBLISHED_ADAPTER_D1_SELECTOR: ${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_selector }}
+          COMPATIBLE_PUBLISHED_ADAPTER_D1_VERSION: ${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_version }}
           NEXT_MAJOR_UPSTREAM_OUTCOME: ${{ steps.next_major_upstream.outcome }}
           NEXT_MAJOR_UPSTREAM_STATE: ${{ steps.next_major_upstream.outputs.state }}
           NEXT_MAJOR_UPSTREAM_REGISTRY: ${{ steps.next_major_upstream.outputs.registry }}
@@ -202,10 +208,12 @@ jobs:
             echo "| prisma → @prisma/config selector | \`${PRISMA_CONFIG_SELECTOR:-unavailable}\` |"
             echo "| Latest compatible @prisma/config | \`${LATEST_COMPATIBLE_PRISMA_CONFIG_VERSION:-unavailable}\` |"
             echo "| Compatible @prisma/config → deepmerge-ts requirement | \`${LATEST_COMPATIBLE_DEEPMERGE_REQUIREMENT:-unavailable}\` |"
-            echo "| Published remediation candidate | \`${{ steps.compatible_upstream.outputs.published_remediation_candidate }}\` |"
-            echo "| Published remediation package set | \`${{ steps.compatible_upstream.outputs.published_remediation_package_set_state }}\` |"
-            echo "| Candidate @prisma/client | \`${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_version }}\` |"
-            echo "| Candidate @prisma/adapter-d1 | \`${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_version }}\` |"
+            echo "| Published remediation candidate | \`${COMPATIBLE_PUBLISHED_REMEDIATION_CANDIDATE:-unavailable}\` |"
+            echo "| Published remediation package set | \`${COMPATIBLE_PUBLISHED_PACKAGE_SET_STATE:-unavailable}\` |"
+            echo "| Manifest @prisma/client selector | \`${COMPATIBLE_PUBLISHED_PRISMA_CLIENT_SELECTOR:-unavailable}\` |"
+            echo "| Latest manifest-compatible @prisma/client | \`${COMPATIBLE_PUBLISHED_PRISMA_CLIENT_VERSION:-unavailable}\` |"
+            echo "| Manifest @prisma/adapter-d1 selector | \`${COMPATIBLE_PUBLISHED_ADAPTER_D1_SELECTOR:-unavailable}\` |"
+            echo "| Latest manifest-compatible @prisma/adapter-d1 | \`${COMPATIBLE_PUBLISHED_ADAPTER_D1_VERSION:-unavailable}\` |"
             echo
             echo "| Next-major remediation evidence (advisory only) | Value |"
             echo "| --- | --- |"
@@ -243,7 +251,9 @@ jobs:
 
           compatible_candidate="${{ steps.compatible_upstream.outputs.published_remediation_candidate }}"
           compatible_package_set_state="${{ steps.compatible_upstream.outputs.published_remediation_package_set_state }}"
+          compatible_client_selector="${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_selector }}"
           compatible_client="${{ steps.compatible_upstream.outputs.published_remediation_prisma_client_version }}"
+          compatible_adapter_selector="${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_selector }}"
           compatible_adapter="${{ steps.compatible_upstream.outputs.published_remediation_adapter_d1_version }}"
 
           if [ "$COMPATIBLE_UPSTREAM_STATE" = "compatible-forward-remediation-available" ]; then
@@ -253,11 +263,11 @@ jobs:
             fi
 
             if [ "$compatible_candidate" = "none" ] && [ "$compatible_package_set_state" = "incomplete" ]; then
-              echo "A compatible Prisma CLI/config remediation exists, but manifest-compatible @prisma/client (${compatible_client:-unavailable}) has not reached the CLI candidate yet; @prisma/adapter-d1 evidence is ${compatible_adapter:-unavailable}. Keep #3114 active and review again later." >&2
+              echo "A compatible Prisma CLI/config remediation exists, but @prisma/client selector ${compatible_client_selector:-unavailable} resolves latest ${compatible_client:-unavailable} without the CLI candidate; @prisma/adapter-d1 selector ${compatible_adapter_selector:-unavailable} resolves latest ${compatible_adapter:-unavailable}. Keep #3114 active and review again later." >&2
               exit 0
             fi
 
-            echo "Compatible remediation evidence is unavailable or inconsistent; review the package-set evidence above before changing #3114." >&2
+            echo "Compatible remediation evidence is unavailable or inconsistent; @prisma/client selector=${compatible_client_selector:-unavailable}, version=${compatible_client:-unavailable}; @prisma/adapter-d1 selector=${compatible_adapter_selector:-unavailable}, version=${compatible_adapter:-unavailable}. Review the package-set evidence above before changing #3114." >&2
             exit 1
           fi
 
