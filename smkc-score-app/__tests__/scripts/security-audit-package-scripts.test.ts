@@ -10,8 +10,14 @@ describe('security audit package scripts', () => {
     expect(packageJson.scripts?.['security:audit:upstream']).toBe(
       'node scripts/security-audit-upstream.js',
     );
+    expect(packageJson.scripts?.['security:audit:upstream:json']).toBe(
+      'node scripts/security-audit-upstream.js --json',
+    );
     expect(packageJson.scripts?.['security:audit:next-major']).toBe(
       'node scripts/security-audit-next-major.js',
+    );
+    expect(packageJson.scripts?.['security:audit:next-major:json']).toBe(
+      'node scripts/security-audit-next-major.js --json',
     );
   });
 });
