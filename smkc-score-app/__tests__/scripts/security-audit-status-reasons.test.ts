@@ -54,7 +54,9 @@ describe('security audit status diagnostic reasons', () => {
 
     const changedLockfile = structuredClone(lockfile);
     changedLockfile.packages['node_modules/deepmerge-ts'].version = '7.1.6';
-    expect(getSecurityAuditExceptionStatus({ manifest, lockfile: changedLockfile, now: activeNow })).toMatchObject({
+    expect(
+      getSecurityAuditExceptionStatus({ manifest, lockfile: changedLockfile, now: activeNow }),
+    ).toMatchObject({
       state: 'context-changed',
       reason: 'temporary-exception-context-changed',
     });
