@@ -76,6 +76,25 @@ describe('compatible Prisma remediation package set', () => {
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('manifest-compatible @prisma/adapter-d1: 7.10.0');
   });
 
+  it('keeps a remediation candidate ready when a newer manifest-compatible client is also published', () => {
+    const npmView = jest.fn((selector: string) => {
+      if (selector === '@prisma/client@^6.19.3') return ['6.19.3', '6.20.0', '6.21.0'];
+      if (selector === '@prisma/adapter-d1@^7.8.0') return ['7.8.0', '7.10.0'];
+      throw new Error(`unexpected npm view: ${selector}`);
+    });
+
+    const status = enrichCompatiblePrismaReleaseWithPublishedPackageSet(remediatedStatus, manifest, npmView);
+
+    expect(status.publishedRemediationPackageSet).toEqual({
+      state: 'ready',
+      prismaClientSelector: '^6.19.3',
+      prismaClientVersion: '6.21.0',
+      prismaAdapterD1Selector: '^7.8.0',
+      prismaAdapterD1Version: '7.10.0',
+    });
+    expect(getPublishedRemediationCandidate(status)).toBe('6.20.0');
+  });
+
   it('withholds the candidate when a runtime package cannot be confirmed', () => {
     const npmView = jest.fn((selector: string) => {
       if (selector === '@prisma/client@^6.19.3') return '6.20.0';
@@ -96,7 +115,7 @@ describe('compatible Prisma remediation package set', () => {
     expect(formatCompatiblePrismaReleaseStatus(status)).toContain('manifest @prisma/adapter-d1 selector: ^7.8.0');
   });
 
-  it('marks the package set incomplete when the manifest-compatible client does not align with the CLI candidate', () => {
+  it('marks the package set incomplete when the manifest-compatible client does not include the CLI candidate', () => {
     const npmView = jest.fn((selector: string) => {
       if (selector === '@prisma/client@^6.19.3') return '6.19.4';
       if (selector === '@prisma/adapter-d1@^7.8.0') return '7.10.0';
