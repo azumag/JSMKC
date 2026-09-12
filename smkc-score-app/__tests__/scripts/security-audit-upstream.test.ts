@@ -54,10 +54,17 @@ describe('compatible Prisma upstream probe', () => {
     expect(() => getPrismaConfigDeepmergeRequirement({ 'deepmerge-ts': '8.0.2\nmalformed' })).toThrow(
       'deepmerge-ts requirement',
     );
+    expect(() => getPrismaConfigDeepmergeRequirement({ 'deepmerge-ts': '\u001b[31m8.0.2' })).toThrow(
+      'deepmerge-ts requirement',
+    );
   });
 
   it('selects the newest comparable stable version', () => {
     expect(selectLatestVersion(['6.19.3', '6.20.0-dev.1', '6.20.0', '6.19.4'])).toBe('6.20.0');
+  });
+
+  it('rejects registry versions containing control characters', () => {
+    expect(() => selectLatestVersion(['6.19.3\u001b[31m'])).toThrow('npm view returned an invalid Prisma version');
   });
 
   it('ignores newer prerelease versions when selecting the remediation candidate', () => {
@@ -262,6 +269,31 @@ describe('compatible Prisma upstream probe', () => {
       expect(output).toContain('prisma_config_selector=6.19.3\n');
       expect(output).toContain('latest_compatible_prisma_config_version=6.19.3\n');
       expect(output).toContain('prisma_config_deepmerge_requirement=7.1.5\n');
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects control characters before writing GitHub Actions outputs', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'security-audit-upstream-'));
+    const outputPath = path.join(directory, 'github-output.txt');
+
+    try {
+      expect(() =>
+        writeGitHubOutputs(
+          {
+            state: 'compatible-release-still-vulnerable\tmalformed',
+            registry: CANONICAL_NPM_REGISTRY,
+            prismaSelector: '^6.19.3',
+            latestCompatiblePrismaVersion: '6.19.3',
+            prismaConfigSelector: '6.19.3',
+            latestCompatiblePrismaConfigVersion: '6.19.3',
+            prismaConfigDeepmergeRequirement: '7.1.5',
+          },
+          outputPath,
+        ),
+      ).toThrow('refusing unsafe GitHub Actions output for state');
+      expect(fs.existsSync(outputPath)).toBe(false);
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
