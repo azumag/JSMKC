@@ -237,6 +237,28 @@ jobs:
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Summarize probe reason evidence
+        if: always()
+        env:
+          EXCEPTION_STATUS_REASON: ${{ steps.exception_status.outputs.reason }}
+          COMPATIBLE_PACKAGE_SET_REASON: ${{ steps.compatible_upstream.outputs.published_remediation_package_set_reason }}
+          NEXT_MAJOR_PACKAGE_SET_REASON: ${{ steps.next_major_upstream.outputs.published_remediation_package_set_reason }}
+          NEXT_MAJOR_PRISMA_CLIENT_SELECTOR: ${{ steps.next_major_upstream.outputs.published_remediation_prisma_client_selector }}
+          NEXT_MAJOR_ADAPTER_D1_SELECTOR: ${{ steps.next_major_upstream.outputs.published_remediation_adapter_d1_selector }}
+        run: |
+          {
+            echo
+            echo "### Probe reason and selector diagnostics"
+            echo
+            echo "| Evidence | Value |"
+            echo "| --- | --- |"
+            echo "| Temporary exception reason | \`${EXCEPTION_STATUS_REASON:-none}\` |"
+            echo "| Compatible package-set reason | \`${COMPATIBLE_PACKAGE_SET_REASON:-unavailable}\` |"
+            echo "| Next-major package-set reason | \`${NEXT_MAJOR_PACKAGE_SET_REASON:-unavailable}\` |"
+            echo "| Next-major @prisma/client selector | \`${NEXT_MAJOR_PRISMA_CLIENT_SELECTOR:-unavailable}\` |"
+            echo "| Next-major @prisma/adapter-d1 selector | \`${NEXT_MAJOR_ADAPTER_D1_SELECTOR:-unavailable}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - id: compatible_upstream_gate
         name: Require explicit follow-up for compatible remediation
         if: always()
