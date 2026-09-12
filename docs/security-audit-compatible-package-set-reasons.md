@@ -14,4 +14,6 @@ Issue #3114 の current-compatible remediation probe は、package-set の大分
 
 probe の通常出力には `published remediation package set reason`、GitHub Actions output には `published_remediation_package_set_reason` を追加します。selector、解決済みversion、state と reason を組み合わせることで、registry 障害と publication skew を区別できます。
 
+手動 `Security audit review` の Job Summary でも、current-compatible / next-major の package-set reason を専用の診断表に残します。next-major については runtime package の selector も併記し、保存された summary だけから「どの manifest-compatible package set を照会した結果か」を追跡できます。これは監査証拠の表示追加だけで、compatible-range gate の入力や成功・失敗条件は変更しません。
+
 この reason は監査・診断用であり、依存version、lockfile、Prisma schema/config、D1 binding、Cloudflare deployment、#3114 の暫定 audit exception を変更しません。remediation candidate が actionable かどうかは引き続き `published_remediation_candidate` と package-set `state` を既存 gate で評価します。
