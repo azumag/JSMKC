@@ -102,8 +102,13 @@ jobs:
             fi
 
             protected="$(jq -r '.protected' /tmp/branch.json)"
+            initial_head_sha="$(jq -r '.commit.sha' /tmp/branch.json)"
             if [ "$protected" != "false" ]; then
               echo "Refusing to delete protected branch: $branch" >&2
+              exit 1
+            fi
+            if ! [[ "$initial_head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Refusing to delete $branch: invalid head SHA from branch API" >&2
               exit 1
             fi
 
@@ -114,6 +119,18 @@ jobs:
 
             if [ "$ahead_by" != "0" ] || [ "$changed_files" != "0" ]; then
               echo "Refusing to delete $branch: ahead_by=$ahead_by changed_files=$changed_files" >&2
+              exit 1
+            fi
+
+            latest_branch_json="$(api_get "$branch_url")"
+            latest_head_sha="$(jq -r '.commit.sha' <<<"$latest_branch_json")"
+            latest_protected="$(jq -r '.protected' <<<"$latest_branch_json")"
+            if [ "$latest_protected" != "false" ]; then
+              echo "Refusing to delete branch that became protected: $branch" >&2
+              exit 1
+            fi
+            if [ "$latest_head_sha" != "$initial_head_sha" ]; then
+              echo "Refusing to delete branch that moved during verification: $branch ($initial_head_sha -> $latest_head_sha)" >&2
               exit 1
             fi
 
