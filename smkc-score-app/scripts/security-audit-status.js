@@ -22,7 +22,7 @@ const TRACKED_DEPENDENCY_PATHS = {
   deepmergeTs: 'node_modules/deepmerge-ts',
 };
 const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
-const SAFE_REQUIREMENT_PATTERN = /^[^\r\n]{1,200}$/;
+const SAFE_REQUIREMENT_PATTERN = /^[ -~]{1,200}$/;
 const COMPARABLE_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 const SIMPLE_REQUIREMENT_PATTERN = /^(?:\^|~|>=)?\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/;
 const PATCHED_DEEPMERGE_VERSION = Object.freeze({ major: 8, minor: 0, patch: 0 });
