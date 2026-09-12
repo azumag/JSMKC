@@ -19,9 +19,13 @@ describe('Prisma 7 readiness package scripts', () => {
       'prisma:v7:typescript-prereqs': 'node scripts/prisma-v7-typescript-prereqs.cjs',
       'prisma:v7:typescript-prereqs:json': 'node scripts/prisma-v7-typescript-prereqs.cjs --json',
       'prisma:v7:env-loading': 'node scripts/prisma-v7-env-loading.cjs',
+      'prisma:v7:env-loading:json': 'node scripts/prisma-v7-env-loading.cjs --json',
       'prisma:v7:removed-surfaces': 'node scripts/prisma-v7-removed-surfaces.cjs',
+      'prisma:v7:removed-surfaces:json': 'node scripts/prisma-v7-removed-surfaces.cjs --json',
       'prisma:v7:support-surface': 'node scripts/prisma-v7-support-surface.cjs',
+      'prisma:v7:support-surface:json': 'node scripts/prisma-v7-support-surface.cjs --json',
       'prisma:v7:esm-surface': 'node scripts/prisma-v7-esm-surface.cjs',
+      'prisma:v7:esm-surface:json': 'node scripts/prisma-v7-esm-surface.cjs --json',
     });
   });
 
