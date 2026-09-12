@@ -8,6 +8,8 @@ npm run security:audit:upstream
 npm run security:audit:next-major
 ```
 
+機械処理用の JSON が必要な場合は `npm run security:audit:upstream:json` と `npm run security:audit:next-major:json` を使う。JSON entrypoint は各 probe の既存 `--json` モードを固定して呼び出すため、workflow や手動調査から raw script path と CLI option を重複管理しなくてよい。
+
 `security:audit:upstream` は現在の `package.json` にある Prisma selector の範囲内だけを canonical npm registry へ問い合わせ、互換範囲内に安全な forward remediation と必要な runtime package set が公開されたかを確認する。
 
 `security:audit:next-major` は現在の manifest を変更せず、次 major 側にのみ remediation が存在するかを確認する read-only probe である。major migration の実行可否を自動判断するものではない。
