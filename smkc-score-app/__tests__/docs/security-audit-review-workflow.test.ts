@@ -115,17 +115,22 @@ describe('manual security audit review workflow', () => {
     const steps = auditJob.steps ?? [];
     const compatibleStep = steps.find((step) => step.id === 'compatible_upstream');
     const nextMajorStep = steps.find((step) => step.id === 'next_major_upstream');
-    const timestampStep = steps.find((step) => step.id === 'next_major_upstream_timestamp');
+    const standaloneTimestampStep = steps.find((step) => step.id === 'next_major_upstream_timestamp');
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
     expect(nextMajorStep?.if).toBe('always()');
     expect(nextMajorStep?.['continue-on-error']).toBe(true);
-    expect(nextMajorStep?.run?.trim()).toBe('node scripts/security-audit-next-major.js');
-    expect(timestampStep?.if).toBe('always()');
+    expect(nextMajorStep?.run).toContain('node scripts/security-audit-next-major.js');
+    expect(nextMajorStep?.run).toContain("date -u +'%Y-%m-%dT%H:%M:%SZ'");
+    expect(nextMajorStep?.run).toContain('$GITHUB_OUTPUT');
+    expect(nextMajorStep?.run?.indexOf('node scripts/security-audit-next-major.js')).toBeLessThan(
+      nextMajorStep?.run?.indexOf("date -u +'%Y-%m-%dT%H:%M:%SZ'") ?? -1,
+    );
+    expect(standaloneTimestampStep).toBeUndefined();
     expect(steps.indexOf(compatibleStep as WorkflowStep)).toBeLessThan(steps.indexOf(nextMajorStep as WorkflowStep));
-    expect(steps.indexOf(nextMajorStep as WorkflowStep)).toBeLessThan(steps.indexOf(timestampStep as WorkflowStep));
-    expect(steps.indexOf(timestampStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
+    expect(steps.indexOf(nextMajorStep as WorkflowStep)).toBeLessThan(steps.indexOf(summaryStep as WorkflowStep));
+    expect(summaryStep?.run).toContain("steps.next_major_upstream.outputs.checked_at || 'unavailable'");
     expect(gateStep?.env).not.toHaveProperty('NEXT_MAJOR_UPSTREAM_STATE');
     expect(gateStep?.env).not.toHaveProperty('NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE');
   });
