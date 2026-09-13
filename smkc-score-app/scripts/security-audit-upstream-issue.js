@@ -384,6 +384,47 @@ function writeGitHubOutputs(issue, outputPath = process.env.GITHUB_OUTPUT) {
   );
 }
 
+function writeGitHubSummary(issue, summaryPath = process.env.GITHUB_STEP_SUMMARY) {
+  if (!summaryPath) {
+    return;
+  }
+
+  const summaryValues = {
+    comment_count: String(issue.commentCount),
+    latest_comment_id: issue.latestComment ? String(issue.latestComment.id) : 'none',
+    latest_comment_author: issue.latestComment?.author ?? 'none',
+    latest_comment_author_association: issue.latestComment?.authorAssociation ?? 'none',
+    latest_comment_created_at: issue.latestComment?.createdAt ?? 'none',
+    latest_comment_updated_at: issue.latestComment?.updatedAt ?? 'none',
+    latest_comment_url: issue.latestComment?.url ?? 'none',
+  };
+
+  for (const [key, value] of Object.entries(summaryValues)) {
+    if (typeof value !== 'string' || !SAFE_GITHUB_OUTPUT_PATTERN.test(value)) {
+      throw new Error(`refusing unsafe GitHub Actions summary value for ${key}`);
+    }
+  }
+
+  const summary = [
+    '### Prisma upstream discussion evidence (advisory only)',
+    '',
+    '| Evidence | Value |',
+    '| --- | --- |',
+    `| Comment count | \`${summaryValues.comment_count}\` |`,
+    `| Latest comment ID | \`${summaryValues.latest_comment_id}\` |`,
+    `| Latest comment author | \`${summaryValues.latest_comment_author}\` |`,
+    `| Latest comment author association | \`${summaryValues.latest_comment_author_association}\` |`,
+    `| Latest comment created at | \`${summaryValues.latest_comment_created_at}\` |`,
+    `| Latest comment updated at | \`${summaryValues.latest_comment_updated_at}\` |`,
+    `| Latest comment URL | \`${summaryValues.latest_comment_url}\` |`,
+    '',
+    'Discussion metadata is advisory only; comment bodies are not included and discussion does not change the compatible remediation gate.',
+    '',
+  ].join('\n');
+
+  fs.appendFileSync(summaryPath, `${summary}\n`, 'utf8');
+}
+
 async function main() {
   let cliOptions;
   try {
@@ -405,6 +446,7 @@ async function main() {
 
   try {
     writeGitHubOutputs(issue);
+    writeGitHubSummary(issue);
   } catch (error) {
     process.stderr.write(`Failed to publish upstream issue outputs: ${error.message}\n`);
     process.exit(1);
@@ -433,4 +475,5 @@ module.exports = {
   normalizeUpstreamIssue,
   parseCliOptions,
   writeGitHubOutputs,
+  writeGitHubSummary,
 };
