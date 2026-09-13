@@ -8,7 +8,11 @@ function extractImplementationReasons(source: string): string[] {
   expect(functionStart).toBeGreaterThanOrEqual(0);
   expect(functionEnd).toBeGreaterThan(functionStart);
 
-  return Array.from(source.slice(functionStart, functionEnd).matchAll(/reason: (?:[^\n]*?\? )?'([^']+)'/g), (match) => match[1]);
+  return source
+    .slice(functionStart, functionEnd)
+    .split('\n')
+    .filter((line) => line.includes('reason:'))
+    .flatMap((line) => Array.from(line.matchAll(/'([^']+)'/g), (match) => match[1]));
 }
 
 function extractDocumentedReasons(documentation: string): string[] {
