@@ -45,9 +45,49 @@ function findConstructedAdapterLocalName(source, adapterConstructorLocalName) {
 
 function extractPrismaClientOptions(source, prismaClientLocalName) {
   if (!prismaClientLocalName) return null;
+
   const clientName = escapeRegExp(prismaClientLocalName);
-  const match = new RegExp(`\\bnew\\s+${clientName}\\s*\\(\\s*\\{([\\s\\S]{0,4000}?)\\}\\s*\\)`).exec(source);
-  return match?.[1] ?? null;
+  const opening = new RegExp(`\\bnew\\s+${clientName}\\s*\\(\\s*\\{`).exec(source);
+  if (!opening) return null;
+
+  const openBraceIndex = opening.index + opening[0].lastIndexOf('{');
+  let depth = 1;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = openBraceIndex + 1; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      continue;
+    }
+
+    if (char === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(openBraceIndex + 1, index);
+    }
+  }
+
+  return null;
 }
 
 function prismaClientOptionsUseAdapter(clientOptions, adapterInstanceLocalName) {
