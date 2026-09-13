@@ -46,7 +46,16 @@ function normalizeUpstreamIssue(payload) {
   };
 }
 
-async function fetchUpstreamIssue({ fetchImpl = globalThis.fetch, token = process.env.GITHUB_TOKEN } = {}) {
+function getCheckedAt(clock = () => new Date()) {
+  const checkedAt = clock();
+  if (!(checkedAt instanceof Date) || !Number.isFinite(checkedAt.getTime())) {
+    throw new Error('upstream issue check clock returned an invalid date');
+  }
+
+  return checkedAt.toISOString();
+}
+
+async function fetchUpstreamIssue({ fetchImpl = globalThis.fetch, token = process.env.GITHUB_TOKEN, clock } = {}) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('global fetch is unavailable');
   }
@@ -78,7 +87,10 @@ async function fetchUpstreamIssue({ fetchImpl = globalThis.fetch, token = proces
     throw new Error(`upstream issue response was not valid JSON: ${error.message}`);
   }
 
-  return normalizeUpstreamIssue(payload);
+  return {
+    ...normalizeUpstreamIssue(payload),
+    checkedAt: getCheckedAt(clock),
+  };
 }
 
 function formatUpstreamIssue(issue, { json = false } = {}) {
@@ -89,6 +101,7 @@ function formatUpstreamIssue(issue, { json = false } = {}) {
   return (
     `Prisma upstream issue: #${issue.issueNumber}\n` +
     `state: ${issue.state}\n` +
+    `checked at: ${issue.checkedAt}\n` +
     `updated at: ${issue.updatedAt}\n` +
     `url: ${issue.url}\n`
   );
@@ -102,6 +115,7 @@ function writeGitHubOutputs(issue, outputPath = process.env.GITHUB_OUTPUT) {
   const outputs = {
     issue_number: String(issue.issueNumber),
     state: issue.state,
+    checked_at: issue.checkedAt,
     updated_at: issue.updatedAt,
     url: issue.url,
   };
@@ -157,6 +171,7 @@ module.exports = {
   UPSTREAM_ISSUE_NUMBER,
   fetchUpstreamIssue,
   formatUpstreamIssue,
+  getCheckedAt,
   normalizeUpstreamIssue,
   parseCliOptions,
   writeGitHubOutputs,
