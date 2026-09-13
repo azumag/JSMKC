@@ -68,6 +68,11 @@ function prismaClientOptionsHaveOption(clientOptions, optionName) {
   return new RegExp(`(?:^|,)\\s*['"]?${escapedOptionName}['"]?\\s*(?::|,|$)`, 'm').test(clientOptions);
 }
 
+function prismaClientOptionsHaveSpread(clientOptions) {
+  if (!clientOptions) return false;
+  return /(?:^|,)\s*\.\.\./m.test(clientOptions);
+}
+
 function inspectPrismaV7DriverAdapter(source) {
   if (typeof source !== 'string') {
     return {
@@ -81,6 +86,7 @@ function inspectPrismaV7DriverAdapter(source) {
         passesAdapterToPrismaClient: false,
         omitsLegacyDatasourcesOption: false,
         omitsLegacyDatasourceUrlOption: false,
+        omitsUnknownSpreadOptions: false,
       },
     };
   }
@@ -99,6 +105,7 @@ function inspectPrismaV7DriverAdapter(source) {
       clientOptions !== null && !prismaClientOptionsHaveOption(clientOptions, 'datasources'),
     omitsLegacyDatasourceUrlOption:
       clientOptions !== null && !prismaClientOptionsHaveOption(clientOptions, 'datasourceUrl'),
+    omitsUnknownSpreadOptions: clientOptions !== null && !prismaClientOptionsHaveSpread(clientOptions),
   };
 
   return {
@@ -129,7 +136,7 @@ function formatPrismaV7DriverAdapter(status, { json = false } = {}) {
     '| --- | --- |',
     checkRows,
     '',
-    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter, passes that constructed adapter when PrismaClient is created, and does not retain the legacy `datasources` / `datasourceUrl` constructor overrides from the Prisma 6 connection style.',
+    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter, passes that constructed adapter when PrismaClient is created, does not retain the legacy `datasources` / `datasourceUrl` constructor overrides from the Prisma 6 connection style, and does not hide constructor options behind an unresolved object spread.',
     '',
   ].join('\n');
 }
@@ -170,6 +177,7 @@ module.exports = {
   inspectPrismaV7DriverAdapter,
   parseCliOptions,
   prismaClientOptionsHaveOption,
+  prismaClientOptionsHaveSpread,
   prismaClientOptionsUseAdapter,
   stripComments,
 };
