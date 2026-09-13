@@ -216,7 +216,7 @@ function prismaClientOptionsUseAdapter(clientOptions, adapterInstanceLocalName) 
   const instanceName = escapeRegExp(adapterInstanceLocalName);
   return splitTopLevelObjectEntries(clientOptions).some((entry) => {
     if (adapterInstanceLocalName === 'adapter' && entry === 'adapter') return true;
-    return new RegExp(`^(?:['"]adapter['"]|adapter)\\s*:\\s*${instanceName}\\b`).test(entry);
+    return new RegExp(`^(?:['"]adapter['"]|adapter)\\s*:\\s*${instanceName}\\s*$`).test(entry);
   });
 }
 
@@ -230,6 +230,10 @@ function prismaClientOptionsHaveOption(clientOptions, optionName) {
 
 function prismaClientOptionsHaveSpread(clientOptions) {
   return splitTopLevelObjectEntries(clientOptions).some((entry) => entry.startsWith('...'));
+}
+
+function prismaClientOptionsHaveComputedKey(clientOptions) {
+  return splitTopLevelObjectEntries(clientOptions).some((entry) => entry.startsWith('['));
 }
 
 function inspectPrismaV7DriverAdapter(source) {
@@ -246,6 +250,7 @@ function inspectPrismaV7DriverAdapter(source) {
         omitsLegacyDatasourcesOption: false,
         omitsLegacyDatasourceUrlOption: false,
         omitsUnknownSpreadOptions: false,
+        omitsComputedOptionKeys: false,
       },
     };
   }
@@ -265,6 +270,7 @@ function inspectPrismaV7DriverAdapter(source) {
     omitsLegacyDatasourceUrlOption:
       clientOptions !== null && !prismaClientOptionsHaveOption(clientOptions, 'datasourceUrl'),
     omitsUnknownSpreadOptions: clientOptions !== null && !prismaClientOptionsHaveSpread(clientOptions),
+    omitsComputedOptionKeys: clientOptions !== null && !prismaClientOptionsHaveComputedKey(clientOptions),
   };
 
   return {
@@ -295,7 +301,7 @@ function formatPrismaV7DriverAdapter(status, { json = false } = {}) {
     '| --- | --- |',
     checkRows,
     '',
-    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter, passes that constructed adapter as a top-level PrismaClient option, does not retain the legacy top-level `datasources` / `datasourceUrl` constructor overrides from the Prisma 6 connection style, and does not hide top-level constructor options behind an unresolved object spread.',
+    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter, passes that exact constructed adapter as a top-level PrismaClient option, does not retain the legacy top-level `datasources` / `datasourceUrl` constructor overrides from the Prisma 6 connection style, and does not hide top-level constructor options behind an unresolved object spread or computed property key.',
     '',
   ].join('\n');
 }
@@ -335,6 +341,7 @@ module.exports = {
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
   parseCliOptions,
+  prismaClientOptionsHaveComputedKey,
   prismaClientOptionsHaveOption,
   prismaClientOptionsHaveSpread,
   prismaClientOptionsUseAdapter,

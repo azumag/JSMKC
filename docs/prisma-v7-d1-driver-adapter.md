@@ -17,25 +17,28 @@ npm run prisma:v7:driver-adapter:json
 
 The JSON mode reports the same `ready`, detected local names, and per-check booleans as the human-readable mode. It does not write Markdown to `GITHUB_STEP_SUMMARY`; unsupported CLI arguments fail instead of being ignored.
 
-It checks the application client path in `src/lib/prisma.ts` for six independent pieces of evidence:
+It checks the application client path in `src/lib/prisma.ts` for seven independent pieces of evidence:
 
 1. `PrismaD1` is imported from `@prisma/adapter-d1`.
 2. The imported D1 adapter is actually constructed.
-3. A Prisma client is created with a top-level `adapter` option that references that constructed adapter.
+3. A Prisma client is created with a top-level `adapter` option whose value is exactly that constructed adapter identifier.
 4. The Prisma client's top-level options do not retain the Prisma 6 `datasources` connection override.
 5. The Prisma client's top-level options do not retain the Prisma 6 `datasourceUrl` connection override.
 6. The Prisma client's top-level options do not contain an unresolved object spread such as `...legacyOptions`.
+7. The Prisma client's top-level options do not use computed property keys such as `[legacyKey]: value`.
 
-The last three checks prevent a false-positive `ready` result when adapter wiring has been added but legacy constructor-level connection configuration has not been removed. Prisma's v7 upgrade guidance moves direct database connectivity to driver adapters and shows the old `datasources` / `datasourceUrl` constructor shape as the pre-v7 form. Because this probe deliberately avoids executing application code, it cannot safely prove what an arbitrary top-level spread object contributes to the Prisma client options; any such spread therefore fails closed until its properties are explicit.
+The last four checks prevent a false-positive `ready` result when adapter wiring has been added but legacy constructor-level connection configuration has not been removed or cannot be proven absent. Prisma's v7 upgrade guidance moves direct database connectivity to driver adapters and shows the old `datasources` / `datasourceUrl` constructor shape as the pre-v7 form. Because this probe deliberately avoids executing application code, it cannot safely prove what an arbitrary top-level spread contributes or what key a computed property expression evaluates to. Top-level spreads and computed keys therefore fail closed until their properties are explicit static entries.
 
-The constructor option extractor walks balanced object braces instead of stopping at the first text that looks like `})`. This matters for legitimate nested option expressions such as `configureLogging({ level: 'error' })`: a later `datasourceUrl`, `datasources`, or object spread must still be included in the inspected Prisma client options rather than being hidden behind an earlier nested call boundary. String and template literal contents are skipped while matching braces so braces used only as text do not truncate the evidence.
+The adapter check is also deliberately exact. A value such as `adapter: adapter.wrapper` does not count as passing the constructed `PrismaD1` instance even though it begins with the same identifier; the static evidence must show the observed adapter variable itself.
 
-After extraction, the probe splits the constructor object only at top-level commas while tracking nested braces, brackets, parentheses, and quoted strings. Adapter wiring, legacy option detection, and unresolved-spread detection are therefore based only on actual top-level `PrismaClient` entries. A nested object such as `logging: { datasourceUrl: 'https://logs.example.test' }` must not be mistaken for Prisma's removed top-level `datasourceUrl` option, and a nested `adapter` key must not satisfy the required top-level adapter wiring.
+The constructor option extractor walks balanced object braces instead of stopping at the first text that looks like `})`. This matters for legitimate nested option expressions such as `configureLogging({ level: 'error' })`: a later `datasourceUrl`, `datasources`, object spread, or computed key must still be included in the inspected Prisma client options rather than being hidden behind an earlier nested call boundary. String and template literal contents are skipped while matching braces so braces used only as text do not truncate the evidence.
+
+After extraction, the probe splits the constructor object only at top-level commas while tracking nested braces, brackets, parentheses, and quoted strings. Adapter wiring, legacy option detection, unresolved-spread detection, and computed-key detection are therefore based only on actual top-level `PrismaClient` entries. A nested object such as `logging: { datasourceUrl: 'https://logs.example.test' }` must not be mistaken for Prisma's removed top-level `datasourceUrl` option, and a nested `adapter` or computed key must not affect top-level readiness.
 
 Comment removal is string-aware. Actual line and block comments are ignored before static inspection, while comment-like text inside string or template literals (for example an `https://` URL or the text `/* literal */`) remains intact so it cannot truncate later constructor options.
 
 The probe intentionally does not require the Prisma client import to remain `@prisma/client`; the Prisma 7 migration is expected to move that import to the explicit generated-client output path. Named import aliases are accepted for both the adapter and Prisma client so refactors do not create false migration blockers.
 
-A unit test also runs the probe against the repository's real `src/lib/prisma.ts`. This means a future dependency or generated-client migration cannot accidentally remove the D1 adapter wiring, reintroduce a legacy Prisma 6 connection override, or conceal constructor options behind an unresolved top-level spread while still reporting the D1 client path as ready.
+A unit test also runs the probe against the repository's real `src/lib/prisma.ts`. This means a future dependency or generated-client migration cannot accidentally remove the D1 adapter wiring, reintroduce a legacy Prisma 6 connection override, or conceal constructor options behind an unresolved top-level spread or computed property key while still reporting the D1 client path as ready.
 
 This is migration evidence only. It does not change the current Prisma 6 runtime, package versions, lockfile, schema, D1 binding, Cloudflare deployment configuration, or the temporary audit exception tracked by #3114.
