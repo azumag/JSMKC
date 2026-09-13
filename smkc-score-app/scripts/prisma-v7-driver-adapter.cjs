@@ -61,6 +61,13 @@ function prismaClientOptionsUseAdapter(clientOptions, adapterInstanceLocalName) 
   return new RegExp(`\\badapter\\s*:\\s*${instanceName}\\b`).test(clientOptions);
 }
 
+function prismaClientOptionsHaveOption(clientOptions, optionName) {
+  if (!clientOptions || typeof optionName !== 'string' || optionName === '') return false;
+
+  const escapedOptionName = escapeRegExp(optionName);
+  return new RegExp(`(?:^|,)\\s*['"]?${escapedOptionName}['"]?\\s*(?::|,|$)`, 'm').test(clientOptions);
+}
+
 function inspectPrismaV7DriverAdapter(source) {
   if (typeof source !== 'string') {
     return {
@@ -72,6 +79,8 @@ function inspectPrismaV7DriverAdapter(source) {
         importsPrismaD1Adapter: false,
         constructsPrismaD1Adapter: false,
         passesAdapterToPrismaClient: false,
+        omitsLegacyDatasourcesOption: false,
+        omitsLegacyDatasourceUrlOption: false,
       },
     };
   }
@@ -86,6 +95,10 @@ function inspectPrismaV7DriverAdapter(source) {
     importsPrismaD1Adapter: adapterLocalName !== null,
     constructsPrismaD1Adapter: adapterInstanceLocalName !== null,
     passesAdapterToPrismaClient: prismaClientOptionsUseAdapter(clientOptions, adapterInstanceLocalName),
+    omitsLegacyDatasourcesOption:
+      clientOptions !== null && !prismaClientOptionsHaveOption(clientOptions, 'datasources'),
+    omitsLegacyDatasourceUrlOption:
+      clientOptions !== null && !prismaClientOptionsHaveOption(clientOptions, 'datasourceUrl'),
   };
 
   return {
@@ -116,7 +129,7 @@ function formatPrismaV7DriverAdapter(status, { json = false } = {}) {
     '| --- | --- |',
     checkRows,
     '',
-    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter and passes that constructed adapter when PrismaClient is created.',
+    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter, passes that constructed adapter when PrismaClient is created, and does not retain the legacy `datasources` / `datasourceUrl` constructor overrides from the Prisma 6 connection style.',
     '',
   ].join('\n');
 }
@@ -156,6 +169,7 @@ module.exports = {
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
   parseCliOptions,
+  prismaClientOptionsHaveOption,
   prismaClientOptionsUseAdapter,
   stripComments,
 };
