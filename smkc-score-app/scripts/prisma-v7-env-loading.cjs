@@ -55,6 +55,7 @@ function isTopLevelSourceIndex(source, targetIndex) {
   let escaped = false;
   let lineComment = false;
   let blockComment = false;
+  let pendingTopLevelArrow = false;
 
   for (let index = 0; index < targetIndex; index += 1) {
     const char = source[index];
@@ -105,9 +106,15 @@ function isTopLevelSourceIndex(source, targetIndex) {
 
     if (char === '{') braceDepth += 1;
     else if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
+    else if (braceDepth === 0 && char === '=' && next === '>') {
+      pendingTopLevelArrow = true;
+      index += 1;
+    } else if (braceDepth === 0 && char === ';') {
+      pendingTopLevelArrow = false;
+    }
   }
 
-  return quote === null && !lineComment && !blockComment && braceDepth === 0;
+  return quote === null && !lineComment && !blockComment && braceDepth === 0 && !pendingTopLevelArrow;
 }
 
 function findDefineConfigEvaluationIndex(source) {
