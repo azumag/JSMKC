@@ -102,7 +102,10 @@ describe('Prisma upstream issue probe', () => {
       'unexpected upstream issue state',
     );
     expect(() => normalizeUpstreamIssue({ ...upstreamPayload, updated_at: 'yesterday' })).toThrow(
-      'must be a UTC timestamp',
+      'must be a valid UTC timestamp',
+    );
+    expect(() => normalizeUpstreamIssue({ ...upstreamPayload, updated_at: '2026-02-31T12:34:56Z' })).toThrow(
+      'must be a valid UTC timestamp',
     );
     expect(() => normalizeUpstreamIssue({ ...upstreamPayload, html_url: 'https://example.test/30052' })).toThrow(
       'does not match prisma/orm#30052',
@@ -134,7 +137,24 @@ describe('Prisma upstream issue probe', () => {
         state_reason: 'completed',
         closed_at: 'yesterday',
       }),
-    ).toThrow('closed_at must be null or a UTC timestamp');
+    ).toThrow('closed_at must be null or a valid UTC timestamp');
+    expect(() =>
+      normalizeUpstreamIssue({
+        ...upstreamPayload,
+        state: 'closed',
+        state_reason: 'completed',
+        closed_at: '2026-02-31T09:59:00Z',
+      }),
+    ).toThrow('closed_at must be null or a valid UTC timestamp');
+    expect(() =>
+      normalizeUpstreamIssue({
+        ...upstreamPayload,
+        state: 'closed',
+        state_reason: 'completed',
+        updated_at: '2026-09-14T09:58:00Z',
+        closed_at: '2026-09-14T09:59:00Z',
+      }),
+    ).toThrow('closed_at after updated_at');
     expect(() => getCheckedAt(() => new Date('invalid'))).toThrow('clock returned an invalid date');
   });
 
