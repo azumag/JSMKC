@@ -24,6 +24,33 @@ function findNamedDotenvConfigImport(source) {
   return null;
 }
 
+function findNamedPrismaDefineConfigImport(source) {
+  const match = /^\s*import\s*\{([^}]*)\}\s*from\s*['"]prisma\/config['"]\s*;?/m.exec(source);
+  if (!match) return null;
+
+  for (const entry of match[1].split(',')) {
+    const named = /^\s*defineConfig(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
+    if (named) return named[1] ?? 'defineConfig';
+  }
+
+  return null;
+}
+
+function findDefineConfigEvaluationIndex(source) {
+  const defineConfigLocalName = findNamedPrismaDefineConfigImport(source) ?? 'defineConfig';
+  const escapedName = defineConfigLocalName.replace(/[$]/g, '\\$&');
+  const match = new RegExp(`\\b${escapedName}\\s*\\(`, 'm').exec(source);
+  return match?.index ?? null;
+}
+
+function invocationPrecedesDefineConfig(source, invocationPattern) {
+  const invocation = invocationPattern.exec(source);
+  if (!invocation) return false;
+
+  const defineConfigIndex = findDefineConfigEvaluationIndex(source);
+  return defineConfigIndex === null || invocation.index < defineConfigIndex;
+}
+
 function inspectPrismaV7EnvLoading(source) {
   if (typeof source !== 'string') {
     return { ready: false, mode: null };
@@ -38,7 +65,7 @@ function inspectPrismaV7EnvLoading(source) {
   const namedConfig = findNamedDotenvConfigImport(configSource);
   if (namedConfig) {
     const invocation = new RegExp(`^\\s*${namedConfig.replace(/[$]/g, '\\$&')}\\s*\\(`, 'm');
-    if (invocation.test(configSource)) {
+    if (invocationPrecedesDefineConfig(configSource, invocation)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
   }
@@ -46,12 +73,13 @@ function inspectPrismaV7EnvLoading(source) {
   const namespaceImport = /^\s*import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"]dotenv['"]\s*;?/m.exec(configSource);
   if (namespaceImport) {
     const invocation = new RegExp(`^\\s*${namespaceImport[1].replace(/[$]/g, '\\$&')}\\.config\\s*\\(`, 'm');
-    if (invocation.test(configSource)) {
+    if (invocationPrecedesDefineConfig(configSource, invocation)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
   }
 
-  if (/\brequire\s*\(\s*['"]dotenv['"]\s*\)\s*\.\s*config\s*\(/m.test(configSource)) {
+  const commonJsInvocation = /\brequire\s*\(\s*['"]dotenv['"]\s*\)\s*\.\s*config\s*\(/m;
+  if (invocationPrecedesDefineConfig(configSource, commonJsInvocation)) {
     return { ready: true, mode: 'dotenv.config()' };
   }
 
@@ -101,9 +129,12 @@ if (require.main === module) {
 }
 
 module.exports = {
+  findDefineConfigEvaluationIndex,
   findNamedDotenvConfigImport,
+  findNamedPrismaDefineConfigImport,
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
+  invocationPrecedesDefineConfig,
   parseCliOptions,
   withoutCommentOnlyLines,
 };
