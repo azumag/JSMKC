@@ -44,7 +44,8 @@ latest comment evidence は tracking issue / fix PR と同じ request contract �
 - comment ID が正の safe integer であること
 - `issue_url` が canonical `prisma/orm#30052` API URL と一致すること
 - `html_url` が comment ID を含む canonical issue-comment URL と一致すること
-- author login / author association が Actions の単一行 output として扱える形式であること
+- author login は通常の GitHub login に加え、GitHub App / bot が使う canonical `name[bot]` suffix を許可すること。任意の bracket suffix、改行、その他の unsafe 文字列は引き続き拒否する
+- author association が Actions の単一行 output として扱える形式であること
 - created / updated timestamp が実在するUTC timestampで、`created_at <= updated_at` であること
 - observation clock が issue / fix PR / latest comment の最新 `updated_at` より前でないこと
 

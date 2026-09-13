@@ -63,6 +63,25 @@ describe('Prisma upstream discussion evidence', () => {
     });
   });
 
+  it('accepts the canonical GitHub bot login suffix without allowing arbitrary bracket syntax', () => {
+    expect(
+      normalizeLatestUpstreamIssueComment([
+        { ...comment, user: { login: 'github-actions[bot]' } },
+      ]).author,
+    ).toBe('github-actions[bot]');
+
+    expect(() =>
+      normalizeLatestUpstreamIssueComment([
+        { ...comment, user: { login: 'github-actions[bot][bot]' } },
+      ]),
+    ).toThrow('author login is invalid');
+    expect(() =>
+      normalizeLatestUpstreamIssueComment([
+        { ...comment, user: { login: 'github-actions[admin]' } },
+      ]),
+    ).toThrow('author login is invalid');
+  });
+
   it('fails closed when canonical comment identity or timestamps do not match', () => {
     expect(() => normalizeLatestUpstreamIssueComment([])).toThrow('exactly one comment');
     expect(() =>
