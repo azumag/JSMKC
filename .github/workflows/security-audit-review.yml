@@ -59,12 +59,9 @@ jobs:
         name: Check next-major Prisma remediation
         if: always()
         continue-on-error: true
-        run: node scripts/security-audit-next-major.js
-
-      - id: next_major_upstream_timestamp
-        name: Timestamp next-major upstream evidence
-        if: always()
-        run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+        run: |
+          node scripts/security-audit-next-major.js
+          echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - id: upstream_issue
         name: Check Prisma upstream issue and fix PR evidence
@@ -176,7 +173,7 @@ jobs:
             echo
             echo "Compatible upstream checked at: \`${{ steps.compatible_upstream.outputs.checked_at || 'unavailable' }}\`"
             echo
-            echo "Next-major upstream checked at: \`${{ steps.next_major_upstream_timestamp.outputs.checked_at }}\`"
+            echo "Next-major upstream checked at: \`${{ steps.next_major_upstream.outputs.checked_at || 'unavailable' }}\`"
             echo
             echo "| Check | Outcome |"
             echo "| --- | --- |"
