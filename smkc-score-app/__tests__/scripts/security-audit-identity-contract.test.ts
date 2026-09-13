@@ -9,7 +9,10 @@ import {
 
 const appRoot = path.resolve(__dirname, '../..');
 const auditSource = fs.readFileSync(path.join(appRoot, 'scripts', 'security-audit.js'), 'utf8');
-const statusSource = fs.readFileSync(path.join(appRoot, 'scripts', 'security-audit-status.js'), 'utf8');
+const statusSource = fs.readFileSync(
+  path.join(appRoot, 'scripts', 'security-audit-status.js'),
+  'utf8',
+);
 
 const alignedAuditSource = [
   "const ALLOWED_ADVISORY = 'GHSA-example';",
