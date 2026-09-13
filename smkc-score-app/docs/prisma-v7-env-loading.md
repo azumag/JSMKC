@@ -25,7 +25,9 @@ import 'dotenv/config';
 
 Static side-effect imports execute before the module body, so that form is sufficient regardless of where the import declaration is written at top level.
 
-The probe also accepts explicit `dotenv` `config()` calls, including JSMKC's current named-import pattern, but only when the detected call is a top-level executed call before the `defineConfig(...)` expression is evaluated. A `config()` call that appears after `export default defineConfig(...)`, inside a helper function, or only as quoted example text is intentionally rejected because it does not prove that environment loading occurred before datasource values were read. Aliased `defineConfig` imports are handled as the same evaluation boundary, including CommonJS destructuring such as `const { defineConfig: makeConfig } = require('prisma/config')`.
+The probe also accepts explicit `dotenv` `config()` calls, including JSMKC's current named-import pattern, but only when the detected call is a top-level executed call before the `defineConfig(...)` expression is evaluated. A `config()` call that appears after `export default defineConfig(...)`, inside a helper function or concise arrow body, or only as quoted example text is intentionally rejected because it does not prove that environment loading occurred before datasource values were read. Aliased `defineConfig` imports are handled as the same evaluation boundary, including CommonJS destructuring such as `const { defineConfig: makeConfig } = require('prisma/config')`.
+
+For concise arrow functions, the lexical probe remains deliberately conservative until the surrounding top-level statement is terminated. This favors a false-negative migration-readiness result over accepting a `config()` call that is merely stored for later execution.
 
 Imports that never invoke `config()` and commented examples do not count as readiness evidence.
 
@@ -33,6 +35,6 @@ The probe does not edit `prisma.config.ts`, `.env*` files, dependency versions, 
 
 ## Regression coverage
 
-`__tests__/scripts/prisma-v7-env-loading.test.ts` verifies the supported loading styles, correct and too-late `config()` ordering, nested/quoted non-execution cases, ESM and CommonJS aliased `defineConfig` usage, and the repository's actual `prisma.config.ts`. If a future Prisma 7 migration rewrite accidentally removes explicit environment loading or moves it after config evaluation, the normal unit-test suite will fail before that change can be merged.
+`__tests__/scripts/prisma-v7-env-loading.test.ts` verifies the supported loading styles, correct and too-late `config()` ordering, helper/concise-arrow/quoted non-execution cases, ESM and CommonJS aliased `defineConfig` usage, and the repository's actual `prisma.config.ts`. If a future Prisma 7 migration rewrite accidentally removes explicit environment loading or moves it after config evaluation, the normal unit-test suite will fail before that change can be merged.
 
 This is migration-readiness evidence only. It does not authorize changing environment precedence, introducing new secrets, or changing Cloudflare runtime bindings.

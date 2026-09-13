@@ -145,6 +145,49 @@ describe('Prisma 7 environment loading readiness', () => {
     ).toEqual({ ready: false, mode: null });
   });
 
+  it('rejects dotenv config calls inside concise arrow functions', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        const loadEnvLater = () =>
+          config();
+        export default defineConfig({});
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import * as dotenv from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        const loadEnvLater = () =>
+          dotenv.config();
+        export default defineConfig({});
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        const { defineConfig } = require('prisma/config');
+        const loadEnvLater = () =>
+          require('dotenv').config();
+        module.exports = defineConfig({});
+      `),
+    ).toEqual({ ready: false, mode: null });
+  });
+
+  it('accepts direct dotenv loading after a completed concise arrow declaration', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        const unrelatedHelper = () => 1;
+        config();
+        export default defineConfig({});
+      `),
+    ).toEqual({ ready: true, mode: 'dotenv.config()' });
+  });
+
   it('ignores braces in inline comments when deciding top-level execution', () => {
     expect(
       inspectPrismaV7EnvLoading(`
