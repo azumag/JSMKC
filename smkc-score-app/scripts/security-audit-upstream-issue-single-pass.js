@@ -13,7 +13,16 @@ const UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS = 30_000;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,300}$/;
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\[bot\])?$/;
-const AUTHOR_ASSOCIATION_PATTERN = /^[A-Z_]{1,40}$/;
+const ALLOWED_AUTHOR_ASSOCIATIONS = new Set([
+  'COLLABORATOR',
+  'CONTRIBUTOR',
+  'FIRST_TIMER',
+  'FIRST_TIME_CONTRIBUTOR',
+  'MANNEQUIN',
+  'MEMBER',
+  'NONE',
+  'OWNER',
+]);
 const ALLOWED_STATE_REASONS = new Set(['completed', 'not_planned', 'duplicate', 'reopened']);
 
 function parseCliOptions(argv = process.argv.slice(2)) {
@@ -193,7 +202,7 @@ function normalizeLatestUpstreamIssueComment(payload) {
     throw new Error('latest upstream issue comment author login is invalid');
   }
 
-  if (typeof comment.author_association !== 'string' || !AUTHOR_ASSOCIATION_PATTERN.test(comment.author_association)) {
+  if (!ALLOWED_AUTHOR_ASSOCIATIONS.has(comment.author_association)) {
     throw new Error('latest upstream issue comment author_association is invalid');
   }
 
