@@ -6,7 +6,7 @@ const {
   parseCliOptions,
   writeGitHubOutputs,
   writeGitHubSummary,
-} = require('./security-audit-upstream-issue');
+} = require('./security-audit-upstream-issue-single-pass');
 
 function toStableSnapshot(issue) {
   if (!issue || typeof issue !== 'object' || Array.isArray(issue)) {
@@ -81,5 +81,6 @@ if (require.main === module) {
 module.exports = {
   assertConsistentUpstreamIssueEvidence,
   fetchConsistentUpstreamIssue,
+  main,
   toStableSnapshot,
 };
