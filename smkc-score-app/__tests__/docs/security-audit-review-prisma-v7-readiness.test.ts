@@ -21,14 +21,16 @@ describe('security audit review Prisma 7 readiness evidence', () => {
   const steps = workflow.jobs?.audit?.steps ?? [];
 
   it('collects local Prisma 7 migration evidence before the main summary', () => {
-    const nextMajorTimestampStep = steps.find((step) => step.id === 'next_major_upstream_timestamp');
+    const nextMajorStep = steps.find((step) => step.id === 'next_major_upstream');
     const readinessStep = steps.find((step) => step.id === 'prisma_v7_readiness');
     const driverAdapterStep = steps.find((step) => step.id === 'prisma_v7_driver_adapter');
     const supportSurfaceStep = steps.find((step) => step.id === 'prisma_v7_support_surface');
     const esmSurfaceStep = steps.find((step) => step.id === 'prisma_v7_esm_surface');
     const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
 
-    expect(nextMajorTimestampStep).toBeDefined();
+    expect(nextMajorStep).toBeDefined();
+    expect(nextMajorStep?.run).toContain('node scripts/security-audit-next-major.js');
+    expect(nextMajorStep?.run).toContain('checked_at=');
     expect(readinessStep).toBeDefined();
     expect(driverAdapterStep).toBeDefined();
     expect(supportSurfaceStep).toBeDefined();
@@ -46,9 +48,7 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     expect(esmSurfaceStep?.if).toBe('always()');
     expect(esmSurfaceStep?.['continue-on-error']).toBe(true);
     expect(esmSurfaceStep?.run?.trim()).toBe('node scripts/prisma-v7-esm-surface.cjs');
-    expect(steps.indexOf(nextMajorTimestampStep as WorkflowStep)).toBeLessThan(
-      steps.indexOf(readinessStep as WorkflowStep),
-    );
+    expect(steps.indexOf(nextMajorStep as WorkflowStep)).toBeLessThan(steps.indexOf(readinessStep as WorkflowStep));
     expect(steps.indexOf(readinessStep as WorkflowStep)).toBeLessThan(steps.indexOf(driverAdapterStep as WorkflowStep));
     expect(steps.indexOf(driverAdapterStep as WorkflowStep)).toBeLessThan(
       steps.indexOf(supportSurfaceStep as WorkflowStep),
