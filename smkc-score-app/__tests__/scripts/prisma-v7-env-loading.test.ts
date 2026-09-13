@@ -53,12 +53,11 @@ describe('Prisma 7 environment loading readiness', () => {
   });
 
   it('recognizes CommonJS destructuring aliases for Prisma config evaluation', () => {
-    expect(findCommonJsPrismaDefineConfigImport("const { defineConfig: makeConfig } = require('prisma/config');")).toBe(
-      'makeConfig',
-    );
-    expect(findCommonJsPrismaDefineConfigImport("const { defineConfig } = require('prisma/config');")).toBe(
-      'defineConfig',
-    );
+    const aliasedImport = "const { defineConfig: makeConfig } = require('prisma/config');";
+    const shorthandImport = "const { defineConfig } = require('prisma/config');";
+
+    expect(findCommonJsPrismaDefineConfigImport(aliasedImport)).toBe('makeConfig');
+    expect(findCommonJsPrismaDefineConfigImport(shorthandImport)).toBe('defineConfig');
   });
 
   it('accepts namespace and CommonJS dotenv config calls before Prisma config evaluation', () => {
