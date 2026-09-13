@@ -18,6 +18,19 @@ function parseCliOptions(argv = process.argv.slice(2)) {
   return { json: argv.includes('--json') };
 }
 
+function isValidUtcTimestamp(value) {
+  if (typeof value !== 'string' || !ISO_UTC_TIMESTAMP_PATTERN.test(value)) {
+    return false;
+  }
+
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
+
+  return new Date(timestamp).toISOString() === `${value.slice(0, -1)}.000Z`;
+}
+
 function normalizeUpstreamIssue(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new Error('upstream issue response must be an object');
@@ -31,8 +44,8 @@ function normalizeUpstreamIssue(payload) {
     throw new Error(`unexpected upstream issue state: ${payload.state ?? 'missing'}`);
   }
 
-  if (typeof payload.updated_at !== 'string' || !ISO_UTC_TIMESTAMP_PATTERN.test(payload.updated_at)) {
-    throw new Error('upstream issue updated_at must be a UTC timestamp');
+  if (!isValidUtcTimestamp(payload.updated_at)) {
+    throw new Error('upstream issue updated_at must be a valid UTC timestamp');
   }
 
   if (payload.html_url !== 'https://github.com/prisma/orm/issues/30052') {
@@ -45,8 +58,8 @@ function normalizeUpstreamIssue(payload) {
   }
 
   const closedAt = payload.closed_at ?? null;
-  if (closedAt !== null && (typeof closedAt !== 'string' || !ISO_UTC_TIMESTAMP_PATTERN.test(closedAt))) {
-    throw new Error('upstream issue closed_at must be null or a UTC timestamp');
+  if (closedAt !== null && !isValidUtcTimestamp(closedAt)) {
+    throw new Error('upstream issue closed_at must be null or a valid UTC timestamp');
   }
 
   if (payload.state === 'open') {
@@ -62,6 +75,9 @@ function normalizeUpstreamIssue(payload) {
     }
     if (closedAt === null) {
       throw new Error('closed upstream issue must include closed_at');
+    }
+    if (Date.parse(closedAt) > Date.parse(payload.updated_at)) {
+      throw new Error('closed upstream issue cannot have closed_at after updated_at');
     }
   }
 
