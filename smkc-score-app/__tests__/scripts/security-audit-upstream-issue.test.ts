@@ -44,7 +44,7 @@ describe('Prisma upstream issue probe', () => {
     expect(fetchImpl).toHaveBeenCalledWith(
       UPSTREAM_ISSUE_API_URL,
       expect.objectContaining({
-        redirect: 'follow',
+        redirect: 'error',
         signal: expect.any(AbortSignal),
         headers: expect.objectContaining({
           Accept: 'application/vnd.github+json',
