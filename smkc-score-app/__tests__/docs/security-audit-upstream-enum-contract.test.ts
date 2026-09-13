@@ -2,31 +2,31 @@ import fs from 'fs';
 import path from 'path';
 
 function extractRuntimeSet(source: string, constantName: string): string[] {
-  const match = source.match(new RegExp(`const ${constantName} = new Set\\((\\[[\\s\\S]*?\\])\\);`));
+  const pattern = new RegExp(`const ${constantName} = new Set\\((\\[[\\s\\S]*?\\])\\);`);
+  const match = source.match(pattern);
   expect(match).not.toBeNull();
 
-  return Array.from(match?.[1].matchAll(/'([^']+)'/g) ?? [], (entry) => entry[1]);
+  const body = match?.[1] ?? '';
+  return Array.from(body.matchAll(/'([^']+)'/g), (entry) => entry[1]);
 }
 
 function extractDocumentedAuthorAssociations(documentation: string): string[] {
-  const line = documentation
-    .split('\n')
-    .find((entry) => entry.includes('author association は GitHub が定義する'));
+  const line = documentation.split('\n').find((entry) => entry.includes('author association は GitHub が定義する'));
   expect(line).toBeDefined();
 
-  return Array.from(line?.matchAll(/`([A-Z_]+)`/g) ?? [], (entry) => entry[1]);
+  return Array.from((line ?? '').matchAll(/`([A-Z_]+)`/g), (entry) => entry[1]);
 }
 
 function extractDocumentedStateReasons(documentation: string): string[] {
-  const line = documentation
-    .split('\n')
-    .find((entry) => entry.includes('open issue では `null` または `reopened`'));
+  const line = documentation.split('\n').find((entry) => entry.includes('open issue では `null` または `reopened`'));
   expect(line).toBeDefined();
 
-  const contract = line?.match(/open issue では (.+?) のみを受理します。/)?.[1];
-  expect(contract).toBeDefined();
+  const contractMatch = (line ?? '').match(/open issue では (.+?) のみを受理します。/);
+  expect(contractMatch).not.toBeNull();
 
-  return Array.from(contract?.matchAll(/`([a-z_]+)`/g) ?? [], (entry) => entry[1]).filter((value) => value !== 'null');
+  const contract = contractMatch?.[1] ?? '';
+  const values = Array.from(contract.matchAll(/`([a-z_]+)`/g), (entry) => entry[1]);
+  return values.filter((value) => value !== 'null');
 }
 
 describe('Prisma upstream GitHub enum documentation contracts', () => {
