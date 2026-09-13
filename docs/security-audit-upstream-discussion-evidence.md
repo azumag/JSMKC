@@ -49,6 +49,8 @@ latest comment evidence は tracking issue / fix PR と同じ request contract �
 - created / updated timestamp が実在するUTC timestampで、`created_at <= updated_at` であること
 - observation clock が issue / fix PR / latest comment の最新 `updated_at` より前でないこと
 
+この author association allowlist は contract test で runtime 実装と完全一致することを確認します。値を追加・削除するときは、実装とこの文書を同じ変更で更新してください。
+
 issue snapshot で `comments=0` の場合だけ comment request を省略し、`latestComment=null` とします。
 
 ## 安全境界
