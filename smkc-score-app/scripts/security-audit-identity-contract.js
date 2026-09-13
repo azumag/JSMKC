@@ -19,7 +19,9 @@ function extractSingleQuotedConst(source, constantName) {
   const matches = [...source.matchAll(pattern)];
 
   if (matches.length !== 1) {
-    throw new Error(`expected exactly one ${constantName} declaration, found ${matches.length}`);
+    throw new Error(
+      `expected exactly one ${constantName} declaration, found ${matches.length}`,
+    );
   }
 
   return matches[0][1];
@@ -28,9 +30,15 @@ function extractSingleQuotedConst(source, constantName) {
 function getSecurityAuditIdentityContract(auditSource, statusSource) {
   return {
     auditAdvisory: extractSingleQuotedConst(auditSource, 'ALLOWED_ADVISORY'),
-    auditAdvisoryRange: extractSingleQuotedConst(auditSource, 'ALLOWED_ADVISORY_RANGE'),
+    auditAdvisoryRange: extractSingleQuotedConst(
+      auditSource,
+      'ALLOWED_ADVISORY_RANGE',
+    ),
     statusAdvisory: extractSingleQuotedConst(statusSource, 'TRACKED_ADVISORY'),
-    statusAdvisoryRange: extractSingleQuotedConst(statusSource, 'TRACKED_ADVISORY_RANGE'),
+    statusAdvisoryRange: extractSingleQuotedConst(
+      statusSource,
+      'TRACKED_ADVISORY_RANGE',
+    ),
   };
 }
 
@@ -53,12 +61,18 @@ function assertSecurityAuditIdentityContract(auditSource, statusSource) {
 }
 
 function main() {
-  const auditSource = fs.readFileSync(path.join(__dirname, 'security-audit.js'), 'utf8');
+  const auditSource = fs.readFileSync(
+    path.join(__dirname, 'security-audit.js'),
+    'utf8',
+  );
   const statusSource = fs.readFileSync(
     path.join(__dirname, 'security-audit-status.js'),
     'utf8',
   );
-  const identity = assertSecurityAuditIdentityContract(auditSource, statusSource);
+  const identity = assertSecurityAuditIdentityContract(
+    auditSource,
+    statusSource,
+  );
 
   process.stdout.write(
     `security audit identity contract: ${identity.auditAdvisory} (${identity.auditAdvisoryRange})\n`,
