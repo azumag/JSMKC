@@ -107,7 +107,7 @@ describe('Prisma upstream issue probe', () => {
     expect(() => normalizeUpstreamIssue({ ...upstreamPayload, html_url: 'https://example.test/30052' })).toThrow(
       'does not match prisma/orm#30052',
     );
-    expect(() => normalizeUpstreamIssue({ ...upstreamPayload, state_reason: 'duplicate' })).toThrow(
+    expect(() => normalizeUpstreamIssue({ ...upstreamPayload, state_reason: 'superseded' })).toThrow(
       'unexpected upstream issue state_reason',
     );
     expect(() => normalizeUpstreamIssue({ ...upstreamPayload, state_reason: 'completed' })).toThrow(
