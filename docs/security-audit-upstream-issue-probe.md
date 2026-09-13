@@ -18,7 +18,9 @@ probe は GitHub REST API から issue #30052 を取得し、issue number、`ope
 
 `stateReason` は GitHub API の `state_reason` を保持します。open issue では `null` または `reopened`、closed issue では `null` / `completed` / `not_planned` / `duplicate` のみを受理します。`closedAt` は open issue では `null`、closed issue では有効な UTC timestamp を必須とします。GitHub Actions output では null 値を空文字にはせず、`state_reason=none` / `closed_at=none` として明示します。これにより「修正完了としてcloseされた」のか「not planned / duplicate としてcloseされた」のかを後続の監査から区別できます。
 
-API response が失敗する、JSON として読めない、issue number・state・state reason・timestamp・URL が期待する tracking issue と一致しない、state と closure metadata の組み合わせが矛盾する、または確認時刻を安全な UTC timestamp として生成できない場合は fail-closed で終了します。
+GitHub timestamp は `YYYY-MM-DDTHH:mm:ssZ` という文字列形式だけでなく、実在するUTC日時かどうかまで検証します。たとえば `2026-02-31T12:00:00Z` のように形式だけ整った不可能な日時は拒否します。closed issue では `closedAt <= updatedAt` も必須とし、closure metadata の時系列が逆転した response は evidence として採用しません。
+
+API response が失敗する、JSON として読めない、issue number・state・state reason・timestamp・URL が期待する tracking issue と一致しない、state と closure metadata の組み合わせや時系列が矛盾する、または確認時刻を安全な UTC timestamp として生成できない場合は fail-closed で終了します。
 
 `GITHUB_TOKEN` が存在する場合は API rate limit を安定させるため bearer token として使用します。存在しない場合も public issue の read-only 取得として実行できます。token 自体は出力・保存しません。
 
