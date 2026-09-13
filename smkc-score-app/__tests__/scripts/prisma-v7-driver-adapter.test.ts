@@ -90,7 +90,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
   });
 
   it.each([
-    ['datasources', "datasources: { db: { url: process.env.DATABASE_URL } }"],
+    ['datasources', 'datasources: { db: { url: process.env.DATABASE_URL } }'],
     ['datasourceUrl', 'datasourceUrl: process.env.DATABASE_URL'],
     ['quoted datasourceUrl', "'datasourceUrl': process.env.DATABASE_URL"],
     ['datasourceUrl shorthand', 'datasourceUrl'],
