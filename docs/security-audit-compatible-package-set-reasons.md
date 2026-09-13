@@ -7,14 +7,18 @@ Issue #3114 の current-compatible remediation probe は、package-set の大分
 現在の reason は次のとおりです。
 
 - `upstream-remediation-not-applicable`: current-compatible Prisma CLI/config 側に remediation がまだないため runtime package probe を実行していない。
-- `prisma-client-registry-unavailable`: manifest の `@prisma/client` selector に対する canonical npm registry evidence を取得・検証できなかった。
-- `adapter-d1-registry-unavailable`: remediation candidate を含む client evidence は取得できたが、manifest の `@prisma/adapter-d1` selector に対する canonical npm registry evidence を取得・検証できなかった。
+- `prisma-client-registry-unavailable`: manifest の `@prisma/client` selector に対する canonical npm registry evidence を取得できなかった。
+- `prisma-client-evidence-invalid`: `@prisma/client` lookup 自体は成功したが、返された version metadata を stable SemVer evidence として検証できなかった。
+- `adapter-d1-registry-unavailable`: remediation candidate を含む client evidence は取得できたが、manifest の `@prisma/adapter-d1` selector に対する canonical npm registry evidence を取得できなかった。
+- `adapter-d1-evidence-invalid`: `@prisma/adapter-d1` lookup 自体は成功したが、返された version metadata を stable SemVer evidence として検証できなかった。
 - `prisma-client-candidate-missing`: manifest-compatible `@prisma/client` version 群に Prisma CLI/config remediation candidate と同じ version が含まれていない。この時点で package set は actionable ではないため、D1 adapter の追加 registry query は実行せず `incomplete` を確定する。
 - `published-package-set-ready`: manifest-compatible client version 群に remediation candidate が存在し、D1 adapter も現在の selector から stable release を確認できた。
 
+registry lookup failure と invalid evidence は別の reason として扱います。前者は通信・registry 側の一時障害として再試行できる一方、後者は lookup が返した metadata 自体を監査証拠として採用できない状態です。どちらも remediation candidate を actionable にせず fail-closed で扱います。
+
 client candidate が欠けている場合に adapter lookup を短絡することで、より根本的な `prisma-client-candidate-missing` が後続の一時的な adapter registry failure に上書きされることを防ぎます。同時に、actionable でない package set に対する不要なネットワーク query を1回減らします。この経路では adapter selector は監査 evidence として保持しますが、解決済み adapter version は `none` / `null` のままです。
 
-probe の通常出力には `published remediation package set reason`、GitHub Actions output には `published_remediation_package_set_reason` を追加します。selector、解決済みversion、state と reason を組み合わせることで、registry 障害と publication skew を区別できます。
+probe の通常出力には `published remediation package set reason`、GitHub Actions output には `published_remediation_package_set_reason` を追加します。selector、解決済みversion、state と reason を組み合わせることで、registry 障害、invalid metadata、publication skew を区別できます。
 
 手動 `Security audit review` の Job Summary でも、current-compatible / next-major の package-set reason を専用の診断表に残します。next-major については runtime package の selector も併記し、保存された summary だけから「どの manifest-compatible package set を照会した結果か」を追跡できます。これは監査証拠の表示追加だけで、compatible-range gate の入力や成功・失敗条件は変更しません。
 
