@@ -1,10 +1,12 @@
 # Prisma upstream evidence consistency probe
 
-`smkc-score-app/scripts/security-audit-upstream-issue.js` is the canonical read-only upstream evidence probe for Issue #3114. It now performs a two-pass consistency check before publishing evidence. The implementation that performs one bounded GitHub API pass lives in `security-audit-upstream-issue-single-pass.js` and is an internal building block.
+`smkc-score-app/scripts/security-audit-upstream-issue.js` is the canonical read-only upstream evidence probe for Issue #3114. It performs a two-pass consistency check before publishing evidence. The implementation that performs one bounded GitHub API pass lives in `security-audit-upstream-issue-single-pass.js` and is an internal building block.
 
 The probe reads `prisma/orm#30052`, the merged fix PR `prisma/orm#30189`, and the latest issue-comment metadata. Those resources can change while a probe is running. A comment can be added, the issue can close or reopen, or metadata can be edited between requests. In that race window a single pass can combine values that never represented one stable upstream snapshot.
 
 The consistency layer executes the existing bounded, redirect-rejecting single-pass probe twice and compares the upstream-owned fields while intentionally ignoring the local `checkedAt` timestamp. It fails closed if the issue state, comment count, issue timestamps, latest-comment metadata, or fix-PR evidence differs between the two reads. Only the second snapshot is returned and published when both reads agree.
+
+Both reads share one `AbortSignal.timeout(30000)` budget. The second pass does not receive a fresh 30-second allowance, so a slow or stalled GitHub API cannot turn the consistency check into an approximately 60-second operation. Timeout remains fail-closed and produces no trusted consistency evidence.
 
 Run the canonical command from `smkc-score-app`:
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const {
+  UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS,
   fetchUpstreamIssue,
   formatUpstreamIssue,
   parseCliOptions,
@@ -35,13 +36,18 @@ function assertConsistentUpstreamIssueEvidence(first, second) {
   }
 }
 
-async function fetchConsistentUpstreamIssue({ fetchIssue = fetchUpstreamIssue, ...fetchOptions } = {}) {
+async function fetchConsistentUpstreamIssue({
+  fetchIssue = fetchUpstreamIssue,
+  signal = AbortSignal.timeout(UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS),
+  ...fetchOptions
+} = {}) {
   if (typeof fetchIssue !== 'function') {
     throw new Error('fetchIssue must be a function');
   }
 
-  const first = await fetchIssue(fetchOptions);
-  const second = await fetchIssue(fetchOptions);
+  const sharedFetchOptions = { ...fetchOptions, signal };
+  const first = await fetchIssue(sharedFetchOptions);
+  const second = await fetchIssue(sharedFetchOptions);
   assertConsistentUpstreamIssueEvidence(first, second);
   return second;
 }
