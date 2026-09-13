@@ -27,9 +27,33 @@ function toStableSnapshot(issue) {
   };
 }
 
+function getCheckedAtTimestamp(issue, label) {
+  if (typeof issue?.checkedAt !== 'string') {
+    throw new Error(`${label} upstream issue evidence must include checkedAt`);
+  }
+
+  const timestamp = Date.parse(issue.checkedAt);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error(`${label} upstream issue evidence checkedAt must be a valid timestamp`);
+  }
+
+  return timestamp;
+}
+
+function assertMonotonicProbeTimes(first, second) {
+  const firstCheckedAt = getCheckedAtTimestamp(first, 'first');
+  const secondCheckedAt = getCheckedAtTimestamp(second, 'second');
+
+  if (secondCheckedAt < firstCheckedAt) {
+    throw new Error('Prisma upstream issue probe clock moved backwards during consistency check; retry the probe');
+  }
+}
+
 function assertConsistentUpstreamIssueEvidence(first, second) {
   const firstSnapshot = toStableSnapshot(first);
   const secondSnapshot = toStableSnapshot(second);
+
+  assertMonotonicProbeTimes(first, second);
 
   if (JSON.stringify(firstSnapshot) !== JSON.stringify(secondSnapshot)) {
     throw new Error('Prisma upstream issue evidence changed during consistency check; retry the probe');
@@ -86,6 +110,7 @@ if (require.main === module) {
 
 module.exports = {
   assertConsistentUpstreamIssueEvidence,
+  assertMonotonicProbeTimes,
   fetchConsistentUpstreamIssue,
   main,
   toStableSnapshot,
