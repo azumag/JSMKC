@@ -6,6 +6,7 @@ const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/orm/issues/3
 const UPSTREAM_ISSUE_NUMBER = 30052;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,300}$/;
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const ALLOWED_STATE_REASONS = new Set(['completed', 'not_planned', 'reopened']);
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   const unknownArguments = argv.filter((argument) => argument !== '--json');
@@ -38,10 +39,39 @@ function normalizeUpstreamIssue(payload) {
     throw new Error('upstream issue html_url does not match prisma/orm#30052');
   }
 
+  const stateReason = payload.state_reason ?? null;
+  if (stateReason !== null && !ALLOWED_STATE_REASONS.has(stateReason)) {
+    throw new Error(`unexpected upstream issue state_reason: ${stateReason}`);
+  }
+
+  const closedAt = payload.closed_at ?? null;
+  if (closedAt !== null && (typeof closedAt !== 'string' || !ISO_UTC_TIMESTAMP_PATTERN.test(closedAt))) {
+    throw new Error('upstream issue closed_at must be null or a UTC timestamp');
+  }
+
+  if (payload.state === 'open') {
+    if (stateReason !== null && stateReason !== 'reopened') {
+      throw new Error(`open upstream issue cannot have state_reason ${stateReason}`);
+    }
+    if (closedAt !== null) {
+      throw new Error('open upstream issue must have closed_at=null');
+    }
+  } else {
+    if (stateReason === 'reopened') {
+      throw new Error('closed upstream issue cannot have state_reason reopened');
+    }
+    if (closedAt === null) {
+      throw new Error('closed upstream issue must include closed_at');
+    }
+  }
+
   return {
     issueNumber: payload.number,
     state: payload.state,
+    stateReason,
+    checkedAt: undefined,
     updatedAt: payload.updated_at,
+    closedAt,
     url: payload.html_url,
   };
 }
@@ -101,8 +131,10 @@ function formatUpstreamIssue(issue, { json = false } = {}) {
   return (
     `Prisma upstream issue: #${issue.issueNumber}\n` +
     `state: ${issue.state}\n` +
+    `state reason: ${issue.stateReason ?? 'none'}\n` +
     `checked at: ${issue.checkedAt}\n` +
     `updated at: ${issue.updatedAt}\n` +
+    `closed at: ${issue.closedAt ?? 'none'}\n` +
     `url: ${issue.url}\n`
   );
 }
@@ -115,8 +147,10 @@ function writeGitHubOutputs(issue, outputPath = process.env.GITHUB_OUTPUT) {
   const outputs = {
     issue_number: String(issue.issueNumber),
     state: issue.state,
+    state_reason: issue.stateReason ?? 'none',
     checked_at: issue.checkedAt,
     updated_at: issue.updatedAt,
+    closed_at: issue.closedAt ?? 'none',
     url: issue.url,
   };
 
