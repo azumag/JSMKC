@@ -2,9 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 function extractRuntimeSet(source: string, constantName: string): string[] {
-  const match = source.match(
-    new RegExp(`const ${constantName} = new Set\\((\\[[\\s\\S]*?\\])\\);`),
-  );
+  const match = source.match(new RegExp(`const ${constantName} = new Set\\((\\[[\\s\\S]*?\\])\\);`));
   expect(match).not.toBeNull();
 
   return Array.from(match?.[1].matchAll(/'([^']+)'/g) ?? [], (entry) => entry[1]);
