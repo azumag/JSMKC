@@ -44,6 +44,7 @@ const response = (payload: unknown) => ({
   json: jest.fn().mockResolvedValue(payload),
 });
 
+// prettier-ignore
 describe('Prisma upstream discussion evidence', () => {
   it('derives a stable latest-comment URL from the issue snapshot count', () => {
     expect(getLatestCommentApiUrl(0)).toBeNull();
