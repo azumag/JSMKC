@@ -37,8 +37,9 @@ function findNamedPrismaDefineConfigImport(source) {
 }
 
 function findCommonJsPrismaDefineConfigImport(source) {
-  const match =
-    /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]prisma\/config['"]\s*\)\s*;?/m.exec(source);
+  const commonJsImport =
+    /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]prisma\/config['"]\s*\)\s*;?/m;
+  const match = commonJsImport.exec(source);
   if (!match) return null;
 
   for (const entry of match[1].split(',')) {
