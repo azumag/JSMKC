@@ -74,7 +74,7 @@ function createFetchMock(
 }
 
 describe('Prisma upstream issue probe', () => {
-  it('fetches the tracked issue, merged fix PR, and latest discussion with one bounded read-only request contract', async () => {
+  it('fetches issue, fix PR, and latest discussion with one bounded request contract', async () => {
     const fetchImpl = createFetchMock();
 
     await expect(fetchUpstreamIssue({ fetchImpl, token: 'test-token', clock })).resolves.toEqual({
