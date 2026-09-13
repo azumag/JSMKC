@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 
-const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/prisma/issues/30052';
+const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/orm/issues/30052';
 const UPSTREAM_ISSUE_NUMBER = 30052;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,300}$/;
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
@@ -34,7 +34,7 @@ function normalizeUpstreamIssue(payload) {
     throw new Error('upstream issue updated_at must be a UTC timestamp');
   }
 
-  if (typeof payload.html_url !== 'string' || !/^https:\/\/github\.com\/prisma\/(?:prisma|orm)\/issues\/30052$/.test(payload.html_url)) {
+  if (payload.html_url !== 'https://github.com/prisma/orm/issues/30052') {
     throw new Error('upstream issue html_url does not match prisma/orm#30052');
   }
 
