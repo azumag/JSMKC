@@ -9,7 +9,77 @@ function parseCliOptions(argv = process.argv.slice(2)) {
 }
 
 function stripComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  if (typeof source !== 'string') return source;
+
+  let output = '';
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (lineComment) {
+      if (char === '\n' || char === '\r') {
+        lineComment = false;
+        output += char;
+      } else {
+        output += ' ';
+      }
+      continue;
+    }
+
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        output += '  ';
+        blockComment = false;
+        index += 1;
+      } else {
+        output += char === '\n' || char === '\r' ? char : ' ';
+      }
+      continue;
+    }
+
+    if (quote !== null) {
+      output += char;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      output += char;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      output += '  ';
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      output += '  ';
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+
+    output += char;
+  }
+
+  return output;
 }
 
 function escapeRegExp(value) {
@@ -90,27 +160,76 @@ function extractPrismaClientOptions(source, prismaClientLocalName) {
   return null;
 }
 
+function splitTopLevelObjectEntries(clientOptions) {
+  if (!clientOptions) return [];
+
+  const entries = [];
+  let start = 0;
+  let braces = 0;
+  let brackets = 0;
+  let parentheses = 0;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = 0; index < clientOptions.length; index += 1) {
+    const char = clientOptions[index];
+
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      continue;
+    }
+
+    if (char === '{') braces += 1;
+    else if (char === '}') braces = Math.max(0, braces - 1);
+    else if (char === '[') brackets += 1;
+    else if (char === ']') brackets = Math.max(0, brackets - 1);
+    else if (char === '(') parentheses += 1;
+    else if (char === ')') parentheses = Math.max(0, parentheses - 1);
+    else if (char === ',' && braces === 0 && brackets === 0 && parentheses === 0) {
+      const entry = clientOptions.slice(start, index).trim();
+      if (entry) entries.push(entry);
+      start = index + 1;
+    }
+  }
+
+  const tail = clientOptions.slice(start).trim();
+  if (tail) entries.push(tail);
+  return entries;
+}
+
 function prismaClientOptionsUseAdapter(clientOptions, adapterInstanceLocalName) {
   if (!clientOptions || !adapterInstanceLocalName) return false;
 
   const instanceName = escapeRegExp(adapterInstanceLocalName);
-  if (adapterInstanceLocalName === 'adapter' && /(?:^|,)\s*adapter\s*(?:,|$)/m.test(clientOptions)) {
-    return true;
-  }
-
-  return new RegExp(`\\badapter\\s*:\\s*${instanceName}\\b`).test(clientOptions);
+  return splitTopLevelObjectEntries(clientOptions).some((entry) => {
+    if (adapterInstanceLocalName === 'adapter' && entry === 'adapter') return true;
+    return new RegExp(`^(?:['"]adapter['"]|adapter)\\s*:\\s*${instanceName}\\b`).test(entry);
+  });
 }
 
 function prismaClientOptionsHaveOption(clientOptions, optionName) {
   if (!clientOptions || typeof optionName !== 'string' || optionName === '') return false;
 
   const escapedOptionName = escapeRegExp(optionName);
-  return new RegExp(`(?:^|,)\\s*['"]?${escapedOptionName}['"]?\\s*(?::|,|$)`, 'm').test(clientOptions);
+  const optionPattern = new RegExp(`^(?:['"]${escapedOptionName}['"]|${escapedOptionName})\\s*(?::|$)`);
+  return splitTopLevelObjectEntries(clientOptions).some((entry) => optionPattern.test(entry));
 }
 
 function prismaClientOptionsHaveSpread(clientOptions) {
-  if (!clientOptions) return false;
-  return /(?:^|,)\s*\.\.\./m.test(clientOptions);
+  return splitTopLevelObjectEntries(clientOptions).some((entry) => entry.startsWith('...'));
 }
 
 function inspectPrismaV7DriverAdapter(source) {
@@ -176,7 +295,7 @@ function formatPrismaV7DriverAdapter(status, { json = false } = {}) {
     '| --- | --- |',
     checkRows,
     '',
-    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter, passes that constructed adapter when PrismaClient is created, does not retain the legacy `datasources` / `datasourceUrl` constructor overrides from the Prisma 6 connection style, and does not hide constructor options behind an unresolved object spread.',
+    'Prisma ORM 7 requires a driver adapter for database access. This read-only probe verifies that the application imports and constructs the Cloudflare D1 adapter, passes that constructed adapter as a top-level PrismaClient option, does not retain the legacy top-level `datasources` / `datasourceUrl` constructor overrides from the Prisma 6 connection style, and does not hide top-level constructor options behind an unresolved object spread.',
     '',
   ].join('\n');
 }
@@ -219,5 +338,6 @@ module.exports = {
   prismaClientOptionsHaveOption,
   prismaClientOptionsHaveSpread,
   prismaClientOptionsUseAdapter,
+  splitTopLevelObjectEntries,
   stripComments,
 };
