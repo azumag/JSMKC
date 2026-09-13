@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import {
+  findCommonJsPrismaDefineConfigImport,
   findNamedDotenvConfigImport,
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
@@ -51,6 +52,14 @@ describe('Prisma 7 environment loading readiness', () => {
     expect(findNamedDotenvConfigImport("import { config as loadEnv } from 'dotenv';")).toBe('loadEnv');
   });
 
+  it('recognizes CommonJS destructuring aliases for Prisma config evaluation', () => {
+    const aliasedImport = "const { defineConfig: makeConfig } = require('prisma/config');";
+    const shorthandImport = "const { defineConfig } = require('prisma/config');";
+
+    expect(findCommonJsPrismaDefineConfigImport(aliasedImport)).toBe('makeConfig');
+    expect(findCommonJsPrismaDefineConfigImport(shorthandImport)).toBe('defineConfig');
+  });
+
   it('accepts namespace and CommonJS dotenv config calls before Prisma config evaluation', () => {
     expect(
       inspectPrismaV7EnvLoading(`
@@ -66,6 +75,14 @@ describe('Prisma 7 environment loading readiness', () => {
         const { defineConfig } = require('prisma/config');
         require('dotenv').config();
         module.exports = defineConfig({});
+      `),
+    ).toEqual({ ready: true, mode: 'dotenv.config()' });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        const { defineConfig: makeConfig } = require('prisma/config');
+        require('dotenv').config();
+        module.exports = makeConfig({});
       `),
     ).toEqual({ ready: true, mode: 'dotenv.config()' });
   });
@@ -93,6 +110,14 @@ describe('Prisma 7 environment loading readiness', () => {
       inspectPrismaV7EnvLoading(`
         const { defineConfig } = require('prisma/config');
         module.exports = defineConfig({});
+        require('dotenv').config();
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        const { defineConfig: makeConfig } = require('prisma/config');
+        module.exports = makeConfig({});
         require('dotenv').config();
       `),
     ).toEqual({ ready: false, mode: null });
