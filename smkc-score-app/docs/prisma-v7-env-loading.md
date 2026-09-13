@@ -23,12 +23,16 @@ The probe accepts the Prisma upgrade-guide side-effect import:
 import 'dotenv/config';
 ```
 
-It also accepts explicit `dotenv` `config()` calls, including JSMKC's current named-import pattern. Imports that never invoke `config()` and commented examples do not count as readiness evidence.
+Static side-effect imports execute before the module body, so that form is sufficient regardless of where the import declaration is written at top level.
+
+The probe also accepts explicit `dotenv` `config()` calls, including JSMKC's current named-import pattern, but only when the detected call executes before the `defineConfig(...)` expression is evaluated. A `config()` call that appears after `export default defineConfig(...)` is intentionally rejected because datasource values may already have been read by then. Aliased `defineConfig` imports are handled as the same evaluation boundary.
+
+Imports that never invoke `config()` and commented examples do not count as readiness evidence.
 
 The probe does not edit `prisma.config.ts`, `.env*` files, dependency versions, the lockfile, Prisma schema, generated client code, D1 configuration, or the temporary #3114 security-audit exception.
 
 ## Regression coverage
 
-`__tests__/scripts/prisma-v7-env-loading.test.ts` verifies both supported loading styles and reads the repository's actual `prisma.config.ts`. If a future Prisma 7 migration rewrite accidentally removes explicit environment loading, the normal unit-test suite will fail before that change can be merged.
+`__tests__/scripts/prisma-v7-env-loading.test.ts` verifies the supported loading styles, correct and too-late `config()` ordering, aliased `defineConfig` usage, and the repository's actual `prisma.config.ts`. If a future Prisma 7 migration rewrite accidentally removes explicit environment loading or moves it after config evaluation, the normal unit-test suite will fail before that change can be merged.
 
 This is migration-readiness evidence only. It does not authorize changing environment precedence, introducing new secrets, or changing Cloudflare runtime bindings.
