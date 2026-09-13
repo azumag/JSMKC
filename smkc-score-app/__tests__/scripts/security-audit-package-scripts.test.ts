@@ -16,6 +16,8 @@ describe('security audit package scripts', () => {
       'security:audit:status:json': 'node scripts/security-audit-status.js --json',
       'security:audit:upstream': 'node scripts/security-audit-upstream.js',
       'security:audit:upstream:json': 'node scripts/security-audit-upstream.js --json',
+      'security:audit:upstream-issue': 'node scripts/security-audit-upstream-issue.js',
+      'security:audit:upstream-issue:json': 'node scripts/security-audit-upstream-issue.js --json',
       'security:audit:next-major': 'node scripts/security-audit-next-major.js',
       'security:audit:next-major:json': 'node scripts/security-audit-next-major.js --json',
     });
