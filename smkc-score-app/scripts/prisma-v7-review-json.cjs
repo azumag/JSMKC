@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 
 const REVIEW_SCHEMA_VERSION = 1;
 const PROBE_TIMEOUT_MS = 30_000;
+const PROBE_MAX_BUFFER_BYTES = 1024 * 1024;
 const PRISMA_V7_REVIEW_PROBES = Object.freeze([
   Object.freeze({ key: 'readiness', script: 'prisma-v7-readiness.cjs' }),
   Object.freeze({ key: 'driverAdapter', script: 'prisma-v7-driver-adapter.cjs' }),
@@ -74,7 +75,13 @@ function parseProbeJson(probeKey, stdout) {
 
 function runProbe(
   probe,
-  { cwd = process.cwd(), env = process.env, spawn = spawnSync, timeoutMs = PROBE_TIMEOUT_MS } = {},
+  {
+    cwd = process.cwd(),
+    env = process.env,
+    spawn = spawnSync,
+    timeoutMs = PROBE_TIMEOUT_MS,
+    maxBufferBytes = PROBE_MAX_BUFFER_BYTES,
+  } = {},
 ) {
   const result = spawn(process.execPath, [path.join(__dirname, probe.script), '--json'], {
     cwd,
@@ -83,17 +90,25 @@ function runProbe(
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: timeoutMs,
     killSignal: 'SIGTERM',
+    maxBuffer: maxBufferBytes,
   });
 
   if (result.error) {
     if (result.error.code === 'ETIMEDOUT') {
       throw new Error(`${probe.key} probe timed out after ${timeoutMs}ms`);
     }
+    if (result.error.code === 'ENOBUFS') {
+      throw new Error(`${probe.key} probe output exceeded ${maxBufferBytes} bytes`);
+    }
     throw new Error(`${probe.key} probe could not start: ${result.error.message}`);
   }
 
+  if (result.signal) {
+    throw new Error(`${probe.key} probe terminated by signal ${result.signal}`);
+  }
+
   if (result.status !== 0) {
-    const stderr = result.stderr.trim();
+    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
     const detail = stderr ? `: ${stderr}` : '';
     throw new Error(`${probe.key} probe failed with exit code ${result.status}${detail}`);
   }
@@ -129,6 +144,7 @@ if (require.main === module) {
 
 module.exports = {
   PRISMA_V7_REVIEW_PROBES,
+  PROBE_MAX_BUFFER_BYTES,
   PROBE_TIMEOUT_MS,
   REVIEW_SCHEMA_VERSION,
   collectPrismaV7ReviewEvidence,
