@@ -1,5 +1,6 @@
 import {
   assertConsistentUpstreamIssueEvidence,
+  assertMonotonicProbeTimes,
   fetchConsistentUpstreamIssue,
   toStableSnapshot,
 } from '../../scripts/security-audit-upstream-issue-consistency.js';
@@ -39,6 +40,22 @@ describe('Prisma upstream evidence snapshot consistency', () => {
 
     expect(toStableSnapshot(evidence)).toEqual(toStableSnapshot(later));
     expect(() => assertConsistentUpstreamIssueEvidence(evidence, later)).not.toThrow();
+  });
+
+  it('fails closed when the probe-local clock moves backwards between reads', () => {
+    const earlier = { ...evidence, checkedAt: '2026-09-13T07:14:59.999Z' };
+
+    expect(() => assertMonotonicProbeTimes(evidence, earlier)).toThrow('clock moved backwards');
+    expect(() => assertConsistentUpstreamIssueEvidence(evidence, earlier)).toThrow('clock moved backwards');
+  });
+
+  it('fails closed when either probe-local timestamp is invalid', () => {
+    expect(() => assertMonotonicProbeTimes({ ...evidence, checkedAt: 'invalid' }, evidence)).toThrow(
+      'first upstream issue evidence checkedAt must be a valid timestamp',
+    );
+    expect(() => assertMonotonicProbeTimes(evidence, { ...evidence, checkedAt: undefined })).toThrow(
+      'second upstream issue evidence must include checkedAt',
+    );
   });
 
   it('fails closed when issue metadata changes between reads', () => {
@@ -92,5 +109,14 @@ describe('Prisma upstream evidence snapshot consistency', () => {
       .mockResolvedValueOnce({ ...evidence, state: 'closed', closedAt: '2026-09-13T07:15:30Z' });
 
     await expect(fetchConsistentUpstreamIssue({ fetchIssue })).rejects.toThrow('changed during consistency check');
+  });
+
+  it('does not publish evidence when the second read timestamp goes backwards', async () => {
+    const fetchIssue = jest
+      .fn()
+      .mockResolvedValueOnce(evidence)
+      .mockResolvedValueOnce({ ...evidence, checkedAt: '2026-09-13T07:14:59.999Z' });
+
+    await expect(fetchConsistentUpstreamIssue({ fetchIssue })).rejects.toThrow('clock moved backwards');
   });
 });
