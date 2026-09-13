@@ -4,6 +4,10 @@ const fs = require('node:fs');
 
 const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/orm/issues/30052';
 const UPSTREAM_ISSUE_NUMBER = 30052;
+const UPSTREAM_FIX_PR_API_URL = 'https://api.github.com/repos/prisma/orm/pulls/30189';
+const UPSTREAM_FIX_PR_NUMBER = 30189;
+const UPSTREAM_FIX_PR_BASE_REF = 'v7';
+const UPSTREAM_FIX_PR_MERGE_COMMIT_SHA = '93118fdeba185110fb7b0bd5e945461405baf65a';
 const UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS = 30_000;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,300}$/;
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
@@ -92,6 +96,55 @@ function normalizeUpstreamIssue(payload) {
   };
 }
 
+function normalizeUpstreamFixPullRequest(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('upstream fix pull request response must be an object');
+  }
+
+  if (payload.number !== UPSTREAM_FIX_PR_NUMBER) {
+    throw new Error(`unexpected upstream fix pull request number: ${payload.number ?? 'missing'}`);
+  }
+
+  if (payload.html_url !== 'https://github.com/prisma/orm/pull/30189') {
+    throw new Error('upstream fix pull request html_url does not match prisma/orm#30189');
+  }
+
+  if (payload.state !== 'closed' || payload.merged !== true) {
+    throw new Error('upstream fix pull request must remain merged and closed');
+  }
+
+  if (payload.base?.ref !== UPSTREAM_FIX_PR_BASE_REF) {
+    throw new Error(`upstream fix pull request base must remain ${UPSTREAM_FIX_PR_BASE_REF}`);
+  }
+
+  if (payload.merge_commit_sha !== UPSTREAM_FIX_PR_MERGE_COMMIT_SHA) {
+    throw new Error('upstream fix pull request merge commit changed unexpectedly');
+  }
+
+  if (!isValidUtcTimestamp(payload.updated_at)) {
+    throw new Error('upstream fix pull request updated_at must be a valid UTC timestamp');
+  }
+
+  if (!isValidUtcTimestamp(payload.merged_at)) {
+    throw new Error('upstream fix pull request merged_at must be a valid UTC timestamp');
+  }
+
+  if (Date.parse(payload.merged_at) > Date.parse(payload.updated_at)) {
+    throw new Error('upstream fix pull request cannot have merged_at after updated_at');
+  }
+
+  return {
+    pullRequestNumber: payload.number,
+    state: payload.state,
+    merged: payload.merged,
+    baseRef: payload.base.ref,
+    mergeCommitSha: payload.merge_commit_sha,
+    mergedAt: payload.merged_at,
+    updatedAt: payload.updated_at,
+    url: payload.html_url,
+  };
+}
+
 function getCheckedAt(clock = () => new Date()) {
   const checkedAt = clock();
   if (!(checkedAt instanceof Date) || !Number.isFinite(checkedAt.getTime())) {
@@ -99,6 +152,24 @@ function getCheckedAt(clock = () => new Date()) {
   }
 
   return checkedAt.toISOString();
+}
+
+async function fetchJsonEvidence(fetchImpl, url, request, label) {
+  const response = await fetchImpl(url, request);
+
+  if (!response || typeof response.ok !== 'boolean') {
+    throw new Error(`${label} request returned an invalid response`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`${label} request failed with HTTP ${response.status ?? 'unknown'}`);
+  }
+
+  try {
+    return await response.json();
+  } catch (error) {
+    throw new Error(`${label} response was not valid JSON: ${error.message}`);
+  }
 }
 
 async function fetchUpstreamIssue({
@@ -117,37 +188,31 @@ async function fetchUpstreamIssue({
     'X-GitHub-Api-Version': '2022-11-28',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-
-  const response = await fetchImpl(UPSTREAM_ISSUE_API_URL, {
+  const request = {
     headers,
     redirect: 'error',
     signal,
-  });
+  };
 
-  if (!response || typeof response.ok !== 'boolean') {
-    throw new Error('upstream issue request returned an invalid response');
-  }
-
-  if (!response.ok) {
-    throw new Error(`upstream issue request failed with HTTP ${response.status ?? 'unknown'}`);
-  }
-
-  let payload;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    throw new Error(`upstream issue response was not valid JSON: ${error.message}`);
-  }
-
-  const issue = normalizeUpstreamIssue(payload);
+  const issuePayload = await fetchJsonEvidence(fetchImpl, UPSTREAM_ISSUE_API_URL, request, 'upstream issue');
+  const issue = normalizeUpstreamIssue(issuePayload);
+  const fixPullRequestPayload = await fetchJsonEvidence(
+    fetchImpl,
+    UPSTREAM_FIX_PR_API_URL,
+    request,
+    'upstream fix pull request',
+  );
+  const fixPullRequest = normalizeUpstreamFixPullRequest(fixPullRequestPayload);
   const checkedAt = getCheckedAt(clock);
-  if (Date.parse(checkedAt) < Date.parse(issue.updatedAt)) {
-    throw new Error('upstream issue check clock is earlier than upstream updated_at');
+  const newestUpstreamTimestamp = Math.max(Date.parse(issue.updatedAt), Date.parse(fixPullRequest.updatedAt));
+  if (Date.parse(checkedAt) < newestUpstreamTimestamp) {
+    throw new Error('upstream issue check clock is earlier than upstream evidence updated_at');
   }
 
   return {
     ...issue,
     checkedAt,
+    fixPullRequest,
   };
 }
 
@@ -163,7 +228,15 @@ function formatUpstreamIssue(issue, { json = false } = {}) {
     `checked at: ${issue.checkedAt}\n` +
     `updated at: ${issue.updatedAt}\n` +
     `closed at: ${issue.closedAt ?? 'none'}\n` +
-    `url: ${issue.url}\n`
+    `url: ${issue.url}\n` +
+    `upstream fix PR: #${issue.fixPullRequest.pullRequestNumber}\n` +
+    `fix PR state: ${issue.fixPullRequest.state}\n` +
+    `fix PR merged: ${issue.fixPullRequest.merged}\n` +
+    `fix PR base: ${issue.fixPullRequest.baseRef}\n` +
+    `fix PR merge commit: ${issue.fixPullRequest.mergeCommitSha}\n` +
+    `fix PR merged at: ${issue.fixPullRequest.mergedAt}\n` +
+    `fix PR updated at: ${issue.fixPullRequest.updatedAt}\n` +
+    `fix PR url: ${issue.fixPullRequest.url}\n`
   );
 }
 
@@ -180,6 +253,14 @@ function writeGitHubOutputs(issue, outputPath = process.env.GITHUB_OUTPUT) {
     updated_at: issue.updatedAt,
     closed_at: issue.closedAt ?? 'none',
     url: issue.url,
+    fix_pr_number: String(issue.fixPullRequest.pullRequestNumber),
+    fix_pr_state: issue.fixPullRequest.state,
+    fix_pr_merged: String(issue.fixPullRequest.merged),
+    fix_pr_base_ref: issue.fixPullRequest.baseRef,
+    fix_pr_merge_commit_sha: issue.fixPullRequest.mergeCommitSha,
+    fix_pr_merged_at: issue.fixPullRequest.mergedAt,
+    fix_pr_updated_at: issue.fixPullRequest.updatedAt,
+    fix_pr_url: issue.fixPullRequest.url,
   };
 
   for (const [key, value] of Object.entries(outputs)) {
@@ -210,7 +291,7 @@ async function main() {
   try {
     issue = await fetchUpstreamIssue();
   } catch (error) {
-    process.stderr.write(`Failed to fetch Prisma upstream issue: ${error.message}\n`);
+    process.stderr.write(`Failed to fetch Prisma upstream issue evidence: ${error.message}\n`);
     process.exit(1);
   }
 
@@ -229,12 +310,17 @@ if (require.main === module) {
 }
 
 module.exports = {
+  UPSTREAM_FIX_PR_API_URL,
+  UPSTREAM_FIX_PR_BASE_REF,
+  UPSTREAM_FIX_PR_MERGE_COMMIT_SHA,
+  UPSTREAM_FIX_PR_NUMBER,
   UPSTREAM_ISSUE_API_URL,
   UPSTREAM_ISSUE_NUMBER,
   UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS,
   fetchUpstreamIssue,
   formatUpstreamIssue,
   getCheckedAt,
+  normalizeUpstreamFixPullRequest,
   normalizeUpstreamIssue,
   parseCliOptions,
   writeGitHubOutputs,
