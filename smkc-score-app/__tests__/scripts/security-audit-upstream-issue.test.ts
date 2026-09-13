@@ -21,6 +21,7 @@ const upstreamPayload = {
   number: 30052,
   state: 'open',
   state_reason: null,
+  comments: 0,
   updated_at: '2026-09-11T12:34:56Z',
   closed_at: null,
   html_url: 'https://github.com/prisma/orm/issues/30052',
@@ -55,10 +56,12 @@ describe('Prisma upstream issue probe', () => {
       issueNumber: 30052,
       state: 'open',
       stateReason: null,
+      commentCount: 0,
       checkedAt,
       updatedAt: '2026-09-11T12:34:56Z',
       closedAt: null,
       url: 'https://github.com/prisma/orm/issues/30052',
+      latestComment: null,
       fixPullRequest: {
         pullRequestNumber: 30189,
         state: 'closed',
@@ -124,6 +127,7 @@ describe('Prisma upstream issue probe', () => {
       issueNumber: 30052,
       state: 'closed',
       stateReason: 'not_planned',
+      commentCount: 0,
       updatedAt: '2026-09-14T10:00:00Z',
       closedAt: '2026-09-14T09:59:00Z',
       url: 'https://github.com/prisma/orm/issues/30052',
@@ -266,9 +270,11 @@ describe('Prisma upstream issue probe', () => {
     expect(human).toContain('Prisma upstream issue: #30052');
     expect(human).toContain('state: open');
     expect(human).toContain('state reason: none');
+    expect(human).toContain('comment count: 0');
     expect(human).toContain(`checked at: ${checkedAt}`);
     expect(human).toContain('updated at: 2026-09-11T12:34:56Z');
     expect(human).toContain('closed at: none');
+    expect(human).toContain('latest comment id: none');
     expect(human).toContain('upstream fix PR: #30189');
     expect(human).toContain('fix PR base: v7');
     expect(human).toContain(`fix PR merge commit: ${UPSTREAM_FIX_PR_MERGE_COMMIT_SHA}`);
@@ -286,10 +292,17 @@ describe('Prisma upstream issue probe', () => {
         'issue_number=30052\n' +
           'state=open\n' +
           'state_reason=none\n' +
+          'comment_count=0\n' +
           `checked_at=${checkedAt}\n` +
           'updated_at=2026-09-11T12:34:56Z\n' +
           'closed_at=none\n' +
           'url=https://github.com/prisma/orm/issues/30052\n' +
+          'latest_comment_id=none\n' +
+          'latest_comment_author=none\n' +
+          'latest_comment_author_association=none\n' +
+          'latest_comment_created_at=none\n' +
+          'latest_comment_updated_at=none\n' +
+          'latest_comment_url=none\n' +
           'fix_pr_number=30189\n' +
           'fix_pr_state=closed\n' +
           'fix_pr_merged=true\n' +
