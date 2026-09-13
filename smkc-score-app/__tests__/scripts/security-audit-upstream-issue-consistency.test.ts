@@ -74,6 +74,17 @@ describe('Prisma upstream evidence snapshot consistency', () => {
     expect(fetchIssue).toHaveBeenCalledTimes(2);
   });
 
+  it('shares one abort signal across both reads so the full consistency check has one timeout budget', async () => {
+    const second = { ...evidence, checkedAt: '2026-09-13T07:16:00.000Z' };
+    const fetchIssue = jest.fn().mockResolvedValueOnce(evidence).mockResolvedValueOnce(second);
+    const controller = new AbortController();
+
+    await fetchConsistentUpstreamIssue({ fetchIssue, signal: controller.signal });
+
+    expect(fetchIssue.mock.calls[0][0].signal).toBe(controller.signal);
+    expect(fetchIssue.mock.calls[1][0].signal).toBe(controller.signal);
+  });
+
   it('does not publish evidence when the two reads disagree', async () => {
     const fetchIssue = jest
       .fn()
