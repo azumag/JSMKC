@@ -23,7 +23,10 @@ function extractDocumentedStateReasons(documentation: string): string[] {
     .find((entry) => entry.includes('open issue では `null` または `reopened`'));
   expect(line).toBeDefined();
 
-  return Array.from(line?.matchAll(/`([a-z_]+)`/g) ?? [], (entry) => entry[1]).filter(
+  const contract = line?.match(/open issue では (.+?) のみを受理します。/)?.[1];
+  expect(contract).toBeDefined();
+
+  return Array.from(contract?.matchAll(/`([a-z_]+)`/g) ?? [], (entry) => entry[1]).filter(
     (value) => value !== 'null',
   );
 }
