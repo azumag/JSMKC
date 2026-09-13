@@ -26,9 +26,7 @@ function extractDocumentedStateReasons(documentation: string): string[] {
   const contract = line?.match(/open issue では (.+?) のみを受理します。/)?.[1];
   expect(contract).toBeDefined();
 
-  return Array.from(contract?.matchAll(/`([a-z_]+)`/g) ?? [], (entry) => entry[1]).filter(
-    (value) => value !== 'null',
-  );
+  return Array.from(contract?.matchAll(/`([a-z_]+)`/g) ?? [], (entry) => entry[1]).filter((value) => value !== 'null');
 }
 
 describe('Prisma upstream GitHub enum documentation contracts', () => {
