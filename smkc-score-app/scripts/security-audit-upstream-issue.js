@@ -6,7 +6,7 @@ const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/orm/issues/3
 const UPSTREAM_ISSUE_NUMBER = 30052;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,300}$/;
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
-const ALLOWED_STATE_REASONS = new Set(['completed', 'not_planned', 'reopened']);
+const ALLOWED_STATE_REASONS = new Set(['completed', 'not_planned', 'duplicate', 'reopened']);
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   const unknownArguments = argv.filter((argument) => argument !== '--json');
