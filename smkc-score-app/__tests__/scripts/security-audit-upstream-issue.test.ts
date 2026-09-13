@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import {
   UPSTREAM_ISSUE_API_URL,
+  UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS,
   fetchUpstreamIssue,
   formatUpstreamIssue,
   getCheckedAt,
@@ -25,7 +26,7 @@ const checkedAt = '2026-09-13T01:23:45.000Z';
 const clock = () => new Date(checkedAt);
 
 describe('Prisma upstream issue probe', () => {
-  it('fetches the tracked issue with a read-only GitHub API request and observation timestamp', async () => {
+  it('fetches the tracked issue with a bounded read-only GitHub API request and observation timestamp', async () => {
     const json = jest.fn().mockResolvedValue(upstreamPayload);
     const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200, json });
 
@@ -39,10 +40,12 @@ describe('Prisma upstream issue probe', () => {
       url: 'https://github.com/prisma/orm/issues/30052',
     });
 
+    expect(UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS).toBe(30_000);
     expect(fetchImpl).toHaveBeenCalledWith(
       UPSTREAM_ISSUE_API_URL,
       expect.objectContaining({
         redirect: 'follow',
+        signal: expect.any(AbortSignal),
         headers: expect.objectContaining({
           Accept: 'application/vnd.github+json',
           Authorization: 'Bearer test-token',
@@ -51,6 +54,19 @@ describe('Prisma upstream issue probe', () => {
         }),
       }),
     );
+  });
+
+  it('preserves an explicitly supplied abort signal for deterministic callers', async () => {
+    const controller = new AbortController();
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue(upstreamPayload),
+    });
+
+    await fetchUpstreamIssue({ fetchImpl, signal: controller.signal, clock });
+
+    expect(fetchImpl.mock.calls[0][1].signal).toBe(controller.signal);
   });
 
   it('does not require a token for public issue review', async () => {
@@ -156,6 +172,18 @@ describe('Prisma upstream issue probe', () => {
       }),
     ).toThrow('closed_at after updated_at');
     expect(() => getCheckedAt(() => new Date('invalid'))).toThrow('clock returned an invalid date');
+  });
+
+  it('fails closed when the observation clock predates the upstream update', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue(upstreamPayload),
+    });
+
+    await expect(
+      fetchUpstreamIssue({ fetchImpl, clock: () => new Date('2026-09-11T12:34:55.999Z') }),
+    ).rejects.toThrow('check clock is earlier than upstream updated_at');
   });
 
   it('supports human and JSON output without conflating checked and upstream update times', async () => {
