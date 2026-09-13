@@ -120,6 +120,31 @@ describe('Prisma 7 environment loading readiness', () => {
     ).toEqual({ ready: false, mode: null });
   });
 
+  it('ignores braces in inline comments when deciding top-level execution', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        function loadEnvLater() {
+          const marker = 1; // } must not escape the function scope
+          config();
+        }
+        export default defineConfig({});
+        loadEnvLater();
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        const marker = 1; // { must not create a fake scope
+        config();
+        export default defineConfig({});
+      `),
+    ).toEqual({ ready: true, mode: 'dotenv.config()' });
+  });
+
   it('does not treat imports without execution or commented examples as readiness evidence', () => {
     expect(inspectPrismaV7EnvLoading("import { config } from 'dotenv';")).toEqual({ ready: false, mode: null });
     expect(
