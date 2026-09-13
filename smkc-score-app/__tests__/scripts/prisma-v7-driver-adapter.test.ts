@@ -7,6 +7,7 @@ import {
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
   parseCliOptions,
+  prismaClientOptionsHaveComputedKey,
   prismaClientOptionsHaveOption,
   prismaClientOptionsHaveSpread,
   prismaClientOptionsUseAdapter,
@@ -42,6 +43,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
         omitsLegacyDatasourcesOption: true,
         omitsLegacyDatasourceUrlOption: true,
         omitsUnknownSpreadOptions: true,
+        omitsComputedOptionKeys: true,
       },
     });
   });
@@ -73,6 +75,19 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
 
     expect(status.ready).toBe(false);
     expect(status.adapterInstanceLocalName).toBe('d1Adapter');
+    expect(status.checks.passesAdapterToPrismaClient).toBe(false);
+  });
+
+  it('requires the adapter option value to be the exact observed adapter identifier', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from '@prisma/client';
+
+      const adapter = new PrismaD1(db);
+      const prisma = new PrismaClient({ adapter: adapter.wrapper });
+    `);
+
+    expect(status.ready).toBe(false);
     expect(status.checks.passesAdapterToPrismaClient).toBe(false);
   });
 
@@ -134,6 +149,40 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     } else {
       expect(status.checks.omitsLegacyDatasourceUrlOption).toBe(false);
     }
+  });
+
+  it('fails closed when a static legacy key uses computed property syntax', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from './generated/prisma/client';
+
+      const adapter = new PrismaD1(db);
+      const prisma = new PrismaClient({
+        adapter,
+        ['datasourceUrl']: process.env.DATABASE_URL,
+      });
+    `);
+
+    expect(status.ready).toBe(false);
+    expect(status.checks.omitsLegacyDatasourceUrlOption).toBe(true);
+    expect(status.checks.omitsComputedOptionKeys).toBe(false);
+  });
+
+  it('fails closed when a dynamic computed property could conceal a legacy option', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from './generated/prisma/client';
+
+      const adapter = new PrismaD1(db);
+      const legacyKey = 'datasourceUrl';
+      const prisma = new PrismaClient({
+        adapter,
+        [legacyKey]: process.env.DATABASE_URL,
+      });
+    `);
+
+    expect(status.ready).toBe(false);
+    expect(status.checks.omitsComputedOptionKeys).toBe(false);
   });
 
   it('does not treat a nested datasourceUrl key as a legacy top-level Prisma option', () => {
@@ -270,6 +319,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(status.checks.omitsLegacyDatasourcesOption).toBe(true);
     expect(status.checks.omitsLegacyDatasourceUrlOption).toBe(true);
     expect(status.checks.omitsUnknownSpreadOptions).toBe(true);
+    expect(status.checks.omitsComputedOptionKeys).toBe(true);
   });
 
   it('parses named-import aliases and PrismaClient options conservatively', () => {
@@ -288,7 +338,10 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(prismaClientOptionsUseAdapter(clientOptions, 'd1Adapter')).toBe(true);
     expect(prismaClientOptionsHaveOption(clientOptions, 'datasourceUrl')).toBe(false);
     expect(prismaClientOptionsHaveSpread(clientOptions)).toBe(false);
+    expect(prismaClientOptionsHaveComputedKey(clientOptions)).toBe(false);
     expect(prismaClientOptionsHaveSpread('adapter, ...legacyOptions')).toBe(true);
+    expect(prismaClientOptionsHaveComputedKey("adapter, [legacyKey]: 'value'")).toBe(true);
+    expect(prismaClientOptionsHaveComputedKey("adapter, nested: { [key]: 'value' }")).toBe(false);
     expect(extractPrismaClientOptions(code, 'MissingClient')).toBeNull();
   });
 
@@ -301,7 +354,9 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(output).toContain('| omitsLegacyDatasourcesOption | ready |');
     expect(output).toContain('| omitsLegacyDatasourceUrlOption | ready |');
     expect(output).toContain('| omitsUnknownSpreadOptions | ready |');
-    expect(output).toContain('top-level PrismaClient option');
+    expect(output).toContain('| omitsComputedOptionKeys | ready |');
+    expect(output).toContain('exact constructed adapter');
+    expect(output).toContain('computed property key');
     expect(output).toContain('read-only probe');
   });
 
