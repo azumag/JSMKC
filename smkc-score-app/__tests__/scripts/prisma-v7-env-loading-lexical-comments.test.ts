@@ -1,7 +1,4 @@
-import {
-  inspectPrismaV7EnvLoading,
-  withoutCommentOnlyLines,
-} from '../../scripts/prisma-v7-env-loading.cjs';
+import { inspectPrismaV7EnvLoading, withoutCommentOnlyLines } from '../../scripts/prisma-v7-env-loading.cjs';
 
 describe('Prisma 7 environment-loading lexical evidence', () => {
   it('does not let comment delimiters inside strings erase the config-evaluation boundary', () => {
@@ -43,8 +40,7 @@ describe('Prisma 7 environment-loading lexical evidence', () => {
   });
 
   it('masks real comments without changing source length or quoted comment delimiters', () => {
-    const source =
-      "const marker = '/* quoted */'; /* real comment */ config(); // line comment\n";
+    const source = "const marker = '/* quoted */'; /* real comment */ config(); // line comment\n";
     const masked = withoutCommentOnlyLines(source);
 
     expect(masked).toHaveLength(source.length);
