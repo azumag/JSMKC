@@ -1,5 +1,6 @@
 import {
   PRISMA_V7_REVIEW_PROBES,
+  PROBE_MAX_BUFFER_BYTES,
   PROBE_TIMEOUT_MS,
   REVIEW_SCHEMA_VERSION,
   collectPrismaV7ReviewEvidence,
@@ -101,7 +102,7 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
     expect(() => validateProbeManifest([{ key: 'probe', script: '   ' }])).toThrow('non-empty script');
   });
 
-  it('bounds child probe execution and preserves JSON parsing', () => {
+  it('bounds child probe execution and output while preserving JSON parsing', () => {
     const spawn = jest.fn(() => ({ status: 0, stdout: '{"ready":true}\n', stderr: '' }));
     const evidence = runProbe(
       { key: 'readiness', script: 'prisma-v7-readiness.cjs' },
@@ -119,6 +120,7 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: PROBE_TIMEOUT_MS,
       killSignal: 'SIGTERM',
+      maxBuffer: PROBE_MAX_BUFFER_BYTES,
     });
   });
 
@@ -129,6 +131,26 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
     expect(() =>
       runProbe({ key: 'readiness', script: 'prisma-v7-readiness.cjs' }, { spawn, timeoutMs: 1_234 }),
     ).toThrow('readiness probe timed out after 1234ms');
+  });
+
+  it('reports child probe output overflow as a fail-closed operational failure', () => {
+    const bufferError = Object.assign(new Error('spawnSync ENOBUFS'), { code: 'ENOBUFS' });
+    const spawn = jest.fn(() => ({ error: bufferError, status: null, stdout: '', stderr: '' }));
+
+    expect(() =>
+      runProbe(
+        { key: 'readiness', script: 'prisma-v7-readiness.cjs' },
+        { spawn, maxBufferBytes: 4_096 },
+      ),
+    ).toThrow('readiness probe output exceeded 4096 bytes');
+  });
+
+  it('reports child probe signal termination explicitly', () => {
+    const spawn = jest.fn(() => ({ status: null, signal: 'SIGKILL', stdout: '', stderr: '' }));
+
+    expect(() => runProbe({ key: 'readiness', script: 'prisma-v7-readiness.cjs' }, { spawn })).toThrow(
+      'readiness probe terminated by signal SIGKILL',
+    );
   });
 
   it('accepts one JSON object and rejects malformed or ambiguous probe evidence', () => {
