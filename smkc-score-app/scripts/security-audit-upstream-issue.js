@@ -120,7 +120,7 @@ async function fetchUpstreamIssue({
 
   const response = await fetchImpl(UPSTREAM_ISSUE_API_URL, {
     headers,
-    redirect: 'follow',
+    redirect: 'error',
     signal,
   });
 
