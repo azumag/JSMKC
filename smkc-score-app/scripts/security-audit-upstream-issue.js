@@ -69,7 +69,6 @@ function normalizeUpstreamIssue(payload) {
     issueNumber: payload.number,
     state: payload.state,
     stateReason,
-    checkedAt: undefined,
     updatedAt: payload.updated_at,
     closedAt,
     url: payload.html_url,
