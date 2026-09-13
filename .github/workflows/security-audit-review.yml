@@ -69,6 +69,14 @@ jobs:
         if: always()
         run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
+      - id: upstream_issue
+        name: Check Prisma upstream issue and fix PR evidence
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/security-audit-upstream-issue.js
+
       - id: prisma_v7_readiness
         name: Inspect Prisma 7 migration readiness
         if: always()
@@ -243,6 +251,52 @@ jobs:
             echo "Prisma 7 TypeScript prerequisite evidence is advisory only and can use package-lock evidence when dependencies are not installed by this read-only review workflow."
             echo
             echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize upstream issue and fix PR evidence
+        if: always()
+        env:
+          UPSTREAM_ISSUE_OUTCOME: ${{ steps.upstream_issue.outcome }}
+          UPSTREAM_ISSUE_NUMBER: ${{ steps.upstream_issue.outputs.issue_number }}
+          UPSTREAM_ISSUE_STATE: ${{ steps.upstream_issue.outputs.state }}
+          UPSTREAM_ISSUE_STATE_REASON: ${{ steps.upstream_issue.outputs.state_reason }}
+          UPSTREAM_ISSUE_CHECKED_AT: ${{ steps.upstream_issue.outputs.checked_at }}
+          UPSTREAM_ISSUE_UPDATED_AT: ${{ steps.upstream_issue.outputs.updated_at }}
+          UPSTREAM_ISSUE_CLOSED_AT: ${{ steps.upstream_issue.outputs.closed_at }}
+          UPSTREAM_ISSUE_URL: ${{ steps.upstream_issue.outputs.url }}
+          UPSTREAM_FIX_PR_NUMBER: ${{ steps.upstream_issue.outputs.fix_pr_number }}
+          UPSTREAM_FIX_PR_STATE: ${{ steps.upstream_issue.outputs.fix_pr_state }}
+          UPSTREAM_FIX_PR_MERGED: ${{ steps.upstream_issue.outputs.fix_pr_merged }}
+          UPSTREAM_FIX_PR_BASE_REF: ${{ steps.upstream_issue.outputs.fix_pr_base_ref }}
+          UPSTREAM_FIX_PR_MERGE_COMMIT_SHA: ${{ steps.upstream_issue.outputs.fix_pr_merge_commit_sha }}
+          UPSTREAM_FIX_PR_MERGED_AT: ${{ steps.upstream_issue.outputs.fix_pr_merged_at }}
+          UPSTREAM_FIX_PR_UPDATED_AT: ${{ steps.upstream_issue.outputs.fix_pr_updated_at }}
+          UPSTREAM_FIX_PR_URL: ${{ steps.upstream_issue.outputs.fix_pr_url }}
+        run: |
+          {
+            echo "### Prisma upstream issue and fix PR evidence (advisory only)"
+            echo
+            echo "| Evidence | Value |"
+            echo "| --- | --- |"
+            echo "| Probe outcome | \`${UPSTREAM_ISSUE_OUTCOME:-unavailable}\` |"
+            echo "| Tracking issue | \`#${UPSTREAM_ISSUE_NUMBER:-unavailable}\` |"
+            echo "| Tracking issue state | \`${UPSTREAM_ISSUE_STATE:-unavailable}\` |"
+            echo "| Tracking issue state reason | \`${UPSTREAM_ISSUE_STATE_REASON:-unavailable}\` |"
+            echo "| Tracking issue checked at | \`${UPSTREAM_ISSUE_CHECKED_AT:-unavailable}\` |"
+            echo "| Tracking issue updated at | \`${UPSTREAM_ISSUE_UPDATED_AT:-unavailable}\` |"
+            echo "| Tracking issue closed at | \`${UPSTREAM_ISSUE_CLOSED_AT:-unavailable}\` |"
+            echo "| Tracking issue URL | \`${UPSTREAM_ISSUE_URL:-unavailable}\` |"
+            echo "| Fix PR | \`#${UPSTREAM_FIX_PR_NUMBER:-unavailable}\` |"
+            echo "| Fix PR state | \`${UPSTREAM_FIX_PR_STATE:-unavailable}\` |"
+            echo "| Fix PR merged | \`${UPSTREAM_FIX_PR_MERGED:-unavailable}\` |"
+            echo "| Fix PR base | \`${UPSTREAM_FIX_PR_BASE_REF:-unavailable}\` |"
+            echo "| Fix PR merge commit | \`${UPSTREAM_FIX_PR_MERGE_COMMIT_SHA:-unavailable}\` |"
+            echo "| Fix PR merged at | \`${UPSTREAM_FIX_PR_MERGED_AT:-unavailable}\` |"
+            echo "| Fix PR updated at | \`${UPSTREAM_FIX_PR_UPDATED_AT:-unavailable}\` |"
+            echo "| Fix PR URL | \`${UPSTREAM_FIX_PR_URL:-unavailable}\` |"
+            echo
+            echo "This evidence is advisory only. A merged v7 fix PR does not change the compatible remediation gate, upgrade Prisma, or remove the #3114 temporary exception."
+            echo
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize probe reason evidence
