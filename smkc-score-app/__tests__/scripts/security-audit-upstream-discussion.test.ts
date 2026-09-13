@@ -82,6 +82,33 @@ describe('Prisma upstream discussion evidence', () => {
     ).toThrow('author login is invalid');
   });
 
+  it('accepts only GitHub-documented author associations', () => {
+    const documentedAssociations = [
+      'COLLABORATOR',
+      'CONTRIBUTOR',
+      'FIRST_TIMER',
+      'FIRST_TIME_CONTRIBUTOR',
+      'MANNEQUIN',
+      'MEMBER',
+      'NONE',
+      'OWNER',
+    ];
+
+    for (const authorAssociation of documentedAssociations) {
+      expect(
+        normalizeLatestUpstreamIssueComment([
+          { ...comment, author_association: authorAssociation },
+        ]).authorAssociation,
+      ).toBe(authorAssociation);
+    }
+
+    expect(() =>
+      normalizeLatestUpstreamIssueComment([
+        { ...comment, author_association: 'UNKNOWN_FUTURE_VALUE' },
+      ]),
+    ).toThrow('author_association is invalid');
+  });
+
   it('fails closed when canonical comment identity or timestamps do not match', () => {
     expect(() => normalizeLatestUpstreamIssueComment([])).toThrow('exactly one comment');
     expect(() =>
