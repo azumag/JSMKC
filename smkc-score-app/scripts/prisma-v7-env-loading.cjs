@@ -36,16 +36,54 @@ function findNamedPrismaDefineConfigImport(source) {
   return null;
 }
 
+function isTopLevelSourceIndex(source, targetIndex) {
+  let braceDepth = 0;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = 0; index < targetIndex; index += 1) {
+    const char = source[index];
+
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      continue;
+    }
+
+    if (char === '{') braceDepth += 1;
+    else if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
+  }
+
+  return quote === null && braceDepth === 0;
+}
+
 function findDefineConfigEvaluationIndex(source) {
   const defineConfigLocalName = findNamedPrismaDefineConfigImport(source) ?? 'defineConfig';
   const escapedName = defineConfigLocalName.replace(/[$]/g, '\\$&');
-  const match = new RegExp(`\\b${escapedName}\\s*\\(`, 'm').exec(source);
-  return match?.index ?? null;
+  const pattern = new RegExp(`\\b${escapedName}\\s*\\(`, 'gm');
+
+  for (const match of source.matchAll(pattern)) {
+    if (isTopLevelSourceIndex(source, match.index)) return match.index;
+  }
+
+  return null;
 }
 
 function invocationPrecedesDefineConfig(source, invocationPattern) {
   const invocation = invocationPattern.exec(source);
-  if (!invocation) return false;
+  if (!invocation || !isTopLevelSourceIndex(source, invocation.index)) return false;
 
   const defineConfigIndex = findDefineConfigEvaluationIndex(source);
   return defineConfigIndex === null || invocation.index < defineConfigIndex;
@@ -135,6 +173,7 @@ module.exports = {
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
   invocationPrecedesDefineConfig,
+  isTopLevelSourceIndex,
   parseCliOptions,
   withoutCommentOnlyLines,
 };
