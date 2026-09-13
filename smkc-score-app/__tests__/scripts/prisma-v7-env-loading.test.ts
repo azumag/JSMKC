@@ -28,37 +28,121 @@ describe('Prisma 7 environment loading readiness', () => {
     ).toEqual({ ready: true, mode: 'dotenv/config' });
   });
 
-  it('accepts explicit dotenv config calls, including an aliased named import', () => {
+  it('accepts explicit dotenv config calls before Prisma config evaluation', () => {
     expect(
       inspectPrismaV7EnvLoading(`
         import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
         config({ path: '.env.local' });
         config({ path: '.env' });
+        export default defineConfig({ datasource: { url: process.env.DATABASE_URL ?? '' } });
       `),
     ).toEqual({ ready: true, mode: 'dotenv.config()' });
 
     expect(
       inspectPrismaV7EnvLoading(`
         import { config as loadEnv } from 'dotenv';
+        import { defineConfig as makeConfig } from 'prisma/config';
         loadEnv();
+        export default makeConfig({});
       `),
     ).toEqual({ ready: true, mode: 'dotenv.config()' });
 
     expect(findNamedDotenvConfigImport("import { config as loadEnv } from 'dotenv';")).toBe('loadEnv');
   });
 
-  it('accepts namespace and CommonJS dotenv config calls', () => {
+  it('accepts namespace and CommonJS dotenv config calls before Prisma config evaluation', () => {
     expect(
       inspectPrismaV7EnvLoading(`
         import * as dotenv from 'dotenv';
+        import { defineConfig } from 'prisma/config';
         dotenv.config();
+        export default defineConfig({});
       `),
     ).toEqual({ ready: true, mode: 'dotenv.config()' });
 
-    expect(inspectPrismaV7EnvLoading("require('dotenv').config();")).toEqual({
-      ready: true,
-      mode: 'dotenv.config()',
-    });
+    expect(
+      inspectPrismaV7EnvLoading(`
+        const { defineConfig } = require('prisma/config');
+        require('dotenv').config();
+        module.exports = defineConfig({});
+      `),
+    ).toEqual({ ready: true, mode: 'dotenv.config()' });
+  });
+
+  it('rejects dotenv config calls that run after Prisma config evaluation', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        export default defineConfig({ datasource: { url: process.env.DATABASE_URL ?? '' } });
+        config();
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import * as dotenv from 'dotenv';
+        import { defineConfig as makeConfig } from 'prisma/config';
+        export default makeConfig({});
+        dotenv.config();
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        const { defineConfig } = require('prisma/config');
+        module.exports = defineConfig({});
+        require('dotenv').config();
+      `),
+    ).toEqual({ ready: false, mode: null });
+  });
+
+  it('rejects dotenv config text that is not a top-level executed call', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        function loadEnvLater() {
+          config();
+        }
+        export default defineConfig({});
+        loadEnvLater();
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        const example = "require('dotenv').config()";
+        const { defineConfig } = require('prisma/config');
+        module.exports = defineConfig({});
+      `),
+    ).toEqual({ ready: false, mode: null });
+  });
+
+  it('ignores braces in inline comments when deciding top-level execution', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        function loadEnvLater() {
+          const marker = 1; // } must not escape the function scope
+          config();
+        }
+        export default defineConfig({});
+        loadEnvLater();
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        const marker = 1; // { must not create a fake scope
+        config();
+        export default defineConfig({});
+      `),
+    ).toEqual({ ready: true, mode: 'dotenv.config()' });
   });
 
   it('does not treat imports without execution or commented examples as readiness evidence', () => {

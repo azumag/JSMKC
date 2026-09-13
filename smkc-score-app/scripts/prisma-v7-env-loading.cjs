@@ -24,6 +24,99 @@ function findNamedDotenvConfigImport(source) {
   return null;
 }
 
+function findNamedPrismaDefineConfigImport(source) {
+  const match = /^\s*import\s*\{([^}]*)\}\s*from\s*['"]prisma\/config['"]\s*;?/m.exec(source);
+  if (!match) return null;
+
+  for (const entry of match[1].split(',')) {
+    const named = /^\s*defineConfig(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
+    if (named) return named[1] ?? 'defineConfig';
+  }
+
+  return null;
+}
+
+function isTopLevelSourceIndex(source, targetIndex) {
+  let braceDepth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = 0; index < targetIndex; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (lineComment) {
+      if (char === '\n' || char === '\r') lineComment = false;
+      continue;
+    }
+
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (char === '{') braceDepth += 1;
+    else if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
+  }
+
+  return quote === null && !lineComment && !blockComment && braceDepth === 0;
+}
+
+function findDefineConfigEvaluationIndex(source) {
+  const defineConfigLocalName = findNamedPrismaDefineConfigImport(source) ?? 'defineConfig';
+  const escapedName = defineConfigLocalName.replace(/[$]/g, '\\$&');
+  const pattern = new RegExp(`\\b${escapedName}\\s*\\(`, 'gm');
+
+  for (const match of source.matchAll(pattern)) {
+    if (isTopLevelSourceIndex(source, match.index)) return match.index;
+  }
+
+  return null;
+}
+
+function invocationPrecedesDefineConfig(source, invocationPattern) {
+  const invocation = invocationPattern.exec(source);
+  if (!invocation || !isTopLevelSourceIndex(source, invocation.index)) return false;
+
+  const defineConfigIndex = findDefineConfigEvaluationIndex(source);
+  return defineConfigIndex === null || invocation.index < defineConfigIndex;
+}
+
 function inspectPrismaV7EnvLoading(source) {
   if (typeof source !== 'string') {
     return { ready: false, mode: null };
@@ -38,7 +131,7 @@ function inspectPrismaV7EnvLoading(source) {
   const namedConfig = findNamedDotenvConfigImport(configSource);
   if (namedConfig) {
     const invocation = new RegExp(`^\\s*${namedConfig.replace(/[$]/g, '\\$&')}\\s*\\(`, 'm');
-    if (invocation.test(configSource)) {
+    if (invocationPrecedesDefineConfig(configSource, invocation)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
   }
@@ -46,12 +139,13 @@ function inspectPrismaV7EnvLoading(source) {
   const namespaceImport = /^\s*import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"]dotenv['"]\s*;?/m.exec(configSource);
   if (namespaceImport) {
     const invocation = new RegExp(`^\\s*${namespaceImport[1].replace(/[$]/g, '\\$&')}\\.config\\s*\\(`, 'm');
-    if (invocation.test(configSource)) {
+    if (invocationPrecedesDefineConfig(configSource, invocation)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
   }
 
-  if (/\brequire\s*\(\s*['"]dotenv['"]\s*\)\s*\.\s*config\s*\(/m.test(configSource)) {
+  const commonJsInvocation = /\brequire\s*\(\s*['"]dotenv['"]\s*\)\s*\.\s*config\s*\(/m;
+  if (invocationPrecedesDefineConfig(configSource, commonJsInvocation)) {
     return { ready: true, mode: 'dotenv.config()' };
   }
 
@@ -101,9 +195,13 @@ if (require.main === module) {
 }
 
 module.exports = {
+  findDefineConfigEvaluationIndex,
   findNamedDotenvConfigImport,
+  findNamedPrismaDefineConfigImport,
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
+  invocationPrecedesDefineConfig,
+  isTopLevelSourceIndex,
   parseCliOptions,
   withoutCommentOnlyLines,
 };
