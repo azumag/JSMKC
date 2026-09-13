@@ -26,7 +26,7 @@ const checkedAt = '2026-09-13T01:23:45.000Z';
 const clock = () => new Date(checkedAt);
 
 describe('Prisma upstream issue probe', () => {
-  it('fetches the tracked issue with a bounded read-only GitHub API request and observation timestamp', async () => {
+  it('fetches the tracked issue with a read-only GitHub API request and observation timestamp', async () => {
     const json = jest.fn().mockResolvedValue(upstreamPayload);
     const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200, json });
 
