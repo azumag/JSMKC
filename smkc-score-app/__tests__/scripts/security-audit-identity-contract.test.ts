@@ -61,8 +61,8 @@ describe('security audit identity contract', () => {
     expect(() => extractSingleQuotedConst('', 'ALLOWED_ADVISORY')).toThrow(
       'expected exactly one ALLOWED_ADVISORY declaration, found 0',
     );
-    expect(() => extractSingleQuotedConst('const ALLOWED_ADVISORY = `GHSA-example`;', 'ALLOWED_ADVISORY')).toThrow(
-      'expected exactly one ALLOWED_ADVISORY declaration, found 0',
-    );
+    expect(() =>
+      extractSingleQuotedConst('const ALLOWED_ADVISORY = `GHSA-example`;', 'ALLOWED_ADVISORY'),
+    ).toThrow('expected exactly one ALLOWED_ADVISORY declaration, found 0');
   });
 });
