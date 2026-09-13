@@ -36,6 +36,19 @@ function findNamedPrismaDefineConfigImport(source) {
   return null;
 }
 
+function findCommonJsPrismaDefineConfigImport(source) {
+  const match =
+    /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]prisma\/config['"]\s*\)\s*;?/m.exec(source);
+  if (!match) return null;
+
+  for (const entry of match[1].split(',')) {
+    const named = /^\s*defineConfig(?:\s*:\s*([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
+    if (named) return named[1] ?? 'defineConfig';
+  }
+
+  return null;
+}
+
 function isTopLevelSourceIndex(source, targetIndex) {
   let braceDepth = 0;
   let quote = null;
@@ -98,7 +111,8 @@ function isTopLevelSourceIndex(source, targetIndex) {
 }
 
 function findDefineConfigEvaluationIndex(source) {
-  const defineConfigLocalName = findNamedPrismaDefineConfigImport(source) ?? 'defineConfig';
+  const defineConfigLocalName =
+    findNamedPrismaDefineConfigImport(source) ?? findCommonJsPrismaDefineConfigImport(source) ?? 'defineConfig';
   const escapedName = defineConfigLocalName.replace(/[$]/g, '\\$&');
   const pattern = new RegExp(`\\b${escapedName}\\s*\\(`, 'gm');
 
@@ -195,6 +209,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  findCommonJsPrismaDefineConfigImport,
   findDefineConfigEvaluationIndex,
   findNamedDotenvConfigImport,
   findNamedPrismaDefineConfigImport,
