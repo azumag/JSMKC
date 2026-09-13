@@ -7,13 +7,10 @@ import {
   UPSTREAM_FIX_PR_BASE_REF,
   UPSTREAM_FIX_PR_MERGE_COMMIT_SHA,
   UPSTREAM_ISSUE_API_URL,
-  UPSTREAM_ISSUE_COMMENTS_API_URL,
   UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS,
   fetchUpstreamIssue,
   formatUpstreamIssue,
   getCheckedAt,
-  getLatestCommentApiUrl,
-  normalizeLatestUpstreamIssueComment,
   normalizeUpstreamFixPullRequest,
   normalizeUpstreamIssue,
   parseCliOptions,
@@ -24,7 +21,6 @@ const upstreamPayload = {
   number: 30052,
   state: 'open',
   state_reason: null,
-  comments: 3,
   updated_at: '2026-09-11T12:34:56Z',
   closed_at: null,
   html_url: 'https://github.com/prisma/orm/issues/30052',
@@ -41,59 +37,28 @@ const upstreamFixPayload = {
   base: { ref: 'v7' },
 };
 
-const upstreamCommentPayload = [
-  {
-    id: 5650000000,
-    issue_url: 'https://api.github.com/repos/prisma/orm/issues/30052',
-    html_url: 'https://github.com/prisma/orm/issues/30052#issuecomment-5650000000',
-    user: { login: 'prisma-maintainer' },
-    author_association: 'MEMBER',
-    created_at: '2026-09-11T12:30:00Z',
-    updated_at: '2026-09-11T12:31:00Z',
-  },
-];
-
 const checkedAt = '2026-09-13T01:23:45.000Z';
 const clock = () => new Date(checkedAt);
 
-function createFetchMock(
-  issuePayload = upstreamPayload,
-  fixPayload = upstreamFixPayload,
-  commentPayload = upstreamCommentPayload,
-) {
-  const fetchImpl = jest
+function createFetchMock(issuePayload = upstreamPayload, fixPayload = upstreamFixPayload) {
+  return jest
     .fn()
     .mockResolvedValueOnce({ ok: true, status: 200, json: jest.fn().mockResolvedValue(issuePayload) })
     .mockResolvedValueOnce({ ok: true, status: 200, json: jest.fn().mockResolvedValue(fixPayload) });
-
-  if (issuePayload.comments > 0) {
-    fetchImpl.mockResolvedValueOnce({ ok: true, status: 200, json: jest.fn().mockResolvedValue(commentPayload) });
-  }
-
-  return fetchImpl;
 }
 
 describe('Prisma upstream issue probe', () => {
-  it('fetches issue, fix PR, and latest discussion with one bounded request contract', async () => {
+  it('fetches the tracked issue and merged fix PR with one bounded read-only request contract', async () => {
     const fetchImpl = createFetchMock();
 
     await expect(fetchUpstreamIssue({ fetchImpl, token: 'test-token', clock })).resolves.toEqual({
       issueNumber: 30052,
       state: 'open',
       stateReason: null,
-      commentCount: 3,
       checkedAt,
       updatedAt: '2026-09-11T12:34:56Z',
       closedAt: null,
       url: 'https://github.com/prisma/orm/issues/30052',
-      latestComment: {
-        id: 5650000000,
-        author: 'prisma-maintainer',
-        authorAssociation: 'MEMBER',
-        createdAt: '2026-09-11T12:30:00Z',
-        updatedAt: '2026-09-11T12:31:00Z',
-        url: 'https://github.com/prisma/orm/issues/30052#issuecomment-5650000000',
-      },
       fixPullRequest: {
         pullRequestNumber: 30189,
         state: 'closed',
@@ -107,12 +72,8 @@ describe('Prisma upstream issue probe', () => {
     });
 
     expect(UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS).toBe(30_000);
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
-      UPSTREAM_ISSUE_API_URL,
-      UPSTREAM_FIX_PR_API_URL,
-      `${UPSTREAM_ISSUE_COMMENTS_API_URL}?per_page=1&page=3`,
-    ]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([UPSTREAM_ISSUE_API_URL, UPSTREAM_FIX_PR_API_URL]);
 
     for (const [, request] of fetchImpl.mock.calls) {
       expect(request).toEqual(
@@ -129,10 +90,9 @@ describe('Prisma upstream issue probe', () => {
       );
     }
     expect(fetchImpl.mock.calls[0][1].signal).toBe(fetchImpl.mock.calls[1][1].signal);
-    expect(fetchImpl.mock.calls[1][1].signal).toBe(fetchImpl.mock.calls[2][1].signal);
   });
 
-  it('preserves an explicitly supplied abort signal for all upstream requests', async () => {
+  it('preserves an explicitly supplied abort signal for both upstream requests', async () => {
     const controller = new AbortController();
     const fetchImpl = createFetchMock();
 
@@ -140,7 +100,6 @@ describe('Prisma upstream issue probe', () => {
 
     expect(fetchImpl.mock.calls[0][1].signal).toBe(controller.signal);
     expect(fetchImpl.mock.calls[1][1].signal).toBe(controller.signal);
-    expect(fetchImpl.mock.calls[2][1].signal).toBe(controller.signal);
   });
 
   it('does not require a token for public upstream review', async () => {
@@ -150,18 +109,6 @@ describe('Prisma upstream issue probe', () => {
 
     expect(fetchImpl.mock.calls[0][1].headers).not.toHaveProperty('Authorization');
     expect(fetchImpl.mock.calls[1][1].headers).not.toHaveProperty('Authorization');
-    expect(fetchImpl.mock.calls[2][1].headers).not.toHaveProperty('Authorization');
-  });
-
-  it('skips the comment request when the tracked issue has no discussion', async () => {
-    const fetchImpl = createFetchMock({ ...upstreamPayload, comments: 0 });
-
-    await expect(fetchUpstreamIssue({ fetchImpl, clock })).resolves.toMatchObject({
-      commentCount: 0,
-      latestComment: null,
-    });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect(getLatestCommentApiUrl(0)).toBeNull();
   });
 
   it('captures closure reason and timestamp without treating closure as remediation', () => {
@@ -177,7 +124,6 @@ describe('Prisma upstream issue probe', () => {
       issueNumber: 30052,
       state: 'closed',
       stateReason: 'not_planned',
-      commentCount: 3,
       updatedAt: '2026-09-14T10:00:00Z',
       closedAt: '2026-09-14T09:59:00Z',
       url: 'https://github.com/prisma/orm/issues/30052',
@@ -205,18 +151,6 @@ describe('Prisma upstream issue probe', () => {
     });
   });
 
-  it('validates latest upstream discussion metadata without ingesting comment bodies', () => {
-    expect(normalizeLatestUpstreamIssueComment(upstreamCommentPayload)).toEqual({
-      id: 5650000000,
-      author: 'prisma-maintainer',
-      authorAssociation: 'MEMBER',
-      createdAt: '2026-09-11T12:30:00Z',
-      updatedAt: '2026-09-11T12:31:00Z',
-      url: 'https://github.com/prisma/orm/issues/30052#issuecomment-5650000000',
-    });
-    expect(getLatestCommentApiUrl(3)).toBe(`${UPSTREAM_ISSUE_COMMENTS_API_URL}?per_page=1&page=3`);
-  });
-
   it('fails closed on issue HTTP errors and malformed issue evidence', async () => {
     const failedFetch = jest.fn().mockResolvedValue({ ok: false, status: 403 });
     await expect(fetchUpstreamIssue({ fetchImpl: failedFetch, clock })).rejects.toThrow('HTTP 403');
@@ -224,9 +158,6 @@ describe('Prisma upstream issue probe', () => {
     expect(() => normalizeUpstreamIssue({ ...upstreamPayload, number: 1 })).toThrow('unexpected upstream issue number');
     expect(() => normalizeUpstreamIssue({ ...upstreamPayload, state: 'unknown' })).toThrow(
       'unexpected upstream issue state',
-    );
-    expect(() => normalizeUpstreamIssue({ ...upstreamPayload, comments: -1 })).toThrow(
-      'comments must be a non-negative safe integer',
     );
     expect(() => normalizeUpstreamIssue({ ...upstreamPayload, updated_at: 'yesterday' })).toThrow(
       'must be a valid UTC timestamp',
@@ -317,53 +248,11 @@ describe('Prisma upstream issue probe', () => {
     ).toThrow('merged_at after updated_at');
   });
 
-  it('fails closed when latest comment evidence is malformed or unavailable', async () => {
-    const failedCommentFetch = createFetchMock();
-    failedCommentFetch.mockReset();
-    failedCommentFetch
-      .mockResolvedValueOnce({ ok: true, status: 200, json: jest.fn().mockResolvedValue(upstreamPayload) })
-      .mockResolvedValueOnce({ ok: true, status: 200, json: jest.fn().mockResolvedValue(upstreamFixPayload) })
-      .mockResolvedValueOnce({ ok: false, status: 503 });
-
-    await expect(fetchUpstreamIssue({ fetchImpl: failedCommentFetch, clock })).rejects.toThrow(
-      'latest upstream issue comment request failed with HTTP 503',
-    );
-    expect(() => normalizeLatestUpstreamIssueComment([])).toThrow('must contain exactly one comment');
-    expect(() => normalizeLatestUpstreamIssueComment([{ ...upstreamCommentPayload[0], id: -1 }])).toThrow(
-      'id must be a positive safe integer',
-    );
-    expect(() =>
-      normalizeLatestUpstreamIssueComment([{ ...upstreamCommentPayload[0], issue_url: 'https://example.test/issue' }]),
-    ).toThrow('issue_url does not match prisma/orm#30052');
-    expect(() =>
-      normalizeLatestUpstreamIssueComment([{ ...upstreamCommentPayload[0], user: { login: 'bad login' } }]),
-    ).toThrow('author login is invalid');
-    expect(() =>
-      normalizeLatestUpstreamIssueComment([{ ...upstreamCommentPayload[0], updated_at: '2026-02-31T12:31:00Z' }]),
-    ).toThrow('updated_at must be a valid UTC timestamp');
-    expect(() =>
-      normalizeLatestUpstreamIssueComment([
-        {
-          ...upstreamCommentPayload[0],
-          created_at: '2026-09-11T12:32:00Z',
-          updated_at: '2026-09-11T12:31:00Z',
-        },
-      ]),
-    ).toThrow('created_at after updated_at');
-  });
-
   it('fails closed when the observation clock predates any upstream evidence update', async () => {
-    const fetchImpl = createFetchMock(
-      upstreamPayload,
-      upstreamFixPayload,
-      [
-        {
-          ...upstreamCommentPayload[0],
-          created_at: '2026-09-12T12:34:56Z',
-          updated_at: '2026-09-12T12:34:56Z',
-        },
-      ],
-    );
+    const fetchImpl = createFetchMock(upstreamPayload, {
+      ...upstreamFixPayload,
+      updated_at: '2026-09-12T12:34:56Z',
+    });
 
     await expect(fetchUpstreamIssue({ fetchImpl, clock: () => new Date('2026-09-12T12:34:55.999Z') })).rejects.toThrow(
       'check clock is earlier than upstream evidence updated_at',
@@ -377,12 +266,9 @@ describe('Prisma upstream issue probe', () => {
     expect(human).toContain('Prisma upstream issue: #30052');
     expect(human).toContain('state: open');
     expect(human).toContain('state reason: none');
-    expect(human).toContain('comment count: 3');
     expect(human).toContain(`checked at: ${checkedAt}`);
     expect(human).toContain('updated at: 2026-09-11T12:34:56Z');
     expect(human).toContain('closed at: none');
-    expect(human).toContain('latest comment author: prisma-maintainer');
-    expect(human).toContain('latest comment updated at: 2026-09-11T12:31:00Z');
     expect(human).toContain('upstream fix PR: #30189');
     expect(human).toContain('fix PR base: v7');
     expect(human).toContain(`fix PR merge commit: ${UPSTREAM_FIX_PR_MERGE_COMMIT_SHA}`);
@@ -400,17 +286,10 @@ describe('Prisma upstream issue probe', () => {
         'issue_number=30052\n' +
           'state=open\n' +
           'state_reason=none\n' +
-          'comment_count=3\n' +
           `checked_at=${checkedAt}\n` +
           'updated_at=2026-09-11T12:34:56Z\n' +
           'closed_at=none\n' +
           'url=https://github.com/prisma/orm/issues/30052\n' +
-          'latest_comment_id=5650000000\n' +
-          'latest_comment_author=prisma-maintainer\n' +
-          'latest_comment_author_association=MEMBER\n' +
-          'latest_comment_created_at=2026-09-11T12:30:00Z\n' +
-          'latest_comment_updated_at=2026-09-11T12:31:00Z\n' +
-          'latest_comment_url=https://github.com/prisma/orm/issues/30052#issuecomment-5650000000\n' +
           'fix_pr_number=30189\n' +
           'fix_pr_state=closed\n' +
           'fix_pr_merged=true\n' +
