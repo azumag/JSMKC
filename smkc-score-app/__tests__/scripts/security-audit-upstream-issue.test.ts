@@ -181,9 +181,9 @@ describe('Prisma upstream issue probe', () => {
       json: jest.fn().mockResolvedValue(upstreamPayload),
     });
 
-    await expect(
-      fetchUpstreamIssue({ fetchImpl, clock: () => new Date('2026-09-11T12:34:55.999Z') }),
-    ).rejects.toThrow('check clock is earlier than upstream updated_at');
+    await expect(fetchUpstreamIssue({ fetchImpl, clock: () => new Date('2026-09-11T12:34:55.999Z') })).rejects.toThrow(
+      'check clock is earlier than upstream updated_at',
+    );
   });
 
   it('supports human and JSON output without conflating checked and upstream update times', async () => {
