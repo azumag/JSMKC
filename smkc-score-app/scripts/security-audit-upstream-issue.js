@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 
 const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/orm/issues/30052';
+const UPSTREAM_ISSUE_COMMENTS_API_URL = 'https://api.github.com/repos/prisma/orm/issues/30052/comments';
 const UPSTREAM_ISSUE_NUMBER = 30052;
 const UPSTREAM_FIX_PR_API_URL = 'https://api.github.com/repos/prisma/orm/pulls/30189';
 const UPSTREAM_FIX_PR_NUMBER = 30189;
@@ -11,6 +12,8 @@ const UPSTREAM_FIX_PR_MERGE_COMMIT_SHA = '93118fdeba185110fb7b0bd5e945461405baf6
 const UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS = 30_000;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,300}$/;
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+const AUTHOR_ASSOCIATION_PATTERN = /^[A-Z_]{1,40}$/;
 const ALLOWED_STATE_REASONS = new Set(['completed', 'not_planned', 'duplicate', 'reopened']);
 
 function parseCliOptions(argv = process.argv.slice(2)) {
@@ -47,6 +50,10 @@ function normalizeUpstreamIssue(payload) {
 
   if (payload.state !== 'open' && payload.state !== 'closed') {
     throw new Error(`unexpected upstream issue state: ${payload.state ?? 'missing'}`);
+  }
+
+  if (!Number.isSafeInteger(payload.comments) || payload.comments < 0) {
+    throw new Error('upstream issue comments must be a non-negative safe integer');
   }
 
   if (!isValidUtcTimestamp(payload.updated_at)) {
@@ -90,6 +97,7 @@ function normalizeUpstreamIssue(payload) {
     issueNumber: payload.number,
     state: payload.state,
     stateReason,
+    commentCount: payload.comments,
     updatedAt: payload.updated_at,
     closedAt,
     url: payload.html_url,
@@ -142,6 +150,72 @@ function normalizeUpstreamFixPullRequest(payload) {
     mergedAt: payload.merged_at,
     updatedAt: payload.updated_at,
     url: payload.html_url,
+  };
+}
+
+function getLatestCommentApiUrl(commentCount) {
+  if (!Number.isSafeInteger(commentCount) || commentCount < 0) {
+    throw new Error('upstream issue comment count must be a non-negative safe integer');
+  }
+
+  if (commentCount === 0) {
+    return null;
+  }
+
+  return `${UPSTREAM_ISSUE_COMMENTS_API_URL}?per_page=1&page=${commentCount}`;
+}
+
+function normalizeLatestUpstreamIssueComment(payload) {
+  if (!Array.isArray(payload) || payload.length !== 1) {
+    throw new Error('latest upstream issue comment response must contain exactly one comment');
+  }
+
+  const comment = payload[0];
+  if (!comment || typeof comment !== 'object' || Array.isArray(comment)) {
+    throw new Error('latest upstream issue comment must be an object');
+  }
+
+  if (!Number.isSafeInteger(comment.id) || comment.id <= 0) {
+    throw new Error('latest upstream issue comment id must be a positive safe integer');
+  }
+
+  if (comment.issue_url !== UPSTREAM_ISSUE_API_URL) {
+    throw new Error('latest upstream issue comment issue_url does not match prisma/orm#30052');
+  }
+
+  const expectedHtmlUrl = `https://github.com/prisma/orm/issues/30052#issuecomment-${comment.id}`;
+  if (comment.html_url !== expectedHtmlUrl) {
+    throw new Error('latest upstream issue comment html_url does not match prisma/orm#30052');
+  }
+
+  const author = comment.user?.login;
+  if (typeof author !== 'string' || !GITHUB_LOGIN_PATTERN.test(author)) {
+    throw new Error('latest upstream issue comment author login is invalid');
+  }
+
+  if (typeof comment.author_association !== 'string' || !AUTHOR_ASSOCIATION_PATTERN.test(comment.author_association)) {
+    throw new Error('latest upstream issue comment author_association is invalid');
+  }
+
+  if (!isValidUtcTimestamp(comment.created_at)) {
+    throw new Error('latest upstream issue comment created_at must be a valid UTC timestamp');
+  }
+
+  if (!isValidUtcTimestamp(comment.updated_at)) {
+    throw new Error('latest upstream issue comment updated_at must be a valid UTC timestamp');
+  }
+
+  if (Date.parse(comment.created_at) > Date.parse(comment.updated_at)) {
+    throw new Error('latest upstream issue comment cannot have created_at after updated_at');
+  }
+
+  return {
+    id: comment.id,
+    author,
+    authorAssociation: comment.author_association,
+    createdAt: comment.created_at,
+    updatedAt: comment.updated_at,
+    url: comment.html_url,
   };
 }
 
@@ -203,8 +277,25 @@ async function fetchUpstreamIssue({
     'upstream fix pull request',
   );
   const fixPullRequest = normalizeUpstreamFixPullRequest(fixPullRequestPayload);
+  const latestCommentUrl = getLatestCommentApiUrl(issue.commentCount);
+  let latestComment = null;
+
+  if (latestCommentUrl) {
+    const latestCommentPayload = await fetchJsonEvidence(
+      fetchImpl,
+      latestCommentUrl,
+      request,
+      'latest upstream issue comment',
+    );
+    latestComment = normalizeLatestUpstreamIssueComment(latestCommentPayload);
+  }
+
   const checkedAt = getCheckedAt(clock);
-  const newestUpstreamTimestamp = Math.max(Date.parse(issue.updatedAt), Date.parse(fixPullRequest.updatedAt));
+  const newestUpstreamTimestamp = Math.max(
+    Date.parse(issue.updatedAt),
+    Date.parse(fixPullRequest.updatedAt),
+    latestComment ? Date.parse(latestComment.updatedAt) : Number.NEGATIVE_INFINITY,
+  );
   if (Date.parse(checkedAt) < newestUpstreamTimestamp) {
     throw new Error('upstream issue check clock is earlier than upstream evidence updated_at');
   }
@@ -212,6 +303,7 @@ async function fetchUpstreamIssue({
   return {
     ...issue,
     checkedAt,
+    latestComment,
     fixPullRequest,
   };
 }
@@ -225,10 +317,17 @@ function formatUpstreamIssue(issue, { json = false } = {}) {
     `Prisma upstream issue: #${issue.issueNumber}\n` +
     `state: ${issue.state}\n` +
     `state reason: ${issue.stateReason ?? 'none'}\n` +
+    `comment count: ${issue.commentCount}\n` +
     `checked at: ${issue.checkedAt}\n` +
     `updated at: ${issue.updatedAt}\n` +
     `closed at: ${issue.closedAt ?? 'none'}\n` +
     `url: ${issue.url}\n` +
+    `latest comment id: ${issue.latestComment?.id ?? 'none'}\n` +
+    `latest comment author: ${issue.latestComment?.author ?? 'none'}\n` +
+    `latest comment author association: ${issue.latestComment?.authorAssociation ?? 'none'}\n` +
+    `latest comment created at: ${issue.latestComment?.createdAt ?? 'none'}\n` +
+    `latest comment updated at: ${issue.latestComment?.updatedAt ?? 'none'}\n` +
+    `latest comment url: ${issue.latestComment?.url ?? 'none'}\n` +
     `upstream fix PR: #${issue.fixPullRequest.pullRequestNumber}\n` +
     `fix PR state: ${issue.fixPullRequest.state}\n` +
     `fix PR merged: ${issue.fixPullRequest.merged}\n` +
@@ -249,10 +348,17 @@ function writeGitHubOutputs(issue, outputPath = process.env.GITHUB_OUTPUT) {
     issue_number: String(issue.issueNumber),
     state: issue.state,
     state_reason: issue.stateReason ?? 'none',
+    comment_count: String(issue.commentCount),
     checked_at: issue.checkedAt,
     updated_at: issue.updatedAt,
     closed_at: issue.closedAt ?? 'none',
     url: issue.url,
+    latest_comment_id: issue.latestComment ? String(issue.latestComment.id) : 'none',
+    latest_comment_author: issue.latestComment?.author ?? 'none',
+    latest_comment_author_association: issue.latestComment?.authorAssociation ?? 'none',
+    latest_comment_created_at: issue.latestComment?.createdAt ?? 'none',
+    latest_comment_updated_at: issue.latestComment?.updatedAt ?? 'none',
+    latest_comment_url: issue.latestComment?.url ?? 'none',
     fix_pr_number: String(issue.fixPullRequest.pullRequestNumber),
     fix_pr_state: issue.fixPullRequest.state,
     fix_pr_merged: String(issue.fixPullRequest.merged),
@@ -315,11 +421,14 @@ module.exports = {
   UPSTREAM_FIX_PR_MERGE_COMMIT_SHA,
   UPSTREAM_FIX_PR_NUMBER,
   UPSTREAM_ISSUE_API_URL,
+  UPSTREAM_ISSUE_COMMENTS_API_URL,
   UPSTREAM_ISSUE_NUMBER,
   UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS,
   fetchUpstreamIssue,
   formatUpstreamIssue,
   getCheckedAt,
+  getLatestCommentApiUrl,
+  normalizeLatestUpstreamIssueComment,
   normalizeUpstreamFixPullRequest,
   normalizeUpstreamIssue,
   parseCliOptions,
