@@ -4,6 +4,7 @@ const fs = require('node:fs');
 
 const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/orm/issues/30052';
 const UPSTREAM_ISSUE_NUMBER = 30052;
+const UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS = 30_000;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,300}$/;
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const ALLOWED_STATE_REASONS = new Set(['completed', 'not_planned', 'duplicate', 'reopened']);
@@ -100,7 +101,12 @@ function getCheckedAt(clock = () => new Date()) {
   return checkedAt.toISOString();
 }
 
-async function fetchUpstreamIssue({ fetchImpl = globalThis.fetch, token = process.env.GITHUB_TOKEN, clock } = {}) {
+async function fetchUpstreamIssue({
+  fetchImpl = globalThis.fetch,
+  token = process.env.GITHUB_TOKEN,
+  clock,
+  signal = AbortSignal.timeout(UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS),
+} = {}) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('global fetch is unavailable');
   }
@@ -115,6 +121,7 @@ async function fetchUpstreamIssue({ fetchImpl = globalThis.fetch, token = proces
   const response = await fetchImpl(UPSTREAM_ISSUE_API_URL, {
     headers,
     redirect: 'follow',
+    signal,
   });
 
   if (!response || typeof response.ok !== 'boolean') {
@@ -132,9 +139,15 @@ async function fetchUpstreamIssue({ fetchImpl = globalThis.fetch, token = proces
     throw new Error(`upstream issue response was not valid JSON: ${error.message}`);
   }
 
+  const issue = normalizeUpstreamIssue(payload);
+  const checkedAt = getCheckedAt(clock);
+  if (Date.parse(checkedAt) < Date.parse(issue.updatedAt)) {
+    throw new Error('upstream issue check clock is earlier than upstream updated_at');
+  }
+
   return {
-    ...normalizeUpstreamIssue(payload),
-    checkedAt: getCheckedAt(clock),
+    ...issue,
+    checkedAt,
   };
 }
 
@@ -218,6 +231,7 @@ if (require.main === module) {
 module.exports = {
   UPSTREAM_ISSUE_API_URL,
   UPSTREAM_ISSUE_NUMBER,
+  UPSTREAM_ISSUE_REQUEST_TIMEOUT_MS,
   fetchUpstreamIssue,
   formatUpstreamIssue,
   getCheckedAt,
