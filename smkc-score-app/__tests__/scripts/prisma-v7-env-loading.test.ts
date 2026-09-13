@@ -98,6 +98,28 @@ describe('Prisma 7 environment loading readiness', () => {
     ).toEqual({ ready: false, mode: null });
   });
 
+  it('rejects dotenv config text that is not a top-level executed call', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        function loadEnvLater() {
+          config();
+        }
+        export default defineConfig({});
+        loadEnvLater();
+      `),
+    ).toEqual({ ready: false, mode: null });
+
+    expect(
+      inspectPrismaV7EnvLoading(`
+        const example = "require('dotenv').config()";
+        const { defineConfig } = require('prisma/config');
+        module.exports = defineConfig({});
+      `),
+    ).toEqual({ ready: false, mode: null });
+  });
+
   it('does not treat imports without execution or commented examples as readiness evidence', () => {
     expect(inspectPrismaV7EnvLoading("import { config } from 'dotenv';")).toEqual({ ready: false, mode: null });
     expect(
