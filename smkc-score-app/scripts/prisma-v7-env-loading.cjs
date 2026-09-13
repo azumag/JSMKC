@@ -37,8 +37,7 @@ function findNamedPrismaDefineConfigImport(source) {
 }
 
 function findCommonJsPrismaDefineConfigImport(source) {
-  const commonJsImport =
-    /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]prisma\/config['"]\s*\)\s*;?/m;
+  const commonJsImport = /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]prisma\/config['"]\s*\)\s*;?/m;
   const match = commonJsImport.exec(source);
   if (!match) return null;
 
@@ -113,9 +112,7 @@ function isTopLevelSourceIndex(source, targetIndex) {
 
 function findDefineConfigEvaluationIndex(source) {
   const defineConfigLocalName =
-    findNamedPrismaDefineConfigImport(source) ??
-    findCommonJsPrismaDefineConfigImport(source) ??
-    'defineConfig';
+    findNamedPrismaDefineConfigImport(source) ?? findCommonJsPrismaDefineConfigImport(source) ?? 'defineConfig';
   const escapedName = defineConfigLocalName.replace(/[$]/g, '\\$&');
   const pattern = new RegExp(`\\b${escapedName}\\s*\\(`, 'gm');
 
