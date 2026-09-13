@@ -51,12 +51,9 @@ jobs:
       - id: compatible_upstream
         name: Check latest compatible Prisma release
         if: always()
-        run: node scripts/security-audit-upstream.js
-
-      - id: compatible_upstream_timestamp
-        name: Timestamp compatible upstream evidence
-        if: always()
-        run: echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+        run: |
+          node scripts/security-audit-upstream.js
+          echo "checked_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - id: next_major_upstream
         name: Check next-major Prisma remediation
@@ -177,7 +174,7 @@ jobs:
             echo
             echo "Review commit: \`${REVIEW_SHA:-unavailable}\`"
             echo
-            echo "Compatible upstream checked at: \`${{ steps.compatible_upstream_timestamp.outputs.checked_at }}\`"
+            echo "Compatible upstream checked at: \`${{ steps.compatible_upstream.outputs.checked_at || 'unavailable' }}\`"
             echo
             echo "Next-major upstream checked at: \`${{ steps.next_major_upstream_timestamp.outputs.checked_at }}\`"
             echo
