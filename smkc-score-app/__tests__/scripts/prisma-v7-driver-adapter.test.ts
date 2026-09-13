@@ -140,6 +140,43 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(status.checks.omitsUnknownSpreadOptions).toBe(false);
   });
 
+  it('keeps scanning after nested call objects so later legacy options cannot be hidden', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from './generated/prisma/client';
+
+      const adapter = new PrismaD1(db);
+      const prisma = new PrismaClient({
+        adapter,
+        log: configureLogging({ level: 'error' }),
+        datasourceUrl: process.env.DATABASE_URL,
+      });
+    `);
+
+    expect(status.ready).toBe(false);
+    expect(status.checks.passesAdapterToPrismaClient).toBe(true);
+    expect(status.checks.omitsLegacyDatasourceUrlOption).toBe(false);
+  });
+
+  it('keeps scanning after nested call objects so later spreads cannot be hidden', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from './generated/prisma/client';
+
+      const adapter = new PrismaD1(db);
+      const legacyOptions = { datasourceUrl: process.env.DATABASE_URL };
+      const prisma = new PrismaClient({
+        adapter,
+        log: configureLogging({ level: 'error' }),
+        ...legacyOptions,
+      });
+    `);
+
+    expect(status.ready).toBe(false);
+    expect(status.checks.passesAdapterToPrismaClient).toBe(true);
+    expect(status.checks.omitsUnknownSpreadOptions).toBe(false);
+  });
+
   it('does not accept adapter-shaped examples that exist only in comments', () => {
     const status = inspectPrismaV7DriverAdapter(`
       // import { PrismaD1 } from '@prisma/adapter-d1';
