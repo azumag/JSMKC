@@ -148,9 +148,9 @@ describe('Prisma 7 aggregate JSON review evidence', () => {
   it('reports child probe signal termination explicitly', () => {
     const spawn = jest.fn(() => ({ status: null, signal: 'SIGKILL', stdout: '', stderr: '' }));
 
-    expect(() => runProbe({ key: 'readiness', script: 'prisma-v7-readiness.cjs' }, { spawn })).toThrow(
-      'readiness probe terminated by signal SIGKILL',
-    );
+    expect(() =>
+      runProbe({ key: 'readiness', script: 'prisma-v7-readiness.cjs' }, { spawn }),
+    ).toThrow('readiness probe terminated by signal SIGKILL');
   });
 
   it('accepts one JSON object and rejects malformed or ambiguous probe evidence', () => {
