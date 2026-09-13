@@ -1,7 +1,4 @@
-import {
-  getTemporaryExceptionReviewDeadline,
-  isTemporaryExceptionExpired,
-} from '../../scripts/security-audit.js';
+import { getTemporaryExceptionReviewDeadline, isTemporaryExceptionExpired } from '../../scripts/security-audit.js';
 
 describe('temporary security audit exception review deadline', () => {
   const reviewDeadline = getTemporaryExceptionReviewDeadline();
