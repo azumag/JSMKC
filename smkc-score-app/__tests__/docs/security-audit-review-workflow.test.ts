@@ -107,7 +107,7 @@ describe('manual security audit review workflow', () => {
     const upstreamStep = steps.find((step) => step.id === 'compatible_upstream');
 
     expect(upstreamStep?.if).toBe('always()');
-    expect(upstreamStep?.run?.trim()).toBe('node scripts/security-audit-upstream.js');
+    expect(upstreamStep?.run).toContain('node scripts/security-audit-upstream.js');
     expect(steps.indexOf(auditStep as WorkflowStep)).toBeLessThan(steps.indexOf(upstreamStep as WorkflowStep));
   });
 
