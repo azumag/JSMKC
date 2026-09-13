@@ -24,6 +24,8 @@ GitHub REST API request には1つの30秒 timeout signal を tracking issue と
 
 `stateReason` は GitHub API の `state_reason` を保持します。open issue では `null` または `reopened`、closed issue では `null` / `completed` / `not_planned` / `duplicate` のみを受理します。`closedAt` は open issue では `null`、closed issue では有効な UTC timestamp を必須とします。GitHub Actions output では null 値を空文字にはせず、`state_reason=none` / `closed_at=none` として明示します。これにより「修正完了としてcloseされた」のか「not planned / duplicate としてcloseされた」のかを後続の監査から区別できます。
 
+この state reason allowlist は contract test で runtime 実装と完全一致することを確認します。GitHub API の enum 変更に追従するときは、実装とこの文書を同じ変更で更新してください。
+
 GitHub timestamp は `YYYY-MM-DDTHH:mm:ssZ` という文字列形式だけでなく、実在するUTC日時かどうかまで検証します。たとえば `2026-02-31T12:00:00Z` のように形式だけ整った不可能な日時は拒否します。closed issue では `closedAt <= updatedAt`、修正PRでは `mergedAt <= updatedAt` を必須とし、metadata の時系列が逆転した response は evidence として採用しません。また観測時刻 `checkedAt` が issue または修正PRの最新 `updatedAt` より過去になる場合も、runner clock skew 等で「更新前に観測した」矛盾した evidence になるため fail-closed にします。
 
 API response が失敗する、JSON として読めない、issue number・state・state reason・timestamp・URL が期待する tracking issue と一致しない、修正PRの number・merged state・base ref・merge commit・timestamp・URL が既知の #30189 と一致しない、state と closure metadata の組み合わせや時系列が矛盾する、または確認時刻を安全な UTC timestamp として生成できない場合は fail-closed で終了します。
