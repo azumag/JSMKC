@@ -8,7 +8,10 @@ import {
 } from '../../scripts/security-audit-identity-contract.js';
 
 const appRoot = path.resolve(__dirname, '../..');
-const auditSource = fs.readFileSync(path.join(appRoot, 'scripts', 'security-audit.js'), 'utf8');
+const auditSource = fs.readFileSync(
+  path.join(appRoot, 'scripts', 'security-audit.js'),
+  'utf8',
+);
 const statusSource = fs.readFileSync(
   path.join(appRoot, 'scripts', 'security-audit-status.js'),
   'utf8',
@@ -25,7 +28,9 @@ const alignedStatusSource = [
 
 describe('security audit identity contract', () => {
   it('keeps the status evidence identity aligned with the blocking audit exception', () => {
-    expect(assertSecurityAuditIdentityContract(auditSource, statusSource)).toEqual({
+    expect(
+      assertSecurityAuditIdentityContract(auditSource, statusSource),
+    ).toEqual({
       auditAdvisory: 'GHSA-ggr8-5vv4-36mx',
       auditAdvisoryRange: '<8.0.0',
       statusAdvisory: 'GHSA-ggr8-5vv4-36mx',
@@ -65,7 +70,10 @@ describe('security audit identity contract', () => {
       'expected exactly one ALLOWED_ADVISORY declaration, found 0',
     );
     expect(() =>
-      extractSingleQuotedConst('const ALLOWED_ADVISORY = `GHSA-example`;', 'ALLOWED_ADVISORY'),
+      extractSingleQuotedConst(
+        'const ALLOWED_ADVISORY = `GHSA-example`;',
+        'ALLOWED_ADVISORY',
+      ),
     ).toThrow('expected exactly one ALLOWED_ADVISORY declaration, found 0');
   });
 });
