@@ -54,7 +54,10 @@ function assertSecurityAuditIdentityContract(auditSource, statusSource) {
 
 function main() {
   const auditSource = fs.readFileSync(path.join(__dirname, 'security-audit.js'), 'utf8');
-  const statusSource = fs.readFileSync(path.join(__dirname, 'security-audit-status.js'), 'utf8');
+  const statusSource = fs.readFileSync(
+    path.join(__dirname, 'security-audit-status.js'),
+    'utf8',
+  );
   const identity = assertSecurityAuditIdentityContract(auditSource, statusSource);
 
   process.stdout.write(
