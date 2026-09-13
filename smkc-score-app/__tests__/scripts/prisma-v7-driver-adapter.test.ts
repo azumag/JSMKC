@@ -8,6 +8,7 @@ import {
   inspectPrismaV7DriverAdapter,
   parseCliOptions,
   prismaClientOptionsHaveOption,
+  prismaClientOptionsHaveSpread,
   prismaClientOptionsUseAdapter,
   stripComments,
 } from '../../scripts/prisma-v7-driver-adapter.cjs';
@@ -39,6 +40,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
         passesAdapterToPrismaClient: true,
         omitsLegacyDatasourcesOption: true,
         omitsLegacyDatasourceUrlOption: true,
+        omitsUnknownSpreadOptions: true,
       },
     });
   });
@@ -117,6 +119,27 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     }
   });
 
+  it('fails closed when PrismaClient options include an unresolved object spread', () => {
+    const status = inspectPrismaV7DriverAdapter(`
+      import { PrismaD1 } from '@prisma/adapter-d1';
+      import { PrismaClient } from './generated/prisma/client';
+
+      const adapter = new PrismaD1(db);
+      const legacyOptions = { datasourceUrl: process.env.DATABASE_URL };
+      const prisma = new PrismaClient({
+        adapter,
+        ...legacyOptions,
+        log: ['error'],
+      });
+    `);
+
+    expect(status.ready).toBe(false);
+    expect(status.checks.passesAdapterToPrismaClient).toBe(true);
+    expect(status.checks.omitsLegacyDatasourcesOption).toBe(true);
+    expect(status.checks.omitsLegacyDatasourceUrlOption).toBe(true);
+    expect(status.checks.omitsUnknownSpreadOptions).toBe(false);
+  });
+
   it('does not accept adapter-shaped examples that exist only in comments', () => {
     const status = inspectPrismaV7DriverAdapter(`
       // import { PrismaD1 } from '@prisma/adapter-d1';
@@ -145,6 +168,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(status.prismaClientLocalName).toBe('PrismaClient');
     expect(status.checks.omitsLegacyDatasourcesOption).toBe(true);
     expect(status.checks.omitsLegacyDatasourceUrlOption).toBe(true);
+    expect(status.checks.omitsUnknownSpreadOptions).toBe(true);
   });
 
   it('parses named-import aliases and PrismaClient options conservatively', () => {
@@ -157,6 +181,8 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(clientOptions).toContain('adapter: d1Adapter');
     expect(prismaClientOptionsUseAdapter(clientOptions, 'd1Adapter')).toBe(true);
     expect(prismaClientOptionsHaveOption(clientOptions, 'datasourceUrl')).toBe(false);
+    expect(prismaClientOptionsHaveSpread(clientOptions)).toBe(false);
+    expect(prismaClientOptionsHaveSpread('adapter, ...legacyOptions')).toBe(true);
     expect(extractPrismaClientOptions(code, 'MissingClient')).toBeNull();
   });
 
@@ -168,6 +194,7 @@ describe('Prisma 7 D1 driver adapter readiness', () => {
     expect(output).toContain('| passesAdapterToPrismaClient | ready |');
     expect(output).toContain('| omitsLegacyDatasourcesOption | ready |');
     expect(output).toContain('| omitsLegacyDatasourceUrlOption | ready |');
+    expect(output).toContain('| omitsUnknownSpreadOptions | ready |');
     expect(output).toContain('read-only probe');
   });
 
