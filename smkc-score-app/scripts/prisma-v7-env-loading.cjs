@@ -112,7 +112,9 @@ function isTopLevelSourceIndex(source, targetIndex) {
 
 function findDefineConfigEvaluationIndex(source) {
   const defineConfigLocalName =
-    findNamedPrismaDefineConfigImport(source) ?? findCommonJsPrismaDefineConfigImport(source) ?? 'defineConfig';
+    findNamedPrismaDefineConfigImport(source) ??
+    findCommonJsPrismaDefineConfigImport(source) ??
+    'defineConfig';
   const escapedName = defineConfigLocalName.replace(/[$]/g, '\\$&');
   const pattern = new RegExp(`\\b${escapedName}\\s*\\(`, 'gm');
 
