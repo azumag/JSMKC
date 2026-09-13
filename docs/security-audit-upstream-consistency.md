@@ -4,7 +4,9 @@
 
 The probe reads `prisma/orm#30052`, the merged fix PR `prisma/orm#30189`, and the latest issue-comment metadata. Those resources can change while a probe is running. A comment can be added, the issue can close or reopen, or metadata can be edited between requests. In that race window a single pass can combine values that never represented one stable upstream snapshot.
 
-The consistency layer executes the existing bounded, redirect-rejecting single-pass probe twice and compares the upstream-owned fields while intentionally ignoring the local `checkedAt` timestamp. It fails closed if the issue state, comment count, issue timestamps, latest-comment metadata, or fix-PR evidence differs between the two reads. Only the second snapshot is returned and published when both reads agree.
+The consistency layer executes the existing bounded, redirect-rejecting single-pass probe twice and compares the upstream-owned fields while intentionally excluding the local `checkedAt` value from the equality snapshot. The two local observation timestamps still have a chronology contract: both must be valid timestamps and the second pass must not report a time earlier than the first pass. A backwards clock jump makes the evidence chronology unreliable, so the probe fails closed instead of publishing it.
+
+The probe also fails closed if the issue state, comment count, issue timestamps, latest-comment metadata, or fix-PR evidence differs between the two reads. Only the second snapshot is returned and published when both reads agree and the observation clock is monotonic.
 
 Both reads share one `AbortSignal.timeout(30000)` budget. The second pass does not receive a fresh 30-second allowance, so a slow or stalled GitHub API cannot turn the consistency check into an approximately 60-second operation. Timeout remains fail-closed and produces no trusted consistency evidence.
 
@@ -22,4 +24,4 @@ node scripts/security-audit-upstream-issue.js
 node scripts/security-audit-upstream-issue.js --json
 ```
 
-This probe is advisory only. It does not change the compatible remediation gate, modify dependencies, remove the temporary GHSA-ggr8-5vv4-36mx exception, or authorize a Prisma major upgrade. A detected race should be retried later rather than interpreted as remediation evidence.
+This probe is advisory only. It does not change the compatible remediation gate, modify dependencies, remove the temporary GHSA-ggr8-5vv4-36mx exception, or authorize a Prisma major upgrade. A detected upstream race or backwards observation clock should be retried later rather than interpreted as remediation evidence.
