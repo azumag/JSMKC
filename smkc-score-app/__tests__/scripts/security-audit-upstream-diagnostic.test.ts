@@ -74,4 +74,16 @@ describe('Prisma upstream probe diagnostic safety', () => {
     );
     expect(source).not.toContain('${error.message}');
   });
+
+  it('keeps the direct single-pass entrypoint on the sanitizer for all top-level failure paths', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '..', '..', 'scripts', 'security-audit-upstream-issue-single-pass.js'),
+      'utf8',
+    );
+
+    expect(source).toContain("formatUpstreamProbeFailure('Invalid upstream issue probe arguments', error)");
+    expect(source).toContain("formatUpstreamProbeFailure('Failed to fetch Prisma upstream issue evidence', error)");
+    expect(source).toContain("formatUpstreamProbeFailure('Failed to publish upstream issue outputs', error)");
+    expect(source).not.toContain('process.stderr.write(`');
+  });
 });

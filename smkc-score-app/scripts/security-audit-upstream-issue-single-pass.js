@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic');
 
 const UPSTREAM_ISSUE_API_URL = 'https://api.github.com/repos/prisma/orm/issues/30052';
 const UPSTREAM_ISSUE_COMMENTS_API_URL = 'https://api.github.com/repos/prisma/orm/issues/30052/comments';
@@ -439,7 +440,7 @@ async function main() {
   try {
     cliOptions = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid upstream issue probe arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid upstream issue probe arguments', error));
     process.exit(1);
   }
 
@@ -447,7 +448,7 @@ async function main() {
   try {
     issue = await fetchUpstreamIssue();
   } catch (error) {
-    process.stderr.write(`Failed to fetch Prisma upstream issue evidence: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to fetch Prisma upstream issue evidence', error));
     process.exit(1);
   }
 
@@ -457,7 +458,7 @@ async function main() {
     writeGitHubOutputs(issue);
     writeGitHubSummary(issue);
   } catch (error) {
-    process.stderr.write(`Failed to publish upstream issue outputs: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to publish upstream issue outputs', error));
     process.exit(1);
   }
 }
