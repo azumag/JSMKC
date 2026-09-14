@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const ts = require('typescript');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const {
   isBareIdentifierReference,
@@ -388,7 +389,7 @@ function main() {
     process.stderr.write(output);
     process.exitCode = 1;
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma require bindings: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect Prisma require bindings', error));
     process.exitCode = 1;
   }
 }
