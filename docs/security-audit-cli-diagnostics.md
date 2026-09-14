@@ -25,6 +25,7 @@ The same boundary is also being applied to auxiliary audit and Prisma 7 review e
 - `prisma-v7-defineconfig-alias-guard.cjs`
 - `prisma-v7-env-loading-template-guard.cjs`
 - `prisma-v7-env-loading-deferred-params.cjs`
+- `prisma-v7-require-binding-guard.cjs`
 
 Additional Prisma 7 environment-loading and guard helper CLIs found during the re-inventory remain tracked by #3446 until their top-level diagnostics are routed through the same boundary.
 
