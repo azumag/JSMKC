@@ -1,5 +1,7 @@
 const path = require('node:path');
 
+const unsafeControlCharacterPattern = /[\u0000-\u001f\u007f]/;
+
 function isOutsideRoot(root, candidate) {
   const relativePath = path.relative(root, candidate);
   return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath);
@@ -26,6 +28,9 @@ function assertSafeChangedFiles(changedFiles, appRoot, lstatSync, realpathSync) 
   for (const file of changedFiles) {
     if (typeof file !== 'string' || file.length === 0) {
       throw new Error('Changed formatting path must be a non-empty string.');
+    }
+    if (unsafeControlCharacterPattern.test(file)) {
+      throw new Error('Changed formatting path contains a control character.');
     }
 
     const absolutePath = path.resolve(appRoot, file);
