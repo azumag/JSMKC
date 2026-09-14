@@ -98,6 +98,37 @@ describe('Prisma 7 require binding guard', () => {
     ).toEqual([]);
   });
 
+  it('ignores assignments to require when a module control-flow lexical scope shadows it', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        if (useFakeLoader) {
+          let require = fakeRequire;
+          require = fallbackRequire;
+        }
+        try {
+          throw runtime;
+        } catch (require) {
+          require = fallbackRequire;
+        }
+        for (const require of loaders) {
+          require = fallbackRequire;
+        }
+        switch (mode) {
+          case 'fake':
+            const require = fakeRequire;
+            require = fallbackRequire;
+            break;
+        }
+        class Loader {
+          static {
+            const require = fakeRequire;
+            require = fallbackRequire;
+          }
+        }
+      `),
+    ).toEqual([]);
+  });
+
   it('rejects import, function, generator, and class bindings named require', () => {
     expect(
       findPrismaConfigRequireRebindings(`
