@@ -141,6 +141,8 @@ function isTopLevelSourceIndex(source, targetIndex) {
   let awaitingControlParen = false;
   let controlHeaderParenDepth = null;
   let pendingUnbracedControlBody = false;
+  let pendingConditionalExpression = false;
+  const controlBodyBraceDepths = [];
 
   for (let index = 0; index < targetIndex; index += 1) {
     const char = source[index];
@@ -189,14 +191,33 @@ function isTopLevelSourceIndex(source, targetIndex) {
       continue;
     }
 
+    if (braceDepth === 0 && ((char === '&' && next === '&') || (char === '|' && next === '|'))) {
+      pendingConditionalExpression = true;
+      index += 1;
+      continue;
+    }
+
+    if (braceDepth === 0 && char === '?') {
+      pendingConditionalExpression = true;
+      if (next === '?') index += 1;
+      continue;
+    }
+
     if (braceDepth === 0 && parenDepth === 0 && isIdentifierStart(char)) {
       let identifierEnd = index + 1;
       while (identifierEnd < targetIndex && isIdentifierPart(source[identifierEnd])) identifierEnd += 1;
       const identifier = source.slice(index, identifierEnd);
 
-      if (identifier === 'if' || identifier === 'for' || identifier === 'while' || identifier === 'with') {
+      if (
+        identifier === 'if' ||
+        identifier === 'for' ||
+        identifier === 'while' ||
+        identifier === 'with' ||
+        identifier === 'switch' ||
+        identifier === 'catch'
+      ) {
         awaitingControlParen = true;
-      } else if (identifier === 'else' || identifier === 'do') {
+      } else if (identifier === 'else' || identifier === 'do' || identifier === 'try' || identifier === 'finally') {
         pendingUnbracedControlBody = true;
       }
 
@@ -223,16 +244,25 @@ function isTopLevelSourceIndex(source, targetIndex) {
     }
 
     if (char === '{') {
-      if (braceDepth === 0 && pendingUnbracedControlBody) pendingUnbracedControlBody = false;
+      if (braceDepth === 0 && pendingUnbracedControlBody) {
+        controlBodyBraceDepths.push(braceDepth + 1);
+        pendingUnbracedControlBody = false;
+      }
       braceDepth += 1;
     } else if (char === '}') {
+      const closingDepth = braceDepth;
       braceDepth = Math.max(0, braceDepth - 1);
+      if (controlBodyBraceDepths.at(-1) === closingDepth) {
+        controlBodyBraceDepths.pop();
+        pendingConditionalExpression = false;
+      }
     } else if (braceDepth === 0 && char === '=' && next === '>') {
       pendingTopLevelArrow = true;
       index += 1;
     } else if (braceDepth === 0 && parenDepth === 0 && char === ';') {
       pendingTopLevelArrow = false;
       pendingUnbracedControlBody = false;
+      pendingConditionalExpression = false;
       awaitingControlParen = false;
     }
   }
@@ -244,6 +274,7 @@ function isTopLevelSourceIndex(source, targetIndex) {
     braceDepth === 0 &&
     !pendingTopLevelArrow &&
     !pendingUnbracedControlBody &&
+    !pendingConditionalExpression &&
     !awaitingControlParen &&
     controlHeaderParenDepth === null
   );
