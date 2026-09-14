@@ -180,32 +180,42 @@ function findDotenvNamespaceImports(source) {
   return namespaces;
 }
 
-function findNamedPrismaDefineConfigImport(source) {
+function findNamedPrismaDefineConfigImports(source) {
+  const names = [];
   const pattern = /^\s*import\s*\{([^}]*)\}\s*from\s*['"]prisma\/config['"]\s*;?/gm;
   for (const match of source.matchAll(pattern)) {
     if (!isTopLevelSourceIndex(source, match.index)) continue;
 
     for (const entry of match[1].split(',')) {
       const named = /^\s*defineConfig(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
-      if (named) return named[1] ?? 'defineConfig';
+      if (named) names.push(named[1] ?? 'defineConfig');
     }
   }
 
-  return null;
+  return names;
 }
 
-function findCommonJsPrismaDefineConfigImport(source) {
+function findNamedPrismaDefineConfigImport(source) {
+  return findNamedPrismaDefineConfigImports(source)[0] ?? null;
+}
+
+function findCommonJsPrismaDefineConfigImports(source) {
+  const names = [];
   const commonJsImport = /^\s*(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]prisma\/config['"]\s*\)\s*;?/gm;
   for (const match of source.matchAll(commonJsImport)) {
     if (!isTopLevelSourceIndex(source, match.index)) continue;
 
     for (const entry of match[1].split(',')) {
       const named = /^\s*defineConfig(?:\s*:\s*([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
-      if (named) return named[1] ?? 'defineConfig';
+      if (named) names.push(named[1] ?? 'defineConfig');
     }
   }
 
-  return null;
+  return names;
+}
+
+function findCommonJsPrismaDefineConfigImport(source) {
+  return findCommonJsPrismaDefineConfigImports(source)[0] ?? null;
 }
 
 function findPrismaConfigNamespaceImports(source) {
@@ -383,11 +393,10 @@ function isTopLevelSourceIndex(source, targetIndex) {
 }
 
 function findDefineConfigEvaluationIndex(source) {
-  const directNames = new Set();
-  const namedImport = findNamedPrismaDefineConfigImport(source);
-  const commonJsImport = findCommonJsPrismaDefineConfigImport(source);
-  if (namedImport) directNames.add(namedImport);
-  if (commonJsImport) directNames.add(commonJsImport);
+  const directNames = new Set([
+    ...findNamedPrismaDefineConfigImports(source),
+    ...findCommonJsPrismaDefineConfigImports(source),
+  ]);
   if (directNames.size === 0) directNames.add('defineConfig');
 
   const patterns = [];
@@ -513,11 +522,13 @@ if (require.main === module) {
 module.exports = {
   findCommonJsDotenvConfigImports,
   findCommonJsPrismaDefineConfigImport,
+  findCommonJsPrismaDefineConfigImports,
   findDefineConfigEvaluationIndex,
   findDotenvNamespaceImports,
   findNamedDotenvConfigImport,
   findNamedDotenvConfigImports,
   findNamedPrismaDefineConfigImport,
+  findNamedPrismaDefineConfigImports,
   findPrismaConfigNamespaceImports,
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
