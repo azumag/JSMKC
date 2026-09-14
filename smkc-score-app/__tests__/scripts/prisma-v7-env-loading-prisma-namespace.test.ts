@@ -1,7 +1,4 @@
-import {
-  findPrismaConfigNamespaceImports,
-  inspectPrismaV7EnvLoading,
-} from '../../scripts/prisma-v7-env-loading.cjs';
+import { findPrismaConfigNamespaceImports, inspectPrismaV7EnvLoading } from '../../scripts/prisma-v7-env-loading.cjs';
 
 describe('Prisma 7 environment-loading Prisma config namespace boundaries', () => {
   it('rejects named dotenv loading after an ESM namespace defineConfig evaluation', () => {
