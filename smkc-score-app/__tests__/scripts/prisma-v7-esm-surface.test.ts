@@ -38,6 +38,20 @@ describe('Prisma 7 ESM migration surface', () => {
     expect(extractCommonJsConstructs(source)).toEqual([]);
   });
 
+  it('detects executable CommonJS constructs inside template interpolations', () => {
+    const source = "const result = `prefix ${require('node:fs').readFileSync(__filename, 'utf8')} suffix`;";
+
+    expect(extractCommonJsConstructs(source)).toEqual(['require-call', '__filename']);
+  });
+
+  it('masks quoted text inside template interpolations while preserving nested executable interpolation code', () => {
+    const quotedOnly = "const result = `prefix ${format('require(\\\"quoted-only\\\") and __dirname')} suffix`;";
+    const nestedTemplate = "const result = `outer ${`inner ${require('node:path')} text`} suffix`;";
+
+    expect(extractCommonJsConstructs(quotedOnly)).toEqual([]);
+    expect(extractCommonJsConstructs(nestedTemplate)).toEqual(['require-call']);
+  });
+
   it('treats explicit nested CommonJS package scopes as safe for a future top-level ESM switch', () => {
     const root = mkdtempSync(join(tmpdir(), 'prisma-v7-esm-surface-'));
 
