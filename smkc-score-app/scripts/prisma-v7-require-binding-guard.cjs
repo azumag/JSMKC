@@ -140,7 +140,10 @@ function staticBlockHasVarRequireBinding(staticBlock) {
 
   function visit(node) {
     if (found) return;
-    if (node !== staticBlock && (isFunctionLikeBoundary(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node))) {
+    if (
+      node !== staticBlock &&
+      (isFunctionLikeBoundary(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node))
+    ) {
       return;
     }
 
