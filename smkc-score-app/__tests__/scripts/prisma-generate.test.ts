@@ -77,6 +77,17 @@ describe('scripts/prisma-generate', () => {
       expect(result.PRISMA_QUERY_ENGINE_LIBRARY).toBeUndefined();
     });
 
+    it('does not guess legacy overrides for malformed pre-v7-looking selectors', () => {
+      for (const selector of ['^6.not-semver', '6.invalid', '6.', '^06.19.3', '^6.01.3', '^6.19.03']) {
+        const result = buildSpawnEnv({ CI: 'true', PATH: '/usr/bin' }, selector);
+
+        expect(result).toEqual({ CI: 'true', PATH: '/usr/bin' });
+        expect(result.PRISMA_SCHEMA_ENGINE_BINARY).toBeUndefined();
+        expect(result.PRISMA_QUERY_ENGINE_LIBRARY).toBeUndefined();
+        expect(result.PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING).toBeUndefined();
+      }
+    });
+
     it('does not mutate the parent env object', () => {
       // A shared process.env mutation would leak into the rest of the
       // build pipeline. The overlay must produce a fresh object.
@@ -91,18 +102,43 @@ describe('scripts/prisma-generate', () => {
   });
 
   describe('Prisma selector guard', () => {
-    it('extracts supported semver majors conservatively', () => {
+    it('extracts supported exact, caret, and tilde SemVer majors conservatively', () => {
       expect(extractPrismaMajor('^6.19.3')).toBe(6);
       expect(extractPrismaMajor('~7.10.0')).toBe(7);
       expect(extractPrismaMajor('7.10.0')).toBe(7);
-      expect(extractPrismaMajor('workspace:*')).toBeNull();
+      expect(extractPrismaMajor('^6.19.3-rc.1+build.5')).toBe(6);
+      expect(extractPrismaMajor('^6.19.3-1a.01a+build.5')).toBe(6);
+    });
+
+    it('rejects incomplete, malformed, range, workspace, and protocol selectors', () => {
+      for (const selector of [
+        '^6.not-semver',
+        '6.invalid',
+        '6.',
+        '6.19',
+        '^06.19.3',
+        '^6.01.3',
+        '^6.19.03',
+        '^6.19.3-01',
+        '>=6.19.3',
+        '6.19.3 || 7.0.0',
+        'workspace:*',
+        'npm:prisma@6.19.3',
+      ]) {
+        expect(extractPrismaMajor(selector)).toBeNull();
+      }
       expect(extractPrismaMajor(undefined)).toBeNull();
+    });
+
+    it('fails closed when the SemVer major cannot be represented safely', () => {
+      expect(extractPrismaMajor('9007199254740992.0.0')).toBeNull();
     });
 
     it('only uses the legacy engine overrides in CI on pre-v7 Prisma', () => {
       expect(shouldUseLegacyCiEngineOverrides({ CI: 'true' }, '^6.19.3')).toBe(true);
       expect(shouldUseLegacyCiEngineOverrides({ CI: '1' }, '6.19.3')).toBe(true);
       expect(shouldUseLegacyCiEngineOverrides({ CI: 'true' }, '^7.10.0')).toBe(false);
+      expect(shouldUseLegacyCiEngineOverrides({ CI: 'true' }, '^6.not-semver')).toBe(false);
       expect(shouldUseLegacyCiEngineOverrides({ CI: 'true' }, 'workspace:*')).toBe(false);
       expect(shouldUseLegacyCiEngineOverrides({ CI: '' }, '^6.19.3')).toBe(false);
     });

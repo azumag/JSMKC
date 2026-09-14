@@ -6,11 +6,15 @@ describe('scripts/prisma-major-check', () => {
     expect(isPreV7PrismaSelector('^6.19.3')).toBe(true);
     expect(isPreV7PrismaSelector('~5.22.0')).toBe(true);
     expect(isPreV7PrismaSelector('6.19.3')).toBe(true);
+    expect(isPreV7PrismaSelector('^6.19.3-1a.01a+build.5')).toBe(true);
   });
 
-  it('fails closed for Prisma 7+, unknown selectors, and missing values', () => {
+  it('fails closed for Prisma 7+, malformed or unknown selectors, and missing values', () => {
     expect(isPreV7PrismaSelector('^7.10.0')).toBe(false);
     expect(isPreV7PrismaSelector('8.0.0')).toBe(false);
+    expect(isPreV7PrismaSelector('^6.not-semver')).toBe(false);
+    expect(isPreV7PrismaSelector('6.invalid')).toBe(false);
+    expect(isPreV7PrismaSelector('>=6.19.3')).toBe(false);
     expect(isPreV7PrismaSelector('workspace:*')).toBe(false);
     expect(isPreV7PrismaSelector(undefined)).toBe(false);
   });

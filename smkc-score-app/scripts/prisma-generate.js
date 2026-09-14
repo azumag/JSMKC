@@ -45,19 +45,29 @@ const LEGACY_CI_ENGINE_OVERRIDES = Object.freeze({
   PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: '1',
 });
 
+const SEMVER_PRERELEASE_IDENTIFIER = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const SUPPORTED_PRISMA_SELECTOR_PATTERN = new RegExp(
+  String.raw`^[~^]?\s*(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-${SEMVER_PRERELEASE_IDENTIFIER}(?:\.${SEMVER_PRERELEASE_IDENTIFIER})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`,
+);
+
 /**
- * Extract the leading semver major from the repository's Prisma selector.
- * Keep this intentionally conservative: unsupported selectors return null so
- * the wrapper will not inject Prisma 6-only environment variables into an
- * unknown future CLI.
+ * Extract the semver major from the repository's Prisma selector.
+ * Keep this intentionally conservative: only complete exact/caret/tilde
+ * SemVer selectors are supported. Malformed, range, workspace, or protocol
+ * selectors return null so the wrapper will not inject Prisma 6-only
+ * environment variables into an unknown future CLI.
  *
  * @param {unknown} selector
  * @returns {number | null}
  */
 function extractPrismaMajor(selector) {
   if (typeof selector !== 'string') return null;
-  const match = selector.trim().match(/^[~^]?\s*(\d+)\./);
-  return match ? Number(match[1]) : null;
+
+  const match = SUPPORTED_PRISMA_SELECTOR_PATTERN.exec(selector.trim());
+  if (!match) return null;
+
+  const major = Number(match[1]);
+  return Number.isSafeInteger(major) ? major : null;
 }
 
 /**
@@ -102,6 +112,7 @@ function buildSpawnEnv(parentEnv, prismaSelector = manifest.devDependencies?.pri
 
 module.exports = {
   LEGACY_CI_ENGINE_OVERRIDES,
+  SUPPORTED_PRISMA_SELECTOR_PATTERN,
   buildSpawnEnv,
   extractPrismaMajor,
   shouldUseLegacyCiEngineOverrides,

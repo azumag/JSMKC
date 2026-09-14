@@ -9,8 +9,10 @@ That workaround must not be carried forward mechanically to Prisma 7. Prisma's v
 The postinstall wrapper reads the repository's `devDependencies.prisma` selector and applies the legacy CI engine overrides only when all of the following are true:
 
 - `CI` is truthy;
-- the Prisma selector is a supported semver-like selector; and
+- the Prisma selector is a complete exact, caret, or tilde SemVer selector; and
 - the selected major is lower than 7.
+
+The selector guard validates the complete version-shaped selector rather than extracting only a leading `6.` / `7.` prefix. Prerelease and build metadata are allowed when they are valid SemVer components, while incomplete or malformed values such as `^6.not-semver`, comparator/range expressions, workspace selectors, and protocol aliases are treated as unknown. This is intentional: a selector that merely looks like Prisma 6 must not cause the wrapper to inject Prisma 6-only environment variables.
 
 For Prisma 7 or newer, and for selectors the wrapper cannot classify safely, it passes the parent environment through without injecting the Prisma 6 engine variables. Local development behavior is unchanged.
 
@@ -19,6 +21,8 @@ Cloudflare/OpenNext generation has a separate requirement on Prisma 6: `prebuild
 - Prisma < 7: keep the current three legacy engine overrides and run `prisma generate`;
 - Prisma >= 7: run plain `prisma generate` without those removed Prisma 6 variables;
 - unrecognized selectors: fail closed into the plain-generation branch rather than guessing that legacy variables are safe.
+
+`prisma-major-check.js` uses the same selector parser as the postinstall wrapper, so malformed pre-v7-looking selectors fail closed consistently in both CI/postinstall and Cloudflare `prebuild:cf` paths.
 
 This preserves today's Prisma 6 Cloudflare build behavior while making the package script stop forwarding the removed engine variables automatically when the CLI selector moves to Prisma 7.
 
