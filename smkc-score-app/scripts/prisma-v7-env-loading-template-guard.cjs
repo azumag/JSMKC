@@ -7,6 +7,7 @@ const {
   findCommonJsPrismaDefineConfigImports,
   findNamedPrismaDefineConfigImports,
   findPrismaConfigNamespaceImports,
+  isBareIdentifierReference,
 } = require('./prisma-v7-env-loading.cjs');
 
 function escapeIdentifierForRegex(identifier) {
@@ -90,8 +91,8 @@ function findTemplateInterpolationRanges(source) {
     }
 
     if (context.type === 'line-comment') {
-      if (character === '\n') {
-        output += '\n';
+      if (character === '\n' || character === '\r') {
+        output += character;
         contexts.pop();
       } else {
         output += ' ';
@@ -106,7 +107,7 @@ function findTemplateInterpolationRanges(source) {
         index += 2;
         contexts.pop();
       } else {
-        output += character === '\n' ? '\n' : ' ';
+        output += character === '\n' || character === '\r' ? character : ' ';
         index += 1;
       }
       continue;
@@ -115,7 +116,7 @@ function findTemplateInterpolationRanges(source) {
     if (context.type === 'regex') {
       if (character === '\\') {
         output += ' ';
-        if (next !== undefined) output += next === '\n' ? '\n' : ' ';
+        if (next !== undefined) output += next === '\n' || next === '\r' ? next : ' ';
         index += next === undefined ? 1 : 2;
         continue;
       }
@@ -152,7 +153,7 @@ function findTemplateInterpolationRanges(source) {
     if (context.type === 'template') {
       if (character === '\\') {
         output += ' ';
-        if (next !== undefined) output += next === '\n' ? '\n' : ' ';
+        if (next !== undefined) output += next === '\n' || next === '\r' ? next : ' ';
         index += next === undefined ? 1 : 2;
         continue;
       }
@@ -169,7 +170,7 @@ function findTemplateInterpolationRanges(source) {
         continue;
       }
 
-      output += character === '\n' ? '\n' : ' ';
+      output += character === '\n' || character === '\r' ? character : ' ';
       index += 1;
       continue;
     }
@@ -177,7 +178,7 @@ function findTemplateInterpolationRanges(source) {
     const quote = context.type === 'single-quote' ? "'" : '"';
     if (character === '\\') {
       output += ' ';
-      if (next !== undefined) output += next === '\n' ? '\n' : ' ';
+      if (next !== undefined) output += next === '\n' || next === '\r' ? next : ' ';
       index += next === undefined ? 1 : 2;
       continue;
     }
@@ -188,7 +189,7 @@ function findTemplateInterpolationRanges(source) {
       continue;
     }
 
-    output += character === '\n' ? '\n' : ' ';
+    output += character === '\n' || character === '\r' ? character : ' ';
     index += 1;
   }
 
@@ -201,7 +202,7 @@ function buildDefineConfigPatterns(source) {
     ...findNamedPrismaDefineConfigImports(source),
     ...findCommonJsPrismaDefineConfigImports(source),
   ]);
-  if (directNames.size === 0) directNames.add('defineConfig');
+  const namespaces = new Set(findPrismaConfigNamespaceImports(source));
 
   for (const name of directNames) {
     patterns.push({
@@ -211,7 +212,7 @@ function buildDefineConfigPatterns(source) {
     });
   }
 
-  for (const namespace of new Set(findPrismaConfigNamespaceImports(source))) {
+  for (const namespace of namespaces) {
     patterns.push({
       kind: 'namespace',
       binding: namespace,
@@ -233,6 +234,8 @@ function inspectPrismaV7EnvLoadingTemplateGuard(source) {
 
   for (const { kind, binding, pattern } of buildDefineConfigPatterns(source)) {
     for (const match of executableSource.matchAll(pattern)) {
+      if (kind === 'direct' && !isBareIdentifierReference(executableSource, match.index, binding)) continue;
+
       const range = ranges.find(({ start, end }) => start <= match.index && match.index < end);
       if (!range) continue;
 
@@ -260,7 +263,7 @@ function formatPrismaV7EnvLoadingTemplateGuard(status, { json = false } = {}) {
 
   const rows =
     status.findings.length === 0
-      ? ['| none | none |']
+      ? ['| none | none | none |']
       : status.findings.map(
           ({ kind, binding, interpolationStart, interpolationEnd }) =>
             `| ${kind} | \`${binding}\` | ${interpolationStart}-${interpolationEnd} |`,
