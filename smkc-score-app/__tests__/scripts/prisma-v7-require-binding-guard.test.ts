@@ -48,17 +48,21 @@ describe('Prisma 7 require binding guard', () => {
     ).toEqual([]);
   });
 
-  it('rejects import, function, and class bindings named require', () => {
+  it('rejects import, function, generator, and class bindings named require', () => {
     expect(
       findPrismaConfigRequireRebindings(`
         import { load as require } from './loader';
         function require() {}
+        function* require() {}
+        export default async function* require() {}
         class require {}
       `),
     ).toEqual([
       { line: 2, kind: 'binding' },
       { line: 3, kind: 'binding' },
       { line: 4, kind: 'binding' },
+      { line: 5, kind: 'binding' },
+      { line: 6, kind: 'binding' },
     ]);
   });
 
