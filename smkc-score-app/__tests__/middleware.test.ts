@@ -83,6 +83,7 @@ import middleware from '@/middleware';
 const mockAuth = jest.mocked(auth);
 
 type NextServerMock = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   NextRequest: new (url: string, init?: { method?: string }) => any;
   __mocks: {
     mockNextFn: jest.Mock;
