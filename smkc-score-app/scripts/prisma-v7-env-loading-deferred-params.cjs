@@ -102,12 +102,13 @@ function lineNumberAt(source, index) {
   return source.slice(0, index).split(/\r?\n/).length;
 }
 
-function collectPatternInvocations(source, pattern, kind, bareRequire = false) {
+function collectPatternInvocations(source, structuralSource, pattern, kind, bareRequire = false) {
   const findings = [];
   const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
   const globalPattern = new RegExp(pattern.source, flags);
 
   for (const match of source.matchAll(globalPattern)) {
+    if (structuralSource[match.index] !== source[match.index]) continue;
     if (bareRequire && !isBareIdentifierReference(source, match.index, 'require')) continue;
     findings.push({ index: match.index, kind });
   }
@@ -115,12 +116,19 @@ function collectPatternInvocations(source, pattern, kind, bareRequire = false) {
   return findings;
 }
 
-function findDotenvInvocations(source) {
+function findDotenvInvocations(source, structuralSource = maskQuotedText(source)) {
   const invocations = [];
 
   for (const name of new Set([...findNamedDotenvConfigImports(source), ...findCommonJsDotenvConfigImports(source)])) {
     const escapedName = name.replace(/[$]/g, '\\$&');
-    invocations.push(...collectPatternInvocations(source, new RegExp(`\\b${escapedName}\\s*\\(`), `named:${name}`));
+    invocations.push(
+      ...collectPatternInvocations(
+        source,
+        structuralSource,
+        new RegExp(`\\b${escapedName}\\s*\\(`),
+        `named:${name}`,
+      ),
+    );
   }
 
   for (const namespace of new Set(findDotenvNamespaceImports(source))) {
@@ -128,6 +136,7 @@ function findDotenvInvocations(source) {
     invocations.push(
       ...collectPatternInvocations(
         source,
+        structuralSource,
         new RegExp(`\\b${escapedNamespace}\\s*\\.\\s*config\\s*\\(`),
         `namespace:${namespace}`,
       ),
@@ -137,6 +146,7 @@ function findDotenvInvocations(source) {
   invocations.push(
     ...collectPatternInvocations(
       source,
+      structuralSource,
       /\brequire\s*\(\s*['"]dotenv['"]\s*\)\s*\.\s*config\s*\(/,
       'commonjs:require',
       true,
@@ -144,6 +154,41 @@ function findDotenvInvocations(source) {
   );
 
   return invocations;
+}
+
+function findTemplateInterpolationIndexes(source, range) {
+  const indexes = [];
+  let quote = null;
+  let escaped = false;
+
+  for (let index = range.start; index < range.end; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (quote === null) {
+      if (char === "'" || char === '"' || char === '`') {
+        quote = char;
+        escaped = false;
+      }
+      continue;
+    }
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (quote === '`' && char === '$' && next === '{') {
+      indexes.push(index);
+      continue;
+    }
+    if (char === quote) quote = null;
+  }
+
+  return indexes;
 }
 
 function inspectDeferredPrismaEnvLoading(source) {
@@ -157,7 +202,7 @@ function inspectDeferredPrismaEnvLoading(source) {
   const findings = [];
   const seen = new Set();
 
-  for (const invocation of findDotenvInvocations(lexicalSource)) {
+  for (const invocation of findDotenvInvocations(lexicalSource, structuralSource)) {
     const range = ranges.find(candidate => invocation.index >= candidate.start && invocation.index < candidate.end);
     if (!range) continue;
 
@@ -171,6 +216,20 @@ function inspectDeferredPrismaEnvLoading(source) {
     });
   }
 
+  for (const range of ranges) {
+    for (const index of findTemplateInterpolationIndexes(lexicalSource, range)) {
+      const key = `${index}:template-interpolation:${range.kind}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      findings.push({
+        kind: 'template-interpolation',
+        rangeKind: range.kind,
+        line: lineNumberAt(source, index),
+      });
+    }
+  }
+
+  findings.sort((left, right) => (left.line ?? Number.MAX_SAFE_INTEGER) - (right.line ?? Number.MAX_SAFE_INTEGER));
   return { safe: findings.length === 0, findings };
 }
 
@@ -222,6 +281,7 @@ module.exports = {
   findDotenvInvocations,
   findFunctionParameterRanges,
   findMatchingParen,
+  findTemplateInterpolationIndexes,
   formatDeferredPrismaEnvLoading,
   inspectDeferredPrismaEnvLoading,
   maskQuotedText,
