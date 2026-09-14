@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const TARGET_PRISMA_MAJOR = 7;
 const LOCKFILE_PACKAGE_PATHS = Object.freeze({
@@ -301,7 +302,7 @@ function main() {
   try {
     options = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid Prisma 7 readiness arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid Prisma 7 readiness arguments', error));
     process.exit(1);
   }
 
@@ -329,7 +330,7 @@ function main() {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
     }
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma 7 migration readiness: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect Prisma 7 migration readiness', error));
     process.exit(1);
   }
 }
