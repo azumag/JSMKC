@@ -25,6 +25,20 @@ describe('Prisma 7 require binding guard', () => {
     ]);
   });
 
+  it('rejects defaulted top-level require destructuring bindings', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        const { require = fallbackRequire } = runtime;
+        const { loader: require = fallbackRequire } = runtime;
+        const [require = fallbackRequire] = loaders;
+      `),
+    ).toEqual([
+      { line: 2, kind: 'binding' },
+      { line: 3, kind: 'binding' },
+      { line: 4, kind: 'binding' },
+    ]);
+  });
+
   it('does not confuse an object property named require with a require binding', () => {
     expect(
       findPrismaConfigRequireRebindings(`
