@@ -12,7 +12,7 @@ function sanitizeUpstreamDiagnostic(value, maxLength = UPSTREAM_DIAGNOSTIC_MAX_L
   }
 
   const visible = value
-    .replace(/[\u0000-\u001f\u007f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/g, (character) => {
+    .replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/g, (character) => {
       if (character === '\n') return '\\n';
       if (character === '\r') return '\\r';
       if (character === '\t') return '\\t';
