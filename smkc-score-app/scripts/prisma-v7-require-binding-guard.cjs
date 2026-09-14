@@ -28,6 +28,9 @@ const assignmentOperatorKinds = new Set([
   ts.SyntaxKind.QuestionQuestionEqualsToken,
 ]);
 
+const blockScopedDeclarationFlags =
+  ts.NodeFlags.Let | ts.NodeFlags.Const | (ts.NodeFlags.Using ?? 0) | (ts.NodeFlags.AwaitUsing ?? 0);
+
 function lineNumberAt(source, index) {
   return source.slice(0, index).split(/\r\n|\n|\r/).length;
 }
@@ -118,61 +121,194 @@ function hasStaticModifier(node) {
   return node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword) ?? false;
 }
 
-function findModuleScopeRequireAssignments(source) {
-  if (typeof source !== 'string') return [];
+function bindingNameBindsRequire(name) {
+  if (ts.isIdentifier(name)) return name.text === 'require';
 
-  const sourceFile = ts.createSourceFile('prisma.config.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const indexes = [];
-
-  function report(node) {
-    indexes.push(node.getStart(sourceFile));
+  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    return name.elements.some((element) => ts.isBindingElement(element) && bindingNameBindsRequire(element.name));
   }
 
-  function visitClass(node) {
-    for (const heritageClause of node.heritageClauses ?? []) visit(heritageClause);
+  return false;
+}
 
-    for (const member of node.members) {
-      if (member.name) visit(member.name);
+function declarationListBindsRequire(declarationList) {
+  return declarationList.declarations.some((declaration) => bindingNameBindsRequire(declaration.name));
+}
 
-      if (ts.isClassStaticBlockDeclaration(member)) {
-        visit(member);
-      } else if (ts.isPropertyDeclaration(member) && hasStaticModifier(member) && member.initializer) {
-        visit(member.initializer);
-      }
-    }
+function isVarDeclarationList(node) {
+  return ts.isVariableDeclarationList(node) && (node.flags & blockScopedDeclarationFlags) === 0;
+}
+
+function isBlockScopedDeclarationList(node) {
+  return ts.isVariableDeclarationList(node) && (node.flags & blockScopedDeclarationFlags) !== 0;
+}
+
+function statementBindsLexicalRequire(statement) {
+  if (
+    ts.isVariableStatement(statement) &&
+    isBlockScopedDeclarationList(statement.declarationList) &&
+    declarationListBindsRequire(statement.declarationList)
+  ) {
+    return true;
   }
+
+  return (
+    ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name?.text === 'require') ??
+    false
+  );
+}
+
+function statementsBindLexicalRequire(statements) {
+  return statements.some((statement) => statementBindsLexicalRequire(statement));
+}
+
+function staticBlockHasVarRequireBinding(staticBlock) {
+  let found = false;
 
   function visit(node) {
-    if (node !== sourceFile && isFunctionLikeBoundary(node)) return;
-
-    if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
-      visitClass(node);
+    if (found) return;
+    if (
+      node !== staticBlock &&
+      (isFunctionLikeBoundary(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node))
+    ) {
       return;
     }
 
-    if (
-      ts.isBinaryExpression(node) &&
-      assignmentOperatorKinds.has(node.operatorToken.kind) &&
-      ts.isIdentifier(node.left) &&
-      node.left.text === 'require'
-    ) {
-      report(node.left);
-    }
-
-    if (
-      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
-      (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
-      ts.isIdentifier(node.operand) &&
-      node.operand.text === 'require'
-    ) {
-      report(node.operand);
+    if (isVarDeclarationList(node)) {
+      found = declarationListBindsRequire(node);
+      if (found) return;
     }
 
     ts.forEachChild(node, visit);
   }
 
-  visit(sourceFile);
-  return [...new Set(indexes)].sort((left, right) => left - right);
+  visit(staticBlock);
+  return found;
+}
+
+function caseBlockBindsLexicalRequire(caseBlock) {
+  return caseBlock.clauses.some((clause) => statementsBindLexicalRequire(clause.statements));
+}
+
+function loopBindsLexicalRequire(node) {
+  if (!ts.isForStatement(node) && !ts.isForInStatement(node) && !ts.isForOfStatement(node)) return false;
+
+  const initializer = node.initializer;
+  return (
+    initializer !== undefined &&
+    ts.isVariableDeclarationList(initializer) &&
+    isBlockScopedDeclarationList(initializer) &&
+    declarationListBindsRequire(initializer)
+  );
+}
+
+function catchClauseBindsRequire(catchClause) {
+  return catchClause.variableDeclaration ? bindingNameBindsRequire(catchClause.variableDeclaration.name) : false;
+}
+
+function isRequireShadowedFromModule(identifier) {
+  let current = identifier.parent;
+
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isBlock(current) && statementsBindLexicalRequire(current.statements)) return true;
+    if (ts.isCaseBlock(current) && caseBlockBindsLexicalRequire(current)) return true;
+    if (ts.isCatchClause(current) && catchClauseBindsRequire(current)) return true;
+    if (loopBindsLexicalRequire(current)) return true;
+    if (ts.isClassStaticBlockDeclaration(current) && staticBlockHasVarRequireBinding(current)) return true;
+    if ((ts.isClassDeclaration(current) || ts.isClassExpression(current)) && current.name?.text === 'require') {
+      return true;
+    }
+
+    current = current.parent;
+  }
+
+  return false;
+}
+
+function findModuleScopeRequireAstFindings(source) {
+  if (typeof source !== 'string') return [];
+
+  const sourceFile = ts.createSourceFile('prisma.config.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const findings = [];
+
+  function report(node, kind) {
+    findings.push({ index: node.getStart(sourceFile), kind });
+  }
+
+  function visitClass(node, assignmentsAffectModule) {
+    for (const heritageClause of node.heritageClauses ?? []) visit(heritageClause, true, assignmentsAffectModule);
+
+    for (const member of node.members) {
+      if (member.name) visit(member.name, true, assignmentsAffectModule);
+
+      if (ts.isClassStaticBlockDeclaration(member)) {
+        const shadowsRequire = staticBlockHasVarRequireBinding(member);
+        visit(member, false, assignmentsAffectModule && !shadowsRequire);
+      } else if (ts.isPropertyDeclaration(member) && hasStaticModifier(member) && member.initializer) {
+        visit(member.initializer, true, assignmentsAffectModule);
+      }
+    }
+  }
+
+  function visit(node, moduleVarScope, assignmentsAffectModule) {
+    if (node !== sourceFile && isFunctionLikeBoundary(node)) return;
+
+    if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+      visitClass(node, assignmentsAffectModule);
+      return;
+    }
+
+    if (moduleVarScope && isVarDeclarationList(node)) {
+      for (const declaration of node.declarations) {
+        if (bindingNameBindsRequire(declaration.name)) report(declaration.name, 'binding');
+      }
+    }
+
+    if (
+      assignmentsAffectModule &&
+      ts.isBinaryExpression(node) &&
+      assignmentOperatorKinds.has(node.operatorToken.kind) &&
+      ts.isIdentifier(node.left) &&
+      node.left.text === 'require' &&
+      !isRequireShadowedFromModule(node.left)
+    ) {
+      report(node.left, 'assignment');
+    }
+
+    if (
+      assignmentsAffectModule &&
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
+      ts.isIdentifier(node.operand) &&
+      node.operand.text === 'require' &&
+      !isRequireShadowedFromModule(node.operand)
+    ) {
+      report(node.operand, 'assignment');
+    }
+
+    ts.forEachChild(node, (child) => visit(child, moduleVarScope, assignmentsAffectModule));
+  }
+
+  visit(sourceFile, true, true);
+  return findings
+    .filter(
+      (finding, index) =>
+        findings.findIndex((candidate) => candidate.index === finding.index && candidate.kind === finding.kind) ===
+        index,
+    )
+    .sort((left, right) => left.index - right.index);
+}
+
+function findModuleScopeRequireAssignments(source) {
+  return findModuleScopeRequireAstFindings(source)
+    .filter((finding) => finding.kind === 'assignment')
+    .map((finding) => finding.index);
+}
+
+function findModuleScopeRequireVarBindings(source) {
+  return findModuleScopeRequireAstFindings(source)
+    .filter((finding) => finding.kind === 'binding')
+    .map((finding) => finding.index);
 }
 
 function findPrismaConfigRequireRebindings(source) {
@@ -216,8 +352,8 @@ function findPrismaConfigRequireRebindings(source) {
     report(match.index, 'assignment');
   }
 
-  for (const index of findModuleScopeRequireAssignments(source)) {
-    report(index, 'assignment');
+  for (const finding of findModuleScopeRequireAstFindings(source)) {
+    report(finding.index, finding.kind);
   }
 
   return findings.sort((left, right) => left.line - right.line);
@@ -262,11 +398,21 @@ if (require.main === module) {
 }
 
 module.exports = {
+  bindingNameBindsRequire,
+  catchClauseBindsRequire,
   declarationBindsRequire,
+  declarationListBindsRequire,
   findModuleScopeRequireAssignments,
+  findModuleScopeRequireAstFindings,
+  findModuleScopeRequireVarBindings,
   findPrismaConfigRequireRebindings,
   firstAssignmentIndex,
   formatFindings,
   importBindsRequire,
+  isRequireShadowedFromModule,
   lineNumberAt,
+  loopBindsLexicalRequire,
+  statementBindsLexicalRequire,
+  statementsBindLexicalRequire,
+  staticBlockHasVarRequireBinding,
 };
