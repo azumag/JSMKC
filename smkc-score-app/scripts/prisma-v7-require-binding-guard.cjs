@@ -225,7 +225,9 @@ function findModuleScopeRequireAstFindings(source) {
   return findings
     .filter(
       (finding, index) =>
-        findings.findIndex((candidate) => candidate.index === finding.index && candidate.kind === finding.kind) === index,
+        findings.findIndex(
+          (candidate) => candidate.index === finding.index && candidate.kind === finding.kind,
+        ) === index,
     )
     .sort((left, right) => left.index - right.index);
 }
