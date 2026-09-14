@@ -2,15 +2,15 @@
 
 This note documents how to recognize a safe forward-remediation candidate for the temporary `deepmerge-ts` audit exception tracked in #3114.
 
-## Upstream state checked on 2026-09-10
+## Upstream state checked on 2026-09-14
 
-Prisma upstream merged `prisma/orm#30189` into the `v7` branch on 2026-09-01. That change updates `@prisma/config` from `deepmerge-ts` 7.1.5 to 8.0.2. The latest stable Prisma 7 release visible when this note was written is 7.10.0, released on 2026-08-25, so it predates that merge. JSMKC therefore must not assume that a currently installable stable Prisma package already contains the fix.
+Prisma upstream issue `prisma/orm#30052` is still open. The upstream change that moves `@prisma/config` to `deepmerge-ts` 8.x exists on the Prisma 8 development line, but JSMKC must not infer from that alone that its currently supported Prisma line has a safe forward release. The temporary exception therefore remains active until an installable forward dependency graph is verified by the canonical audit and the full repository gates.
 
 References:
 
 - https://github.com/prisma/orm/issues/30052
 - https://github.com/prisma/orm/pull/30189
-- https://github.com/prisma/orm/releases/tag/7.10.0
+- https://github.com/prisma/orm/releases
 
 ## Status classification
 
@@ -18,12 +18,12 @@ References:
 
 A new `forward-remediation-candidate` state is reported only when both of these lockfile facts move to the patched line:
 
-1. the installed `node_modules/deepmerge-ts` version is semver `>= 8.0.0`; and
-2. the `node_modules/@prisma/config` dependency edge itself requests a simple patched `deepmerge-ts` version/range.
+1. the installed `node_modules/deepmerge-ts` version is complete SemVer `>= 8.0.0`; and
+2. the `node_modules/@prisma/config` dependency edge itself requests a simple patched `deepmerge-ts` version/range whose version token is also complete SemVer.
 
 This deliberately does not classify a consumer-side override as a forward-remediation candidate. For example, if the installed package is forced to 8.0.2 while `@prisma/config` still declares `deepmerge-ts: 7.1.5`, the status stays `context-changed`.
 
-The classifier accepts only simple exact, caret, tilde, or lower-bound requirements that can be compared safely. Complex or workspace ranges are not guessed and remain generic context drift.
+The classifier accepts only simple exact, caret, tilde, or lower-bound requirements that can be compared safely. Complex or workspace ranges are not guessed and remain generic context drift. SemVer validation is also fail-closed: core identifiers may not contain leading zeroes, numeric prerelease identifiers may not contain leading zeroes, prerelease/build identifiers may not be empty, and consecutive dots are rejected. Valid prerelease/build metadata remains supported. This prevents malformed values such as `9.0.0-01`, `9.0.0-..`, or `^9.0.0-alpha..1` from being mistaken for evidence that the patched dependency line has arrived.
 
 ## Required action when the candidate appears
 
