@@ -75,6 +75,53 @@ describe('Prisma 7 require binding guard', () => {
     ).toEqual([{ line: 2, kind: 'assignment' }]);
   });
 
+  it('rejects bare require assignments inside braced module control flow', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        if (useFakeLoader) {
+          require = fakeRequire;
+        }
+        try {
+          require ||= fallbackRequire;
+        } catch {}
+      `),
+    ).toEqual([
+      { line: 3, kind: 'assignment' },
+      { line: 6, kind: 'assignment' },
+    ]);
+  });
+
+  it('rejects bare require assignments inside unbraced module control flow', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        if (useFakeLoader) require = fakeRequire;
+        else require &&= fallbackRequire;
+        for (const loader of loaders) require ??= loader;
+        while (retry) require += fallbackRequire;
+        do require = fakeRequire;
+        while (retry);
+      `),
+    ).toEqual([
+      { line: 2, kind: 'assignment' },
+      { line: 3, kind: 'assignment' },
+      { line: 4, kind: 'assignment' },
+      { line: 5, kind: 'assignment' },
+      { line: 6, kind: 'assignment' },
+    ]);
+  });
+
+  it('rejects assignments in module-executed class static blocks but ignores method bodies', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        class Loader {
+          static { require = fakeRequire; }
+          method() { require = methodRequire; }
+          static method() { require = staticMethodRequire; }
+        }
+      `),
+    ).toEqual([{ line: 3, kind: 'assignment' }]);
+  });
+
   it('allows direct CommonJS require calls without rebinding the loader', () => {
     expect(
       findPrismaConfigRequireRebindings(`
@@ -98,7 +145,37 @@ describe('Prisma 7 require binding guard', () => {
     ).toEqual([]);
   });
 
-  it('keeps the repository prisma.config.ts free of top-level require rebindings', () => {
+  it('ignores require assignments inside nested function, arrow, and class method bodies', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        function buildLater() {
+          require = fakeRequire;
+        }
+        const buildAgain = () => {
+          require ||= fallbackRequire;
+        };
+        class Loader {
+          method() { require = methodRequire; }
+          static method() { require ??= staticMethodRequire; }
+        }
+      `),
+    ).toEqual([]);
+  });
+
+  it('ignores member assignments and lexical lookalikes inside module control flow', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        if (useFakeLoader) {
+          loader.require = fakeRequire;
+          const stringExample = 'require = fakeRequire';
+          const regexExample = /require\\s*=/;
+          // require = fakeRequire;
+        }
+      `),
+    ).toEqual([]);
+  });
+
+  it('keeps the repository prisma.config.ts free of module-scope require rebindings', () => {
     const prismaConfigPath = path.join(process.cwd(), 'prisma.config.ts');
     const source = fs.readFileSync(prismaConfigPath, 'utf8');
 
