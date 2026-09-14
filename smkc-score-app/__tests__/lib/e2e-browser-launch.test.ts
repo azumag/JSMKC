@@ -220,13 +220,11 @@ describe('E2E browser launch helpers', () => {
   describe('formatE2EErrorForLog', () => {
     it('returns non-Error values as-is', () => {
       const value = { code: 'ENOENT' };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(common.formatE2EErrorForLog(value as any)).toBe(value);
     });
 
     it('returns error message when stack is absent', () => {
       const error = new Error('something went wrong');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (error as any).stack;
       expect(common.formatE2EErrorForLog(error)).toBe('something went wrong');
     });
@@ -386,7 +384,6 @@ describe('E2E browser launch helpers', () => {
 
     it('returns non-Error values as-is', () => {
       const value = { code: 'ENOENT' };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = common.addPersistentContextCrashHelp(value as any, '/tmp/test-profile');
 
       expect(result).toBe(value);
