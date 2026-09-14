@@ -12,6 +12,8 @@ node scripts/prisma-v7-esm-surface.cjs --json
 
 The probe scans Node/test support surfaces (`scripts`, `e2e`, `__tests__`, and `__mocks__`) plus the legacy root `jest.setup.js` path and reports `.js` files that contain CommonJS loads/exports or CommonJS-only Node globals and would change interpretation under a future top-level ESM switch. Comments and quoted/template string contents are masked before matching so prose-only mentions do not become migration work.
 
+Template literal **text** is masked, but `${...}` interpolation bodies are executable JavaScript and remain visible to the CommonJS scan. Nested braces and nested templates inside an interpolation are tracked so a real `require()`, `module.exports`, `exports`, `__dirname`, or `__filename` used by an interpolation cannot be hidden by surrounding template text. Quoted strings and comments inside the interpolation remain masked like they are in ordinary source code.
+
 Files beneath a nested package scope with explicit `"type": "commonjs"` are intentionally excluded because Node will continue to interpret their `.js` files as CommonJS after the application package switches to ESM. Existing `.cjs` files are excluded for the same reason.
 
 The probe intentionally does **not** edit files, rename extensions, add top-level `"type": "module"`, install packages, regenerate Prisma Client, or change the #3114 audit exception.
