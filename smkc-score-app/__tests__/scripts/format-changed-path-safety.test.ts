@@ -9,8 +9,8 @@ describe('changed formatting path safety', () => {
     realpathSync.mockClear();
   });
 
-  it('accepts regular files and preserves the original changed-file list', () => {
-    const changedFiles = ['src/example.ts', 'docs/a file.md'];
+  it('accepts regular files and preserves safe path spelling', () => {
+    const changedFiles = ['src/example.ts', 'docs/a file.md', '--write.ts', 'src/日本 語.ts'];
     const lstatSync = jest.fn(() => ({ isFile: () => true }));
 
     expect(assertSafeChangedFiles(changedFiles, appRoot, lstatSync, realpathSync)).toBe(changedFiles);
@@ -55,5 +55,19 @@ describe('changed formatting path safety', () => {
     expect(() => assertSafeChangedFiles(['linked/example.ts'], appRoot, lstatSync, resolveRealPath)).toThrow(
       'Changed formatting path resolves outside the app root: linked/example.ts',
     );
+  });
+
+  it.each([
+    ['newline', 'src/bad\n::warning::message.ts'],
+    ['tab', 'src/bad\tname.ts'],
+    ['escape', 'src/bad\u001b[31m.ts'],
+    ['delete', 'src/bad\u007fname.ts'],
+  ])('rejects %s control characters without echoing the unsafe path', (_label, unsafePath) => {
+    const lstatSync = jest.fn();
+
+    expect(() => assertSafeChangedFiles([unsafePath], appRoot, lstatSync, realpathSync)).toThrow(
+      'Changed formatting path contains a control character.',
+    );
+    expect(lstatSync).not.toHaveBeenCalled();
   });
 });
