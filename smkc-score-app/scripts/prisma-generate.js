@@ -141,7 +141,9 @@ if (require.main === module) {
     // Spawning `npx` itself failed (e.g. missing binary). Surface the error
     // rather than silently exiting 0, otherwise CI appears to pass when the
     // generation never actually ran.
-    process.stderr.write(formatUpstreamProbeFailure('[prisma-generate] failed to spawn prisma CLI', result.error));
+    process.stderr.write(
+      formatUpstreamProbeFailure('[prisma-generate] failed to spawn prisma CLI', result.error),
+    );
     process.exit(1);
   }
 
