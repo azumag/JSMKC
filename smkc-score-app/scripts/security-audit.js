@@ -9,10 +9,7 @@ const {
   hasMatchingSecurityAuditPackageIdentity,
   hasMatchingSecurityAuditManifestSnapshot,
 } = require('./security-audit-lockfile.js');
-const {
-  formatUpstreamProbeFailure,
-  sanitizeUpstreamDiagnostic,
-} = require('./security-audit-upstream-diagnostic.js');
+const { formatUpstreamProbeFailure, sanitizeUpstreamDiagnostic } = require('./security-audit-upstream-diagnostic.js');
 const { loadPackageManifest, verifyNpmRuntime } = require('./verify-npm-version.js');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
