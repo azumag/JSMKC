@@ -3,10 +3,7 @@
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./security-audit-status.js');
-const {
-  formatUpstreamProbeFailure,
-  getUpstreamDiagnosticMessage,
-} = require('./security-audit-upstream-diagnostic.js');
+const { formatUpstreamProbeFailure, getUpstreamDiagnosticMessage } = require('./security-audit-upstream-diagnostic.js');
 
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
