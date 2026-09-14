@@ -18,7 +18,12 @@ function firstAssignmentIndex(source) {
     const next = source[index + 1];
     if (char !== '=') continue;
     if (next === '>' || next === '=') continue;
-    if (source[index - 1] === '=' || source[index - 1] === '!' || source[index - 1] === '<' || source[index - 1] === '>') {
+    if (
+      source[index - 1] === '=' ||
+      source[index - 1] === '!' ||
+      source[index - 1] === '<' ||
+      source[index - 1] === '>'
+    ) {
       continue;
     }
     return index;
