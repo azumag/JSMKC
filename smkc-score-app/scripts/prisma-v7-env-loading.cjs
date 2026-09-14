@@ -129,18 +129,55 @@ function withoutCommentOnlyLines(source) {
   return output;
 }
 
-function findNamedDotenvConfigImport(source) {
+function findNamedDotenvConfigImports(source) {
+  const names = [];
   const pattern = /^\s*import\s*\{([^}]*)\}\s*from\s*['"]dotenv['"]\s*;?/gm;
   for (const match of source.matchAll(pattern)) {
     if (!isTopLevelSourceIndex(source, match.index)) continue;
 
     for (const entry of match[1].split(',')) {
       const named = /^\s*config(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
-      if (named) return named[1] ?? 'config';
+      if (named) names.push(named[1] ?? 'config');
     }
   }
 
-  return null;
+  return names;
+}
+
+function findNamedDotenvConfigImport(source) {
+  return findNamedDotenvConfigImports(source)[0] ?? null;
+}
+
+function findCommonJsDotenvConfigImports(source) {
+  const names = [];
+  const pattern = /^\s*const\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]dotenv['"]\s*\)\s*;?/gm;
+  for (const match of source.matchAll(pattern)) {
+    if (!isTopLevelSourceIndex(source, match.index)) continue;
+
+    for (const entry of match[1].split(',')) {
+      const named = /^\s*config(?:\s*:\s*([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
+      if (named) names.push(named[1] ?? 'config');
+    }
+  }
+
+  return names;
+}
+
+function findDotenvNamespaceImports(source) {
+  const namespaces = [];
+  const esmNamespaceImport = /^\s*import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"]dotenv['"]\s*;?/gm;
+  const esmDefaultImport = /^\s*import\s+([A-Za-z_$][\w$]*)\s+from\s*['"]dotenv['"]\s*;?/gm;
+  const commonJsImport =
+    /^\s*const\s+([A-Za-z_$][\w$]*)\s*=\s*require\s*\(\s*['"]dotenv['"]\s*\)(?=[ \t]*(?:;|$|\r?\n))/gm;
+
+  for (const pattern of [esmNamespaceImport, esmDefaultImport, commonJsImport]) {
+    for (const match of source.matchAll(pattern)) {
+      if (!isTopLevelSourceIndex(source, match.index)) continue;
+      namespaces.push(match[1]);
+    }
+  }
+
+  return namespaces;
 }
 
 function findNamedPrismaDefineConfigImport(source) {
@@ -402,19 +439,22 @@ function inspectPrismaV7EnvLoading(source) {
     }
   }
 
-  const namedConfig = findNamedDotenvConfigImport(configSource);
-  if (namedConfig) {
+  for (const namedConfig of findNamedDotenvConfigImports(configSource)) {
     const invocation = new RegExp(`^\\s*${namedConfig.replace(/[$]/g, '\\$&')}\\s*\\(`, 'm');
     if (invocationPrecedesDefineConfig(configSource, invocation)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
   }
 
-  const namespaceImport = /^\s*import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"]dotenv['"]\s*;?/gm;
-  for (const match of configSource.matchAll(namespaceImport)) {
-    if (!isTopLevelSourceIndex(configSource, match.index)) continue;
+  for (const namedConfig of findCommonJsDotenvConfigImports(configSource)) {
+    const invocation = new RegExp(`^\\s*${namedConfig.replace(/[$]/g, '\\$&')}\\s*\\(`, 'm');
+    if (invocationPrecedesDefineConfig(configSource, invocation)) {
+      return { ready: true, mode: 'dotenv.config()' };
+    }
+  }
 
-    const invocation = new RegExp(`^\\s*${match[1].replace(/[$]/g, '\\$&')}\\.config\\s*\\(`, 'm');
+  for (const namespace of findDotenvNamespaceImports(configSource)) {
+    const invocation = new RegExp(`^\\s*${namespace.replace(/[$]/g, '\\$&')}\\.config\\s*\\(`, 'm');
     if (invocationPrecedesDefineConfig(configSource, invocation)) {
       return { ready: true, mode: 'dotenv.config()' };
     }
@@ -471,9 +511,12 @@ if (require.main === module) {
 }
 
 module.exports = {
+  findCommonJsDotenvConfigImports,
   findCommonJsPrismaDefineConfigImport,
   findDefineConfigEvaluationIndex,
+  findDotenvNamespaceImports,
   findNamedDotenvConfigImport,
+  findNamedDotenvConfigImports,
   findNamedPrismaDefineConfigImport,
   findPrismaConfigNamespaceImports,
   formatPrismaV7EnvLoading,
