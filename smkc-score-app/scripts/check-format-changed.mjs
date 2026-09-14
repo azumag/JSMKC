@@ -1,8 +1,11 @@
 import { execFileSync, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import formatChangedPathSafety from './format-changed-path-safety.cjs';
 import formatChangedUtils from './format-changed-utils.cjs';
 
+const { assertSafeChangedFiles } = formatChangedPathSafety;
 const {
   buildGitErrorMessage,
   collectChangedAppFiles,
@@ -135,6 +138,13 @@ function main() {
     console.log('No changed Prettier-supported files to check.');
     return 0;
   }
+
+  assertSafeChangedFiles(
+    changedFiles,
+    appRoot,
+    (file) => fs.lstatSync(file),
+    (file) => fs.realpathSync(file),
+  );
 
   console.log(`Checking formatting for ${changedFiles.length} changed file(s).`);
   const prettierExecutable = path.join(
