@@ -47,6 +47,17 @@ describe('Prisma 7 environment-loading control-flow evidence', () => {
     ).toEqual({ ready: false, mode: null });
   });
 
+  it('keeps parenthesized defineConfig evaluation as an ordering boundary', () => {
+    expect(
+      inspectPrismaV7EnvLoading(`
+        import { config } from 'dotenv';
+        import { defineConfig } from 'prisma/config';
+        export default (defineConfig({}));
+        config();
+      `),
+    ).toEqual({ ready: false, mode: null });
+  });
+
   it('still accepts a later unconditional call after conditional evidence is skipped', () => {
     expect(
       inspectPrismaV7EnvLoading(`

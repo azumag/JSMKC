@@ -227,7 +227,7 @@ function isTopLevelSourceIndex(source, targetIndex) {
       braceDepth += 1;
     } else if (char === '}') {
       braceDepth = Math.max(0, braceDepth - 1);
-    } else if (braceDepth === 0 && parenDepth === 0 && char === '=' && next === '>') {
+    } else if (braceDepth === 0 && char === '=' && next === '>') {
       pendingTopLevelArrow = true;
       index += 1;
     } else if (braceDepth === 0 && parenDepth === 0 && char === ';') {
@@ -242,7 +242,6 @@ function isTopLevelSourceIndex(source, targetIndex) {
     !lineComment &&
     !blockComment &&
     braceDepth === 0 &&
-    parenDepth === 0 &&
     !pendingTopLevelArrow &&
     !pendingUnbracedControlBody &&
     !awaitingControlParen &&
