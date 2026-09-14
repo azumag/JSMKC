@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 const DEFAULT_TARGETS = ['__tests__', '__mocks__', 'e2e', 'jest.setup.cjs', 'jest.config.ts', 'next.config.ts'];
@@ -143,7 +144,7 @@ function main() {
   try {
     options = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid Prisma 7 support-surface arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid Prisma 7 support-surface arguments', error));
     process.exit(1);
   }
 
@@ -158,7 +159,9 @@ function main() {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
     }
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma 7 support-code migration surface: ${error.message}\n`);
+    process.stderr.write(
+      formatUpstreamProbeFailure('Failed to inspect Prisma 7 support-code migration surface', error),
+    );
     process.exit(1);
   }
 }
