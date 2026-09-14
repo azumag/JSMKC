@@ -9,6 +9,7 @@ const {
   selectLatestVersion,
   writeGitHubOutputs,
 } = require('./security-audit-upstream.js');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const CARET_SEMVER_SELECTOR_PATTERN = /^\^\s*(\d+)\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
@@ -204,7 +205,7 @@ function main() {
   try {
     cliOptions = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid next-major Prisma upstream arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid next-major Prisma upstream arguments', error));
     process.exit(1);
   }
 
@@ -213,7 +214,7 @@ function main() {
   try {
     manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   } catch (error) {
-    process.stderr.write(`Failed to read package.json: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to read package.json', error));
     process.exit(1);
   }
 
@@ -222,7 +223,7 @@ function main() {
     process.stdout.write(formatNextMajorPrismaReleaseStatus(status, cliOptions));
     writeNextMajorGitHubOutputs(status);
   } catch (error) {
-    process.stderr.write(`Failed to inspect next-major Prisma release: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect next-major Prisma release', error));
     process.exit(1);
   }
 }
