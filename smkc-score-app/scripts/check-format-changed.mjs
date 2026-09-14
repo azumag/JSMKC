@@ -139,7 +139,12 @@ function main() {
     return 0;
   }
 
-  assertSafeChangedFiles(changedFiles, appRoot, (file) => fs.lstatSync(file));
+  assertSafeChangedFiles(
+    changedFiles,
+    appRoot,
+    (file) => fs.lstatSync(file),
+    (file) => fs.realpathSync(file),
+  );
 
   console.log(`Checking formatting for ${changedFiles.length} changed file(s).`);
   const prettierExecutable = path.join(
