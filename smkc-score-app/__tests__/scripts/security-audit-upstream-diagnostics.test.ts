@@ -1,5 +1,6 @@
 import {
   NPM_VIEW_DIAGNOSTIC_MAX_LENGTH,
+  parseNpmViewJson,
   runNpmView,
   sanitizeNpmViewDiagnostic,
 } from '../../scripts/security-audit-upstream.js';
@@ -18,6 +19,43 @@ describe('security audit npm view diagnostics', () => {
     expect(safe).toHaveLength(NPM_VIEW_DIAGNOSTIC_MAX_LENGTH);
     expect(safe).toContain('prefix\\n');
     expect(safe.endsWith('...')).toBe(true);
+  });
+
+  it('sanitizes parser errors before exposing invalid npm JSON diagnostics', () => {
+    const parseSpy = jest.spyOn(JSON, 'parse').mockImplementationOnce(() => {
+      throw new SyntaxError('unexpected token\n\u001b[31mred\u2028tail');
+    });
+
+    try {
+      expect(() => parseNpmViewJson('{invalid}', 'prisma@^6.19.3 version')).toThrow(
+        'npm view returned invalid JSON for prisma@^6.19.3 version: unexpected token\\n\\x1b[31mred\\u2028tail',
+      );
+    } finally {
+      parseSpy.mockRestore();
+    }
+  });
+
+  it('bounds long parser errors before exposing invalid npm JSON diagnostics', () => {
+    const parseSpy = jest.spyOn(JSON, 'parse').mockImplementationOnce(() => {
+      throw new SyntaxError(`invalid json\n${'x'.repeat(NPM_VIEW_DIAGNOSTIC_MAX_LENGTH + 100)}`);
+    });
+    let thrown: Error | undefined;
+
+    try {
+      parseNpmViewJson('{invalid}', 'prisma@^6.19.3 version');
+    } catch (error) {
+      thrown = error as Error;
+    } finally {
+      parseSpy.mockRestore();
+    }
+
+    expect(thrown).toBeDefined();
+    expect(thrown?.message).not.toMatch(/[\n\r\t\u001b\u007f\u2028\u2029]/);
+    expect(thrown?.message).toContain('npm view returned invalid JSON for prisma@^6.19.3 version: invalid json\\n');
+    expect(thrown?.message.length).toBeLessThanOrEqual(
+      'npm view returned invalid JSON for prisma@^6.19.3 version: '.length + NPM_VIEW_DIAGNOSTIC_MAX_LENGTH,
+    );
+    expect(thrown?.message.endsWith('...')).toBe(true);
   });
 
   it('sanitizes non-zero npm stderr before exposing it in the error', () => {
