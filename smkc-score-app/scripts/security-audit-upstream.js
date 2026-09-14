@@ -8,10 +8,11 @@ const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
 const NPM_VIEW_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
-const REGISTRY_SEMVER_SELECTOR_PATTERN =
-  /^(?:\^|~|>=|>|<=|<)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN =
-  /^(?:\^|~)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SEMVER_NUMERIC_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*)`;
+const SEMVER_PRERELEASE_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const SEMVER_VERSION_PATTERN = String.raw`${SEMVER_NUMERIC_IDENTIFIER_PATTERN}\.${SEMVER_NUMERIC_IDENTIFIER_PATTERN}\.${SEMVER_NUMERIC_IDENTIFIER_PATTERN}(?:-${SEMVER_PRERELEASE_IDENTIFIER_PATTERN}(?:\.${SEMVER_PRERELEASE_IDENTIFIER_PATTERN})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?`;
+const REGISTRY_SEMVER_SELECTOR_PATTERN = new RegExp(String.raw`^(?:\^|~|>=|>|<=|<)?\s*${SEMVER_VERSION_PATTERN}$`);
+const CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN = new RegExp(String.raw`^(?:\^|~)?\s*${SEMVER_VERSION_PATTERN}$`);
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   const unknownArguments = argv.filter((argument) => argument !== '--json');
