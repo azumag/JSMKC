@@ -39,11 +39,61 @@ describe('Prisma 7 require binding guard', () => {
     ]);
   });
 
+  it('rejects var require bindings inside module control flow', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        if (useFakeLoader) {
+          var require = fakeRequire;
+        }
+        switch (mode) {
+          case 'fake': { var { loader: require } = runtime; break; }
+        }
+        try {
+          var [require] = loaders;
+        } catch {}
+      `),
+    ).toEqual([
+      { line: 3, kind: 'binding' },
+      { line: 6, kind: 'binding' },
+      { line: 9, kind: 'binding' },
+    ]);
+  });
+
+  it('rejects var require bindings in module-level for headers', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        for (var require of loaders) {}
+        for (var [require] of loaderGroups) {}
+        for (var { loader: require } of runtimes) {}
+      `),
+    ).toEqual([
+      { line: 2, kind: 'binding' },
+      { line: 3, kind: 'binding' },
+      { line: 4, kind: 'binding' },
+    ]);
+  });
+
   it('does not confuse an object property named require with a require binding', () => {
     expect(
       findPrismaConfigRequireRebindings(`
         const { require: localLoader } = runtime;
         localLoader('dotenv').config();
+      `),
+    ).toEqual([]);
+  });
+
+  it('allows block-local let and const require bindings inside module control flow', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        if (useFakeLoader) {
+          let require = fakeRequire;
+        }
+        if (useFallbackLoader) {
+          const require = fallbackRequire;
+        }
+        if (useRuntimeLoader) {
+          const { loader: require } = runtime;
+        }
       `),
     ).toEqual([]);
   });
@@ -157,6 +207,24 @@ describe('Prisma 7 require binding guard', () => {
         class Loader {
           method() { require = methodRequire; }
           static method() { require ??= staticMethodRequire; }
+        }
+      `),
+    ).toEqual([]);
+  });
+
+  it('ignores var require bindings in nested functions, arrows, methods, and class static blocks', () => {
+    expect(
+      findPrismaConfigRequireRebindings(`
+        function buildLater() {
+          if (useFakeLoader) { var require = fakeRequire; }
+        }
+        const buildAgain = () => {
+          for (var require of loaders) {}
+        };
+        class Loader {
+          method() { var require = methodRequire; }
+          static method() { var require = staticMethodRequire; }
+          static { var require = staticBlockRequire; }
         }
       `),
     ).toEqual([]);
