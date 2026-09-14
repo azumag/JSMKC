@@ -11,7 +11,7 @@ Top-level failures in these entrypoints must pass through `smkc-score-app/script
 - `security-audit-upstream.js`
 - `security-audit-next-major.js`
 
-The same boundary is also being applied to auxiliary audit and Prisma 7 review entrypoints. The first #3446 hardening wave covers:
+The same boundary is also being applied to auxiliary audit and Prisma 7 review entrypoints. The #3446 hardening currently covers:
 
 - `security-audit-lockfile.js`
 - `verify-npm-version.js`
@@ -22,6 +22,9 @@ The same boundary is also being applied to auxiliary audit and Prisma 7 review e
 - `prisma-v7-removed-surfaces.cjs`
 - `prisma-v7-support-surface.cjs`
 - `prisma-v7-esm-surface.cjs`
+- `prisma-v7-defineconfig-alias-guard.cjs`
+- `prisma-v7-env-loading-template-guard.cjs`
+- `prisma-v7-env-loading-deferred-params.cjs`
 
 Additional Prisma 7 environment-loading and guard helper CLIs found during the re-inventory remain tracked by #3446 until their top-level diagnostics are routed through the same boundary.
 
