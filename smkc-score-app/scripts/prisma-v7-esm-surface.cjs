@@ -4,11 +4,81 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_TARGETS = ['scripts', 'e2e', '__tests__', '__mocks__', 'jest.setup.js'];
+const REGEX_PREFIX_KEYWORDS = new Set([
+  'await',
+  'case',
+  'delete',
+  'do',
+  'else',
+  'in',
+  'instanceof',
+  'new',
+  'of',
+  'return',
+  'throw',
+  'typeof',
+  'void',
+  'yield',
+]);
+const CONTROL_PAREN_KEYWORDS = new Set(['catch', 'for', 'if', 'switch', 'while', 'with']);
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   if (argv.length === 0) return { json: false };
   if (argv.length === 1 && argv[0] === '--json') return { json: true };
   throw new Error(`unsupported option: ${argv.join(' ')}`);
+}
+
+function previousSignificantToken(maskedSource) {
+  let end = maskedSource.length - 1;
+  while (end >= 0 && /\s/.test(maskedSource[end])) end -= 1;
+  if (end < 0) return null;
+
+  if (/[A-Za-z0-9_$]/.test(maskedSource[end])) {
+    let start = end;
+    while (start > 0 && /[A-Za-z0-9_$]/.test(maskedSource[start - 1])) start -= 1;
+    return { type: 'word', value: maskedSource.slice(start, end + 1), start, end };
+  }
+
+  return { type: 'punctuator', value: maskedSource[end], start: end, end };
+}
+
+function keywordBeforeMatchingOpenParen(maskedSource, closeParenIndex) {
+  let depth = 0;
+
+  for (let index = closeParenIndex; index >= 0; index -= 1) {
+    const character = maskedSource[index];
+    if (character === ')') {
+      depth += 1;
+      continue;
+    }
+    if (character !== '(') continue;
+
+    depth -= 1;
+    if (depth !== 0) continue;
+
+    const prefix = maskedSource.slice(0, index);
+    const token = previousSignificantToken(prefix);
+    return token?.type === 'word' ? token.value : null;
+  }
+
+  return null;
+}
+
+function isRegexLiteralStart(maskedSource, nextCharacter) {
+  if (nextCharacter === '=') return false;
+
+  const token = previousSignificantToken(maskedSource);
+  if (token === null) return true;
+
+  if (token.type === 'word') return REGEX_PREFIX_KEYWORDS.has(token.value);
+
+  if ('([{:;,=!?&|^~<>+-*%/'.includes(token.value)) return true;
+
+  if (token.value === ')') {
+    return CONTROL_PAREN_KEYWORDS.has(keywordBeforeMatchingOpenParen(maskedSource, token.start));
+  }
+
+  return false;
 }
 
 function maskCommentsAndStrings(source) {
@@ -32,6 +102,12 @@ function maskCommentsAndStrings(source) {
         output += '  ';
         index += 2;
         contexts.push({ type: 'block-comment' });
+        continue;
+      }
+      if (character === '/' && isRegexLiteralStart(output, next)) {
+        output += ' ';
+        index += 1;
+        contexts.push({ type: 'regex', inCharacterClass: false });
         continue;
       }
       if (character === "'") {
@@ -97,6 +173,43 @@ function maskCommentsAndStrings(source) {
         output += character === '\n' ? '\n' : ' ';
         index += 1;
       }
+      continue;
+    }
+
+    if (context.type === 'regex') {
+      if (character === '\\') {
+        output += ' ';
+        if (next !== undefined) output += next === '\n' ? '\n' : ' ';
+        index += next === undefined ? 1 : 2;
+        continue;
+      }
+      if (character === '[' && !context.inCharacterClass) {
+        context.inCharacterClass = true;
+        output += ' ';
+        index += 1;
+        continue;
+      }
+      if (character === ']' && context.inCharacterClass) {
+        context.inCharacterClass = false;
+        output += ' ';
+        index += 1;
+        continue;
+      }
+      if (character === '/' && !context.inCharacterClass) {
+        output += ' ';
+        index += 1;
+        contexts.pop();
+        continue;
+      }
+      if (character === '\n' || character === '\r') {
+        output += character;
+        index += 1;
+        contexts.pop();
+        continue;
+      }
+
+      output += ' ';
+      index += 1;
       continue;
     }
 
@@ -285,13 +398,18 @@ if (require.main === module) {
 }
 
 module.exports = {
+  CONTROL_PAREN_KEYWORDS,
   DEFAULT_TARGETS,
+  REGEX_PREFIX_KEYWORDS,
   extractCommonJsConstructs,
   findCommonJsJavaScriptFiles,
   formatPrismaV7EsmSurface,
   hasExplicitCommonJsPackageScope,
   inspectPrismaV7EsmSurface,
+  isRegexLiteralStart,
+  keywordBeforeMatchingOpenParen,
   maskCommentsAndStrings,
   parseCliOptions,
+  previousSignificantToken,
   readPackageType,
 };
