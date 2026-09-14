@@ -13,10 +13,40 @@ function lineNumberAt(source, index) {
 }
 
 function firstAssignmentIndex(source) {
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  let parenDepth = 0;
+
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
     const next = source[index + 1];
-    if (char !== '=') continue;
+
+    if (char === '{') {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === '}') {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === '[') {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === ']') {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+    if (char === '(') {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ')') {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+
+    if (char !== '=' || braceDepth !== 0 || bracketDepth !== 0 || parenDepth !== 0) continue;
     if (next === '>' || next === '=') continue;
     if (
       source[index - 1] === '=' ||
