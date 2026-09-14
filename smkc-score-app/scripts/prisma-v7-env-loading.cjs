@@ -122,6 +122,22 @@ function findCommonJsPrismaDefineConfigImport(source) {
   return null;
 }
 
+function findPrismaConfigNamespaceImports(source) {
+  const namespaces = [];
+  const esmImport = /^\s*import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"]prisma\/config['"]\s*;?/gm;
+  const commonJsImport =
+    /^\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*require\s*\(\s*['"]prisma\/config['"]\s*\)(?=[ \t]*(?:;|$|\r?\n))/gm;
+
+  for (const pattern of [esmImport, commonJsImport]) {
+    for (const match of source.matchAll(pattern)) {
+      if (!isTopLevelSourceIndex(source, match.index)) continue;
+      namespaces.push(match[1]);
+    }
+  }
+
+  return namespaces;
+}
+
 function isIdentifierStart(char) {
   return typeof char === 'string' && /[A-Za-z_$]/.test(char);
 }
@@ -281,16 +297,33 @@ function isTopLevelSourceIndex(source, targetIndex) {
 }
 
 function findDefineConfigEvaluationIndex(source) {
-  const defineConfigLocalName =
-    findNamedPrismaDefineConfigImport(source) ?? findCommonJsPrismaDefineConfigImport(source) ?? 'defineConfig';
-  const escapedName = defineConfigLocalName.replace(/[$]/g, '\\$&');
-  const pattern = new RegExp(`\\b${escapedName}\\s*\\(`, 'gm');
+  const directNames = new Set();
+  const namedImport = findNamedPrismaDefineConfigImport(source);
+  const commonJsImport = findCommonJsPrismaDefineConfigImport(source);
+  if (namedImport) directNames.add(namedImport);
+  if (commonJsImport) directNames.add(commonJsImport);
+  if (directNames.size === 0) directNames.add('defineConfig');
 
-  for (const match of source.matchAll(pattern)) {
-    if (isTopLevelSourceIndex(source, match.index)) return match.index;
+  const patterns = [];
+  for (const name of directNames) {
+    const escapedName = name.replace(/[$]/g, '\\$&');
+    patterns.push(new RegExp(`\\b${escapedName}\\s*\\(`, 'gm'));
   }
 
-  return null;
+  for (const namespace of findPrismaConfigNamespaceImports(source)) {
+    const escapedNamespace = namespace.replace(/[$]/g, '\\$&');
+    patterns.push(new RegExp(`\\b${escapedNamespace}\\s*\\.\\s*defineConfig\\s*\\(`, 'gm'));
+  }
+
+  let earliestIndex = null;
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      if (!isTopLevelSourceIndex(source, match.index)) continue;
+      if (earliestIndex === null || match.index < earliestIndex) earliestIndex = match.index;
+    }
+  }
+
+  return earliestIndex;
 }
 
 function invocationPrecedesDefineConfig(source, invocationPattern) {
@@ -393,6 +426,7 @@ module.exports = {
   findDefineConfigEvaluationIndex,
   findNamedDotenvConfigImport,
   findNamedPrismaDefineConfigImport,
+  findPrismaConfigNamespaceImports,
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
   invocationPrecedesDefineConfig,
