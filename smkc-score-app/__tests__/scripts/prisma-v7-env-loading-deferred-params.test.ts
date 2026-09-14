@@ -17,7 +17,7 @@ describe('Prisma 7 deferred environment-loading guard', () => {
       `),
     ).toEqual({
       safe: false,
-      findings: [{ kind: 'named:config', rangeKind: 'function', line: 6 }],
+      findings: [{ kind: 'named:config', rangeKind: 'function', line: 5 }],
     });
   });
 
@@ -32,7 +32,7 @@ describe('Prisma 7 deferred environment-loading guard', () => {
       `),
     ).toEqual({
       safe: false,
-      findings: [{ kind: 'namespace:dotenv', rangeKind: 'arrow', line: 6 }],
+      findings: [{ kind: 'namespace:dotenv', rangeKind: 'arrow', line: 5 }],
     });
   });
 
@@ -45,7 +45,7 @@ describe('Prisma 7 deferred environment-loading guard', () => {
       `),
     ).toEqual({
       safe: false,
-      findings: [{ kind: 'commonjs:require', rangeKind: 'arrow', line: 4 }],
+      findings: [{ kind: 'commonjs:require', rangeKind: 'arrow', line: 3 }],
     });
   });
 
