@@ -40,6 +40,20 @@ describe('Prisma upstream probe diagnostic safety', () => {
     expect(formatted.split('\n')).toHaveLength(2);
   });
 
+  it('does not invoke arbitrary object coercion while handling an unexpected thrown value', () => {
+    const hostile = {
+      toString() {
+        throw new Error('must not be called');
+      },
+    };
+
+    expect(() => formatUpstreamProbeFailure('Failed upstream probe', hostile)).not.toThrow();
+    expect(formatUpstreamProbeFailure('Failed upstream probe', hostile)).toBe('Failed upstream probe\n');
+    expect(formatUpstreamProbeFailure('Failed upstream probe', 'plain string failure')).toBe(
+      'Failed upstream probe: plain string failure\n',
+    );
+  });
+
   it('keeps the canonical consistency entrypoint on the sanitizer for all top-level failure paths', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, '..', '..', 'scripts', 'security-audit-upstream-issue-consistency.js'),
