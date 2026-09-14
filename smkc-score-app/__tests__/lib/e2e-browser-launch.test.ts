@@ -50,9 +50,7 @@ describe('E2E browser launch helpers', () => {
 
   it('defaults Playwright browsers to a writable temp path', () => {
     expect(common.resolveE2EBrowserHome()).toBe(path.join(os.tmpdir(), 'playwright-e2e-home'));
-    expect(common.resolvePlaywrightBrowsersPath()).toBe(
-      path.join(os.tmpdir(), 'playwright-e2e-home', 'ms-playwright'),
-    );
+    expect(common.resolvePlaywrightBrowsersPath()).toBe(path.join(os.tmpdir(), 'playwright-e2e-home', 'ms-playwright'));
   });
 
   it('initializes Playwright cache env before importing Playwright', () => {
@@ -212,7 +210,9 @@ describe('E2E browser launch helpers', () => {
     const formatted = common.formatE2EErrorForLog(common.addChromiumLaunchHelp(error));
 
     expect(formatted).toContain('Recommended bootstrap:');
-    expect(formatted).toContain('PLAYWRIGHT_BROWSERS_PATH=/tmp/jsmkc-browser-home/ms-playwright npm run e2e:install-browser');
+    expect(formatted).toContain(
+      'PLAYWRIGHT_BROWSERS_PATH=/tmp/jsmkc-browser-home/ms-playwright npm run e2e:install-browser',
+    );
     expect(formatted).toContain('E2E_EXECUTABLE_PATH=/absolute/path/to/chromium-compatible-browser');
     delete process.env.PLAYWRIGHT_BROWSERS_PATH;
   });
@@ -309,10 +309,7 @@ describe('E2E browser launch helpers', () => {
       // This guards against drift where the fast-fail logic is removed or renamed (#2397).
       const doc = fs.readFileSync(path.join(process.cwd(), '..', 'E2E_TEST_CASES.md'), 'utf8');
       expect(doc).toContain('TC-2360');
-      const commonLib = fs.readFileSync(
-        path.join(process.cwd(), 'e2e', 'lib', 'common.js'),
-        'utf8',
-      );
+      const commonLib = fs.readFileSync(path.join(process.cwd(), 'e2e', 'lib', 'common.js'), 'utf8');
       expect(commonLib).toContain('detectSingletonLockOwner');
       expect(commonLib).toMatch(/process\.kill\s*\(\s*pid\s*,\s*0\s*\)/); // live-owner PID check
       expect(commonLib).toContain('EPERM'); // process exists but cannot be signaled
@@ -334,9 +331,7 @@ describe('E2E browser launch helpers', () => {
       jest.spyOn(fs, 'readlinkSync').mockReturnValue('AzMacMiniM4.local-28661');
       (jest.spyOn(process, 'kill') as jest.Mock).mockReturnValue(true);
 
-      await expect(common.launchPersistentChromiumContext('/tmp/test-profile')).rejects.toThrow(
-        /PID 28661/,
-      );
+      await expect(common.launchPersistentChromiumContext('/tmp/test-profile')).rejects.toThrow(/PID 28661/);
       expect(mockLaunchPersistentContext).not.toHaveBeenCalled();
     });
   });
