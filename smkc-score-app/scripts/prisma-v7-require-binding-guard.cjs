@@ -28,6 +28,9 @@ const assignmentOperatorKinds = new Set([
   ts.SyntaxKind.QuestionQuestionEqualsToken,
 ]);
 
+const blockScopedDeclarationFlags =
+  ts.NodeFlags.Let | ts.NodeFlags.Const | (ts.NodeFlags.Using ?? 0) | (ts.NodeFlags.AwaitUsing ?? 0);
+
 function lineNumberAt(source, index) {
   return source.slice(0, index).split(/\r\n|\n|\r/).length;
 }
@@ -118,36 +121,56 @@ function hasStaticModifier(node) {
   return node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword) ?? false;
 }
 
-function findModuleScopeRequireAssignments(source) {
+function bindingNameBindsRequire(name) {
+  if (ts.isIdentifier(name)) return name.text === 'require';
+
+  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    return name.elements.some((element) => ts.isBindingElement(element) && bindingNameBindsRequire(element.name));
+  }
+
+  return false;
+}
+
+function isVarDeclarationList(node) {
+  return ts.isVariableDeclarationList(node) && (node.flags & blockScopedDeclarationFlags) === 0;
+}
+
+function findModuleScopeRequireAstFindings(source) {
   if (typeof source !== 'string') return [];
 
   const sourceFile = ts.createSourceFile('prisma.config.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const indexes = [];
+  const findings = [];
 
-  function report(node) {
-    indexes.push(node.getStart(sourceFile));
+  function report(node, kind) {
+    findings.push({ index: node.getStart(sourceFile), kind });
   }
 
   function visitClass(node) {
-    for (const heritageClause of node.heritageClauses ?? []) visit(heritageClause);
+    for (const heritageClause of node.heritageClauses ?? []) visit(heritageClause, true);
 
     for (const member of node.members) {
-      if (member.name) visit(member.name);
+      if (member.name) visit(member.name, true);
 
       if (ts.isClassStaticBlockDeclaration(member)) {
-        visit(member);
+        visit(member, false);
       } else if (ts.isPropertyDeclaration(member) && hasStaticModifier(member) && member.initializer) {
-        visit(member.initializer);
+        visit(member.initializer, true);
       }
     }
   }
 
-  function visit(node) {
+  function visit(node, moduleVarScope) {
     if (node !== sourceFile && isFunctionLikeBoundary(node)) return;
 
     if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
       visitClass(node);
       return;
+    }
+
+    if (moduleVarScope && isVarDeclarationList(node)) {
+      for (const declaration of node.declarations) {
+        if (bindingNameBindsRequire(declaration.name)) report(declaration.name, 'binding');
+      }
     }
 
     if (
@@ -156,7 +179,7 @@ function findModuleScopeRequireAssignments(source) {
       ts.isIdentifier(node.left) &&
       node.left.text === 'require'
     ) {
-      report(node.left);
+      report(node.left, 'assignment');
     }
 
     if (
@@ -165,14 +188,31 @@ function findModuleScopeRequireAssignments(source) {
       ts.isIdentifier(node.operand) &&
       node.operand.text === 'require'
     ) {
-      report(node.operand);
+      report(node.operand, 'assignment');
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, (child) => visit(child, moduleVarScope));
   }
 
-  visit(sourceFile);
-  return [...new Set(indexes)].sort((left, right) => left - right);
+  visit(sourceFile, true);
+  return findings
+    .filter(
+      (finding, index) =>
+        findings.findIndex((candidate) => candidate.index === finding.index && candidate.kind === finding.kind) === index,
+    )
+    .sort((left, right) => left.index - right.index);
+}
+
+function findModuleScopeRequireAssignments(source) {
+  return findModuleScopeRequireAstFindings(source)
+    .filter((finding) => finding.kind === 'assignment')
+    .map((finding) => finding.index);
+}
+
+function findModuleScopeRequireVarBindings(source) {
+  return findModuleScopeRequireAstFindings(source)
+    .filter((finding) => finding.kind === 'binding')
+    .map((finding) => finding.index);
 }
 
 function findPrismaConfigRequireRebindings(source) {
@@ -216,8 +256,8 @@ function findPrismaConfigRequireRebindings(source) {
     report(match.index, 'assignment');
   }
 
-  for (const index of findModuleScopeRequireAssignments(source)) {
-    report(index, 'assignment');
+  for (const finding of findModuleScopeRequireAstFindings(source)) {
+    report(finding.index, finding.kind);
   }
 
   return findings.sort((left, right) => left.line - right.line);
@@ -262,8 +302,11 @@ if (require.main === module) {
 }
 
 module.exports = {
+  bindingNameBindsRequire,
   declarationBindsRequire,
   findModuleScopeRequireAssignments,
+  findModuleScopeRequireAstFindings,
+  findModuleScopeRequireVarBindings,
   findPrismaConfigRequireRebindings,
   firstAssignmentIndex,
   formatFindings,
