@@ -86,47 +86,32 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function findNamedImportLocalName(source, exportedName, moduleSpecifier = null) {
-  if (typeof source !== 'string') return null;
-
-  const importPattern = /\bimport\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]\s*;?/g;
-
-  for (const match of source.matchAll(importPattern)) {
-    if (moduleSpecifier && match[2] !== moduleSpecifier) continue;
-
-    for (const entry of match[1].split(',')) {
-      const named = new RegExp(`^\\s*${escapeRegExp(exportedName)}(?:\\s+as\\s+([A-Za-z_$][\\w$]*))?\\s*$`).exec(entry);
-      if (named) return named[1] ?? exportedName;
-    }
+function isSourceCodeIndex(source, targetIndex) {
+  if (typeof source !== 'string' || !Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex > source.length) {
+    return false;
   }
 
-  return null;
-}
-
-function findConstructedAdapterLocalName(source, adapterConstructorLocalName) {
-  if (!adapterConstructorLocalName) return null;
-
-  const constructorName = escapeRegExp(adapterConstructorLocalName);
-  const match = new RegExp(`\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*new\\s+${constructorName}\\s*\\(`).exec(
-    source,
-  );
-  return match?.[1] ?? null;
-}
-
-function extractPrismaClientOptions(source, prismaClientLocalName) {
-  if (!prismaClientLocalName) return null;
-
-  const clientName = escapeRegExp(prismaClientLocalName);
-  const opening = new RegExp(`\\bnew\\s+${clientName}\\s*\\(\\s*\\{`).exec(source);
-  if (!opening) return null;
-
-  const openBraceIndex = opening.index + opening[0].lastIndexOf('{');
-  let depth = 1;
   let quote = null;
   let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
 
-  for (let index = openBraceIndex + 1; index < source.length; index += 1) {
+  for (let index = 0; index < targetIndex; index += 1) {
     const char = source[index];
+    const next = source[index + 1];
+
+    if (lineComment) {
+      if (char === '\n' || char === '\r') lineComment = false;
+      continue;
+    }
+
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
 
     if (quote !== null) {
       if (escaped) {
@@ -146,15 +131,102 @@ function extractPrismaClientOptions(source, prismaClientLocalName) {
       continue;
     }
 
-    if (char === '{') {
-      depth += 1;
+    if (char === '/' && next === '/') {
+      lineComment = true;
+      index += 1;
       continue;
     }
 
-    if (char === '}') {
-      depth -= 1;
-      if (depth === 0) return source.slice(openBraceIndex + 1, index);
+    if (char === '/' && next === '*') {
+      blockComment = true;
+      index += 1;
     }
+  }
+
+  return quote === null && !lineComment && !blockComment;
+}
+
+function findNamedImportLocalName(source, exportedName, moduleSpecifier = null) {
+  if (typeof source !== 'string') return null;
+
+  const importPattern = /\bimport\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]\s*;?/g;
+
+  for (const match of source.matchAll(importPattern)) {
+    if (!isSourceCodeIndex(source, match.index)) continue;
+    if (moduleSpecifier && match[2] !== moduleSpecifier) continue;
+
+    for (const entry of match[1].split(',')) {
+      const named = new RegExp(`^\\s*${escapeRegExp(exportedName)}(?:\\s+as\\s+([A-Za-z_$][\\w$]*))?\\s*$`).exec(entry);
+      if (named) return named[1] ?? exportedName;
+    }
+  }
+
+  return null;
+}
+
+function findConstructedAdapterLocalName(source, adapterConstructorLocalName) {
+  if (!adapterConstructorLocalName) return null;
+
+  const constructorName = escapeRegExp(adapterConstructorLocalName);
+  const pattern = new RegExp(
+    `\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*new\\s+${constructorName}\\s*\\(`,
+    'g',
+  );
+
+  for (const match of source.matchAll(pattern)) {
+    if (isSourceCodeIndex(source, match.index)) return match[1];
+  }
+
+  return null;
+}
+
+function extractPrismaClientOptions(source, prismaClientLocalName) {
+  if (!prismaClientLocalName) return null;
+
+  const clientName = escapeRegExp(prismaClientLocalName);
+  const openingPattern = new RegExp(`\\bnew\\s+${clientName}\\s*\\(\\s*\\{`, 'g');
+
+  for (const opening of source.matchAll(openingPattern)) {
+    if (!isSourceCodeIndex(source, opening.index)) continue;
+
+    const openBraceIndex = opening.index + opening[0].lastIndexOf('{');
+    let depth = 1;
+    let quote = null;
+    let escaped = false;
+
+    for (let index = openBraceIndex + 1; index < source.length; index += 1) {
+      const char = source[index];
+
+      if (quote !== null) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (char === quote) quote = null;
+        continue;
+      }
+
+      if (char === "'" || char === '"' || char === '`') {
+        quote = char;
+        continue;
+      }
+
+      if (char === '{') {
+        depth += 1;
+        continue;
+      }
+
+      if (char === '}') {
+        depth -= 1;
+        if (depth === 0) return source.slice(openBraceIndex + 1, index);
+      }
+    }
+
+    return null;
   }
 
   return null;
@@ -340,6 +412,7 @@ module.exports = {
   findNamedImportLocalName,
   formatPrismaV7DriverAdapter,
   inspectPrismaV7DriverAdapter,
+  isSourceCodeIndex,
   parseCliOptions,
   prismaClientOptionsHaveComputedKey,
   prismaClientOptionsHaveOption,
