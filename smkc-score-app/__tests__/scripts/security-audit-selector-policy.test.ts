@@ -61,12 +61,10 @@ describe('security audit Prisma selector policy', () => {
       expect(isRegistrySemverSelector(selector)).toBe(false);
     }
 
-    expect(getPrismaConfigVersionSelector({ '@prisma/config': '^7.10.0-rc.1+build.2' })).toBe(
-      '^7.10.0-rc.1+build.2',
+    expect(getPrismaConfigVersionSelector({ '@prisma/config': '^7.10.0-rc.1+build.2' })).toBe('^7.10.0-rc.1+build.2');
+    expect(getRuntimePackageVersionSelector({ dependencies: { '@prisma/client': '>=7.10.0' } }, '@prisma/client')).toBe(
+      '>=7.10.0',
     );
-    expect(
-      getRuntimePackageVersionSelector({ dependencies: { '@prisma/client': '>=7.10.0' } }, '@prisma/client'),
-    ).toBe('>=7.10.0');
   });
 
   it('keeps the next-major probe caret-only and rejects malformed caret selectors', () => {
