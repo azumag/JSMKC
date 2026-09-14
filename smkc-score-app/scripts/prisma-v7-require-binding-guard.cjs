@@ -135,6 +135,27 @@ function isVarDeclarationList(node) {
   return ts.isVariableDeclarationList(node) && (node.flags & blockScopedDeclarationFlags) === 0;
 }
 
+function staticBlockHasVarRequireBinding(staticBlock) {
+  let found = false;
+
+  function visit(node) {
+    if (found) return;
+    if (node !== staticBlock && (isFunctionLikeBoundary(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node))) {
+      return;
+    }
+
+    if (isVarDeclarationList(node)) {
+      found = node.declarations.some((declaration) => bindingNameBindsRequire(declaration.name));
+      if (found) return;
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(staticBlock);
+  return found;
+}
+
 function findModuleScopeRequireAstFindings(source) {
   if (typeof source !== 'string') return [];
 
@@ -145,25 +166,26 @@ function findModuleScopeRequireAstFindings(source) {
     findings.push({ index: node.getStart(sourceFile), kind });
   }
 
-  function visitClass(node) {
-    for (const heritageClause of node.heritageClauses ?? []) visit(heritageClause, true);
+  function visitClass(node, assignmentsAffectModule) {
+    for (const heritageClause of node.heritageClauses ?? []) visit(heritageClause, true, assignmentsAffectModule);
 
     for (const member of node.members) {
-      if (member.name) visit(member.name, true);
+      if (member.name) visit(member.name, true, assignmentsAffectModule);
 
       if (ts.isClassStaticBlockDeclaration(member)) {
-        visit(member, false);
+        const shadowsRequire = staticBlockHasVarRequireBinding(member);
+        visit(member, false, assignmentsAffectModule && !shadowsRequire);
       } else if (ts.isPropertyDeclaration(member) && hasStaticModifier(member) && member.initializer) {
-        visit(member.initializer, true);
+        visit(member.initializer, true, assignmentsAffectModule);
       }
     }
   }
 
-  function visit(node, moduleVarScope) {
+  function visit(node, moduleVarScope, assignmentsAffectModule) {
     if (node !== sourceFile && isFunctionLikeBoundary(node)) return;
 
     if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
-      visitClass(node);
+      visitClass(node, assignmentsAffectModule);
       return;
     }
 
@@ -174,6 +196,7 @@ function findModuleScopeRequireAstFindings(source) {
     }
 
     if (
+      assignmentsAffectModule &&
       ts.isBinaryExpression(node) &&
       assignmentOperatorKinds.has(node.operatorToken.kind) &&
       ts.isIdentifier(node.left) &&
@@ -183,6 +206,7 @@ function findModuleScopeRequireAstFindings(source) {
     }
 
     if (
+      assignmentsAffectModule &&
       (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
       (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
       ts.isIdentifier(node.operand) &&
@@ -191,10 +215,10 @@ function findModuleScopeRequireAstFindings(source) {
       report(node.operand, 'assignment');
     }
 
-    ts.forEachChild(node, (child) => visit(child, moduleVarScope));
+    ts.forEachChild(node, (child) => visit(child, moduleVarScope, assignmentsAffectModule));
   }
 
-  visit(sourceFile, true);
+  visit(sourceFile, true, true);
   return findings
     .filter(
       (finding, index) =>
@@ -312,4 +336,5 @@ module.exports = {
   formatFindings,
   importBindsRequire,
   lineNumberAt,
+  staticBlockHasVarRequireBinding,
 };
