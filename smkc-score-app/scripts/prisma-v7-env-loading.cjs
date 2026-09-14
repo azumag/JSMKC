@@ -122,13 +122,25 @@ function findCommonJsPrismaDefineConfigImport(source) {
   return null;
 }
 
+function isIdentifierStart(char) {
+  return typeof char === 'string' && /[A-Za-z_$]/.test(char);
+}
+
+function isIdentifierPart(char) {
+  return typeof char === 'string' && /[\w$]/.test(char);
+}
+
 function isTopLevelSourceIndex(source, targetIndex) {
   let braceDepth = 0;
+  let parenDepth = 0;
   let quote = null;
   let escaped = false;
   let lineComment = false;
   let blockComment = false;
   let pendingTopLevelArrow = false;
+  let awaitingControlParen = false;
+  let controlHeaderParenDepth = null;
+  let pendingUnbracedControlBody = false;
 
   for (let index = 0; index < targetIndex; index += 1) {
     const char = source[index];
@@ -177,17 +189,65 @@ function isTopLevelSourceIndex(source, targetIndex) {
       continue;
     }
 
-    if (char === '{') braceDepth += 1;
-    else if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
-    else if (braceDepth === 0 && char === '=' && next === '>') {
+    if (braceDepth === 0 && parenDepth === 0 && isIdentifierStart(char)) {
+      let identifierEnd = index + 1;
+      while (identifierEnd < targetIndex && isIdentifierPart(source[identifierEnd])) identifierEnd += 1;
+      const identifier = source.slice(index, identifierEnd);
+
+      if (identifier === 'if' || identifier === 'for' || identifier === 'while' || identifier === 'with') {
+        awaitingControlParen = true;
+      } else if (identifier === 'else' || identifier === 'do') {
+        pendingUnbracedControlBody = true;
+      }
+
+      index = identifierEnd - 1;
+      continue;
+    }
+
+    if (char === '(') {
+      parenDepth += 1;
+      if (braceDepth === 0 && awaitingControlParen && parenDepth === 1) {
+        controlHeaderParenDepth = 1;
+        awaitingControlParen = false;
+      }
+      continue;
+    }
+
+    if (char === ')') {
+      if (parenDepth > 0) parenDepth -= 1;
+      if (braceDepth === 0 && controlHeaderParenDepth !== null && parenDepth === 0) {
+        controlHeaderParenDepth = null;
+        pendingUnbracedControlBody = true;
+      }
+      continue;
+    }
+
+    if (char === '{') {
+      if (braceDepth === 0 && pendingUnbracedControlBody) pendingUnbracedControlBody = false;
+      braceDepth += 1;
+    } else if (char === '}') {
+      braceDepth = Math.max(0, braceDepth - 1);
+    } else if (braceDepth === 0 && parenDepth === 0 && char === '=' && next === '>') {
       pendingTopLevelArrow = true;
       index += 1;
-    } else if (braceDepth === 0 && char === ';') {
+    } else if (braceDepth === 0 && parenDepth === 0 && char === ';') {
       pendingTopLevelArrow = false;
+      pendingUnbracedControlBody = false;
+      awaitingControlParen = false;
     }
   }
 
-  return quote === null && !lineComment && !blockComment && braceDepth === 0 && !pendingTopLevelArrow;
+  return (
+    quote === null &&
+    !lineComment &&
+    !blockComment &&
+    braceDepth === 0 &&
+    parenDepth === 0 &&
+    !pendingTopLevelArrow &&
+    !pendingUnbracedControlBody &&
+    !awaitingControlParen &&
+    controlHeaderParenDepth === null
+  );
 }
 
 function findDefineConfigEvaluationIndex(source) {
@@ -204,11 +264,16 @@ function findDefineConfigEvaluationIndex(source) {
 }
 
 function invocationPrecedesDefineConfig(source, invocationPattern) {
-  const invocation = invocationPattern.exec(source);
-  if (!invocation || !isTopLevelSourceIndex(source, invocation.index)) return false;
-
   const defineConfigIndex = findDefineConfigEvaluationIndex(source);
-  return defineConfigIndex === null || invocation.index < defineConfigIndex;
+  const flags = invocationPattern.flags.includes('g') ? invocationPattern.flags : `${invocationPattern.flags}g`;
+  const pattern = new RegExp(invocationPattern.source, flags);
+
+  for (const invocation of source.matchAll(pattern)) {
+    if (!isTopLevelSourceIndex(source, invocation.index)) continue;
+    if (defineConfigIndex === null || invocation.index < defineConfigIndex) return true;
+  }
+
+  return false;
 }
 
 function inspectPrismaV7EnvLoading(source) {
