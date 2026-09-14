@@ -45,10 +45,7 @@ export interface NextResponseMockOptions {
   unwrap?: boolean;
 }
 
-export function configureNextResponseMock(
-  NextResponse: any,
-  options: NextResponseMockOptions = {},
-): void {
+export function configureNextResponseMock(NextResponse: any, options: NextResponseMockOptions = {}): void {
   if (!NextResponse?.json?.mockImplementation) {
     throw new Error('configureNextResponseMock expects a jest-mocked NextResponse.json');
   }
@@ -57,13 +54,7 @@ export function configureNextResponseMock(
 
   NextResponse.json.mockImplementation((body: any, responseOptions?: any) => {
     const data =
-      unwrap &&
-      body &&
-      typeof body === 'object' &&
-      body.success === true &&
-      'data' in body
-        ? body.data
-        : body;
+      unwrap && body && typeof body === 'object' && body.success === true && 'data' in body ? body.data : body;
 
     const headers: Record<string, string> = { ...(responseOptions?.headers ?? {}) };
     Object.defineProperty(headers, 'set', {
