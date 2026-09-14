@@ -14,41 +14,61 @@ function parseCliOptions(argv = process.argv.slice(2)) {
 function maskCommentsAndStrings(source) {
   let output = '';
   let index = 0;
-  let state = 'code';
+  const contexts = [{ type: 'code', interpolationDepth: null }];
 
   while (index < source.length) {
+    const context = contexts.at(-1);
     const character = source[index];
     const next = source[index + 1];
 
-    if (state === 'code') {
+    if (context.type === 'code') {
       if (character === '/' && next === '/') {
         output += '  ';
         index += 2;
-        state = 'line-comment';
+        contexts.push({ type: 'line-comment' });
         continue;
       }
       if (character === '/' && next === '*') {
         output += '  ';
         index += 2;
-        state = 'block-comment';
+        contexts.push({ type: 'block-comment' });
         continue;
       }
       if (character === "'") {
         output += ' ';
         index += 1;
-        state = 'single-quote';
+        contexts.push({ type: 'single-quote' });
         continue;
       }
       if (character === '"') {
         output += ' ';
         index += 1;
-        state = 'double-quote';
+        contexts.push({ type: 'double-quote' });
         continue;
       }
       if (character === '`') {
         output += ' ';
         index += 1;
-        state = 'template';
+        contexts.push({ type: 'template' });
+        continue;
+      }
+
+      if (context.interpolationDepth !== null && character === '{') {
+        context.interpolationDepth += 1;
+        output += character;
+        index += 1;
+        continue;
+      }
+      if (context.interpolationDepth !== null && character === '}') {
+        context.interpolationDepth -= 1;
+        if (context.interpolationDepth === 0) {
+          output += ' ';
+          index += 1;
+          contexts.pop();
+          continue;
+        }
+        output += character;
+        index += 1;
         continue;
       }
 
@@ -57,10 +77,10 @@ function maskCommentsAndStrings(source) {
       continue;
     }
 
-    if (state === 'line-comment') {
+    if (context.type === 'line-comment') {
       if (character === '\n') {
         output += '\n';
-        state = 'code';
+        contexts.pop();
       } else {
         output += ' ';
       }
@@ -68,11 +88,11 @@ function maskCommentsAndStrings(source) {
       continue;
     }
 
-    if (state === 'block-comment') {
+    if (context.type === 'block-comment') {
       if (character === '*' && next === '/') {
         output += '  ';
         index += 2;
-        state = 'code';
+        contexts.pop();
       } else {
         output += character === '\n' ? '\n' : ' ';
         index += 1;
@@ -80,19 +100,42 @@ function maskCommentsAndStrings(source) {
       continue;
     }
 
-    const quote = state === 'single-quote' ? "'" : state === 'double-quote' ? '"' : state === 'template' ? '`' : null;
+    if (context.type === 'template') {
+      if (character === '\\') {
+        output += ' ';
+        if (next !== undefined) output += next === '\n' ? '\n' : ' ';
+        index += next === undefined ? 1 : 2;
+        continue;
+      }
+      if (character === '`') {
+        output += ' ';
+        index += 1;
+        contexts.pop();
+        continue;
+      }
+      if (character === '$' && next === '{') {
+        output += '  ';
+        index += 2;
+        contexts.push({ type: 'code', interpolationDepth: 1 });
+        continue;
+      }
 
+      output += character === '\n' ? '\n' : ' ';
+      index += 1;
+      continue;
+    }
+
+    const quote = context.type === 'single-quote' ? "'" : '"';
     if (character === '\\') {
       output += ' ';
       if (next !== undefined) output += next === '\n' ? '\n' : ' ';
       index += next === undefined ? 1 : 2;
       continue;
     }
-
     if (character === quote) {
       output += ' ';
       index += 1;
-      state = 'code';
+      contexts.pop();
       continue;
     }
 
