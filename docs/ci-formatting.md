@@ -6,6 +6,8 @@ CI の formatting gate は `smkc-score-app` 配下で今回変更された Prett
 
 ファイル名は shell command string へ展開せず child-process の argument 配列として渡すため、空白を含む path も同じ経路で扱う。さらに Prettier に渡す file operand は `./` 付きの明示的な relative path に正規化するため、`--write.ts` のように `-` で始まるファイル名も CLI option として解釈されない。ログと `git diff` では元の repository-relative path を維持する。
 
+Prettier を起動する前に changed path を `lstat` し、`smkc-score-app` 内の regular file だけを許可する。symlink、directory、その他の特殊 file、検査時点で消失した path、app root 外へ解決される path は fail-closed で拒否する。これにより changed-file gate や失敗時診断が symlink target をたどって checkout 外の内容を読み込む経路を作らない。
+
 複数ファイルは個別に診断し、あるファイルの parser error や診断生成失敗が別ファイルの修正差分表示を妨げない。診断生成自体に失敗した場合も、元の formatting failure は成功へ変換しない。
 
 ローカルで修正する場合は通常どおり `npm run format` または対象ファイルへの `prettier --write` を使用し、CI に表示された diff は必要な整形内容を確認するための read-only 診断として扱う。
