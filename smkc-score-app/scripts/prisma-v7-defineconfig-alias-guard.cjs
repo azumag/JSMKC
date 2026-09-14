@@ -83,7 +83,8 @@ function formatFindings(findings) {
   return [
     'Prisma defineConfig re-alias guard: FAIL',
     ...findings.map(
-      (finding) => `- line ${finding.line}: ${finding.alias} aliases ${finding.source}; keep Prisma defineConfig calls direct`,
+      (finding) =>
+        `- line ${finding.line}: ${finding.alias} aliases ${finding.source}; keep Prisma defineConfig calls direct`,
     ),
     '',
   ].join('\n');
