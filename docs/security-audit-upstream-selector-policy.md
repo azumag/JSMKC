@@ -2,7 +2,9 @@
 
 Issue #3114 の `security-audit-upstream.js` は、依存を変更せずに現在の Prisma manifest range 内へ安全な upstream remediation が出たかを確認する read-only probe です。
 
-この probe が `npm view` に渡す selector は registry 上の SemVer selector に限定します。現在受理するのは exact version と単一の `^` / `~` / `>=` / `>` / `<=` / `<` comparator です。`latest` などの dist-tag、`*`、npm alias、`file:`、URL、git source、複合 range は自動で解釈せず fail-closed にします。
+この probe が `npm view` に渡す selector は registry 上の SemVer selector に限定します。汎用の registry selector parser は exact version と単一の `^` / `~` / `>=` / `>` / `<=` / `<` comparator を受理し、`@prisma/config` や runtime package の upstream metadata を検証する用途で使います。`latest` などの dist-tag、`*`、npm alias、`file:`、URL、git source、複合 range は自動で解釈せず fail-closed にします。
+
+一方、**current-compatible Prisma probe の `package.json#devDependencies.prisma` は exact / caret (`^`) / tilde (`~`) selector のみを受理します**。`>` / `>=` は次 major 以降まで検索範囲を広げられ、`<` / `<=` は「現在の compatible range」という意味を manifest から一意に復元できないため、この probe では directional comparator を fail-closed にします。major をまたぐ remediation は `security-audit-next-major.js` の advisory evidence として別経路で確認し、current-compatible gate に混ぜません。
 
 registry から得た version / dependency requirement や GitHub Actions output に流す監査 evidence は、1〜200文字の printable ASCII に限定します。改行だけでなく tab、ESC、その他の制御文字も fail-closed にすることで、registry metadata が terminal 表示や Actions output の可読性・解釈へ干渉することを防ぎます。通常の SemVer selector / version / dependency range はこの制約内です。`security-audit-next-major.js` が追加する `current_prisma_selector` output にも同じ printable-ASCII 境界を適用します。lockfile から `security-audit-status.js` が読む `@prisma/config -> deepmerge-ts` requirement も同じ境界で検証し、制御文字を含む dependency edge を監査 evidence や Actions output として採用しません。
 

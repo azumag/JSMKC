@@ -10,6 +10,8 @@ const NPM_VIEW_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
 const REGISTRY_SEMVER_SELECTOR_PATTERN =
   /^(?:\^|~|>=|>|<=|<)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN =
+  /^(?:\^|~)?\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   const unknownArguments = argv.filter((argument) => argument !== '--json');
@@ -29,11 +31,21 @@ function isRegistrySemverSelector(selector) {
   );
 }
 
+function isCurrentCompatiblePrismaSelector(selector) {
+  return (
+    typeof selector === 'string' &&
+    SAFE_OUTPUT_PATTERN.test(selector) &&
+    CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN.test(selector)
+  );
+}
+
 function getPrismaVersionSelector(manifest) {
   const selector = manifest?.devDependencies?.prisma;
 
-  if (!isRegistrySemverSelector(selector)) {
-    throw new Error('package.json devDependencies.prisma must be a registry SemVer selector');
+  if (!isCurrentCompatiblePrismaSelector(selector)) {
+    throw new Error(
+      'package.json devDependencies.prisma must be an exact, caret, or tilde registry SemVer selector for current-compatible probing',
+    );
   }
 
   return selector;
@@ -457,6 +469,7 @@ if (require.main === module) {
 
 module.exports = {
   CANONICAL_NPM_REGISTRY,
+  CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN,
   NPM_VIEW_TIMEOUT_MS,
   NPM_VIEW_MAX_BUFFER_BYTES,
   compareComparableSemver,
@@ -469,6 +482,7 @@ module.exports = {
   getRuntimePackageVersionSelector,
   inspectCompatiblePrismaRelease,
   inspectPublishedRemediationPackageSet,
+  isCurrentCompatiblePrismaSelector,
   isRegistrySemverSelector,
   normalizeVersionCandidates,
   parseCliOptions,
