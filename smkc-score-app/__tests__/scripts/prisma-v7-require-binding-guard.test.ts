@@ -224,7 +224,10 @@ describe('Prisma 7 require binding guard', () => {
         class Loader {
           method() { var require = methodRequire; }
           static method() { var require = staticMethodRequire; }
-          static { var require = staticBlockRequire; }
+          static {
+            var require = staticBlockRequire;
+            require = anotherStaticBlockRequire;
+          }
         }
       `),
     ).toEqual([]);
