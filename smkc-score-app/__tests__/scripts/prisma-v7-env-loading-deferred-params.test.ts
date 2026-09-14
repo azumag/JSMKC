@@ -49,6 +49,30 @@ describe('Prisma 7 deferred environment-loading guard', () => {
     });
   });
 
+  it('ignores config-looking text inside quoted default values', () => {
+    expect(
+      inspectDeferredPrismaEnvLoading(`
+        import { config } from 'dotenv';
+        function buildConfig(env = 'config()') {
+          return env;
+        }
+      `),
+    ).toEqual({ safe: true, findings: [] });
+  });
+
+  it('fails closed on template interpolation inside deferred parameters', () => {
+    expect(
+      inspectDeferredPrismaEnvLoading(`
+        function buildConfig(env = \`prefix-\${loadEnv()}\`) {
+          return env;
+        }
+      `),
+    ).toEqual({
+      safe: false,
+      findings: [{ kind: 'template-interpolation', rangeKind: 'function', line: 2 }],
+    });
+  });
+
   it('allows direct top-level loading and ignores quoted examples', () => {
     expect(
       inspectDeferredPrismaEnvLoading(`
