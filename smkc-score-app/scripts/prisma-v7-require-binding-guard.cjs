@@ -110,7 +110,8 @@ function findPrismaConfigRequireRebindings(source) {
     if (importBindsRequire(clause)) report(match.index, 'binding');
   }
 
-  const namedDeclaration = /^[ \t]*(?:export[ \t]+)?(?:(?:async[ \t]+)?function|class)[ \t]+require\b/gm;
+  const namedDeclaration =
+    /^[ \t]*(?:export[ \t]+(?:default[ \t]+)?)?(?:(?:async[ \t]+)?function[ \t]*\*?|class)[ \t]+require\b/gm;
   for (const match of lexicalSource.matchAll(namedDeclaration)) {
     if (isTopLevelSourceIndex(lexicalSource, match.index)) report(match.index, 'binding');
   }
