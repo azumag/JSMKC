@@ -17,13 +17,13 @@ function lineNumberAt(source, index) {
 function collectTopLevelAliasDeclarations(source) {
   const declarations = [];
   const pattern =
-    /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*(?:\s*\.\s*defineConfig)?)\s*;?\s*$/gm;
+    /^[ \t]*(?:export[ \t]+)?(?:const|let|var)[ \t]+([A-Za-z_$][\w$]*)[ \t]*=[ \t]*([A-Za-z_$][\w$]*(?:[ \t]*\.[ \t]*defineConfig)?)[ \t]*;?[ \t]*$/gm;
 
   for (const match of source.matchAll(pattern)) {
     if (!isTopLevelSourceIndex(source, match.index)) continue;
     declarations.push({
       alias: match[1],
-      initializer: match[2].replace(/\s+/g, ''),
+      initializer: match[2].replace(/[ \t]+/g, ''),
       index: match.index,
     });
   }
