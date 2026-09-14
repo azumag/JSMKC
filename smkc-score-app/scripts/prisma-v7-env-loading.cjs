@@ -2,6 +2,8 @@
 
 const fs = require('node:fs');
 
+const { isRegexLiteralStart } = require('./prisma-v7-esm-surface.cjs');
+
 function parseCliOptions(argv = process.argv.slice(2)) {
   if (argv.length === 0) return { json: false };
   if (argv.length === 1 && argv[0] === '--json') return { json: true };
@@ -14,6 +16,9 @@ function withoutCommentOnlyLines(source) {
   let escaped = false;
   let lineComment = false;
   let blockComment = false;
+  let regexLiteral = false;
+  let regexEscaped = false;
+  let regexCharacterClass = false;
 
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
@@ -37,6 +42,43 @@ function withoutCommentOnlyLines(source) {
       } else {
         output += char === '\n' || char === '\r' ? char : ' ';
       }
+      continue;
+    }
+
+    if (regexLiteral) {
+      if (regexEscaped) {
+        output += char === '\n' || char === '\r' ? char : ' ';
+        regexEscaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        output += ' ';
+        regexEscaped = true;
+        continue;
+      }
+      if (char === '[' && !regexCharacterClass) {
+        regexCharacterClass = true;
+        output += ' ';
+        continue;
+      }
+      if (char === ']' && regexCharacterClass) {
+        regexCharacterClass = false;
+        output += ' ';
+        continue;
+      }
+      if (char === '/' && !regexCharacterClass) {
+        regexLiteral = false;
+        output += ' ';
+        continue;
+      }
+      if (char === '\n' || char === '\r') {
+        regexLiteral = false;
+        regexCharacterClass = false;
+        output += char;
+        continue;
+      }
+
+      output += ' ';
       continue;
     }
 
@@ -71,6 +113,13 @@ function withoutCommentOnlyLines(source) {
       blockComment = true;
       output += '  ';
       index += 1;
+      continue;
+    }
+
+    if (char === '/' && isRegexLiteralStart(output, next)) {
+      regexLiteral = true;
+      regexCharacterClass = false;
+      output += ' ';
       continue;
     }
 
