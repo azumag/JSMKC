@@ -20,6 +20,15 @@ if (useFakeLoader) {
 require('dotenv').config();
 ```
 
+`var` declarations are also relevant because they are not block-scoped. A `var require` declared inside module-level control flow still creates the module variable binding and can shadow CommonJS `require` outside that block:
+
+```ts
+if (useFakeLoader) {
+  var require = fakeRequire;
+}
+require('dotenv').config();
+```
+
 ## Repository policy
 
 `prisma.config.ts` must not create or replace the module-scope binding named `require`.
@@ -28,14 +37,15 @@ require('dotenv').config();
 
 - top-level `const`, `let`, or `var` bindings named `require`;
 - top-level object/array destructuring that binds a local name `require`;
+- `var require` and destructured `var` bindings that occur inside module-level control flow or `for` headers and therefore belong to the module variable scope;
 - top-level ESM import bindings named `require`;
 - top-level function or class declarations named `require`;
 - direct assignment, compound assignment, or update of bare `require` at module execution scope;
 - the same assignments inside braced or unbraced module control flow, including `if`/`else`, loops, `switch`, `try`/`catch`/`finally`, and class static initialization.
 
-Direct CommonJS calls such as `require('dotenv')` remain allowed. Member methods and properties such as `loader.require(...)` / `loader.require = ...`, quoted examples, comments, and assignments inside nested function, arrow, constructor, or class method bodies are not treated as module-scope loader rebindings.
+Direct CommonJS calls such as `require('dotenv')` remain allowed. Block-local `let` / `const require` bindings inside control-flow blocks do not replace the module loader outside their lexical block and are not rejected by the module-variable check. Likewise, member methods and properties such as `loader.require(...)` / `loader.require = ...`, quoted examples, comments, and bindings or assignments inside nested function, arrow, constructor, or class method bodies are not treated as module-scope loader rebindings. A `var require` local to a class static block is also scoped to that static block rather than the surrounding module and is not treated as a module binding.
 
-The conditional-assignment check uses the TypeScript parser already present in the repository toolchain. This lets the guard distinguish executable module syntax from comments, strings, regular expressions, member expressions, and nested function-like scopes without weakening the stricter lexical readiness probe itself.
+The conditional-assignment and module-`var` checks use the TypeScript parser already present in the repository toolchain. This lets the guard distinguish executable module syntax from comments, strings, regular expressions, member expressions, block-scoped declarations, and nested function-like scopes without weakening the stricter lexical readiness probe itself.
 
 The guard is intentionally fail-closed. The repository already uses ESM imports for dotenv in `prisma.config.ts`, so there is no current need to shadow or replace `require`. If a future migration genuinely needs a custom loader, its semantics should be reviewed explicitly rather than silently weakening the environment-loading readiness result.
 
