@@ -434,6 +434,32 @@ function invocationPrecedesDefineConfig(source, invocationPattern) {
   return false;
 }
 
+function isBareIdentifierReference(source, index, identifier) {
+  if (source.slice(index, index + identifier.length) !== identifier) return false;
+
+  const before = source[index - 1];
+  const after = source[index + identifier.length];
+  if (isIdentifierPart(before) || isIdentifierPart(after)) return false;
+
+  let previousIndex = index - 1;
+  while (previousIndex >= 0 && /\s/.test(source[previousIndex])) previousIndex -= 1;
+  return previousIndex < 0 || (source[previousIndex] !== '.' && source[previousIndex] !== '#');
+}
+
+function bareRequireInvocationPrecedesDefineConfig(source, invocationPattern) {
+  const defineConfigIndex = findDefineConfigEvaluationIndex(source);
+  const flags = invocationPattern.flags.includes('g') ? invocationPattern.flags : `${invocationPattern.flags}g`;
+  const pattern = new RegExp(invocationPattern.source, flags);
+
+  for (const invocation of source.matchAll(pattern)) {
+    if (!isBareIdentifierReference(source, invocation.index, 'require')) continue;
+    if (!isTopLevelSourceIndex(source, invocation.index)) continue;
+    if (defineConfigIndex === null || invocation.index < defineConfigIndex) return true;
+  }
+
+  return false;
+}
+
 function inspectPrismaV7EnvLoading(source) {
   if (typeof source !== 'string') {
     return { ready: false, mode: null };
@@ -470,7 +496,7 @@ function inspectPrismaV7EnvLoading(source) {
   }
 
   const commonJsInvocation = /\brequire\s*\(\s*['"]dotenv['"]\s*\)\s*\.\s*config\s*\(/m;
-  if (invocationPrecedesDefineConfig(configSource, commonJsInvocation)) {
+  if (bareRequireInvocationPrecedesDefineConfig(configSource, commonJsInvocation)) {
     return { ready: true, mode: 'dotenv.config()' };
   }
 
@@ -520,6 +546,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  bareRequireInvocationPrecedesDefineConfig,
   findCommonJsDotenvConfigImports,
   findCommonJsPrismaDefineConfigImport,
   findCommonJsPrismaDefineConfigImports,
@@ -533,6 +560,7 @@ module.exports = {
   formatPrismaV7EnvLoading,
   inspectPrismaV7EnvLoading,
   invocationPrecedesDefineConfig,
+  isBareIdentifierReference,
   isTopLevelSourceIndex,
   parseCliOptions,
   withoutCommentOnlyLines,
