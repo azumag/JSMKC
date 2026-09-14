@@ -1,6 +1,7 @@
 import {
   getPrismaConfigVersionSelector,
   getPrismaVersionSelector,
+  isCurrentCompatiblePrismaSelector,
   isRegistrySemverSelector,
 } from '../../scripts/security-audit-upstream.js';
 
@@ -9,6 +10,24 @@ describe('compatible Prisma upstream selector boundaries', () => {
     'accepts registry SemVer selector %s',
     (selector) => {
       expect(isRegistrySemverSelector(selector)).toBe(true);
+    },
+  );
+
+  it.each(['6.19.3', '^6.19.3', '~6.19.3', '6.20.0-rc.1'])(
+    'accepts bounded current-compatible Prisma selector %s',
+    (selector) => {
+      expect(isCurrentCompatiblePrismaSelector(selector)).toBe(true);
+      expect(getPrismaVersionSelector({ devDependencies: { prisma: selector } })).toBe(selector);
+    },
+  );
+
+  it.each(['>=6.19.3', '>6.19.3', '<=7.0.0', '<7.0.0'])(
+    'rejects directional current-compatible Prisma selector %s',
+    (selector) => {
+      expect(isCurrentCompatiblePrismaSelector(selector)).toBe(false);
+      expect(() => getPrismaVersionSelector({ devDependencies: { prisma: selector } })).toThrow(
+        'exact, caret, or tilde registry SemVer selector',
+      );
     },
   );
 
