@@ -154,9 +154,7 @@ describe('format-changed utilities', () => {
         return 'const ok = true;\n';
       });
       const diffFile = jest.fn(() =>
-        ['diff --git a/src/good.ts b/-', '--- a/src/good.ts', '+++ b/-', '@@ -1 +1 @@', '-bad', '+good'].join(
-          '\n',
-        ),
+        ['diff --git a/src/good.ts b/-', '--- a/src/good.ts', '+++ b/-', '@@ -1 +1 @@', '-bad', '+good'].join('\n'),
       );
 
       const result = collectPrettierDiagnostics(['src/bad.ts', 'src/good.ts'], formatFile, diffFile);
