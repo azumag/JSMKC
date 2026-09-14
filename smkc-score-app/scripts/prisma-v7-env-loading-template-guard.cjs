@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const { isRegexLiteralStart, maskCommentsAndStrings } = require('./prisma-v7-esm-surface.cjs');
 const {
@@ -294,7 +295,7 @@ function main() {
   try {
     options = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid Prisma 7 template-guard arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid Prisma 7 template-guard arguments', error));
     process.exit(1);
   }
 
@@ -304,7 +305,7 @@ function main() {
     process.stdout.write(formatPrismaV7EnvLoadingTemplateGuard(status, options));
     if (!status.ready) process.exitCode = 1;
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma 7 template-interpolation safety: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect Prisma 7 template-interpolation safety', error));
     process.exit(1);
   }
 }

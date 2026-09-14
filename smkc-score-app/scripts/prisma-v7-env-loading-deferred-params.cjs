@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const {
   findCommonJsDotenvConfigImports,
@@ -262,7 +263,7 @@ function main() {
 
     if (!status.safe) process.exit(1);
   } catch (error) {
-    process.stderr.write(`Failed to inspect deferred Prisma 7 environment loading: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect deferred Prisma 7 environment loading', error));
     process.exit(1);
   }
 }

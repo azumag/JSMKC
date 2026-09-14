@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const {
   findCommonJsPrismaDefineConfigImports,
@@ -104,7 +105,7 @@ function main() {
     process.stderr.write(output);
     process.exitCode = 1;
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma defineConfig aliases: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect Prisma defineConfig aliases', error));
     process.exitCode = 1;
   }
 }
