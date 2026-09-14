@@ -94,6 +94,20 @@ function main() {
   });
 
   if (result.error) throw result.error;
+  if ((result.status ?? 1) !== 0) {
+    const writeResult = spawnSync(prettierExecutable, ['--write', ...changedFiles], {
+      cwd: appRoot,
+      stdio: 'inherit',
+    });
+    if (writeResult.error) throw writeResult.error;
+
+    const changedRepositoryFiles = changedFiles.map((file) => `${appPrefix}${file}`);
+    const formattedDiff = execFileSync('git', ['diff', '--', ...changedRepositoryFiles], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+    });
+    console.log('Prettier diagnostic diff:\n' + formattedDiff);
+  }
   return result.status ?? 1;
 }
 
