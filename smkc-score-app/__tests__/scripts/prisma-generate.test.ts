@@ -9,11 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  buildSpawnEnv,
-  extractPrismaMajor,
-  shouldUseLegacyCiEngineOverrides,
-} from '../../scripts/prisma-generate';
+import { buildSpawnEnv, extractPrismaMajor, shouldUseLegacyCiEngineOverrides } from '../../scripts/prisma-generate';
 
 const SCRIPTS_DIR = path.resolve(__dirname, '..', '..', 'scripts');
 const PRISMA_GENERATE_PATH = path.join(SCRIPTS_DIR, 'prisma-generate.js');
