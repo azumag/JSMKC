@@ -22,11 +22,20 @@ describe('Prisma 7 defineConfig re-alias guard', () => {
     ).toEqual([{ line: 3, alias: 'delegatedConfig', source: 'makePrismaConfig' }]);
   });
 
-  it('rejects namespace defineConfig re-aliases', () => {
+  it('rejects an ESM namespace defineConfig re-alias', () => {
     expect(
       findPrismaDefineConfigRealiases(`
         import * as prismaConfig from 'prisma/config';
         export const makeConfig = prismaConfig.defineConfig;
+      `),
+    ).toEqual([{ line: 3, alias: 'makeConfig', source: 'prismaConfig.defineConfig' }]);
+  });
+
+  it('rejects a CommonJS namespace defineConfig re-alias', () => {
+    expect(
+      findPrismaDefineConfigRealiases(`
+        const prismaConfig = require('prisma/config');
+        const makeConfig = prismaConfig.defineConfig;
       `),
     ).toEqual([{ line: 3, alias: 'makeConfig', source: 'prismaConfig.defineConfig' }]);
   });
@@ -56,10 +65,11 @@ describe('Prisma 7 defineConfig re-alias guard', () => {
     ).toEqual([]);
   });
 
-  it('ignores alias-looking text inside template examples', () => {
+  it('ignores alias-looking text inside comments and template examples', () => {
     expect(
       findPrismaDefineConfigRealiases(`
         import { defineConfig } from 'prisma/config';
+        // const commentedConfig = defineConfig;
         const example = \`
           const makeConfig = defineConfig;
         \`;
