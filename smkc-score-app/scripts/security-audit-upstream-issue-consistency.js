@@ -8,6 +8,7 @@ const {
   writeGitHubOutputs,
   writeGitHubSummary,
 } = require('./security-audit-upstream-issue-single-pass');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic');
 
 function toStableSnapshot(issue) {
   if (!issue || typeof issue !== 'object' || Array.isArray(issue)) {
@@ -81,7 +82,7 @@ async function main() {
   try {
     cliOptions = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid upstream issue consistency probe arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid upstream issue consistency probe arguments', error));
     process.exit(1);
   }
 
@@ -89,7 +90,9 @@ async function main() {
   try {
     issue = await fetchConsistentUpstreamIssue();
   } catch (error) {
-    process.stderr.write(`Failed to fetch consistent Prisma upstream issue evidence: ${error.message}\n`);
+    process.stderr.write(
+      formatUpstreamProbeFailure('Failed to fetch consistent Prisma upstream issue evidence', error),
+    );
     process.exit(1);
   }
 
@@ -99,7 +102,7 @@ async function main() {
     writeGitHubOutputs(issue);
     writeGitHubSummary(issue);
   } catch (error) {
-    process.stderr.write(`Failed to publish consistent upstream issue outputs: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to publish consistent upstream issue outputs', error));
     process.exit(1);
   }
 }
