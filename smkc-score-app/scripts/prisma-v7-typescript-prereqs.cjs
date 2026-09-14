@@ -127,9 +127,7 @@ function main() {
   try {
     options = parseCliOptions();
   } catch (error) {
-    process.stderr.write(
-      formatUpstreamProbeFailure('Invalid Prisma 7 TypeScript prerequisite arguments', error),
-    );
+    process.stderr.write(formatUpstreamProbeFailure('Invalid Prisma 7 TypeScript prerequisite arguments', error));
     process.exit(1);
   }
 
