@@ -39,13 +39,17 @@ The guard is read-only. It recognizes the dotenv binding styles already supporte
 - immutable CommonJS destructuring/namespace bindings already exposed by the primary probe helpers
 - direct bare CommonJS `require('dotenv').config()`
 
-It then checks whether any recognized loading call appears inside a `function (...)` parameter list or a parenthesized arrow parameter list `( ... ) =>`. Findings make the command exit non-zero.
+It then checks whether any recognized loading call appears inside a `function (...)` parameter list or a parenthesized arrow parameter list `( ... ) =>`. Quoted text is masked before invocation matching so examples such as `'config()'` do not create false findings.
+
+Template interpolation inside one of those deferred parameter ranges is intentionally fail-closed. The primary lexical helper treats template literals as quoted text, while `${...}` may contain executable expressions. Rather than claim that such a default initializer is safe without a full JavaScript/TypeScript parser, the guard reports `template-interpolation` and requires the migration author to simplify the configuration shape or extend the parser deliberately.
+
+Any finding makes the command exit non-zero.
 
 The guard deliberately does **not** reinterpret function bodies, control flow, helper invocation order, environment precedence, Prisma package versions, the lockfile, D1 bindings, or the #3114 audit exception. Those remain the responsibility of the existing Prisma 7 readiness probes and migration review.
 
 ## CI contract
 
-`__tests__/scripts/prisma-v7-env-loading-deferred-params.test.ts` covers named ESM bindings, namespace/default bindings, direct CommonJS loading, quoted examples, helper-body calls, and the repository's real `prisma.config.ts`.
+`__tests__/scripts/prisma-v7-env-loading-deferred-params.test.ts` covers named ESM bindings, namespace/default bindings, direct CommonJS loading, quoted default values, fail-closed template interpolation, helper-body calls, and the repository's real `prisma.config.ts`.
 
 Because the normal unit-test suite reads the real config and requires zero findings, a future refactor that moves dotenv loading into a deferred default parameter will fail CI even if the primary readiness probe would otherwise misclassify that source shape.
 
