@@ -7,6 +7,7 @@ const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./secu
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
 const NPM_VIEW_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+const NPM_VIEW_DIAGNOSTIC_MAX_LENGTH = 500;
 const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
 const SEMVER_NUMERIC_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*)`;
 const SEMVER_PRERELEASE_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
@@ -105,23 +106,54 @@ function parseNpmViewJson(stdout, label) {
   }
 }
 
+function sanitizeNpmViewDiagnostic(value, maxLength = NPM_VIEW_DIAGNOSTIC_MAX_LENGTH) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return '';
+  }
+
+  if (!Number.isSafeInteger(maxLength) || maxLength < 4) {
+    throw new Error('npm view diagnostic maxLength must be a safe integer >= 4');
+  }
+
+  const visible = value
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, (character) => {
+      if (character === '\n') return '\\n';
+      if (character === '\r') return '\\r';
+      if (character === '\t') return '\\t';
+      if (character === '\u2028') return '\\u2028';
+      if (character === '\u2029') return '\\u2029';
+
+      return `\\x${character.charCodeAt(0).toString(16).padStart(2, '0')}`;
+    })
+    .trim();
+
+  if (visible.length <= maxLength) {
+    return visible;
+  }
+
+  return `${visible.slice(0, maxLength - 3)}...`;
+}
+
 function runNpmView(selector, field, spawn = spawnSync) {
   const result = spawn('npm', ['view', selector, field, '--json', `--registry=${CANONICAL_NPM_REGISTRY}`], {
     encoding: 'utf8',
     timeout: NPM_VIEW_TIMEOUT_MS,
     maxBuffer: NPM_VIEW_MAX_BUFFER_BYTES,
   });
+  const safeSelector = sanitizeNpmViewDiagnostic(String(selector));
+  const safeField = sanitizeNpmViewDiagnostic(String(field));
 
   if (result.error) {
-    throw new Error(`failed to run npm view for ${selector}: ${result.error.message}`);
+    const errorMessage = sanitizeNpmViewDiagnostic(result.error.message);
+    throw new Error(`failed to run npm view for ${safeSelector}${errorMessage ? `: ${errorMessage}` : ''}`);
   }
 
   if (result.status !== 0) {
-    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-    throw new Error(`npm view failed for ${selector}${stderr ? `: ${stderr}` : ''}`);
+    const stderr = sanitizeNpmViewDiagnostic(result.stderr);
+    throw new Error(`npm view failed for ${safeSelector}${stderr ? `: ${stderr}` : ''}`);
   }
 
-  return parseNpmViewJson(result.stdout, `${selector} ${field}`);
+  return parseNpmViewJson(result.stdout, `${safeSelector} ${safeField}`);
 }
 
 function compareComparableSemver(left, right) {
@@ -473,6 +505,7 @@ module.exports = {
   CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN,
   NPM_VIEW_TIMEOUT_MS,
   NPM_VIEW_MAX_BUFFER_BYTES,
+  NPM_VIEW_DIAGNOSTIC_MAX_LENGTH,
   compareComparableSemver,
   enrichCompatiblePrismaReleaseWithPublishedPackageSet,
   formatCompatiblePrismaReleaseStatus,
@@ -489,6 +522,7 @@ module.exports = {
   parseCliOptions,
   parseNpmViewJson,
   runNpmView,
+  sanitizeNpmViewDiagnostic,
   selectLatestVersion,
   writeGitHubOutputs,
 };

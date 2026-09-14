@@ -1,0 +1,17 @@
+# Security audit npm view diagnostic safety
+
+Issue #3114 の current-compatible / next-major Prisma remediation probe は、canonical npm registry の package metadata を `smkc-score-app/scripts/security-audit-upstream.js` の `runNpmView()` で取得します。
+
+成功時の JSON evidence、selector policy、package-set 判定、および `compatible_upstream_gate` の意味は変更しません。一方、registry / transport / npm 自体の失敗診断は外部プロセス由来の文字列なので、CI log へ出す前に安全な単一行へ正規化します。
+
+診断文字列には次の境界を適用します。
+
+- C0 control characters (`U+0000`〜`U+001F`) と DEL (`U+007F`) は `\\n`、`\\r`、`\\t`、`\\xNN` のような可視表現へ escape する。
+- JavaScript の line separator / paragraph separator (`U+2028` / `U+2029`) も可視な `\\u2028` / `\\u2029` として残す。
+- `spawnSync` 自体の `error.message` と、non-zero exit 時の `stderr` の両方へ同じ処理を適用する。
+- 可視化後の診断本文は 500 characters を上限とし、超過分は `...` で切り詰める。
+- selector / field をエラー文の label に使う場合も同じ single-line 化を通す。
+
+これにより、改行による複数行化、ANSI escape による端末表示の汚染、workflow-command 風の文字列が独立したログ行として見えること、巨大な npm error body による監査ログの肥大化を防ぎつつ、原因調査に必要な診断内容は可視文字列として保持します。
+
+この変更は失敗時のログ表現だけを対象にします。dependency version、lockfile、Prisma schema/runtime、D1 / Cloudflare binding、registry の選択、remediation candidate の判定、#3114 の temporary audit exception の条件・期限は変更しません。
