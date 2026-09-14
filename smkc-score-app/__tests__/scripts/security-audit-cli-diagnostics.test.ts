@@ -21,6 +21,7 @@ const guardedAuxiliaryEntrypoints = [
   'prisma-v7-removed-surfaces.cjs',
   'prisma-v7-support-surface.cjs',
   'prisma-v7-esm-surface.cjs',
+  'prisma-v7-env-loading.cjs',
   'prisma-v7-defineconfig-alias-guard.cjs',
   'prisma-v7-env-loading-template-guard.cjs',
   'prisma-v7-env-loading-deferred-params.cjs',

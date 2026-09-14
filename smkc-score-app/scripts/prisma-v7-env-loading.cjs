@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const { isRegexLiteralStart } = require('./prisma-v7-esm-surface.cjs');
 
@@ -522,7 +523,7 @@ function main() {
   try {
     options = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid Prisma 7 environment-loading arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid Prisma 7 environment-loading arguments', error));
     process.exit(1);
   }
 
@@ -536,7 +537,7 @@ function main() {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
     }
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma 7 environment loading: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect Prisma 7 environment loading', error));
     process.exit(1);
   }
 }
