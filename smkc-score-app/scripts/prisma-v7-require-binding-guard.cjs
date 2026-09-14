@@ -1,12 +1,32 @@
 'use strict';
 
 const fs = require('node:fs');
+const ts = require('typescript');
 
 const {
   isBareIdentifierReference,
   isTopLevelSourceIndex,
   withoutCommentOnlyLines,
 } = require('./prisma-v7-env-loading.cjs');
+
+const assignmentOperatorKinds = new Set([
+  ts.SyntaxKind.EqualsToken,
+  ts.SyntaxKind.PlusEqualsToken,
+  ts.SyntaxKind.MinusEqualsToken,
+  ts.SyntaxKind.AsteriskEqualsToken,
+  ts.SyntaxKind.AsteriskAsteriskEqualsToken,
+  ts.SyntaxKind.SlashEqualsToken,
+  ts.SyntaxKind.PercentEqualsToken,
+  ts.SyntaxKind.LessThanLessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
+  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
+  ts.SyntaxKind.AmpersandEqualsToken,
+  ts.SyntaxKind.BarEqualsToken,
+  ts.SyntaxKind.CaretEqualsToken,
+  ts.SyntaxKind.BarBarEqualsToken,
+  ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+  ts.SyntaxKind.QuestionQuestionEqualsToken,
+]);
 
 function lineNumberAt(source, index) {
   return source.slice(0, index).split(/\r\n|\n|\r/).length;
@@ -82,6 +102,79 @@ function importBindsRequire(importClause) {
   );
 }
 
+function isFunctionLikeBoundary(node) {
+  return (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node) ||
+    ts.isConstructorDeclaration(node)
+  );
+}
+
+function hasStaticModifier(node) {
+  return node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword) ?? false;
+}
+
+function findModuleScopeRequireAssignments(source) {
+  if (typeof source !== 'string') return [];
+
+  const sourceFile = ts.createSourceFile('prisma.config.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const indexes = [];
+
+  function report(node) {
+    indexes.push(node.getStart(sourceFile));
+  }
+
+  function visitClass(node) {
+    for (const heritageClause of node.heritageClauses ?? []) visit(heritageClause);
+
+    for (const member of node.members) {
+      if (member.name) visit(member.name);
+
+      if (ts.isClassStaticBlockDeclaration(member)) {
+        visit(member);
+      } else if (ts.isPropertyDeclaration(member) && hasStaticModifier(member) && member.initializer) {
+        visit(member.initializer);
+      }
+    }
+  }
+
+  function visit(node) {
+    if (node !== sourceFile && isFunctionLikeBoundary(node)) return;
+
+    if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+      visitClass(node);
+      return;
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      assignmentOperatorKinds.has(node.operatorToken.kind) &&
+      ts.isIdentifier(node.left) &&
+      node.left.text === 'require'
+    ) {
+      report(node.left);
+    }
+
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
+      ts.isIdentifier(node.operand) &&
+      node.operand.text === 'require'
+    ) {
+      report(node.operand);
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return [...new Set(indexes)].sort((left, right) => left - right);
+}
+
 function findPrismaConfigRequireRebindings(source) {
   if (typeof source !== 'string') return [];
 
@@ -123,6 +216,10 @@ function findPrismaConfigRequireRebindings(source) {
     report(match.index, 'assignment');
   }
 
+  for (const index of findModuleScopeRequireAssignments(source)) {
+    report(index, 'assignment');
+  }
+
   return findings.sort((left, right) => left.line - right.line);
 }
 
@@ -135,7 +232,7 @@ function formatFindings(findings) {
     'Prisma require binding guard: FAIL',
     ...findings.map(
       (finding) =>
-        `- line ${finding.line}: top-level require ${finding.kind} can invalidate bare require('dotenv') readiness evidence`,
+        `- line ${finding.line}: module-scope require ${finding.kind} can invalidate bare require('dotenv') readiness evidence`,
     ),
     '',
   ].join('\n');
@@ -166,6 +263,7 @@ if (require.main === module) {
 
 module.exports = {
   declarationBindsRequire,
+  findModuleScopeRequireAssignments,
   findPrismaConfigRequireRebindings,
   firstAssignmentIndex,
   formatFindings,
