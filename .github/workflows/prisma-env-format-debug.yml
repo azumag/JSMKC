@@ -1,0 +1,29 @@
+name: Prisma env format debug
+
+on:
+  pull_request:
+    paths:
+      - 'smkc-score-app/scripts/prisma-v7-env-loading-deferred-params.cjs'
+      - '.github/workflows/prisma-env-format-debug.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  format-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Install dependencies
+        working-directory: smkc-score-app
+        run: npm ci --ignore-scripts
+      - name: Print Prettier diff
+        working-directory: smkc-score-app
+        run: |
+          npx prettier --write scripts/prisma-v7-env-loading-deferred-params.cjs
+          git diff -- scripts/prisma-v7-env-loading-deferred-params.cjs || true
