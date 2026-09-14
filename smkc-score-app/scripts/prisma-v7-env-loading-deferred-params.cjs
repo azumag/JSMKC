@@ -203,7 +203,7 @@ function inspectDeferredPrismaEnvLoading(source) {
   const seen = new Set();
 
   for (const invocation of findDotenvInvocations(lexicalSource, structuralSource)) {
-    const range = ranges.find(candidate => invocation.index >= candidate.start && invocation.index < candidate.end);
+    const range = ranges.find((candidate) => invocation.index >= candidate.start && invocation.index < candidate.end);
     if (!range) continue;
 
     const key = `${invocation.index}:${invocation.kind}:${range.kind}`;
