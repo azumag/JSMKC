@@ -31,7 +31,9 @@ describe('Prisma upstream probe diagnostic safety', () => {
   });
 
   it('formats malformed JSON and transport-style failures as one bounded stderr line', () => {
-    const malformedJson = new Error('upstream issue response was not valid JSON: Unexpected token\n\u009b31m\u202ehidden');
+    const malformedJson = new Error(
+      'upstream issue response was not valid JSON: Unexpected token\n\u009b31m\u202ehidden',
+    );
     const formatted = formatUpstreamProbeFailure(
       'Failed to fetch consistent Prisma upstream issue evidence',
       malformedJson,
