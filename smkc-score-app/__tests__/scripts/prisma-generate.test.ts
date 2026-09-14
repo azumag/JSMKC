@@ -157,7 +157,9 @@ describe('scripts/prisma-generate', () => {
       const source = fs.readFileSync(PRISMA_GENERATE_PATH, 'utf8');
 
       expect(source).toContain("require('./security-audit-upstream-diagnostic.js')");
-      expect(source).toContain("formatUpstreamProbeFailure('[prisma-generate] failed to spawn prisma CLI', result.error)");
+      expect(source).toContain(
+        "formatUpstreamProbeFailure('[prisma-generate] failed to spawn prisma CLI', result.error)",
+      );
       expect(source).not.toContain('${result.error.message}');
     });
   });
