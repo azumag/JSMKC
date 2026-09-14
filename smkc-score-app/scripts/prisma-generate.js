@@ -45,8 +45,10 @@ const LEGACY_CI_ENGINE_OVERRIDES = Object.freeze({
   PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: '1',
 });
 
-const SUPPORTED_PRISMA_SELECTOR_PATTERN =
-  /^[~^]?\s*(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const SEMVER_PRERELEASE_IDENTIFIER = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const SUPPORTED_PRISMA_SELECTOR_PATTERN = new RegExp(
+  String.raw`^[~^]?\s*(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-${SEMVER_PRERELEASE_IDENTIFIER}(?:\.${SEMVER_PRERELEASE_IDENTIFIER})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`,
+);
 
 /**
  * Extract the semver major from the repository's Prisma selector.
