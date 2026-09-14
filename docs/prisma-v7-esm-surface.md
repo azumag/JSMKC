@@ -14,6 +14,8 @@ The probe scans Node/test support surfaces (`scripts`, `e2e`, `__tests__`, and `
 
 Template literal **text** is masked, but `${...}` interpolation bodies are executable JavaScript and remain visible to the CommonJS scan. Nested braces and nested templates inside an interpolation are tracked so a real `require()`, `module.exports`, `exports`, `__dirname`, or `__filename` used by an interpolation cannot be hidden by surrounding template text. Quoted strings and comments inside the interpolation remain masked like they are in ordinary source code.
 
+Regular-expression literal bodies are also masked before CommonJS matching. The lexical scanner recognizes regex literals at expression-start positions, tracks escapes and character classes until the closing slash, and keeps ordinary division operators in code context. This prevents quote characters, comment-looking text, or names such as `__dirname` inside a regex from either hiding later executable CommonJS or becoming false migration findings. Executable code after the regex, including code inside a template interpolation, remains visible to the scan.
+
 Files beneath a nested package scope with explicit `"type": "commonjs"` are intentionally excluded because Node will continue to interpret their `.js` files as CommonJS after the application package switches to ESM. Existing `.cjs` files are excluded for the same reason.
 
 The probe intentionally does **not** edit files, rename extensions, add top-level `"type": "module"`, install packages, regenerate Prisma Client, or change the #3114 audit exception.
