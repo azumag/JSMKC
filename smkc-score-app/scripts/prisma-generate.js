@@ -38,6 +38,7 @@
  */
 const { spawnSync } = require('node:child_process');
 const manifest = require('../package.json');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const LEGACY_CI_ENGINE_OVERRIDES = Object.freeze({
   PRISMA_SCHEMA_ENGINE_BINARY: '/dev/null',
@@ -140,7 +141,7 @@ if (require.main === module) {
     // Spawning `npx` itself failed (e.g. missing binary). Surface the error
     // rather than silently exiting 0, otherwise CI appears to pass when the
     // generation never actually ran.
-    process.stderr.write(`[prisma-generate] failed to spawn prisma CLI: ${result.error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('[prisma-generate] failed to spawn prisma CLI', result.error));
     process.exit(1);
   }
 
