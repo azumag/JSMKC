@@ -45,9 +45,7 @@ export interface NextResponseMockOptions {
   unwrap?: boolean;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function configureNextResponseMock(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   NextResponse: any,
   options: NextResponseMockOptions = {},
 ): void {
@@ -57,7 +55,6 @@ export function configureNextResponseMock(
 
   const unwrap = options.unwrap ?? true;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   NextResponse.json.mockImplementation((body: any, responseOptions?: any) => {
     const data =
       unwrap &&
