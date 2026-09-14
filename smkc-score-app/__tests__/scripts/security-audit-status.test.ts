@@ -151,24 +151,33 @@ describe('security audit exception status', () => {
     expect(hasForwardRemediationCandidate(overriddenLockfile)).toBe(false);
   });
 
-  it('treats only semver versions at or above the patched deepmerge-ts boundary as patched', () => {
+  it('treats only complete semver versions at or above the patched deepmerge-ts boundary as patched', () => {
     expect(isPatchedDeepmergeVersion('7.1.6')).toBe(false);
     expect(isPatchedDeepmergeVersion('8.0.0-rc.1')).toBe(false);
     expect(isPatchedDeepmergeVersion('8.0.0')).toBe(true);
     expect(isPatchedDeepmergeVersion('8.0.0+build.1')).toBe(true);
     expect(isPatchedDeepmergeVersion('8.0.1-beta.1')).toBe(true);
+    expect(isPatchedDeepmergeVersion('9.0.0-alpha.1')).toBe(true);
     expect(isPatchedDeepmergeVersion('9.0.0')).toBe(true);
+    expect(isPatchedDeepmergeVersion('9.0.0-..')).toBe(false);
+    expect(isPatchedDeepmergeVersion('9.0.0-01')).toBe(false);
+    expect(isPatchedDeepmergeVersion('9.0.0+build..1')).toBe(false);
+    expect(isPatchedDeepmergeVersion('09.0.0')).toBe(false);
     expect(isPatchedDeepmergeVersion('not-semver')).toBe(false);
   });
 
-  it('accepts only simple patched dependency requirements for remediation candidate classification', () => {
+  it('accepts only simple patched dependency requirements containing complete semver', () => {
     expect(isPatchedDeepmergeRequirement('8.0.2')).toBe(true);
     expect(isPatchedDeepmergeRequirement('^8.0.2')).toBe(true);
     expect(isPatchedDeepmergeRequirement('~8.0.2')).toBe(true);
     expect(isPatchedDeepmergeRequirement('>= 8.0.0')).toBe(true);
+    expect(isPatchedDeepmergeRequirement('^9.0.0-alpha.1')).toBe(true);
     expect(isPatchedDeepmergeRequirement('^7.1.5')).toBe(false);
     expect(isPatchedDeepmergeRequirement('>=8.0.0 <9')).toBe(false);
     expect(isPatchedDeepmergeRequirement('workspace:^8.0.0')).toBe(false);
+    expect(isPatchedDeepmergeRequirement('^9.0.0-alpha..1')).toBe(false);
+    expect(isPatchedDeepmergeRequirement('>=9.0.0-01')).toBe(false);
+    expect(isPatchedDeepmergeRequirement('~9.0.0+build..1')).toBe(false);
   });
 
   it('uses null when a tracked dependency version cannot be read', () => {
