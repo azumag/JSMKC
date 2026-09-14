@@ -122,12 +122,7 @@ function findDotenvInvocations(source, structuralSource = maskQuotedText(source)
   for (const name of new Set([...findNamedDotenvConfigImports(source), ...findCommonJsDotenvConfigImports(source)])) {
     const escapedName = name.replace(/[$]/g, '\\$&');
     invocations.push(
-      ...collectPatternInvocations(
-        source,
-        structuralSource,
-        new RegExp(`\\b${escapedName}\\s*\\(`),
-        `named:${name}`,
-      ),
+      ...collectPatternInvocations(source, structuralSource, new RegExp(`\\b${escapedName}\\s*\\(`), `named:${name}`),
     );
   }
 
