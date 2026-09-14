@@ -7,6 +7,7 @@ import {
   normalizePrettierDiff,
   resolveBaseRevision,
   resolveComparisonBase,
+  toPrettierFileOperand,
 } from '../../scripts/format-changed-utils.cjs';
 
 describe('format-changed utilities', () => {
@@ -83,6 +84,21 @@ describe('format-changed utilities', () => {
 
   it('returns an empty list when no supported app files changed', () => {
     expect(collectChangedAppFiles('docs/readme.txt\0', '', false, 'smkc-score-app/')).toEqual([]);
+  });
+
+  describe('toPrettierFileOperand', () => {
+    it.each([
+      ['src/example.ts', './src/example.ts'],
+      ['src/a file.ts', './src/a file.ts'],
+      ['--write.ts', './--write.ts'],
+      ['--config=evil.js', './--config=evil.js'],
+    ])('makes %s an explicit relative path', (file, expected) => {
+      expect(toPrettierFileOperand(file)).toBe(expected);
+    });
+
+    it.each(['./src/example.ts', '../shared/example.ts'])('preserves an explicit relative path: %s', (file) => {
+      expect(toPrettierFileOperand(file)).toBe(file);
+    });
   });
 
   it('extracts git stderr through a wrapped error cause', () => {

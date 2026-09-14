@@ -39,6 +39,11 @@ function collectChangedAppFiles(diffOutput, untrackedOutput, includeUntracked, a
     .map((file) => file.slice(appPrefix.length));
 }
 
+function toPrettierFileOperand(file) {
+  if (file.startsWith('./') || file.startsWith('../')) return file;
+  return `./${file}`;
+}
+
 function findGitStderr(error) {
   if (!error || typeof error !== 'object') return '';
   const stderr = error.stderr;
@@ -97,4 +102,5 @@ module.exports = {
   normalizePrettierDiff,
   resolveBaseRevision,
   resolveComparisonBase,
+  toPrettierFileOperand,
 };

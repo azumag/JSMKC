@@ -10,6 +10,7 @@ const {
   describeRequestedBase,
   resolveBaseRevision,
   resolveComparisonBase,
+  toPrettierFileOperand,
 } = formatChangedUtils;
 
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -26,7 +27,7 @@ function git(args) {
 }
 
 function formatFileForDiagnostic(prettierExecutable, file) {
-  const result = spawnSync(prettierExecutable, [file], {
+  const result = spawnSync(prettierExecutable, [toPrettierFileOperand(file)], {
     cwd: appRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -142,7 +143,8 @@ function main() {
     '.bin',
     process.platform === 'win32' ? 'prettier.cmd' : 'prettier',
   );
-  const result = spawnSync(prettierExecutable, ['--check', ...changedFiles], {
+  const prettierFiles = changedFiles.map(toPrettierFileOperand);
+  const result = spawnSync(prettierExecutable, ['--check', ...prettierFiles], {
     cwd: appRoot,
     stdio: 'inherit',
   });
