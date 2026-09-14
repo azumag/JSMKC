@@ -153,8 +153,7 @@ function statementBindsLexicalRequire(statement) {
   }
 
   return (
-    ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
-      statement.name?.text === 'require') ??
+    ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name?.text === 'require') ??
     false
   );
 }
@@ -204,9 +203,7 @@ function loopBindsLexicalRequire(node) {
 }
 
 function catchClauseBindsRequire(catchClause) {
-  return catchClause.variableDeclaration
-    ? bindingNameBindsRequire(catchClause.variableDeclaration.name)
-    : false;
+  return catchClause.variableDeclaration ? bindingNameBindsRequire(catchClause.variableDeclaration.name) : false;
 }
 
 function isRequireShadowedFromModule(identifier) {
@@ -218,10 +215,7 @@ function isRequireShadowedFromModule(identifier) {
     if (ts.isCatchClause(current) && catchClauseBindsRequire(current)) return true;
     if (loopBindsLexicalRequire(current)) return true;
     if (ts.isClassStaticBlockDeclaration(current) && staticBlockHasVarRequireBinding(current)) return true;
-    if (
-      (ts.isClassDeclaration(current) || ts.isClassExpression(current)) &&
-      current.name?.text === 'require'
-    ) {
+    if ((ts.isClassDeclaration(current) || ts.isClassExpression(current)) && current.name?.text === 'require') {
       return true;
     }
 
@@ -299,9 +293,8 @@ function findModuleScopeRequireAstFindings(source) {
   return findings
     .filter(
       (finding, index) =>
-        findings.findIndex(
-          (candidate) => candidate.index === finding.index && candidate.kind === finding.kind,
-        ) === index,
+        findings.findIndex((candidate) => candidate.index === finding.index && candidate.kind === finding.kind) ===
+        index,
     )
     .sort((left, right) => left.index - right.index);
 }
