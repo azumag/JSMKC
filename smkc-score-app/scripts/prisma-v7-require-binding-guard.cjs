@@ -131,8 +131,36 @@ function bindingNameBindsRequire(name) {
   return false;
 }
 
+function declarationListBindsRequire(declarationList) {
+  return declarationList.declarations.some((declaration) => bindingNameBindsRequire(declaration.name));
+}
+
 function isVarDeclarationList(node) {
   return ts.isVariableDeclarationList(node) && (node.flags & blockScopedDeclarationFlags) === 0;
+}
+
+function isBlockScopedDeclarationList(node) {
+  return ts.isVariableDeclarationList(node) && (node.flags & blockScopedDeclarationFlags) !== 0;
+}
+
+function statementBindsLexicalRequire(statement) {
+  if (
+    ts.isVariableStatement(statement) &&
+    isBlockScopedDeclarationList(statement.declarationList) &&
+    declarationListBindsRequire(statement.declarationList)
+  ) {
+    return true;
+  }
+
+  return (
+    ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+      statement.name?.text === 'require') ??
+    false
+  );
+}
+
+function statementsBindLexicalRequire(statements) {
+  return statements.some((statement) => statementBindsLexicalRequire(statement));
 }
 
 function staticBlockHasVarRequireBinding(staticBlock) {
@@ -148,7 +176,7 @@ function staticBlockHasVarRequireBinding(staticBlock) {
     }
 
     if (isVarDeclarationList(node)) {
-      found = node.declarations.some((declaration) => bindingNameBindsRequire(declaration.name));
+      found = declarationListBindsRequire(node);
       if (found) return;
     }
 
@@ -157,6 +185,50 @@ function staticBlockHasVarRequireBinding(staticBlock) {
 
   visit(staticBlock);
   return found;
+}
+
+function caseBlockBindsLexicalRequire(caseBlock) {
+  return caseBlock.clauses.some((clause) => statementsBindLexicalRequire(clause.statements));
+}
+
+function loopBindsLexicalRequire(node) {
+  if (!ts.isForStatement(node) && !ts.isForInStatement(node) && !ts.isForOfStatement(node)) return false;
+
+  const initializer = node.initializer;
+  return (
+    initializer !== undefined &&
+    ts.isVariableDeclarationList(initializer) &&
+    isBlockScopedDeclarationList(initializer) &&
+    declarationListBindsRequire(initializer)
+  );
+}
+
+function catchClauseBindsRequire(catchClause) {
+  return catchClause.variableDeclaration
+    ? bindingNameBindsRequire(catchClause.variableDeclaration.name)
+    : false;
+}
+
+function isRequireShadowedFromModule(identifier) {
+  let current = identifier.parent;
+
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isBlock(current) && statementsBindLexicalRequire(current.statements)) return true;
+    if (ts.isCaseBlock(current) && caseBlockBindsLexicalRequire(current)) return true;
+    if (ts.isCatchClause(current) && catchClauseBindsRequire(current)) return true;
+    if (loopBindsLexicalRequire(current)) return true;
+    if (ts.isClassStaticBlockDeclaration(current) && staticBlockHasVarRequireBinding(current)) return true;
+    if (
+      (ts.isClassDeclaration(current) || ts.isClassExpression(current)) &&
+      current.name?.text === 'require'
+    ) {
+      return true;
+    }
+
+    current = current.parent;
+  }
+
+  return false;
 }
 
 function findModuleScopeRequireAstFindings(source) {
@@ -203,7 +275,8 @@ function findModuleScopeRequireAstFindings(source) {
       ts.isBinaryExpression(node) &&
       assignmentOperatorKinds.has(node.operatorToken.kind) &&
       ts.isIdentifier(node.left) &&
-      node.left.text === 'require'
+      node.left.text === 'require' &&
+      !isRequireShadowedFromModule(node.left)
     ) {
       report(node.left, 'assignment');
     }
@@ -213,7 +286,8 @@ function findModuleScopeRequireAstFindings(source) {
       (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
       (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
       ts.isIdentifier(node.operand) &&
-      node.operand.text === 'require'
+      node.operand.text === 'require' &&
+      !isRequireShadowedFromModule(node.operand)
     ) {
       report(node.operand, 'assignment');
     }
@@ -332,7 +406,9 @@ if (require.main === module) {
 
 module.exports = {
   bindingNameBindsRequire,
+  catchClauseBindsRequire,
   declarationBindsRequire,
+  declarationListBindsRequire,
   findModuleScopeRequireAssignments,
   findModuleScopeRequireAstFindings,
   findModuleScopeRequireVarBindings,
@@ -340,6 +416,10 @@ module.exports = {
   firstAssignmentIndex,
   formatFindings,
   importBindsRequire,
+  isRequireShadowedFromModule,
   lineNumberAt,
+  loopBindsLexicalRequire,
+  statementBindsLexicalRequire,
+  statementsBindLexicalRequire,
   staticBlockHasVarRequireBinding,
 };
