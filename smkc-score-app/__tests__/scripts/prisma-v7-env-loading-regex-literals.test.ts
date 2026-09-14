@@ -43,7 +43,7 @@ describe('Prisma 7 environment-loading regex literals', () => {
     const masked = withoutCommentOnlyLines(source);
 
     expect(masked).toContain('total / divisor');
-    expect(masked).not.toContain('/[{}"\']/');
+    expect(masked).not.toContain('const pattern = /');
     expect(inspectPrismaV7EnvLoading(source)).toEqual({ ready: true, mode: 'dotenv.config()' });
   });
 
