@@ -24,6 +24,7 @@ const guardedAuxiliaryEntrypoints = [
   'prisma-v7-defineconfig-alias-guard.cjs',
   'prisma-v7-env-loading-template-guard.cjs',
   'prisma-v7-env-loading-deferred-params.cjs',
+  'prisma-v7-require-binding-guard.cjs',
 ];
 
 describe('security audit CLI diagnostic safety', () => {
