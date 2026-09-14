@@ -11,6 +11,7 @@ const {
   hasMatchingSecurityAuditManifestSnapshot,
   hasMatchingSecurityAuditPackageIdentity,
 } = require('./security-audit-lockfile.js');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 const { loadPackageManifest } = require('./verify-npm-version.js');
 
 const TRACKING_ISSUE = 3114;
@@ -311,7 +312,7 @@ function main() {
   try {
     cliOptions = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid security audit status arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid security audit status arguments', error));
     process.exit(1);
   }
 
@@ -322,7 +323,7 @@ function main() {
     manifest = loadPackageManifest(() => fs.readFileSync('package.json', 'utf8'));
     lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   } catch (error) {
-    process.stderr.write(`Failed to read security audit inputs: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to read security audit inputs', error));
     process.exit(1);
   }
 
@@ -332,7 +333,7 @@ function main() {
   try {
     writeGitHubOutputs(status);
   } catch (error) {
-    process.stderr.write(`Failed to publish security audit status outputs: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to publish security audit status outputs', error));
     process.exit(1);
   }
 

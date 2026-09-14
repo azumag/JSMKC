@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./security-audit-status.js');
+const { formatUpstreamProbeFailure, getUpstreamDiagnosticMessage } = require('./security-audit-upstream-diagnostic.js');
 
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
 const NPM_VIEW_TIMEOUT_MS = 60_000;
@@ -102,7 +103,7 @@ function parseNpmViewJson(stdout, label) {
   try {
     return JSON.parse(stdout);
   } catch (error) {
-    const parserMessage = sanitizeNpmViewDiagnostic(error instanceof Error ? error.message : String(error));
+    const parserMessage = sanitizeNpmViewDiagnostic(getUpstreamDiagnosticMessage(error));
     throw new Error(`npm view returned invalid JSON for ${label}${parserMessage ? `: ${parserMessage}` : ''}`);
   }
 }
@@ -472,7 +473,7 @@ function main() {
   try {
     cliOptions = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid compatible Prisma upstream arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid compatible Prisma upstream arguments', error));
     process.exit(1);
   }
 
@@ -481,7 +482,7 @@ function main() {
   try {
     manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   } catch (error) {
-    process.stderr.write(`Failed to read package.json: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to read package.json', error));
     process.exit(1);
   }
 
@@ -495,7 +496,7 @@ function main() {
     process.stdout.write(formatCompatiblePrismaReleaseStatus(status, cliOptions));
     writeGitHubOutputs(status);
   } catch (error) {
-    process.stderr.write(`Failed to inspect compatible Prisma release: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect compatible Prisma release', error));
     process.exit(1);
   }
 }

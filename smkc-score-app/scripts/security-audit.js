@@ -9,6 +9,7 @@ const {
   hasMatchingSecurityAuditPackageIdentity,
   hasMatchingSecurityAuditManifestSnapshot,
 } = require('./security-audit-lockfile.js');
+const { formatUpstreamProbeFailure, sanitizeUpstreamDiagnostic } = require('./security-audit-upstream-diagnostic.js');
 const { loadPackageManifest, verifyNpmRuntime } = require('./verify-npm-version.js');
 
 const EXPECTED_AUDIT_REPORT_VERSION = 2;
@@ -712,7 +713,7 @@ function main() {
     manifestSource = fs.readFileSync('package.json', 'utf8');
     manifest = loadPackageManifest(() => manifestSource);
   } catch (error) {
-    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to read package.json for security audit', error));
     process.exit(1);
   }
 
@@ -720,7 +721,7 @@ function main() {
   try {
     npmRuntimeVersion = verifyNpmRuntime({ manifest });
   } catch (error) {
-    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to verify npm runtime for security audit', error));
     process.exit(1);
   }
   process.stdout.write(`npm runtime version verified: ${npmRuntimeVersion}\n`);
@@ -731,7 +732,7 @@ function main() {
     lockfileSource = fs.readFileSync('package-lock.json', 'utf8');
     lockfile = JSON.parse(lockfileSource);
   } catch (error) {
-    process.stderr.write(`Failed to read package-lock.json for security audit: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to read package-lock.json for security audit', error));
     process.exit(1);
   }
 
@@ -767,7 +768,7 @@ function main() {
   try {
     npmAuditRegistry = verifyNpmAuditRegistry();
   } catch (error) {
-    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to verify npm audit registry', error));
     process.exit(1);
   }
   process.stdout.write(`npm audit registry verified: ${npmAuditRegistry}\n`);
@@ -776,7 +777,7 @@ function main() {
   try {
     audit = runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource);
   } catch (error) {
-    process.stderr.write(`Failed to run npm audit from validated snapshot: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to run npm audit from validated snapshot', error));
     process.exit(1);
   }
 
@@ -785,8 +786,12 @@ function main() {
       audit.error?.message ||
       (audit.signal ? `npm audit terminated by signal ${audit.signal}` : '') ||
       (!audit.stdout ? 'npm audit produced no JSON output' : `npm audit exited with unexpected status ${audit.status}`);
-    process.stderr.write(`${reason}\n`);
-    process.stderr.write(audit.stderr || '');
+    const safeReason = sanitizeUpstreamDiagnostic(reason);
+    process.stderr.write(`${safeReason || 'npm audit failed without a diagnostic'}\n`);
+    const safeAuditStderr = sanitizeUpstreamDiagnostic(audit.stderr || '');
+    if (safeAuditStderr) {
+      process.stderr.write(`${safeAuditStderr}\n`);
+    }
     process.exit(1);
   }
 
@@ -794,8 +799,11 @@ function main() {
   try {
     report = JSON.parse(audit.stdout);
   } catch (error) {
-    process.stderr.write(`Failed to parse npm audit JSON: ${error.message}\n`);
-    process.stderr.write(audit.stderr || '');
+    process.stderr.write(formatUpstreamProbeFailure('Failed to parse npm audit JSON', error));
+    const safeAuditStderr = sanitizeUpstreamDiagnostic(audit.stderr || '');
+    if (safeAuditStderr) {
+      process.stderr.write(`${safeAuditStderr}\n`);
+    }
     process.exit(1);
   }
 
@@ -837,7 +845,10 @@ function main() {
       `Blocking npm audit finding(s): ${result.unexpected.join(', ') || 'allowlist precondition failed'}\n`,
     );
     process.stderr.write(audit.stdout);
-    process.stderr.write(audit.stderr || '');
+    const safeAuditStderr = sanitizeUpstreamDiagnostic(audit.stderr || '');
+    if (safeAuditStderr) {
+      process.stderr.write(`${safeAuditStderr}\n`);
+    }
     process.exit(1);
   }
 
