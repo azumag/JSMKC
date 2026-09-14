@@ -11,6 +11,18 @@ const guardedEntrypoints = [
   'security-audit-next-major.js',
 ];
 
+const guardedAuxiliaryEntrypoints = [
+  'security-audit-lockfile.js',
+  'verify-npm-version.js',
+  'prisma-v7-review-json.cjs',
+  'prisma-v7-readiness.cjs',
+  'prisma-v7-driver-adapter.cjs',
+  'prisma-v7-typescript-prereqs.cjs',
+  'prisma-v7-removed-surfaces.cjs',
+  'prisma-v7-support-surface.cjs',
+  'prisma-v7-esm-surface.cjs',
+];
+
 describe('security audit CLI diagnostic safety', () => {
   it.each(guardedEntrypoints)('%s routes top-level errors through the bounded diagnostic sanitizer', (filename) => {
     const source = fs.readFileSync(path.join(scriptsDir, filename), 'utf8');
@@ -19,6 +31,17 @@ describe('security audit CLI diagnostic safety', () => {
     expect(source).toContain('formatUpstreamProbeFailure(');
     expect(source).not.toContain('${error.message}');
   });
+
+  it.each(guardedAuxiliaryEntrypoints)(
+    '%s keeps direct stderr error diagnostics on the bounded formatter',
+    (filename) => {
+      const source = fs.readFileSync(path.join(scriptsDir, filename), 'utf8');
+
+      expect(source).toContain("require('./security-audit-upstream-diagnostic.js')");
+      expect(source).toContain('formatUpstreamProbeFailure(');
+      expect(source).not.toMatch(/process\.stderr\.write\(\s*`[^`]*\$\{error\.message\}[^`]*`\s*\)/);
+    },
+  );
 
   it('keeps npm view JSON parse failures away from arbitrary thrown-value coercion', () => {
     const source = fs.readFileSync(path.join(scriptsDir, 'security-audit-upstream.js'), 'utf8');
