@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 const COMMAND_EXTENSIONS = new Set([...SOURCE_EXTENSIONS, '.json', '.yml', '.yaml', '.sh']);
@@ -197,7 +198,7 @@ function main() {
   try {
     options = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid Prisma 7 removed-surface arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid Prisma 7 removed-surface arguments', error));
     process.exit(1);
   }
 
@@ -210,7 +211,7 @@ function main() {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
     }
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma 7 removed surfaces: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect Prisma 7 removed surfaces', error));
     process.exit(1);
   }
 }

@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 function parsePinnedNpmVersion(packageManager) {
   if (typeof packageManager !== 'string') {
@@ -67,7 +68,7 @@ function main() {
     const runtimeVersion = verifyNpmRuntime();
     process.stdout.write(`npm runtime version verified: ${runtimeVersion}\n`);
   } catch (error) {
-    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('npm version verification failed', error));
     process.exit(1);
   }
 }

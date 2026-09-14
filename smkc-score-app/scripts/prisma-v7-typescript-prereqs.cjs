@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const MIN_TYPESCRIPT_VERSION = Object.freeze([5, 4, 0]);
 const TYPESCRIPT_LOCKFILE_PATH = 'node_modules/typescript';
@@ -126,7 +127,7 @@ function main() {
   try {
     options = parseCliOptions();
   } catch (error) {
-    process.stderr.write(`Invalid Prisma 7 TypeScript prerequisite arguments: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Invalid Prisma 7 TypeScript prerequisite arguments', error));
     process.exit(1);
   }
 
@@ -145,7 +146,7 @@ function main() {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, output, 'utf8');
     }
   } catch (error) {
-    process.stderr.write(`Failed to inspect Prisma 7 TypeScript prerequisites: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to inspect Prisma 7 TypeScript prerequisites', error));
     process.exit(1);
   }
 }

@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const REVIEW_SCHEMA_VERSION = 1;
 const PROBE_TIMEOUT_MS = 30_000;
@@ -133,7 +134,7 @@ function main() {
     const evidence = collectPrismaV7ReviewEvidence();
     process.stdout.write(`${JSON.stringify(evidence)}\n`);
   } catch (error) {
-    process.stderr.write(`Failed to collect Prisma 7 review JSON evidence: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to collect Prisma 7 review JSON evidence', error));
     process.exit(1);
   }
 }

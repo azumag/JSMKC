@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { formatUpstreamProbeFailure } = require('./security-audit-upstream-diagnostic.js');
 
 const EXPECTED_LOCKFILE_VERSION = 3;
 const DEPENDENCY_SNAPSHOT_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
@@ -95,7 +96,7 @@ function main() {
   try {
     manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   } catch (error) {
-    process.stderr.write(`Failed to read package.json for security audit: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to read package.json for security audit', error));
     process.exit(1);
   }
 
@@ -103,7 +104,7 @@ function main() {
   try {
     lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   } catch (error) {
-    process.stderr.write(`Failed to read package-lock.json for security audit: ${error.message}\n`);
+    process.stderr.write(formatUpstreamProbeFailure('Failed to read package-lock.json for security audit', error));
     process.exit(1);
   }
 
