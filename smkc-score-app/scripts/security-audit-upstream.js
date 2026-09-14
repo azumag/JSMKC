@@ -11,12 +11,8 @@ const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
 const SEMVER_NUMERIC_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*)`;
 const SEMVER_PRERELEASE_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
 const SEMVER_VERSION_PATTERN = String.raw`${SEMVER_NUMERIC_IDENTIFIER_PATTERN}\.${SEMVER_NUMERIC_IDENTIFIER_PATTERN}\.${SEMVER_NUMERIC_IDENTIFIER_PATTERN}(?:-${SEMVER_PRERELEASE_IDENTIFIER_PATTERN}(?:\.${SEMVER_PRERELEASE_IDENTIFIER_PATTERN})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?`;
-const REGISTRY_SEMVER_SELECTOR_PATTERN = new RegExp(
-  String.raw`^(?:\^|~|>=|>|<=|<)?\s*${SEMVER_VERSION_PATTERN}$`,
-);
-const CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN = new RegExp(
-  String.raw`^(?:\^|~)?\s*${SEMVER_VERSION_PATTERN}$`,
-);
+const REGISTRY_SEMVER_SELECTOR_PATTERN = new RegExp(String.raw`^(?:\^|~|>=|>|<=|<)?\s*${SEMVER_VERSION_PATTERN}$`);
+const CURRENT_COMPATIBLE_PRISMA_SELECTOR_PATTERN = new RegExp(String.raw`^(?:\^|~)?\s*${SEMVER_VERSION_PATTERN}$`);
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   const unknownArguments = argv.filter((argument) => argument !== '--json');
