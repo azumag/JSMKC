@@ -33,14 +33,26 @@ function sanitizeUpstreamDiagnostic(value, maxLength = UPSTREAM_DIAGNOSTIC_MAX_L
   return `${visible.slice(0, maxLength - 3)}...`;
 }
 
+function getUpstreamDiagnosticMessage(error) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return '';
+}
+
 function formatUpstreamProbeFailure(prefix, error) {
-  const rawMessage = error instanceof Error ? error.message : String(error ?? '');
-  const message = sanitizeUpstreamDiagnostic(rawMessage);
+  const message = sanitizeUpstreamDiagnostic(getUpstreamDiagnosticMessage(error));
   return `${prefix}${message ? `: ${message}` : ''}\n`;
 }
 
 module.exports = {
   UPSTREAM_DIAGNOSTIC_MAX_LENGTH,
   formatUpstreamProbeFailure,
+  getUpstreamDiagnosticMessage,
   sanitizeUpstreamDiagnostic,
 };
