@@ -102,7 +102,8 @@ function parseNpmViewJson(stdout, label) {
   try {
     return JSON.parse(stdout);
   } catch (error) {
-    throw new Error(`npm view returned invalid JSON for ${label}: ${error.message}`);
+    const parserMessage = sanitizeNpmViewDiagnostic(error instanceof Error ? error.message : String(error));
+    throw new Error(`npm view returned invalid JSON for ${label}${parserMessage ? `: ${parserMessage}` : ''}`);
   }
 }
 
