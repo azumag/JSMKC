@@ -297,11 +297,12 @@ function isTopLevelSourceIndex(source, targetIndex) {
 }
 
 function findDefineConfigEvaluationIndex(source) {
-  const directNames = new Set(['defineConfig']);
+  const directNames = new Set();
   const namedImport = findNamedPrismaDefineConfigImport(source);
   const commonJsImport = findCommonJsPrismaDefineConfigImport(source);
   if (namedImport) directNames.add(namedImport);
   if (commonJsImport) directNames.add(commonJsImport);
+  if (directNames.size === 0) directNames.add('defineConfig');
 
   const patterns = [];
   for (const name of directNames) {
