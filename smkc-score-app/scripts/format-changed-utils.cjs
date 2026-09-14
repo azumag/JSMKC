@@ -52,11 +52,49 @@ function buildGitErrorMessage(context, error) {
   return detail ? `${context}\n${detail}` : context;
 }
 
+function normalizePrettierDiff(file, diffOutput) {
+  const lines = diffOutput.split(/\r?\n/);
+  const firstHunk = lines.findIndex((line) => line.startsWith('@@ '));
+  if (firstHunk === -1) return '';
+
+  const normalizedPath = file.replaceAll('\\', '/');
+  const hunkLines = lines.slice(firstHunk);
+  while (hunkLines.at(-1) === '') hunkLines.pop();
+
+  return [`--- a/${normalizedPath}`, `+++ b/${normalizedPath}`, ...hunkLines].join('\n');
+}
+
+function describeDiagnosticError(error) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error) return error;
+  return 'Unknown diagnostic error.';
+}
+
+function collectPrettierDiagnostics(changedFiles, formatFile, diffFile) {
+  const diagnostics = [];
+  const failures = [];
+
+  for (const file of changedFiles) {
+    try {
+      const formattedContent = formatFile(file);
+      const rawDiff = diffFile(file, formattedContent);
+      const diff = normalizePrettierDiff(file, rawDiff);
+      if (diff) diagnostics.push({ file, diff });
+    } catch (error) {
+      failures.push({ file, message: describeDiagnosticError(error) });
+    }
+  }
+
+  return { diagnostics, failures };
+}
+
 module.exports = {
   buildGitErrorMessage,
   collectChangedAppFiles,
+  collectPrettierDiagnostics,
   describeRequestedBase,
   findGitStderr,
+  normalizePrettierDiff,
   resolveBaseRevision,
   resolveComparisonBase,
 };

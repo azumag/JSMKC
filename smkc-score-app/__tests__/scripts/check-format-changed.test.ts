@@ -1,8 +1,10 @@
 import {
   buildGitErrorMessage,
   collectChangedAppFiles,
+  collectPrettierDiagnostics,
   describeRequestedBase,
   findGitStderr,
+  normalizePrettierDiff,
   resolveBaseRevision,
   resolveComparisonBase,
 } from '../../scripts/format-changed-utils.cjs';
@@ -99,5 +101,67 @@ describe('format-changed utilities', () => {
     expect(buildGitErrorMessage('Unable to list untracked files.', new Error('failure'))).toBe(
       'Unable to list untracked files.',
     );
+  });
+
+  describe('Prettier failure diagnostics', () => {
+    it('normalizes git no-index output to the repository-relative changed file', () => {
+      const rawDiff = [
+        'diff --git a/src/example.ts b/-',
+        'index 1234567..0000000 100644',
+        '--- a/src/example.ts',
+        '+++ b/-',
+        '@@ -1 +1 @@',
+        '-const value={answer:42}',
+        '+const value = { answer: 42 };',
+        '',
+      ].join('\n');
+
+      expect(normalizePrettierDiff('src/example.ts', rawDiff)).toBe(
+        [
+          '--- a/src/example.ts',
+          '+++ b/src/example.ts',
+          '@@ -1 +1 @@',
+          '-const value={answer:42}',
+          '+const value = { answer: 42 };',
+        ].join('\n'),
+      );
+    });
+
+    it('collects concrete diffs for multiple files and preserves paths with spaces', () => {
+      const formatFile = jest.fn((file: string) => `formatted:${file}\n`);
+      const diffFile = jest.fn((file: string, formattedContent: string) =>
+        [
+          `diff --git a/${file} b/-`,
+          `--- a/${file}`,
+          '+++ b/-',
+          '@@ -1 +1 @@',
+          '-before',
+          `+${formattedContent.trimEnd()}`,
+        ].join('\n'),
+      );
+
+      const result = collectPrettierDiagnostics(['src/a file.ts', 'src/b.ts'], formatFile, diffFile);
+
+      expect(formatFile).toHaveBeenNthCalledWith(1, 'src/a file.ts');
+      expect(diffFile).toHaveBeenNthCalledWith(1, 'src/a file.ts', 'formatted:src/a file.ts\n');
+      expect(result.diagnostics.map(({ file }: { file: string }) => file)).toEqual(['src/a file.ts', 'src/b.ts']);
+      expect(result.failures).toEqual([]);
+    });
+
+    it('keeps diagnostic generation failures isolated from other changed files', () => {
+      const formatFile = jest.fn((file: string) => {
+        if (file === 'src/bad.ts') throw new Error('parser failed');
+        return 'const ok = true;\n';
+      });
+      const diffFile = jest.fn(() =>
+        ['diff --git a/src/good.ts b/-', '--- a/src/good.ts', '+++ b/-', '@@ -1 +1 @@', '-bad', '+good'].join('\n'),
+      );
+
+      const result = collectPrettierDiagnostics(['src/bad.ts', 'src/good.ts'], formatFile, diffFile);
+
+      expect(result.failures).toEqual([{ file: 'src/bad.ts', message: 'parser failed' }]);
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].file).toBe('src/good.ts');
+    });
   });
 });

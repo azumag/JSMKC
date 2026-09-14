@@ -6,6 +6,7 @@ import formatChangedUtils from './format-changed-utils.cjs';
 const {
   buildGitErrorMessage,
   collectChangedAppFiles,
+  collectPrettierDiagnostics,
   describeRequestedBase,
   resolveBaseRevision,
   resolveComparisonBase,
@@ -14,6 +15,7 @@ const {
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const repositoryRoot = path.resolve(appRoot, '..');
 const appPrefix = `${path.basename(appRoot)}/`;
+const diagnosticMaxBuffer = 16 * 1024 * 1024;
 
 function git(args) {
   return execFileSync('git', args, {
@@ -21,6 +23,58 @@ function git(args) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
+}
+
+function formatFileForDiagnostic(prettierExecutable, file) {
+  const result = spawnSync(prettierExecutable, [file], {
+    cwd: appRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: diagnosticMaxBuffer,
+  });
+
+  if (result.error) throw result.error;
+  if ((result.status ?? 1) !== 0) {
+    const detail = result.stderr?.trim();
+    throw new Error(detail || `Prettier diagnostic exited with status ${result.status ?? 'unknown'}.`);
+  }
+  return result.stdout ?? '';
+}
+
+function diffFormattedFile(file, formattedContent) {
+  const result = spawnSync('git', ['diff', '--no-index', '--no-ext-diff', '--no-color', '--text', '--', file, '-'], {
+    cwd: appRoot,
+    encoding: 'utf8',
+    input: formattedContent,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    maxBuffer: diagnosticMaxBuffer,
+  });
+
+  if (result.error) throw result.error;
+  if (result.status === 0) return '';
+  if (result.status === 1) return result.stdout ?? '';
+
+  const detail = result.stderr?.trim();
+  throw new Error(detail || `git diff diagnostic exited with status ${result.status ?? 'unknown'}.`);
+}
+
+function reportPrettierDiagnostics(changedFiles, prettierExecutable) {
+  const { diagnostics, failures } = collectPrettierDiagnostics(
+    changedFiles,
+    (file) => formatFileForDiagnostic(prettierExecutable, file),
+    diffFormattedFile,
+  );
+
+  if (diagnostics.length > 0) {
+    console.error('\nPrettier suggested changes:');
+    for (const diagnostic of diagnostics) {
+      console.error(`\n${diagnostic.file}\n${diagnostic.diff}`);
+    }
+  }
+
+  for (const failure of failures) {
+    console.error(`\nUnable to generate Prettier diagnostic for ${failure.file}: ${failure.message}`);
+  }
 }
 
 function main() {
@@ -94,7 +148,9 @@ function main() {
   });
 
   if (result.error) throw result.error;
-  return result.status ?? 1;
+  const status = result.status ?? 1;
+  if (status !== 0) reportPrettierDiagnostics(changedFiles, prettierExecutable);
+  return status;
 }
 
 try {
