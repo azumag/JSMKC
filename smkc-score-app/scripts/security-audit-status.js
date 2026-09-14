@@ -24,8 +24,14 @@ const TRACKED_DEPENDENCY_PATHS = {
 const SAFE_VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/;
 const SAFE_REQUIREMENT_PATTERN = /^[ -~]{1,200}$/;
 const SAFE_GITHUB_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
-const COMPARABLE_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
-const SIMPLE_REQUIREMENT_PATTERN = /^(?:\^|~|>=)?\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/;
+const SEMVER_CORE_IDENTIFIER = String.raw`(?:0|[1-9]\d*)`;
+const SEMVER_PRERELEASE_IDENTIFIER = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const SEMVER_BUILD_IDENTIFIER = String.raw`[0-9A-Za-z-]+`;
+const COMPLETE_SEMVER_SOURCE = String.raw`${SEMVER_CORE_IDENTIFIER}\.${SEMVER_CORE_IDENTIFIER}\.${SEMVER_CORE_IDENTIFIER}(?:-${SEMVER_PRERELEASE_IDENTIFIER}(?:\.${SEMVER_PRERELEASE_IDENTIFIER})*)?(?:\+${SEMVER_BUILD_IDENTIFIER}(?:\.${SEMVER_BUILD_IDENTIFIER})*)?`;
+const COMPARABLE_SEMVER_PATTERN = new RegExp(
+  String.raw`^(${SEMVER_CORE_IDENTIFIER})\.(${SEMVER_CORE_IDENTIFIER})\.(${SEMVER_CORE_IDENTIFIER})(?:-(${SEMVER_PRERELEASE_IDENTIFIER}(?:\.${SEMVER_PRERELEASE_IDENTIFIER})*))?(?:\+${SEMVER_BUILD_IDENTIFIER}(?:\.${SEMVER_BUILD_IDENTIFIER})*)?$`,
+);
+const SIMPLE_REQUIREMENT_PATTERN = new RegExp(String.raw`^(?:\^|~|>=)?\s*(${COMPLETE_SEMVER_SOURCE})$`);
 const PATCHED_DEEPMERGE_VERSION = Object.freeze({ major: 8, minor: 0, patch: 0 });
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
