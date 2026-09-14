@@ -8,12 +8,12 @@ import {
 } from '../../scripts/security-audit-upstream-diagnostic.js';
 
 describe('Prisma upstream probe diagnostic safety', () => {
-  it('escapes control characters, line separators, and Unicode bidi controls while preserving ordinary Unicode', () => {
+  it('escapes C0/C1 controls, line separators, and Unicode bidi controls while preserving ordinary Unicode', () => {
     const diagnostic =
-      'first\nsecond\t\u001b[31mred\u007f\u061c\u200e\u200f\u2028\u2029\u202a\u202e\u2066\u2069 日本語';
+      'first\nsecond\t\u001b[31mred\u007f\u0080\u009b\u009f\u061c\u200e\u200f\u2028\u2029\u202a\u202e\u2066\u2069 日本語';
 
     expect(sanitizeUpstreamDiagnostic(diagnostic)).toBe(
-      'first\\nsecond\\t\\x1b[31mred\\x7f\\u061c\\u200e\\u200f\\u2028\\u2029\\u202a\\u202e\\u2066\\u2069 日本語',
+      'first\\nsecond\\t\\x1b[31mred\\x7f\\u0080\\u009b\\u009f\\u061c\\u200e\\u200f\\u2028\\u2029\\u202a\\u202e\\u2066\\u2069 日本語',
     );
   });
 
@@ -31,14 +31,14 @@ describe('Prisma upstream probe diagnostic safety', () => {
   });
 
   it('formats malformed JSON and transport-style failures as one bounded stderr line', () => {
-    const malformedJson = new Error('upstream issue response was not valid JSON: Unexpected token\n\u202ehidden');
+    const malformedJson = new Error('upstream issue response was not valid JSON: Unexpected token\n\u009b31m\u202ehidden');
     const formatted = formatUpstreamProbeFailure(
       'Failed to fetch consistent Prisma upstream issue evidence',
       malformedJson,
     );
 
     expect(formatted).toBe(
-      'Failed to fetch consistent Prisma upstream issue evidence: upstream issue response was not valid JSON: Unexpected token\\n\\u202ehidden\n',
+      'Failed to fetch consistent Prisma upstream issue evidence: upstream issue response was not valid JSON: Unexpected token\\n\\u009b31m\\u202ehidden\n',
     );
     expect(formatted.split('\n')).toHaveLength(2);
   });
