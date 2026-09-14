@@ -8,7 +8,7 @@ Issue #3114 の current-compatible / next-major Prisma remediation probe は、c
 
 - C0 control characters (`U+0000`〜`U+001F`) と DEL (`U+007F`) は `\\n`、`\\r`、`\\t`、`\\xNN` のような可視表現へ escape する。
 - JavaScript の line separator / paragraph separator (`U+2028` / `U+2029`) も可視な `\\u2028` / `\\u2029` として残す。
-- Unicode bidi formatting controls (`U+202A`〜`U+202E`) と bidi isolate controls (`U+2066`〜`U+2069`) は `\\uXXXX` へ escape し、外部診断が CI log の表示順を見かけ上入れ替えることを防ぐ。通常の日本語などの Unicode 文字はそのまま保持する。
+- Unicode の `Bidi_Control` に含まれる Arabic Letter Mark (`U+061C`)、Left-to-Right / Right-to-Left Mark (`U+200E` / `U+200F`)、bidi formatting controls (`U+202A`〜`U+202E`)、bidi isolate controls (`U+2066`〜`U+2069`) は `\\uXXXX` へ escape し、外部診断が CI log の表示順を見かけ上入れ替えることを防ぐ。通常の日本語などの Unicode 文字はそのまま保持する。
 - `spawnSync` 自体の `error.message`、non-zero exit 時の `stderr`、`JSON.parse()` が返す parser error message のすべてへ同じ処理を適用する。
 - 可視化後の診断本文は 500 characters を上限とし、超過分は `...` で切り詰める。
 - selector / field をエラー文の label に使う場合も同じ single-line 化を通す。
