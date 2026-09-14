@@ -107,6 +107,7 @@ describe('scripts/prisma-generate', () => {
       expect(extractPrismaMajor('~7.10.0')).toBe(7);
       expect(extractPrismaMajor('7.10.0')).toBe(7);
       expect(extractPrismaMajor('^6.19.3-rc.1+build.5')).toBe(6);
+      expect(extractPrismaMajor('^6.19.3-1a.01a+build.5')).toBe(6);
     });
 
     it('rejects incomplete, malformed, range, workspace, and protocol selectors', () => {
@@ -118,6 +119,7 @@ describe('scripts/prisma-generate', () => {
         '^06.19.3',
         '^6.01.3',
         '^6.19.03',
+        '^6.19.3-01',
         '>=6.19.3',
         '6.19.3 || 7.0.0',
         'workspace:*',
