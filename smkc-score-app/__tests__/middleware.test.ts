@@ -219,12 +219,8 @@ describe('middleware — ヘッダー付与', () => {
     await middleware(req);
 
     // Response headers set via addSecurityHeaders on the MockNextResponse
-    const xFrameCall = mockResponseHeaderSet.mock.calls.find(
-      ([k]: [string]) => k === 'X-Frame-Options',
-    );
-    const cspCall = mockResponseHeaderSet.mock.calls.find(
-      ([k]: [string]) => k === 'Content-Security-Policy',
-    );
+    const xFrameCall = mockResponseHeaderSet.mock.calls.find(([k]: [string]) => k === 'X-Frame-Options');
+    const cspCall = mockResponseHeaderSet.mock.calls.find(([k]: [string]) => k === 'Content-Security-Policy');
     expect(xFrameCall?.[1]).toBe('DENY');
     expect(cspCall).toBeDefined();
   });
