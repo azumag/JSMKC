@@ -22,12 +22,10 @@ interface WorkflowDocument {
 const workflowDirectory = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows');
 
 function workflowActions(workflowName: string): string[] {
-  const workflow = parse(
-    fs.readFileSync(path.join(workflowDirectory, workflowName), 'utf8')
-  ) as WorkflowDocument;
+  const workflow = parse(fs.readFileSync(path.join(workflowDirectory, workflowName), 'utf8')) as WorkflowDocument;
 
   return Object.values(workflow.jobs ?? {}).flatMap((job) =>
-    (job.steps ?? []).flatMap((step) => (step.uses ? [step.uses] : []))
+    (job.steps ?? []).flatMap((step) => (step.uses ? [step.uses] : [])),
   );
 }
 
@@ -43,10 +41,7 @@ describe('non-production workflow action pins', () => {
     ],
     [
       'claude-code-review.yml',
-      [
-        `actions/checkout@${REVIEWED_CHECKOUT_V5_SHA}`,
-        `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`,
-      ],
+      [`actions/checkout@${REVIEWED_CHECKOUT_V5_SHA}`, `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`],
     ],
     [
       'e2e-nightly.yml',
