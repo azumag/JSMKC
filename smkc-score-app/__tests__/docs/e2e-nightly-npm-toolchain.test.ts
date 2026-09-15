@@ -22,15 +22,7 @@ interface PackageManifest {
 }
 
 describe('nightly E2E npm toolchain', () => {
-  const workflowPath = path.resolve(
-    __dirname,
-    '..',
-    '..',
-    '..',
-    '.github',
-    'workflows',
-    'e2e-nightly.yml',
-  );
+  const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'e2e-nightly.yml');
   const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
 
   it('pins packageManager npm before npm ci and skips Husky hooks', () => {
@@ -56,8 +48,6 @@ describe('nightly E2E npm toolchain', () => {
     expect(installStep?.run?.trim()).toBe('npm ci');
     expect(installStep?.env?.HUSKY).toBe('0');
 
-    expect(steps?.indexOf(pinStep as WorkflowStep)).toBeLessThan(
-      steps?.indexOf(installStep as WorkflowStep) ?? -1,
-    );
+    expect(steps?.indexOf(pinStep as WorkflowStep)).toBeLessThan(steps?.indexOf(installStep as WorkflowStep) ?? -1);
   });
 });
