@@ -21,6 +21,12 @@
  * Tests use fake timers and Date.now() spies to control time progression.
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
+
+// jest.setup.cjs mocks these modules globally for route tests. This suite is
+// specifically the implementation test, so opt back into the real modules.
+jest.unmock('@/lib/rate-limit');
+jest.unmock('@/lib/request-utils');
+
 import {
   rateLimit,
   checkRateLimit,
