@@ -4,6 +4,8 @@ import { parse } from 'yaml';
 
 const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'e2e-nightly.yml');
 const workflowText = fs.readFileSync(workflowPath, 'utf8');
+const gitignorePath = path.resolve(__dirname, '..', '..', '..', '.gitignore');
+const gitignoreLines = fs.readFileSync(gitignorePath, 'utf8').split(/\r?\n/);
 
 interface WorkflowStep {
   name?: string;
@@ -91,6 +93,12 @@ describe('nightly E2E prerequisites and diagnostics', () => {
       `node -e "process.stdout.write(require('fs').readFileSync('profile.tar.gz').toString('base64'))" > profile.base64`,
     );
     expect(workflowText).toContain('Remove both temporary files after updating the secret');
+  });
+
+  it('ignores credential-bearing profile artifacts if they are created inside the repository', () => {
+    for (const secretArtifact of ['profile.tar.gz', 'profile.base64', 'playwright-smkc-preview-profile/']) {
+      expect(gitignoreLines).toContain(secretArtifact);
+    }
   });
 
   it('expires console logs after 14 days', () => {

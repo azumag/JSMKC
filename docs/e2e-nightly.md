@@ -33,7 +33,9 @@ Both `profile.tar.gz` and `profile.base64` contain credential-bearing session ma
 rm -f /tmp/profile.tar.gz /tmp/profile.base64
 ```
 
-Do not commit either file to the repository or attach it to an issue, pull request, or ordinary Actions artifact.
+The repository `.gitignore` also excludes `profile.tar.gz`, `profile.base64`, and `playwright-smkc-preview-profile/` as defense in depth if they are accidentally created inside the working tree. Ignore rules are not credential storage or retention controls: still delete the artifacts after updating the secret.
+
+Do not commit either file or the persistent profile directory to the repository, and do not attach them to an issue, pull request, or ordinary Actions artifact.
 
 ## Playwright browser cache
 
