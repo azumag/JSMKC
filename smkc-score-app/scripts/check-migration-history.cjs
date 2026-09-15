@@ -33,16 +33,7 @@ function readDiff() {
 
   const result = spawnSync(
     'git',
-    [
-      'diff',
-      '--name-status',
-      '--find-renames',
-      baseSha,
-      headSha,
-      '--',
-      'prisma/migrations',
-      'migrations',
-    ],
+    ['diff', '--name-status', '--find-renames', baseSha, headSha, '--', 'prisma/migrations', 'migrations'],
     { encoding: 'utf8' },
   );
 
