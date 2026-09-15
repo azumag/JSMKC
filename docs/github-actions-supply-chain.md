@@ -18,6 +18,8 @@ The regular CI, PR review compatibility workflow, and nightly E2E workflow are a
 - `actions/cache` v5: `caa296126883cff596d87d8935842f9db880ef25` (nightly E2E only)
 - `actions/upload-artifact` v6: `b7c566a772e6b6bfb58ed0dc250532a479d7789f` (nightly E2E only)
 
-`smkc-score-app/__tests__/docs/nonproduction-workflow-action-pins.test.ts` enumerates every `uses:` entry in those three workflows, so introducing a new action or reverting to a mutable tag requires an explicit reviewed test update.
+These validation workflows do not need authenticated Git operations after checkout, so every `actions/checkout` step uses `persist-credentials: false`. This avoids leaving `GITHUB_TOKEN` in the repository Git config for the rest of the job. If a future step needs a GitHub API or repository mutation, pass the minimum-permission token explicitly to that step instead of re-enabling checkout credential persistence for the whole job.
+
+`smkc-score-app/__tests__/docs/nonproduction-workflow-action-pins.test.ts` enumerates every `uses:` entry in those three workflows, so introducing a new action or reverting to a mutable tag requires an explicit reviewed test update. The same test also requires every checkout step in scope to keep `persist-credentials: false`.
 
 The security-audit review workflow has its own stricter action-pinning tests because that workflow is part of the dependency-audit evidence path. `.github/workflows/d1-migrate.yml` is intentionally excluded from routine pinning changes: changing that file itself matches its production `push.paths` trigger and can run the remote D1 migration job after merge. Update it only in a production-aware maintenance change where pending migrations and execution evidence can be checked.
