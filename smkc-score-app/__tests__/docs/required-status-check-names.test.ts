@@ -25,9 +25,7 @@ describe('required status check names', () => {
     expect(compatibility.jobs?.['lint-and-test']?.name).toBe('PR Compatibility Lint & Test');
 
     const ciNames = Object.values(ci.jobs ?? {}).flatMap((job) => (job.name ? [job.name] : []));
-    const compatibilityNames = Object.values(compatibility.jobs ?? {}).flatMap((job) =>
-      job.name ? [job.name] : [],
-    );
+    const compatibilityNames = Object.values(compatibility.jobs ?? {}).flatMap((job) => (job.name ? [job.name] : []));
 
     expect(ciNames).toContain('Lint & Test');
     expect(ciNames).toContain('Prisma / D1 migration parity');
