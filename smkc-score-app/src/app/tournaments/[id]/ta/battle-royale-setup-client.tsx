@@ -135,6 +135,9 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to start TA battle royale');
       }
+      // A hard reload is intentional here: the POST creates tournament finals state, and the
+      // destination must bootstrap from fresh server state rather than a prefetched App Router tree.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign(`/tournaments/${tournamentId}/ta/finals`);
     } catch (startError) {
       const message = startError instanceof Error ? startError.message : tc('networkError');

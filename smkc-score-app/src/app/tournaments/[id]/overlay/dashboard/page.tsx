@@ -17,19 +17,20 @@
  * broadcast token).
  */
 
-"use client";
+/* eslint-disable @next/next/no-img-element -- OBS overlay uses a local static no-camera asset at exact broadcast-scene pixels; keep direct loading to avoid image-optimizer transformations and provider usage/cost. */
+'use client';
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
-import { DashboardFooter } from "@/components/overlay/dashboard-footer";
-import { DashboardProgressBar } from "@/components/overlay/dashboard-progress-bar";
-import { DashboardTimeline } from "@/components/overlay/dashboard-timeline";
-import type { OverlayEvent, OverlayEventsResponse } from "@/lib/overlay/types";
+import { use, useCallback, useEffect, useRef, useState } from 'react';
+import { DashboardFooter } from '@/components/overlay/dashboard-footer';
+import { DashboardProgressBar } from '@/components/overlay/dashboard-progress-bar';
+import { DashboardTimeline } from '@/components/overlay/dashboard-timeline';
+import type { OverlayEvent, OverlayEventsResponse } from '@/lib/overlay/types';
 import {
   DEFAULT_OVERLAY_BROADCAST_LAYOUT,
   normalizeOverlayBroadcastLayout,
   type OverlayBroadcastLayout,
-} from "@/lib/overlay/layout";
-import { POLLING_INTERVAL } from "@/lib/constants";
+} from '@/lib/overlay/layout';
+import { POLLING_INTERVAL } from '@/lib/constants';
 
 /** Cap matches the server-side INITIAL_BACKFILL_LIMIT — keeps the column tight. */
 const MAX_EVENTS = 100;
@@ -39,23 +40,19 @@ interface ApiEnvelope<T> {
   data?: T;
 }
 
-export default function DashboardPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function DashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
 
   const [events, setEvents] = useState<OverlayEvent[]>([]);
   /* IDs of events that arrived in the latest poll — used for slide-in animation (#646).
      Cleared after 500ms so the animation CSS class is no longer needed. */
   const [newEventIds, setNewEventIds] = useState<ReadonlySet<string>>(new Set());
-  const [currentPhase, setCurrentPhase] = useState<string>("");
+  const [currentPhase, setCurrentPhase] = useState<string>('');
   const [currentPhaseFormat, setCurrentPhaseFormat] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
   /* Broadcast player names from "配信に反映" / 配信管理 page */
-  const [overlayPlayer1Name, setOverlayPlayer1Name] = useState<string>("");
-  const [overlayPlayer2Name, setOverlayPlayer2Name] = useState<string>("");
+  const [overlayPlayer1Name, setOverlayPlayer1Name] = useState<string>('');
+  const [overlayPlayer2Name, setOverlayPlayer2Name] = useState<string>('');
   const [overlayPlayer1NoCamera, setOverlayPlayer1NoCamera] = useState(false);
   const [overlayPlayer2NoCamera, setOverlayPlayer2NoCamera] = useState(false);
   /* Match info set by "配信に反映" for footer label and score display (#644/#645/#649) */
@@ -63,9 +60,7 @@ export default function DashboardPage({
   const [overlayPlayer1Wins, setOverlayPlayer1Wins] = useState<number | null>(null);
   const [overlayPlayer2Wins, setOverlayPlayer2Wins] = useState<number | null>(null);
   const [overlayMatchFt, setOverlayMatchFt] = useState<number | null>(null);
-  const [overlayLayout, setOverlayLayout] = useState<OverlayBroadcastLayout>(
-    DEFAULT_OVERLAY_BROADCAST_LAYOUT,
-  );
+  const [overlayLayout, setOverlayLayout] = useState<OverlayBroadcastLayout>(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
 
   /* `since` advances each poll. First call uses `?initial=1` (no since)
      to backfill recent history; subsequent calls echo back `serverTime`. */
@@ -85,19 +80,16 @@ export default function DashboardPage({
 
   const poll = useCallback(async () => {
     try {
-      const url = new URL(
-        `/api/tournaments/${encodeURIComponent(id)}/overlay-events`,
-        window.location.origin,
-      );
+      const url = new URL(`/api/tournaments/${encodeURIComponent(id)}/overlay-events`, window.location.origin);
       const isFirst = sinceRef.current === null;
       if (isFirst) {
-        url.searchParams.set("initial", "1");
+        url.searchParams.set('initial', '1');
       } else {
-        url.searchParams.set("since", sinceRef.current!);
+        url.searchParams.set('since', sinceRef.current!);
       }
       const res = await fetch(url.toString(), {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
       });
       if (!res.ok) return;
       const json = (await res.json()) as ApiEnvelope<OverlayEventsResponse>;
@@ -107,17 +99,17 @@ export default function DashboardPage({
       sinceRef.current = payload.serverTime;
       if (payload.currentPhase) setCurrentPhase(payload.currentPhase);
       /* currentPhaseFormat may be null (no FT for this phase) — always update */
-      if ("currentPhaseFormat" in payload) setCurrentPhaseFormat(payload.currentPhaseFormat ?? null);
+      if ('currentPhaseFormat' in payload) setCurrentPhaseFormat(payload.currentPhaseFormat ?? null);
       /* Broadcast names and match info — always update (may change between polls) */
       if (payload.overlayPlayer1Name !== undefined) setOverlayPlayer1Name(payload.overlayPlayer1Name);
       if (payload.overlayPlayer2Name !== undefined) setOverlayPlayer2Name(payload.overlayPlayer2Name);
-      if ("overlayPlayer1NoCamera" in payload) setOverlayPlayer1NoCamera(payload.overlayPlayer1NoCamera === true);
-      if ("overlayPlayer2NoCamera" in payload) setOverlayPlayer2NoCamera(payload.overlayPlayer2NoCamera === true);
-      if ("overlayMatchLabel" in payload) setOverlayMatchLabel(payload.overlayMatchLabel ?? null);
-      if ("overlayPlayer1Wins" in payload) setOverlayPlayer1Wins(payload.overlayPlayer1Wins ?? null);
-      if ("overlayPlayer2Wins" in payload) setOverlayPlayer2Wins(payload.overlayPlayer2Wins ?? null);
-      if ("overlayMatchFt" in payload) setOverlayMatchFt(payload.overlayMatchFt ?? null);
-      if ("overlayLayout" in payload) setOverlayLayout(normalizeOverlayBroadcastLayout(payload.overlayLayout));
+      if ('overlayPlayer1NoCamera' in payload) setOverlayPlayer1NoCamera(payload.overlayPlayer1NoCamera === true);
+      if ('overlayPlayer2NoCamera' in payload) setOverlayPlayer2NoCamera(payload.overlayPlayer2NoCamera === true);
+      if ('overlayMatchLabel' in payload) setOverlayMatchLabel(payload.overlayMatchLabel ?? null);
+      if ('overlayPlayer1Wins' in payload) setOverlayPlayer1Wins(payload.overlayPlayer1Wins ?? null);
+      if ('overlayPlayer2Wins' in payload) setOverlayPlayer2Wins(payload.overlayPlayer2Wins ?? null);
+      if ('overlayMatchFt' in payload) setOverlayMatchFt(payload.overlayMatchFt ?? null);
+      if ('overlayLayout' in payload) setOverlayLayout(normalizeOverlayBroadcastLayout(payload.overlayLayout));
 
       const fresh = payload.events.filter((e) => {
         if (seenRef.current.has(e.id)) return false;
@@ -157,11 +149,7 @@ export default function DashboardPage({
   }, [poll]);
 
   return (
-    <div
-      className="relative h-screen w-screen"
-      style={{ background: "transparent" }}
-      data-testid="dashboard-root"
-    >
+    <div className="relative h-screen w-screen" style={{ background: 'transparent' }} data-testid="dashboard-root">
       {/* Right-edge dashboard panel: progress bar at the top + scrolling
           event timeline below. Anchored at (1525, 166) per the broadcast
           scene's reserved slot, sized 380×746. paddingRight pulls both
@@ -202,12 +190,18 @@ export default function DashboardPage({
       {overlayPlayer1Name && (
         <div
           className="pointer-events-none fixed flex items-center justify-center"
-          style={{ left: overlayLayout.player1Name.x, top: overlayLayout.player1Name.y, width: 230, height: 28, overflow: "hidden" }}
+          style={{
+            left: overlayLayout.player1Name.x,
+            top: overlayLayout.player1Name.y,
+            width: 230,
+            height: 28,
+            overflow: 'hidden',
+          }}
           data-testid="overlay-p1-name"
         >
           <span
             className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
-            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
+            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)' }}
           >
             {overlayPlayer1Name}
           </span>
@@ -217,16 +211,20 @@ export default function DashboardPage({
       {overlayPlayer1Wins !== null && (
         <div
           className="pointer-events-none fixed flex items-center justify-center"
-          style={{ left: overlayLayout.player1Score.x, top: overlayLayout.player1Score.y, width: 230, height: 24, overflow: "hidden" }}
+          style={{
+            left: overlayLayout.player1Score.x,
+            top: overlayLayout.player1Score.y,
+            width: 230,
+            height: 24,
+            overflow: 'hidden',
+          }}
           data-testid="overlay-p1-score"
         >
           <span
             className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
-            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
           >
-            {overlayMatchFt !== null
-              ? `${overlayPlayer1Wins} / ${overlayMatchFt}`
-              : `${overlayPlayer1Wins}`}
+            {overlayMatchFt !== null ? `${overlayPlayer1Wins} / ${overlayMatchFt}` : `${overlayPlayer1Wins}`}
           </span>
         </div>
       )}
@@ -246,12 +244,18 @@ export default function DashboardPage({
       {overlayPlayer2Name && (
         <div
           className="pointer-events-none fixed flex items-center justify-center"
-          style={{ left: overlayLayout.player2Name.x, top: overlayLayout.player2Name.y, width: 230, height: 28, overflow: "hidden" }}
+          style={{
+            left: overlayLayout.player2Name.x,
+            top: overlayLayout.player2Name.y,
+            width: 230,
+            height: 28,
+            overflow: 'hidden',
+          }}
           data-testid="overlay-p2-name"
         >
           <span
             className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
-            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
+            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)' }}
           >
             {overlayPlayer2Name}
           </span>
@@ -261,16 +265,20 @@ export default function DashboardPage({
       {overlayPlayer2Wins !== null && (
         <div
           className="pointer-events-none fixed flex items-center justify-center"
-          style={{ left: overlayLayout.player2Score.x, top: overlayLayout.player2Score.y, width: 230, height: 24, overflow: "hidden" }}
+          style={{
+            left: overlayLayout.player2Score.x,
+            top: overlayLayout.player2Score.y,
+            width: 230,
+            height: 24,
+            overflow: 'hidden',
+          }}
           data-testid="overlay-p2-score"
         >
           <span
             className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
-            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
           >
-            {overlayMatchFt !== null
-              ? `${overlayPlayer2Wins} / ${overlayMatchFt}`
-              : `${overlayPlayer2Wins}`}
+            {overlayMatchFt !== null ? `${overlayPlayer2Wins} / ${overlayMatchFt}` : `${overlayPlayer2Wins}`}
           </span>
         </div>
       )}
