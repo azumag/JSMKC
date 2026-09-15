@@ -47,14 +47,24 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(preflight.run).not.toContain('echo "${PROFILE_ARCHIVE}"');
   });
 
-  it('keeps the restored profile secret out of diagnostics and expires console logs after 14 days', () => {
+  it('keeps the authenticated profile owner-only and removes its temporary archive on exit', () => {
     const steps = loadWorkflow().jobs?.e2e?.steps ?? [];
     const restoreProfile = steps.find((step) => step.name === 'Restore admin browser profile');
-    const uploadLog = steps.find((step) => step.name === 'Upload E2E console log');
+    const restoreScript = restoreProfile?.run ?? '';
 
     expect(restoreProfile?.env?.PROFILE_ARCHIVE).toBe('${{ secrets.E2E_PROFILE_ARCHIVE }}');
-    expect(restoreProfile?.run).toContain('base64 -d > /tmp/profile.tar.gz');
-    expect(restoreProfile?.run).not.toContain('E2E_PROFILE_ARCHIVE is not set');
+    expect(restoreScript).toContain('umask 077');
+    expect(restoreScript).toContain('ARCHIVE_PATH="/tmp/e2e-profile-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"');
+    expect(restoreScript).toContain('trap cleanup_profile_archive EXIT');
+    expect(restoreScript).toContain('rm -f "${ARCHIVE_PATH}"');
+    expect(restoreScript).toContain("printf '%s' \"${PROFILE_ARCHIVE}\" | base64 -d > \"${ARCHIVE_PATH}\"");
+    expect(restoreScript).toContain('chmod -R go-rwx "${E2E_PROFILE_DIR}"');
+    expect(restoreScript).not.toContain('echo "${PROFILE_ARCHIVE}"');
+  });
+
+  it('expires console logs after 14 days', () => {
+    const steps = loadWorkflow().jobs?.e2e?.steps ?? [];
+    const uploadLog = steps.find((step) => step.name === 'Upload E2E console log');
 
     expect(uploadLog?.uses).toMatch(/^actions\/upload-artifact@[0-9a-f]{40}$/);
     expect(uploadLog?.with?.['if-no-files-found']).toBe('ignore');
