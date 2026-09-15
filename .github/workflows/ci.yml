@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - "smkc-score-app/**"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "smkc-score-app/**"
+      - ".github/workflows/**"
 
 permissions:
   contents: read
