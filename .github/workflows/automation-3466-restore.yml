@@ -1,0 +1,46 @@
+name: Automation 3466 restore qualification index
+
+on:
+  push:
+    branches:
+      - automation/3460-unused-cleanup-20260915
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: automation/3460-unused-cleanup-20260915
+      - name: Restore required match sequence index
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('smkc-score-app/src/lib/api-factories/qualification-route.ts')
+          text = p.read_text()
+          anchor = '''      /*
+       * Collect all match payloads in memory, then bulk-insert with a single
+'''
+          replacement = '''      // matchSequenceIndex tracks the overall real-match number across all groups
+      // for consistent GP cup assignment from the shared list.
+      let matchSequenceIndex = 0;
+      /*
+       * Collect all match payloads in memory, then bulk-insert with a single
+'''
+          count = text.count(anchor)
+          if count != 1:
+              raise SystemExit(f'expected one qualification anchor, found {count}')
+          p.write_text(text.replace(anchor, replacement))
+          PY
+      - name: Remove temporary workflow and commit restore
+        run: |
+          git rm .github/workflows/automation-3466-restore.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add smkc-score-app/src/lib/api-factories/qualification-route.ts
+          git diff --cached --check
+          git commit -m "fix: restore qualification match sequence index"
+          git push origin HEAD:automation/3460-unused-cleanup-20260915
