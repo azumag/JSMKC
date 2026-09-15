@@ -38,6 +38,7 @@ describe('non-production workflow action pins', () => {
       'ci.yml',
       [
         `actions/checkout@${REVIEWED_CHECKOUT_V5_SHA}`,
+        `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`,
         `actions/checkout@${REVIEWED_CHECKOUT_V5_SHA}`,
         `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`,
       ],
