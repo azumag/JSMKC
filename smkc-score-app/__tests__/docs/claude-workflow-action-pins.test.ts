@@ -8,6 +8,7 @@ const REVIEWED_CLAUDE_CODE_ACTION_V1_SHA = 'bf38e86e58df9ebf3420326d019f955bb3be
 interface WorkflowStep {
   name?: string;
   uses?: string;
+  with?: Record<string, unknown>;
 }
 
 interface WorkflowJob {
@@ -32,6 +33,7 @@ describe('Claude Code workflow action pins', () => {
     expect(claudeStep?.uses).toBe(`anthropics/claude-code-action@${REVIEWED_CLAUDE_CODE_ACTION_V1_SHA}`);
     expect(checkoutStep?.uses).toMatch(/@[0-9a-f]{40}$/);
     expect(claudeStep?.uses).toMatch(/@[0-9a-f]{40}$/);
+    expect(checkoutStep?.with?.['persist-credentials']).toBe(false);
 
     expect(job?.permissions).toEqual({
       contents: 'read',
