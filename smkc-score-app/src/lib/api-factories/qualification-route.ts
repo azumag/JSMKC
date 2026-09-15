@@ -684,10 +684,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ...(autoCompleteBye ? { completed: true, ...(isBreakVsBreak ? scheduleOnlyBreakData : byeData) } : {}),
           });
 
-          if (!autoCompleteBye) {
-            matchSequenceIndex++;
-          }
-
           matchNumber++;
         }
       }
