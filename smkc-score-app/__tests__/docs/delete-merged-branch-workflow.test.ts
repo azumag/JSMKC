@@ -31,11 +31,20 @@ describe('merged branch cleanup workflow', () => {
     expect(deleteJob?.['timeout-minutes']).toBe(5);
   });
 
-  it('treats only HTTP 404 as an idempotent deletion result', () => {
-    expect(deleteStep?.run).toContain('delete_status=$?');
-    expect(deleteStep?.run).toContain("grep -Fq '(HTTP 404)'");
-    expect(deleteStep?.run).toContain('Branch already deleted or not found');
-    expect(deleteStep?.run).toContain('exit "$delete_status"');
-    expect(deleteStep?.run).not.toContain('||');
+  it('uses GET probes to distinguish missing refs from real cleanup failures', () => {
+    const script = deleteStep?.run ?? '';
+
+    expect(script).toContain('ref_api="repos/$REPO/git/ref/heads/$BRANCH"');
+    expect(script).toContain('delete_api="repos/$REPO/git/refs/heads/$BRANCH"');
+    expect(script).toContain('probe_output=$(gh api --silent "$ref_api" 2>&1)');
+    expect(script).toContain('post_probe_output=$(gh api --silent "$ref_api" 2>&1)');
+    expect(script.match(/grep -Fq '\(HTTP 404\)'/g)).toHaveLength(2);
+    expect(script).toContain('Branch already deleted or not found');
+    expect(script).toContain('Branch was deleted concurrently');
+    expect(script).toContain('Failed to inspect branch before deletion');
+    expect(script).toContain('Failed to delete branch');
+    expect(script).toContain('exit "$probe_status"');
+    expect(script).toContain('exit "$delete_status"');
+    expect(script).not.toContain('||');
   });
 });
