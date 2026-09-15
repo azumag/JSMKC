@@ -20,6 +20,8 @@ import {
   validateRequiredCourses,
   autoFormatTime,
   sortResultsByTime,
+  TimeStringSchema,
+  TimesObjectSchema,
 } from '@/lib/ta/time-utils';
 
 describe('TA Time Utils', () => {
@@ -56,6 +58,24 @@ describe('TA Time Utils', () => {
       expect(timeToMs('invalid')).toBe(null);
       expect(timeToMs('1:23')).toBe(null); // Missing milliseconds
       expect(timeToMs('1:23')).toBe(null); // Missing period
+    });
+
+    it('should reject seconds outside the 00-59 range', () => {
+      expect(timeToMs('1:60.00')).toBe(null);
+      expect(timeToMs('1:99.99')).toBe(null);
+    });
+  });
+
+  describe('time schemas', () => {
+    it('should accept valid or empty single time values', () => {
+      expect(TimeStringSchema.safeParse('1:59.999').success).toBe(true);
+      expect(TimeStringSchema.safeParse('').success).toBe(true);
+    });
+
+    it('should reject colon-formatted values with invalid seconds', () => {
+      expect(TimeStringSchema.safeParse('1:60.00').success).toBe(false);
+      expect(TimeStringSchema.safeParse('12:99.9').success).toBe(false);
+      expect(TimesObjectSchema.safeParse({ MC1: '1:23.45', DP1: '1:60.00' }).success).toBe(false);
     });
   });
 
@@ -150,6 +170,14 @@ describe('TA Time Utils', () => {
       expect(validateRequiredCourses(times, requiredCourses)).toBe(false);
     });
 
+    it('should return false when a required course has seconds >= 60', () => {
+      const times = {
+        MC1: '1:23.45',
+        DP1: '1:60.00',
+      };
+      expect(validateRequiredCourses(times, ['MC1', 'DP1'])).toBe(false);
+    });
+
     it('should return false when times is null', () => {
       expect(validateRequiredCourses(null, ['MC1', 'DP1'])).toBe(false);
     });
@@ -207,6 +235,10 @@ describe('TA Time Utils', () => {
     it('should return null for invalid seconds (>=60)', () => {
       /* "06500" → 0:65.00 — invalid seconds */
       expect(autoFormatTime('06500')).toBeNull();
+      expect(autoFormatTime('1:60')).toBeNull();
+      expect(autoFormatTime('1:99')).toBeNull();
+      expect(autoFormatTime('1:60.00')).toBeNull();
+      expect(autoFormatTime('1:99.999')).toBeNull();
     });
 
     it('should handle extreme short inputs (0, 00, 000)', () => {
