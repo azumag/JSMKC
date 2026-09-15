@@ -7,7 +7,6 @@
  * Dependencies mocked:
  * - @/lib/auth: Session-based authentication (admin + player)
  * - @/lib/logger: Structured Winston logging (shared singleton via factory)
- * - @/lib/rate-limit: In-memory rate limiting
  * - @/lib/sanitize: Input sanitization
  * - @/lib/audit-log: Audit trail for CRUD operations
  * - @/lib/ta/rank-calculation: Rank recalculation after entry changes
@@ -38,13 +37,6 @@ jest.mock('@/lib/logger', () => {
     createLogger: jest.fn(() => sharedLogger),
   };
 });
-
-// Mock rate-limit functions with default return values
-jest.mock('@/lib/rate-limit', () => ({
-  getClientIdentifier: jest.fn(() => '127.0.0.1'),
-  getUserAgent: jest.fn(() => 'test-agent'),
-  rateLimit: jest.fn(() => Promise.resolve({ success: true })),
-}));
 
 // Mock sanitize to pass data through
 jest.mock('@/lib/sanitize', () => ({
@@ -115,14 +107,6 @@ import * as taRoute from '@/app/api/tournaments/[id]/ta/route';
 import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
-// Access mocks via requireMock to get references to the same mock functions
-// that the route module uses (per CLAUDE.md mock pattern)
-const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
-  rateLimit: jest.Mock;
-  getClientIdentifier: jest.Mock;
-  getUserAgent: jest.Mock;
-};
-
 const loggerMock = jest.requireMock('@/lib/logger') as {
   createLogger: jest.Mock;
 };
@@ -158,10 +142,6 @@ describe('/api/tournaments/[id]/ta', () => {
     // Mock NextResponse.json to return a response-like object (matching BM/MR/GP test patterns)
     // This ensures auth guard responses are truthy and properly trigger early returns.
     configureNextResponseMock(NextResponse);
-    // Restore default mock return values after clearAllMocks resets them
-    rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: true }));
-    rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');
-    rateLimitMock.getUserAgent.mockReturnValue('test-agent');
     (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
     (readTournamentArchive as jest.Mock).mockResolvedValue(null);
     d1BatchMock.executeD1Batch.mockResolvedValue([1, 1]);
@@ -582,27 +562,6 @@ describe('/api/tournaments/[id]/ta', () => {
         expect.objectContaining({
           data: expect.arrayContaining([expect.objectContaining({ tournamentId: VALID_UUID })]),
         }),
-      );
-    });
-
-    it.skip('should return 429 when rate limited', async () => {
-      // Auth must pass before rate limit check runs for add-player action
-      jest.mocked(auth).mockResolvedValue({
-        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
-      });
-      rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: false }));
-
-      await taRoute.POST(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
-          method: 'POST',
-          body: JSON.stringify({ playerId: VALID_UUID2 }),
-        }),
-        { params: Promise.resolve({ id: VALID_UUID }) },
-      );
-
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429 },
       );
     });
 
@@ -1460,8 +1419,6 @@ describe('PATCH /api/tournaments/[id]/ta handicaps', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     configureNextResponseMock(NextResponse);
-    rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');
-    rateLimitMock.getUserAgent.mockReturnValue('test-agent');
     (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
     jest.mocked(auth).mockResolvedValue({
       user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
