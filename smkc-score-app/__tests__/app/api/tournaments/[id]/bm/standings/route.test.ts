@@ -18,7 +18,6 @@
  */
 // @ts-nocheck
 
-
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/standings-cache', () => ({
   get: jest.fn(),
@@ -37,7 +36,6 @@ import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { GET } from '@/app/api/tournaments/[id]/bm/standings/route';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _NextResponseMock = jest.requireMock('next/server') as any;
 
 // Mock NextRequest class
@@ -50,10 +48,12 @@ class MockNextRequest {
     this._url = url;
     this._headersMap = headers || new Map();
     this.headers = {
-      get: (key: string) => this._headersMap.get(key) ?? null
+      get: (key: string) => this._headersMap.get(key) ?? null,
     };
   }
-  get url() { return this._url; }
+  get url() {
+    return this._url;
+  }
 }
 
 describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
@@ -87,7 +87,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
       expect(result.data).toEqual({ ...cachedData.data, _cached: true });
       expect(result.headers).toEqual({
-        'ETag': 'etag-123',
+        ETag: 'etag-123',
         'Cache-Control': 'private, max-age=0, must-revalidate',
       });
       expect(get).toHaveBeenCalledWith('t1', 'qualification');
@@ -97,8 +97,34 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
-        { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
-        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+        {
+          id: 'q1',
+          playerId: 'p1',
+          group: 'A',
+          score: 6,
+          points: 4,
+          mp: 3,
+          wins: 3,
+          ties: 0,
+          losses: 0,
+          winRounds: 10,
+          lossRounds: 2,
+          player: { name: 'Player 1', nickname: 'P1' },
+        },
+        {
+          id: 'q2',
+          playerId: 'p2',
+          group: 'A',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 2', nickname: 'P2' },
+        },
       ];
 
       (get as jest.Mock).mockResolvedValue(null);
@@ -173,7 +199,10 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       prisma.bMQualification.findMany.mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings', new Map([['if-none-match', '*']]));
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/bm/standings',
+        new Map([['if-none-match', '*']]),
+      );
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data.tournamentId).toBe('t1');
@@ -233,7 +262,10 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
       expect(result.data).toEqual({ success: false, error: 'Failed to fetch BM standings', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM standings', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM standings', {
+        error: expect.any(Error),
+        tournamentId: 't1',
+      });
     });
 
     it('should return 500 when cache get operation fails', async () => {
@@ -267,7 +299,20 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
-        { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
+        {
+          id: 'q1',
+          playerId: 'p1',
+          group: 'A',
+          score: 6,
+          points: 4,
+          mp: 3,
+          wins: 3,
+          ties: 0,
+          losses: 0,
+          winRounds: 10,
+          lossRounds: 2,
+          player: { name: 'Player 1', nickname: 'P1' },
+        },
       ];
 
       (get as jest.Mock).mockResolvedValue(null);
@@ -319,14 +364,38 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
 
       // Two players tied on score=4 and points=2 in group A
       const mockQualifications = [
-        { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
-        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+        {
+          id: 'q1',
+          playerId: 'p1',
+          group: 'A',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 1', nickname: 'P1' },
+        },
+        {
+          id: 'q2',
+          playerId: 'p2',
+          group: 'A',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 2', nickname: 'P2' },
+        },
       ];
 
       // P2 beat P1 in their direct match (3-1)
-      const h2hMatches = [
-        { player1Id: 'p1', player2Id: 'p2', score1: 1, score2: 3 },
-      ];
+      const h2hMatches = [{ player1Id: 'p1', player2Id: 'p2', score1: 1, score2: 3 }];
 
       (get as jest.Mock).mockResolvedValue(null);
       prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
@@ -368,14 +437,38 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
-        { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
-        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+        {
+          id: 'q1',
+          playerId: 'p1',
+          group: 'A',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 1', nickname: 'P1' },
+        },
+        {
+          id: 'q2',
+          playerId: 'p2',
+          group: 'A',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 2', nickname: 'P2' },
+        },
       ];
 
       // Draw: 2-2 in BM means a tie
-      const h2hMatches = [
-        { player1Id: 'p1', player2Id: 'p2', score1: 2, score2: 2 },
-      ];
+      const h2hMatches = [{ player1Id: 'p1', player2Id: 'p2', score1: 2, score2: 2 }];
 
       (get as jest.Mock).mockResolvedValue(null);
       prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
@@ -394,9 +487,48 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       jest.mocked(auth).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const mockQualifications = [
-        { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
-        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
-        { id: 'q3', playerId: 'p3', group: 'A', score: 2, points: 0, mp: 3, wins: 1, ties: 0, losses: 2, winRounds: 6, lossRounds: 6, player: { name: 'Player 3', nickname: 'P3' } },
+        {
+          id: 'q1',
+          playerId: 'p1',
+          group: 'A',
+          score: 6,
+          points: 4,
+          mp: 3,
+          wins: 3,
+          ties: 0,
+          losses: 0,
+          winRounds: 10,
+          lossRounds: 2,
+          player: { name: 'Player 1', nickname: 'P1' },
+        },
+        {
+          id: 'q2',
+          playerId: 'p2',
+          group: 'A',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 2', nickname: 'P2' },
+        },
+        {
+          id: 'q3',
+          playerId: 'p3',
+          group: 'A',
+          score: 2,
+          points: 0,
+          mp: 3,
+          wins: 1,
+          ties: 0,
+          losses: 2,
+          winRounds: 6,
+          lossRounds: 6,
+          player: { name: 'Player 3', nickname: 'P3' },
+        },
       ];
 
       (get as jest.Mock).mockResolvedValue(null);
@@ -420,8 +552,34 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       // Players with identical stats in different groups should each start from
       // rank 1 because qualification standings are group-local.
       const mockQualifications = [
-        { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
-        { id: 'q2', playerId: 'p2', group: 'B', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+        {
+          id: 'q1',
+          playerId: 'p1',
+          group: 'A',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 1', nickname: 'P1' },
+        },
+        {
+          id: 'q2',
+          playerId: 'p2',
+          group: 'B',
+          score: 4,
+          points: 2,
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          winRounds: 8,
+          lossRounds: 4,
+          player: { name: 'Player 2', nickname: 'P2' },
+        },
       ];
 
       (get as jest.Mock).mockResolvedValue(null);
