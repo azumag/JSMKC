@@ -13,6 +13,7 @@ interface WorkflowStep {
 
 interface WorkflowJob {
   if?: string;
+  'timeout-minutes'?: number;
   permissions?: Record<string, string>;
   steps?: WorkflowStep[];
 }
@@ -24,7 +25,7 @@ interface WorkflowDocument {
 describe('Claude Code workflow action pins', () => {
   const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'claude.yml');
 
-  it('uses reviewed immutable commits without widening permissions', () => {
+  it('uses reviewed immutable commits without widening permissions or runtime budget', () => {
     const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowDocument;
     const job = workflow.jobs?.claude;
     const checkoutStep = job?.steps?.find((step) => step.name === 'Checkout repository');
@@ -35,6 +36,7 @@ describe('Claude Code workflow action pins', () => {
     expect(checkoutStep?.uses).toMatch(/@[0-9a-f]{40}$/);
     expect(claudeStep?.uses).toMatch(/@[0-9a-f]{40}$/);
     expect(checkoutStep?.with?.['persist-credentials']).toBe(false);
+    expect(job?.['timeout-minutes']).toBe(30);
 
     expect(job?.permissions).toEqual({
       contents: 'read',
