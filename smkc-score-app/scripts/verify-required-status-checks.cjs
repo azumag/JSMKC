@@ -116,9 +116,7 @@ function printHuman(result) {
   if (result.ok) {
     console.log('Required status check policy is enforced.');
   } else {
-    console.error(
-      `Required status check policy is not ready. Missing: ${result.missingChecks.join(', ') || '(none)'}`,
-    );
+    console.error(`Required status check policy is not ready. Missing: ${result.missingChecks.join(', ') || '(none)'}`);
   }
 }
 
