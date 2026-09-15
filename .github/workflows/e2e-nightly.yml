@@ -117,6 +117,32 @@ jobs:
           trap cleanup_profile_archive EXIT
 
           printf '%s' "${PROFILE_ARCHIVE}" | base64 -d > "${ARCHIVE_PATH}"
+
+          if ! ARCHIVE_ENTRIES="$(tar -tzf "${ARCHIVE_PATH}")"; then
+            echo "::error::E2E_PROFILE_ARCHIVE is not a readable gzip tar archive."
+            exit 1
+          fi
+          if [ -z "${ARCHIVE_ENTRIES}" ]; then
+            echo "::error::E2E_PROFILE_ARCHIVE is empty; refusing to extract it."
+            exit 1
+          fi
+
+          PROFILE_ROOT="${E2E_PROFILE_DIR##*/}"
+          if ! printf '%s\n' "${ARCHIVE_ENTRIES}" | awk -v root="${PROFILE_ROOT}" '
+            {
+              path = $0
+              if (path == "" || path ~ /^\//) exit 1
+              count = split(path, parts, "/")
+              for (i = 1; i <= count; i++) {
+                if (parts[i] == "..") exit 1
+              }
+              if (path != root && index(path, root "/") != 1) exit 1
+            }
+          '; then
+            echo "::error::E2E_PROFILE_ARCHIVE contains entries outside ${PROFILE_ROOT}; refusing to extract it."
+            exit 1
+          fi
+
           mkdir -p "${E2E_PROFILE_DIR}"
           tar -xzf "${ARCHIVE_PATH}" -C /tmp
           chmod -R go-rwx "${E2E_PROFILE_DIR}"
