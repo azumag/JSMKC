@@ -38,7 +38,7 @@ import {
   type GPRace,
   type TTEntryData,
 } from '@/lib/optimistic-locking';
-import { Prisma } from '@prisma/client'; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { Prisma } from '@prisma/client';
 
 // optimistic-locking.ts imports PrismaClientKnownRequestError from '@prisma/client/runtime/library'
 // (Prisma v6 moved it out of the Prisma namespace). To make instanceof checks work, the mock
