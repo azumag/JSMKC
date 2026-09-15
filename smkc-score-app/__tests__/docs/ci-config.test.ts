@@ -143,6 +143,12 @@ describe('CI workflow configuration', () => {
     expect(steps.indexOf(pinNpmSteps[0])).toBeLessThan(steps.indexOf(installSteps[0]));
   });
 
+  it('disables Husky hook installation during npm ci', () => {
+    const installSteps = lintAndTestJob.steps.filter((s) => s.run?.trim() === 'npm ci');
+    expect(installSteps).toHaveLength(1);
+    expect(installSteps[0].env?.['HUSKY']).toBe('0');
+  });
+
   it('passes --ci and --forceExit flags to npm test', () => {
     // --ci: テスト失敗時に即座に終了し、スナップショットを自動更新しない
     // --forceExit: 非同期タスクが残留しても CI がハングしないようにする
