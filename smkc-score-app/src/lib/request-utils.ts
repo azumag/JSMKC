@@ -36,9 +36,9 @@ const logger = createLogger('request-utils');
  *
  * Checks multiple headers in priority order to support various
  * deployment configurations:
- * 1. x-forwarded-for: Standard proxy header (comma-separated, first is client)
- * 2. x-real-ip: Nginx convention for the real client IP
- * 3. cf-connecting-ip: Cloudflare-specific header for client IP
+ * 1. cf-connecting-ip: Cloudflare-specific header set by the trusted CDN/proxy
+ * 2. x-real-ip: Reverse-proxy header trusted within the internal network
+ * 3. x-forwarded-for: Fallback proxy header that can be spoofed by clients
  *
  * Falls back to 'unknown' if no IP can be determined, which should
  * not happen in production behind a properly configured proxy.
