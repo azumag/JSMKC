@@ -1,7 +1,6 @@
 import { e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
 
 describe('TC-1032 phase3 revival comment coverage', () => {
-  const finalsPhaseManager = readRepoFile('smkc-score-app', 'src', 'lib', 'ta', 'finals-phase-manager.ts');
   const tcTa = readRepoFile('smkc-score-app', 'e2e', 'tc-ta.js');
 
   it('keeps the review follow-up represented as a runnable E2E scenario', () => {
