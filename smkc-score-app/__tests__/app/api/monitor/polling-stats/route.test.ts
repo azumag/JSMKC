@@ -4,16 +4,18 @@
  * Test suite for GET /api/monitor/polling-stats endpoint.
  * This route provides polling statistics (total requests, average response time,
  * active connections, error rate) for system monitoring purposes.
- * Access is restricted to authenticated admin users.
+ * Access is restricted to authenticated users; the route currently returns mock
+ * metrics and identifies them as such in the response.
  *
  * Note: Rate limiting has been removed from the application as it is an internal
  * tournament tool with few concurrent users. Rate limit statistics are no longer
  * included in the monitoring response.
  *
  * Covers:
- * - Success cases: Returning polling statistics data, handling empty activity
+ * - Success cases: Returning polling statistics and mock provenance
+ * - Consistency: Warnings are derived from the exact metrics returned
  * - Authentication: Rejecting unauthenticated requests with 401 status
- * - Error handling: Graceful handling of database/auth errors with structured logging
+ * - Error handling: Graceful handling of auth errors with structured logging
  *
  * Uses CLAUDE.md mock pattern with jest.requireMock() for accessing shared mock instances.
  */
@@ -61,9 +63,9 @@ describe('GET /api/monitor/polling-stats', () => {
   });
 
   describe('Success Cases', () => {
-    it('should return polling statistics', async () => {
+    it('should return polling statistics with mock provenance for an authenticated user', async () => {
       jest.mocked(auth).mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
+        user: { id: 'operator-1', role: 'staff' },
       });
 
       await pollingStatsRoute.GET(
@@ -74,6 +76,7 @@ describe('GET /api/monitor/polling-stats', () => {
         expect.objectContaining({
           success: true,
           data: expect.objectContaining({
+            dataSource: 'mock',
             totalRequests: expect.any(Number),
             averageResponseTime: expect.any(Number),
             activeConnections: expect.any(Number),
@@ -89,29 +92,36 @@ describe('GET /api/monitor/polling-stats', () => {
       );
     });
 
-    it('should return empty stats when no activity', async () => {
+    it('should derive warnings from the same metrics returned in the response', async () => {
       jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
+
+      const randomSpy = jest
+        .spyOn(Math, 'random')
+        .mockReturnValueOnce(0.75) // totalRequests = 1250 -> warning
+        .mockReturnValueOnce(0) // averageResponseTime = 100
+        .mockReturnValueOnce(0.8) // activeConnections = 50 -> warning
+        .mockReturnValueOnce(0.2); // errorRate = 1 -> no warning
 
       await pollingStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/monitor/polling-stats')
       );
 
+      expect(randomSpy).toHaveBeenCalledTimes(4);
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
           data: expect.objectContaining({
-            totalRequests: expect.any(Number),
-            averageResponseTime: expect.any(Number),
-            activeConnections: expect.any(Number),
-            errorRate: expect.any(Number),
-            timePeriod: expect.objectContaining({
-              start: expect.any(String),
-              end: expect.any(String),
-              duration: '1 hour',
-            }),
-            warnings: expect.any(Array),
+            dataSource: 'mock',
+            totalRequests: 1250,
+            averageResponseTime: 100,
+            activeConnections: 50,
+            errorRate: 1,
+            warnings: [
+              'High request volume detected - consider increasing polling intervals',
+              'High number of active connections - monitor server resources',
+            ],
           }),
         })
       );
@@ -137,7 +147,7 @@ describe('GET /api/monitor/polling-stats', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle database errors gracefully', async () => {
+    it('should handle auth errors gracefully', async () => {
       jest.mocked(auth).mockRejectedValue(new Error('Auth error'));
 
       await pollingStatsRoute.GET(
