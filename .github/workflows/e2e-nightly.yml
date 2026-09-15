@@ -100,17 +100,25 @@ jobs:
           key: ${{ steps.playwright-browser-cache.outputs.cache-primary-key }}
 
       - name: Restore admin browser profile
-        # The profile holds the authenticated admin session needed by
-        # run-preview.js's session preflight. Build it locally with
-        # `npm run e2e:preview:login` and upload as a secret-less artifact.
+        # The profile contains authenticated admin session material. Build it
+        # locally with `npm run e2e:preview:login`, then store its base64 archive
+        # only in E2E_PROFILE_ARCHIVE.
         # Create the secret value with (relative paths so extraction is
         # deterministic):  cd /tmp && tar -czf profile.tar.gz playwright-smkc-preview-profile && base64 -w0 profile.tar.gz
         env:
           PROFILE_ARCHIVE: ${{ secrets.E2E_PROFILE_ARCHIVE }}
         run: |
-          echo "${PROFILE_ARCHIVE}" | base64 -d > /tmp/profile.tar.gz
+          umask 077
+          ARCHIVE_PATH="/tmp/e2e-profile-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"
+          cleanup_profile_archive() {
+            rm -f "${ARCHIVE_PATH}"
+          }
+          trap cleanup_profile_archive EXIT
+
+          printf '%s' "${PROFILE_ARCHIVE}" | base64 -d > "${ARCHIVE_PATH}"
           mkdir -p "${E2E_PROFILE_DIR}"
-          tar -xzf /tmp/profile.tar.gz -C /tmp
+          tar -xzf "${ARCHIVE_PATH}" -C /tmp
+          chmod -R go-rwx "${E2E_PROFILE_DIR}"
           echo "Admin profile restored ($(du -sh ${E2E_PROFILE_DIR} | cut -f1))"
 
       - name: Run E2E suite
