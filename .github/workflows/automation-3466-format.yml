@@ -1,0 +1,47 @@
+name: Automation 3466 format cleanup
+
+on:
+  push:
+    branches:
+      - automation/3460-unused-cleanup-20260915
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: automation/3460-unused-cleanup-20260915
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smkc-score-app/package-lock.json
+      - name: Format changed files
+        working-directory: smkc-score-app
+        run: |
+          npm ci --ignore-scripts
+          npx prettier --write \
+            '__tests__/docs/e2e-cases-drift.test.ts' \
+            'src/app/api/tournaments/[id]/ta/phases/route.ts' \
+            'src/app/tournaments/[id]/ta/participant/page.tsx' \
+            'src/lib/api-factories/qualification-route.ts'
+      - name: Remove temporary workflow and commit formatting
+        run: |
+          git rm .github/workflows/automation-3466-format.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts \
+                  'smkc-score-app/src/app/api/tournaments/[id]/ta/phases/route.ts' \
+                  'smkc-score-app/src/app/tournaments/[id]/ta/participant/page.tsx' \
+                  smkc-score-app/src/lib/api-factories/qualification-route.ts
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No formatting changes needed'
+          else
+            git commit -m "chore: format unused-binding cleanup"
+            git push origin HEAD:automation/3460-unused-cleanup-20260915
+          fi
