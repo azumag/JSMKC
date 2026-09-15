@@ -23,10 +23,7 @@ function runGuard(diff: string) {
 const managedMigrationCases = [
   ['Prisma modification', 'M\tprisma/migrations/0027_existing/migration.sql'],
   ['Prisma deletion', 'D\tprisma/migrations/0027_existing/migration.sql'],
-  [
-    'Prisma rename',
-    'R100\tprisma/migrations/0027_old/migration.sql\tprisma/migrations/0027_new/migration.sql',
-  ],
+  ['Prisma rename', 'R100\tprisma/migrations/0027_old/migration.sql\tprisma/migrations/0027_new/migration.sql'],
   ['D1 modification', 'M\tmigrations/0034_existing.sql'],
   ['D1 deletion', 'D\tmigrations/0034_existing.sql'],
   ['D1 rename', 'R100\tmigrations/0034_old.sql\tmigrations/0034_new.sql'],
@@ -35,10 +32,7 @@ const managedMigrationCases = [
 describe('migration history guard', () => {
   it('allows one new Prisma migration with one new D1 migration', () => {
     const result = runGuard(
-      [
-        'A\tprisma/migrations/0028_example/migration.sql',
-        'A\tmigrations/0035_example.sql',
-      ].join('\n'),
+      ['A\tprisma/migrations/0028_example/migration.sql', 'A\tmigrations/0035_example.sql'].join('\n'),
     );
 
     expect(result.status).toBe(0);
@@ -63,9 +57,7 @@ describe('migration history guard', () => {
   });
 
   it('preserves both paths when reporting a rename', () => {
-    const result = runGuard(
-      'R100\tprisma/migrations/0027_old/migration.sql\tprisma/migrations/0027_new/migration.sql',
-    );
+    const result = runGuard('R100\tprisma/migrations/0027_old/migration.sql\tprisma/migrations/0027_new/migration.sql');
 
     expect(result.payload.violations).toEqual([
       {
@@ -90,9 +82,7 @@ describe('migration history guard', () => {
   });
 
   it('ignores changes outside managed migration SQL files', () => {
-    const result = runGuard(
-      ['M\tprisma/schema.prisma', 'M\tmigrations/README.md', 'A\tsrc/lib/example.ts'].join('\n'),
-    );
+    const result = runGuard(['M\tprisma/schema.prisma', 'M\tmigrations/README.md', 'A\tsrc/lib/example.ts'].join('\n'));
 
     expect(result.status).toBe(0);
     expect(result.payload).toMatchObject({
