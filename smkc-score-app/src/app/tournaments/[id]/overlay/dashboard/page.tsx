@@ -19,6 +19,7 @@
 
 "use client";
 
+import Image from "next/image";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { DashboardFooter } from "@/components/overlay/dashboard-footer";
 import { DashboardProgressBar } from "@/components/overlay/dashboard-progress-bar";
@@ -232,10 +233,13 @@ export default function DashboardPage({
       )}
 
       {overlayPlayer1NoCamera && (
-        <img
+        <Image
           src="/overlay/no-camera.png"
           alt=""
           aria-hidden="true"
+          width={356}
+          height={328}
+          unoptimized
           className="pointer-events-none fixed"
           style={{ left: 33, top: 164, width: 356, height: 328 }}
         />
@@ -276,10 +280,13 @@ export default function DashboardPage({
       )}
 
       {overlayPlayer2NoCamera && (
-        <img
+        <Image
           src="/overlay/no-camera.png"
           alt=""
           aria-hidden="true"
+          width={356}
+          height={328}
+          unoptimized
           className="pointer-events-none fixed"
           style={{ left: 33, top: 559, width: 356, height: 328 }}
         />
