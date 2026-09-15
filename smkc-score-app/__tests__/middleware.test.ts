@@ -21,9 +21,16 @@ jest.mock('next/server', () => {
 
   class MockResponseHeaders {
     private _map = new Map<string, string>();
-    set(k: string, v: string) { this._map.set(k, v); mockResponseHeaderSet(k, v); }
-    get(k: string) { return this._map.get(k) ?? null; }
-    has(k: string) { return this._map.has(k); }
+    set(k: string, v: string) {
+      this._map.set(k, v);
+      mockResponseHeaderSet(k, v);
+    }
+    get(k: string) {
+      return this._map.get(k) ?? null;
+    }
+    has(k: string) {
+      return this._map.has(k);
+    }
   }
 
   class MockNextResponse {
@@ -83,7 +90,6 @@ import middleware from '@/middleware';
 const mockAuth = jest.mocked(auth);
 
 type NextServerMock = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   NextRequest: new (url: string, init?: { method?: string }) => any;
   __mocks: {
     mockNextFn: jest.Mock;
@@ -115,7 +121,7 @@ describe('middleware — auth gate', () => {
     mockAuth.mockResolvedValue(null);
     const req = makeRequest('http://localhost/api/tournaments', 'POST');
 
-    const res = await middleware(req) as { status: number; body: unknown };
+    const res = (await middleware(req)) as { status: number; body: unknown };
 
     // The 401 path uses new NextResponse(body, {status:401}) — not NextResponse.json()
     expect(res.status).toBe(401);
@@ -142,7 +148,7 @@ describe('middleware — auth gate', () => {
     mockAuth.mockResolvedValue(null);
     const req = makeRequest('http://localhost/profile', 'GET');
 
-    const res = await middleware(req) as { _redirectUrl?: string };
+    const res = (await middleware(req)) as { _redirectUrl?: string };
 
     expect(mockRedirectFn).toHaveBeenCalledTimes(1);
     expect(res._redirectUrl).toContain('/auth/signin');
@@ -165,10 +171,12 @@ describe('middleware — auth gate', () => {
 
   it('認証済みユーザーは保護された POST エンドポイントを通過する', async () => {
     const { mockNextFn } = getMocks();
-    mockAuth.mockResolvedValue({ user: { id: 'u1', role: 'admin' } } as Awaited<ReturnType<typeof auth>>);
+    mockAuth.mockResolvedValue({
+      user: { id: 'u1', role: 'admin' },
+    } as Awaited<ReturnType<typeof auth>>);
     const req = makeRequest('http://localhost/api/tournaments', 'POST');
 
-    const res = await middleware(req) as { status: number };
+    const res = (await middleware(req)) as { status: number };
 
     expect(mockNextFn).toHaveBeenCalledTimes(1);
     expect(res.status).not.toBe(401);
@@ -178,7 +186,7 @@ describe('middleware — auth gate', () => {
     mockAuth.mockResolvedValue(null);
     const req = makeRequest('http://localhost/api/players/p1', 'DELETE');
 
-    const res = await middleware(req) as { status: number; body: unknown };
+    const res = (await middleware(req)) as { status: number; body: unknown };
 
     expect(res.status).toBe(401);
     expect(res.body).toContain('"Unauthorized"');
