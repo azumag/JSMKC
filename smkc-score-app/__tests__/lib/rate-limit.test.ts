@@ -152,10 +152,7 @@ describe('Rate Limiting', () => {
      */
     it('should use correct config for scoreInput type', async () => {
       // scoreInput config: limit=120, windowMs=60000
-      const result = await checkRateLimit(
-        'scoreInput',
-        'test-identifier-scoreInput',
-      );
+      const result = await checkRateLimit('scoreInput', 'test-identifier-scoreInput');
 
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(119);
@@ -163,10 +160,7 @@ describe('Rate Limiting', () => {
 
     it('should use correct config for polling type', async () => {
       // polling config: limit=120, windowMs=60000
-      const result = await checkRateLimit(
-        'polling',
-        'test-identifier-polling',
-      );
+      const result = await checkRateLimit('polling', 'test-identifier-polling');
 
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(119);
@@ -174,10 +168,7 @@ describe('Rate Limiting', () => {
 
     it('should use correct config for sessionStatus type', async () => {
       // sessionStatus config: limit=60, windowMs=60000
-      const result = await checkRateLimit(
-        'sessionStatus',
-        'test-identifier-sessionStatus',
-      );
+      const result = await checkRateLimit('sessionStatus', 'test-identifier-sessionStatus');
 
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(59);
@@ -185,10 +176,7 @@ describe('Rate Limiting', () => {
 
     it('should use correct config for general type', async () => {
       // general config: limit=60, windowMs=60000
-      const result = await checkRateLimit(
-        'general',
-        'test-identifier-general',
-      );
+      const result = await checkRateLimit('general', 'test-identifier-general');
 
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(59);
@@ -331,8 +319,7 @@ describe('Rate Limiting', () => {
       const mockHeaders = jest.mocked(headers);
       mockHeaders.mockResolvedValue({
         get: jest.fn((name: string) => {
-          if (name === 'x-forwarded-for')
-            return '192.168.1.100, 10.0.0.1, 172.16.0.1';
+          if (name === 'x-forwarded-for') return '192.168.1.100, 10.0.0.1, 172.16.0.1';
           return null;
         }),
       } as MockHeaders);
