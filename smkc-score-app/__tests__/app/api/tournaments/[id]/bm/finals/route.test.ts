@@ -107,7 +107,6 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
     });
     /* PUT bracket-advancement path calls model.count/findFirst/createMany.
      * Patch them onto the auto-mock with safe defaults. */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bmMatch = prisma.bMMatch as any;
     if (!bmMatch.count) bmMatch.count = jest.fn();
     if (!bmMatch.findFirst) bmMatch.findFirst = jest.fn();
