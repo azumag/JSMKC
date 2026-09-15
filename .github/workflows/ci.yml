@@ -27,7 +27,9 @@ jobs:
     # nothing else catches it. This job exists because that exact gap shipped
     # broken player loading to prod and preview (PR #3055): the Prisma
     # migration for qrLoginTokenHash landed, the D1 migration file did not,
-    # and every Player query 500'd until a manual hotfix.
+    # and every Player query 500'd until a manual hotfix. Existing migration
+    # SQL is also append-only: rewriting applied history makes fresh and
+    # already-migrated databases diverge.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -42,33 +44,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fail if a new Prisma migration has no matching D1 migration file
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+
+      - name: Validate append-only Prisma / D1 migration history
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          added_prisma=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- prisma/migrations | grep '/migration\.sql$' || true)
-          added_d1=$(git diff --diff-filter=A --name-only "$BASE_SHA" "$HEAD_SHA" -- migrations | grep '\.sql$' || true)
-
-          # Issue #3064: compare counts (1:1 parity), not mere existence, so a
-          # PR adding two Prisma migrations but only one D1 file still fails.
-          prisma_count=$(printf '%s\n' "$added_prisma" | grep -c . || true)
-          d1_count=$(printf '%s\n' "$added_d1" | grep -c . || true)
-
-          if [ "$prisma_count" -ne "$d1_count" ]; then
-            echo "::error::This PR adds ${prisma_count} Prisma migration(s) but ${d1_count} D1 migration file(s) under smkc-score-app/migrations/ — they must match 1:1."
-            echo "D1 (Cloudflare Workers) does not read prisma/migrations — it needs a hand-written"
-            echo "equivalent .sql file under migrations/, applied via 'wrangler d1 migrations apply'."
-            echo "Without it, the deployed Worker's Prisma Client expects columns/tables that don't"
-            echo "exist in D1, and every query touching them fails at runtime. See CLAUDE.md."
-            echo ""
-            echo "New Prisma migration(s):"
-            echo "$added_prisma"
-            echo ""
-            echo "New D1 migration file(s):"
-            echo "$added_d1"
-            exit 1
-          fi
+        run: node scripts/check-migration-history.cjs
 
   lint-and-test:
     name: Lint & Test
