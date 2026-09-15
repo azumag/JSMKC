@@ -13,7 +13,7 @@
  * - Validating that all required courses have valid time entries
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * Regular expression for matching valid time format strings.
@@ -32,10 +32,11 @@ const timeFormatRegex = /^(\d{1,2}):([0-5]\d)\.(\d{1,3})$/;
  * the M:SS.mm / MM:SS.mm format. This allows partial form submissions
  * where not all courses have times entered yet.
  */
-export const TimeStringSchema = z.string().refine(
-  (val) => val === "" || timeFormatRegex.test(val),
-  { message: "Invalid time format. Expected M:SS.mm or MM:SS.mm" }
-);
+export const TimeStringSchema = z
+  .string()
+  .refine((val) => val === '' || timeFormatRegex.test(val), {
+    message: 'Invalid time format. Expected M:SS.mm or MM:SS.mm',
+  });
 
 /**
  * Zod schema for validating a record of course abbreviations to time strings.
@@ -57,17 +58,17 @@ export const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
  */
 export function timeToMs(time: string): number | null {
   // Return null for empty or falsy inputs, allowing partial form submissions
-  if (!time || time === "") return null;
+  if (!time || time === '') return null;
 
   const match = time.match(timeFormatRegex);
   if (!match) return null;
 
   const minutes = parseInt(match[1], 10);
   const seconds = parseInt(match[2], 10);
-  let ms = match[3] || ""; // Handle missing milliseconds
+  let ms = match[3] || ''; // Handle missing milliseconds
 
   // Pad milliseconds to 3 digits for accurate comparison (e.g., "4" -> "400", "45" -> "450")
-  while (ms.length < 3) ms += "0";
+  while (ms.length < 3) ms += '0';
   const milliseconds = parseInt(ms, 10);
 
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
@@ -85,7 +86,7 @@ export function timeToMs(time: string): number | null {
  */
 export function msToDisplayTime(ms: number | null): string {
   // Return dash for null values (no time recorded)
-  if (ms === null) return "-";
+  if (ms === null) return '-';
 
   const roundedCentiseconds = Math.round(ms / 10);
   const totalSeconds = Math.floor(roundedCentiseconds / 100);
@@ -93,7 +94,7 @@ export function msToDisplayTime(ms: number | null): string {
   const seconds = totalSeconds % 60;
   const centiseconds = roundedCentiseconds % 100;
 
-  return `${minutes}:${seconds.toString().padStart(2, "0")}.${centiseconds.toString().padStart(2, "0")}`;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -110,7 +111,7 @@ export function msToDisplayTime(ms: number | null): string {
  * Returns null if input cannot be interpreted as a valid time.
  */
 export function autoFormatTime(input: string): string | null {
-  if (!input || input.trim() === "") return "";
+  if (!input || input.trim() === '') return '';
 
   const trimmed = input.trim();
   const normalizeFormattedTime = (formatted: string): string | null => {
@@ -129,31 +130,31 @@ export function autoFormatTime(input: string): string | null {
    * Pad to 5 digits minimum: "12345" → 1:23.45, "5849" → 0:58.49 */
   const digitsOnly = /^\d+$/.exec(trimmed);
   if (digitsOnly) {
-    const padded = trimmed.padStart(5, "0");
+    const padded = trimmed.padStart(5, '0');
     /* Split: first N-4 chars = minutes, next 2 = seconds, last 2 = centiseconds */
     const centisecondsStr = padded.slice(-2);
     const ssStr = padded.slice(-4, -2);
-    const mmStr = padded.slice(0, -4) || "0";
+    const mmStr = padded.slice(0, -4) || '0';
 
     const minutes = parseInt(mmStr, 10);
     const seconds = parseInt(ssStr, 10);
     if (seconds >= 60) return null; /* Invalid seconds */
 
-    return normalizeFormattedTime(`${minutes}:${seconds.toString().padStart(2, "0")}.${centisecondsStr}`);
+    return normalizeFormattedTime(`${minutes}:${seconds.toString().padStart(2, '0')}.${centisecondsStr}`);
   }
 
   /* Has dot but no colon (e.g., "123.456") — try to split at dot */
   const dotNoColon = /^(\d{1,3})\.(\d{1,3})$/.exec(trimmed);
   if (dotNoColon) {
     const beforeDot = dotNoColon[1];
-    const afterDot = dotNoColon[2].padEnd(3, "0").slice(0, 3);
+    const afterDot = dotNoColon[2].padEnd(3, '0').slice(0, 3);
     if (beforeDot.length <= 1) {
       /* e.g., "1.234" → "0:01.23" after normalization */
-      return normalizeFormattedTime(`0:${beforeDot.padStart(2, "0")}.${afterDot}`);
+      return normalizeFormattedTime(`0:${beforeDot.padStart(2, '0')}.${afterDot}`);
     }
     /* e.g., "58.490" → "0:58.49", "123.456" → "1:23.46" */
     const ss = beforeDot.slice(-2);
-    const mm = beforeDot.slice(0, -2) || "0";
+    const mm = beforeDot.slice(0, -2) || '0';
     const seconds = parseInt(ss, 10);
     if (seconds >= 60) return null;
     return normalizeFormattedTime(`${parseInt(mm, 10)}:${ss}.${afterDot}`);
@@ -219,7 +220,7 @@ export function validateRequiredCourses(times: Record<string, string> | null, re
   for (const course of requiredCourses) {
     const time = times[course];
     // Check that the time exists and is not empty
-    if (!time || time === "") return false;
+    if (!time || time === '') return false;
     // Check that the time can be parsed to milliseconds
     const ms = timeToMs(time);
     if (ms === null) return false;
