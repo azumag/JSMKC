@@ -10,6 +10,8 @@ Failing early is intentional: a GitHub-hosted runner cannot supply a local authe
 
 After the prerequisite passes, the profile is restored under `/tmp/playwright-smkc-preview-profile` immediately before the E2E suite. Invalid base64 or tar data is treated as a hard restore failure rather than being downgraded to a warning.
 
+The authenticated profile is credential-bearing material. Its restore step therefore uses `umask 077`, writes the base64-decoded archive to a run-specific temporary path, removes that archive with an `EXIT` trap even on restore failure, and strips group/other permissions from the extracted profile tree before Playwright uses it. The secret value itself is never echoed to the Actions log.
+
 ## Playwright browser cache
 
 The E2E runtime does not use Playwright's default `~/.cache/ms-playwright` directory. `smkc-score-app/e2e/lib/browser-env.js` resolves the managed browser directory from `E2E_BROWSER_HOME`, which the nightly workflow fixes to:
