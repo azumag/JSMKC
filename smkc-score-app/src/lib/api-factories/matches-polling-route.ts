@@ -9,7 +9,7 @@
  * while preserving identical API response shapes for each event type.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
