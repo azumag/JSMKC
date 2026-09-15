@@ -51,7 +51,8 @@ describe('non-production workflow action pins', () => {
       [
         `actions/checkout@${REVIEWED_CHECKOUT_V5_SHA}`,
         `actions/setup-node@${REVIEWED_SETUP_NODE_V5_SHA}`,
-        `actions/cache@${REVIEWED_CACHE_V5_SHA}`,
+        `actions/cache/restore@${REVIEWED_CACHE_V5_SHA}`,
+        `actions/cache/save@${REVIEWED_CACHE_V5_SHA}`,
         `actions/upload-artifact@${REVIEWED_UPLOAD_ARTIFACT_V6_SHA}`,
       ],
     ],
