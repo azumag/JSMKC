@@ -25,7 +25,7 @@ describe('nightly E2E npm toolchain', () => {
   const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'e2e-nightly.yml');
   const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
 
-  it('pins packageManager npm before npm ci and skips Husky hooks', () => {
+  it('pins packageManager npm before npm ci without bootstrap side effects and skips Husky hooks', () => {
     const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowDocument;
     const manifest = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as PackageManifest;
     const steps = workflow.jobs?.e2e?.steps;
@@ -41,7 +41,7 @@ describe('nightly E2E npm toolchain', () => {
     expect(installStep).toBeDefined();
     expect(pinStep?.['working-directory']).toBe('smkc-score-app');
     expect(installStep?.['working-directory']).toBe('smkc-score-app');
-    expect(pinStep?.run).toContain(`npm install --global ${packageManager}`);
+    expect(pinStep?.run).toContain(`npm install --global --ignore-scripts --no-audit --no-fund ${packageManager}`);
 
     const expectedVersion = packageManager?.replace(/^npm@/, '');
     expect(pinStep?.run).toContain(`test "$(npm --version)" = "${expectedVersion}"`);

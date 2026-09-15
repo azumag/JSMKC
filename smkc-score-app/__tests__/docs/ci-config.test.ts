@@ -126,17 +126,19 @@ describe('CI workflow configuration', () => {
     expect(String(setupNodeStep?.with?.['node-version'])).toBe('22');
   });
 
-  it('pins the package.json npm version before npm ci', () => {
+  it('pins the package.json npm version before npm ci without bootstrap side effects', () => {
     const packageManager = packageManifest.packageManager;
     expect(packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);
 
     const steps = lintAndTestJob.steps;
-    const pinNpmSteps = steps.filter((s) => s.run?.includes('npm install --global npm@'));
+    const pinNpmSteps = steps.filter((s) => s.run?.includes('npm install --global'));
     const installSteps = steps.filter((s) => s.run?.trim() === 'npm ci');
 
     expect(pinNpmSteps).toHaveLength(1);
     expect(installSteps).toHaveLength(1);
-    expect(pinNpmSteps[0].run).toContain(`npm install --global ${packageManager}`);
+    expect(pinNpmSteps[0].run).toContain(
+      `npm install --global --ignore-scripts --no-audit --no-fund ${packageManager}`,
+    );
 
     const expectedVersion = packageManager?.replace(/^npm@/, '');
     expect(pinNpmSteps[0].run).toContain(`test "$(npm --version)" = "${expectedVersion}"`);
