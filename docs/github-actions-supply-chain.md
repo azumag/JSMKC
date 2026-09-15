@@ -11,6 +11,8 @@ The version comment beside each SHA is documentation only; GitHub executes the i
 
 `smkc-score-app/__tests__/docs/claude-workflow-action-pins.test.ts` keeps the reviewed SHA values and the current permission boundary under regression coverage. A dependency or action update must not widen workflow permissions as a side effect.
 
+The Claude Code workflow also disables checkout credential persistence. It does not require authenticated Git operations after checkout, so `actions/checkout` uses `persist-credentials: false` rather than leaving `GITHUB_TOKEN` in the repository Git config for the following Claude action. GitHub API access continues to come from the workflow/action permission model instead of implicit Git credentials.
+
 The regular CI, PR review compatibility workflow, and nightly E2E workflow are also pinned to reviewed immutable commits rather than mutable major tags. Their reviewed action commits are:
 
 - `actions/checkout` v5: `fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`
