@@ -57,7 +57,7 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(restoreScript).toContain('ARCHIVE_PATH="/tmp/e2e-profile-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"');
     expect(restoreScript).toContain('trap cleanup_profile_archive EXIT');
     expect(restoreScript).toContain('rm -f "${ARCHIVE_PATH}"');
-    expect(restoreScript).toContain("printf '%s' \"${PROFILE_ARCHIVE}\" | base64 -d > \"${ARCHIVE_PATH}\"");
+    expect(restoreScript).toContain('printf \'%s\' "${PROFILE_ARCHIVE}" | base64 -d > "${ARCHIVE_PATH}"');
     expect(restoreScript).toContain('chmod -R go-rwx "${E2E_PROFILE_DIR}"');
     expect(restoreScript).not.toContain('echo "${PROFILE_ARCHIVE}"');
   });
