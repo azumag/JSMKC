@@ -5,7 +5,7 @@
  * (issue #2994): visible only when the tournament toggle is on and the player
  * has a phase3 entry, and the report POST body carries the correct payload.
  */
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
 import TimeAttackParticipantPage from '@/app/tournaments/[id]/ta/participant/page';
@@ -54,9 +54,6 @@ const mockSummaryData = {
 jest.mock('@/lib/client-logger', () => ({
   createLogger: () => ({ error: jest.fn(), info: jest.fn(), warn: jest.fn() }),
 }));
-
-let mockTaPollData: unknown = null;
-let mockPhase3PollData: unknown = null;
 
 const player = (id: string, nickname: string) => ({ id, name: nickname, nickname });
 
@@ -135,8 +132,6 @@ describe('TA participant Phase 3 time report (issue #2994)', () => {
     mockUseSession.mockReturnValue({
       data: { user: { role: 'player', userType: 'player', playerId: 'player-1' } },
     } as ReturnType<typeof useSession>);
-    mockTaPollData = { data: baseTaData };
-    mockPhase3PollData = { data: basePhase3Data };
     (usePolling as jest.Mock).mockImplementation((fetcher: unknown) => {
       const source = typeof fetcher === 'function' ? String(fetcher) : '';
       const isPhase3Poller = source.includes('/ta/phases');
@@ -191,7 +186,6 @@ describe('TA participant Phase 3 time report (issue #2994)', () => {
   });
 
   it('hides the Phase 3 report card when the toggle is off', async () => {
-    mockTaPollData = { data: { ...baseTaData, taPlayerReportEnabled: false } };
     (global.fetch as jest.Mock) = jest.fn().mockResolvedValue({
       ok: true,
       json: jest.fn().mockResolvedValue({ data: { ...baseTaData, taPlayerReportEnabled: false } }),
