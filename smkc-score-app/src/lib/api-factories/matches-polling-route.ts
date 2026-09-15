@@ -27,10 +27,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const matchModel = (p: any) => p[config.matchModel];
 
-  async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-  ) {
+  async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const logger = createLogger(config.loggerName);
     const { id } = await params;
     let tournamentId = id;
@@ -65,7 +62,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
         },
         { tournamentId },
         { matchNumber: 'asc' },
-        { page, limit }
+        { page, limit },
       );
 
       return createSuccessResponse(result);
