@@ -74,7 +74,7 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(extractIndex).toBeGreaterThan(listIndex);
     expect(restoreScript).toContain('if [ -z "${ARCHIVE_ENTRIES}" ]; then');
     expect(restoreScript).toContain('PROFILE_ROOT="${E2E_PROFILE_DIR##*/}"');
-    expect(restoreScript).toContain('path ~ /^\\//');
+    expect(restoreScript).toContain('path ~ /^\//');
     expect(restoreScript).toContain('parts[i] == ".."');
     expect(restoreScript).toContain('path != root && index(path, root "/") != 1');
     expect(restoreScript).toContain('contains entries outside ${PROFILE_ROOT}; refusing to extract it');
