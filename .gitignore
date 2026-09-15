@@ -10,3 +10,8 @@ REVIEW.md
 ARCH.md
 .opencode/
 .codex/
+
+# Credential-bearing nightly E2E profile artifacts (docs/e2e-nightly.md)
+profile.tar.gz
+profile.base64
+playwright-smkc-preview-profile/
