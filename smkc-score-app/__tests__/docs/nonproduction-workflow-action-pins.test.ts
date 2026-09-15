@@ -9,6 +9,7 @@ const REVIEWED_UPLOAD_ARTIFACT_V6_SHA = 'b7c566a772e6b6bfb58ed0dc250532a479d7789
 
 interface WorkflowStep {
   uses?: string;
+  with?: Record<string, unknown>;
 }
 
 interface WorkflowJob {
@@ -21,12 +22,14 @@ interface WorkflowDocument {
 
 const workflowDirectory = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows');
 
-function workflowActions(workflowName: string): string[] {
+function workflowSteps(workflowName: string): WorkflowStep[] {
   const workflow = parse(fs.readFileSync(path.join(workflowDirectory, workflowName), 'utf8')) as WorkflowDocument;
 
-  return Object.values(workflow.jobs ?? {}).flatMap((job) =>
-    (job.steps ?? []).flatMap((step) => (step.uses ? [step.uses] : [])),
-  );
+  return Object.values(workflow.jobs ?? {}).flatMap((job) => job.steps ?? []);
+}
+
+function workflowActions(workflowName: string): string[] {
+  return workflowSteps(workflowName).flatMap((step) => (step.uses ? [step.uses] : []));
 }
 
 describe('non-production workflow action pins', () => {
@@ -59,6 +62,21 @@ describe('non-production workflow action pins', () => {
     expect(actions).not.toHaveLength(0);
     for (const action of actions) {
       expect(action).toMatch(/@[0-9a-f]{40}$/);
+    }
+  });
+
+  it.each([
+    ['ci.yml', 2],
+    ['claude-code-review.yml', 1],
+    ['e2e-nightly.yml', 1],
+  ])('%s does not persist GitHub credentials after checkout', (workflowName, expectedCheckoutCount) => {
+    const checkoutSteps = workflowSteps(workflowName).filter(
+      (step) => step.uses === `actions/checkout@${REVIEWED_CHECKOUT_V5_SHA}`,
+    );
+
+    expect(checkoutSteps).toHaveLength(expectedCheckoutCount);
+    for (const step of checkoutSteps) {
+      expect(step.with?.['persist-credentials']).toBe(false);
     }
   });
 });
