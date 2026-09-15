@@ -12,6 +12,7 @@ interface WorkflowStep {
 }
 
 interface WorkflowJob {
+  if?: string;
   permissions?: Record<string, string>;
   steps?: WorkflowStep[];
 }
@@ -42,5 +43,15 @@ describe('Claude Code workflow action pins', () => {
       'id-token': 'write',
       actions: 'read',
     });
+  });
+
+  it('rejects bot and non-write-association triggers before starting the job', () => {
+    const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowDocument;
+    const jobIf = workflow.jobs?.claude?.if ?? '';
+
+    expect(jobIf).toContain("github.event.sender.type != 'Bot'");
+    expect(jobIf.match(/github\.event\.comment\.author_association/g)).toHaveLength(2);
+    expect(jobIf.match(/github\.event\.issue\.author_association/g)).toHaveLength(1);
+    expect(jobIf.match(/fromJSON\('\["OWNER","MEMBER","COLLABORATOR"\]'\)/g)).toHaveLength(3);
   });
 });
