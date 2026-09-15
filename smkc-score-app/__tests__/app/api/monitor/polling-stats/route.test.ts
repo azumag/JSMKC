@@ -68,9 +68,7 @@ describe('GET /api/monitor/polling-stats', () => {
         user: { id: 'operator-1', role: 'staff' },
       });
 
-      await pollingStatsRoute.GET(
-        new NextRequest('http://localhost:3000/api/monitor/polling-stats')
-      );
+      await pollingStatsRoute.GET(new NextRequest('http://localhost:3000/api/monitor/polling-stats'));
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -88,7 +86,7 @@ describe('GET /api/monitor/polling-stats', () => {
             }),
             warnings: expect.any(Array),
           }),
-        })
+        }),
       );
     });
 
@@ -104,9 +102,7 @@ describe('GET /api/monitor/polling-stats', () => {
         .mockReturnValueOnce(0.8) // activeConnections = 50 -> warning
         .mockReturnValueOnce(0.2); // errorRate = 1 -> no warning
 
-      await pollingStatsRoute.GET(
-        new NextRequest('http://localhost:3000/api/monitor/polling-stats')
-      );
+      await pollingStatsRoute.GET(new NextRequest('http://localhost:3000/api/monitor/polling-stats'));
 
       expect(randomSpy).toHaveBeenCalledTimes(4);
       expect(NextResponse.json).toHaveBeenCalledWith(
@@ -123,7 +119,7 @@ describe('GET /api/monitor/polling-stats', () => {
               'High number of active connections - monitor server resources',
             ],
           }),
-        })
+        }),
       );
     });
   });
@@ -132,16 +128,14 @@ describe('GET /api/monitor/polling-stats', () => {
     it('should return 401 when not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
-      await pollingStatsRoute.GET(
-        new NextRequest('http://localhost:3000/api/monitor/polling-stats')
-      );
+      await pollingStatsRoute.GET(new NextRequest('http://localhost:3000/api/monitor/polling-stats'));
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
           error: 'Unauthorized',
         }),
-        { status: 401 }
+        { status: 401 },
       );
     });
   });
@@ -150,19 +144,14 @@ describe('GET /api/monitor/polling-stats', () => {
     it('should handle auth errors gracefully', async () => {
       jest.mocked(auth).mockRejectedValue(new Error('Auth error'));
 
-      await pollingStatsRoute.GET(
-        new NextRequest('http://localhost:3000/api/monitor/polling-stats')
-      );
+      await pollingStatsRoute.GET(new NextRequest('http://localhost:3000/api/monitor/polling-stats'));
 
       // createLogger() returns the shared mockLoggerInstance
       const mockLogger = loggerMock.createLogger();
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Failed to get polling stats',
-        expect.any(Object)
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to get polling stats', expect.any(Object));
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to retrieve polling statistics' },
-        { status: 500 }
+        { status: 500 },
       );
     });
   });
