@@ -29,6 +29,7 @@ import { useState, useEffect, useCallback, use, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
+import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TaParticipantTimeInputRow } from '@/components/tournament/ta-participant-time-input-row';
@@ -106,6 +107,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
   const isPlayer = session?.user?.userType === 'player';
   const isAdmin = session?.user?.role === 'admin';
   const hasAccess = isPlayer || isAdmin;
+  const debugMode = useTournamentDebugMode(tournamentId);
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [entries, setEntries] = useState<TTEntry[]>([]);
@@ -131,19 +133,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
 
   /**
    * Admin-only: Fill all course times with random values for testing.
-   * Generates realistic TA times between 45s and 3:30 per course.
-   * Only available in development environment.
+   * Available only when the tournament-level debugMode is enabled.
    */
   const handleFillRandomTimes = () => {
     const randomTimes: Record<string, string> = {};
 
     COURSE_INFO.forEach((course) => {
-      // Generate random time between 45 seconds and 3 minutes 30 seconds
-      const minMs = 45000; // 45 seconds
-      const maxMs = 210000; // 3:30
-      const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-
-      randomTimes[course.abbr] = generateRandomTimeString(randomMs, randomMs);
+      randomTimes[course.abbr] = generateRandomTimeString();
     });
 
     setTimeInputs(randomTimes);
@@ -893,8 +889,8 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
                         </div>
                       </div>
 
-                      {/* Admin-only: Fill random times button */}
-                      {isAdmin && myEntry && (
+                      {/* Admin debug-mode only: Fill random times button */}
+                      {isAdmin && debugMode && myEntry && (
                         <Button
                           onClick={handleFillRandomTimes}
                           variant="outline"
