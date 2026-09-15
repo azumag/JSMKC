@@ -75,10 +75,7 @@ export const rateLimitConfigs: Record<string, RateLimitConfig> = {
  * @param identifier - Client identifier (usually IP address)
  * @returns RateLimitResult indicating if the request is allowed
  */
-export async function checkRateLimit(
-  type: string,
-  identifier: string
-): Promise<RateLimitResult> {
+export async function checkRateLimit(type: string, identifier: string): Promise<RateLimitResult> {
   const config = rateLimitConfigs[type] || rateLimitConfigs.general;
   const compositeIdentifier = `${identifier}:${type}`;
   return rateLimitInMemory(compositeIdentifier, config.limit, config.windowMs);
@@ -130,11 +127,7 @@ const MAX_STORE_SIZE = 10000;
  * @param windowMs - Time window in milliseconds
  * @returns RateLimitResult
  */
-export function rateLimitInMemory(
-  identifier: string,
-  limit: number,
-  windowMs: number
-): RateLimitResult {
+export function rateLimitInMemory(identifier: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
   const windowStart = now - windowMs;
 
@@ -209,9 +202,7 @@ export function cleanupExpiredEntries(): void {
   // Use the longest possible window (general config) for cleanup.
   // This ensures we don't accidentally remove entries that are still
   // valid for shorter windows.
-  const maxWindowMs = Math.max(
-    ...Object.values(rateLimitConfigs).map((c) => c.windowMs)
-  );
+  const maxWindowMs = Math.max(...Object.values(rateLimitConfigs).map((c) => c.windowMs));
   const cutoff = now - maxWindowMs;
 
   for (const [key, entry] of rateLimitStore.entries()) {
