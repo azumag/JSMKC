@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
 
+permissions:
+  contents: read
+
 # Keep the existing workflow/check names so branch protection and existing PRs
 # continue to see the same gates. Claude review itself is intentionally disabled.
 concurrency:
