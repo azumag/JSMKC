@@ -110,23 +110,16 @@ jobs:
           echo "Deploy the long-lived preview branch when fixed-preview/E2E validation is required."
 
   claude-review:
-    # Intentionally retained as a successful compatibility gate, but it no
-    # longer invokes anthropics/claude-code-action or requires a Claude review.
+    # Retained as a successful compatibility gate, but it is intentionally
+    # read-only. Auto-merge stays disabled until #3499 establishes required
+    # status checks at the repository policy layer.
     needs: [lint-and-test, wait-cloudflare-build]
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: write
 
     steps:
-      - name: Claude automatic review disabled
-        run: echo "Claude automatic PR review is disabled for this repository."
-
-      - name: Enable auto-merge
-        continue-on-error: true
-        if: github.event.pull_request.draft == false
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr merge --auto --squash "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}"
+      - name: Claude automatic review and auto-merge disabled
+        run: |
+          echo "Claude automatic PR review is disabled for this repository."
+          echo "Auto-merge remains disabled until required status checks are enforced (issue #3499)."
