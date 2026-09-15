@@ -71,7 +71,7 @@ function analyzeDiff(diffOutput) {
       continue;
     }
 
-    // Rename/copy statuses include a similarity suffix (R100/C087). Any
+    // Rename statuses include a similarity suffix (for example R100). Any
     // non-additive operation touching either side of managed migration history
     // is rejected because an already-applied migration must remain immutable.
     if (isManagedMigration(path1) || isManagedMigration(path2)) {
@@ -91,7 +91,7 @@ function analyzeDiff(diffOutput) {
 function printHuman(result) {
   if (result.violations.length > 0) {
     console.error(
-      '::error::Existing migration history is immutable. Add a new migration instead of modifying, deleting, renaming, or copying an existing migration file.',
+      '::error::Existing migration history is immutable. Add a new migration instead of modifying, deleting, or renaming an existing migration file.',
     );
     for (const violation of result.violations) {
       const target = violation.to ? `${violation.from} -> ${violation.to}` : violation.from;
