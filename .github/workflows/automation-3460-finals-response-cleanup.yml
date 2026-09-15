@@ -84,6 +84,7 @@ jobs:
             throw new Error(`unused response warnings remain: ${remaining.length}`);
           }
           NODE
+          npx prisma generate
           npx jest "$target" --runInBand
       - name: Remove temporary workflow and commit cleanup
         run: |
