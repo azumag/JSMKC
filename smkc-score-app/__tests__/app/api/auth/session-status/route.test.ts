@@ -66,9 +66,7 @@ describe('GET /api/auth/session-status', () => {
         expires: '2025-01-01T00:00:00Z',
       });
 
-      await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status'),
-      );
+      await sessionStatusRoute.GET(new NextRequest('http://localhost:3000/api/auth/session-status'));
 
       const callArgs = (NextResponse.json as jest.Mock).mock.calls[0];
       expect(callArgs).toBeDefined();
@@ -79,9 +77,7 @@ describe('GET /api/auth/session-status', () => {
     it('should return null session when not authenticated', async () => {
       jest.mocked(auth).mockResolvedValue(null);
 
-      await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status'),
-      );
+      await sessionStatusRoute.GET(new NextRequest('http://localhost:3000/api/auth/session-status'));
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -97,17 +93,12 @@ describe('GET /api/auth/session-status', () => {
     it('should handle database errors gracefully', async () => {
       jest.mocked(auth).mockRejectedValue(new Error('Auth error'));
 
-      await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status'),
-      );
+      await sessionStatusRoute.GET(new NextRequest('http://localhost:3000/api/auth/session-status'));
 
       // createLogger() returns the shared mockLoggerInstance defined in the factory
       // This is the same instance the route handler gets when it calls createLogger()
       const mockLogger = loggerMock.createLogger();
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Session status check failed',
-        expect.any(Object),
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith('Session status check failed', expect.any(Object));
       // Route returns { success: false, error: ... } on error
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to check session status' },
