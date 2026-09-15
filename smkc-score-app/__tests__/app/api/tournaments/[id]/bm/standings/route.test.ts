@@ -37,7 +37,6 @@ import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { GET } from '@/app/api/tournaments/[id]/bm/standings/route';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _NextResponseMock = jest.requireMock('next/server') as any;
 
 // Mock NextRequest class
