@@ -8,8 +8,10 @@ The workflow runs only when the pull request is closed as merged and the head re
 
 ## Failure policy
 
-Branch deletion is idempotent. A successful GitHub API deletion completes normally, and HTTP 404 is also accepted because the branch may already have been removed by another cleanup path.
+Branch deletion is idempotent, but the GitHub REST endpoints do not use the same missing-ref status for every operation. `Get a reference` reports a missing ref as HTTP 404, while `Delete a reference` documents 204, 409, and 422 responses rather than a 404 missing-ref contract.
 
-Other GitHub API failures are not treated as successful cleanup. Authentication failures, permission failures, rate limits, and service errors are written to stderr and fail the job so branch-cleanup regressions remain visible instead of being reported as "already deleted".
+The workflow therefore probes the branch with `Get a reference` before deletion. A 404 means another cleanup path already removed the branch and is accepted as success. Other preflight errors fail the job.
 
-The cleanup job has a five-minute timeout because it performs a single GitHub API mutation and should not occupy a runner indefinitely.
+If the delete call itself fails, the workflow probes the ref again. A 404 at that point means the branch disappeared concurrently and is accepted as success; if the ref still exists, or the second probe fails for another reason, the original deletion error is preserved and the job fails. This keeps authentication failures, permission failures, rate limits, conflicts, and service errors visible without reporting an already-removed branch as a cleanup regression.
+
+The cleanup job has a five-minute timeout because it performs only GitHub API operations and should not occupy a runner indefinitely.
