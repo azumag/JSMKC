@@ -11,8 +11,8 @@
  *   - Handles independent counters for different identifiers.
  * - checkRateLimit(): Convenience function that applies pre-configured rate
  *   limits by type (scoreInput, polling, sessionStatus, general).
- * - getClientIdentifier(): Extracts the client IP from request headers
- *   (x-forwarded-for, x-real-ip, cf-connecting-ip) with correct priority.
+ * - getClientIdentifier(): Extracts the client IP from request headers using
+ *   the current trusted-proxy priority (Cloudflare, x-real-ip, x-forwarded-for).
  * - getUserAgent(): Extracts the User-Agent header from requests.
  * - getServerSideIdentifier(): Async server-side IP extraction using Next.js
  *   headers() API, with graceful error handling.
@@ -21,7 +21,20 @@
  * Tests use fake timers and Date.now() spies to control time progression.
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
-import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent, clearRateLimitStore, getServerSideIdentifier } from '@/lib/rate-limit';
+
+// jest.setup.cjs mocks these modules globally for route tests. This suite is
+// specifically the implementation test, so opt back into the real modules.
+jest.unmock('@/lib/rate-limit');
+jest.unmock('@/lib/request-utils');
+
+import {
+  rateLimit,
+  checkRateLimit,
+  getClientIdentifier,
+  getUserAgent,
+  clearRateLimitStore,
+  getServerSideIdentifier,
+} from '@/lib/rate-limit';
 import { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 
@@ -31,9 +44,9 @@ interface MockHeaders {
   get: jest.Mock;
 }
 
-// Rate limit functionality is currently disabled (see ARCH.md / Issue #171).
-// These tests are skipped but retained for potential future re-enablement.
-describe.skip('Rate Limiting', () => {
+// Endpoint-specific rate limiting is intentionally selective, but the pure
+// limiter and request-identification helpers remain active and should stay covered.
+describe('Rate Limiting', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     clearRateLimitStore();
@@ -144,40 +157,35 @@ describe.skip('Rate Limiting', () => {
      * pre-configured rate limits by type using in-memory rate limiting.
      */
     it('should use correct config for scoreInput type', async () => {
-      // scoreInput config: limit=20, windowMs=60000
+      // scoreInput config: limit=120, windowMs=60000
       const result = await checkRateLimit('scoreInput', 'test-identifier-scoreInput');
 
       expect(result.success).toBe(true);
-      // In-memory fallback uses scoreInput config with limit=20,
-      // so remaining = 20 - 1 = 19 after first request
-      expect(result.remaining).toBe(19);
+      expect(result.remaining).toBe(119);
     });
 
     it('should use correct config for polling type', async () => {
-      // polling config: limit=12, windowMs=60000
+      // polling config: limit=120, windowMs=60000
       const result = await checkRateLimit('polling', 'test-identifier-polling');
 
       expect(result.success).toBe(true);
-      // remaining = 12 - 1 = 11 after first request
-      expect(result.remaining).toBe(11);
+      expect(result.remaining).toBe(119);
     });
 
     it('should use correct config for sessionStatus type', async () => {
-      // sessionStatus config: limit=10, windowMs=60000
+      // sessionStatus config: limit=60, windowMs=60000
       const result = await checkRateLimit('sessionStatus', 'test-identifier-sessionStatus');
 
       expect(result.success).toBe(true);
-      // remaining = 10 - 1 = 9 after first request
-      expect(result.remaining).toBe(9);
+      expect(result.remaining).toBe(59);
     });
 
     it('should use correct config for general type', async () => {
-      // general config: limit=10, windowMs=60000
+      // general config: limit=60, windowMs=60000
       const result = await checkRateLimit('general', 'test-identifier-general');
 
       expect(result.success).toBe(true);
-      // remaining = 10 - 1 = 9 after first request
-      expect(result.remaining).toBe(9);
+      expect(result.remaining).toBe(59);
     });
   });
 
@@ -224,7 +232,7 @@ describe.skip('Rate Limiting', () => {
       expect(identifier).toBe('unknown');
     });
 
-    it('should prioritize x-forwarded-for over other headers', () => {
+    it('should prioritize trusted Cloudflare IP over other proxy headers', () => {
       const request = new NextRequest('http://localhost:3000', {
         headers: new Headers({
           'x-forwarded-for': '192.168.1.100',
@@ -234,7 +242,7 @@ describe.skip('Rate Limiting', () => {
       });
 
       const identifier = getClientIdentifier(request);
-      expect(identifier).toBe('192.168.1.100');
+      expect(identifier).toBe('203.0.113.1');
     });
   });
 
@@ -293,7 +301,7 @@ describe.skip('Rate Limiting', () => {
 
     it('should return unknown when no IP headers present', async () => {
       // When no IP headers are found, getServerSideIdentifier returns
-      // 'unknown' as a fallback (line 427 of rate-limit.ts).
+      // 'unknown' as a fallback.
       const mockHeaders = jest.mocked(headers);
       mockHeaders.mockResolvedValue({
         get: jest.fn(() => null),
@@ -305,7 +313,7 @@ describe.skip('Rate Limiting', () => {
 
     it('should handle headers() error gracefully', async () => {
       // When headers() throws (e.g., outside request context during
-      // static generation), the catch block returns 'unknown' (line 434).
+      // static generation), the catch block returns 'unknown'.
       const mockHeaders = jest.mocked(headers);
       mockHeaders.mockRejectedValue(new Error('Headers error'));
 
