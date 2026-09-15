@@ -12,6 +12,8 @@ After the prerequisite passes, the profile is restored under `/tmp/playwright-sm
 
 The authenticated profile is credential-bearing material. Its restore step therefore uses `umask 077`, writes the base64-decoded archive to a run-specific temporary path, removes that archive with an `EXIT` trap even on restore failure, and strips group/other permissions from the extracted profile tree before Playwright uses it. The secret value itself is never echoed to the Actions log.
 
+Before extraction, the workflow also lists the tar entries and validates the archive layout fail-closed. A valid archive may contain only the top-level `playwright-smkc-preview-profile` entry and files/directories below it. Empty archives, absolute paths, `..` path components, and additional top-level entries are rejected before `tar -xzf` runs. This keeps a malformed or incorrectly packaged secret from writing archive entries outside the expected preview profile tree.
+
 ### Create or refresh `E2E_PROFILE_ARCHIVE`
 
 After creating an authenticated preview profile with `npm run e2e:preview:login`, package the directory and encode it with Node.js rather than GNU-specific `base64` flags. The following works on both macOS and Linux as long as the repository's Node.js prerequisite is available:
@@ -23,7 +25,9 @@ tar -czf profile.tar.gz playwright-smkc-preview-profile
 node -e "process.stdout.write(require('fs').readFileSync('profile.tar.gz').toString('base64'))" > profile.base64
 ```
 
-Use the contents of `/tmp/profile.base64` as the repository Actions secret `E2E_PROFILE_ARCHIVE`. Both `profile.tar.gz` and `profile.base64` contain credential-bearing session material; remove them after updating the secret:
+Use the contents of `/tmp/profile.base64` as the repository Actions secret `E2E_PROFILE_ARCHIVE`. Keep the documented top-level directory name unchanged: the nightly restore guard deliberately rejects archives packaged from some other root.
+
+Both `profile.tar.gz` and `profile.base64` contain credential-bearing session material; remove them after updating the secret:
 
 ```bash
 rm -f /tmp/profile.tar.gz /tmp/profile.base64
