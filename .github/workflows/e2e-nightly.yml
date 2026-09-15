@@ -48,9 +48,18 @@ jobs:
           cache: "npm"
           cache-dependency-path: smkc-score-app/package-lock.json
 
+      - name: Pin npm
+        working-directory: smkc-score-app
+        run: |
+          npm install --global npm@10.9.4
+          test "$(npm --version)" = "10.9.4"
+
       - name: Install dependencies
         working-directory: smkc-score-app
         run: npm ci
+        env:
+          # Nightly validation never needs local Git hooks; keep install parity with CI.
+          HUSKY: "0"
 
       # Issue #3108: Playwright downloads a full Chromium build on every run
       # unless cached. The key covers the whole package-lock.json, so any
