@@ -100,7 +100,6 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
     /* PUT handler now calls model.count() to infer bracket size + findFirst() /
      * updateMany() / createMany() for bracket advancement. The auto-mock lacks
      * those members for mRMatch, so patch them in with safe defaults here. */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mrMatch = prisma.mRMatch as any;
     if (!mrMatch.count) mrMatch.count = jest.fn();
     if (!mrMatch.findFirst) mrMatch.findFirst = jest.fn();
@@ -232,13 +231,11 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         .mockResolvedValueOnce(
           mixedRound.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })),
         );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateMock = (prisma.mRMatch as any).updateMany as jest.Mock;
       /* mf3 (different array) and mf4 (empty) both need repair. mf1 and mf2
        * already agree with the canonical, so they must be skipped. */
@@ -269,13 +266,11 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         .mockResolvedValueOnce(
           nullRound.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })),
         );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateMock = (prisma.mRMatch as any).updateMany as jest.Mock;
       /* All four rows get the same canonical array. */
       expect(updateMock).toHaveBeenCalledTimes(4);
@@ -316,13 +311,11 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         .mockResolvedValueOnce(
           normalized.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })),
         );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((prisma.mRMatch as any).updateMany).not.toHaveBeenCalled();
     });
   });
