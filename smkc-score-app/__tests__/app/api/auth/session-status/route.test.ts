@@ -7,7 +7,6 @@
  *
  * Covers:
  * - Success cases: Returning user session data when authenticated, handling unauthenticated state
- * - Rate limiting: Enforcing 429 status when rate limit exceeded, allowing normal requests
  * - Error handling: Graceful handling of database/auth errors with structured logging
  *
  * Uses the CLAUDE.md mock pattern with jest.requireMock() for accessing shared mock instances.
@@ -31,11 +30,6 @@ jest.mock('@/lib/logger', () => {
   };
 });
 
-jest.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: jest.fn(),
-  getServerSideIdentifier: jest.fn(),
-}));
-
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
@@ -43,13 +37,6 @@ jest.mock('@/lib/auth', () => ({
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import * as sessionStatusRoute from '@/app/api/auth/session-status/route';
-
-// Access mocks via requireMock to get references to the same mock functions
-// that the route module uses (per CLAUDE.md mock pattern)
-const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
-  checkRateLimit: jest.Mock;
-  getServerSideIdentifier: jest.Mock;
-};
 
 const loggerMock = jest.requireMock('@/lib/logger') as {
   createLogger: jest.Mock;
@@ -60,15 +47,6 @@ describe('GET /api/auth/session-status', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default: rate limiting passes so non-rate-limit tests work correctly
-    // Without this, checkRateLimit returns undefined and route throws TypeError
-    rateLimitMock.checkRateLimit.mockResolvedValue({
-      success: true,
-      limit: 100,
-      remaining: 99,
-      reset: Date.now() + 60000,
-    });
-    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
   });
 
   afterEach(() => {
@@ -112,66 +90,6 @@ describe('GET /api/auth/session-status', () => {
           requiresAuth: true,
         })
       );
-    });
-  });
-
-  describe.skip('Rate Limiting', () => {
-    it('should enforce rate limit - 429 status', async () => {
-      const mockUser = {
-        id: 'user-1',
-        email: 'user@example.com',
-        name: 'Test User',
-        role: 'user',
-      };
-
-      jest.mocked(auth).mockResolvedValue({
-        user: mockUser,
-        expires: '2025-01-01T00:00:00Z',
-      });
-
-      // Override default: rate limit exceeded
-      rateLimitMock.checkRateLimit.mockResolvedValue({
-        success: false,
-        retryAfter: 60,
-        limit: 100,
-        remaining: 0,
-        reset: Date.now() + 60000,
-      });
-
-      await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status')
-      );
-
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: false,
-          error: 'Too many requests. Please try again later.',
-          retryAfter: 60,
-        }),
-        expect.objectContaining({ status: 429 })
-      );
-    });
-
-    it('should allow requests when rate limit not exceeded', async () => {
-      const mockUser = {
-        id: 'user-1',
-        email: 'user@example.com',
-        name: 'Test User',
-        role: 'user',
-      };
-
-      jest.mocked(auth).mockResolvedValue({
-        user: mockUser,
-        expires: '2025-01-01T00:00:00Z',
-      });
-
-      await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status')
-      );
-
-      const callArgs = (NextResponse.json as jest.Mock).mock.calls[0];
-      expect(callArgs).toBeDefined();
-      expect(callArgs[0].success).toBe(true);
     });
   });
 
