@@ -20,6 +20,18 @@ function runGuard(diff: string) {
   };
 }
 
+const managedMigrationCases = [
+  ['Prisma modification', 'M\tprisma/migrations/0027_existing/migration.sql'],
+  ['Prisma deletion', 'D\tprisma/migrations/0027_existing/migration.sql'],
+  [
+    'Prisma rename',
+    'R100\tprisma/migrations/0027_old/migration.sql\tprisma/migrations/0027_new/migration.sql',
+  ],
+  ['D1 modification', 'M\tmigrations/0034_existing.sql'],
+  ['D1 deletion', 'D\tmigrations/0034_existing.sql'],
+  ['D1 rename', 'R100\tmigrations/0034_old.sql\tmigrations/0034_new.sql'],
+] as const;
+
 describe('migration history guard', () => {
   it('allows one new Prisma migration with one new D1 migration', () => {
     const result = runGuard(
@@ -39,42 +51,22 @@ describe('migration history guard', () => {
     });
   });
 
-  it('rejects modifying an existing Prisma migration', () => {
-    const result = runGuard('M\tprisma/migrations/0027_existing/migration.sql');
+  it.each(managedMigrationCases)('rejects existing migration history change: %s', (_name, diff) => {
+    const result = runGuard(diff);
 
     expect(result.status).toBe(1);
     expect(result.payload).toMatchObject({
       ok: false,
       parityOk: true,
-      violations: [
-        {
-          status: 'M',
-          from: 'prisma/migrations/0027_existing/migration.sql',
-          to: null,
-        },
-      ],
     });
+    expect(result.payload.violations).toHaveLength(1);
   });
 
-  it('rejects deleting an existing D1 migration', () => {
-    const result = runGuard('D\tmigrations/0034_existing.sql');
-
-    expect(result.status).toBe(1);
-    expect(result.payload.violations).toEqual([
-      {
-        status: 'D',
-        from: 'migrations/0034_existing.sql',
-        to: null,
-      },
-    ]);
-  });
-
-  it('rejects renaming an existing migration even with 100% similarity', () => {
+  it('preserves both paths when reporting a rename', () => {
     const result = runGuard(
       'R100\tprisma/migrations/0027_old/migration.sql\tprisma/migrations/0027_new/migration.sql',
     );
 
-    expect(result.status).toBe(1);
     expect(result.payload.violations).toEqual([
       {
         status: 'R100',
