@@ -3,7 +3,8 @@
  *
  * Behavior tests for the TA participant page's Phase 3 time report card
  * (issue #2994): visible only when the tournament toggle is on and the player
- * has a phase3 entry, and the report POST body carries the correct payload.
+ * has a phase3 entry, and report validation/submission follows the canonical
+ * TA time parser contract.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
@@ -183,6 +184,27 @@ describe('TA participant Phase 3 time report (issue #2994)', () => {
         }),
       );
     });
+  });
+
+  it('rejects an out-of-contract Phase 3 time before POSTing', async () => {
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('phase3ReportTitle')).toBeInTheDocument();
+    });
+
+    const fetchMock = global.fetch as jest.Mock;
+    fetchMock.mockClear();
+    fireEvent.change(screen.getByLabelText('reportTime'), { target: { value: '100:00.00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'reportTime' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('reportInvalidTime')).toBeInTheDocument();
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/tournaments/tournament-1/ta/phases',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 
   it('hides the Phase 3 report card when the toggle is off', async () => {

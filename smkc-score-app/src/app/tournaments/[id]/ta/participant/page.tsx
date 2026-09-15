@@ -36,7 +36,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
-import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib/ta/time-utils';
+import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from '@/lib/ta/time-utils';
 import {
   TA_TIME_ENTRY_CUP_GRID_CLASS,
   TA_TIME_INPUT_HELP_CLASS,
@@ -85,23 +85,6 @@ interface TAApiData {
   qualificationEditingLockedForPlayers?: boolean;
   taPlayerSelfEdit?: boolean;
   taPlayerReportEnabled?: boolean;
-}
-
-/**
- * Convert display time string to milliseconds for preview calculation.
- * Handles the M:SS.mm display format used in input fields.
- * Legacy 3-digit fractional input is still accepted for compatibility.
- */
-function displayTimeToMs(timeStr: string): number {
-  if (!timeStr) return 0;
-  const parts = timeStr.split(':');
-  if (parts.length !== 2) return 0;
-  const minutes = parseInt(parts[0]) || 0;
-  const secondsParts = parts[1].split('.');
-  const seconds = parseInt(secondsParts[0]) || 0;
-  /* Pad/truncate fractional seconds to 3 digits for consistent ms conversion */
-  const milliseconds = parseInt(secondsParts[1]?.padEnd(3, '0').slice(0, 3)) || 0;
-  return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
 export default function TimeAttackParticipantPage({ params }: { params: Promise<{ id: string }> }) {
@@ -336,15 +319,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       const timeStr = timeInputs[course.abbr];
       if (!timeStr) continue;
 
-      /* Official display format is M:SS.mm; accept legacy 3-digit fractions too */
-      const timeRegex = /^\d+:[0-5]\d\.\d{1,3}$/;
-      if (!timeRegex.test(timeStr)) {
+      const ms = timeToMs(timeStr);
+      if (ms === null) {
         /** i18n: Show localized validation error with course abbreviation */
         setError(tPart('invalidTimeFormat', { course: course.abbr }));
         return;
       }
 
-      const ms = displayTimeToMs(timeStr);
       if (ms <= 0) {
         /** i18n: Show localized error for non-positive time values */
         setError(tPart('invalidTime', { course: course.abbr }));
@@ -394,12 +375,11 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
     for (const course of COURSE_INFO) {
       const timeStr = partnerTimeInputs[course.abbr];
       if (!timeStr) continue;
-      const timeRegex = /^\d+:[0-5]\d\.\d{1,3}$/;
-      if (!timeRegex.test(timeStr)) {
+      const ms = timeToMs(timeStr);
+      if (ms === null) {
         setError(tPart('invalidTimeFormat', { course: course.abbr }));
         return;
       }
-      const ms = displayTimeToMs(timeStr);
       if (ms <= 0) {
         setError(tPart('invalidTime', { course: course.abbr }));
         return;
@@ -442,13 +422,8 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
     if (!round) return;
 
     const timeStr = reportTimeInput.trim();
-    const timeRegex = /^\d+:[0-5]\d\.\d{1,3}$/;
-    if (!timeRegex.test(timeStr)) {
-      setReportError(tTa('reportInvalidTime'));
-      return;
-    }
-    const timeMs = displayTimeToMs(timeStr);
-    if (timeMs <= 0) {
+    const timeMs = timeToMs(timeStr);
+    if (timeMs === null || timeMs <= 0) {
       setReportError(tTa('reportInvalidTime'));
       return;
     }
@@ -521,7 +496,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
   const getTotalTime = (): number => {
     return Object.entries(timeInputs)
       .filter(([, timeStr]) => timeStr && timeStr !== '')
-      .reduce((total, [, timeStr]) => total + displayTimeToMs(timeStr), 0);
+      .reduce((total, [, timeStr]) => total + (timeToMs(timeStr) ?? 0), 0);
   };
 
   /** i18n: Loading state uses translated string */
@@ -820,7 +795,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
                           {msToDisplayTime(
                             Object.entries(partnerTimeInputs)
                               .filter(([, t]) => t && t !== '')
-                              .reduce((sum, [, t]) => sum + displayTimeToMs(t), 0),
+                              .reduce((sum, [, t]) => sum + (timeToMs(t) ?? 0), 0),
                           )}
                         </div>
                       </div>
