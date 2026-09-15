@@ -1,0 +1,75 @@
+name: Automation 3460 unused cleanup
+
+on:
+  push:
+    branches:
+      - automation/3460-unused-cleanup-20260915
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: automation/3460-unused-cleanup-20260915
+      - name: Remove verified unused bindings
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, expected=1):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f"{path}: expected {expected} occurrences, found {count}: {old!r}")
+              p.write_text(text.replace(old, new))
+
+          replace_exact(
+              'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts',
+              '  callObjectArrayLiteralTexts,\n',
+              '',
+          )
+          replace_exact(
+              'smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts',
+              '  callObjectPropertyNames,\n',
+              '',
+          )
+          replace_exact(
+              'smkc-score-app/src/app/api/tournaments/[id]/ta/phases/route.ts',
+              "import { requireAdminSession, requireAdminOrPlayerSession } from '@/lib/api-auth';",
+              "import { requireAdminOrPlayerSession } from '@/lib/api-auth';",
+          )
+          replace_exact(
+              'smkc-score-app/src/app/tournaments/[id]/ta/participant/page.tsx',
+              '  type TaTimeInputProps,\n',
+              '',
+          )
+          replace_exact(
+              'smkc-score-app/src/lib/api-factories/qualification-route.ts',
+              "import { NextRequest, NextResponse } from 'next/server';",
+              "import { NextRequest } from 'next/server';",
+          )
+          replace_exact(
+              'smkc-score-app/src/lib/api-factories/qualification-route.ts',
+              '      // matchSequenceIndex tracks the overall real-match number across all groups\n'
+              '      // for consistent GP cup assignment from the shared list.\n'
+              '      let matchSequenceIndex = 0;\n',
+              '',
+          )
+          PY
+      - name: Remove temporary workflow and commit cleanup
+        run: |
+          git rm .github/workflows/automation-3460-cleanup.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts \
+                  'smkc-score-app/src/app/api/tournaments/[id]/ta/phases/route.ts' \
+                  'smkc-score-app/src/app/tournaments/[id]/ta/participant/page.tsx' \
+                  smkc-score-app/src/lib/api-factories/qualification-route.ts
+          git diff --cached --check
+          git commit -m "chore: remove verified unused lint bindings"
+          git push origin HEAD:automation/3460-unused-cleanup-20260915
