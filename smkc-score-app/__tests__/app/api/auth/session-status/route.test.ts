@@ -67,7 +67,7 @@ describe('GET /api/auth/session-status', () => {
       });
 
       await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status')
+        new NextRequest('http://localhost:3000/api/auth/session-status'),
       );
 
       const callArgs = (NextResponse.json as jest.Mock).mock.calls[0];
@@ -80,7 +80,7 @@ describe('GET /api/auth/session-status', () => {
       jest.mocked(auth).mockResolvedValue(null);
 
       await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status')
+        new NextRequest('http://localhost:3000/api/auth/session-status'),
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
@@ -88,7 +88,7 @@ describe('GET /api/auth/session-status', () => {
           success: false,
           error: 'No active session',
           requiresAuth: true,
-        })
+        }),
       );
     });
   });
@@ -98,7 +98,7 @@ describe('GET /api/auth/session-status', () => {
       jest.mocked(auth).mockRejectedValue(new Error('Auth error'));
 
       await sessionStatusRoute.GET(
-        new NextRequest('http://localhost:3000/api/auth/session-status')
+        new NextRequest('http://localhost:3000/api/auth/session-status'),
       );
 
       // createLogger() returns the shared mockLoggerInstance defined in the factory
@@ -106,12 +106,12 @@ describe('GET /api/auth/session-status', () => {
       const mockLogger = loggerMock.createLogger();
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Session status check failed',
-        expect.any(Object)
+        expect.any(Object),
       );
       // Route returns { success: false, error: ... } on error
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: false, error: 'Failed to check session status' },
-        { status: 500 }
+        { status: 500 },
       );
     });
   });
