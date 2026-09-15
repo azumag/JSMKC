@@ -40,6 +40,15 @@ jobs:
       E2E_PROFILE_DIR: /tmp/playwright-smkc-preview-profile
 
     steps:
+      - name: Validate admin browser profile secret
+        env:
+          PROFILE_ARCHIVE: ${{ secrets.E2E_PROFILE_ARCHIVE }}
+        run: |
+          if [ -z "${PROFILE_ARCHIVE}" ]; then
+            echo "::error::E2E_PROFILE_ARCHIVE is not configured; nightly E2E requires an authenticated admin profile."
+            exit 1
+          fi
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
@@ -99,14 +108,10 @@ jobs:
         env:
           PROFILE_ARCHIVE: ${{ secrets.E2E_PROFILE_ARCHIVE }}
         run: |
-          if [ -n "${PROFILE_ARCHIVE}" ]; then
-            echo "${PROFILE_ARCHIVE}" | base64 -d > /tmp/profile.tar.gz
-            mkdir -p "${E2E_PROFILE_DIR}"
-            tar -xzf /tmp/profile.tar.gz -C /tmp
-            echo "Admin profile restored ($(du -sh ${E2E_PROFILE_DIR} | cut -f1))"
-          else
-            echo "::warning::E2E_PROFILE_ARCHIVE is not set; the admin session preflight will fail unless the suite is run manually with a local profile."
-          fi
+          echo "${PROFILE_ARCHIVE}" | base64 -d > /tmp/profile.tar.gz
+          mkdir -p "${E2E_PROFILE_DIR}"
+          tar -xzf /tmp/profile.tar.gz -C /tmp
+          echo "Admin profile restored ($(du -sh ${E2E_PROFILE_DIR} | cut -f1))"
 
       - name: Run E2E suite
         working-directory: smkc-score-app
@@ -123,3 +128,4 @@ jobs:
           name: e2e-log-${{ github.run_id }}
           path: /tmp/e2e-output/console.log
           if-no-files-found: ignore
+          retention-days: 14
