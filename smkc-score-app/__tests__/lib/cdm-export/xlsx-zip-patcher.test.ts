@@ -18,18 +18,13 @@
  *  - writing a number over an ARRAY-formula cell (Overall Ranking B2) throws.
  *  - a perf smoke test applies 20k ops to a real sheet within a few seconds.
  */
-import { readFileSync } from "fs";
-import { join } from "path";
-import { unzipSync, strFromU8 } from "fflate";
-import { patchCdmWorkbook } from "@/lib/cdm-export/xlsx-zip-patcher";
-import type { CdmCellWrite } from "@/lib/cdm-export/types";
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { unzipSync, strFromU8 } from 'fflate';
+import { patchCdmWorkbook } from '@/lib/cdm-export/xlsx-zip-patcher';
+import type { CdmCellWrite } from '@/lib/cdm-export/types';
 
-const TEMPLATE_PATH = join(
-  process.cwd(),
-  "public",
-  "templates",
-  "cdm-2025-template.xlsm"
-);
+const TEMPLATE_PATH = join(process.cwd(), 'public', 'templates', 'cdm-2025-template.xlsm');
 
 function loadTemplate(): Uint8Array {
   return new Uint8Array(readFileSync(TEMPLATE_PATH));
@@ -49,19 +44,15 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
-describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
+describe('patchCdmWorkbook — no-op pass-through fidelity', () => {
   const original = loadTemplate();
   const originalParts = parts(original);
   const out = patchCdmWorkbook(loadTemplate(), []);
   const outParts = parts(out);
 
-  it("preserves every non-worksheet part except workbook.xml, content types and workbook rels", () => {
-    const allowedToDiffer = new Set([
-      "xl/workbook.xml",
-      "[Content_Types].xml",
-      "xl/_rels/workbook.xml.rels",
-    ]);
-    const removed = new Set(["xl/calcChain.xml"]);
+  it('preserves every non-worksheet part except workbook.xml, content types and workbook rels', () => {
+    const allowedToDiffer = new Set(['xl/workbook.xml', '[Content_Types].xml', 'xl/_rels/workbook.xml.rels']);
+    const removed = new Set(['xl/calcChain.xml']);
 
     for (const path of Object.keys(originalParts)) {
       if (removed.has(path)) continue; // expected to be gone
@@ -78,24 +69,22 @@ describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
     }
   });
 
-  it("removes xl/calcChain.xml", () => {
-    expect(originalParts["xl/calcChain.xml"]).toBeDefined();
-    expect(outParts["xl/calcChain.xml"]).toBeUndefined();
+  it('removes xl/calcChain.xml', () => {
+    expect(originalParts['xl/calcChain.xml']).toBeDefined();
+    expect(outParts['xl/calcChain.xml']).toBeUndefined();
   });
 
-  it("keeps tables and richData parts that the old exporter destroyed", () => {
-    expect(outParts["xl/tables/table1.xml"]).toBeDefined();
-    expect(bytesEqual(outParts["xl/tables/table1.xml"], originalParts["xl/tables/table1.xml"])).toBe(true);
-    expect(outParts["xl/richData/rdrichvalue.xml"]).toBeDefined();
-    expect(
-      bytesEqual(outParts["xl/richData/rdrichvalue.xml"], originalParts["xl/richData/rdrichvalue.xml"])
-    ).toBe(true);
-  });
-
-  it("keeps all 12 worksheet parts but strips their stale cached values", () => {
-    const sheets = Object.keys(originalParts).filter((p) =>
-      /^xl\/worksheets\/sheet\d+\.xml$/.test(p)
+  it('keeps tables and richData parts that the old exporter destroyed', () => {
+    expect(outParts['xl/tables/table1.xml']).toBeDefined();
+    expect(bytesEqual(outParts['xl/tables/table1.xml'], originalParts['xl/tables/table1.xml'])).toBe(true);
+    expect(outParts['xl/richData/rdrichvalue.xml']).toBeDefined();
+    expect(bytesEqual(outParts['xl/richData/rdrichvalue.xml'], originalParts['xl/richData/rdrichvalue.xml'])).toBe(
+      true,
     );
+  });
+
+  it('keeps all 12 worksheet parts but strips their stale cached values', () => {
+    const sheets = Object.keys(originalParts).filter((p) => /^xl\/worksheets\/sheet\d+\.xml$/.test(p));
     expect(sheets.length).toBe(12);
     for (const sheet of sheets) expect(outParts[sheet]).toBeDefined();
 
@@ -103,17 +92,15 @@ describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
     // longer carry the CDM2025 roster: the SORT(UNIQUE(Registration[Nickname]))
     // anchor formula survives, but the names it spilled (B3..B61, t="str" cells
     // with no <f>) are cleared so Excel re-spills the new tournament's players.
-    const overall = strFromU8(outParts["xl/worksheets/sheet12.xml"]);
-    expect(overall).toContain(
-      "_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))",
-    );
-    expect(overall).not.toContain("<v>Bluh</v>");
-    expect(overall).not.toContain("<v>Drew</v>");
-    expect(overall).not.toContain("<v>Sami</v>");
+    const overall = strFromU8(outParts['xl/worksheets/sheet12.xml']);
+    expect(overall).toContain('_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))');
+    expect(overall).not.toContain('<v>Bluh</v>');
+    expect(overall).not.toContain('<v>Drew</v>');
+    expect(overall).not.toContain('<v>Sami</v>');
   });
 
-  it("adds full-recalculation attributes to calcPr in workbook.xml", () => {
-    const wb = strFromU8(outParts["xl/workbook.xml"]);
+  it('adds full-recalculation attributes to calcPr in workbook.xml', () => {
+    const wb = strFromU8(outParts['xl/workbook.xml']);
     expect(wb).toContain('calcMode="auto"');
     expect(wb).toContain('fullCalcOnLoad="1"');
     expect(wb).toContain('forceFullCalc="1"');
@@ -121,38 +108,36 @@ describe("patchCdmWorkbook — no-op pass-through fidelity", () => {
     expect(wb).toContain('calcId="191028"');
   });
 
-  it("removes the calcChain Override from [Content_Types].xml", () => {
-    const ct = strFromU8(outParts["[Content_Types].xml"]);
-    expect(ct).not.toContain("calcChain.xml");
+  it('removes the calcChain Override from [Content_Types].xml', () => {
+    const ct = strFromU8(outParts['[Content_Types].xml']);
+    expect(ct).not.toContain('calcChain.xml');
   });
 
-  it("removes the calcChain Relationship from workbook.xml.rels", () => {
-    const rels = strFromU8(outParts["xl/_rels/workbook.xml.rels"]);
-    expect(rels).not.toContain("calcChain.xml");
+  it('removes the calcChain Relationship from workbook.xml.rels', () => {
+    const rels = strFromU8(outParts['xl/_rels/workbook.xml.rels']);
+    expect(rels).not.toContain('calcChain.xml');
   });
 
-  it("preserves the zip entry order (minus calcChain)", () => {
-    const expectedOrder = Object.keys(originalParts).filter(
-      (p) => p !== "xl/calcChain.xml"
-    );
+  it('preserves the zip entry order (minus calcChain)', () => {
+    const expectedOrder = Object.keys(originalParts).filter((p) => p !== 'xl/calcChain.xml');
     const actualOrder = Object.keys(outParts);
     expect(actualOrder).toEqual(expectedOrder);
   });
 });
 
-describe("patchCdmWorkbook — real cell writes", () => {
+describe('patchCdmWorkbook — real cell writes', () => {
   function readSheet(out: Uint8Array, sheetPath: string): string {
     return strFromU8(parts(out)[sheetPath]);
   }
 
-  it("writes inlineString, number and clearValue into Main Hub input cells", () => {
+  it('writes inlineString, number and clearValue into Main Hub input cells', () => {
     const writes: CdmCellWrite[] = [
-      { sheet: "Main Hub", ref: "B2", op: "inlineString", value: "Mario Kart" },
-      { sheet: "Main Hub", ref: "O3", op: "number", value: 16 },
-      { sheet: "Main Hub", ref: "E2", op: "clearValue" },
+      { sheet: 'Main Hub', ref: 'B2', op: 'inlineString', value: 'Mario Kart' },
+      { sheet: 'Main Hub', ref: 'O3', op: 'number', value: 16 },
+      { sheet: 'Main Hub', ref: 'E2', op: 'clearValue' },
     ];
     const out = patchCdmWorkbook(loadTemplate(), writes);
-    const sheet1 = readSheet(out, "xl/worksheets/sheet1.xml");
+    const sheet1 = readSheet(out, 'xl/worksheets/sheet1.xml');
 
     // B2 became an inline string (was a shared-string cell t="s").
     expect(sheet1).toContain('<c r="B2" s="2" t="inlineStr"><is><t>Mario Kart</t></is></c>');
@@ -162,12 +147,10 @@ describe("patchCdmWorkbook — real cell writes", () => {
     expect(sheet1).toContain('<c r="E2" s="4"/>');
   });
 
-  it("leaves the byte slice of an untouched neighbour cell unchanged", () => {
-    const writes: CdmCellWrite[] = [
-      { sheet: "Main Hub", ref: "C2", op: "inlineString", value: "Nick" },
-    ];
+  it('leaves the byte slice of an untouched neighbour cell unchanged', () => {
+    const writes: CdmCellWrite[] = [{ sheet: 'Main Hub', ref: 'C2', op: 'inlineString', value: 'Nick' }];
     const out = patchCdmWorkbook(loadTemplate(), writes);
-    const sheet1 = readSheet(out, "xl/worksheets/sheet1.xml");
+    const sheet1 = readSheet(out, 'xl/worksheets/sheet1.xml');
     // B2 (the immediate left neighbour) must be reproduced exactly.
     expect(sheet1).toContain('<c r="B2" s="2" t="s"><v>13</v></c>');
     // A2's formula is untouched, but its stale cached value is removed on
@@ -175,12 +158,10 @@ describe("patchCdmWorkbook — real cell writes", () => {
     expect(sheet1).toContain('<c r="A2" s="40"><f>ROW()-1</f></c>');
   });
 
-  it("drops cached values from formula cells on touched sheets", () => {
-    const writes: CdmCellWrite[] = [
-      { sheet: "BM Finals", ref: "H5", op: "number", value: 4 },
-    ];
+  it('drops cached values from formula cells on touched sheets', () => {
+    const writes: CdmCellWrite[] = [{ sheet: 'BM Finals', ref: 'H5', op: 'number', value: 4 }];
     const out = patchCdmWorkbook(loadTemplate(), writes);
-    const sheet7 = readSheet(out, "xl/worksheets/sheet7.xml");
+    const sheet7 = readSheet(out, 'xl/worksheets/sheet7.xml');
 
     expect(sheet7).toContain('<f>_xlfn.XLOOKUP(E5,A:A,B:B)</f>');
     // The cached <v>Patrick</v> AND the now-stale t="str" type marker must both be
@@ -192,25 +173,21 @@ describe("patchCdmWorkbook — real cell writes", () => {
     expect(sheet7).not.toContain('<f>_xlfn.XLOOKUP(E5,A:A,B:B)</f><v>Patrick</v>');
   });
 
-  it("throws when a number is written over an ARRAY-formula cell (Overall Ranking B2)", () => {
-    const writes: CdmCellWrite[] = [
-      { sheet: "Overall Ranking", ref: "B2", op: "number", value: 1 },
-    ];
+  it('throws when a number is written over an ARRAY-formula cell (Overall Ranking B2)', () => {
+    const writes: CdmCellWrite[] = [{ sheet: 'Overall Ranking', ref: 'B2', op: 'number', value: 1 }];
     expect(() => patchCdmWorkbook(loadTemplate(), writes)).toThrow(/B2/);
   });
 
-  it("strip removes the <f> from a formula cell", () => {
-    const writes: CdmCellWrite[] = [
-      { sheet: "Overall Ranking", ref: "B2", op: "strip" },
-    ];
+  it('strip removes the <f> from a formula cell', () => {
+    const writes: CdmCellWrite[] = [{ sheet: 'Overall Ranking', ref: 'B2', op: 'strip' }];
     const out = patchCdmWorkbook(loadTemplate(), writes);
-    const sheet12 = readSheet(out, "xl/worksheets/sheet12.xml");
+    const sheet12 = readSheet(out, 'xl/worksheets/sheet12.xml');
     // The B2 array formula text must be gone; a styled shell remains.
-    expect(sheet12).not.toContain("_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))");
+    expect(sheet12).not.toContain('_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))');
     expect(sheet12).toContain('<c r="B2" s="32"/>');
   });
 
-  it("strips stale cached values from dynamic-array spill child cells", () => {
+  it('strips stale cached values from dynamic-array spill child cells', () => {
     // Overall Ranking (sheet12) is never written by the fill map. Its B column is
     // the spill of SORT(UNIQUE(Registration[Nickname])) anchored at B2; the
     // template persists the CDM2025 spill children (B3..B61) as t="str" cells with
@@ -218,33 +195,31 @@ describe("patchCdmWorkbook — real cell writes", () => {
     // strip only touched cells containing <f>, so those names survived and Excel
     // rendered the stale CDM2025 roster. A no-op patch must already remove them.
     const out = patchCdmWorkbook(loadTemplate(), []);
-    const overall = readSheet(out, "xl/worksheets/sheet12.xml");
-    expect(overall).not.toContain("<v>Bluh</v>");
-    expect(overall).not.toContain("<v>Drew</v>");
-    expect(overall).not.toContain("<v>Sami</v>");
+    const overall = readSheet(out, 'xl/worksheets/sheet12.xml');
+    expect(overall).not.toContain('<v>Bluh</v>');
+    expect(overall).not.toContain('<v>Drew</v>');
+    expect(overall).not.toContain('<v>Sami</v>');
     // The spill ANCHOR formula must remain intact — only its cached value is gone.
-    expect(overall).toContain(
-      "_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))",
-    );
+    expect(overall).toContain('_xlfn._xlws.SORT(_xlfn.UNIQUE(Registration[Nickname]))');
   });
 
-  it("strips spill children on a touched sheet too (TT Qualifications)", () => {
+  it('strips spill children on a touched sheet too (TT Qualifications)', () => {
     // TT Qualifications (sheet3) B2:B48 / F2:F48 spill FILTER/SORT of the roster.
     // Writing an input cell makes the sheet "touched"; the spill children must be
     // cleared on that path as well, not just on untouched sheets.
     const out = patchCdmWorkbook(loadTemplate(), [
-      { sheet: "TT Qualifications", ref: "G2", op: "number", value: 11034 },
+      { sheet: 'TT Qualifications', ref: 'G2', op: 'number', value: 11034 },
     ]);
-    const ttQual = readSheet(out, "xl/worksheets/sheet3.xml");
-    expect(ttQual).not.toContain("<v>Bluh</v>");
-    expect(ttQual).not.toContain("<v>Drew</v>");
-    expect(ttQual).not.toContain("<v>Sami</v>");
+    const ttQual = readSheet(out, 'xl/worksheets/sheet3.xml');
+    expect(ttQual).not.toContain('<v>Bluh</v>');
+    expect(ttQual).not.toContain('<v>Drew</v>');
+    expect(ttQual).not.toContain('<v>Sami</v>');
     // The input we wrote must OUTLIVE the strip — G2 is a plain input cell, not a
     // spill child, so clearing spill ranges must not touch it.
     expect(ttQual).toContain('<c r="G2" s="45"><v>11034</v></c>');
   });
 
-  it("removes the stale t=\"str\" type from stripped dynamic-array anchors so they spill", () => {
+  it('removes the stale t="str" type from stripped dynamic-array anchors so they spill', () => {
     // Regression: the strip dropped a string anchor's cached <v> but LEFT t="str"
     // on the <c>. Excel reads <c t="str"><f t="array">FILTER(...)</f></c> (string
     // type, no value) as a SCALAR string result, so the array never spills and
@@ -252,23 +227,19 @@ describe("patchCdmWorkbook — real cell writes", () => {
     // the entire formula-driven TT Qualifications sheet. The type marker must go
     // with the value so Excel recomputes it and re-establishes the spill.
     const out = patchCdmWorkbook(loadTemplate(), [
-      { sheet: "TT Qualifications", ref: "G2", op: "number", value: 11034 },
+      { sheet: 'TT Qualifications', ref: 'G2', op: 'number', value: 11034 },
     ]);
-    const ttQual = readSheet(out, "xl/worksheets/sheet3.xml");
+    const ttQual = readSheet(out, 'xl/worksheets/sheet3.xml');
     // B2 = FILTER(...) and F2 = SORT(ANCHORARRAY(B2)) are string-result anchors.
-    expect(ttQual).toContain(
-      '<c r="B2" s="44" cm="1"><f t="array" ref="B2:B48">_xlfn._xlws.FILTER(',
-    );
-    expect(ttQual).toContain(
-      '<c r="F2" s="44" cm="1"><f t="array" ref="F2:F48">_xlfn._xlws.SORT(',
-    );
+    expect(ttQual).toContain('<c r="B2" s="44" cm="1"><f t="array" ref="B2:B48">_xlfn._xlws.FILTER(');
+    expect(ttQual).toContain('<c r="F2" s="44" cm="1"><f t="array" ref="F2:F48">_xlfn._xlws.SORT(');
     // No formula cell may keep a dangling value-type t with no cached value.
     expect(ttQual).not.toMatch(/t="(?:str|e|b)"><f/);
     // The array marker on the <f> itself (t="array") must of course survive.
     expect(ttQual).toContain('<f t="array" ref="B2:B48">');
   });
 
-  it("strips the rich-value vm from stripped cells but keeps cm and the <f t=\"array\">", () => {
+  it('strips the rich-value vm from stripped cells but keeps cm and the <f t="array">', () => {
     // Main Hub T2 anchors UNIQUE(FILTER(Registration[Country])) — a RICH-value
     // formula: <c r="T2" .. t="e" cm="1" vm="1"><f t="array" ref="T2:T12">..</f>
     // <v>#VALUE!</v></c>, with rich spill children T3:T12 (t="e" vm=N). The strip
@@ -281,65 +252,57 @@ describe("patchCdmWorkbook — real cell writes", () => {
     // country cells, so we scope these asserts to the T column. The whole-sheet
     // "no vm anywhere" guard (D + T together) lives in index.test.ts.
     const out = patchCdmWorkbook(loadTemplate(), []);
-    const mainHub = readSheet(out, "xl/worksheets/sheet1.xml");
+    const mainHub = readSheet(out, 'xl/worksheets/sheet1.xml');
     // Rich ANCHOR: vm gone, cm + array formula intact.
-    expect(mainHub).toContain(
-      '<c r="T2" s="15" cm="1"><f t="array" ref="T2:T12">_xlfn.UNIQUE(',
-    );
+    expect(mainHub).toContain('<c r="T2" s="15" cm="1"><f t="array" ref="T2:T12">_xlfn.UNIQUE(');
     // Rich SPILL CHILD: reduced to a styled empty shell (no t, no vm, no value).
     expect(mainHub).toContain('<c r="T3" s="15"></c>');
     // No T cell may keep a vm pointer into the stale rich data (flag).
     expect(mainHub).not.toMatch(/<c r="T\d+"[^>]*vm=/);
   });
 
-  it("throws when a value is written into a dynamic-array spill cell", () => {
+  it('throws when a value is written into a dynamic-array spill cell', () => {
     // Overall Ranking B2 anchors SORT(UNIQUE(Registration[Nickname])) with spill
     // ref B2:B61, so B5 is a spill CHILD (no <f> of its own). Writing a value
     // there is fill/template drift: it would be silently erased by the spill-range
     // strip, so the patcher must reject it — symmetric with the anchor guard above.
-    const writes: CdmCellWrite[] = [
-      { sheet: "Overall Ranking", ref: "B5", op: "inlineString", value: "X" },
-    ];
+    const writes: CdmCellWrite[] = [{ sheet: 'Overall Ranking', ref: 'B5', op: 'inlineString', value: 'X' }];
     expect(() => patchCdmWorkbook(loadTemplate(), writes)).toThrow(/B5/);
   });
 
   it.each([
-    ["overwriteNumber", { sheet: "Overall Ranking", ref: "B5", op: "overwriteNumber", value: 42 }],
-    ["overwriteString", { sheet: "Overall Ranking", ref: "B5", op: "overwriteString", value: "X" }],
-  ] satisfies Array<[string, CdmCellWrite]>)("also rejects %s writes into a spill child", (_label, write) => {
+    ['overwriteNumber', { sheet: 'Overall Ranking', ref: 'B5', op: 'overwriteNumber', value: 42 }],
+    ['overwriteString', { sheet: 'Overall Ranking', ref: 'B5', op: 'overwriteString', value: 'X' }],
+  ] satisfies Array<[string, CdmCellWrite]>)('also rejects %s writes into a spill child', (_label, write) => {
     expect(() => patchCdmWorkbook(loadTemplate(), [write])).toThrow(/B5/);
   });
 
-  it("throws on an unknown sheet name", () => {
-    const writes = [
-      { sheet: "Nonexistent Sheet", ref: "A1", op: "number", value: 1 },
-    ] as unknown as CdmCellWrite[];
+  it('throws on an unknown sheet name', () => {
+    const writes = [{ sheet: 'Nonexistent Sheet', ref: 'A1', op: 'number', value: 1 }] as unknown as CdmCellWrite[];
     expect(() => patchCdmWorkbook(loadTemplate(), writes)).toThrow();
   });
 
-  it("produces a workbook that fflate can re-open (round-trips)", () => {
-    const writes: CdmCellWrite[] = [
-      { sheet: "Main Hub", ref: "B2", op: "inlineString", value: "X" },
-    ];
+  it('produces a workbook that fflate can re-open (round-trips)', () => {
+    const writes: CdmCellWrite[] = [{ sheet: 'Main Hub', ref: 'B2', op: 'inlineString', value: 'X' }];
     const out = patchCdmWorkbook(loadTemplate(), writes);
     expect(() => unzipSync(out)).not.toThrow();
   });
 });
 
-describe("patchCdmWorkbook — performance smoke", () => {
-  it("applies 20k ops to a real sheet within a few seconds", () => {
+describe('patchCdmWorkbook — performance smoke', () => {
+  it('applies 20k ops to a real sheet within a few seconds', () => {
     // BM Qualifications (sheet6) is large (456 KB). Hammer its input columns.
     const writes: CdmCellWrite[] = [];
     for (let i = 0; i < 20000; i++) {
       // Spread writes across rows 2..481 and a handful of columns to exercise
       // both row indexing and cell insertion/parsing paths.
       const row = 2 + (i % 480);
-      const cols = ["S", "T", "U", "V", "W"];
+      const cols = ['S', 'T', 'U', 'V', 'W'];
       const col = cols[i % cols.length];
       writes.push({
-        sheet: "BM Qualifications",
+        sheet: 'BM Qualifications',
         ref: `${col}${row}`,
-        op: "number",
+        op: 'number',
         value: i % 5,
       });
     }
@@ -347,7 +310,10 @@ describe("patchCdmWorkbook — performance smoke", () => {
     const out = patchCdmWorkbook(loadTemplate(), writes);
     const elapsed = Date.now() - start;
     expect(out.length).toBeGreaterThan(0);
-    // Generous ceiling for CI; the design target is < 2s.
-    expect(elapsed).toBeLessThan(5000);
+    // Keep the local smoke tight while allowing shared GitHub runners enough
+    // headroom for transient CPU contention. This remains a catastrophic-
+    // regression guard; the design target is still < 2s.
+    const hardFailCeilingMs = process.env.CI ? 12000 : 5000;
+    expect(elapsed).toBeLessThan(hardFailCeilingMs);
   });
 });
