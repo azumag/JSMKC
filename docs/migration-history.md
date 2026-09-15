@@ -9,11 +9,11 @@ A schema change that needs a migration must add both sides in the same PR. The `
 
 ## Existing migrations are immutable
 
-Once a migration SQL file is committed, treat it as applied history. Do not edit, delete, rename, or copy an existing migration entry to change its meaning. A database that already recorded the old migration would not replay the rewritten file, while a fresh database would see the new contents, causing the two environments to diverge.
+Once a migration SQL file is committed, treat it as applied history. Do not edit, delete, or rename an existing migration entry to change its meaning. A database that already recorded the old migration would not replay the rewritten file, while a fresh database would see the new contents, causing the two environments to diverge.
 
 If a previous migration needs correction, add a new forward migration instead. Keep it backward-compatible with the independently triggered Cloudflare Workers deployment as described in `CLAUDE.md`.
 
-CI enforces this append-only rule with `smkc-score-app/scripts/check-migration-history.cjs`. On pull requests the script compares the base and head commits using `git diff --name-status --find-renames` and fails closed when a managed migration SQL file has any status other than a new addition (`A`). Rename and copy statuses are rejected even when Git reports 100% similarity.
+CI enforces this append-only rule with `smkc-score-app/scripts/check-migration-history.cjs`. On pull requests the script compares the base and head commits using `git diff --name-status --find-renames` and fails closed when a managed migration SQL file has any status other than a new addition (`A`). Rename statuses are rejected even when Git reports 100% similarity.
 
 The guard intentionally does not inspect application source changes or non-SQL documentation under the migration directories.
 
