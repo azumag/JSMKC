@@ -4,9 +4,9 @@
  * Provides an in-memory sliding window rate limiter for API endpoints.
  *
  * Client identification strategy (in priority order):
- * 1. x-forwarded-for header (behind reverse proxy/load balancer)
- * 2. x-real-ip header (Nginx convention)
- * 3. cf-connecting-ip header (Cloudflare)
+ * 1. cf-connecting-ip header (Cloudflare - trusted, set by CDN)
+ * 2. x-real-ip header (Nginx convention - trusted within internal network)
+ * 3. x-forwarded-for header (untrusted - can be spoofed by clients)
  * 4. 'unknown' fallback (should not happen in production)
  *
  * Usage:
