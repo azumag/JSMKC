@@ -63,6 +63,23 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(restoreScript).not.toContain('echo "${PROFILE_ARCHIVE}"');
   });
 
+  it('validates profile archive entries before extracting them', () => {
+    const steps = loadWorkflow().jobs?.e2e?.steps ?? [];
+    const restoreProfile = steps.find((step) => step.name === 'Restore admin browser profile');
+    const restoreScript = restoreProfile?.run ?? '';
+    const listIndex = restoreScript.indexOf('tar -tzf "${ARCHIVE_PATH}"');
+    const extractIndex = restoreScript.indexOf('tar -xzf "${ARCHIVE_PATH}" -C /tmp');
+
+    expect(listIndex).toBeGreaterThanOrEqual(0);
+    expect(extractIndex).toBeGreaterThan(listIndex);
+    expect(restoreScript).toContain('if [ -z "${ARCHIVE_ENTRIES}" ]; then');
+    expect(restoreScript).toContain('PROFILE_ROOT="${E2E_PROFILE_DIR##*/}"');
+    expect(restoreScript).toContain('path ~ /^\\//');
+    expect(restoreScript).toContain('parts[i] == ".."');
+    expect(restoreScript).toContain('path != root && index(path, root "/") != 1');
+    expect(restoreScript).toContain('contains entries outside ${PROFILE_ROOT}; refusing to extract it');
+  });
+
   it('documents a macOS/Linux-portable profile encoder instead of GNU-only base64 flags', () => {
     expect(workflowText).not.toContain('base64 -w0');
     expect(workflowText).toContain(
