@@ -1,7 +1,5 @@
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
 import {
-  callObjectArrayLiteralTexts,
-  callObjectPropertyNames,
   callExpressionWithArguments,
   e2eCaseSection,
   readRepoFile,

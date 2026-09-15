@@ -9,7 +9,7 @@
  * while preserving identical API response shapes for each event type.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -610,9 +610,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         config.assignCupRandomly && config.cupList && hasCircleSchedule
           ? generateShuffledCupList(config.cupList, logger)
           : null;
-      // matchSequenceIndex tracks the overall real-match number across all groups
-      // for consistent GP cup assignment from the shared list.
-      let matchSequenceIndex = 0;
       /*
        * Collect all match payloads in memory, then bulk-insert with a single
        * createMany call (issue #420). For an 8-player single-group BM tournament
