@@ -63,21 +63,26 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(restoreScript).not.toContain('echo "${PROFILE_ARCHIVE}"');
   });
 
-  it('validates profile archive entries before extracting them', () => {
+  it('validates profile archive paths and member types before extracting them', () => {
     const steps = loadWorkflow().jobs?.e2e?.steps ?? [];
     const restoreProfile = steps.find((step) => step.name === 'Restore admin browser profile');
     const restoreScript = restoreProfile?.run ?? '';
     const listIndex = restoreScript.indexOf('tar -tzf "${ARCHIVE_PATH}"');
+    const typeListIndex = restoreScript.indexOf('tar -tvzf "${ARCHIVE_PATH}"');
     const extractIndex = restoreScript.indexOf('tar -xzf "${ARCHIVE_PATH}" -C /tmp');
 
     expect(listIndex).toBeGreaterThanOrEqual(0);
-    expect(extractIndex).toBeGreaterThan(listIndex);
+    expect(typeListIndex).toBeGreaterThan(listIndex);
+    expect(extractIndex).toBeGreaterThan(typeListIndex);
     expect(restoreScript).toContain('if [ -z "${ARCHIVE_ENTRIES}" ]; then');
     expect(restoreScript).toContain('PROFILE_ROOT="${E2E_PROFILE_DIR##*/}"');
     expect(restoreScript).toContain(String.raw`path ~ /^\//`);
     expect(restoreScript).toContain('parts[i] == ".."');
     expect(restoreScript).toContain('path != root && index(path, root "/") != 1');
     expect(restoreScript).toContain('contains entries outside ${PROFILE_ROOT}; refusing to extract it');
+    expect(restoreScript).toContain('type = substr($1, 1, 1)');
+    expect(restoreScript).toContain('type != "-" && type != "d"');
+    expect(restoreScript).toContain('only regular files and directories are allowed');
   });
 
   it('documents a macOS/Linux-portable profile encoder instead of GNU-only base64 flags', () => {

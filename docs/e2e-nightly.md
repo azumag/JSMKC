@@ -12,7 +12,7 @@ After the prerequisite passes, the profile is restored under `/tmp/playwright-sm
 
 The authenticated profile is credential-bearing material. Its restore step therefore uses `umask 077`, writes the base64-decoded archive to a run-specific temporary path, removes that archive with an `EXIT` trap even on restore failure, and strips group/other permissions from the extracted profile tree before Playwright uses it. The secret value itself is never echoed to the Actions log.
 
-Before extraction, the workflow also lists the tar entries and validates the archive layout fail-closed. A valid archive may contain only the top-level `playwright-smkc-preview-profile` entry and files/directories below it. Empty archives, absolute paths, `..` path components, and additional top-level entries are rejected before `tar -xzf` runs. This keeps a malformed or incorrectly packaged secret from writing archive entries outside the expected preview profile tree.
+Before extraction, the workflow also validates the tar archive fail-closed. A valid archive may contain only the top-level `playwright-smkc-preview-profile` entry and regular files/directories below it. Empty archives, absolute paths, `..` path components, additional top-level entries, symbolic links, hard links, devices, FIFOs, and other special entries are rejected before `tar -xzf` runs. Checking both names and member types keeps a malformed or incorrectly packaged secret from escaping the expected preview profile tree or introducing unexpected filesystem objects during restore.
 
 ### Create or refresh `E2E_PROFILE_ARCHIVE`
 

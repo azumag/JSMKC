@@ -143,6 +143,16 @@ jobs:
             exit 1
           fi
 
+          if ! tar -tvzf "${ARCHIVE_PATH}" | awk '
+            {
+              type = substr($1, 1, 1)
+              if (type != "-" && type != "d") exit 1
+            }
+          '; then
+            echo "::error::E2E_PROFILE_ARCHIVE contains symlink, hardlink, or special entries; only regular files and directories are allowed."
+            exit 1
+          fi
+
           mkdir -p "${E2E_PROFILE_DIR}"
           tar -xzf "${ARCHIVE_PATH}" -C /tmp
           chmod -R go-rwx "${E2E_PROFILE_DIR}"
