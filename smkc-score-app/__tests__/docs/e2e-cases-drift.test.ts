@@ -1,12 +1,5 @@
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
-import {
-  callObjectArrayLiteralTexts,
-  callObjectPropertyNames,
-  callExpressionWithArguments,
-  e2eCaseSection,
-  readRepoFile,
-  sectionBetween,
-} from '../helpers/e2e-cases';
+import { callExpressionWithArguments, e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
 
 function readE2eScript(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', script);

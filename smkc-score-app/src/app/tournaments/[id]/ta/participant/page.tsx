@@ -40,7 +40,6 @@ import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib
 import {
   TA_TIME_ENTRY_CUP_GRID_CLASS,
   TA_TIME_INPUT_HELP_CLASS,
-  type TaTimeInputProps,
   getTaTimeInputProps,
 } from '@/lib/ta/time-entry-layout';
 import { toast } from 'sonner';

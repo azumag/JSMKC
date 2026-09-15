@@ -21,7 +21,7 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
-import { requireAdminSession, requireAdminOrPlayerSession } from '@/lib/api-auth';
+import { requireAdminOrPlayerSession } from '@/lib/api-auth';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { retryDbRead } from '@/lib/db-read-retry';
