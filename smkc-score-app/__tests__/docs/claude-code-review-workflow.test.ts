@@ -29,12 +29,14 @@ describe('Claude Code Review workflow configuration', () => {
     }
   });
 
-  it('pins npm before installing dependencies', () => {
+  it('pins npm before installing dependencies without bootstrap side effects', () => {
     const pinIndex = lintAndTestSteps.findIndex((step) => step.name === 'Pin npm');
     const installIndex = lintAndTestSteps.findIndex((step) => step.run?.trim() === 'npm ci');
     expect(pinIndex).toBeGreaterThanOrEqual(0);
     expect(pinIndex).toBeLessThan(installIndex);
-    expect(lintAndTestSteps[pinIndex].run).toContain('npm install --global npm@10.9.4');
+    expect(lintAndTestSteps[pinIndex].run).toContain(
+      'npm install --global --ignore-scripts --no-audit --no-fund npm@10.9.4',
+    );
     expect(lintAndTestSteps[pinIndex].run).toContain('test "$(npm --version)" = "10.9.4"');
   });
 
