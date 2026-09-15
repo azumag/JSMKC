@@ -32,11 +32,9 @@ const timeFormatRegex = /^(\d{1,2}):([0-5]\d)\.(\d{1,3})$/;
  * the M:SS.mm / MM:SS.mm format. This allows partial form submissions
  * where not all courses have times entered yet.
  */
-export const TimeStringSchema = z
-  .string()
-  .refine((val) => val === '' || timeFormatRegex.test(val), {
-    message: 'Invalid time format. Expected M:SS.mm or MM:SS.mm',
-  });
+export const TimeStringSchema = z.string().refine((val) => val === '' || timeFormatRegex.test(val), {
+  message: 'Invalid time format. Expected M:SS.mm or MM:SS.mm',
+});
 
 /**
  * Zod schema for validating a record of course abbreviations to time strings.
