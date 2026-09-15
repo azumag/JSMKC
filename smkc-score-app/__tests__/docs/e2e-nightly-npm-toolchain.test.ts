@@ -41,9 +41,7 @@ describe('nightly E2E npm toolchain', () => {
     expect(installStep).toBeDefined();
     expect(pinStep?.['working-directory']).toBe('smkc-score-app');
     expect(installStep?.['working-directory']).toBe('smkc-score-app');
-    expect(pinStep?.run).toContain(
-      `npm install --global --ignore-scripts --no-audit --no-fund ${packageManager}`,
-    );
+    expect(pinStep?.run).toContain(`npm install --global --ignore-scripts --no-audit --no-fund ${packageManager}`);
 
     const expectedVersion = packageManager?.replace(/^npm@/, '');
     expect(pinStep?.run).toContain(`test "$(npm --version)" = "${expectedVersion}"`);
