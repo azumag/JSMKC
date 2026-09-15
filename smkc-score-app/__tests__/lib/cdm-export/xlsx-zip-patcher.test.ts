@@ -347,7 +347,10 @@ describe("patchCdmWorkbook — performance smoke", () => {
     const out = patchCdmWorkbook(loadTemplate(), writes);
     const elapsed = Date.now() - start;
     expect(out.length).toBeGreaterThan(0);
-    // Generous ceiling for CI; the design target is < 2s.
-    expect(elapsed).toBeLessThan(5000);
+    // Keep the local smoke tight while allowing shared GitHub runners enough
+    // headroom for transient CPU contention. This remains a catastrophic-
+    // regression guard; the design target is still < 2s.
+    const hardFailCeilingMs = process.env.CI ? 12000 : 5000;
+    expect(elapsed).toBeLessThan(hardFailCeilingMs);
   });
 });
