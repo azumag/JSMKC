@@ -34,6 +34,7 @@ jobs:
 
     env:
       E2E_BASE_URL: ${{ vars.E2E_BASE_URL || 'https://preview.smkc.bluemoon.works' }}
+      E2E_BROWSER_HOME: /tmp/playwright-e2e-home
       # Persistent admin profile: CI uploads one via E2E_PROFILE_ARCHIVE; the
       # runner restores it before launching Playwright.
       E2E_PROFILE_DIR: /tmp/playwright-smkc-preview-profile
@@ -63,17 +64,31 @@ jobs:
           # Nightly validation never needs local Git hooks; keep install parity with CI.
           HUSKY: "0"
 
-      # Issue #3108: Playwright downloads a full Chromium build on every run
-      # unless cached. The key covers the whole package-lock.json, so any
-      # dependency bump (not only Playwright's) invalidates the cache — a
-      # conservative trade-off that guarantees the browser matches the lockfile.
-      - name: Cache Playwright browsers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+      # The E2E runtime intentionally stores Playwright browsers under
+      # E2E_BROWSER_HOME rather than Playwright's default ~/.cache directory.
+      # Restore only the exact lockfile key so an older browser revision cannot
+      # satisfy a newer Playwright package by accident.
+      - id: playwright-browser-cache
+        name: Restore Playwright browser cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          path: ~/.cache/ms-playwright
+          path: /tmp/playwright-e2e-home/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('smkc-score-app/package-lock.json') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
+
+      - name: Ensure Playwright browser is installed
+        working-directory: smkc-score-app
+        run: npm run e2e:install-browser
+
+      # Save immediately after installation instead of relying on a post-job
+      # cache hook. The E2E suite can legitimately fail later (for example when
+      # an admin profile expires); that should not force the next run to fetch
+      # hundreds of MB of browser binaries again.
+      - name: Save Playwright browser cache
+        if: steps.playwright-browser-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: /tmp/playwright-e2e-home/ms-playwright
+          key: ${{ steps.playwright-browser-cache.outputs.cache-primary-key }}
 
       - name: Restore admin browser profile
         # The profile holds the authenticated admin session needed by
