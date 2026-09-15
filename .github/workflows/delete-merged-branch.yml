@@ -13,6 +13,7 @@ jobs:
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Delete head branch
         env:
@@ -21,5 +22,22 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           echo "Deleting branch: $BRANCH"
-          gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" || \
-            echo "Branch already deleted or not found"
+
+          set +e
+          delete_output=$(gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" 2>&1)
+          delete_status=$?
+          set -e
+
+          if [ "$delete_status" -eq 0 ]; then
+            echo "Deleted branch: $BRANCH"
+            exit 0
+          fi
+
+          if printf '%s\n' "$delete_output" | grep -Fq '(HTTP 404)'; then
+            echo "Branch already deleted or not found: $BRANCH"
+            exit 0
+          fi
+
+          printf '%s\n' "$delete_output" >&2
+          echo "Failed to delete branch: $BRANCH" >&2
+          exit "$delete_status"
