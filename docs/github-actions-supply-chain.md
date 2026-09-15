@@ -13,6 +13,8 @@ The version comment beside each SHA is documentation only; GitHub executes the i
 
 The Claude Code workflow also disables checkout credential persistence. It does not require authenticated Git operations after checkout, so `actions/checkout` uses `persist-credentials: false` rather than leaving `GITHUB_TOKEN` in the repository Git config for the following Claude action. GitHub API access continues to come from the workflow/action permission model instead of implicit Git credentials.
 
+Because this is a public repository, the Claude Code job also rejects bot senders and requires `OWNER`, `MEMBER`, or `COLLABORATOR` author association before an `@claude` mention can start the runner. This mirrors Claude Code Action's write-permission trust model at the workflow boundary, so untrusted comments do not reach the OAuth/OIDC-bearing job merely to be rejected later inside the action. Keep this job-level gate when changing trigger events, and extend the regression test whenever another event surface is added.
+
 The regular CI, PR review compatibility workflow, and nightly E2E workflow are also pinned to reviewed immutable commits rather than mutable major tags. Their reviewed action commits are:
 
 - `actions/checkout` v5: `fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`
