@@ -1,14 +1,14 @@
 /**
  * @jest-environment jsdom
  *
- * Behavior tests for the TA participant page's Phase 3 time report card
- * (issue #2994): visible only when the tournament toggle is on and the player
- * has a phase3 entry, and report validation/submission follows the canonical
- * TA time parser contract.
+ * Behavior tests for the TA participant page, including Phase 3 time reports
+ * (issue #2994) and tournament debug-mode gating for admin random-fill UI
+ * (issue #3540).
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
+import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import TimeAttackParticipantPage from '@/app/tournaments/[id]/ta/participant/page';
 
 jest.mock('react', () => {
@@ -38,6 +38,12 @@ jest.mock('sonner', () => ({
 jest.mock('@/lib/hooks/usePolling', () => ({
   usePolling: jest.fn(),
 }));
+
+jest.mock('@/lib/hooks/use-tournament-debug-mode', () => ({
+  useTournamentDebugMode: jest.fn(() => false),
+}));
+
+const mockUseTournamentDebugMode = useTournamentDebugMode as jest.MockedFunction<typeof useTournamentDebugMode>;
 
 jest.mock('@/lib/fetch-with-retry', () => ({
   fetchWithRetry: jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ data: mockSummaryData }) })),
@@ -128,11 +134,12 @@ const basePhase3Data = {
   playedCourses: [],
 };
 
-describe('TA participant Phase 3 time report (issue #2994)', () => {
+describe('TA participant page', () => {
   beforeEach(() => {
     mockUseSession.mockReturnValue({
       data: { user: { role: 'player', userType: 'player', playerId: 'player-1' } },
     } as ReturnType<typeof useSession>);
+    mockUseTournamentDebugMode.mockReturnValue(false);
     (usePolling as jest.Mock).mockImplementation((fetcher: unknown) => {
       const source = typeof fetcher === 'function' ? String(fetcher) : '';
       const isPhase3Poller = source.includes('/ta/phases');
@@ -219,5 +226,43 @@ describe('TA participant Phase 3 time report (issue #2994)', () => {
       expect(screen.getByText('loggedInAsPlayer')).toBeInTheDocument();
     });
     expect(screen.queryByText('phase3ReportTitle')).not.toBeInTheDocument();
+  });
+
+  it('hides Fill Random Times from admins when tournament debug mode is off', async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { role: 'admin', userType: 'admin', playerId: 'player-1', nickname: 'Admin' } },
+    } as ReturnType<typeof useSession>);
+    mockUseTournamentDebugMode.mockReturnValue(false);
+
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('loggedInAsPlayer')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Fill Random Times' })).not.toBeInTheDocument();
+  });
+
+  it('shows Fill Random Times to admins when tournament debug mode is on', async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { role: 'admin', userType: 'admin', playerId: 'player-1', nickname: 'Admin' } },
+    } as ReturnType<typeof useSession>);
+    mockUseTournamentDebugMode.mockReturnValue(true);
+
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Fill Random Times' })).toBeInTheDocument();
+    });
+  });
+
+  it('hides Fill Random Times from players even when tournament debug mode is on', async () => {
+    mockUseTournamentDebugMode.mockReturnValue(true);
+
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('loggedInAsPlayer')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Fill Random Times' })).not.toBeInTheDocument();
   });
 });
