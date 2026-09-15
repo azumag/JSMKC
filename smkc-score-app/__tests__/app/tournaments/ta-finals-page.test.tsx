@@ -416,9 +416,6 @@ describe('TimeAttackFinals — participant time report prefill', () => {
         expect(screen.getAllByTestId('ta-time-entry-row').length).toBe(2);
       });
       const rows = screen.getAllByTestId('ta-time-entry-row');
-      const marioInput = rows
-        .find((r) => r.textContent?.includes('Mario'))!
-        .querySelector('input[type="text"]') as HTMLInputElement;
       const luigiInput = rows
         .find((r) => r.textContent?.includes('Luigi'))!
         .querySelector('input[type="text"]') as HTMLInputElement;
