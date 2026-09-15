@@ -21,10 +21,10 @@ import { z } from "zod";
  * Also accepts legacy 3-digit fractional input for backward compatibility.
  * Fractional digits are interpreted as:
  * - M/MM: 1-2 digit minutes
- * - SS: exactly 2 digit seconds
+ * - SS: exactly 2 digit seconds in the range 00-59
  * - fraction: 1-3 digits after the decimal point
  */
-const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
+const timeFormatRegex = /^(\d{1,2}):([0-5]\d)\.(\d{1,3})$/;
 
 /**
  * Zod schema for validating a single time string.
@@ -64,10 +64,10 @@ export function timeToMs(time: string): number | null {
 
   const minutes = parseInt(match[1], 10);
   const seconds = parseInt(match[2], 10);
-  let ms = match[3] || ''; // Handle missing milliseconds
+  let ms = match[3] || ""; // Handle missing milliseconds
 
   // Pad milliseconds to 3 digits for accurate comparison (e.g., "4" -> "400", "45" -> "450")
-  while (ms.length < 3) ms += '0';
+  while (ms.length < 3) ms += "0";
   const milliseconds = parseInt(ms, 10);
 
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
@@ -122,7 +122,7 @@ export function autoFormatTime(input: string): string | null {
   if (timeFormatRegex.test(trimmed)) return normalizeFormattedTime(trimmed);
 
   /* Has colon but no dot (e.g., "1:23") — append .00 */
-  const colonNoDot = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  const colonNoDot = /^(\d{1,2}):([0-5]\d)$/.exec(trimmed);
   if (colonNoDot) return `${colonNoDot[1]}:${colonNoDot[2]}.00`;
 
   /* Digits only — interpret positionally as MSScc (right-aligned centiseconds).
