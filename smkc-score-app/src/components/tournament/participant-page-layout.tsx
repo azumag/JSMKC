@@ -57,7 +57,6 @@ interface ParticipantPageLayoutProps<TMatch extends BaseMatch> {
 
 export function ParticipantPageLayout<TMatch extends BaseMatch>({
   mode,
-  sectionIcon: SectionIcon,
   maxWidth = 'max-w-4xl',
   noPendingKey,
   sessionStatus,
