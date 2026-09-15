@@ -4,25 +4,32 @@
  * GET /api/monitor/polling-stats
  *
  * Returns polling and request statistics for monitoring the application's
- * resource usage on the hosting platform (Vercel). This endpoint helps
- * administrators track:
- *   - Request volumes (to stay within platform limits)
- *   - Response times (to detect performance degradation)
- *   - Active connections (to monitor server load)
- *   - Error rates (to detect systemic issues)
+ * resource usage and health. This endpoint helps authenticated operators track:
+ *   - Request volumes
+ *   - Response times
+ *   - Active connections
+ *   - Error rates
  *
- * Currently uses mock data generators that demonstrate the expected
- * response structure. In production, these would be replaced with actual
- * queries to an analytics database or monitoring service (DataDog, etc.).
+ * The current implementation uses mock data generators that demonstrate the
+ * expected response structure. The response explicitly reports this through
+ * `dataSource: 'mock'` so callers cannot mistake generated values for telemetry.
+ * In production, the generators can be replaced with actual analytics or
+ * monitoring queries without changing the warning contract.
  *
  * Access: Authenticated users only (any role)
  *
  * Response:
- *   { success: true, data: { totalRequests, averageResponseTime, ... } }
+ *   { success: true, data: { dataSource, totalRequests, averageResponseTime, ... } }
  */
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { createSuccessResponse, handleAuthError, createErrorResponse } from '@/lib/error-handling';
+
+type WarningMetrics = {
+  totalRequests: number;
+  errorRate: number;
+  activeConnections: number;
+};
 
 export async function GET() {
   // Logger created inside function for proper test mocking support
@@ -40,21 +47,29 @@ export async function GET() {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-    // Aggregate statistics from various monitoring data sources.
-    // In production, these helper functions would query actual databases
-    // or monitoring APIs instead of generating mock data.
+    // Sample each metric once. Warnings are derived from these exact values so
+    // the response cannot report a warning that contradicts its own metrics.
+    const totalRequests = await getPollingRequestCount(oneHourAgo, now);
+    const averageResponseTime = await getAverageResponseTime(oneHourAgo, now);
+    const activeConnections = await getActiveConnectionCount();
+    const errorRate = await getErrorRate(oneHourAgo, now);
+
     const stats = {
+      // Machine-readable provenance prevents generated values from being
+      // mistaken for production telemetry by API consumers.
+      dataSource: 'mock' as const,
+
       // Total API requests received in the time period
-      totalRequests: await getPollingRequestCount(oneHourAgo, now),
+      totalRequests,
 
       // Average response time in milliseconds
-      averageResponseTime: await getAverageResponseTime(oneHourAgo, now),
+      averageResponseTime,
 
       // Approximate number of currently active connections
-      activeConnections: await getActiveConnectionCount(),
+      activeConnections,
 
       // Error rate as a percentage of total requests
-      errorRate: await getErrorRate(oneHourAgo, now),
+      errorRate,
 
       // Time period metadata for the statistics window
       timePeriod: {
@@ -63,14 +78,14 @@ export async function GET() {
         duration: '1 hour',
       },
 
-      // Automatically generated warnings for approaching resource limits
-      warnings: await generateWarnings(),
+      // Warnings are calculated from the same sample returned above.
+      warnings: generateWarnings({ totalRequests, errorRate, activeConnections }),
     };
 
-    // Alert threshold check: warn when approaching Vercel's monthly request limit.
-    // The 30,000 threshold is set conservatively below the actual platform limit.
+    // Alert threshold check: keep the production-facing threshold contract in
+    // place for when the mock request-count source is replaced with telemetry.
     if (stats.totalRequests > 30000) {
-      await sendAlert('Polling requests approaching Vercel limits');
+      await sendAlert('Polling requests approaching platform limits');
     }
 
     return createSuccessResponse(stats);
@@ -88,13 +103,13 @@ export async function GET() {
 // expected response structure. In a production deployment, these would be
 // replaced with actual queries to:
 //   - An analytics database (request counts, response times)
-//   - A monitoring service like DataDog or New Relic
+//   - A monitoring service
 //   - In-memory counters for statistics tracking
 //   - WebSocket connection tracking for active connections
 
 /**
  * Returns the total number of polling requests in the given time window.
- * Mock: generates a random number between 500 and 1500.
+ * Mock: generates a random number between 500 and 1499.
  */
 async function getPollingRequestCount(_startDate: Date, _endDate: Date): Promise<number> {
   // Date parameters unused in mock; will be used in production implementation
@@ -103,7 +118,7 @@ async function getPollingRequestCount(_startDate: Date, _endDate: Date): Promise
 
 /**
  * Returns the average API response time in milliseconds.
- * Mock: generates a random number between 100ms and 600ms.
+ * Mock: generates a random number between 100ms and 599ms.
  */
 async function getAverageResponseTime(_startDate: Date, _endDate: Date): Promise<number> {
   // Date parameters unused in mock; will be used in production implementation
@@ -112,14 +127,14 @@ async function getAverageResponseTime(_startDate: Date, _endDate: Date): Promise
 
 /**
  * Returns the approximate number of currently active connections.
- * Mock: generates a random number between 10 and 60.
+ * Mock: generates a random number between 10 and 59.
  */
 async function getActiveConnectionCount(): Promise<number> {
   return Math.floor(Math.random() * 50) + 10;
 }
 
 /**
- * Returns the error rate as a percentage (0-5%).
+ * Returns the error rate as a percentage (0 up to, but not including, 5%).
  * Mock: generates a random percentage.
  */
 async function getErrorRate(_startDate: Date, _endDate: Date): Promise<number> {
@@ -128,34 +143,22 @@ async function getErrorRate(_startDate: Date, _endDate: Date): Promise<number> {
 }
 
 /**
- * Generates warning messages based on current metric thresholds.
- * Checks request volume, error rate, and connection count against
- * predefined thresholds and returns human-readable warnings.
+ * Generates warning messages from the exact metrics returned to the caller.
+ * Keeping this function pure makes warning/metric consistency explicit and
+ * preserves the thresholds for a future real monitoring backend.
  */
-async function generateWarnings(): Promise<string[]> {
+function generateWarnings(metrics: WarningMetrics): string[] {
   const warnings: string[] = [];
 
-  // Check various operational thresholds
-  const totalRequests = await getPollingRequestCount(
-    new Date(Date.now() - 60 * 60 * 1000),
-    new Date()
-  );
-
-  const errorRate = await getErrorRate(
-    new Date(Date.now() - 60 * 60 * 1000),
-    new Date()
-  );
-
-  if (totalRequests > 1000) {
+  if (metrics.totalRequests > 1000) {
     warnings.push('High request volume detected - consider increasing polling intervals');
   }
 
-  if (errorRate > 5) {
+  if (metrics.errorRate > 5) {
     warnings.push('Elevated error rate detected - check server logs for issues');
   }
 
-  const activeConnections = await getActiveConnectionCount();
-  if (activeConnections > 40) {
+  if (metrics.activeConnections > 40) {
     warnings.push('High number of active connections - monitor server resources');
   }
 
@@ -165,7 +168,7 @@ async function generateWarnings(): Promise<string[]> {
 /**
  * Sends an alert to monitoring/notification services when critical
  * thresholds are approached. Currently logs the alert; in production
- * this would integrate with Slack, email, PagerDuty, etc.
+ * this would integrate with an explicitly selected notification service.
  */
 async function sendAlert(message: string): Promise<void> {
   // Create logger inside function for proper test mocking.
@@ -176,11 +179,7 @@ async function sendAlert(message: string): Promise<void> {
   // Log the alert with structured metadata for monitoring systems
   alertLogger.warn('ALERT', { message });
 
-  // Production integration points (currently disabled):
-  // - DataDog / New Relic monitoring service
-  // - Slack webhook for immediate team notification
-  // - Email to administrator mailing list
-  // - PagerDuty incident creation for critical alerts
+  // External notification integration is intentionally not configured here.
   try {
     // Example: await monitoringService.sendAlert({ level: 'warning', message, ... });
   } catch (error) {
