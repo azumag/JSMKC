@@ -102,9 +102,10 @@ jobs:
       - name: Restore admin browser profile
         # The profile contains authenticated admin session material. Build it
         # locally with `npm run e2e:preview:login`, then store its base64 archive
-        # only in E2E_PROFILE_ARCHIVE.
-        # Create the secret value with (relative paths so extraction is
-        # deterministic):  cd /tmp && tar -czf profile.tar.gz playwright-smkc-preview-profile && base64 -w0 profile.tar.gz
+        # only in E2E_PROFILE_ARCHIVE. For a macOS/Linux-portable encoder, use:
+        # cd /tmp && umask 077 && tar -czf profile.tar.gz playwright-smkc-preview-profile
+        # node -e "process.stdout.write(require('fs').readFileSync('profile.tar.gz').toString('base64'))" > profile.base64
+        # Remove both temporary files after updating the secret; see docs/e2e-nightly.md.
         env:
           PROFILE_ARCHIVE: ${{ secrets.E2E_PROFILE_ARCHIVE }}
         run: |

@@ -3,6 +3,7 @@ import path from 'path';
 import { parse } from 'yaml';
 
 const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'e2e-nightly.yml');
+const workflowText = fs.readFileSync(workflowPath, 'utf8');
 
 interface WorkflowStep {
   name?: string;
@@ -21,7 +22,7 @@ interface WorkflowDocument {
 }
 
 function loadWorkflow(): WorkflowDocument {
-  return parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowDocument;
+  return parse(workflowText) as WorkflowDocument;
 }
 
 describe('nightly E2E prerequisites and diagnostics', () => {
@@ -60,6 +61,14 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(restoreScript).toContain('printf \'%s\' "${PROFILE_ARCHIVE}" | base64 -d > "${ARCHIVE_PATH}"');
     expect(restoreScript).toContain('chmod -R go-rwx "${E2E_PROFILE_DIR}"');
     expect(restoreScript).not.toContain('echo "${PROFILE_ARCHIVE}"');
+  });
+
+  it('documents a macOS/Linux-portable profile encoder instead of GNU-only base64 flags', () => {
+    expect(workflowText).not.toContain('base64 -w0');
+    expect(workflowText).toContain(
+      `node -e "process.stdout.write(require('fs').readFileSync('profile.tar.gz').toString('base64'))" > profile.base64`,
+    );
+    expect(workflowText).toContain('Remove both temporary files after updating the secret');
   });
 
   it('expires console logs after 14 days', () => {
