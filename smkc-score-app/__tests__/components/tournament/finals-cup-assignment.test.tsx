@@ -45,11 +45,7 @@ describe('FinalsCupAssignment', () => {
     const onSaved = jest.fn();
 
     render(
-      <FinalsCupAssignment
-        match={{ id: 'm1', version: 4, cup: 'Mushroom' }}
-        endpoint="/api/test"
-        onSaved={onSaved}
-      />,
+      <FinalsCupAssignment match={{ id: 'm1', version: 4, cup: 'Mushroom' }} endpoint="/api/test" onSaved={onSaved} />,
     );
 
     const saveButton = screen.getByRole('button', { name: 'Save match cup' });
