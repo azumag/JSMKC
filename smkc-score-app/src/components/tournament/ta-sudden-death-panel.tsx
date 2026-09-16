@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { COURSE_INFO } from '@/lib/constants';
 import { autoFormatTime, timeToMs } from '@/lib/ta/time-utils';
 import { TA_TIME_ENTRY_INPUT_CLASS, TA_TIME_INPUT_HELP_CLASS } from '@/lib/ta/time-entry-layout';
+import { createLogger } from '@/lib/client-logger';
+
+const logger = createLogger({ serviceName: 'ta-sudden-death' });
 
 export interface TASuddenDeathEntry {
   id: string;
@@ -109,11 +112,18 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || tCommon('networkError'));
+        setSaveError(errorData.error || tCommon('networkError'));
+        return;
       }
       fetchData();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : tCommon('networkError'));
+      logger.error('Failed to change TA sudden-death course:', {
+        error: err,
+        tournamentId,
+        phase,
+        suddenDeathRoundId: pendingSuddenDeath.id,
+      });
+      setSaveError(tCommon('networkError'));
     } finally {
       setChangingCourse(false);
     }
@@ -123,14 +133,17 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
     if (!pendingSuddenDeath) return;
     setSubmitting(true);
     setSaveError(null);
+    const results: { playerId: string; timeMs: number }[] = [];
+    for (const entry of pendingSuddenDeathEntries) {
+      const timeMs = timeToMs(times[entry.playerId] || '');
+      if (timeMs === null) {
+        setSaveError(invalidTimeMessage(entry.player.nickname));
+        setSubmitting(false);
+        return;
+      }
+      results.push({ playerId: entry.playerId, timeMs });
+    }
     try {
-      const results = pendingSuddenDeathEntries.map((entry) => {
-        const timeMs = timeToMs(times[entry.playerId] || '');
-        if (timeMs === null) {
-          throw new Error(invalidTimeMessage(entry.player.nickname));
-        }
-        return { playerId: entry.playerId, timeMs };
-      });
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,12 +156,19 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || tCommon('networkError'));
+        setSaveError(errorData.error || tCommon('networkError'));
+        return;
       }
       setTimes({});
       fetchData();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : tCommon('networkError'));
+      logger.error('Failed to submit TA sudden-death results:', {
+        error: err,
+        tournamentId,
+        phase,
+        suddenDeathRoundId: pendingSuddenDeath.id,
+      });
+      setSaveError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }

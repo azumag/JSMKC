@@ -147,6 +147,27 @@ describe('useTaSuddenDeath', () => {
     expect(result.current.submittingSuddenDeath).toBe(false);
   });
 
+  it('uses common network fallback when sudden-death submit request rejects', async () => {
+    const fetchData = jest.fn();
+    const setSaveError = jest.fn();
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('raw submit network detail'));
+    const { result } = renderSuddenDeathHook({ fetchData, setSaveError });
+
+    act(() => {
+      result.current.setSuddenDeathTime('player-1', '1:00.00');
+      result.current.setSuddenDeathTime('player-2', '1:01.00');
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitSuddenDeath();
+    });
+
+    expect(setSaveError).toHaveBeenLastCalledWith('networkError');
+    expect(setSaveError).not.toHaveBeenCalledWith('raw submit network detail');
+    expect(fetchData).not.toHaveBeenCalled();
+    expect(result.current.submittingSuddenDeath).toBe(false);
+  });
+
   it('changes sudden-death course and refreshes data on success', async () => {
     const fetchData = jest.fn();
     const setSaveError = jest.fn();
@@ -183,6 +204,22 @@ describe('useTaSuddenDeath', () => {
     });
 
     expect(setSaveError).toHaveBeenLastCalledWith('course failed');
+    expect(fetchData).not.toHaveBeenCalled();
+    expect(result.current.changingSuddenDeathCourse).toBe(false);
+  });
+
+  it('uses common network fallback when sudden-death course request rejects', async () => {
+    const fetchData = jest.fn();
+    const setSaveError = jest.fn();
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('raw course network detail'));
+    const { result } = renderSuddenDeathHook({ fetchData, setSaveError });
+
+    await act(async () => {
+      await result.current.handleSuddenDeathCourseChange('MC1');
+    });
+
+    expect(setSaveError).toHaveBeenLastCalledWith('networkError');
+    expect(setSaveError).not.toHaveBeenCalledWith('raw course network detail');
     expect(fetchData).not.toHaveBeenCalled();
     expect(result.current.changingSuddenDeathCourse).toBe(false);
   });
