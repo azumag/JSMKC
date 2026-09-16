@@ -157,15 +157,23 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    */
   const handleTvAssign = useCallback(
     (matchId: string, tvNumber: number | null) => {
-      fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+      void fetch(`/api/tournaments/${tournamentId}/${mode}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId, tvNumber }),
-      }).catch((err) => {
-        logger.error('Failed to assign TV:', { error: err, tournamentId, matchId });
-      });
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            toast.error(err.error || tc('networkError'));
+          }
+        })
+        .catch((err) => {
+          logger.error('Failed to assign TV:', { error: err, tournamentId, matchId });
+          toast.error(tc('networkError'));
+        });
     },
-    [tournamentId, mode, logger],
+    [tournamentId, mode, logger, tc],
   );
 
   /**
