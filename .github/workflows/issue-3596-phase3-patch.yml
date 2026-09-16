@@ -1,0 +1,230 @@
+name: Issue 3596 Phase 3 patch
+
+on:
+  push:
+    branches:
+      - fix/3596-ta-phase3-round-control-errors
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: bootstrap phase3 error patch (#3596)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fix/3596-ta-phase3-round-control-errors
+      - name: Apply Phase 3 round-control error contract
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          page = Path('smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx')
+          source = page.read_text()
+
+          replacements = [
+              (
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to start round');
+      }""",
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setSaveError(errorData.error || tCommon('networkError'));
+        return;
+      }""",
+              ),
+              (
+                  """    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start round';
+      setSaveError(errorMessage);
+    } finally {
+      setStartingRound(false);
+    }""",
+                  """    } catch (err) {
+      logger.error('Failed to start TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
+    } finally {
+      setStartingRound(false);
+    }""",
+              ),
+              (
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to cancel round');
+      }
+      setCurrentRound(null);""",
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowCancelConfirm(false);
+        return;
+      }
+      setCurrentRound(null);""",
+              ),
+              (
+                  """    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
+      setSaveError(errorMessage);
+      setShowCancelConfirm(false);
+    } finally {
+      setCancellingRound(false);
+    }""",
+                  """    } catch (err) {
+      logger.error('Failed to cancel TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
+      setShowCancelConfirm(false);
+    } finally {
+      setCancellingRound(false);
+    }""",
+              ),
+              (
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to undo round');
+      }
+      setShowUndoConfirm(false);""",
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowUndoConfirm(false);
+        return;
+      }
+      setShowUndoConfirm(false);""",
+              ),
+              (
+                  """    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to undo round';
+      setSaveError(errorMessage);
+      setShowUndoConfirm(false);
+    } finally {
+      setUndoingRound(false);
+    }""",
+                  """    } catch (err) {
+      logger.error('Failed to undo TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
+      setShowUndoConfirm(false);
+    } finally {
+      setUndoingRound(false);
+    }""",
+              ),
+              (
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to cancel round');
+      }
+      setShowCancelLastRoundConfirm(false);""",
+                  """      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowCancelLastRoundConfirm(false);
+        return;
+      }
+      setShowCancelLastRoundConfirm(false);""",
+              ),
+              (
+                  """    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
+      setSaveError(errorMessage);
+      setShowCancelLastRoundConfirm(false);
+    } finally {
+      setCancellingLastRound(false);
+    }""",
+                  """    } catch (err) {
+      logger.error('Failed to cancel the last TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
+      setShowCancelLastRoundConfirm(false);
+    } finally {
+      setCancellingLastRound(false);
+    }""",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one replacement, found {count}: {old[:80]!r}')
+              source = source.replace(old, new)
+
+          page.write_text(source)
+
+          docs = Path('docs/ta-round-control-error-fallbacks.md')
+          doc_source = docs.read_text()
+          old_phase3 = """## Phase 3
+
+Phase 3 (`ta/finals/page.tsx`) に残る同じ round-control failure path も issue #3596 で同じ契約へ統一する。Phase 1 / 2 の修正を先に独立して取り込み、Phase 3 は同 issue の残件として扱う。
+"""
+          new_phase3 = """## Phase 3
+
+`smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` も Phase 1 / 2 と同じ契約に従う。
+
+- API の具体的な `error` はユーザーへそのまま表示する。
+- generic non-2xx と `fetch()` rejection は `common.networkError` を表示する。
+- request rejection の raw detail は client logger のみに残す。
+- confirmation dialog と loading state は、成功・失敗のどちらでも従来どおり操作可能な状態へ戻す。
+"""
+          if doc_source.count(old_phase3) != 1:
+              raise SystemExit('Phase 3 docs section did not match expected source')
+          docs.write_text(doc_source.replace(old_phase3, new_phase3))
+
+          test = Path('smkc-score-app/__tests__/static/ta-finals-round-control-error-fallbacks.test.ts')
+          test.write_text("""import fs from 'fs';
+import path from 'path';
+
+const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+
+describe('TA finals round-control error fallback contract (issue #3596)', () => {
+  const source = read('src', 'app', 'tournaments', '[id]', 'ta', 'finals', 'page.tsx');
+
+  const handler = (start: string, end: string) => {
+    const startIndex = source.indexOf(start);
+    const endIndex = source.indexOf(end, startIndex + start.length);
+    expect(startIndex).toBeGreaterThanOrEqual(0);
+    expect(endIndex).toBeGreaterThan(startIndex);
+    return source.slice(startIndex, endIndex);
+  };
+
+  const startRound = handler('const handleStartRound', 'const handleCancelRound');
+  const cancelRound = handler('const handleCancelRound', 'const handleUndoRound');
+  const undoRound = handler('const handleUndoRound', 'const handleCancelLastRound');
+  const cancelLastRound = handler('const handleCancelLastRound', 'const handleFillRandomTimes');
+
+  it('preserves concrete API errors and localizes generic HTTP failures', () => {
+    for (const block of [startRound, cancelRound, undoRound, cancelLastRound]) {
+      expect(block).toContain("setSaveError(errorData.error || tCommon('networkError'));");
+    }
+    expect(startRound).not.toContain("'Failed to start round'");
+    expect(cancelRound).not.toContain("'Failed to cancel round'");
+    expect(undoRound).not.toContain("'Failed to undo round'");
+    expect(cancelLastRound).not.toContain("'Failed to cancel round'");
+  });
+
+  it('logs rejected requests and exposes only common.networkError to users', () => {
+    expect(startRound).toContain("logger.error('Failed to start TA phase3 round:'");
+    expect(cancelRound).toContain("logger.error('Failed to cancel TA phase3 round:'");
+    expect(undoRound).toContain("logger.error('Failed to undo TA phase3 round:'");
+    expect(cancelLastRound).toContain("logger.error('Failed to cancel the last TA phase3 round:'");
+    for (const block of [startRound, cancelRound, undoRound, cancelLastRound]) {
+      expect(block).toContain("setSaveError(tCommon('networkError'));");
+      expect(block).not.toContain('err instanceof Error ? err.message');
+    }
+  });
+});
+""")
+          PY
+
+      - name: Remove bootstrap workflow and commit changes
+        shell: bash
+        run: |
+          rm .github/workflows/issue-3596-phase3-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add smkc-score-app/src/app/tournaments/'[id]'/ta/finals/page.tsx \
+                  smkc-score-app/__tests__/static/ta-finals-round-control-error-fallbacks.test.ts \
+                  docs/ta-round-control-error-fallbacks.md \
+                  .github/workflows/issue-3596-phase3-patch.yml
+          git commit -m 'fix: localize TA phase3 round-control failures (#3596)'
+          git push origin HEAD:fix/3596-ta-phase3-round-control-errors
