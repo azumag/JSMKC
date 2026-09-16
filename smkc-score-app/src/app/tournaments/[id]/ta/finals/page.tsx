@@ -276,7 +276,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch finals data: ${response.status}`);
+        throw new Error(errorData.error || tCommon('networkError'));
       }
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, rounds, ... } }
@@ -344,13 +344,13 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         }
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+      const errorMessage = err instanceof Error ? err.message : tCommon('networkError');
       logger.error('Failed to fetch data:', { error: err, tournamentId });
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [tournamentId, currentRound, isEditing]);
+  }, [tournamentId, currentRound, isEditing, tCommon]);
 
   // Initial fetch
   useEffect(() => {
