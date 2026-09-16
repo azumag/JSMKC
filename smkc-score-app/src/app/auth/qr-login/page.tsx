@@ -109,12 +109,14 @@ function QrLoginContent() {
 }
 
 export default function QrLoginPage() {
+  const t = useTranslations('auth');
+
   return (
     <div className="min-h-[calc(100vh-12rem)] flex items-center justify-center">
       <Suspense
         fallback={
           <Card className="w-full max-w-md">
-            <CardContent className="py-12 text-center text-muted-foreground">Loading...</CardContent>
+            <CardContent className="py-12 text-center text-muted-foreground">{t('qrLoginInProgress')}</CardContent>
           </Card>
         }
       >
