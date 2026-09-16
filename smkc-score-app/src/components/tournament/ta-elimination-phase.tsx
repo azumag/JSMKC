@@ -584,7 +584,8 @@ export default function TAEliminationPhase({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to submit results');
+        setSaveError(errorData.error || tCommon('networkError'));
+        return;
       }
       const json = await response.json();
       const data = json.data ?? json;
@@ -607,8 +608,8 @@ export default function TAEliminationPhase({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to submit results';
-      setSaveError(errorMessage);
+      logger.error('Failed to submit TA elimination results:', { error: err, tournamentId, phase });
+      setSaveError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
