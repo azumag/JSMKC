@@ -11,6 +11,8 @@ Time Attack の debug 補助 UI は、通常大会での誤操作を避けるた
 
 ## TA participant page
 
-`/tournaments/[id]/ta/participant` の `Fill Random Times` も同じ契約に従う。表示条件は `isAdmin && debugMode && myEntry` とし、ランダム時刻生成には共有 `generateRandomTimeString()` を直接利用する。
+`/tournaments/[id]/ta/participant` のランダムタイム入力も同じ契約に従う。表示条件は `isAdmin && debugMode && myEntry` とし、ランダム時刻生成には共有 `generateRandomTimeString()` を直接利用する。
 
 このボタンは入力欄を埋めるだけで自動送信はしないが、通常大会での誤操作を防ぐため debugMode 境界を必須とする。
+
+ボタンラベルと成功通知は `participant.debugRandomFill` / `participant.debugRandomFillSuccess` を介して next-intl で表示する。英語・日本語の両メッセージを常に同時に更新し、debug UI であっても locale に依存したハードコード文字列を追加しない。
