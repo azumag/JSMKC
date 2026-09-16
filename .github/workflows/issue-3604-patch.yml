@@ -1,0 +1,236 @@
+name: Issue 3604 patch
+
+on:
+  push:
+    branches:
+      - fix/3604-ta-sudden-death-network-errors
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fix/3604-ta-sudden-death-network-errors
+      - name: Apply sudden-death network error contract
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          source_path = Path('smkc-score-app/src/components/tournament/ta-sudden-death-panel.tsx')
+          source = source_path.read_text()
+
+          import_old = "import { TA_TIME_ENTRY_INPUT_CLASS, TA_TIME_INPUT_HELP_CLASS } from '@/lib/ta/time-entry-layout';"
+          import_new = '\n'.join([
+              import_old,
+              "import { createLogger } from '@/lib/client-logger';",
+          ])
+          if source.count(import_old) != 1:
+              raise SystemExit('logger import anchor mismatch')
+          source = source.replace(import_old, import_new)
+
+          type_anchor = "export interface TASuddenDeathEntry {"
+          logger_block = '\n'.join([
+              "const logger = createLogger({ serviceName: 'ta-sudden-death' });",
+              '',
+              type_anchor,
+          ])
+          if source.count(type_anchor) != 1:
+              raise SystemExit('logger constant anchor mismatch')
+          source = source.replace(type_anchor, logger_block)
+
+          course_old = '\n'.join([
+              "      if (!response.ok) {",
+              "        const errorData = await response.json().catch(() => ({}));",
+              "        throw new Error(errorData.error || tCommon('networkError'));",
+              "      }",
+              "      fetchData();",
+              "    } catch (err) {",
+              "      setSaveError(err instanceof Error ? err.message : tCommon('networkError'));",
+              "    } finally {",
+              "      setChangingCourse(false);",
+              "    }",
+          ])
+          course_new = '\n'.join([
+              "      if (!response.ok) {",
+              "        const errorData = await response.json().catch(() => ({}));",
+              "        setSaveError(errorData.error || tCommon('networkError'));",
+              "        return;",
+              "      }",
+              "      fetchData();",
+              "    } catch (err) {",
+              "      logger.error('Failed to change TA sudden-death course:', {",
+              "        error: err,",
+              "        tournamentId,",
+              "        phase,",
+              "        suddenDeathRoundId: pendingSuddenDeath.id,",
+              "      });",
+              "      setSaveError(tCommon('networkError'));",
+              "    } finally {",
+              "      setChangingCourse(false);",
+              "    }",
+          ])
+          if source.count(course_old) != 1:
+              raise SystemExit(f'course handler mismatch: {source.count(course_old)}')
+          source = source.replace(course_old, course_new)
+
+          submit_old = '\n'.join([
+              "    setSubmitting(true);",
+              "    setSaveError(null);",
+              "    try {",
+              "      const results = pendingSuddenDeathEntries.map((entry) => {",
+              "        const timeMs = timeToMs(times[entry.playerId] || '');",
+              "        if (timeMs === null) {",
+              "          throw new Error(invalidTimeMessage(entry.player.nickname));",
+              "        }",
+              "        return { playerId: entry.playerId, timeMs };",
+              "      });",
+              "      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {",
+              "        method: 'POST',",
+              "        headers: { 'Content-Type': 'application/json' },",
+              "        body: JSON.stringify({",
+              "          action: 'submit_sudden_death',",
+              "          phase,",
+              "          suddenDeathRoundId: pendingSuddenDeath.id,",
+              "          results,",
+              "        }),",
+              "      });",
+              "      if (!response.ok) {",
+              "        const errorData = await response.json().catch(() => ({}));",
+              "        throw new Error(errorData.error || tCommon('networkError'));",
+              "      }",
+              "      setTimes({});",
+              "      fetchData();",
+              "    } catch (err) {",
+              "      setSaveError(err instanceof Error ? err.message : tCommon('networkError'));",
+              "    } finally {",
+              "      setSubmitting(false);",
+              "    }",
+          ])
+          submit_new = '\n'.join([
+              "    setSubmitting(true);",
+              "    setSaveError(null);",
+              "    const results: { playerId: string; timeMs: number }[] = [];",
+              "    for (const entry of pendingSuddenDeathEntries) {",
+              "      const timeMs = timeToMs(times[entry.playerId] || '');",
+              "      if (timeMs === null) {",
+              "        setSaveError(invalidTimeMessage(entry.player.nickname));",
+              "        setSubmitting(false);",
+              "        return;",
+              "      }",
+              "      results.push({ playerId: entry.playerId, timeMs });",
+              "    }",
+              "    try {",
+              "      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {",
+              "        method: 'POST',",
+              "        headers: { 'Content-Type': 'application/json' },",
+              "        body: JSON.stringify({",
+              "          action: 'submit_sudden_death',",
+              "          phase,",
+              "          suddenDeathRoundId: pendingSuddenDeath.id,",
+              "          results,",
+              "        }),",
+              "      });",
+              "      if (!response.ok) {",
+              "        const errorData = await response.json().catch(() => ({}));",
+              "        setSaveError(errorData.error || tCommon('networkError'));",
+              "        return;",
+              "      }",
+              "      setTimes({});",
+              "      fetchData();",
+              "    } catch (err) {",
+              "      logger.error('Failed to submit TA sudden-death results:', {",
+              "        error: err,",
+              "        tournamentId,",
+              "        phase,",
+              "        suddenDeathRoundId: pendingSuddenDeath.id,",
+              "      });",
+              "      setSaveError(tCommon('networkError'));",
+              "    } finally {",
+              "      setSubmitting(false);",
+              "    }",
+          ])
+          if source.count(submit_old) != 1:
+              raise SystemExit(f'submit handler mismatch: {source.count(submit_old)}')
+          source_path.write_text(source.replace(submit_old, submit_new))
+
+          test_path = Path('smkc-score-app/__tests__/components/tournament/ta-sudden-death-panel.test.tsx')
+          test_source = test_path.read_text()
+          submit_anchor = "  it('changes sudden-death course and refreshes data on success', async () => {"
+          submit_test = '\n'.join([
+              "  it('uses common network fallback when sudden-death submit request rejects', async () => {",
+              "    const fetchData = jest.fn();",
+              "    const setSaveError = jest.fn();",
+              "    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('raw submit network detail'));",
+              "    const { result } = renderSuddenDeathHook({ fetchData, setSaveError });",
+              '',
+              "    act(() => {",
+              "      result.current.setSuddenDeathTime('player-1', '1:00.00');",
+              "      result.current.setSuddenDeathTime('player-2', '1:01.00');",
+              "    });",
+              '',
+              "    await act(async () => {",
+              "      await result.current.handleSubmitSuddenDeath();",
+              "    });",
+              '',
+              "    expect(setSaveError).toHaveBeenLastCalledWith('networkError');",
+              "    expect(setSaveError).not.toHaveBeenCalledWith('raw submit network detail');",
+              "    expect(fetchData).not.toHaveBeenCalled();",
+              "    expect(result.current.submittingSuddenDeath).toBe(false);",
+              "  });",
+              '',
+              submit_anchor,
+          ])
+          if test_source.count(submit_anchor) != 1:
+              raise SystemExit('submit test anchor mismatch')
+          test_source = test_source.replace(submit_anchor, submit_test)
+
+          course_anchor = "  it('TC-2937: 全ラウンドが resolved=true のとき pendingSuddenDeath が undefined になる', () => {"
+          course_test = '\n'.join([
+              "  it('uses common network fallback when sudden-death course request rejects', async () => {",
+              "    const fetchData = jest.fn();",
+              "    const setSaveError = jest.fn();",
+              "    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('raw course network detail'));",
+              "    const { result } = renderSuddenDeathHook({ fetchData, setSaveError });",
+              '',
+              "    await act(async () => {",
+              "      await result.current.handleSuddenDeathCourseChange('MC1');",
+              "    });",
+              '',
+              "    expect(setSaveError).toHaveBeenLastCalledWith('networkError');",
+              "    expect(setSaveError).not.toHaveBeenCalledWith('raw course network detail');",
+              "    expect(fetchData).not.toHaveBeenCalled();",
+              "    expect(result.current.changingSuddenDeathCourse).toBe(false);",
+              "  });",
+              '',
+              course_anchor,
+          ])
+          if test_source.count(course_anchor) != 1:
+              raise SystemExit('course test anchor mismatch')
+          test_path.write_text(test_source.replace(course_anchor, course_test))
+
+          docs_path = Path('smkc-score-app/docs/ta-sudden-death-error-fallbacks.md')
+          docs = docs_path.read_text()
+          docs_old = 'API が具体的な `error` を返した場合はその内容を優先し、response body に error がない場合や非 `Error` 例外の場合だけ locale-aware な共通 fallback を表示する。'
+          docs_new = 'API が具体的な `error` を返した場合はその内容を優先し、response body に error がない場合や `fetch()` rejection では locale-aware な共通 fallback を表示する。request rejection の raw detail は client logger のみに残し、result submit の入力検証メッセージは従来どおり優先する。'
+          if docs.count(docs_old) != 1:
+              raise SystemExit('docs contract anchor mismatch')
+          docs_path.write_text(docs.replace(docs_old, docs_new))
+          PY
+      - name: Remove patch workflow and commit
+        shell: bash
+        run: |
+          rm .github/workflows/issue-3604-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add smkc-score-app/src/components/tournament/ta-sudden-death-panel.tsx \
+                  smkc-score-app/__tests__/components/tournament/ta-sudden-death-panel.test.tsx \
+                  smkc-score-app/docs/ta-sudden-death-error-fallbacks.md \
+                  .github/workflows/issue-3604-patch.yml
+          git commit -m 'fix: localize TA sudden-death request failures (#3604)'
+          git push origin HEAD:fix/3604-ta-sudden-death-network-errors
