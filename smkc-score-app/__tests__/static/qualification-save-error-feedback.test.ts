@@ -3,6 +3,7 @@ import path from 'path';
 
 const bmPagePath = path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx');
 const mrPagePath = path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx');
+const gpPagePath = path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx');
 
 function readPage(pagePath: string): string {
   return fs.readFileSync(pagePath, 'utf8');
@@ -48,6 +49,36 @@ describe('qualification save failure feedback', () => {
     );
     expect(block.indexOf("toast.error(errorData.error || tc('networkError'))")).toBeLessThan(
       block.indexOf('setIsMatchDialogOpen(false)'),
+    );
+  });
+
+  it('reports GP cup assignment API/network failures through alert', () => {
+    const block = sliceBetween(
+      readPage(gpPagePath),
+      'const saveQualificationCup = async () => {',
+      'const getCurrentBroadcastPoints =',
+    );
+
+    expect(block).toContain("alert(error.error || tc('networkError'));\n        return;");
+    expect(block).toContain(
+      "logger.error('Failed to update qualification cup', { error });\n      alert(tc('networkError'));",
+    );
+  });
+
+  it('keeps GP manual and race-detail score state on failure and reports API/network errors', () => {
+    const block = sliceBetween(
+      readPage(gpPagePath),
+      'const handleMatchSubmit = async () => {',
+      '/* Extract unique groups from qualifications for tab display */',
+    );
+
+    expect(block.split("alert(errorData.error || tc('networkError'));").length - 1).toBe(2);
+    expect(block).toContain(
+      "logger.error('Failed to manually update GP score:', metadata);\n        alert(tc('networkError'));",
+    );
+    expect(block).toContain("logger.error('Failed to update match:', metadata);\n      alert(tc('networkError'));");
+    expect(block.lastIndexOf("alert(errorData.error || tc('networkError'))")).toBeLessThan(
+      block.lastIndexOf('setIsMatchDialogOpen(false)'),
     );
   });
 });
