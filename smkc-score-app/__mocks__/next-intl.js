@@ -14,10 +14,7 @@ const useTranslations = (namespace) => {
     const val = messages[key] ?? key;
     if (!params) return val;
     // Simple parameter substitution: replace {param} with its value
-    return Object.entries(params).reduce(
-      (s, [k, v]) => s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)),
-      val,
-    );
+    return Object.entries(params).reduce((s, [k, v]) => s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)), val);
   };
 
   // next-intl keeps the translation function referentially stable while the
