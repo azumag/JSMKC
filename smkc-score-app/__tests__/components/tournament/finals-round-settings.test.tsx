@@ -36,9 +36,7 @@ describe('FinalsRoundSettings', () => {
     render(
       <FinalsRoundSettings
         match={{ id: 'pending', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 7 }}
-        matches={[
-          { id: 'pending', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 7 },
-        ]}
+        matches={[{ id: 'pending', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 7 }]}
         endpoint="/api/test"
         effectiveTargetWins={7}
         onSaved={onSaved}
