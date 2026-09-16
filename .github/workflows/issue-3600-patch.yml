@@ -1,0 +1,107 @@
+name: Issue 3600 patch
+
+on:
+  push:
+    branches:
+      - fix/3600-ta-phase3-eliminate-errors
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fix/3600-ta-phase3-eliminate-errors
+      - name: Apply manual elimination error contract
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          page = Path('smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx')
+          source = page.read_text()
+          old = '\n'.join([
+              '      } else {',
+              '        const error = await response.json();',
+              "        alert(error.error || 'Failed to eliminate player');",
+              '      }',
+              '    } catch (err) {',
+              "      logger.error('Failed to eliminate player:', { error: err, tournamentId });",
+              "      alert('Failed to eliminate player');",
+              '    }',
+          ])
+          new = '\n'.join([
+              '      } else {',
+              '        const error = await response.json().catch(() => ({}));',
+              "        alert(error.error || tCommon('networkError'));",
+              '      }',
+              '    } catch (err) {',
+              "      logger.error('Failed to eliminate player:', { error: err, tournamentId });",
+              "      alert(tCommon('networkError'));",
+              '    }',
+          ])
+          if source.count(old) != 1:
+              raise SystemExit(f'expected manual elimination block once, found {source.count(old)}')
+          page.write_text(source.replace(old, new))
+
+          test = Path('smkc-score-app/__tests__/static/ta-finals-eliminate-error-fallbacks.test.ts')
+          test.write_text('\n'.join([
+              "import fs from 'fs';",
+              "import path from 'path';",
+              '',
+              "const source = fs.readFileSync(path.join(process.cwd(), 'src/app/tournaments/[id]/ta/finals/page.tsx'), 'utf8');",
+              '',
+              "describe('TA finals manual elimination error fallback contract (issue #3600)', () => {",
+              "  const start = source.indexOf('const handleEliminatePlayer');",
+              "  const end = source.indexOf('const handleSetLives', start);",
+              '  const handler = source.slice(start, end);',
+              '',
+              "  it('preserves API errors and localizes generic failures', () => {",
+              '    expect(start).toBeGreaterThanOrEqual(0);',
+              '    expect(end).toBeGreaterThan(start);',
+              "    expect(handler).toContain(\"alert(error.error || tCommon('networkError'));\");",
+              "    expect(handler).toContain(\"alert(tCommon('networkError'));\");",
+              "    expect(handler).toContain(\"logger.error('Failed to eliminate player:'\");",
+              "    expect(handler).not.toContain(\"alert('Failed to eliminate player')\");",
+              '  });',
+              '',
+              "  it('keeps the existing PUT contract and success cleanup', () => {",
+              "    expect(handler).toContain(\"method: 'PUT'\");",
+              "    expect(handler).toContain(\"action: 'eliminate'\");",
+              "    expect(handler).toContain('setIsEliminateDialogOpen(false);');",
+              "    expect(handler).toContain('setEntryToEliminate(null);');",
+              "    expect(handler).toContain('fetchData();');",
+              '  });',
+              '});',
+              '',
+          ]))
+
+          docs = Path('docs/ta-round-control-error-fallbacks.md')
+          doc_source = docs.read_text()
+          appendix = '\n'.join([
+              '',
+              '## Phase 3 manual elimination',
+              '',
+              'Phase 3 の manual elimination も同じ user-facing error policy に従う。API 固有 `error` は優先し、generic non-2xx と request rejection は `common.networkError` を表示する。request rejection の raw detail は client logger のみに残す。',
+              '',
+          ])
+          if '## Phase 3 manual elimination' not in doc_source:
+              docs.write_text(doc_source.rstrip() + '\n' + appendix)
+          PY
+
+      - name: Remove patch workflow and commit
+        shell: bash
+        run: |
+          rm .github/workflows/issue-3600-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add smkc-score-app/src/app/tournaments/'[id]'/ta/finals/page.tsx \
+                  smkc-score-app/__tests__/static/ta-finals-eliminate-error-fallbacks.test.ts \
+                  docs/ta-round-control-error-fallbacks.md \
+                  .github/workflows/issue-3600-patch.yml
+          git commit -m 'fix: localize TA phase3 elimination failures (#3600)'
+          git push origin HEAD:fix/3600-ta-phase3-eliminate-errors
