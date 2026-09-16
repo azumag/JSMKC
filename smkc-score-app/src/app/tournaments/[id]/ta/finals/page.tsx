@@ -786,12 +786,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         setEntryToEliminate(null);
         fetchData();
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to eliminate player');
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || tCommon('networkError'));
       }
     } catch (err) {
       logger.error('Failed to eliminate player:', { error: err, tournamentId });
-      alert('Failed to eliminate player');
+      alert(tCommon('networkError'));
     }
   };
 

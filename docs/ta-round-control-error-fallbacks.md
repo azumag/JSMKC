@@ -20,3 +20,7 @@ TA finals の round control では、ユーザー向けエラーと診断用エ�
 - generic non-2xx と `fetch()` rejection は `common.networkError` を表示する。
 - request rejection の raw detail は client logger のみに残す。
 - confirmation dialog と loading state は、成功・失敗のどちらでも従来どおり操作可能な状態へ戻す。
+
+## Phase 3 manual elimination
+
+Phase 3 の manual elimination も同じ user-facing error policy に従う。API 固有 `error` は優先し、generic non-2xx と request rejection は `common.networkError` を表示する。request rejection の raw detail は client logger のみに残す。
