@@ -821,7 +821,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || tTaFinals('livesUpdateFailed'));
+        alert(error.error || tTaFinals('livesUpdateFailed'));
+        return;
       }
       setLifeInputs((current) => {
         const next = { ...current };
@@ -831,7 +832,7 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       fetchData();
     } catch (err) {
       logger.error('Failed to set player lives:', { error: err, tournamentId, entryId: entry.id });
-      alert(err instanceof Error ? err.message : tTaFinals('livesUpdateFailed'));
+      alert(tCommon('networkError'));
     } finally {
       setSavingLifeEntryId(null);
     }
