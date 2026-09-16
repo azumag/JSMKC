@@ -293,10 +293,11 @@ export default function MatchRacePageClient({
         refetch();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.error || 'Failed to update qualification status');
+        toast.error(errorData.error || tc('networkError'));
       }
     } catch (err) {
       logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
+      toast.error(tc('networkError'));
     }
   };
 
