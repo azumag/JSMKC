@@ -24,3 +24,7 @@ TA finals の round control では、ユーザー向けエラーと診断用エ�
 ## Phase 3 manual elimination
 
 Phase 3 の manual elimination も同じ user-facing error policy に従う。API 固有 `error` は優先し、generic non-2xx と request rejection は `common.networkError` を表示する。request rejection の raw detail は client logger のみに残す。
+
+## Phase 3 life adjustment
+
+Phase 3 の残機変更では、API 固有 `error` を優先し、generic non-2xx は既存の翻訳済み `taFinals.livesUpdateFailed` を使う。`fetch()` rejection は `common.networkError` を表示し、raw browser/network detail は client logger のみに残す。stale-write protection (`expectedVersion` / `expectedLives`) と成功時 cleanup は維持する。
