@@ -3,10 +3,12 @@
  *
  * @module Test Suite: profile/page
  *
- * Covers the profile page's player-session card and the QR one-scan
- * login card added for issue #3055:
+ * Covers the profile page's player-session card, QR one-scan login card,
+ * and linked-player fetch error fallback contract:
  * - The QR login card renders only when a player record is loaded
  * - No QR card is shown for admin-only sessions (no linked player)
+ * - API-specific errors are preferred over the shared generic fallback
+ * - Generic HTTP and network failures use common.networkError
  */
 import { render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
@@ -54,5 +56,48 @@ describe('ProfilePage', () => {
 
     await waitFor(() => expect(screen.getByText('noPlayerSession')).toBeInTheDocument());
     expect(screen.queryByText('qrLoginCardTitle')).not.toBeInTheDocument();
+  });
+
+  it('prefers an API-specific error when linked player loading fails', async () => {
+    (useSession as jest.Mock).mockReturnValue({
+      status: 'authenticated',
+      data: { user: { name: 'Test Player', role: 'player', playerId: 'player-1' } },
+    });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Player lookup unavailable' }),
+    });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => expect(screen.getByText('Player lookup unavailable')).toBeInTheDocument());
+    expect(screen.queryByText('qrLoginCardTitle')).not.toBeInTheDocument();
+  });
+
+  it('uses common.networkError when a non-2xx response has no API error', async () => {
+    (useSession as jest.Mock).mockReturnValue({
+      status: 'authenticated',
+      data: { user: { name: 'Test Player', role: 'player', playerId: 'player-1' } },
+    });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({}),
+    });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => expect(screen.getByText('networkError')).toBeInTheDocument());
+  });
+
+  it('uses common.networkError when the linked player request rejects', async () => {
+    (useSession as jest.Mock).mockReturnValue({
+      status: 'authenticated',
+      data: { user: { name: 'Test Player', role: 'player', playerId: 'player-1' } },
+    });
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+
+    render(<ProfilePage />);
+
+    await waitFor(() => expect(screen.getByText('networkError')).toBeInTheDocument());
   });
 });
