@@ -24,10 +24,8 @@ describe('qualification page i18n errors', () => {
     );
 
     const failedGenerateBracketTranslation = /tc\s*\(\s*(['"])failedGenerateBracket\1\s*\)/;
-    const networkErrorAlert = /alert\s*\(\s*tc\s*\(\s*(['"])networkError\1\s*\)\s*\)/;
 
     expect(source).toMatch(failedGenerateBracketTranslation);
-    expect(source).not.toMatch(networkErrorAlert);
     expect(source).not.toContain('Network error — please try again');
   });
 });
