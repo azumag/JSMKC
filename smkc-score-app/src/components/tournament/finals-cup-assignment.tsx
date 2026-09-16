@@ -40,11 +40,20 @@ export function FinalsCupAssignment({
     if (resolution === 'cancel') return;
     setSaving(true);
     try {
-      const response = await fetch(endpoint, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: match.id, cupAssignment: { cup, expectedVersion: match.version, resolution } }),
-      });
+      let response: Response;
+      try {
+        response = await fetch(endpoint, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            matchId: match.id,
+            cupAssignment: { cup, expectedVersion: match.version, resolution },
+          }),
+        });
+      } catch {
+        alert(t('failedUpdateMatchCup'));
+        return;
+      }
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         alert(payload?.error || t('failedUpdateMatchCup'));
