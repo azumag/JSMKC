@@ -54,13 +54,14 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           refetch();
         } else {
           const err = await response.json().catch(() => ({}));
-          alert(err.error || 'Failed to update rank');
+          alert(err.error || tc('networkError'));
         }
       } catch (err) {
         logger.error('Failed to update rank:', { error: err, tournamentId });
+        alert(tc('networkError'));
       }
     },
-    [tournamentId, mode, refetch, logger],
+    [tournamentId, mode, refetch, logger, tc],
   );
 
   /**
@@ -79,7 +80,7 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           });
           if (!response.ok) {
             const err = await response.json().catch(() => ({}));
-            alert(err.error || 'Failed to update rank');
+            alert(err.error || tc('networkError'));
             return false;
           }
         }
@@ -87,10 +88,11 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         return true;
       } catch (err) {
         logger.error('Failed to update ranks:', { error: err, tournamentId });
+        alert(tc('networkError'));
         return false;
       }
     },
-    [tournamentId, mode, refetch, logger],
+    [tournamentId, mode, refetch, logger, tc],
   );
 
   /**
@@ -110,13 +112,14 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           refetch();
         } else {
           const err = await response.json().catch(() => ({}));
-          alert(err.error || 'Failed to update combined rank');
+          alert(err.error || tc('networkError'));
         }
       } catch (err) {
         logger.error('Failed to update combined rank:', { error: err, tournamentId });
+        alert(tc('networkError'));
       }
     },
-    [tournamentId, mode, refetch, logger],
+    [tournamentId, mode, refetch, logger, tc],
   );
 
   /** Save a complete cross-group sudden-death order, then refresh once. */
@@ -131,7 +134,7 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           });
           if (!response.ok) {
             const err = await response.json().catch(() => ({}));
-            alert(err.error || 'Failed to update combined rank');
+            alert(err.error || tc('networkError'));
             return false;
           }
         }
@@ -139,10 +142,11 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         return true;
       } catch (err) {
         logger.error('Failed to update combined ranks:', { error: err, tournamentId });
+        alert(tc('networkError'));
         return false;
       }
     },
-    [tournamentId, mode, refetch, logger],
+    [tournamentId, mode, refetch, logger, tc],
   );
 
   /**
