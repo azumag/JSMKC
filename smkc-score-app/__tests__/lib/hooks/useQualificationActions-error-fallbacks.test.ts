@@ -65,9 +65,7 @@ describe('useQualificationActions rank mutation error fallbacks', () => {
 
     let returnValue: boolean | undefined;
     await act(async () => {
-      returnValue = await result.current.handleBulkRankOverrideSave([
-        { qualificationId: 'qual-1', rankOverride: 1 },
-      ]);
+      returnValue = await result.current.handleBulkRankOverrideSave([{ qualificationId: 'qual-1', rankOverride: 1 }]);
     });
 
     expect(alertSpy).toHaveBeenCalledWith('Rank is locked');
