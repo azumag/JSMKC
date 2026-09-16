@@ -45,10 +45,7 @@ export function FinalsCupAssignment({
         response = await fetch(endpoint, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            matchId: match.id,
-            cupAssignment: { cup, expectedVersion: match.version, resolution },
-          }),
+          body: JSON.stringify({ matchId: match.id, cupAssignment: { cup, expectedVersion: match.version, resolution } }),
         });
       } catch {
         alert(t('failedUpdateMatchCup'));
