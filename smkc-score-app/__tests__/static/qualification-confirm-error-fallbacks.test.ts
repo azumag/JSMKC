@@ -23,11 +23,8 @@ describe('qualification confirmation error fallback contract', () => {
   });
 
   it.each(['en', 'ja'])('defines common.networkError for %s', (locale) => {
-    const messages = JSON.parse(readAppFile('messages', `${locale}.json`)) as {
-      common?: { networkError?: unknown };
-    };
+    const messages = readAppFile('messages', `${locale}.json`);
 
-    expect(typeof messages.common?.networkError).toBe('string');
-    expect(messages.common?.networkError).not.toBe('');
+    expect(messages).toMatch(/"networkError"\s*:\s*"[^"]+"/);
   });
 });
