@@ -7,6 +7,7 @@ describe('FinalsCupAssignment', () => {
   const originalFetch = global.fetch;
   afterEach(() => {
     global.fetch = originalFetch;
+    jest.restoreAllMocks();
   });
 
   it('requires a visible keep-or-clear selection when cup details exist and sends keep by default', async () => {
@@ -36,5 +37,26 @@ describe('FinalsCupAssignment', () => {
       />,
     );
     expect(screen.getByLabelText('Cup details resolution')).toBeInTheDocument();
+  });
+
+  it('shows a localized failure and restores the save button when fetch rejects', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const onSaved = jest.fn();
+
+    render(
+      <FinalsCupAssignment
+        match={{ id: 'm1', version: 4, cup: 'Mushroom' }}
+        endpoint="/api/test"
+        onSaved={onSaved}
+      />,
+    );
+
+    const saveButton = screen.getByRole('button', { name: 'Save match cup' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Failed to update match cup'));
+    expect(onSaved).not.toHaveBeenCalled();
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
   });
 });
