@@ -24,7 +24,6 @@ import { useTranslations } from "next-intl";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createLogger } from "@/lib/client-logger";
 
 /**
@@ -55,6 +54,8 @@ interface ErrorBoundaryProps {
  * Provides context-aware error messages by inspecting the error message
  * string for common keywords (fetch, network, timeout). This heuristic
  * approach gives users actionable guidance without exposing internal details.
+ * Raw runtime details remain available to componentDidCatch logging and the
+ * optional onError callback, but are intentionally not rendered to users.
  *
  * Recovery behavior:
  *   - "Try Again" button (shown only for recoverable errors): resets the
@@ -114,17 +115,10 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* User-friendly error description */}
+        {/* User-friendly error description; raw runtime details stay in logger/onError only. */}
         <CardDescription className="text-base">
           {getErrorMessage()}
         </CardDescription>
-
-        {/* Technical error details in monospace for debugging */}
-        <Alert variant="destructive">
-          <AlertDescription className="font-mono text-xs mt-2">
-            {error?.message || "No error message available"}
-          </AlertDescription>
-        </Alert>
 
         {/* Recovery action buttons */}
         <div className="flex gap-2 pt-4">
