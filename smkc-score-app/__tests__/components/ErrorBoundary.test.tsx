@@ -43,7 +43,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary, ErrorFallback } from '@/components/ErrorBoundary';
 
 describe('ErrorBoundary', () => {
-
   /**
    * Test component that throws an error when rendered
    * Used to trigger the ErrorBoundary
@@ -60,7 +59,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <div>Child Component</div>
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Child Component')).toBeInTheDocument();
@@ -72,7 +71,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary onError={onErrorSpy}>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Error Occurred')).toBeInTheDocument();
@@ -86,7 +85,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary fallback={customFallback}>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Custom Error UI')).toBeInTheDocument();
@@ -104,7 +103,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <NetworkError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Error Occurred')).toBeInTheDocument();
@@ -126,7 +125,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <NetworkError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Try Again')).toBeInTheDocument();
@@ -141,7 +140,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <TimeoutError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Try Again')).toBeInTheDocument();
@@ -156,7 +155,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <ProgrammingError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.queryByText('Try Again')).not.toBeInTheDocument();
@@ -171,7 +170,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary onError={onErrorSpy}>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(onErrorSpy).toHaveBeenCalledTimes(1);
@@ -179,7 +178,7 @@ describe('ErrorBoundary', () => {
         expect.objectContaining({ message: 'Test error message' }),
         expect.objectContaining({
           componentStack: expect.any(String),
-        })
+        }),
       );
     });
 
@@ -188,7 +187,7 @@ describe('ErrorBoundary', () => {
         render(
           <ErrorBoundary>
             <ThrowError shouldThrow={true} />
-          </ErrorBoundary>
+          </ErrorBoundary>,
         );
       }).not.toThrow();
     });
@@ -214,7 +213,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       const goBackButton = screen.getByText('Go Back');
