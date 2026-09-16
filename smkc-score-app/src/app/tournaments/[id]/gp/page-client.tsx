@@ -430,7 +430,7 @@ export default function GrandPrixPageClient({
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        alert(error.error || tc('networkError'));
+        alert(error.error || 'Failed to save cup assignment');
         return;
       }
       const json = await response.json();
@@ -440,7 +440,6 @@ export default function GrandPrixPageClient({
       refetch();
     } catch (error) {
       logger.error('Failed to update qualification cup', { error });
-      alert(tc('networkError'));
     }
   };
 
@@ -520,12 +519,11 @@ export default function GrandPrixPageClient({
           refetch();
         } else {
           const errorData = await response.json().catch(() => ({}));
-          alert(errorData.error || tc('networkError'));
+          alert(errorData.error || t('manualScoreSaveFailed'));
         }
       } catch (err) {
         const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
         logger.error('Failed to manually update GP score:', metadata);
-        alert(tc('networkError'));
       }
       return;
     }
@@ -561,21 +559,16 @@ export default function GrandPrixPageClient({
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || tc('networkError'));
-        return;
+      if (response.ok) {
+        setIsMatchDialogOpen(false);
+        setSelectedMatch(null);
+        setSelectedCup('');
+        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })));
+        refetch();
       }
-
-      setIsMatchDialogOpen(false);
-      setSelectedMatch(null);
-      setSelectedCup('');
-      setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: '', position1: null, position2: null })));
-      refetch();
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to update match:', metadata);
-      alert(tc('networkError'));
     }
   };
 
@@ -929,7 +922,7 @@ export default function GrandPrixPageClient({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  /* Build player→group lookup for match filtering */}
+                  /* Build player→group lookup for match filtering */
                   const playerGroupMap = new Map<string, string>();
                   for (const q of qualifications) {
                     playerGroupMap.set(q.playerId, q.group);

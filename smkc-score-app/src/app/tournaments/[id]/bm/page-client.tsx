@@ -352,19 +352,14 @@ export default function BattleModePageClient({
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || tc('networkError'));
-        return;
+      if (response.ok) {
+        setIsScoreDialogOpen(false);
+        setSelectedMatch(null);
+        setScoreForm({ score1: 0, score2: 0 });
+        refetch();
       }
-
-      setIsScoreDialogOpen(false);
-      setSelectedMatch(null);
-      setScoreForm({ score1: 0, score2: 0 });
-      refetch();
     } catch (err) {
       logger.error('Failed to update score:', { error: err, tournamentId });
-      alert(tc('networkError'));
     }
   };
 
@@ -988,7 +983,7 @@ export default function BattleModePageClient({
             {/* §5.3 Character selection priority guidance */}
             {selectedMatch &&
               (() => {
-                /* Find previous completed match between the same two players */}
+                /* Find previous completed match between the same two players */
                 const p1 = selectedMatch.player1Id;
                 const p2 = selectedMatch.player2Id;
                 const prevMatch = matches
