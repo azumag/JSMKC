@@ -133,7 +133,7 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || 'Failed to start TA battle royale');
+        throw new Error(payload.error || tc('networkError'));
       }
       // Keep a hard navigation after the mutation so finals always boots from
       // freshly persisted server state; use an absolute same-origin URL to
