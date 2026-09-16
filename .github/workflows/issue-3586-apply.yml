@@ -23,200 +23,179 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           root = Path('smkc-score-app')
           page = root / 'src' / 'app' / 'tournaments' / '[id]' / 'overall-ranking' / 'page.tsx'
           source = page.read_text()
 
-          marker = """interface OverallRankingData {
-            tournamentId: string;
-            tournamentName: string;
-            lastUpdated: string;
-            rankings: PlayerRanking[];
-          }
+          source, count = re.subn(
+              r'(interface OverallRankingData \{.*?\n\})\n\n(export default function OverallRankingPage)',
+              r'\1\n\n/** Marks generic transport/response failures that must use the shared localized fallback. */\nclass GenericOverallRankingError extends Error {}\n\n\2',
+              source,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'overall ranking marker insertion count={count}')
 
-          export default function OverallRankingPage"""
-          replacement = """interface OverallRankingData {
-            tournamentId: string;
-            tournamentName: string;
-            lastUpdated: string;
-            rankings: PlayerRanking[];
-          }
+          new_fetch = '\n'.join([
+              '  const fetchRankings = useCallback(async () => {',
+              '    let response: Response;',
+              '    try {',
+              '      response = await fetchWithRetry(`/api/tournaments/${tournamentId}/overall-ranking`);',
+              '    } catch (err) {',
+              "      logger.error('Failed to fetch overall rankings:', { error: err, tournamentId });",
+              '      throw new GenericOverallRankingError();',
+              '    }',
+              '',
+              '    if (!response.ok) {',
+              '      const errorData = await response.json().catch(() => ({}));',
+              "      if (typeof errorData.error === 'string' && errorData.error.trim()) {",
+              '        throw new Error(errorData.error);',
+              '      }',
+              "      logger.error('Overall ranking fetch returned non-2xx without an API error', {",
+              '        tournamentId,',
+              '        status: response.status,',
+              '      });',
+              '      throw new GenericOverallRankingError();',
+              '    }',
+              '',
+              '    const data = await response.json();',
+              '    if (data.success && data.data) {',
+              '      return data.data as OverallRankingData;',
+              '    }',
+              "    if (typeof data.error === 'string' && data.error.trim()) {",
+              '      throw new Error(data.error);',
+              '    }',
+              "    logger.error('Overall ranking fetch returned an invalid response', { tournamentId });",
+              '    throw new GenericOverallRankingError();',
+              '  }, [tournamentId]);',
+          ])
+          source, count = re.subn(
+              r'  const fetchRankings = useCallback\(async \(\) => \{.*?\n  \}, \[tournamentId\]\);',
+              lambda _: new_fetch,
+              source,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'fetchRankings replacement count={count}')
 
-          /** Marks generic transport/response failures that must use the shared localized fallback. */
-          class GenericOverallRankingError extends Error {}
+          new_effect = '\n'.join([
+              '  useEffect(() => {',
+              '    if (pollError) {',
+              '      setError(',
+              '        pollError instanceof GenericOverallRankingError',
+              "          ? tCommon('networkError')",
+              "          : pollError.message || tCommon('networkError'),",
+              '      );',
+              '    }',
+              '  }, [pollError, tCommon]);',
+          ])
+          source, count = re.subn(
+              r'  useEffect\(\(\) => \{\n    if \(pollError\) \{.*?\n  \}, \[pollError\]\);',
+              lambda _: new_effect,
+              source,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'poll error effect replacement count={count}')
 
-          export default function OverallRankingPage"""
-          if marker not in source:
-              raise SystemExit('overall ranking interface marker not found')
-          source = source.replace(marker, replacement, 1)
+          new_recalc = '\n'.join([
+              '  const handleRecalculate = async () => {',
+              '    setRecalculating(true);',
+              '    setError(null);',
+              '',
+              '    try {',
+              '      const response = await fetch(`/api/tournaments/${tournamentId}/overall-ranking`, {',
+              "        method: 'POST',",
+              '      });',
+              '',
+              '      if (!response.ok) {',
+              '        const errorData = await response.json().catch(() => ({}));',
+              "        if (typeof errorData.error === 'string' && errorData.error.trim()) {",
+              '          setError(errorData.error);',
+              '        } else {',
+              "          logger.error('Overall ranking recalculation returned non-2xx without an API error', {",
+              '            tournamentId,',
+              '            status: response.status,',
+              '          });',
+              "          setError(tCommon('networkError'));",
+              '        }',
+              '        return;',
+              '      }',
+              '',
+              '      /* Trigger immediate refetch to display the recalculated data */',
+              '      refetch();',
+              '    } catch (err) {',
+              "      logger.error('Failed to recalculate rankings:', { error: err, tournamentId });",
+              "      setError(tCommon('networkError'));",
+              '    } finally {',
+              '      setRecalculating(false);',
+              '    }',
+              '  };',
+          ])
+          source, count = re.subn(
+              r'  const handleRecalculate = async \(\) => \{.*?\n  \};\n\n  /\*\*\n   \* Format a rank number',
+              lambda _: new_recalc + '\n\n  /**\n   * Format a rank number',
+              source,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'recalculate replacement count={count}')
 
-          old_fetch = """  const fetchRankings = useCallback(async () => {
-            const response = await fetchWithRetry(`/api/tournaments/${tournamentId}/overall-ranking`);
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              throw new Error(errorData.error || `Failed to fetch rankings: ${response.status}`);
-            }
-
-            const data = await response.json();
-            if (data.success && data.data) {
-              return data.data as OverallRankingData;
-            }
-            throw new Error(data.error || 'Invalid response format');
-          }, [tournamentId]);"""
-          new_fetch = """  const fetchRankings = useCallback(async () => {
-            let response: Response;
-            try {
-              response = await fetchWithRetry(`/api/tournaments/${tournamentId}/overall-ranking`);
-            } catch (err) {
-              logger.error('Failed to fetch overall rankings:', { error: err, tournamentId });
-              throw new GenericOverallRankingError();
-            }
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              if (typeof errorData.error === 'string' && errorData.error.trim()) {
-                throw new Error(errorData.error);
-              }
-              logger.error('Overall ranking fetch returned non-2xx without an API error', {
-                tournamentId,
-                status: response.status,
-              });
-              throw new GenericOverallRankingError();
-            }
-
-            const data = await response.json();
-            if (data.success && data.data) {
-              return data.data as OverallRankingData;
-            }
-            if (typeof data.error === 'string' && data.error.trim()) {
-              throw new Error(data.error);
-            }
-            logger.error('Overall ranking fetch returned an invalid response', { tournamentId });
-            throw new GenericOverallRankingError();
-          }, [tournamentId]);"""
-          if old_fetch not in source:
-              raise SystemExit('fetchRankings block not found')
-          source = source.replace(old_fetch, new_fetch, 1)
-
-          old_effect = """  useEffect(() => {
-            if (pollError) {
-              setError(typeof pollError === 'string' ? pollError : (pollError as Error)?.message || 'Unknown error');
-            }
-          }, [pollError]);"""
-          new_effect = """  useEffect(() => {
-            if (pollError) {
-              setError(
-                pollError instanceof GenericOverallRankingError
-                  ? tCommon('networkError')
-                  : pollError.message || tCommon('networkError'),
-              );
-            }
-          }, [pollError, tCommon]);"""
-          if old_effect not in source:
-              raise SystemExit('poll error effect not found')
-          source = source.replace(old_effect, new_effect, 1)
-
-          old_recalc = """    try {
-              const response = await fetch(`/api/tournaments/${tournamentId}/overall-ranking`, {
-                method: 'POST',
-              });
-
-              if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to recalculate rankings');
-              }
-
-              /* Trigger immediate refetch to display the recalculated data */
-              refetch();
-            } catch (err) {
-              const errorMessage = err instanceof Error ? err.message : 'Failed to recalculate';
-              logger.error('Failed to recalculate rankings:', { error: err, tournamentId });
-              setError(errorMessage);
-            } finally {
-              setRecalculating(false);
-            }"""
-          new_recalc = """    try {
-              const response = await fetch(`/api/tournaments/${tournamentId}/overall-ranking`, {
-                method: 'POST',
-              });
-
-              if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                if (typeof errorData.error === 'string' && errorData.error.trim()) {
-                  setError(errorData.error);
-                } else {
-                  logger.error('Overall ranking recalculation returned non-2xx without an API error', {
-                    tournamentId,
-                    status: response.status,
-                  });
-                  setError(tCommon('networkError'));
-                }
-                return;
-              }
-
-              /* Trigger immediate refetch to display the recalculated data */
-              refetch();
-            } catch (err) {
-              logger.error('Failed to recalculate rankings:', { error: err, tournamentId });
-              setError(tCommon('networkError'));
-            } finally {
-              setRecalculating(false);
-            }"""
-          if old_recalc not in source:
-              raise SystemExit('recalculate block not found')
-          source = source.replace(old_recalc, new_recalc, 1)
           page.write_text(source)
 
           test = root / '__tests__' / 'static' / 'overall-ranking-error-fallbacks.test.ts'
           test.write_text("""import fs from 'fs';
-          import path from 'path';
+import path from 'path';
 
-          const source = fs.readFileSync(
-            path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'overall-ranking', 'page.tsx'),
-            'utf8',
-          );
+const source = fs.readFileSync(
+  path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'overall-ranking', 'page.tsx'),
+  'utf8',
+);
 
-          describe('overall ranking client error fallback contract (issue #3586)', () => {
-            it('keeps concrete API errors while localizing generic polling failures', () => {
-              expect(source).toContain("if (typeof errorData.error === 'string' && errorData.error.trim())");
-              expect(source).toContain('throw new Error(errorData.error);');
-              expect(source).toContain('pollError instanceof GenericOverallRankingError');
-              expect(source).toContain("? tCommon('networkError')");
-              expect(source).not.toContain('`Failed to fetch rankings: ${response.status}`');
-              expect(source).not.toContain("data.error || 'Invalid response format'");
-              expect(source).not.toContain("|| 'Unknown error'");
-            });
+describe('overall ranking client error fallback contract (issue #3586)', () => {
+  it('keeps concrete API errors while localizing generic polling failures', () => {
+    expect(source).toContain("if (typeof errorData.error === 'string' && errorData.error.trim())");
+    expect(source).toContain('throw new Error(errorData.error);');
+    expect(source).toContain('pollError instanceof GenericOverallRankingError');
+    expect(source).toContain("tCommon('networkError')");
+    expect(source).not.toContain('`Failed to fetch rankings: ${response.status}`');
+    expect(source).not.toContain("data.error || 'Invalid response format'");
+    expect(source).not.toContain("|| 'Unknown error'");
+  });
 
-            it('uses common.networkError for generic recalculation failures without exposing runtime messages', () => {
-              expect(source).toContain("setError(tCommon('networkError'));\n                }\n                return;");
-              expect(source).toContain(
-                "logger.error('Failed to recalculate rankings:', { error: err, tournamentId });\n              setError(tCommon('networkError'));",
-              );
-              expect(source).not.toContain("errorData.error || 'Failed to recalculate rankings'");
-              expect(source).not.toContain("err instanceof Error ? err.message : 'Failed to recalculate'");
-            });
-          });
-          """)
+  it('uses common.networkError for generic recalculation failures without exposing runtime messages', () => {
+    expect(source).toContain("setError(errorData.error);");
+    expect(source).toContain("Overall ranking recalculation returned non-2xx without an API error");
+    expect(source).toContain("logger.error('Failed to recalculate rankings:', { error: err, tournamentId });");
+    expect(source).not.toContain("errorData.error || 'Failed to recalculate rankings'");
+    expect(source).not.toContain("err instanceof Error ? err.message : 'Failed to recalculate'");
+  });
+});
+""")
 
           docs = root / 'docs' / 'overall-ranking-error-feedback.md'
           docs.write_text("""# Overall ranking error feedback contract
 
-          `/tournaments/[id]/overall-ranking` は、利用者向けエラーと診断情報を分離する。
+`/tournaments/[id]/overall-ranking` は、利用者向けエラーと診断情報を分離する。
 
-          ## 表示契約
+## 表示契約
 
-          - GET/POST API が具体的な `error` 文字列を返す場合は、そのメッセージを優先する。
-          - GET の fetch rejection、API error のない non-2xx、error のない invalid response は `common.networkError` を表示する。
-          - 再計算 POST の fetch rejection と API error のない non-2xx も `common.networkError` を表示する。
-          - runtime の `Error.message` は generic fallback としてユーザーへ露出しない。
-          - generic failure の raw error、HTTP status、`tournamentId` は client logger に残す。
+- GET/POST API が具体的な `error` 文字列を返す場合は、そのメッセージを優先する。
+- GET の fetch rejection、API error のない non-2xx、error のない invalid response は `common.networkError` を表示する。
+- 再計算 POST の fetch rejection と API error のない non-2xx も `common.networkError` を表示する。
+- runtime の `Error.message` は generic fallback としてユーザーへ露出しない。
+- generic failure の raw error、HTTP status、`tournamentId` は client logger に残す。
 
-          ## 非変更事項
+## 非変更事項
 
-          overall ranking の算出、API endpoint/schema、polling interval/cache key、再計算成功後の `refetch()`、admin 権限と画面構造は変更しない。
-          """)
+overall ranking の算出、API endpoint/schema、polling interval/cache key、再計算成功後の `refetch()`、admin 権限と画面構造は変更しない。
+""")
 
           Path('.github/workflows/issue-3586-apply.yml').unlink()
           PY
