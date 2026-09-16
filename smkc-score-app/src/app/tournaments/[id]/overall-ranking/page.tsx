@@ -71,6 +71,9 @@ interface OverallRankingData {
   rankings: PlayerRanking[];
 }
 
+/** Marks generic transport/response failures that must use the shared localized fallback. */
+class GenericOverallRankingError extends Error {}
+
 export default function OverallRankingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
   /* i18n translation hooks for overall ranking and common namespaces */
@@ -84,18 +87,41 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
 
   /** Fetch ranking data from the overall ranking API */
   const fetchRankings = useCallback(async () => {
-    const response = await fetchWithRetry(`/api/tournaments/${tournamentId}/overall-ranking`);
+    let response: Response;
+    try {
+      response = await fetchWithRetry(`/api/tournaments/${tournamentId}/overall-ranking`);
+    } catch (err) {
+      logger.error('Failed to fetch overall rankings:', { error: err, tournamentId });
+      throw new GenericOverallRankingError();
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to fetch rankings: ${response.status}`);
+      if (typeof errorData.error === 'string' && errorData.error.trim()) {
+        throw new Error(errorData.error);
+      }
+      logger.error('Overall ranking fetch returned non-2xx without an API error', {
+        tournamentId,
+        status: response.status,
+      });
+      throw new GenericOverallRankingError();
     }
 
-    const data = await response.json();
-    if (data.success && data.data) {
-      return data.data as OverallRankingData;
+    let data: { success?: boolean; data?: OverallRankingData; error?: unknown };
+    try {
+      data = await response.json();
+    } catch (err) {
+      logger.error('Overall ranking fetch returned malformed JSON', { error: err, tournamentId });
+      throw new GenericOverallRankingError();
     }
-    throw new Error(data.error || 'Invalid response format');
+    if (data.success && data.data) {
+      return data.data;
+    }
+    if (typeof data.error === 'string' && data.error.trim()) {
+      throw new Error(data.error);
+    }
+    logger.error('Overall ranking fetch returned an invalid response', { tournamentId });
+    throw new GenericOverallRankingError();
   }, [tournamentId]);
 
   /*
@@ -118,9 +144,13 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
   /* Sync polling errors to local error state for display */
   useEffect(() => {
     if (pollError) {
-      setError(typeof pollError === 'string' ? pollError : (pollError as Error)?.message || 'Unknown error');
+      setError(
+        pollError instanceof GenericOverallRankingError
+          ? tCommon('networkError')
+          : pollError.message || tCommon('networkError'),
+      );
     }
-  }, [pollError]);
+  }, [pollError, tCommon]);
 
   /**
    * Trigger a full recalculation of overall rankings.
@@ -138,15 +168,23 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to recalculate rankings');
+        if (typeof errorData.error === 'string' && errorData.error.trim()) {
+          setError(errorData.error);
+        } else {
+          logger.error('Overall ranking recalculation returned non-2xx without an API error', {
+            tournamentId,
+            status: response.status,
+          });
+          setError(tCommon('networkError'));
+        }
+        return;
       }
 
       /* Trigger immediate refetch to display the recalculated data */
       refetch();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to recalculate';
       logger.error('Failed to recalculate rankings:', { error: err, tournamentId });
-      setError(errorMessage);
+      setError(tCommon('networkError'));
     } finally {
       setRecalculating(false);
     }
