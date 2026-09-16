@@ -20,7 +20,11 @@ function sliceBetween(source: string, start: string, end: string): string {
 
 describe('qualification save failure feedback', () => {
   it('keeps BM score state on failure and reports API/network errors through alert', () => {
-    const block = sliceBetween(readPage(bmPagePath), 'const handleScoreSubmit = async () => {', 'const handleBroadcastMatch =');
+    const block = sliceBetween(
+      readPage(bmPagePath),
+      'const handleScoreSubmit = async () => {',
+      'const handleBroadcastMatch =',
+    );
 
     expect(block).toContain("alert(errorData.error || tc('networkError'));\n        return;");
     expect(block).toContain(
@@ -32,7 +36,11 @@ describe('qualification save failure feedback', () => {
   });
 
   it('keeps MR score state on failure and reports API/network errors through toast', () => {
-    const block = sliceBetween(readPage(mrPagePath), 'const handleMatchSubmit = async () => {', 'const handleBroadcastMatch =');
+    const block = sliceBetween(
+      readPage(mrPagePath),
+      'const handleMatchSubmit = async () => {',
+      'const handleBroadcastMatch =',
+    );
 
     expect(block).toContain("toast.error(errorData.error || tc('networkError'));\n        return;");
     expect(block).toContain(
