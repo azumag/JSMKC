@@ -54,11 +54,20 @@ export function FinalsRoundSettings({
     );
     setSaving(true);
     try {
-      const response = await fetch(endpoint, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: match.id, roundSettings: { targetWins: parsed, expectedVersions } }),
-      });
+      let response: Response;
+      try {
+        response = await fetch(endpoint, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            matchId: match.id,
+            roundSettings: { targetWins: parsed, expectedVersions },
+          }),
+        });
+      } catch {
+        alert(t('failedUpdateRoundFormat'));
+        return;
+      }
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         alert(payload?.error || t('failedUpdateRoundFormat'));
