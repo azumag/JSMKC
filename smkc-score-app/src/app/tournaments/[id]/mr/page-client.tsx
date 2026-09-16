@@ -377,14 +377,19 @@ export default function MatchRacePageClient({
         }),
       });
 
-      if (response.ok) {
-        setIsMatchDialogOpen(false);
-        setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
-        refetch();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || tc('networkError'));
+        return;
       }
+
+      setIsMatchDialogOpen(false);
+      setSelectedMatch(null);
+      setScoreForm({ score1: 0, score2: 0 });
+      refetch();
     } catch (err) {
       logger.error('Failed to update match:', { error: err, tournamentId });
+      toast.error(tc('networkError'));
     }
   };
 
