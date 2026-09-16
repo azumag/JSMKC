@@ -103,11 +103,20 @@ jobs:
       - name: Unit tests
         # Keep functional validation independent from the dependency audit so a
         # pre-existing advisory does not hide regressions in the PR under test.
-        run: npm test -- --ci --forceExit
+        run: npm test -- --ci --forceExit --json --outputFile=jest-results.json
         env:
           SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Upload unit test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: unit-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: smkc-score-app/jest-results.json
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Security audit
         # Fail closed for all high/critical findings except the exact, dev-only
