@@ -302,7 +302,8 @@ export default function TAEliminationPhase({
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to start round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        return;
       }
       const json2 = await response.json();
       // Unwrap createSuccessResponse wrapper
@@ -330,8 +331,8 @@ export default function TAEliminationPhase({
       setSelectedCourse('__random__'); // Reset manual selection after round is started
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start round';
-      setSaveError(errorMessage);
+      logger.error('Failed to start TA elimination round:', { error: err, tournamentId, phase });
+      setSaveError(tCommon('networkError'));
     } finally {
       setStartingRound(false);
     }
@@ -358,7 +359,9 @@ export default function TAEliminationPhase({
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to cancel round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowCancelConfirm(false);
+        return;
       }
       // Clear client state after successful DB deletion and resume polling
       setCurrentRound(null);
@@ -370,8 +373,8 @@ export default function TAEliminationPhase({
       setShowCancelConfirm(false);
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
-      setSaveError(errorMessage);
+      logger.error('Failed to cancel TA elimination round:', { error: err, tournamentId, phase });
+      setSaveError(tCommon('networkError'));
       setShowCancelConfirm(false);
     } finally {
       setCancellingRound(false);
@@ -393,7 +396,9 @@ export default function TAEliminationPhase({
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to undo round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowUndoConfirm(false);
+        return;
       }
       setShowUndoConfirm(false);
       setCurrentRound(null);
@@ -404,8 +409,8 @@ export default function TAEliminationPhase({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to undo round';
-      setSaveError(errorMessage);
+      logger.error('Failed to undo TA elimination round:', { error: err, tournamentId, phase });
+      setSaveError(tCommon('networkError'));
       setShowUndoConfirm(false);
     } finally {
       setUndoingRound(false);
@@ -430,7 +435,9 @@ export default function TAEliminationPhase({
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to cancel round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowCancelLastRoundConfirm(false);
+        return;
       }
       setShowCancelLastRoundConfirm(false);
       setCurrentRound(null);
@@ -441,8 +448,8 @@ export default function TAEliminationPhase({
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
-      setSaveError(errorMessage);
+      logger.error('Failed to cancel the last TA elimination round:', { error: err, tournamentId, phase });
+      setSaveError(tCommon('networkError'));
       setShowCancelLastRoundConfirm(false);
     } finally {
       setCancellingLastRound(false);
