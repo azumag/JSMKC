@@ -116,9 +116,7 @@ export default function QrLoginPage() {
       <Suspense
         fallback={
           <Card className="w-full max-w-md">
-            <CardContent className="py-12 text-center text-muted-foreground">
-              {t('qrLoginInProgress')}
-            </CardContent>
+            <CardContent className="py-12 text-center text-muted-foreground">{t('qrLoginInProgress')}</CardContent>
           </Card>
         }
       >
