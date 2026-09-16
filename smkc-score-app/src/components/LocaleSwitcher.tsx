@@ -11,7 +11,7 @@
  */
 'use client'
 
-import { useLocale } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -30,6 +30,7 @@ function isValidLocale(locale: string): locale is Locale {
 
 export function LocaleSwitcher() {
   const locale = useLocale()
+  const tCommon = useTranslations('common')
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
@@ -66,7 +67,7 @@ export function LocaleSwitcher() {
       router.refresh()
     } catch (error) {
       logger.error('Locale switch failed:', { error })
-      toast.error(newLocale === 'ja' ? '言語の切り替えに失敗しました' : 'Failed to switch language')
+      toast.error(tCommon('networkError'))
     } finally {
       setIsLoading(false)
     }
