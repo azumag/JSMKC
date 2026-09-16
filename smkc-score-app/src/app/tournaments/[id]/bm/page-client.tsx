@@ -352,14 +352,19 @@ export default function BattleModePageClient({
         }),
       });
 
-      if (response.ok) {
-        setIsScoreDialogOpen(false);
-        setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
-        refetch();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || tc('networkError'));
+        return;
       }
+
+      setIsScoreDialogOpen(false);
+      setSelectedMatch(null);
+      setScoreForm({ score1: 0, score2: 0 });
+      refetch();
     } catch (err) {
       logger.error('Failed to update score:', { error: err, tournamentId });
+      alert(tc('networkError'));
     }
   };
 
