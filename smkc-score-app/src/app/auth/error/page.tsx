@@ -144,12 +144,14 @@ function ErrorPageContent() {
  * useSearchParams() to avoid opting the entire page into client rendering.
  */
 export default function ErrorPage() {
+  const tCommon = useTranslations('common')
+
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center text-muted-foreground">
-            Loading...
+            {tCommon('loading')}
           </CardContent>
         </Card>
       </div>
