@@ -429,7 +429,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to start round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        return;
       }
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper
@@ -459,8 +460,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setRoundLifeLoss('1'); // Reset the one-off life-loss override after round is started
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start round';
-      setSaveError(errorMessage);
+      logger.error('Failed to start TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
     } finally {
       setStartingRound(false);
     }
@@ -486,7 +487,9 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to cancel round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowCancelConfirm(false);
+        return;
       }
       setCurrentRound(null);
       setCourseTimes({});
@@ -497,8 +500,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setShowCancelConfirm(false);
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
-      setSaveError(errorMessage);
+      logger.error('Failed to cancel TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
       setShowCancelConfirm(false);
     } finally {
       setCancellingRound(false);
@@ -520,7 +523,9 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to undo round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowUndoConfirm(false);
+        return;
       }
       setShowUndoConfirm(false);
       setCurrentRound(null);
@@ -531,8 +536,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to undo round';
-      setSaveError(errorMessage);
+      logger.error('Failed to undo TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
       setShowUndoConfirm(false);
     } finally {
       setUndoingRound(false);
@@ -557,7 +562,9 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to cancel round');
+        setSaveError(errorData.error || tCommon('networkError'));
+        setShowCancelLastRoundConfirm(false);
+        return;
       }
       setShowCancelLastRoundConfirm(false);
       setCurrentRound(null);
@@ -568,8 +575,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel round';
-      setSaveError(errorMessage);
+      logger.error('Failed to cancel the last TA phase3 round:', { error: err, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
       setShowCancelLastRoundConfirm(false);
     } finally {
       setCancellingLastRound(false);
