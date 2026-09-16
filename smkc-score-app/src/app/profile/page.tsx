@@ -23,6 +23,7 @@ interface Player {
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const t = useTranslations('profile');
+  const tCommon = useTranslations('common');
 
   const [loading, setLoading] = useState(true);
   const [player, setPlayer] = useState<Player | null>(null);
@@ -33,15 +34,15 @@ export default function ProfilePage() {
       try {
         const res = await fetch(`/api/players/${playerId}`);
         if (!res.ok) {
-          /* Show specific error instead of silently failing to "No player session" */
-          setFetchError(`Failed to load profile (HTTP ${res.status})`);
+          const errorData = await res.json().catch(() => ({}));
+          setFetchError(errorData?.error || tCommon('networkError'));
           return;
         }
 
         const json = await res.json();
         setPlayer(json.data ?? json);
       } catch {
-        setFetchError('Network error — please check your connection');
+        setFetchError(tCommon('networkError'));
       } finally {
         setLoading(false);
       }
@@ -58,7 +59,7 @@ export default function ProfilePage() {
     }
 
     setLoading(false);
-  }, [session?.user?.playerId, status]);
+  }, [session?.user?.playerId, status, tCommon]);
 
   if (loading) {
     return (
