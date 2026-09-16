@@ -149,55 +149,62 @@ jobs:
 
           page.write_text(source)
 
-          test = root / '__tests__' / 'static' / 'overall-ranking-error-fallbacks.test.ts'
-          test.write_text("""import fs from 'fs';
-import path from 'path';
+          test_lines = [
+              "import fs from 'fs';",
+              "import path from 'path';",
+              '',
+              'const source = fs.readFileSync(',
+              "  path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'overall-ranking', 'page.tsx'),",
+              "  'utf8',",
+              ');',
+              '',
+              "describe('overall ranking client error fallback contract (issue #3586)', () => {",
+              "  it('keeps concrete API errors while localizing generic polling failures', () => {",
+              "    expect(source).toContain(\"if (typeof errorData.error === 'string' && errorData.error.trim())\");",
+              "    expect(source).toContain('throw new Error(errorData.error);');",
+              "    expect(source).toContain('pollError instanceof GenericOverallRankingError');",
+              "    expect(source).toContain(\"tCommon('networkError')\");",
+              "    expect(source).not.toContain('`Failed to fetch rankings: ${response.status}`');",
+              "    expect(source).not.toContain(\"data.error || 'Invalid response format'\");",
+              "    expect(source).not.toContain(\"|| 'Unknown error'\");",
+              '  });',
+              '',
+              "  it('uses common.networkError for generic recalculation failures without exposing runtime messages', () => {",
+              "    expect(source).toContain('setError(errorData.error);');",
+              "    expect(source).toContain('Overall ranking recalculation returned non-2xx without an API error');",
+              "    expect(source).toContain(\"logger.error('Failed to recalculate rankings:', { error: err, tournamentId });\");",
+              "    expect(source).not.toContain(\"errorData.error || 'Failed to recalculate rankings'\");",
+              "    expect(source).not.toContain(\"err instanceof Error ? err.message : 'Failed to recalculate'\");",
+              '  });',
+              '});',
+              '',
+          ]
+          (root / '__tests__' / 'static' / 'overall-ranking-error-fallbacks.test.ts').write_text('\n'.join(test_lines))
 
-const source = fs.readFileSync(
-  path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'overall-ranking', 'page.tsx'),
-  'utf8',
-);
-
-describe('overall ranking client error fallback contract (issue #3586)', () => {
-  it('keeps concrete API errors while localizing generic polling failures', () => {
-    expect(source).toContain("if (typeof errorData.error === 'string' && errorData.error.trim())");
-    expect(source).toContain('throw new Error(errorData.error);');
-    expect(source).toContain('pollError instanceof GenericOverallRankingError');
-    expect(source).toContain("tCommon('networkError')");
-    expect(source).not.toContain('`Failed to fetch rankings: ${response.status}`');
-    expect(source).not.toContain("data.error || 'Invalid response format'");
-    expect(source).not.toContain("|| 'Unknown error'");
-  });
-
-  it('uses common.networkError for generic recalculation failures without exposing runtime messages', () => {
-    expect(source).toContain("setError(errorData.error);");
-    expect(source).toContain("Overall ranking recalculation returned non-2xx without an API error");
-    expect(source).toContain("logger.error('Failed to recalculate rankings:', { error: err, tournamentId });");
-    expect(source).not.toContain("errorData.error || 'Failed to recalculate rankings'");
-    expect(source).not.toContain("err instanceof Error ? err.message : 'Failed to recalculate'");
-  });
-});
-""")
-
-          docs = root / 'docs' / 'overall-ranking-error-feedback.md'
-          docs.write_text("""# Overall ranking error feedback contract
-
-`/tournaments/[id]/overall-ranking` は、利用者向けエラーと診断情報を分離する。
-
-## 表示契約
-
-- GET/POST API が具体的な `error` 文字列を返す場合は、そのメッセージを優先する。
-- GET の fetch rejection、API error のない non-2xx、error のない invalid response は `common.networkError` を表示する。
-- 再計算 POST の fetch rejection と API error のない non-2xx も `common.networkError` を表示する。
-- runtime の `Error.message` は generic fallback としてユーザーへ露出しない。
-- generic failure の raw error、HTTP status、`tournamentId` は client logger に残す。
-
-## 非変更事項
-
-overall ranking の算出、API endpoint/schema、polling interval/cache key、再計算成功後の `refetch()`、admin 権限と画面構造は変更しない。
-""")
+          docs_lines = [
+              '# Overall ranking error feedback contract',
+              '',
+              '`/tournaments/[id]/overall-ranking` は、利用者向けエラーと診断情報を分離する。',
+              '',
+              '## 表示契約',
+              '',
+              '- GET/POST API が具体的な `error` 文字列を返す場合は、そのメッセージを優先する。',
+              '- GET の fetch rejection、API error のない non-2xx、error のない invalid response は `common.networkError` を表示する。',
+              '- 再計算 POST の fetch rejection と API error のない non-2xx も `common.networkError` を表示する。',
+              '- runtime の `Error.message` は generic fallback としてユーザーへ露出しない。',
+              '- generic failure の raw error、HTTP status、`tournamentId` は client logger に残す。',
+              '',
+              '## 非変更事項',
+              '',
+              'overall ranking の算出、API endpoint/schema、polling interval/cache key、再計算成功後の `refetch()`、admin 権限と画面構造は変更しない。',
+              '',
+          ]
+          (root / 'docs' / 'overall-ranking-error-feedback.md').write_text('\n'.join(docs_lines))
 
           Path('.github/workflows/issue-3586-apply.yml').unlink()
+          trigger = Path('.automation-trigger-3586')
+          if trigger.exists():
+              trigger.unlink()
           PY
 
           git diff --check
