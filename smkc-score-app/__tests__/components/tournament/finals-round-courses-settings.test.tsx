@@ -7,6 +7,7 @@ describe('FinalsRoundCoursesSettings', () => {
   const originalFetch = global.fetch;
   afterEach(() => {
     global.fetch = originalFetch;
+    jest.restoreAllMocks();
   });
 
   it('resets unsaved input when the selected match changes even if the saved courses are the same', () => {
@@ -101,5 +102,29 @@ describe('FinalsRoundCoursesSettings', () => {
       expect.objectContaining({ body: expect.stringContaining('"expectedVersions":{"m1":4,"m2":2}') }),
     );
     expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a localized failure and restores the apply button when fetch rejects', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const onSaved = jest.fn();
+
+    render(
+      <FinalsRoundCoursesSettings
+        match={{ id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4 }}
+        matches={[
+          { id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4, assignedCourses: ['MC1'] },
+        ]}
+        endpoint="/api/test"
+        onSaved={onSaved}
+      />,
+    );
+
+    const applyButton = screen.getByRole('button', { name: 'Apply courses to pending' });
+    fireEvent.click(applyButton);
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Failed to update round courses'));
+    expect(onSaved).not.toHaveBeenCalled();
+    await waitFor(() => expect(applyButton).not.toBeDisabled());
   });
 });
