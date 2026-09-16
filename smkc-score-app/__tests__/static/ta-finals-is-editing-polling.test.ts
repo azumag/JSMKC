@@ -9,7 +9,7 @@ describe('TA finals editing-aware polling (#3117)', () => {
 
   it('keeps isEditing in fetchData dependencies so participant-report merge uses current edit state', () => {
     expect(source).toContain('if (openRound && currentRound && !isEditing) {');
-    expect(source).toContain('}, [tournamentId, currentRound, isEditing]);');
+    expect(source).toContain('}, [tournamentId, currentRound, isEditing, tCommon]);');
   });
 
   it('keeps the primary polling loop paused while the admin is editing', () => {
