@@ -9,6 +9,7 @@ const mockRefresh = jest.fn();
 
 jest.mock('next-intl', () => ({
   useLocale: jest.fn(),
+  useTranslations: jest.fn(),
 }));
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: mockRefresh }),
@@ -21,8 +22,17 @@ jest.mock('@/lib/client-logger', () => ({
 }));
 
 function mockLocale(locale: 'en' | 'ja') {
-  const { useLocale } = jest.requireMock('next-intl') as { useLocale: jest.Mock };
+  const { useLocale, useTranslations } = jest.requireMock('next-intl') as {
+    useLocale: jest.Mock;
+    useTranslations: jest.Mock;
+  };
   useLocale.mockReturnValue(locale);
+  useTranslations.mockReturnValue((key: string) => {
+    if (key === 'networkError') {
+      return locale === 'ja' ? 'JA network error' : 'EN network error';
+    }
+    return key;
+  });
 }
 
 function mockFetch(ok: boolean) {
@@ -30,6 +40,10 @@ function mockFetch(ok: boolean) {
     ok,
     json: jest.fn().mockResolvedValue({}),
   } as unknown as Response);
+}
+
+function getToastMock() {
+  return (jest.requireMock('sonner') as { toast: { error: jest.Mock } }).toast;
 }
 
 describe('LocaleSwitcher', () => {
@@ -100,6 +114,28 @@ describe('LocaleSwitcher', () => {
     await userEvent.keyboard('{Enter}');
 
     expect(fetchSpy).toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('EN 表示中の切り替え失敗は現在 locale の network error を表示する', async () => {
+    mockLocale('en');
+    const fetchSpy = mockFetch(false);
+    render(<LocaleSwitcher />);
+
+    await userEvent.click(screen.getByRole('switch'));
+
+    expect(getToastMock().error).toHaveBeenCalledWith('EN network error');
+    fetchSpy.mockRestore();
+  });
+
+  it('JA 表示中の切り替え失敗は現在 locale の network error を表示する', async () => {
+    mockLocale('ja');
+    const fetchSpy = mockFetch(false);
+    render(<LocaleSwitcher />);
+
+    await userEvent.click(screen.getByRole('switch'));
+
+    expect(getToastMock().error).toHaveBeenCalledWith('JA network error');
     fetchSpy.mockRestore();
   });
 });

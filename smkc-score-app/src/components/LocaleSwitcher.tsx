@@ -9,33 +9,34 @@
  * - Left: EN (English)
  * - Right: JA (Japanese)
  */
-'use client'
+'use client';
 
-import { useLocale } from 'next-intl'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { toast } from 'sonner'
-import { createLogger } from '@/lib/client-logger'
+import { useLocale, useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { createLogger } from '@/lib/client-logger';
 
 /** Client-side logger for error tracking */
-const logger = createLogger({ serviceName: 'locale-switcher' })
+const logger = createLogger({ serviceName: 'locale-switcher' });
 
 /** Valid locale types supported by the application */
-type Locale = 'en' | 'ja'
+type Locale = 'en' | 'ja';
 
 /** Validates that the locale is supported */
 function isValidLocale(locale: string): locale is Locale {
-  return locale === 'en' || locale === 'ja'
+  return locale === 'en' || locale === 'ja';
 }
 
 export function LocaleSwitcher() {
-  const locale = useLocale()
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const locale = useLocale();
+  const tCommon = useTranslations('common');
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   // Guard against unexpected locale values
-  const currentLocale: Locale = isValidLocale(locale) ? locale : 'en'
-  const isJapanese = currentLocale === 'ja'
+  const currentLocale: Locale = isValidLocale(locale) ? locale : 'en';
+  const isJapanese = currentLocale === 'ja';
 
   /**
    * Switches the locale by setting the NEXT_LOCALE cookie via API,
@@ -43,42 +44,42 @@ export function LocaleSwitcher() {
    * Shows toast notification on success or error.
    */
   const switchLocale = async () => {
-    if (isLoading) return
+    if (isLoading) return;
 
-    const newLocale: Locale = currentLocale === 'en' ? 'ja' : 'en'
-    setIsLoading(true)
+    const newLocale: Locale = currentLocale === 'en' ? 'ja' : 'en';
+    setIsLoading(true);
 
     try {
       const response = await fetch('/api/locale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ locale: newLocale }),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Failed to switch locale: ${response.status}`)
+        throw new Error(`Failed to switch locale: ${response.status}`);
       }
 
       // Show success toast before refreshing
-      toast.success(newLocale === 'ja' ? '日本語に切り替えました' : 'Switched to English')
+      toast.success(newLocale === 'ja' ? '日本語に切り替えました' : 'Switched to English');
 
       // Refresh the page to apply the new locale
-      router.refresh()
+      router.refresh();
     } catch (error) {
-      logger.error('Locale switch failed:', { error })
-      toast.error(newLocale === 'ja' ? '言語の切り替えに失敗しました' : 'Failed to switch language')
+      logger.error('Locale switch failed:', { error });
+      toast.error(tCommon('networkError'));
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Handle keyboard interaction (Enter or Space)
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      switchLocale()
+      event.preventDefault();
+      switchLocale();
     }
-  }
+  };
 
   return (
     <button
@@ -126,5 +127,5 @@ export function LocaleSwitcher() {
         JA
       </span>
     </button>
-  )
+  );
 }
