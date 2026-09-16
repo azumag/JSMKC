@@ -33,8 +33,12 @@ export function FinalsCupAssignment({
   onSaved: () => void;
 }) {
   const t = useTranslations('finals');
-  const [cup, setCup] = useState(match.cup && CUPS.includes(match.cup as (typeof CUPS)[number]) ? match.cup : CUPS[0]);
-  const [resolution, setResolution] = useState<'keep' | 'clear' | 'cancel'>(hasDetails(match) ? 'keep' : 'keep');
+  const [cup, setCup] = useState(
+    match.cup && CUPS.includes(match.cup as (typeof CUPS)[number]) ? match.cup : CUPS[0],
+  );
+  const [resolution, setResolution] = useState<'keep' | 'clear' | 'cancel'>(
+    hasDetails(match) ? 'keep' : 'keep',
+  );
   const [saving, setSaving] = useState(false);
   const save = async () => {
     if (resolution === 'cancel') return;
@@ -45,7 +49,10 @@ export function FinalsCupAssignment({
         response = await fetch(endpoint, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ matchId: match.id, cupAssignment: { cup, expectedVersion: match.version, resolution } }),
+          body: JSON.stringify({
+            matchId: match.id,
+            cupAssignment: { cup, expectedVersion: match.version, resolution },
+          }),
         });
       } catch {
         alert(t('failedUpdateMatchCup'));
@@ -81,7 +88,10 @@ export function FinalsCupAssignment({
       {hasDetails(match) && (
         <div className="space-y-1">
           <Label>{t('cupDetailsResolution')}</Label>
-          <Select value={resolution} onValueChange={(value) => setResolution(value as 'keep' | 'clear' | 'cancel')}>
+          <Select
+            value={resolution}
+            onValueChange={(value) => setResolution(value as 'keep' | 'clear' | 'cancel')}
+          >
             <SelectTrigger aria-label="Cup details resolution" className="w-48">
               <SelectValue />
             </SelectTrigger>
