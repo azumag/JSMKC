@@ -17,8 +17,8 @@
  *   (e.g., "Try Again" button only for recoverable errors).
  * - Error callback: onError prop invocation with error and errorInfo.
  * - Go Back button: page reload behavior.
- * - ErrorFallback component: standalone tests for error messages,
- *   action buttons, and error display formatting.
+ * - ErrorFallback component: translated messages, action buttons, and raw
+ *   runtime detail redaction.
  */
 /**
  * Mock next-intl: the ErrorBoundary component imports useTranslations from
@@ -43,7 +43,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary, ErrorFallback } from '@/components/ErrorBoundary';
 
 describe('ErrorBoundary', () => {
-
   /**
    * Test component that throws an error when rendered
    * Used to trigger the ErrorBoundary
@@ -60,23 +59,23 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <div>Child Component</div>
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Child Component')).toBeInTheDocument();
     });
 
-    it('should catch errors and render fallback UI when child throws', () => {
+    it('should catch errors and render fallback UI without raw details', () => {
       const onErrorSpy = jest.fn();
 
       render(
         <ErrorBoundary onError={onErrorSpy}>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Error Occurred')).toBeInTheDocument();
-      expect(screen.getByText('Test error message')).toBeInTheDocument();
+      expect(screen.queryByText('Test error message')).not.toBeInTheDocument();
       expect(onErrorSpy).toHaveBeenCalled();
     });
 
@@ -86,7 +85,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary fallback={customFallback}>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Custom Error UI')).toBeInTheDocument();
@@ -104,7 +103,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <NetworkError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Error Occurred')).toBeInTheDocument();
@@ -126,7 +125,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <NetworkError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Try Again')).toBeInTheDocument();
@@ -141,7 +140,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <TimeoutError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.getByText('Try Again')).toBeInTheDocument();
@@ -156,7 +155,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <ProgrammingError />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(screen.queryByText('Try Again')).not.toBeInTheDocument();
@@ -165,21 +164,21 @@ describe('ErrorBoundary', () => {
   });
 
   describe('ErrorCallback', () => {
-    it('should call onError callback with error and errorInfo', () => {
+    it('should call onError callback with the original error and errorInfo', () => {
       const onErrorSpy = jest.fn();
 
       render(
         <ErrorBoundary onError={onErrorSpy}>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       expect(onErrorSpy).toHaveBeenCalledTimes(1);
       expect(onErrorSpy).toHaveBeenCalledWith(
-        expect.any(Error),
+        expect.objectContaining({ message: 'Test error message' }),
         expect.objectContaining({
           componentStack: expect.any(String),
-        })
+        }),
       );
     });
 
@@ -188,7 +187,7 @@ describe('ErrorBoundary', () => {
         render(
           <ErrorBoundary>
             <ThrowError shouldThrow={true} />
-          </ErrorBoundary>
+          </ErrorBoundary>,
         );
       }).not.toThrow();
     });
@@ -214,7 +213,7 @@ describe('ErrorBoundary', () => {
       render(
         <ErrorBoundary>
           <ThrowError shouldThrow={true} />
-        </ErrorBoundary>
+        </ErrorBoundary>,
       );
 
       const goBackButton = screen.getByText('Go Back');
@@ -311,13 +310,11 @@ describe('ErrorFallback', () => {
   });
 
   describe('Error Display', () => {
-    it('should display error message in code block', () => {
+    it('should not render raw runtime error details', () => {
       render(<ErrorFallback error={testError} resetError={mockResetError} />);
 
-      expect(screen.getByText('Test error for fallback')).toBeInTheDocument();
-      // The error message is displayed in AlertDescription with font-mono class, not a <code> element
-      const errorMessage = screen.getByText('Test error for fallback');
-      expect(errorMessage).toHaveClass('font-mono', 'text-xs');
+      expect(screen.queryByText('Test error for fallback')).not.toBeInTheDocument();
+      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
     });
 
     it('should show error icon in title', () => {
