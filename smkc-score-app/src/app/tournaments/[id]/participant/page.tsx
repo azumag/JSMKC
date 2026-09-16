@@ -35,7 +35,7 @@ import { Shield, AlertTriangle, Trophy, LogIn } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import Link from 'next/link';
 import { createLogger } from '@/lib/client-logger';
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-participant' });
@@ -48,11 +48,7 @@ interface Tournament {
   status: string;
 }
 
-export default function ParticipantEntryPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function ParticipantEntryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
   /* i18n translation hooks for participant and common namespaces */
   const tPart = useTranslations('participant');
@@ -123,17 +119,13 @@ export default function ParticipantEntryPage({
           <CardHeader className="text-center">
             <LogIn className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <CardTitle>{tPart('playerLoginRequired')}</CardTitle>
-            <CardDescription>
-              {tPart('loginToAccess')}
-            </CardDescription>
+            <CardDescription>{tPart('loginToAccess')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full">
               <Link href="/auth/signin">{tPart('logIn')}</Link>
             </Button>
-            <p className="text-sm text-muted-foreground text-center">
-              {tPart('loginHelp')}
-            </p>
+            <p className="text-sm text-muted-foreground text-center">{tPart('loginHelp')}</p>
           </CardContent>
         </Card>
       </div>
@@ -168,9 +160,7 @@ export default function ParticipantEntryPage({
           <CardHeader className="text-center">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <CardTitle>{tPart('tournamentNotFound')}</CardTitle>
-            <CardDescription>
-              {tPart('tournamentNotFoundDesc')}
-            </CardDescription>
+            <CardDescription>{tPart('tournamentNotFoundDesc')}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -189,12 +179,8 @@ export default function ParticipantEntryPage({
           <Badge variant="default" className="mb-4">
             {tPart('loggedInAs', { name: session?.user?.nickname || session?.user?.name || '' })}
           </Badge>
-          <p className="text-lg text-muted-foreground">
-            {tournament.name}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {new Date(tournament.date).toLocaleDateString()}
-          </p>
+          <p className="text-lg text-muted-foreground">{tournament.name}</p>
+          <p className="text-sm text-muted-foreground">{new Date(tournament.date).toLocaleDateString()}</p>
         </div>
 
         {/* Game Mode Selection Cards */}
@@ -203,15 +189,11 @@ export default function ParticipantEntryPage({
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle>{tPart('battleMode')}</CardTitle>
-              <CardDescription>
-                {tPart('battleModeDesc')}
-              </CardDescription>
+              <CardDescription>{tPart('battleModeDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link href={`/tournaments/${tournamentId}/bm/participant`}>
-                  {tPart('enterBattleScores')}
-                </Link>
+                <Link href={`/tournaments/${tournamentId}/bm/participant`}>{tPart('enterBattleScores')}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -220,15 +202,11 @@ export default function ParticipantEntryPage({
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle>{tPart('matchRace')}</CardTitle>
-              <CardDescription>
-                {tPart('matchRaceDesc')}
-              </CardDescription>
+              <CardDescription>{tPart('matchRaceDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link href={`/tournaments/${tournamentId}/mr/participant`}>
-                  {tPart('enterRaceScores')}
-                </Link>
+                <Link href={`/tournaments/${tournamentId}/mr/participant`}>{tPart('enterRaceScores')}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -237,15 +215,11 @@ export default function ParticipantEntryPage({
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle>{tPart('grandPrix')}</CardTitle>
-              <CardDescription>
-                {tPart('grandPrixDesc')}
-              </CardDescription>
+              <CardDescription>{tPart('grandPrixDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link href={`/tournaments/${tournamentId}/gp/participant`}>
-                  {tPart('enterGPScores')}
-                </Link>
+                <Link href={`/tournaments/${tournamentId}/gp/participant`}>{tPart('enterGPScores')}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -254,15 +228,11 @@ export default function ParticipantEntryPage({
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle>{tPart('timeTrial')}</CardTitle>
-              <CardDescription>
-                {tPart('timeTrialDesc')}
-              </CardDescription>
+              <CardDescription>{tPart('timeTrialDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link href={`/tournaments/${tournamentId}/ta/participant`}>
-                  {tPart('enterTimeTrial')}
-                </Link>
+                <Link href={`/tournaments/${tournamentId}/ta/participant`}>{tPart('enterTimeTrial')}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -272,9 +242,7 @@ export default function ParticipantEntryPage({
         <div className="max-w-2xl mx-auto mt-8">
           <Alert>
             <Shield className="h-4 w-4" />
-            <AlertDescription>
-              {tPart('securityNotice')}
-            </AlertDescription>
+            <AlertDescription>{tPart('securityNotice')}</AlertDescription>
           </Alert>
         </div>
       </div>
