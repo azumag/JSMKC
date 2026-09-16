@@ -869,6 +869,8 @@
     "selfEditDisabled": "Self-editing is disabled for this tournament. Your partner will enter your times.",
     "myTimesReadOnly": "My Times (Read Only)",
     "partnerTimesSubmittedSuccess": "Partner's times submitted successfully!",
+    "debugRandomFill": "Fill Random Times",
+    "debugRandomFillSuccess": "Random times filled for all courses",
     "qualificationLocked": "Qualification results are confirmed. Score editing is locked.",
     "finals": "Finals"
   },

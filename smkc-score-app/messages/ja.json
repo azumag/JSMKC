@@ -869,6 +869,8 @@
     "selfEditDisabled": "このトーナメントでは自分のタイムの編集が無効になっています。パートナーがあなたのタイムを入力します。",
     "myTimesReadOnly": "自分のタイム（閲覧のみ）",
     "partnerTimesSubmittedSuccess": "パートナーのタイムを送信しました！",
+    "debugRandomFill": "ランダムタイムを入力",
+    "debugRandomFillSuccess": "全コースにランダムタイムを入力しました",
     "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。",
     "finals": "決勝"
   },

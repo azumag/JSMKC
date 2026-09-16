@@ -143,7 +143,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
     });
 
     setTimeInputs(randomTimes);
-    toast.success('Random times filled for all courses');
+    toast.success(tPart('debugRandomFillSuccess'));
   };
 
   /** Fetch initial data on mount */
@@ -898,7 +898,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
                           className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
                         >
                           <Dice5 className="h-4 w-4 mr-2" />
-                          Fill Random Times
+                          {tPart('debugRandomFill')}
                         </Button>
                       )}
 
