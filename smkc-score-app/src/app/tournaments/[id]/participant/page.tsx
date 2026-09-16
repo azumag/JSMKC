@@ -90,18 +90,18 @@ export default function ParticipantEntryPage({
           const data = await response.json();
           setTournament(data.data ?? data);
         } else {
-          setError('Failed to load tournament information');
+          setError(tCommon('networkError'));
         }
       } catch (err) {
         logger.error('Tournament fetch error:', { error: err, tournamentId });
-        setError('Failed to load tournament data. Please check your connection.');
+        setError(tCommon('networkError'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchTournament();
-  }, [tournamentId, sessionStatus, hasAccess]);
+  }, [tournamentId, sessionStatus, hasAccess, tCommon]);
 
   /* Loading state while session or tournament data is being fetched */
   if (sessionStatus === 'loading' || loading) {
