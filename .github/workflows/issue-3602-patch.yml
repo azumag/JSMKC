@@ -1,0 +1,117 @@
+name: Issue 3602 patch
+
+on:
+  push:
+    branches:
+      - fix/3602-ta-phase3-lives-network-errors
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fix/3602-ta-phase3-lives-network-errors
+      - name: Apply Phase 3 lives error contract
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          page = Path('smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx')
+          source = page.read_text()
+          old = '''      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || tTaFinals('livesUpdateFailed'));
+      }
+      setLifeInputs((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
+      fetchData();
+    } catch (err) {
+      logger.error('Failed to set player lives:', { error: err, tournamentId, entryId: entry.id });
+      alert(err instanceof Error ? err.message : tTaFinals('livesUpdateFailed'));
+    } finally {
+      setSavingLifeEntryId(null);
+    }'''
+          new = '''      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        alert(error.error || tTaFinals('livesUpdateFailed'));
+        return;
+      }
+      setLifeInputs((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
+      fetchData();
+    } catch (err) {
+      logger.error('Failed to set player lives:', { error: err, tournamentId, entryId: entry.id });
+      alert(tCommon('networkError'));
+    } finally {
+      setSavingLifeEntryId(null);
+    }'''
+          if source.count(old) != 1:
+              raise SystemExit(f'expected lives block once, found {source.count(old)}')
+          page.write_text(source.replace(old, new))
+
+          test = Path('smkc-score-app/__tests__/static/ta-finals-lives-error-fallbacks.test.ts')
+          test.write_text('''import fs from 'fs';
+import path from 'path';
+
+const source = fs.readFileSync(path.join(process.cwd(), 'src/app/tournaments/[id]/ta/finals/page.tsx'), 'utf8');
+
+describe('TA finals set-lives error fallback contract (issue #3602)', () => {
+  const start = source.indexOf('const handleSetLives');
+  const end = source.indexOf('// === Derived State ===', start);
+  const handler = source.slice(start, end);
+
+  it('preserves API errors while localizing request rejection', () => {
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(handler).toContain("alert(error.error || tTaFinals('livesUpdateFailed'));");
+    expect(handler).toContain("alert(tCommon('networkError'));");
+    expect(handler).not.toContain('err instanceof Error ? err.message');
+    expect(handler).toContain("logger.error('Failed to set player lives:'");
+  });
+
+  it('keeps stale-write protection and success cleanup', () => {
+    expect(handler).toContain("method: 'PUT'");
+    expect(handler).toContain("action: 'set_lives'");
+    expect(handler).toContain('expectedVersion: input?.expectedVersion ?? entry.version');
+    expect(handler).toContain('expectedLives: input?.expectedLives ?? entry.lives');
+    expect(handler).toContain('delete next[entry.id];');
+    expect(handler).toContain('fetchData();');
+    expect(handler).toContain('setSavingLifeEntryId(null);');
+  });
+});
+''')
+
+          docs = Path('docs/ta-round-control-error-fallbacks.md')
+          doc_source = docs.read_text()
+          section = '''
+## Phase 3 life adjustment
+
+Phase 3 の残機変更では、API 固有 `error` を優先し、generic non-2xx は既存の翻訳済み `taFinals.livesUpdateFailed` を使う。`fetch()` rejection は `common.networkError` を表示し、raw browser/network detail は client logger のみに残す。stale-write protection (`expectedVersion` / `expectedLives`) と成功時 cleanup は維持する。
+'''
+          if '## Phase 3 life adjustment' not in doc_source:
+              docs.write_text(doc_source.rstrip() + '\n' + section)
+          PY
+      - name: Remove patch workflow and commit
+        shell: bash
+        run: |
+          rm .github/workflows/issue-3602-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add smkc-score-app/src/app/tournaments/'[id]'/ta/finals/page.tsx \
+                  smkc-score-app/__tests__/static/ta-finals-lives-error-fallbacks.test.ts \
+                  docs/ta-round-control-error-fallbacks.md \
+                  .github/workflows/issue-3602-patch.yml
+          git commit -m 'fix: localize TA phase3 lives network failures (#3602)'
+          git push origin HEAD:fix/3602-ta-phase3-lives-network-errors
