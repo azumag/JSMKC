@@ -9,10 +9,7 @@ function appRoot(): string {
 describe('TA participant Phase 3 time placeholder contract', () => {
   it('reuses the canonical next-intl time placeholder', () => {
     const root = appRoot();
-    const source = fs.readFileSync(
-      path.join(root, 'src/app/tournaments/[id]/ta/participant/page.tsx'),
-      'utf8',
-    );
+    const source = fs.readFileSync(path.join(root, 'src/app/tournaments/[id]/ta/participant/page.tsx'), 'utf8');
     const en = JSON.parse(fs.readFileSync(path.join(root, 'messages/en.json'), 'utf8')) as {
       ta: { timePlaceholder: string };
     };
