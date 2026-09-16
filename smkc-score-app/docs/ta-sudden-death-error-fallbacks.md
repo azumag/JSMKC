@@ -2,7 +2,7 @@
 
 共有 `useTaSuddenDeath` hook が扱う course change と sudden-death result submit の client fallback は、next-intl の `common.networkError` を使用する。
 
-API が具体的な `error` を返した場合はその内容を優先し、response body に error がない場合や `fetch()` rejection では locale-aware な共通 fallback を表示する。request rejection の raw detail は client logger のみに残し、result submit の入力検証メッセージは従来どおり優先する。
+API が具体的な `error` を返した場合はその内容を優先し、response body に error がない場合や `fetch()` rejection では locale-aware な共通 fallback を表示する。request rejection の raw detail は client logger のみに残し、result submit の入力検証メッセージは従来どおり優先する。入力検証は request 前に処理するため、無効なタイムは network failure として扱わず既存の validation message を表示する。
 
 ## 対象
 
