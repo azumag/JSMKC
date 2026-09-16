@@ -738,7 +738,7 @@ export default function BattleModePageClient({
                     );
                   }
 
-                  /* Build list of players in the current group filter for the player dropdown */
+                  /* Build list of players in the current group filter for the player dropdown */}
                   const playersInScope =
                     matchGroupFilter === 'all'
                       ? qualifications
@@ -1002,7 +1002,7 @@ export default function BattleModePageClient({
                 if (!prevMatch) {
                   return <p className="text-sm text-muted-foreground text-center">{tc('characterPriorityFirst')}</p>;
                 }
-                /* Determine who lost the previous match */}
+                /* Determine who lost the previous match */
                 const p1Score = prevMatch.player1Id === p1 ? prevMatch.score1 : prevMatch.score2;
                 const p2Score = prevMatch.player1Id === p1 ? prevMatch.score2 : prevMatch.score1;
                 const loserNickname =
