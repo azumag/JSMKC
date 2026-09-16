@@ -14,9 +14,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import ProfilePage from '@/app/profile/page';
 
-jest.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
-}));
+jest.mock('next-intl', () => {
+  const translate = (key: string) => key;
+  return { useTranslations: () => translate };
+});
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
