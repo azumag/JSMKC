@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * ErrorBoundary Component
@@ -19,12 +19,12 @@
  *   - default export: ErrorBoundary (for convenience imports).
  */
 
-import React, { ErrorInfo, ReactNode } from "react";
-import { useTranslations } from "next-intl";
-import { AlertCircle, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createLogger } from "@/lib/client-logger";
+import React, { ErrorInfo, ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { createLogger } from '@/lib/client-logger';
 
 /**
  * Module-level logger instance for the error boundary.
@@ -74,7 +74,7 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
    * The class-based ErrorBoundary delegates rendering to this component,
    * so all user-facing strings are resolved through next-intl translations.
    */
-  const t = useTranslations("errors");
+  const t = useTranslations('errors');
 
   /**
    * Determine if the error is likely recoverable (transient) based on
@@ -82,9 +82,7 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
    * on retry, while programming errors (e.g., TypeError) generally will not.
    */
   const isRecoverable =
-    error?.message?.includes("fetch") ||
-    error?.message?.includes("network") ||
-    error?.message?.includes("timeout");
+    error?.message?.includes('fetch') || error?.message?.includes('network') || error?.message?.includes('timeout');
 
   /**
    * Maps error message content to user-friendly translated descriptions.
@@ -93,17 +91,17 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
    * providing useful guidance for common failure scenarios.
    */
   const getErrorMessage = () => {
-    if (!error?.message) return t("unexpected");
-    if (error.message.includes("fetch")) {
-      return t("fetchError");
+    if (!error?.message) return t('unexpected');
+    if (error.message.includes('fetch')) {
+      return t('fetchError');
     }
-    if (error.message.includes("network")) {
-      return t("networkError");
+    if (error.message.includes('network')) {
+      return t('networkError');
     }
-    if (error.message.includes("timeout")) {
-      return t("timeoutError");
+    if (error.message.includes('timeout')) {
+      return t('timeoutError');
     }
-    return t("genericError");
+    return t('genericError');
   };
 
   return (
@@ -111,14 +109,12 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
           <AlertCircle className="h-5 w-5" />
-          {t("errorOccurred")}
+          {t('errorOccurred')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* User-friendly error description; raw runtime details stay in logger/onError only. */}
-        <CardDescription className="text-base">
-          {getErrorMessage()}
-        </CardDescription>
+        <CardDescription className="text-base">{getErrorMessage()}</CardDescription>
 
         {/* Recovery action buttons */}
         <div className="flex gap-2 pt-4">
@@ -130,19 +126,15 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
           {isRecoverable && resetError && (
             <Button onClick={resetError} variant="outline" size="sm">
               <RefreshCw className="mr-2 h-4 w-4" />
-              {t("tryAgain")}
+              {t('tryAgain')}
             </Button>
           )}
           {/*
            * "Go Back" performs a full page reload as a last-resort recovery
            * mechanism. This clears all client-side state and re-fetches data.
            */}
-          <Button
-            onClick={() => window.location.reload()}
-            variant="outline"
-            size="sm"
-          >
-            {t("goBack")}
+          <Button onClick={() => window.location.reload()} variant="outline" size="sm">
+            {t('goBack')}
           </Button>
         </div>
       </CardContent>
@@ -210,10 +202,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
      * client-logger automatically suppresses logs in test mode,
      * so this will not pollute test output.
      */
-    logger.error("Error caught by ErrorBoundary", {
+    logger.error('Error caught by ErrorBoundary', {
       message: error.message,
       stack: error.stack,
-      componentStack: errorInfo.componentStack
+      componentStack: errorInfo.componentStack,
     });
 
     /** Invoke the optional external error handler (e.g., Sentry, analytics) */
@@ -238,11 +230,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
        * Otherwise, render the default ErrorFallback with the caught error
        * and reset handler for built-in recovery support.
        */
-      return (
-        this.props.fallback || (
-          <ErrorFallback error={this.state.error!} resetError={this.handleReset} />
-        )
-      );
+      return this.props.fallback || <ErrorFallback error={this.state.error!} resetError={this.handleReset} />;
     }
 
     /** No error: render the child component tree normally */
