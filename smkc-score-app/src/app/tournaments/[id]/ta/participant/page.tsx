@@ -178,13 +178,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
         }
       } catch (err) {
         logger.error('Data fetch error:', { error: err, tournamentId });
-        setError('Failed to load tournament data.');
+        setError(tCommon('networkError'));
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [tournamentId, sessionStatus, hasAccess]);
+  }, [tournamentId, sessionStatus, hasAccess, tCommon]);
 
   /** Poll entry data at the standard interval to show ranking updates */
   const fetchEntriesPoll = useCallback(async () => {
@@ -346,7 +346,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit times');
+        throw new Error(errorData.error || tCommon('networkError'));
       }
 
       const json = await response.json();
@@ -357,7 +357,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       /** i18n: Success alert after times are submitted */
       alert(tPart('timesSubmittedSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit times');
+      setError(err instanceof Error ? err.message : tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -397,7 +397,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit partner times');
+        throw new Error(errorData.error || tCommon('networkError'));
       }
       const json = await response.json();
       const data = json.data ?? json;
@@ -405,7 +405,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       setPartnerEntry({ ...partnerEntry, ...data.entry });
       alert(tPart('partnerTimesSubmittedSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit partner times');
+      setError(err instanceof Error ? err.message : tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -441,13 +441,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
         else if (code === 'ROUND_MISMATCH') setReportError(tTa('roundMismatch'));
         else if (code === 'PLAYER_REPORT_DISABLED') setReportError(tTa('reportDisabled'));
         else if (code === 'PLAYER_ELIMINATED') setReportError(tTa('eliminatedCannotReport'));
-        else setReportError(json.error || 'Failed to report time');
+        else setReportError(json.error || tCommon('networkError'));
         return;
       }
       setReportTimeInput('');
       alert(hadPrevious ? tTa('reportUpdateSuccess') : tTa('reportSuccess'));
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : 'Failed to report time');
+      setReportError(err instanceof Error ? err.message : tCommon('networkError'));
     } finally {
       setReporting(false);
     }
@@ -467,7 +467,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add to time attack');
+        throw new Error(errorData.error || tCommon('networkError'));
       }
 
       const json = await response.json();
@@ -477,7 +477,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       /** i18n: Success alert after adding self to time attack */
       alert(tPart('addedToTASuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add to time attack');
+      setError(err instanceof Error ? err.message : tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
