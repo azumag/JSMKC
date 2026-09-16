@@ -12,7 +12,7 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: fix/3544-ta-phase3-placeholder-i18n
           fetch-depth: 0
@@ -35,45 +35,51 @@ jobs:
 
           test = root / 'smkc-score-app/__tests__/src/app/tournaments/[id]/ta/participant/phase3-placeholder-contract.test.ts'
           test.parent.mkdir(parents=True, exist_ok=True)
-          test.write_text("""import fs from 'node:fs';
-import path from 'node:path';
-
-function appRoot(): string {
-  const cwd = process.cwd();
-  return fs.existsSync(path.join(cwd, 'src')) ? cwd : path.join(cwd, 'smkc-score-app');
-}
-
-describe('TA participant Phase 3 time placeholder contract', () => {
-  it('reuses the canonical next-intl time placeholder', () => {
-    const root = appRoot();
-    const source = fs.readFileSync(
-      path.join(root, 'src/app/tournaments/[id]/ta/participant/page.tsx'),
-      'utf8',
-    );
-    const en = JSON.parse(fs.readFileSync(path.join(root, 'messages/en.json'), 'utf8')) as {
-      ta: { timePlaceholder: string };
-    };
-    const ja = JSON.parse(fs.readFileSync(path.join(root, 'messages/ja.json'), 'utf8')) as {
-      ta: { timePlaceholder: string };
-    };
-
-    expect(source).toContain(\"placeholder={tTa('timePlaceholder')}\");
-    expect(source).not.toContain('placeholder=\"M:SS.mm\"');
-    expect(en.ta.timePlaceholder).toBe('M:SS.mm');
-    expect(ja.ta.timePlaceholder).toBe(en.ta.timePlaceholder);
-  });
-});
-""")
+          test_lines = [
+              "import fs from 'node:fs';",
+              "import path from 'node:path';",
+              '',
+              'function appRoot(): string {',
+              '  const cwd = process.cwd();',
+              "  return fs.existsSync(path.join(cwd, 'src')) ? cwd : path.join(cwd, 'smkc-score-app');",
+              '}',
+              '',
+              "describe('TA participant Phase 3 time placeholder contract', () => {",
+              "  it('reuses the canonical next-intl time placeholder', () => {",
+              '    const root = appRoot();',
+              '    const source = fs.readFileSync(',
+              "      path.join(root, 'src/app/tournaments/[id]/ta/participant/page.tsx'),",
+              "      'utf8',",
+              '    );',
+              "    const en = JSON.parse(fs.readFileSync(path.join(root, 'messages/en.json'), 'utf8')) as {",
+              '      ta: { timePlaceholder: string };',
+              '    };',
+              "    const ja = JSON.parse(fs.readFileSync(path.join(root, 'messages/ja.json'), 'utf8')) as {",
+              '      ta: { timePlaceholder: string };',
+              '    };',
+              '',
+              '    expect(source).toContain("placeholder={tTa(\'timePlaceholder\')}");',
+              '    expect(source).not.toContain(\'placeholder="M:SS.mm"\');',
+              "    expect(en.ta.timePlaceholder).toBe('M:SS.mm');",
+              '    expect(ja.ta.timePlaceholder).toBe(en.ta.timePlaceholder);',
+              '  });',
+              '});',
+              '',
+          ]
+          test.write_text('\n'.join(test_lines))
 
           docs = root / 'smkc-score-app/docs/ta-time-input-localization.md'
-          docs.write_text("""# TA time input localization contract
-
-TA time inputs use `ta.timePlaceholder` as the canonical placeholder source. The current English and Japanese value is `M:SS.mm`, so localization changes do not alter the visible format unless the locale messages intentionally change.
-
-The participant qualification inputs, partner inputs, and Phase 3 report input must all resolve the placeholder through `tTa('timePlaceholder')`; do not hard-code `M:SS.mm` in React components. Parsing and validation remain the responsibility of the shared TA time utilities and are unaffected by this display-text contract.
-
-A static contract test at `__tests__/src/app/tournaments/[id]/ta/participant/phase3-placeholder-contract.test.ts` guards the Phase 3 wiring and English/Japanese message parity.
-""")
+          docs_lines = [
+              '# TA time input localization contract',
+              '',
+              'TA time inputs use `ta.timePlaceholder` as the canonical placeholder source. The current English and Japanese value is `M:SS.mm`, so localization changes do not alter the visible format unless the locale messages intentionally change.',
+              '',
+              "The participant qualification inputs, partner inputs, and Phase 3 report input must all resolve the placeholder through `tTa('timePlaceholder')`; do not hard-code `M:SS.mm` in React components. Parsing and validation remain the responsibility of the shared TA time utilities and are unaffected by this display-text contract.",
+              '',
+              'A static contract test at `__tests__/src/app/tournaments/[id]/ta/participant/phase3-placeholder-contract.test.ts` guards the Phase 3 wiring and English/Japanese message parity.',
+              '',
+          ]
+          docs.write_text('\n'.join(docs_lines))
 
           workflow = root / '.github/workflows/oneshot-3544-localize-phase3-placeholder.yml'
           workflow.unlink()
