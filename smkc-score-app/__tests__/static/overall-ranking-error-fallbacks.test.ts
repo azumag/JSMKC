@@ -11,7 +11,9 @@ describe('overall ranking client error fallback contract (issue #3586)', () => {
     expect(source).toContain("if (typeof errorData.error === 'string' && errorData.error.trim())");
     expect(source).toContain('throw new Error(errorData.error);');
     expect(source).toContain('pollError instanceof GenericOverallRankingError');
-    expect(source).toContain("logger.error('Overall ranking fetch returned malformed JSON', { error: err, tournamentId });");
+    expect(source).toContain(
+      "logger.error('Overall ranking fetch returned malformed JSON', { error: err, tournamentId });",
+    );
     expect(source).toContain('throw new GenericOverallRankingError();');
     expect(source).toContain("tCommon('networkError')");
     expect(source).not.toContain('`Failed to fetch rankings: ${response.status}`');
