@@ -234,12 +234,12 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
         setSubmitted(true);
         refetch();
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to submit result');
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || tCommon('networkError'));
       }
     } catch (err) {
       logger.error('Failed to submit result:', { error: err });
-      setError('Failed to submit result');
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
