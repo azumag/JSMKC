@@ -713,7 +713,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to submit results');
+        setSaveError(errorData.error || tCommon('networkError'));
+        return;
       }
       const json = await response.json();
       const data = json.data ?? json;
@@ -732,7 +733,8 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       }
       await fetchData();
     } catch (submitError) {
-      setSaveError(submitError instanceof Error ? submitError.message : 'Failed to submit results');
+      logger.error('Failed to submit TA phase3 results:', { error: submitError, tournamentId, phase: 'phase3' });
+      setSaveError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
