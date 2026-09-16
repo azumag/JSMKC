@@ -738,7 +738,7 @@ export default function BattleModePageClient({
                     );
                   }
 
-                  /* Build list of players in the current group filter for the player dropdown */}
+                  /* Build list of players in the current group filter for the player dropdown */
                   const playersInScope =
                     matchGroupFilter === 'all'
                       ? qualifications
