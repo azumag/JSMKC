@@ -1,0 +1,158 @@
+name: Apply issue 3590 implementation
+
+on:
+  push:
+    branches:
+      - fix/3590-ta-submit-error-fallbacks
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+        with:
+          ref: fix/3590-ta-submit-error-fallbacks
+          fetch-depth: 0
+      - name: Apply TA submit error fallbacks
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('smkc-score-app')
+
+          finals = root / 'src' / 'app' / 'tournaments' / '[id]' / 'ta' / 'finals' / 'page.tsx'
+          source = finals.read_text()
+          old = '\n'.join([
+              '      if (!response.ok) {',
+              '        const errorData = await response.json().catch(() => ({}));',
+              "        throw new Error(errorData.error || 'Failed to submit results');",
+              '      }',
+              '      const json = await response.json();',
+          ])
+          new = '\n'.join([
+              '      if (!response.ok) {',
+              '        const errorData = await response.json().catch(() => ({}));',
+              "        setSaveError(errorData.error || tCommon('networkError'));",
+              '        return;',
+              '      }',
+              '      const json = await response.json();',
+          ])
+          if old not in source:
+              raise SystemExit('phase3 non-2xx block not found')
+          source = source.replace(old, new, 1)
+          old = '\n'.join([
+              '    } catch (submitError) {',
+              "      setSaveError(submitError instanceof Error ? submitError.message : 'Failed to submit results');",
+              '    } finally {',
+          ])
+          new = '\n'.join([
+              '    } catch (submitError) {',
+              "      logger.error('Failed to submit TA phase3 results:', { error: submitError, tournamentId, phase: 'phase3' });",
+              "      setSaveError(tCommon('networkError'));",
+              '    } finally {',
+          ])
+          if old not in source:
+              raise SystemExit('phase3 catch block not found')
+          finals.write_text(source.replace(old, new, 1))
+
+          elim = root / 'src' / 'components' / 'tournament' / 'ta-elimination-phase.tsx'
+          source = elim.read_text()
+          old = '\n'.join([
+              '      if (!response.ok) {',
+              '        const errorData = await response.json().catch(() => ({}));',
+              "        throw new Error(errorData.error || 'Failed to submit results');",
+              '      }',
+              '      const json = await response.json();',
+          ])
+          new = '\n'.join([
+              '      if (!response.ok) {',
+              '        const errorData = await response.json().catch(() => ({}));',
+              "        setSaveError(errorData.error || tCommon('networkError'));",
+              '        return;',
+              '      }',
+              '      const json = await response.json();',
+          ])
+          if old not in source:
+              raise SystemExit('phase1/2 non-2xx block not found')
+          source = source.replace(old, new, 1)
+          old = '\n'.join([
+              '    } catch (err) {',
+              "      const errorMessage = err instanceof Error ? err.message : 'Failed to submit results';",
+              '      setSaveError(errorMessage);',
+              '    } finally {',
+          ])
+          new = '\n'.join([
+              '    } catch (err) {',
+              "      logger.error('Failed to submit TA elimination results:', { error: err, tournamentId, phase });",
+              "      setSaveError(tCommon('networkError'));",
+              '    } finally {',
+          ])
+          if old not in source:
+              raise SystemExit('phase1/2 catch block not found')
+          elim.write_text(source.replace(old, new, 1))
+
+          test_lines = [
+              "import fs from 'fs';",
+              "import path from 'path';",
+              '',
+              "const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');",
+              '',
+              "describe('TA result submit error fallback contract (issue #3590)', () => {",
+              "  it('localizes Phase 3 generic failures while preserving concrete API errors', () => {",
+              "    const source = read('src', 'app', 'tournaments', '[id]', 'ta', 'finals', 'page.tsx');",
+              "    expect(source).toContain(\"setSaveError(errorData.error || tCommon('networkError'));\");",
+              "    expect(source).toContain(\"logger.error('Failed to submit TA phase3 results:'\");",
+              "    expect(source).toContain(\"setSaveError(tCommon('networkError'));\");",
+              "    expect(source).not.toContain(\"errorData.error || 'Failed to submit results'\");",
+              "    expect(source).not.toContain(\"submitError instanceof Error ? submitError.message : 'Failed to submit results'\");",
+              '  });',
+              '',
+              "  it('localizes Phase 1/2 generic failures while preserving concrete API errors', () => {",
+              "    const source = read('src', 'components', 'tournament', 'ta-elimination-phase.tsx');",
+              "    expect(source).toContain(\"setSaveError(errorData.error || tCommon('networkError'));\");",
+              "    expect(source).toContain(\"logger.error('Failed to submit TA elimination results:'\");",
+              "    expect(source).toContain(\"setSaveError(tCommon('networkError'));\");",
+              "    expect(source).not.toContain(\"errorData.error || 'Failed to submit results'\");",
+              "    expect(source).not.toContain(\"err instanceof Error ? err.message : 'Failed to submit results'\");",
+              '  });',
+              '});',
+              '',
+          ]
+          (root / '__tests__' / 'static' / 'ta-result-submit-error-fallbacks.test.ts').write_text('\n'.join(test_lines))
+
+          docs_lines = [
+              '# TA result submit error feedback contract',
+              '',
+              'TA Phase 1/2 elimination と Phase 3 finals の round result 送信は、API 固有エラーと generic transport failure を分離する。',
+              '',
+              '## 表示契約',
+              '',
+              '- report API が具体的な `error` を返す non-2xx では、そのメッセージを優先する。',
+              '- API error のない non-2xx と non-JSON error body は `common.networkError` を表示する。',
+              '- `fetch()` rejection や success body の JSON parse failure は `common.networkError` を表示する。',
+              '- raw runtime error は client logger に `tournamentId` と phase/action context とともに残す。',
+              '- generic fallback として英語ハードコードや raw `Error.message` をユーザーへ露出しない。',
+              '',
+              '## 非変更事項',
+              '',
+              'submit endpoint / payload、preview、tie-break、validation、成功時の state reset と refetch、`submitting` cleanup は変更しない。',
+              '',
+          ]
+          (root / 'docs' / 'ta-result-submit-error-feedback.md').write_text('\n'.join(docs_lines))
+
+          Path('.github/workflows/issue-3590-apply.yml').unlink()
+          PY
+          git diff --check
+      - name: Commit implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: localize TA result submit failures (#3590)"
+          git push origin HEAD:fix/3590-ta-submit-error-fallbacks
