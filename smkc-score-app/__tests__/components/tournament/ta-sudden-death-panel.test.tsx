@@ -43,10 +43,12 @@ function mockJsonResponse(ok: boolean, body: Record<string, unknown> = {}) {
   } as unknown as Response;
 }
 
-function renderSuddenDeathHook(options: {
-  fetchData?: jest.Mock;
-  setSaveError?: jest.Mock;
-} = {}) {
+function renderSuddenDeathHook(
+  options: {
+    fetchData?: jest.Mock;
+    setSaveError?: jest.Mock;
+  } = {},
+) {
   const fetchData = options.fetchData ?? jest.fn();
   const setSaveError = options.setSaveError ?? jest.fn();
 
@@ -59,7 +61,7 @@ function renderSuddenDeathHook(options: {
       fetchData,
       setSaveError,
       invalidTimeMessage: (name) => `Invalid time for ${name}`,
-    })
+    }),
   );
 
   return { ...hook, fetchData, setSaveError };
@@ -229,9 +231,7 @@ describe('useTaSuddenDeath', () => {
       {
         id: 'round-1',
         roundNumber: 3,
-        suddenDeathRounds: [
-          { id: 'sd-1', sequence: 1, course: 'GV1', targetPlayerIds: ['player-1'], resolved: true },
-        ],
+        suddenDeathRounds: [{ id: 'sd-1', sequence: 1, course: 'GV1', targetPlayerIds: ['player-1'], resolved: true }],
       },
     ];
     const hook = renderHook(() =>
@@ -243,7 +243,7 @@ describe('useTaSuddenDeath', () => {
         fetchData: jest.fn(),
         setSaveError: jest.fn(),
         invalidTimeMessage: (name) => `Invalid time for ${name}`,
-      })
+      }),
     );
 
     expect(hook.result.current.pendingSuddenDeath).toBeUndefined();
@@ -254,9 +254,7 @@ describe('useTaSuddenDeath', () => {
       {
         id: 'round-1',
         roundNumber: 3,
-        suddenDeathRounds: [
-          { id: 'sd-1', sequence: 1, course: 'GV1', targetPlayerIds: ['player-1'], resolved: false },
-        ],
+        suddenDeathRounds: [{ id: 'sd-1', sequence: 1, course: 'GV1', targetPlayerIds: ['player-1'], resolved: false }],
       },
     ];
     const hook = renderHook(() =>
@@ -268,7 +266,7 @@ describe('useTaSuddenDeath', () => {
         fetchData: jest.fn(),
         setSaveError: jest.fn(),
         invalidTimeMessage: (name) => `Invalid time for ${name}`,
-      })
+      }),
     );
 
     expect(hook.result.current.pendingSuddenDeathEntries).toHaveLength(1);
@@ -314,7 +312,7 @@ describe('useTaSuddenDeath', () => {
         fetchData: jest.fn(),
         setSaveError: jest.fn(),
         invalidTimeMessage: (name) => `Invalid time for ${name}`,
-      })
+      }),
     );
 
     await act(async () => {
@@ -336,7 +334,7 @@ describe('useTaSuddenDeath', () => {
         fetchData: jest.fn(),
         setSaveError: jest.fn(),
         invalidTimeMessage: (name) => `Invalid time for ${name}`,
-      })
+      }),
     );
 
     await act(async () => {
@@ -396,33 +394,25 @@ describe('TASuddenDeathSection', () => {
   });
 
   it('TC-2933: isAdmin=false のとき何も描画しない', () => {
-    const { container } = render(
-      <TASuddenDeathSection {...defaultSectionProps} isAdmin={false} />,
-    );
+    const { container } = render(<TASuddenDeathSection {...defaultSectionProps} isAdmin={false} />);
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it('TC-2934: isComplete=true のとき何も描画しない', () => {
-    const { container } = render(
-      <TASuddenDeathSection {...defaultSectionProps} isComplete />,
-    );
+    const { container } = render(<TASuddenDeathSection {...defaultSectionProps} isComplete />);
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it('TC-2935: pendingSuddenDeath=null のとき何も描画しない', () => {
-    const { container } = render(
-      <TASuddenDeathSection {...defaultSectionProps} pendingSuddenDeath={null} />,
-    );
+    const { container } = render(<TASuddenDeathSection {...defaultSectionProps} pendingSuddenDeath={null} />);
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it('TC-2936: saveError があるときエラーメッセージが表示される', () => {
-    render(
-      <TASuddenDeathSection {...defaultSectionProps} saveError="API error" />,
-    );
+    render(<TASuddenDeathSection {...defaultSectionProps} saveError="API error" />);
 
     expect(screen.getByText('API error')).toBeInTheDocument();
   });
