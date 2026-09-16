@@ -334,10 +334,11 @@ export default function GrandPrixPageClient({
         refetch();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || 'Failed to update qualification status');
+        alert(errorData.error || tc('networkError'));
       }
     } catch (err) {
       logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
+      alert(tc('networkError'));
     }
   };
 
