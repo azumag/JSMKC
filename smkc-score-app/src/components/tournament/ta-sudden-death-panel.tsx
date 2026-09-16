@@ -55,6 +55,7 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
   setSaveError,
   invalidTimeMessage,
 }: UseTASuddenDeathParams<Entry, Round>) {
+  const tCommon = useTranslations('common');
   const [times, setTimes] = useState<Record<string, string>>({});
   const [changingCourse, setChangingCourse] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -108,11 +109,11 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to change sudden-death course');
+        throw new Error(errorData.error || tCommon('networkError'));
       }
       fetchData();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to change sudden-death course');
+      setSaveError(err instanceof Error ? err.message : tCommon('networkError'));
     } finally {
       setChangingCourse(false);
     }
@@ -142,12 +143,12 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to submit sudden-death results');
+        throw new Error(errorData.error || tCommon('networkError'));
       }
       setTimes({});
       fetchData();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to submit sudden-death results');
+      setSaveError(err instanceof Error ? err.message : tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
