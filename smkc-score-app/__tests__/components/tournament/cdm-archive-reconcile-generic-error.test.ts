@@ -82,7 +82,9 @@ describe('CDM archive reconcile generic error contract (issue #3570)', () => {
   });
 
   it('uses common.networkError when apply fails without an API-specific error', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(true, { data: preview })).mockResolvedValueOnce(jsonResponse(false, {}));
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(true, { data: preview }))
+      .mockResolvedValueOnce(jsonResponse(false, {}));
     window.prompt = jest.fn(() => 'Tournament One');
     renderButton();
 
