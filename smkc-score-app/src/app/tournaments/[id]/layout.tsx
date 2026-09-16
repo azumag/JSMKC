@@ -28,6 +28,8 @@ import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '
 
 const logger = createLogger({ serviceName: 'tournaments-layout' });
 
+type TournamentFetchFailure = 'not-found' | 'network';
+
 interface Tournament {
   id: string;
   name: string;
@@ -79,22 +81,33 @@ export default function TournamentLayout({
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchInFlight, setFetchInFlight] = useState(true);
+  const [fetchFailure, setFetchFailure] = useState<TournamentFetchFailure | null>(null);
   const [tabsHydrated, setTabsHydrated] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
   const fetchTournament = useCallback(async () => {
+    setFetchInFlight(true);
     try {
       const response = await fetchWithRetry(`/api/tournaments/${id}?fields=summary`, { cache: 'no-store' });
       if (response.ok) {
         const json = await response.json();
         setTournament(json.data ?? json);
+        setFetchFailure(null);
+        setRetryCount(0);
+      } else {
+        const failure: TournamentFetchFailure = response.status === 404 ? 'not-found' : 'network';
+        setFetchFailure(failure);
+        logger.error('Tournament summary request failed', { status: response.status, tournamentId: id });
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error('Failed to fetch tournament:', metadata);
+      logger.error('Failed to fetch tournament:', { ...metadata, tournamentId: id });
+      setFetchFailure('network');
     } finally {
+      setFetchInFlight(false);
       setLoading(false);
     }
   }, [id]);
@@ -162,7 +175,8 @@ export default function TournamentLayout({
     return <>{children}</>;
   }
 
-  if (loading) {
+  const retryPending = !tournament && fetchFailure !== null && retryCount < 2;
+  if (loading || (!tournament && (fetchInFlight || retryPending))) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-start">
@@ -182,7 +196,12 @@ export default function TournamentLayout({
   }
 
   if (!tournament) {
-    return <div className="text-center py-8">{tc('tournamentNotFound')}</div>;
+    const message = fetchFailure === 'not-found' ? tc('tournamentNotFound') : tc('networkError');
+    return (
+      <div role="alert" className="text-center py-8">
+        {message}
+      </div>
+    );
   }
 
   const activeTab = getActiveTab(pathname);
