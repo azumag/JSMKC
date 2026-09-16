@@ -29,16 +29,16 @@
  * so the page is split into a wrapper (ErrorPage) and an inner component
  * (ErrorPageContent) that reads the query params.
  */
-'use client'
+'use client';
 
-import { Suspense } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Suspense } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 /* i18n: useTranslations hook for internationalized strings */
-import { useTranslations } from 'next-intl'
-import { AlertCircle } from 'lucide-react'
-import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl';
+import { AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 /**
  * Maps NextAuth error codes to translated user-friendly messages.
@@ -53,32 +53,32 @@ import { useSearchParams } from 'next/navigation'
 function getErrorMessage(error: string | null, t: (key: string) => string) {
   switch (error) {
     case 'OAuthSignin':
-      return t('oauthSigninError')
+      return t('oauthSigninError');
     case 'OAuthCallback':
-      return t('oauthCallbackError')
+      return t('oauthCallbackError');
     case 'OAuthCreateAccount':
-      return t('oauthCreateAccountError')
+      return t('oauthCreateAccountError');
     case 'CredentialsSignin':
-      return t('credentialsSigninError')
+      return t('credentialsSigninError');
     case 'EmailCreateAccount':
-      return t('emailCreateAccountError')
+      return t('emailCreateAccountError');
     case 'AccessDenied':
       /* Generic access denied — kept for backward compatibility. */
-      return t('accessDeniedError')
+      return t('accessDeniedError');
     case 'NotWhitelisted':
       /* Discord user is not registered in ADMIN_DISCORD_IDS. */
-      return t('notWhitelistedError')
+      return t('notWhitelistedError');
     case 'ServerError':
       /* Database or server error during sign-in processing. */
-      return t('serverError')
+      return t('serverError');
     case 'Callback':
-      return t('callbackError')
+      return t('callbackError');
     case 'SessionRequired':
-      return t('sessionRequiredError')
+      return t('sessionRequiredError');
     case 'Default':
-      return t('genericAuthError')
+      return t('genericAuthError');
     default:
-      return t('unknownAuthError')
+      return t('unknownAuthError');
   }
 }
 
@@ -88,10 +88,10 @@ function getErrorMessage(error: string | null, t: (key: string) => string) {
  * wrap the useSearchParams() call.
  */
 function ErrorPageContent() {
-  const searchParams = useSearchParams()
-  const error = searchParams.get('error')
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
   /* i18n: 'auth' namespace for all authentication-related strings */
-  const t = useTranslations('auth')
+  const t = useTranslations('auth');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -102,40 +102,28 @@ function ErrorPageContent() {
             <AlertCircle className="mr-2 h-6 w-6" />
             {t('errorTitle')}
           </CardTitle>
-          <CardDescription>
-            {getErrorMessage(error, t)}
-          </CardDescription>
+          <CardDescription>{getErrorMessage(error, t)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Contextual help text for specific error types */}
           <div className="text-sm text-muted-foreground text-center">
-            {error === 'AccessDenied' && (
-              <p>{t('accessDeniedHelp')}</p>
-            )}
-            {error === 'NotWhitelisted' && (
-              <p>{t('notWhitelistedHelp')}</p>
-            )}
-            {error === 'ServerError' && (
-              <p>{t('serverErrorHelp')}</p>
-            )}
+            {error === 'AccessDenied' && <p>{t('accessDeniedHelp')}</p>}
+            {error === 'NotWhitelisted' && <p>{t('notWhitelistedHelp')}</p>}
+            {error === 'ServerError' && <p>{t('serverErrorHelp')}</p>}
           </div>
           {/* Recovery action buttons */}
           <div className="flex flex-col gap-2">
             <Button asChild>
-              <Link href="/auth/signin">
-                {t('retryLogin')}
-              </Link>
+              <Link href="/auth/signin">{t('retryLogin')}</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/">
-                {t('goHome')}
-              </Link>
+              <Link href="/">{t('goHome')}</Link>
             </Button>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 /**
@@ -144,19 +132,19 @@ function ErrorPageContent() {
  * useSearchParams() to avoid opting the entire page into client rendering.
  */
 export default function ErrorPage() {
-  const tCommon = useTranslations('common')
+  const tCommon = useTranslations('common');
 
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center text-muted-foreground">
-            {tCommon('loading')}
-          </CardContent>
-        </Card>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-8 text-center text-muted-foreground">{tCommon('loading')}</CardContent>
+          </Card>
+        </div>
+      }
+    >
       <ErrorPageContent />
     </Suspense>
-  )
+  );
 }
