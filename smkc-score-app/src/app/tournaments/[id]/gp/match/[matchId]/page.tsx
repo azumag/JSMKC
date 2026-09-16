@@ -300,12 +300,12 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
         setSubmitted(true);
         refetch();
       } else {
-        const data = await response.json();
-        setError(data.error || tMatch('submitResult'));
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || tCommon('networkError'));
       }
     } catch (err) {
       logger.error('Failed to submit result:', { error: err });
-      setError(tMatch('submitResult'));
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
