@@ -352,14 +352,19 @@ export default function BattleModePageClient({
         }),
       });
 
-      if (response.ok) {
-        setIsScoreDialogOpen(false);
-        setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
-        refetch();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || tc('networkError'));
+        return;
       }
+
+      setIsScoreDialogOpen(false);
+      setSelectedMatch(null);
+      setScoreForm({ score1: 0, score2: 0 });
+      refetch();
     } catch (err) {
       logger.error('Failed to update score:', { error: err, tournamentId });
+      alert(tc('networkError'));
     }
   };
 
@@ -997,7 +1002,7 @@ export default function BattleModePageClient({
                 if (!prevMatch) {
                   return <p className="text-sm text-muted-foreground text-center">{tc('characterPriorityFirst')}</p>;
                 }
-                /* Determine who lost the previous match */
+                /* Determine who lost the previous match */}
                 const p1Score = prevMatch.player1Id === p1 ? prevMatch.score1 : prevMatch.score2;
                 const p2Score = prevMatch.player1Id === p1 ? prevMatch.score2 : prevMatch.score1;
                 const loserNickname =
