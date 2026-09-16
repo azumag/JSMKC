@@ -51,6 +51,8 @@ export function FinalsCupAssignment({
         return;
       }
       onSaved();
+    } catch {
+      alert(t('failedUpdateMatchCup'));
     } finally {
       setSaving(false);
     }
