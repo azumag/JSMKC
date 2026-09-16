@@ -7,6 +7,7 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { useTournamentDebugMode } from '@/lib/hooks/use-tournament-debug-mode';
 import TimeAttackParticipantPage from '@/app/tournaments/[id]/ta/participant/page';
@@ -228,7 +229,7 @@ describe('TA participant page', () => {
     expect(screen.queryByText('phase3ReportTitle')).not.toBeInTheDocument();
   });
 
-  it('hides Fill Random Times from admins when tournament debug mode is off', async () => {
+  it('hides the translated random-fill control from admins when tournament debug mode is off', async () => {
     mockUseSession.mockReturnValue({
       data: { user: { role: 'admin', userType: 'admin', playerId: 'player-1', nickname: 'Admin' } },
     } as ReturnType<typeof useSession>);
@@ -239,23 +240,25 @@ describe('TA participant page', () => {
     await waitFor(() => {
       expect(screen.getByText('loggedInAsPlayer')).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: 'Fill Random Times' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'debugRandomFill' })).not.toBeInTheDocument();
   });
 
-  it('shows Fill Random Times to admins when tournament debug mode is on', async () => {
+  it('shows the translated random-fill control to admins in debug mode and localizes its success toast', async () => {
     mockUseSession.mockReturnValue({
       data: { user: { role: 'admin', userType: 'admin', playerId: 'player-1', nickname: 'Admin' } },
     } as ReturnType<typeof useSession>);
     mockUseTournamentDebugMode.mockReturnValue(true);
+    (toast.success as jest.Mock).mockClear();
 
     render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Fill Random Times' })).toBeInTheDocument();
-    });
+    const fillButton = await screen.findByRole('button', { name: 'debugRandomFill' });
+    fireEvent.click(fillButton);
+
+    expect(toast.success).toHaveBeenCalledWith('debugRandomFillSuccess');
   });
 
-  it('hides Fill Random Times from players even when tournament debug mode is on', async () => {
+  it('hides the translated random-fill control from players even when tournament debug mode is on', async () => {
     mockUseTournamentDebugMode.mockReturnValue(true);
 
     render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
@@ -263,6 +266,6 @@ describe('TA participant page', () => {
     await waitFor(() => {
       expect(screen.getByText('loggedInAsPlayer')).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: 'Fill Random Times' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'debugRandomFill' })).not.toBeInTheDocument();
   });
 });
