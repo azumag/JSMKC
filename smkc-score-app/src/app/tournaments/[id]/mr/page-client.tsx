@@ -486,6 +486,9 @@ export default function MatchRacePageClient({
                     return;
                   }
                   setFinalsExists(false);
+                } catch (error) {
+                  logger.error('Failed to reset qualification bracket', { error, tournamentId });
+                  toast.error(tc('networkError'));
                 } finally {
                   setResettingBracket(false);
                 }
@@ -522,6 +525,9 @@ export default function MatchRacePageClient({
                     return;
                   }
                   setFinalsExists(true);
+                } catch (error) {
+                  logger.error('Failed to generate qualification bracket', { error, tournamentId });
+                  toast.error(tc('networkError'));
                 } finally {
                   setGeneratingBracket(false);
                 }

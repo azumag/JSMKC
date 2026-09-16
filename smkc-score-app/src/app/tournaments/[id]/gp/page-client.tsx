@@ -657,6 +657,9 @@ export default function GrandPrixPageClient({
                     return;
                   }
                   setFinalsExists(false);
+                } catch (error) {
+                  logger.error('Failed to reset qualification bracket', { error, tournamentId });
+                  alert(tc('networkError'));
                 } finally {
                   setResettingBracket(false);
                 }
@@ -693,6 +696,9 @@ export default function GrandPrixPageClient({
                     return;
                   }
                   setFinalsExists(true);
+                } catch (error) {
+                  logger.error('Failed to generate qualification bracket', { error, tournamentId });
+                  alert(tc('networkError'));
                 } finally {
                   setGeneratingBracket(false);
                 }
