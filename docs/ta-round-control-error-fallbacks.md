@@ -14,4 +14,9 @@ TA finals の round control では、ユーザー向けエラーと診断用エ�
 
 ## Phase 3
 
-Phase 3 (`ta/finals/page.tsx`) に残る同じ round-control failure path も issue #3596 で同じ契約へ統一する。Phase 1 / 2 の修正を先に独立して取り込み、Phase 3 は同 issue の残件として扱う。
+`smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` も Phase 1 / 2 と同じ契約に従う。
+
+- API の具体的な `error` はユーザーへそのまま表示する。
+- generic non-2xx と `fetch()` rejection は `common.networkError` を表示する。
+- request rejection の raw detail は client logger のみに残す。
+- confirmation dialog と loading state は、成功・失敗のどちらでも従来どおり操作可能な状態へ戻す。
