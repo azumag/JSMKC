@@ -81,7 +81,7 @@ export function CdmArchiveReconcileButton({
       });
       const previewJson = await previewResponse.json().catch(() => ({}));
       if (!previewResponse.ok) {
-        alert(errorMessage(previewJson, japanese ? '補正プレビューの作成に失敗しました' : 'Failed to build preview'));
+        alert(errorMessage(previewJson, tCommon('networkError')));
         return;
       }
       const preview = unwrap<Preview>(previewJson);
@@ -107,7 +107,7 @@ export function CdmArchiveReconcileButton({
       });
       const applyJson = await applyResponse.json().catch(() => ({}));
       if (!applyResponse.ok) {
-        alert(errorMessage(applyJson, japanese ? 'CDM日程の補正に失敗しました' : 'Reconciliation failed'));
+        alert(errorMessage(applyJson, tCommon('networkError')));
         return;
       }
       const result = unwrap<{ applied: boolean; archiveGeneratedAt: string }>(applyJson);
