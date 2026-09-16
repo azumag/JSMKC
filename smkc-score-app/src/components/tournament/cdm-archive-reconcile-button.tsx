@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { createLogger } from '@/lib/client-logger';
 
@@ -64,6 +64,7 @@ export function CdmArchiveReconcileButton({
   archivePending: boolean;
 }) {
   const locale = useLocale();
+  const tCommon = useTranslations('common');
   const japanese = locale.startsWith('ja');
   const [busy, setBusy] = useState(false);
 
@@ -122,7 +123,7 @@ export function CdmArchiveReconcileButton({
       window.location.reload();
     } catch (error) {
       logger.error('Failed to reconcile CDM archive schedule', { error, tournamentId });
-      alert(japanese ? 'ネットワークエラーが発生しました' : 'A network error occurred');
+      alert(tCommon('networkError'));
     } finally {
       setBusy(false);
     }
