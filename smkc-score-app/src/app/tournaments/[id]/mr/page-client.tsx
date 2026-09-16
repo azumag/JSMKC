@@ -728,7 +728,7 @@ export default function MatchRacePageClient({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  /* Build player→group lookup for match filtering */}
+                  /* Build player→group lookup for match filtering */
                   const playerGroupMap = new Map<string, string>();
                   for (const q of qualifications) {
                     playerGroupMap.set(q.playerId, q.group);
@@ -736,7 +736,7 @@ export default function MatchRacePageClient({
                   const getMatchGroup = (m: MRMatch): string | undefined =>
                     playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
 
-                  /* Apply group filter, then player filter */}
+                  /* Apply group filter, then player filter */
                   let filteredMatches =
                     matchGroupFilter === 'all' ? matches : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
                   if (matchPlayerFilter !== 'all') {
