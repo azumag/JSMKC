@@ -107,9 +107,15 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
       throw new GenericOverallRankingError();
     }
 
-    const data = await response.json();
+    let data: { success?: boolean; data?: OverallRankingData; error?: unknown };
+    try {
+      data = await response.json();
+    } catch (err) {
+      logger.error('Overall ranking fetch returned malformed JSON', { error: err, tournamentId });
+      throw new GenericOverallRankingError();
+    }
     if (data.success && data.data) {
-      return data.data as OverallRankingData;
+      return data.data;
     }
     if (typeof data.error === 'string' && data.error.trim()) {
       throw new Error(data.error);
