@@ -649,7 +649,7 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
                         <Input
                           value={reportTimeInput}
                           onChange={(e) => setReportTimeInput(e.target.value)}
-                          placeholder="M:SS.mm"
+                          placeholder={tTa('timePlaceholder')}
                           className="font-mono"
                           disabled={reporting}
                           aria-label={tTa('reportTime')}
