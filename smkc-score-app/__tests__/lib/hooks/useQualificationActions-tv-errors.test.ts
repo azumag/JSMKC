@@ -24,9 +24,7 @@ jest.mock('sonner', () => ({
 const TOURNAMENT_ID = 'tournament-tv-errors';
 
 function makeHook() {
-  return renderHook(() =>
-    useQualificationActions({ tournamentId: TOURNAMENT_ID, mode: 'bm', refetch: jest.fn() }),
-  );
+  return renderHook(() => useQualificationActions({ tournamentId: TOURNAMENT_ID, mode: 'bm', refetch: jest.fn() }));
 }
 
 describe('useQualificationActions TV assignment feedback', () => {
