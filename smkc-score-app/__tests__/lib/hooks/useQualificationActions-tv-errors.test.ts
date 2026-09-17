@@ -23,8 +23,8 @@ jest.mock('sonner', () => ({
 
 const TOURNAMENT_ID = 'tournament-tv-errors';
 
-function makeHook() {
-  return renderHook(() => useQualificationActions({ tournamentId: TOURNAMENT_ID, mode: 'bm', refetch: jest.fn() }));
+function makeHook(refetch = jest.fn()) {
+  return renderHook(() => useQualificationActions({ tournamentId: TOURNAMENT_ID, mode: 'bm', refetch }));
 }
 
 describe('useQualificationActions TV assignment feedback', () => {
@@ -37,9 +37,10 @@ describe('useQualificationActions TV assignment feedback', () => {
     jest.restoreAllMocks();
   });
 
-  it('keeps successful assignment silent', async () => {
+  it('keeps successful assignment silent without an extra refetch', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true } as Response);
-    const { result } = makeHook();
+    const refetch = jest.fn();
+    const { result } = makeHook(refetch);
 
     act(() => {
       result.current.handleTvAssign('match-1', 2);
@@ -47,44 +48,51 @@ describe('useQualificationActions TV assignment feedback', () => {
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
     expect(toast.error).not.toHaveBeenCalled();
+    expect(refetch).not.toHaveBeenCalled();
   });
 
-  it('shows the concrete API error for a non-ok response', async () => {
+  it('shows the concrete API error and refetches after a non-ok response', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
       json: async () => ({ error: 'TV slot is unavailable' }),
     } as unknown as Response);
-    const { result } = makeHook();
+    const refetch = jest.fn();
+    const { result } = makeHook(refetch);
 
     act(() => {
       result.current.handleTvAssign('match-1', 2);
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('TV slot is unavailable'));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('uses common.networkError when a non-ok response has no API error', async () => {
+  it('uses common.networkError and refetches when a non-ok response has no API error', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
       json: async () => ({}),
     } as unknown as Response);
-    const { result } = makeHook();
+    const refetch = jest.fn();
+    const { result } = makeHook(refetch);
 
     act(() => {
       result.current.handleTvAssign('match-1', null);
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('networkError'));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('uses common.networkError when the request rejects', async () => {
+  it('uses common.networkError and refetches when the request rejects', async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error('offline'));
-    const { result } = makeHook();
+    const refetch = jest.fn();
+    const { result } = makeHook(refetch);
 
     act(() => {
       result.current.handleTvAssign('match-1', 3);
     });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('networkError'));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });
