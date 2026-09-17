@@ -82,6 +82,7 @@ describe('Skeleton accessibility contract (TC-2401)', () => {
     render(<Skeleton aria-label="custom label" className="h-4 w-3/4" />);
 
     expect(screen.getByRole('status', { name: 'Loading content' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('custom label')).not.toBeInTheDocument();
   });
 
   it('keeps the Japanese aria-label authoritative over caller props', () => {
@@ -89,6 +90,7 @@ describe('Skeleton accessibility contract (TC-2401)', () => {
     render(<Skeleton aria-label="custom label" className="h-4 w-3/4" />);
 
     expect(screen.getByRole('status', { name: 'コンテンツを読み込み中' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('custom label')).not.toBeInTheDocument();
   });
 
   it('uses the Japanese status label for Japanese locale', () => {
