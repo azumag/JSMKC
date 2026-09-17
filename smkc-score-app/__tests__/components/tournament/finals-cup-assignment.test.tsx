@@ -45,7 +45,7 @@ describe('FinalsCupAssignment', () => {
         onSaved={jest.fn()}
       />,
     );
-    expect(screen.getByLabelText('Cup details resolution')).toBeInTheDocument();
+    expect(screen.getByLabelText('Existing cup details')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save match cup' }));
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
     expect(global.fetch).toHaveBeenCalledWith(
@@ -62,7 +62,7 @@ describe('FinalsCupAssignment', () => {
         onSaved={jest.fn()}
       />,
     );
-    expect(screen.getByLabelText('Cup details resolution')).toBeInTheDocument();
+    expect(screen.getByLabelText('Existing cup details')).toBeInTheDocument();
   });
 
   it('shows a localized failure and restores the save button when fetch rejects', async () => {
