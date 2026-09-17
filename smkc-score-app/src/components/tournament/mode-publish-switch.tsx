@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useModePublish } from '@/hooks/use-mode-publish';
 import type { RevealableMode } from '@/lib/public-modes';
@@ -23,7 +24,7 @@ interface ModePublishSwitchProps {
  */
 export function ModePublishSwitch({ tournamentId, mode, modeLabelKey }: ModePublishSwitchProps) {
   const tc = useTranslations('common');
-  const { isPublic, toggle, updating, loading, error } = useModePublish(tournamentId, mode);
+  const { isPublic, toggle, retryLoad, updating, loading, error } = useModePublish(tournamentId, mode);
 
   const stateLabel = isPublic ? tc('publishMode') : tc('unpublishMode');
   const ariaLabel = `${tc(modeLabelKey)}: ${stateLabel}`;
@@ -43,9 +44,16 @@ export function ModePublishSwitch({ tournamentId, mode, modeLabelKey }: ModePubl
         </Badge>
       </div>
       {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {tc('networkError')}
-        </p>
+        <div className="space-y-1">
+          <p role="alert" className="text-xs text-destructive">
+            {tc('networkError')}
+          </p>
+          {initialStateUnknown && (
+            <Button type="button" variant="outline" size="sm" onClick={retryLoad} disabled={loading}>
+              {tc('tryAgain')}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
