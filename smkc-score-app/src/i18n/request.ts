@@ -11,6 +11,8 @@
  */
 import { getRequestConfig } from 'next-intl/server';
 import { cookies, headers } from 'next/headers';
+import enGpCupAssignment from '../../messages/gp-cup-assignment/en.json';
+import jaGpCupAssignment from '../../messages/gp-cup-assignment/ja.json';
 import enLoadingOverlay from '../../messages/loading-overlay/en.json';
 import jaLoadingOverlay from '../../messages/loading-overlay/ja.json';
 import enLoadingSkeleton from '../../messages/loading-skeleton/en.json';
@@ -22,6 +24,11 @@ import jaMatchValidation from '../../messages/match-validation/ja.json';
 import enTaPromotion from '../../messages/ta-promotion/en.json';
 import jaTaPromotion from '../../messages/ta-promotion/ja.json';
 import { type Locale, locales, defaultLocale, LOCALE_COOKIE } from './config';
+
+const gpCupAssignmentMessages = {
+  en: enGpCupAssignment,
+  ja: jaGpCupAssignment,
+} satisfies Record<Locale, typeof enGpCupAssignment>;
 
 const loadingOverlayMessages = {
   en: enLoadingOverlay,
@@ -53,6 +60,13 @@ async function loadMessages(locale: Locale) {
 
   return {
     ...messages,
+    gpCupAssignment: {
+      cupDetailsResolution: messages.finals.cupDetailsResolution,
+      keepCupDetails: messages.finals.keepCupDetails,
+      clearCupDetails: messages.finals.clearCupDetails,
+      cancelCupChange: messages.finals.cancelCupChange,
+      ...gpCupAssignmentMessages[locale],
+    },
     loadingOverlay: loadingOverlayMessages[locale],
     loadingSkeleton: loadingSkeletonMessages[locale],
     loadingSpinner: loadingSpinnerMessages[locale],
