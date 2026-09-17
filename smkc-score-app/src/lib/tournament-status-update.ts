@@ -1,14 +1,31 @@
 type TournamentStatusTarget = object;
 
+export class TournamentStatusUpdateError extends Error {
+  readonly userFacing: boolean;
+
+  constructor(message: string, { userFacing = false }: { userFacing?: boolean } = {}) {
+    super(message);
+    this.name = 'TournamentStatusUpdateError';
+    this.userFacing = userFacing;
+  }
+}
+
+export function isUserFacingTournamentStatusUpdateError(error: unknown): error is TournamentStatusUpdateError {
+  return error instanceof TournamentStatusUpdateError && error.userFacing;
+}
+
 function readApiErrorDetail(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
 
-  const candidate = payload as { error?: unknown; message?: unknown };
+  const candidate = payload as { error?: unknown; message?: unknown; data?: unknown };
   if (typeof candidate.error === 'string' && candidate.error.trim()) {
     return candidate.error.trim();
   }
   if (typeof candidate.message === 'string' && candidate.message.trim()) {
     return candidate.message.trim();
+  }
+  if (candidate.data && typeof candidate.data === 'object') {
+    return readApiErrorDetail(candidate.data);
   }
   return null;
 }
@@ -24,14 +41,15 @@ function archivedRestoreUrl(response: Response): string | null {
 
 async function unwrapTournamentResponse<T extends object>(response: Response, payload: unknown): Promise<T> {
   if (!response.ok) {
-    throw new Error(readApiErrorDetail(payload) ?? `HTTP ${response.status}`);
+    const apiError = readApiErrorDetail(payload);
+    throw new TournamentStatusUpdateError(apiError ?? `HTTP ${response.status}`, { userFacing: Boolean(apiError) });
   }
 
   const data =
     payload && typeof payload === 'object' && 'data' in payload ? (payload as { data?: unknown }).data : payload;
 
   if (!data || typeof data !== 'object') {
-    throw new Error('Invalid tournament status update response');
+    throw new TournamentStatusUpdateError('Invalid tournament status update response');
   }
 
   return data as T;
