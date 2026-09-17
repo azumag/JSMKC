@@ -8,6 +8,24 @@ import {
   type CombinedStandingsTableLabels,
 } from '@/components/tournament/combined-standings-table';
 
+jest.mock('next-intl', () => {
+  const translations: Record<string, Record<string, string>> = {
+    common: {
+      networkError: 'common.networkError',
+    },
+    rankCell: {
+      rankInput: 'Rank override',
+      editRank: 'Edit rank',
+      saveRank: 'Save rank',
+      clearRankOverride: 'Clear rank override',
+    },
+  };
+
+  return {
+    useTranslations: (namespace: string) => (key: string) => translations[namespace]?.[key] ?? `${namespace}.${key}`,
+  };
+});
+
 describe('CombinedStandingsTable', () => {
   const combinedTieProps = {
     isAdmin: false,
@@ -225,7 +243,7 @@ describe('CombinedStandingsTable', () => {
     expect(cells['#']).not.toHaveTextContent('4');
   });
 
-  it('TC-3022: admin can clear a resolved combinedRankOverride via the RankCell ✕ control', async () => {
+  it('TC-3022: admin can clear a resolved combinedRankOverride via the RankCell clear control', async () => {
     const onRankOverrideSave = jest.fn(async () => {});
     render(
       <CombinedStandingsTable
@@ -242,7 +260,7 @@ describe('CombinedStandingsTable', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /✕/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Clear rank override' }));
     });
 
     expect(onRankOverrideSave).toHaveBeenCalledWith('q1', null);
