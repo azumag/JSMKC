@@ -38,8 +38,13 @@ export default function GrandPrixParticipantPage({ params }: { params: Promise<{
   const tPart = useTranslations('participant');
   const tMatch = useTranslations('match');
   const tGp = useTranslations('gp');
+  const tCommon = useTranslations('common');
 
-  const ctx = useParticipantMatches<GPMatch>({ tournamentId, mode: 'gp' });
+  const ctx = useParticipantMatches<GPMatch>({
+    tournamentId,
+    mode: 'gp',
+    networkErrorMessage: tCommon('networkError'),
+  });
 
   const [driverPoints, setDriverPoints] = useState<Record<string, DriverPointInput>>({});
 
