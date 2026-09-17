@@ -175,6 +175,12 @@ describe('E2E case drift coverage', () => {
     'ui',
     'loading-skeleton.test.tsx',
   );
+  const loadingSkeletonContractTest = readRepoFile(
+    'smkc-score-app',
+    '__tests__',
+    'static',
+    'loading-skeleton-contract.test.ts',
+  );
   const loadingSkeleton = readRepoFile('smkc-score-app', 'src', 'components', 'ui', 'loading-skeleton.tsx');
   const bmPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx');
   const mrPageClient = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx');
@@ -1012,8 +1018,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('titleSkeletonClassName');
     expect(section).toContain('w-48');
     expect(section).toContain('__tests__/components/ui/loading-skeleton.test.tsx');
-    expect(loadingSkeleton).toContain('titleSkeletonClassName = "w-48"');
-    expect(qualificationFallbackTest).toContain('uses the qualification page title skeleton width by default');
+    // The AST-backed contract owns the source-level default check; the component test owns rendered behavior.
+    expect(loadingSkeletonContractTest).toContain("titleSkeletonBinding.initializer.text).toBe('w-48')");
+    expect(qualificationFallbackTest).toContain("getByTestId('title-skeleton')).toHaveClass('w-48')");
     for (const pageClient of [bmPageClient, mrPageClient, gpPageClient]) {
       expect(pageClient).toContain("<QualificationClientLoadingState title={t('title')} />");
       expect(pageClient).not.toContain('titleSkeletonClassName="w-48"');
@@ -1031,10 +1038,10 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('role="status"');
     expect(section).toContain('aria-label');
     expect(section).toContain('data-testid="title-skeleton"');
-    // Skeleton props spread must come before role/aria-label so callers cannot override them
-    expect(loadingSkeleton).toContain('{...props}');
-    expect(loadingSkeleton).toMatch(/\{\.\.\.props\}[\s\S]{0,20}role="status"/);
-    expect(loadingSkeleton).toMatch(/\{\.\.\.props\}[\s\S]{0,50}aria-label="Loading content"/);
+    // The AST-backed contract verifies ownership/order without coupling this docs guard to quote style or locale text.
+    expect(loadingSkeletonContractTest).toContain('expect(roleIndex).toBeGreaterThan(spreadIndex)');
+    expect(loadingSkeletonContractTest).toContain('expect(ariaLabelIndex).toBeGreaterThan(spreadIndex)');
+    expect(loadingSkeletonContractTest).toContain("expression.arguments[0].text === 'ariaLabel'");
     // SkeletonProps must not redundantly declare className (HTMLAttributes already provides it)
     expect(loadingSkeleton).not.toContain('interface SkeletonProps');
     expect(loadingSkeleton).toContain('type SkeletonProps');
@@ -1042,13 +1049,10 @@ describe('E2E case drift coverage', () => {
     expect(loadingSkeleton).toContain('data-testid="title-skeleton"');
     // Unit tests must cover the accessibility contract
     expect(qualificationFallbackTest).toContain('TC-2401');
-    expect(qualificationFallbackTest).toContain(
-      'always renders with role="status" even when caller passes a different role',
-    );
-    expect(qualificationFallbackTest).toContain(
-      'always renders with aria-label even when caller passes a different aria-label',
-    );
-    expect(qualificationFallbackTest).toContain("getByTestId('title-skeleton')");
+    expect(qualificationFallbackTest).toContain("getByRole('status')");
+    expect(qualificationFallbackTest).toContain("queryByRole('img')");
+    expect(qualificationFallbackTest).toContain("queryByLabelText('custom label')");
+    expect(qualificationFallbackTest).toContain("name: 'コンテンツを読み込み中'");
   });
 
   it('documents TC-816A as CDM finals native bracket coordinate coverage', () => {
